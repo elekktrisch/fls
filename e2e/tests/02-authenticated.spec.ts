@@ -14,17 +14,6 @@ const AUTH_ROUTES: { name: string; path: string }[] = [
   { name: 'flight-reports',                   path: '/flightreports' },
   { name: 'profile',                          path: '/profile' },
   { name: 'system-logs',                      path: '/system/logs' },
-  { name: 'masterdata-aircrafts',             path: '/masterdata/aircrafts' },
-  { name: 'masterdata-persons',               path: '/masterdata/persons' },
-  { name: 'masterdata-users',                 path: '/masterdata/users' },
-  { name: 'masterdata-clubs',                 path: '/masterdata/clubs' },
-  { name: 'masterdata-locations',             path: '/masterdata/locations' },
-  { name: 'masterdata-flighttypes',           path: '/masterdata/flightTypes' },
-  { name: 'masterdata-accountingrules',       path: '/masterdata/accountingRuleFilters' },
-  { name: 'masterdata-deliveries',            path: '/masterdata/deliveries' },
-  { name: 'masterdata-deliverycreationtests', path: '/masterdata/deliveryCreationTests' },
-  { name: 'masterdata-memberstates',          path: '/masterdata/memberStates' },
-  { name: 'masterdata-personcategories',      path: '/masterdata/personCategories' },
 ];
 
 for (const { name, path } of AUTH_ROUTES) {
