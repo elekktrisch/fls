@@ -178,6 +178,8 @@ $SQLCMD -d FLSTest -Q "SELECT Users=(SELECT COUNT(*) FROM Users), Clubs=(SELECT 
 
 Expected: **Users=4, Clubs=2, Flights=5, Aircrafts=15**. The admin login is `testclubadmin` (password `s`) belonging to the Test-Club (`ClubId=0FA7B76F-47BA-4138-8F96-671400FD7C83`).
 
+> **Note for the Playwright e2e suite.** The steps above are the manual / dev playbook (non-deterministic dates from `SYSDATETIME()`, hand-curated assertions). The e2e suite instead uses **`e2e/scripts/seed.sh`** which drops and recreates `FLSTest`, re-applies the same schema + static seed files, and then layers `flsserver/database/FLSTest/3 insert/_test-fixture.sql` on top — that fixture anchors every timestamp to a fixed `2026-01-01` base (so time-gated states like `Locked` and `DeliveryPrepared` are reachable without clock manipulation), adds a second club for multi-tenancy tests, seeds `AccountingRuleFilters` / `PersonCategories` / a 30-day-old historical flight for the test club, and points `SystemData.SmtpServer` at `mailpit`. Use the manual flow when iterating against the live demo; use `bash e2e/scripts/seed.sh` before running Playwright.
+
 ## Milestone 2 — Build flsserver
 
 ### 2.1 Switch to the linux-demo branch
