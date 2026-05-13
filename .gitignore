@@ -1,0 +1,11 @@
+# JetBrains workspace state (the .idea/.gitignore controls finer-grained excludes)
+.idea/workspace.xml
+.idea/shelf/
+.idea/httpRequests/
+.idea/queries/
+.idea/dataSources/
+.idea/dataSources.local.xml
+
+# OS junk
+.DS_Store
+Thumbs.db
