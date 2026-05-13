@@ -1,0 +1,71 @@
+# FLS e2e test stack
+# ----------------------------------------------------------------------------
+# Brings up the *out-of-process* dependencies the Playwright suite needs:
+#
+#   - mssql:   SQL Server 2022 Developer, seeded by hand (see TESTING.md
+#              Milestone 1). Holds the FLSTest database.
+#   - mailpit: SMTP sink + REST API + Web UI. The FLS server is pointed at
+#              its SMTP listener (1025) so the email-related specs can
+#              assert deliveries via Mailpit's /api/v1/messages endpoint
+#              (see task #24 — Mailpit helper not yet written).
+#
+# What is intentionally NOT in here:
+#
+#   - The FLS Web API (Mono + .NET 4.5 + OWIN self-host, console exe)
+#   - The flsweb webpack-dev-server (Node 8 + webpack 1 + babel ES2015)
+#
+# Both are awkward to containerize cleanly: the server needs Mono 6.12
+# plus a hand-built FLS.Server.Console.exe and a copy of
+# EntityFramework.SqlServer.dll dropped next to it; the client needs
+# Node 8 via nvm and a couple of case-sensitivity sed fixes against
+# the legacy webpack-1 bundle. Until someone invests in proper images
+# for them, dev-up.sh starts the database + email sink via this file
+# and TESTING.md (Milestones 2-3 and 5) covers building / running the
+# two app processes locally.
+#
+# Run under a dedicated compose project name so this can live next to a
+# manually-started stack:
+#
+#   docker compose -p fls-e2e up -d
+#   docker compose -p fls-e2e down -v
+#
+# Both helper scripts (e2e/scripts/dev-up.sh, e2e/scripts/dev-down.sh)
+# already pass the -p flag.
+# ----------------------------------------------------------------------------
+
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Demo#FLS#2026"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Demo#FLS#2026' -C -Q 'SELECT 1' || exit 1"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"   # SMTP listener (FLS server -> here)
+      - "8025:8025"   # HTTP API + Web UI (tests -> here)
+    environment:
+      MP_MAX_MESSAGES: "5000"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    healthcheck:
+      test:
+        - "CMD"
+        - "wget"
+        - "-q"
+        - "--spider"
+        - "http://localhost:8025/api/v1/info"
+      interval: 5s
+      timeout: 3s
+      retries: 10
