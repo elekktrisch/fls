@@ -13,7 +13,8 @@
                     <form role="form"
                           ng-submit="ctrl.passengerflight()"
                           class="col-xs-12"
-                          name="passengerflightForm">
+                          name="passengerflightForm"
+                          data-testid="passenger-flight-form">
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
@@ -237,7 +238,8 @@
                             <button type="submit"
                                     class="btn btn-default"
                                     translate="APPLY_FOR_PASSENGER_FLIGHT"
-                                    ng-disabled="passengerflightForm.$pristine">
+                                    ng-disabled="passengerflightForm.$pristine"
+                                    data-testid="submit">
                             </button>
                         </div>
                     </form>
@@ -253,7 +255,8 @@
                 </div>
 
                 <div ng-show="ctrl.success"
-                     class="col-xs-12 col-sm-12 col-md-6 col-lg-6">
+                     class="col-xs-12 col-sm-12 col-md-6 col-lg-6"
+                     data-testid="success-message">
                     <p translate="APPLICATION_FOR_PASSENGER_FLIGHT_WAS_SUCCESSFUL"></p>
                     <p><a href="http://www.fgzo.ch"
                           translate="BACK_TO_HOMEPAGE"></a></p>

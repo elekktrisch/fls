@@ -107,6 +107,9 @@ export type EmailFilter = {
   subjectMatches?: RegExp;
   bodyMatches?: RegExp;
   from?: string;
+  /** Only match messages with `Date >= createdAfter`. Used by public-flows
+   *  tests that want to ignore mail produced by previous test runs. */
+  createdAfter?: Date;
 };
 
 export type ExpectOptions = {
@@ -127,6 +130,10 @@ async function evaluateFilter(
     if (filter.to && !matchesAddress(msg.To, filter.to)) continue;
     if (filter.from && !matchesAddress([msg.From], filter.from)) continue;
     if (filter.subjectMatches && !filter.subjectMatches.test(msg.Subject ?? '')) continue;
+    if (filter.createdAfter) {
+      const t = Date.parse(msg.Date);
+      if (!Number.isFinite(t) || t < filter.createdAfter.getTime()) continue;
+    }
     if (filter.bodyMatches) {
       const body = await getBody(msg.ID);
       const haystack = (body.text || '') + '\n' + (body.html || '');
@@ -197,3 +204,7 @@ export function uniqueRecipient(prefix = 'e2e-email'): string {
   const id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   return `${prefix}-${id}@e2e.fls.local`;
 }
+
+/** Alias for {@link expectEmail}, kept for the public-flows spec which calls
+ *  `findMessage(...)`. Same semantics — polls until matched or times out. */
+export const findMessage = expectEmail;

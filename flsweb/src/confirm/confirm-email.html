@@ -9,7 +9,8 @@
                 <p class="col-xs-12 col-sm-12 col-md-6 col-lg-6" translate="CHOOSE_PASSWORD_FORM_EXPLANATION"></p>
 
                 <form role="form" ng-submit="ctrl.choosePassword(ctrl.newPassword)"
-                      class="fls col-xs-12 col-sm-12 col-md-6 col-lg-6" name="ctrl.choosePasswordForm">
+                      class="fls col-xs-12 col-sm-12 col-md-6 col-lg-6" name="ctrl.choosePasswordForm"
+                      data-testid="confirm-email-form">
                     <div class="form-group col-xs-12">
                         <label for="newPassword"><span translate="PASSWORD"></span>:</label>
                         <input type="password" class="form-control" id="newPassword" name="newPassword"

@@ -186,7 +186,7 @@ SELECT 'Clubs',            COUNT(*) FROM Clubs
 UNION ALL SELECT 'ARFs(testclub)', COUNT(*) FROM AccountingRuleFilters WHERE ClubId='0FA7B76F-47BA-4138-8F96-671400FD7C83'
 UNION ALL SELECT 'PersonCategories', COUNT(*) FROM PersonCategories
 UNION ALL SELECT 'HistoricalFlights', COUNT(*) FROM Flights WHERE FlightDate < '2025-12-15'
-UNION ALL SELECT 'SmtpIsMailpit',  CASE WHEN EXISTS(SELECT 1 FROM SystemData WHERE SmtpServer='mailpit') THEN 1 ELSE 0 END;
+UNION ALL SELECT 'SmtpIsMailpit',  CASE WHEN EXISTS(SELECT 1 FROM SystemData WHERE SmtpServer='localhost' AND SmtpPort=1025) THEN 1 ELSE 0 END;
 " FLSTest
 
 log "done."

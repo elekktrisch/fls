@@ -360,12 +360,15 @@ END
 -- 6. SystemData: point email at the Mailpit sidecar that task #16 will add.
 --    Singleton row; we DELETE + INSERT to keep it deterministic.
 -- ---------------------------------------------------------------------------
-PRINT 'Fixture: SystemData (Mailpit)'
--- UseSmtpAuthentication is set to 1 with a dummy username/password because Mono's
--- System.Net.Mail.SmtpClient throws NotImplementedException on the
--- `UseDefaultCredentials = true` branch (FLS.Server.Service/Email/EmailSendService.cs:63).
--- Mailpit is configured with MP_SMTP_AUTH_ACCEPT_ANY=1 (see docker-compose.yml) so any
--- credentials are accepted, and we get the explicit-credentials path which Mono supports.
+-- Notes (combined finding from email-tests and public-flows agents):
+-- 1. SmtpServer is 'localhost' (not the docker alias 'mailpit') because the
+--    FLS.Server.Console Mono host runs on the dev host, not inside the
+--    docker network. Mailpit's container publishes 1025 on the host.
+-- 2. UseSmtpAuthentication=1 with empty username/password forces the code
+--    path SmtpClient.UseDefaultCredentials = false. Mono throws
+--    NotImplementedException on the UseDefaultCredentials=true branch
+--    (FLS.Server.Service/Email/EmailSendService.cs:63). Mailpit's
+--    MP_SMTP_AUTH_ACCEPT_ANY=1 accepts empty credentials.
 DELETE FROM SystemData
 INSERT INTO SystemData (
     SystemId, BaseURL,
@@ -377,7 +380,7 @@ INSERT INTO SystemData (
 ) VALUES (
     'F1500006-0000-0000-0000-000000000001', N'http://localhost:25567',
     N'test@glider-fls.ch', N'test@glider-fls.ch',
-    N'mailpit', N'mailpit', N'mailpit', 1025,
+    N'', N'', N'localhost', 1025,
     10, 0, 1,
     0, N'test@glider-fls.ch',
     1, 0
