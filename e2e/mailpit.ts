@@ -25,7 +25,9 @@ export type MailpitMessage = {
   Subject: string;
   To: MailpitAddress[];
   From: MailpitAddress;
-  Date: string;
+  /** Mailpit's RFC3339 receive timestamp. Field is named `Created` on the
+   *  v1 search/list response — it is NOT named `Date`. */
+  Created: string;
   Snippet?: string;
 };
 
@@ -131,7 +133,7 @@ async function evaluateFilter(
     if (filter.from && !matchesAddress([msg.From], filter.from)) continue;
     if (filter.subjectMatches && !filter.subjectMatches.test(msg.Subject ?? '')) continue;
     if (filter.createdAfter) {
-      const t = Date.parse(msg.Date);
+      const t = Date.parse(msg.Created);
       if (!Number.isFinite(t) || t < filter.createdAfter.getTime()) continue;
     }
     if (filter.bodyMatches) {
@@ -205,6 +207,13 @@ export function uniqueRecipient(prefix = 'e2e-email'): string {
   return `${prefix}-${id}@e2e.fls.local`;
 }
 
-/** Alias for {@link expectEmail}, kept for the public-flows spec which calls
- *  `findMessage(...)`. Same semantics — polls until matched or times out. */
-export const findMessage = expectEmail;
+/** Like {@link expectEmail} but also fetches the message body so callers can
+ *  inspect `.Text` / `.HTML`. Used by `09-public-flows.spec.ts`. */
+export async function findMessage(
+  filter: EmailFilter,
+  opts: ExpectOptions = {},
+): Promise<MailpitMessage & { Text: string; HTML: string }> {
+  const msg = await expectEmail(filter, opts);
+  const body = await getBody(msg.ID);
+  return { ...msg, Text: body.text, HTML: body.html };
+}
