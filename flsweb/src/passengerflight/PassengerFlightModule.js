@@ -1,6 +1,6 @@
 import angular from 'angular';
 import coreModule from '../core/CoreModule';
-import passengerflightController from './PassengerflightController';
+import passengerflightController from './PassengerFlightController';
 import {PassengerFlightResourceService} from './PassengerFlightResourceService';
 import "angular-recaptcha";
 

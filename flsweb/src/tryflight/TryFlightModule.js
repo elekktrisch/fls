@@ -1,6 +1,6 @@
 import angular from 'angular';
 import coreModule from '../core/CoreModule';
-import TryflightController from './TryflightController';
+import TryflightController from './TryFlightController';
 import {TrialFlightResourceService} from './TrialFlightResourceService';
 import "angular-recaptcha";
 
