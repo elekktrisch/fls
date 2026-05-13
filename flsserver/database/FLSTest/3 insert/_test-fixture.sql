@@ -361,6 +361,11 @@ END
 --    Singleton row; we DELETE + INSERT to keep it deterministic.
 -- ---------------------------------------------------------------------------
 PRINT 'Fixture: SystemData (Mailpit)'
+-- UseSmtpAuthentication is set to 1 with a dummy username/password because Mono's
+-- System.Net.Mail.SmtpClient throws NotImplementedException on the
+-- `UseDefaultCredentials = true` branch (FLS.Server.Service/Email/EmailSendService.cs:63).
+-- Mailpit is configured with MP_SMTP_AUTH_ACCEPT_ANY=1 (see docker-compose.yml) so any
+-- credentials are accepted, and we get the explicit-credentials path which Mono supports.
 DELETE FROM SystemData
 INSERT INTO SystemData (
     SystemId, BaseURL,
@@ -372,11 +377,73 @@ INSERT INTO SystemData (
 ) VALUES (
     'F1500006-0000-0000-0000-000000000001', N'http://localhost:25567',
     N'test@glider-fls.ch', N'test@glider-fls.ch',
-    NULL, NULL, N'mailpit', 1025,
+    N'mailpit', N'mailpit', N'mailpit', 1025,
     10, 0, 1,
     0, N'test@glider-fls.ch',
-    0, 0
+    1, 0
 )
+
+-- ---------------------------------------------------------------------------
+-- 7. Email templates not present in the base seed (DBUpdate_v1.9.29 alter
+--    adds them but is tolerant-skipped in seed.sh, so we re-add them here).
+--    Tests #3/#4 (passenger flight registration) need these to exist.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: passenger flight email templates'
+IF NOT EXISTS (SELECT 1 FROM EmailTemplates WHERE EmailTemplateKeyName = 'PassengerFlightRegistrationEmailForPassenger' AND IsSystemTemplate = 1)
+BEGIN
+    INSERT INTO EmailTemplates (
+        EmailTemplateId, ClubId, EmailTemplateName, EmailTemplateKeyName,
+        Description, FromAddress, ReplyToAddresses, Subject,
+        IsSystemTemplate, CreatedOn, CreatedByUserId,
+        RecordState, OwnerId, OwnershipType, IsDeleted,
+        HtmlBody, IsCustomizable, LanguageId
+    ) VALUES (
+        'F1500007-0000-0000-0000-000000000001', NULL,
+        N'Passenger flight registration confirmation email for passenger',
+        N'PassengerFlightRegistrationEmailForPassenger',
+        N'Sends a registration confirmation email to the passenger.',
+        N'fls@glider-fls.ch', N'noreply@glider-fls.ch',
+        N'Bestätigung für Passagierflug-Registrierung',
+        1, SYSUTCDATETIME(), @insertUserId,
+        1, @systemClubId, @ownershipClub, 0,
+        N'<html><body>Hallo $PassengerFlightRegistrationModel.RecipientName</body></html>',
+        2, 0
+    )
+END
+
+IF NOT EXISTS (SELECT 1 FROM EmailTemplates WHERE EmailTemplateKeyName = 'NewPassengerFlightRegistrationEmail' AND IsSystemTemplate = 1)
+BEGIN
+    INSERT INTO EmailTemplates (
+        EmailTemplateId, ClubId, EmailTemplateName, EmailTemplateKeyName,
+        Description, FromAddress, ReplyToAddresses, Subject,
+        IsSystemTemplate, CreatedOn, CreatedByUserId,
+        RecordState, OwnerId, OwnershipType, IsDeleted,
+        HtmlBody, IsCustomizable, LanguageId
+    ) VALUES (
+        'F1500007-0000-0000-0000-000000000002', NULL,
+        N'New passenger flight registration',
+        N'NewPassengerFlightRegistrationEmail',
+        N'Sends a new-passenger-flight notification email to the club operator.',
+        N'fls@glider-fls.ch', N'noreply@glider-fls.ch',
+        N'Neue Passagierflug-Registrierung',
+        1, SYSUTCDATETIME(), @insertUserId,
+        1, @systemClubId, @ownershipClub, 0,
+        N'<html><body>Neue Passagier-Registrierung: $PassengerFlightRegistrationModel.Lastname $PassengerFlightRegistrationModel.Firstname</body></html>',
+        2, 0
+    )
+END
+
+-- ---------------------------------------------------------------------------
+-- 8. Club organizer email recipients on the test club. The trial flight /
+--    passenger flight registration services send a "new registration" email
+--    to these addresses if set (RegistrationService.cs:243, :388). Empty in
+--    the base seed; tests #2 and #4 assert against the value set here.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: testclub organizer recipients'
+UPDATE Clubs
+   SET SendTrialFlightRegistrationOperatorEmailTo     = N'trial-organizer@e2e.fls.local',
+       SendPassengerFlightRegistrationOperatorEmailTo = N'passenger-organizer@e2e.fls.local'
+ WHERE ClubId = @testClubId
 
 PRINT '=== DETERMINISTIC TEST FIXTURE: complete ==='
 GO
