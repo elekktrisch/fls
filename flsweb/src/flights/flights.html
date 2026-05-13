@@ -33,7 +33,8 @@
                         ng-class="{
                           'fls-flight-row-warning': flight.ValidationState == 28 || flight.ProcessState > 0
                         }"
-                        title="{{'EDIT' | translate}}">
+                        title="{{'EDIT' | translate}}"
+                        data-testid="row">
                         <td data-title="'FLIGHT_STATUS' | translate"
                             filter="{_airState: 'air-state'}"
                             header-class="'tiny-column'"

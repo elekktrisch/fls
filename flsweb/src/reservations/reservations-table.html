@@ -3,7 +3,8 @@
        show-filter="true">
     <tr ng-repeat="reservation in $data"
         ng-click="showReservationDetails(reservation)"
-        title="{{'EDIT' | translate}}">
+        title="{{'EDIT' | translate}}"
+        data-testid="row">
         <td ng-bind="reservation.Start | date:'dd.MM.yyyy'"
             data-title="'DATE' | translate"
             filter="{ Start: 'date'}"

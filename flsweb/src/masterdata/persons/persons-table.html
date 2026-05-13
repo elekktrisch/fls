@@ -1,6 +1,6 @@
 <div>
     <table ng-table="tableParams" class="fls fls-table-with-details" show-filter="true">
-        <tr ng-repeat="person in $data" ng-click="editPerson(person)" title="{{'EDIT' | translate}}">
+        <tr ng-repeat="person in $data" ng-click="editPerson(person)" title="{{'EDIT' | translate}}" data-testid="row">
             <td ng-bind="person.Firstname" data-title="'FIRST_NAME' | translate" filter="{ Firstname: 'text'}" sortable="'Firstname'"></td>
             <td ng-bind="person.Lastname" data-title="'LAST_NAME' | translate" filter="{ Lastname: 'text'}" sortable="'Lastname'"></td>
             <td ng-bind="person.AddressLine" data-title="'ADDRESS_LINE1' | translate" filter="{ AddressLine: 'text'}" sortable="'AddressLine'"></td>

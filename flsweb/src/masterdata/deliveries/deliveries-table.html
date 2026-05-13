@@ -4,7 +4,8 @@
            show-filter="true">
         <tr ng-repeat="delivery in $data"
             ng-click="editDelivery(delivery)"
-            title="{{'EDIT' | translate}}">
+            title="{{'EDIT' | translate}}"
+            data-testid="row">
             <td ng-bind="delivery.BatchId"
                 data-title="'BATCH_ID' | translate"
                 filter="{ BatchId: 'text'}"

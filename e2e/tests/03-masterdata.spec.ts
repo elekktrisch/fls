@@ -27,18 +27,18 @@ const ENTITIES: Entity[] = [
 ];
 
 async function dataRowCount(page: Page): Promise<number> {
-  // ng-table renders `<tr ng-repeat>`; the older templates use `<tr ng-repeat-start>` + `<tr ng-repeat-end>`.
-  // Header / filter / pager rows don't have any ng-repeat attribute, so this isolates data rows.
-  return page.locator('tbody tr[ng-repeat], tbody tr[ng-repeat-start]').count();
+  // Every data row carries data-testid="row" (see e2e/SELECTORS.md). Header / filter / pager rows don't.
+  return page.locator('tbody [data-testid="row"]').count();
 }
 
 async function openFirstRowForm(page: Page): Promise<void> {
-  // Two row layouts in the wild:
-  //   1. Whole <tr ng-click="editXxx(x)"> — click anywhere on the row.
-  //   2. <tr ng-repeat-start> with a separate <a ng-click="editXxx(x)"> pencil icon — click the link.
-  const rowEdit = page.locator('tbody tr[ng-click^="edit"]').first();
-  const linkEdit = page.locator('tbody a[ng-click^="edit"]').first();
-  const target = (await rowEdit.count()) > 0 ? rowEdit : linkEdit;
+  // Two row layouts in the wild (see e2e/SELECTORS.md):
+  //   1. Row-click pattern: the <tr data-testid="row"> itself is the click target (ng-click on the <tr>).
+  //   2. Pencil-link pattern: a separate <a data-testid="row-edit"> pencil icon inside the row.
+  // Prefer the pencil link if it exists, otherwise fall back to clicking the row.
+  const rowEdit = page.locator('tbody [data-testid="row-edit"]').first();
+  const row = page.locator('tbody [data-testid="row"]').first();
+  const target = (await rowEdit.count()) > 0 ? rowEdit : row;
   await target.waitFor({ state: 'visible' });
   const urlBefore = page.url();
   await target.click();
@@ -47,7 +47,7 @@ async function openFirstRowForm(page: Page): Promise<void> {
   await page.waitForTimeout(500);
   // Wait for any busy indicator the form fetch may have introduced.
   await page.waitForFunction(() => {
-    const spinners = Array.from(document.querySelectorAll('.cssload-loader')) as HTMLElement[];
+    const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];
     return spinners.every(el => {
       const rect = el.getBoundingClientRect();
       return rect.width === 0 && rect.height === 0;

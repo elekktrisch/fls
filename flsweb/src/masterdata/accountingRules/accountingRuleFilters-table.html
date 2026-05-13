@@ -4,7 +4,8 @@
            show-filter="true">
         <tr ng-repeat="accountingRuleFilter in $data"
             ng-click="editAccountingRuleFilter(accountingRuleFilter)"
-            title="{{'EDIT' | translate}}">
+            title="{{'EDIT' | translate}}"
+            data-testid="row">
             <td data-title="'ACTIVE' | translate">
                 <fls-checkbox is-checked="accountingRuleFilter.IsActive">
             </td>

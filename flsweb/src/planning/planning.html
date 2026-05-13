@@ -21,7 +21,8 @@
                    show-filter="true">
                 <tr ng-repeat="planningDay in $data"
                     ng-click="showPlanningDayDetails(planningDay)"
-                    title="{{'EDIT' | translate}}">
+                    title="{{'EDIT' | translate}}"
+                    data-testid="row">
                     <td ng-bind="planningDay.Day | date:'dd.MM.yyyy'"
                         data-title="'DATE' | translate"
                         filter="{ Day: 'date'}"

@@ -28,7 +28,8 @@
            show-filter="true">
         <tr ng-repeat="deliveryCreationTest in $data"
             ng-click="editDeliveryCreationTest(deliveryCreationTest)"
-            ng-attr-title="{{deliveryCreationTest.status}}">
+            ng-attr-title="{{deliveryCreationTest.status}}"
+            data-testid="row">
 
             <td data-title="'ACTIVE' | translate">
                 <fls-checkbox is-checked="deliveryCreationTest.IsActive">

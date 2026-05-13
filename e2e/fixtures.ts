@@ -73,9 +73,9 @@ export async function gotoRoute(page: Page, hashPath: string): Promise<void> {
 }
 
 async function waitForBusyIndicatorsToClear(page: Page): Promise<void> {
-  // ng-show toggles display on the .busy-indicator-backdrop around .cssload-loader.
+  // ng-show toggles display on the [data-testid="busy-indicator"] wrapper around the spinner.
   await page.waitForFunction(() => {
-    const spinners = Array.from(document.querySelectorAll('.cssload-loader')) as HTMLElement[];
+    const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];
     return spinners.every(el => {
       const rect = el.getBoundingClientRect();
       return rect.width === 0 && rect.height === 0;
