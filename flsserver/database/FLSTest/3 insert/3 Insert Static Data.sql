@@ -755,11 +755,11 @@ VALUES	(@clientAdminRoleId, 'Vereins-Administrator', 'ClubAdministrator', SYSDAT
 -- UserRoles
 
 PRINT 'INSERT UserRoles'
-INSERT INTO UserRoles (UserId, RoleId)
-VALUES	(@insertUserId, @systemAdminRoleId)
+INSERT INTO UserRoles (UserId, RoleId, CreatedOn, CreatedByUserId, OwnerId, OwnershipType, RecordState, IsDeleted)
+VALUES	(@insertUserId, @systemAdminRoleId, SYSDATETIME(), @insertUserId, @ownerId, @ownershipType, @recordState, 0)
 
-INSERT INTO UserRoles (UserId, RoleId)
-VALUES	(@workflowUserId, @workflowRoleId)
+INSERT INTO UserRoles (UserId, RoleId, CreatedOn, CreatedByUserId, OwnerId, OwnershipType, RecordState, IsDeleted)
+VALUES	(@workflowUserId, @workflowRoleId, SYSDATETIME(), @insertUserId, @ownerId, @ownershipType, @recordState, 0)
 
 
 

@@ -115,11 +115,11 @@ VALUES	(@clubFlightOperatorId, @insertClubId, 'testclubuser', 'Test Club Segelfl
 -- UserRoles
 
 PRINT 'INSERT UserRoles'
-INSERT INTO UserRoles (UserId, RoleId)
-VALUES	(@clubUserId, @clientAdminRoleId)
+INSERT INTO UserRoles (UserId, RoleId, CreatedOn, CreatedByUserId, OwnerId, OwnershipType, RecordState, IsDeleted)
+VALUES	(@clubUserId, @clientAdminRoleId, SYSDATETIME(), @insertUserId, @ownerId, @OwnershipType, @recordState, 0)
 
-INSERT INTO UserRoles (UserId, RoleId)
-VALUES	(@clubFlightOperatorId, @flightOperatorRoleId)
+INSERT INTO UserRoles (UserId, RoleId, CreatedOn, CreatedByUserId, OwnerId, OwnershipType, RecordState, IsDeleted)
+VALUES	(@clubFlightOperatorId, @flightOperatorRoleId, SYSDATETIME(), @insertUserId, @ownerId, @OwnershipType, @recordState, 0)
 
 
 
