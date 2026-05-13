@@ -1,0 +1,28 @@
+<div>
+<span class="glider-state-icon" ng-class="{
+                             'fa fa-cloud': status.glider === 'AIRBORN',
+                             'fa fa-check-circle': status.glider === 'VALIDATION_OK',
+                             'lnr lnr-warning': status.glider === 'VALIDATION_FAILED',
+                             'lnr lnr-lock': status.glider === 'LOCKED',
+                             'lnr lnr-alarm': status.glider === 'DELIVERY_PREPARATION_ERROR',
+							 'lnr lnr-link': status.glider === 'DELIVERY_PREPARED',
+							 'lnr lnr-sync': status.glider === 'DELIVERY_BOOKED',
+							 'lnr lnr-cross': status.glider === 'EXCLUDED_FROM_DELIVERY_PROCESS',
+                             'lnr lnr-checkmark-circle': status.glider === 'LANDED',
+                             'lnr lnr-hand': status.glider === 'WAITING'
+                           }" title="{{'GLIDER_PLANE' | translate}} {{status.glider | translate}} {{status.validationErrors}}">
+</span>
+<span class="tow-state-icon" ng-if="status.tow" ng-class="{
+                             'fa fa-cloud': status.tow === 'AIRBORN',
+                             'fa fa-check-circle': status.tow === 'VALIDATION_OK',
+                             'lnr lnr-warning': status.tow === 'VALIDATION_FAILED',
+                             'lnr lnr-lock': status.tow === 'LOCKED',
+                             'lnr lnr-alarm': status.glider === 'DELIVERY_PREPARATION_ERROR',
+							 'lnr lnr-link': status.glider === 'DELIVERY_PREPARED',
+							 'lnr lnr-sync': status.glider === 'DELIVERY_BOOKED',
+							 'lnr lnr-cross': status.glider === 'EXCLUDED_FROM_DELIVERY_PROCESS',
+                             'lnr lnr-checkmark-circle': status.tow === 'LANDED',
+                             'lnr lnr-hand': status.tow === 'WAITING'
+                           }" title="{{'TOWING_PLANE' | translate}} {{status.tow | translate}} {{status.validationErrors}}">
+</span>
+</div>

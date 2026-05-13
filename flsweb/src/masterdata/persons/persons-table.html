@@ -1,0 +1,23 @@
+<div>
+    <table ng-table="tableParams" class="fls fls-table-with-details" show-filter="true">
+        <tr ng-repeat="person in $data" ng-click="editPerson(person)" title="{{'EDIT' | translate}}">
+            <td ng-bind="person.Firstname" data-title="'FIRST_NAME' | translate" filter="{ Firstname: 'text'}" sortable="'Firstname'"></td>
+            <td ng-bind="person.Lastname" data-title="'LAST_NAME' | translate" filter="{ Lastname: 'text'}" sortable="'Lastname'"></td>
+            <td ng-bind="person.AddressLine" data-title="'ADDRESS_LINE1' | translate" filter="{ AddressLine: 'text'}" sortable="'AddressLine'"></td>
+            <td ng-bind="person.ZipCode" data-title="'ZIP_CODE' | translate" filter="{ ZipCode: 'text'}" sortable="'ZipCode'"></td>
+            <td ng-bind="person.City" data-title="'CITY' | translate" filter="{ City: 'text'}" sortable="'City'"></td>
+            <td ng-bind="person.PersonCategories" data-title="'PERSON_CATEGORIES' | translate" filter="{ MatchedPersonCategories: 'person-category-list'}" sortable="'PersonCategories'"></td>
+            <td ng-bind="person.PrivateEmail" data-title="'EMAIL_ADDRESS' | translate" filter="{ PrivateEmail: 'text'}" sortable="'PrivateEmail'"></td>
+            <td ng-bind="person.MobilePhoneNumber" data-title="'MOBILE_NUMBER' | translate" filter="{ MobilePhoneNumber: 'text'}" sortable="'MobilePhoneNumber'"></td>
+            <td class="hidden-print controls-column">
+                <a ng-show="person.CanDeleteRecord"
+                   title="{{'DELETE' | translate}}"
+                   ng-click="deletePerson(person); $event.stopPropagation();"
+                   class="col-xs-4 delete-link">
+                    <span class="fa fa-trash-o"></span>
+                </a>
+                <fls-history entity-name="Person" entity-id="person.PersonId" class="col-xs-4"></fls-history>
+            </td>
+        </tr>
+    </table>
+</div>

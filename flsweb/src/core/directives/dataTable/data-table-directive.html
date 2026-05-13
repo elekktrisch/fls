@@ -1,0 +1,14 @@
+<div class="container-fluid flscontainer">
+    <div class="hidden-print fls-new-button" ng-if="onNewClick">
+        <button type="button"
+                ng-click="onNewClick()">
+            <span class="fa fa-plus fa-2x"></span>
+        </button>
+    </div>
+    <div>
+        <fls-message-bar ng-show="!busy"></fls-message-bar>
+    </div>
+    <fls-busy-indicator busy="busy" error="error">
+        <ng-transclude></ng-transclude>
+    </fls-busy-indicator>
+</div>

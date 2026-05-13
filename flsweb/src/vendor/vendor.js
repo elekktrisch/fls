@@ -1,0 +1,10 @@
+require("core-js/es6/object");
+require("expose?$!jquery");
+require("expose?jQuery!jquery");
+require("bootstrap");
+require("font-awesome-webpack");
+require("moment");
+require("selectize");
+require("highcharts/scripts/highcharts");
+require("highcharts/scripts/highcharts-more");
+require("highcharts/scripts/solid-gauge");

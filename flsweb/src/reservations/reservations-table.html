@@ -1,0 +1,61 @@
+<table ng-table="tableParams"
+       class="fls fls-table-with-details"
+       show-filter="true">
+    <tr ng-repeat="reservation in $data"
+        ng-click="showReservationDetails(reservation)"
+        title="{{'EDIT' | translate}}">
+        <td ng-bind="reservation.Start | date:'dd.MM.yyyy'"
+            data-title="'DATE' | translate"
+            filter="{ Start: 'date'}"
+            sortable="'Start'"></td>        
+        <td ng-bind="reservation.IsAllDayReservation ? ('ALL_DAY' | translate) : ((reservation.Start | date:'HH:mm') + ' - ' + (reservation.End | date:'HH:mm'))"
+            data-title="('START' | translate) + ' / ' + ('END' | translate)"
+            class="hidden-xs hidden-sm"
+            header-class="'hidden-xs hidden-sm'" 
+            ></td>
+        <td ng-bind="reservation.LocationName"
+            data-title="'LOCATION' | translate"
+            class="hidden-xs hidden-sm"
+            header-class="'hidden-xs hidden-sm'"
+            filter="{ LocationName: 'text'}"
+            sortable="'LocationName'"></td>
+        <td ng-bind="reservation.Immatriculation"
+            data-title="'IMMATRICULATION' | translate"
+            filter="{ Immatriculation: 'text'}"
+            sortable="'Immatriculation'"></td>
+        <td ng-bind="reservation.PilotName"
+            data-title="'PILOT_NAME' | translate"
+            filter="{ PilotName: 'text'}"
+            sortable="'PilotName'"></td>
+        <td ng-bind="reservation.SecondCrewName"
+            data-title="'SECOND_CREW_MEMBER' | translate"
+            class="hidden-xs hidden-sm hidden-md"
+            header-class="'hidden-xs hidden-sm hidden-md'"
+            filter="{ SecondCrewName: 'text'}"
+            sortable="'SecondCrewName'"></td>
+        <td ng-bind="reservation.ReservationTypeName"
+            data-title="'RESERVATION_TYPE' | translate"
+            class="hidden-xs"
+            header-class="'hidden-xs'"
+            filter="{ ReservationTypeName: 'text'}"
+            sortable="'ReservationTypeName'"></td>
+        <td ng-bind="reservation.Remarks"
+            data-title="'REMARKS' | translate"
+            class="hidden-xs hidden-sm hidden-md"
+            header-class="'hidden-xs hidden-sm hidden-md'"
+            filter="{ Remarks: 'text'}"
+            sortable="'Remarks'"></td>
+        <td class="hidden-print controls-column hidden-xs"
+            header-class="'hidden-print hidden-xs'">
+            <a ng-show="reservation.CanDeleteRecord"
+               title="{{'DELETE' | translate}}"
+               ng-click="deleteReservation(reservation, $event); $event.stopPropagation();"
+               class="col-xs-4 delete-link">
+                <span class="fa fa-trash-o"></span>
+            </a>
+            <fls-history entity-name="AircraftReservation"
+                         entity-id="reservation.AircraftReservationId"
+                         class="col-xs-4"></fls-history>
+        </td>
+    </tr>
+</table>

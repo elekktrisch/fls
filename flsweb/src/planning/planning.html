@@ -1,0 +1,83 @@
+<div class="container-fluid flscontainer">
+    <div class="hidden-print fls-new-button">
+        <button type="button"
+                title="{{'SETUP'|translate}}"
+                ng-click="setup()"
+                ng-show="isClubAdmin">
+            <span class="fa fa-cogs fa-2x"></span>
+        </button>
+        <button type="button"
+                title="{{'NEW'|translate}}"
+                ng-click="new()">
+            <span class="fa fa-plus fa-2x"></span>
+        </button>
+    </div>
+    <fls-message-bar ng-show="!busy"></fls-message-bar>
+    <fls-busy-indicator busy="busy"
+                        error="error">
+        <div class="col-xs-12">
+            <table ng-table="tableParams"
+                   class="fls fls-table-with-details"
+                   show-filter="true">
+                <tr ng-repeat="planningDay in $data"
+                    ng-click="showPlanningDayDetails(planningDay)"
+                    title="{{'EDIT' | translate}}">
+                    <td ng-bind="planningDay.Day | date:'dd.MM.yyyy'"
+                        data-title="'DATE' | translate"
+                        filter="{ Day: 'date'}"
+                        sortable="'Day'"></td>
+                    <td ng-bind="planningDay.Day |  amDateFormat:'dddd'"
+                        data-title="'DAY' | translate"
+                        class="hidden-xs hidden-sm"
+                        header-class="'hidden-xs hidden-sm'"
+
+                        sortable="'Weekday'"></td>
+                    <td ng-bind="planningDay.LocationName"
+                        data-title="'LOCATION' | translate"
+                        class="hidden-xs hidden-sm hidden-md"
+                        header-class="'hidden-xs hidden-sm hidden-md'"
+                        filter="{ LocationName: 'text'}"
+                        sortable="'LocationName'"></td>
+                    <td ng-bind="planningDay.Remarks"
+                        data-title="'REMARKS' | translate"
+                        class="hidden-xs hidden-sm hidden-md"
+                        header-class="'hidden-xs hidden-sm hidden-md'"
+                        filter="{ Remarks: 'text'}"
+                        sortable="'Remarks'"></td>
+                    <td ng-bind="planningDay.TowingPilotName"
+                        data-title="'TOWING_PILOT' | translate"
+                        filter="{ TowingPilotName: 'text'}"
+                        sortable="'TowingPilotName'"></td>
+                    <td ng-bind="planningDay.FlightOperatorName"
+                        data-title="'FLIGHT_OPERATOR' | translate"
+                        filter="{ FlightOperatorName: 'text'}"
+                        sortable="'FlightOperatorName'"></td>
+                    <td ng-bind="planningDay.InstructorName"
+                        data-title="'INSTRUCTOR' | translate"
+                        class="hidden-xs"
+                        header-class="'hidden-xs'"
+                        filter="{ InstructorName: 'text'}"
+                        sortable="'InstructorName'"></td>
+                    <td ng-bind="planningDay.NumberOfAircraftReservations"
+                        data-title="'NUM_RESERVATIONS' | translate"
+                        class="hidden-xs hidden-sm"
+                        header-class="'hidden-xs hidden-sm'"
+                        filter="{ NumberOfAircraftReservations: 'text'}"
+                        sortable="'NumberOfAircraftReservations'"></td>
+                    <td class="hidden-print controls-column hidden-xs"
+                        header-class="'hidden-print hidden-xs'">
+                        <a ng-show="planningDay.CanDeleteRecord"
+                           title="{{'DELETE' | translate}}"
+                           ng-click="deletePlanningDay(planningDay, $event); $event.stopPropagation();"
+                           class="col-xs-4 delete-link">
+                            <span class="fa fa-trash-o"></span>
+                        </a>
+                        <fls-history entity-name="PlanningDay"
+                                     entity-id="planningDay.PlanningDayId"
+                                     class="col-xs-4"></fls-history>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </fls-busy-indicator>
+</div>

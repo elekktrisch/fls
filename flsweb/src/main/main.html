@@ -1,0 +1,172 @@
+<!-- Header -->
+<fls-dashboard ng-if="isLoggedin()"></fls-dashboard>
+<div ng-show="!isLoggedin()">
+    <div class="intro-header">
+
+        <div class="container">
+            <fls-message-bar ng-show="!busy"></fls-message-bar>
+
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="hidden-lg hidden-md hidden-sm col-md-12 col-sm-12 col-xs-12 col-lg-12 col-xl-12"
+                         style="background-color: rgba(255,255,255,0.7);margin-bottom:30px;color:black;width:100%;border-radius:7px;border:2px solid #dcd9dc;padding: 10px 10px 10px;z-index:9999;">
+                        <fls-login-form></fls-login-form>
+                    </div>
+
+                    <div class="intro-message">
+
+                        <h1>Flight Logging System</h1>
+                        <h3>for electronic flight logs</h3>
+                        
+                        <hr class="intro-divider">
+                        <ul class="list-inline intro-social-buttons">
+                            <li class="hidden-xs">
+                                <a href
+                                   ng-click="showLoginForm()"
+                                   class="btn btn-default btn-lg"><i
+                                        class="fa fa-home fa-fw"></i> <span
+                                        class="network-name">Login</span></a>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                </div>
+            </div>
+
+        </div>
+        <!-- /.container -->
+
+    </div>
+    <!-- /.intro-header -->
+
+    <!-- Page Content -->
+
+    <div class="content-section-a"
+         ng-show="getEnabledFeatures().flights">
+
+        <div class="container">
+
+            <div class="row">
+                <div class="col-lg-5 col-sm-6">
+                    <hr class="section-heading-spacer">
+                    <div class="clearfix"></div>
+                    <h2 class="section-heading">Flight data logging</h2>
+
+                    <p class="lead">Optimized for glider operation. Suitable both for self-starters and tow flights.
+                                    Designed for motor plane flight logging as well.</p>
+                </div>
+                <div class="col-lg-5 col-lg-offset-2 col-sm-6">
+                    <img class="img-responsive"
+                         ng-src="{{ctrl.cockpitImage}}"
+                         alt="">
+                </div>
+            </div>
+
+        </div>
+        <!-- /.container -->
+
+    </div>
+    <!-- /.content-section-a -->
+
+    <div class="content-section-b"
+         ng-show="getEnabledFeatures().locations">
+
+        <div class="container">
+
+            <div class="row">
+                <div class="col-lg-5 col-lg-offset-1 col-sm-push-6  col-sm-6">
+                    <hr class="section-heading-spacer">
+                    <div class="clearfix"></div>
+                    <h2 class="section-heading">Features GUI for masterdata management</h2>
+
+                    <p class="lead">Manage the airfield, club fleet and member data.</p>
+                </div>
+                <div class="col-lg-5 col-sm-pull-6  col-sm-6">
+                    <img class="img-responsive"
+                         ng-src="{{ctrl.towerImage}}"
+                         alt="">
+                </div>
+            </div>
+
+        </div>
+        <!-- /.container -->
+
+    </div>
+    <!-- /.content-section-b -->
+
+    <div class="content-section-a"
+         ng-show="getEnabledFeatures().planning">
+
+        <div class="container">
+
+            <div class="row">
+                <div class="col-lg-5 col-sm-6">
+                    <hr class="section-heading-spacer">
+                    <div class="clearfix"></div>
+                    <h2 class="section-heading">Planning</h2>
+
+                    <p class="lead">Keep track of the planned duties for each club member. Easily coordinate if someone
+                                    wants to swap duty shifts.
+                    </p>
+
+                    <p>
+                        <a href="#/planning"
+                           class="btn btn-default"><i class="fa fa-users fa-fw"></i>
+                            <span>Go to Planning</span></a>
+                    </p>
+                </div>
+                <div class="col-lg-5 col-lg-offset-2 col-sm-6">
+                    <img class="img-responsive"
+                         ng-src="{{ctrl.planningImage}}"
+                         alt="">
+                </div>
+            </div>
+
+        </div>
+        <!-- /.container -->
+
+    </div>
+    <!-- /.content-section-a -->
+
+    <div class="banner">
+
+        <div class="container">
+
+            <div class="row">
+                <div class="col-lg-6">
+                    <h2>Connect to the FLS team:</h2>
+                </div>
+                <div class="col-lg-6">
+                    <ul class="list-inline banner-social-buttons">
+                        <li>
+                            <a href="https://github.com/flightlog/flsweb"
+                               target="_blank"
+                               class="btn btn-default btn-lg"><i
+                                    class="fa fa-github fa-fw"></i> <span class="network-name">Github</span></a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+        <!-- /.container -->
+
+    </div>
+    <!-- /.banner -->
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="copyright text-muted small">License: MIT</p>
+                </div>
+                <div class="col-md-6"
+                     style="text-align:right;">
+                    <p class="text-muted small"><a href="{{baseurl}}/Help"
+                                                   target="_blank">API documentation</a></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+</div>

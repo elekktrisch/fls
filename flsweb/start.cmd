@@ -1,0 +1,1 @@
+call cmd /k yarn start
