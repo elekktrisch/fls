@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 test('landing page renders and screenshot captures the login view', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });

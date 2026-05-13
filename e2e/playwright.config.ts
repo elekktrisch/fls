@@ -1,10 +1,11 @@
-const { defineConfig, devices } = require('@playwright/test');
+import { defineConfig, devices } from '@playwright/test';
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: './tests',
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   outputDir: '/tmp/fls-e2e-results',
   reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
