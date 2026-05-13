@@ -10,14 +10,34 @@ markers, or the suite needs to be updated in lockstep.
 
 ## Canonical testids
 
-There are exactly three. Each names a *role*, not an entity, so a single id
-covers all 11+ entity lists.
+Nine testids total. Each names a *role*, not an entity, so a single id covers
+all 11+ entity lists (for the list/form ones) or the single auth surface (for
+the login ones).
+
+### Lists / forms (3)
 
 | `data-testid`     | Where it lives                                                                                       | What it identifies                                                                                  |
 | ----------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `busy-indicator`  | `flsweb/src/core/directives/busyIndicator/busy-indicator-directive.html` (`.busy-indicator-backdrop`) | The visible-when-busy backdrop wrapping the spinner. `ng-show="busy"` toggles its visibility.        |
 | `row`             | Every list/table template (see table below)                                                          | A data row in a list. Headers, filter rows, pager rows do **not** carry this id.                    |
 | `row-edit`        | Pencil-link table templates only (see table below)                                                   | The pencil `<a>` link that opens the row's edit form, used where the row itself is not clickable. |
+
+### Auth (6)
+
+The login-form directive (`fls-login-form`) is rendered in **two** places:
+inside the navbar on desktop layouts, and inline on `/main` for the mobile
+layout. Both share the same template, so any `id="username"` selector matches
+two elements. Tests must disambiguate by visibility — e.g.
+`[data-testid="login-form"]:visible [data-testid="username-input"]`.
+
+| `data-testid`      | Where it lives                                                                              | What it identifies                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `login-toggle`     | `flsweb/src/core/directives/navigationBar/navigation-bar-directive.html` (desktop `<a>` only) | The "Login" anchor in the navbar that calls `showLoginForm()` to reveal the desktop login form. |
+| `login-form`       | `flsweb/src/core/directives/loginForm/login-form-directive.html` (`<form>`)                | The login form root. Combined with `:visible` to pick the active copy (navbar vs. mobile).    |
+| `username-input`   | Same template (username `<input>`)                                                          | Username text input.                                                                          |
+| `password-input`   | Same template (password `<input>`)                                                          | Password input.                                                                               |
+| `login-submit`     | Same template (`<button type="submit">`)                                                    | Submit button.                                                                                |
+| `login-error`      | Same template (`.alert.alert-danger`, visible when `loginError` is truthy)                  | Server-returned error message (wrong password, unknown user, locked account, …).              |
 
 The conventions:
 
@@ -76,9 +96,15 @@ These templates use `<tr ng-repeat-start>` for the row and a separate pencil
 - `e2e/fixtures.ts` → `waitForBusyIndicatorsToClear` polls for every
   `[data-testid="busy-indicator"]` to have zero bounding-rect dimensions (i.e.
   `ng-show="busy"` has hidden it). Called after every `gotoRoute`.
+- `e2e/fixtures.ts` → `loginViaUi(page, username, password)` clicks
+  `[data-testid="login-toggle"]` to reveal the desktop login form, then fills
+  the `:visible` form's `username-input` / `password-input` and clicks
+  `login-submit`. Used by `auth.spec.ts` and the `uiLoggedInPage` fixture.
 - `e2e/tests/03-masterdata.spec.ts` → `dataRowCount` counts
   `tbody [data-testid="row"]`. `openFirstRowForm` prefers
   `[data-testid="row-edit"]` and falls back to the row itself.
+- `e2e/tests/auth.spec.ts` → asserts `[data-testid="login-error"]` becomes
+  visible after a bad-credentials attempt.
 
 ## Note to the rewrite team
 

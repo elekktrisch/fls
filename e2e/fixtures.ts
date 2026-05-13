@@ -1,4 +1,6 @@
 import { test as base, expect, Page, APIRequestContext } from '@playwright/test';
+import { spawnSync } from 'child_process';
+import * as path from 'path';
 
 const USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
 const PASSWORD = process.env.FLS_PASSWORD ?? 's';
@@ -34,10 +36,69 @@ async function fetchAuthData(api: APIRequestContext): Promise<AuthData> {
   return { loginResult, user, userRoles };
 }
 
-type Fixtures = { loggedInPage: Page };
+/**
+ * Drive the visible login form in the navbar (desktop layout) and submit it.
+ * The login-form directive is rendered twice — once in the navbar (visible on
+ * >= sm after clicking the Login toggle), and once inline on /main (only
+ * shown on < sm). We disambiguate by filtering each input/button by `:visible`
+ * directly, NOT by filtering the form: the `<form>` element itself has
+ * height 0 (its parent `<fls-login-form>` is `display:inline`), so a
+ * `[data-testid="login-form"]:visible` selector matches nothing even when
+ * the form is on screen. Filtering the inputs themselves works because they
+ * have non-zero box geometry when visible.
+ */
+export async function loginViaUi(
+  page: Page,
+  username: string,
+  password: string,
+): Promise<void> {
+  await page.goto('/#/main');
+  await page.waitForLoadState('networkidle');
 
-export const test = base.extend<{}, Fixtures>({
-  loggedInPage: [async ({ browser, playwright }, use) => {
+  // Reveal the navbar login form (the inline /main form is `hidden-lg
+  // hidden-md hidden-sm` and never appears on the 1280-wide desktop viewport).
+  await page.locator('[data-testid="login-toggle"]').click();
+
+  // Filter by `:visible` on each control to skip the hidden mobile copy.
+  await page.locator('[data-testid="username-input"]:visible').fill(username);
+  await page.locator('[data-testid="password-input"]:visible').fill(password);
+  await page.locator('[data-testid="login-submit"]:visible').click();
+}
+
+/**
+ * Wait for the post-login state to settle: ngStorage has the access_token
+ * persisted, the nav-bar is showing the logged-in chrome.
+ *
+ * Quirks this works around:
+ *
+ * - `LoginFormController.login().then(...)` calls `$location.path('/dashboard')`,
+ *   but `/dashboard` has no route — `MainModule.js` declares only `/main` and
+ *   `.otherwise({ redirectTo: '/main' })`. So the URL transitions briefly
+ *   through `#/dashboard` and immediately lands on `#/main`. Waiting for
+ *   `#/dashboard` is unreliable (we may miss the transient).
+ * - ngStorage syncs in-memory `$sessionStorage` to the browser's real
+ *   `sessionStorage` on `$rootScope` digest. Right after the login resolves,
+ *   the digest that writes the access_token may not have fired, so a naive
+ *   `evaluate(() => sessionStorage.getItem(...))` reads the default `'{}'`
+ *   intermittently.
+ *
+ * Polling `sessionStorage` from the page is the only signal that survives
+ * both races.
+ */
+export async function waitForLoggedInState(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const lr = sessionStorage.getItem('ngStorage-loginResult');
+    if (!lr) return false;
+    try { return !!JSON.parse(lr).access_token; } catch { return false; }
+  }, undefined, { timeout: 15_000 });
+  await page.waitForLoadState('networkidle');
+}
+
+type Fixtures = { loggedInPage: Page; uiLoggedInPage: Page };
+type WorkerFixtures = { freshDb: void };
+
+export const test = base.extend<Fixtures, WorkerFixtures>({
+  loggedInPage: async ({ browser, playwright }, use) => {
     if (!cachedAuth) {
       const api = await playwright.request.newContext();
       cachedAuth = await fetchAuthData(api);
@@ -55,6 +116,73 @@ export const test = base.extend<{}, Fixtures>({
     const page = await context.newPage();
     await use(page);
     await context.close();
+  },
+
+  /**
+   * UI-driven login. Unlike `loggedInPage` (which injects sessionStorage via
+   * an init script — fast but bypasses every codepath the user actually
+   * touches), this fixture exercises the real auth flow: it opens the navbar
+   * login form, fills the visible inputs, and waits for the dashboard.
+   *
+   * Use this when the test cares about the auth flow itself (the auth.spec.ts
+   * suite) or when you want to verify that the post-login redirect / nav-bar
+   * hydration works end-to-end. Use `loggedInPage` for everything else — it's
+   * ~5x faster because it skips the Angular bootstrap → form-render → token →
+   * /users/my → /userroles → /clubs/my chain.
+   */
+  uiLoggedInPage: async ({ browser }, use) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await loginViaUi(page, USERNAME, PASSWORD);
+    await waitForLoggedInState(page);
+    await use(page);
+    await context.close();
+  },
+
+  /**
+   * Opt-in worker-scoped fixture that brings the FLSTest database back to a
+   * known, deterministic state by running `e2e/scripts/seed.sh`. Slow
+   * (~30-60s on a warm Docker daemon — it drops + recreates the database,
+   * re-applies the schema + every DBUpdate, replays the static seeds, and
+   * applies the deterministic test fixture).
+   *
+   * Why "fresh seed" and not a transactional rollback?
+   * The FLS server runs on EF6 with its own connection pool — a per-test
+   * BEGIN TRANSACTION from outside the server would never see EF's writes,
+   * and `Snapshot`-level isolation isn't available across the public API
+   * surface. So we pay the price of a full re-seed.
+   *
+   * Scope: worker. The seed runs once when the first test in a worker
+   * requests it; subsequent tests in the same worker reuse the seeded state.
+   * If you need per-test isolation, put each mutation test in its own
+   * `test.describe.configure({ mode: 'serial' })` block, or split mutation
+   * specs across worker boundaries.
+   *
+   * Usage:
+   *   test('mutation flow', async ({ loggedInPage, freshDb }) => { ... });
+   *
+   * Tests that DON'T destructure `freshDb` get whatever state the previous
+   * test left behind — fine for the read-only suite.
+   */
+  freshDb: [async ({}, use) => {
+    const seedScript = path.resolve(__dirname, 'scripts/seed.sh');
+    const result = spawnSync('bash', [seedScript], {
+      stdio: 'inherit',
+      env: process.env,
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        `seed.sh exited with status ${result.status} (signal=${result.signal ?? 'none'}). ` +
+        `Check stdout/stderr above. Common causes: 'fls-mssql' container not running, ` +
+        `or the seed files in flsserver/database/FLSTest/ are out of sync with the schema.`,
+      );
+    }
+    // After re-seeding, the cached auth token may still be valid (the testclubadmin
+    // user is reseeded with the same credentials) but the sessionStorage payload
+    // captured before the seed might reference stale IDs. Drop the cache so the
+    // next `loggedInPage` re-fetches.
+    cachedAuth = null;
+    await use();
   }, { scope: 'worker' }],
 });
 

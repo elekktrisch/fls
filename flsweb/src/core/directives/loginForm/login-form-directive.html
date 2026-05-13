@@ -1,4 +1,5 @@
 <form ng-submit="login()"
+      data-testid="login-form"
       style="text-align:left;">
     <fls-busy-indicator busy="loginBusy"
                         class="col-xs-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
@@ -9,6 +10,7 @@
             <input type="text"
                    id="username"
                    name="username"
+                   data-testid="username-input"
                    ng-model="user.username"
                    class="form-control">
         </div>
@@ -19,6 +21,7 @@
             <input type="password"
                    id="password"
                    name="password"
+                   data-testid="password-input"
                    ng-model="user.password"
                    class="form-control">
         </div>
@@ -34,6 +37,7 @@
                ng-click="hideLoginForm()"
                style="margin-left:10px;">Cancel</a>
             <button class="btn btn-default pull-right"
+                    data-testid="login-submit"
                     type="submit">
                 Login
             </button>
@@ -43,6 +47,7 @@
             <pre ng-bind="loginError | json"
                  ng-show="debug"></pre>
             <div class="alert alert-danger"
+                 data-testid="login-error"
                  ng-bind="loginError.error_description || loginError.Message"></div>
         </div>
     </fls-busy-indicator>
