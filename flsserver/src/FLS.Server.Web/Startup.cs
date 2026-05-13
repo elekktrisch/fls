@@ -10,7 +10,7 @@ using Microsoft.Practices.Unity;
 using Microsoft.Practices.Unity.WebApi;
 using Owin;
 
-[assembly: OwinStartup(typeof(Startup))]
+// [assembly: OwinStartup(typeof(Startup))]   // disabled for Mono self-host; FLS.Server.Console uses MonoStartup explicitly
 namespace FLS.Server.WebApi
 {
     public class Startup

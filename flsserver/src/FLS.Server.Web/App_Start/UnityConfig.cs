@@ -95,7 +95,11 @@ namespace FLS.Server.WebApi
             //container.RegisterType<IOwinContext>(new InjectionFactory(c => c.Resolve<HttpContextBase>().GetOwinContext()));
             //container.RegisterType<IAuthenticationManager>(new InjectionFactory(c => c.Resolve<IOwinContext>().Authentication));
             container.RegisterType<IAuthenticationManager>(
-                new InjectionFactory(c => HttpContext.Current.GetOwinContext().Authentication));
+                new InjectionFactory(c =>
+                {
+                    if (HttpContext.Current != null) return HttpContext.Current.GetOwinContext().Authentication;
+                    throw new InvalidOperationException("IAuthenticationManager requested outside of HTTP request scope. Not supported under OWIN self-host without HttpContext.");
+                }));
 
             //container.RegisterType<IUserStore<ApplicationUser>, UserStore<ApplicationUser>>(
             //    new InjectionConstructor(typeof(ApplicationDbContext)));
