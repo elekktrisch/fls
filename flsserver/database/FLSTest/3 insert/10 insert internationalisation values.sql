@@ -1,4 +1,4 @@
-USE [FLSTest]
+ï»¿USE [FLSTest]
 GO
 
 DELETE FROM [dbo].[LanguageTranslations]
@@ -17,7 +17,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'PLANNING', 'Planung', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FLIGHTS', 'Flüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FLIGHTS', 'FlÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'STARTLIST', 'Startliste', 1, SYSDATETIME())
@@ -26,7 +26,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'FLIGHT_REPORT_SUMMARY', 'Zusammenfassung', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LOCATIONS', 'Flugplätze', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LOCATIONS', 'FlugplÃ¤tze', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'CLUBS', 'Vereine', 1, SYSDATETIME())
@@ -137,7 +137,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'INSTRUCTOR', 'Instruktor', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'OBSERVER', 'Überwachender Pilot / Instruktor', 1, SYSDATETIME())
+     VALUES (NEWID(), 'OBSERVER', 'Ãœberwachender Pilot / Instruktor', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'PILOT', 'Pilot', 1, SYSDATETIME())
@@ -200,7 +200,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'HAS_GLIDER_PILOT_LICENCE', 'Segelflug Lizenz', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'HAS_GLIDER_TRAINEE_LICENCE', 'Segelflugschüler Lizenz', 1, SYSDATETIME())
+     VALUES (NEWID(), 'HAS_GLIDER_TRAINEE_LICENCE', 'SegelflugschÃ¼ler Lizenz', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'HAS_MOTOR_PILOT_LICENCE', 'Motorflug Lizenz', 1, SYSDATETIME())
@@ -218,13 +218,13 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'HAS_TMG_LICENCE', 'TMG Lizenz', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'HAS_WINCH_OPERATOR_LICENCE', 'Windenführer Lizenz', 1, SYSDATETIME())
+     VALUES (NEWID(), 'HAS_WINCH_OPERATOR_LICENCE', 'WindenfÃ¼hrer Lizenz', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'COST_BALANCE_TYPE', 'Kostenverteilung', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'INVOICE_RECEIPIENT', 'Rechnungsempfänger', 1, SYSDATETIME())
+     VALUES (NEWID(), 'INVOICE_RECEIPIENT', 'RechnungsempfÃ¤nger', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_SOLO_FLIGHT', 'Soloflug', 1, SYSDATETIME())
@@ -248,7 +248,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'APPLY_FILTER', 'Filter Anwenden', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LOAD_FLIGHTS', 'Flüge laden', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LOAD_FLIGHTS', 'FlÃ¼ge laden', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'ALL_TIME', 'Gesamter Zeitraum', 1, SYSDATETIME())
@@ -281,7 +281,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'NEW_PASSWORD', 'Neues Passwort', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NEW_PASSWORD_CONFIRM', 'Neues Passwort bestätigen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NEW_PASSWORD_CONFIRM', 'Neues Passwort bestÃ¤tigen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'UPDATE_PASSWORD', 'Passwort aktualisieren', 1, SYSDATETIME())
@@ -299,13 +299,13 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'COMPETITION_SIGN', 'Wettbewerbszeichen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NUMBER_OF_SEATS', 'Anzahl Sitzplätze', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NUMBER_OF_SEATS', 'Anzahl SitzplÃ¤tze', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_TOWING_AIRCRAFT', 'Schleppflugzeug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_TOWING_OR_WINCH_REQUIRED', 'benötigt Schlepp', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_TOWING_OR_WINCH_REQUIRED', 'benÃ¶tigt Schlepp', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_TOWING_START_ALLOWED', 'Flugzeugschlepp erlaubt', 1, SYSDATETIME())
@@ -329,19 +329,19 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'ICAO_CODE', 'ICAO Code', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LENGTH_UNIT', 'Längeneinheit', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LENGTH_UNIT', 'LÃ¤ngeneinheit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'ELEVATION_UNIT', 'Höheneinheit', 1, SYSDATETIME())
+     VALUES (NEWID(), 'ELEVATION_UNIT', 'HÃ¶heneinheit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RUNWAY_LENGTH', 'Pistenlänge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RUNWAY_LENGTH', 'PistenlÃ¤nge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'RUNWAY_DIRECTION', 'Pistenrichtung (Grad Himmelsrichtung)', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RUNWAY_ELEVATION', 'Pistenhöhe', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RUNWAY_ELEVATION', 'PistenhÃ¶he', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'DESCRIPTION', 'Beschreibung', 1, SYSDATETIME())
@@ -350,16 +350,16 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'LATITUDE', 'Breitengrad (e.g. 47.37639N)', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LONGITUDE', 'Längengrad (e.g. 8.7575E)', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LONGITUDE', 'LÃ¤ngengrad (e.g. 8.7575E)', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'WARN_TOWFLIGHT_LONGER_THAN_GLIDERFLIGHT', 'ACHTUNG: Der eingegebene Schleppflug ist länger als der Segelflug!', 1, SYSDATETIME())
+     VALUES (NEWID(), 'WARN_TOWFLIGHT_LONGER_THAN_GLIDERFLIGHT', 'ACHTUNG: Der eingegebene Schleppflug ist lÃ¤nger als der Segelflug!', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'CLUB_NAME', 'Club Name', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'CLUB_KEY', 'Club Schlüssel', 1, SYSDATETIME())
+     VALUES (NEWID(), 'CLUB_KEY', 'Club SchlÃ¼ssel', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'CLUB_HOME_BASE', 'Club Flugplatz', 1, SYSDATETIME())
@@ -386,7 +386,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'ROLES', 'Rollen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NOTIFICATION_EMAIL', 'Email Adresse für Benachrichtigungen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NOTIFICATION_EMAIL', 'Email Adresse fÃ¼r Benachrichtigungen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'CONTACT', 'Kontakt', 1, SYSDATETIME())
@@ -440,10 +440,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'NAME', 'Name', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_INSTRUCTOR_REQUIRED', 'Instruktor nötig', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_INSTRUCTOR_REQUIRED', 'Instruktor nÃ¶tig', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_OBSERVERPILOT_OR_INSTRUCTOR_REQUIRED', 'Instruktor oder Einweisungspilot nötig', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_OBSERVERPILOT_OR_INSTRUCTOR_REQUIRED', 'Instruktor oder Einweisungspilot nÃ¶tig', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_CHECKFLIGHT', 'Checkflug', 1, SYSDATETIME())
@@ -455,22 +455,22 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'IS_SOLOFLIGHT', 'Soloflug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_FLIGHTCOSTBALANCE_SELECTABLE', 'Kostenverteilung wählbar', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_FLIGHTCOSTBALANCE_SELECTABLE', 'Kostenverteilung wÃ¤hlbar', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_FOR_GLIDERFLIGHTS', 'für Segelflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_FOR_GLIDERFLIGHTS', 'fÃ¼r SegelflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_FOR_MOTORFLIGHTS', 'für Motorflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_FOR_MOTORFLIGHTS', 'fÃ¼r MotorflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_FOR_TOWFLIGHTS', 'für Schleppflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_FOR_TOWFLIGHTS', 'fÃ¼r SchleppflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_SYSTEMFLIGHT', 'System Flug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_COUPONNUMBER_REQUIRED', 'Coupon nötig', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_COUPONNUMBER_REQUIRED', 'Coupon nÃ¶tig', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FLIGHT_TYPES', 'Flugtypen', 1, SYSDATETIME())
@@ -488,7 +488,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'USERNAME_OR_EMAIL', 'Benutzername oder Email Adresse', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'GENERATE_NEW_PASSWORD_SUCCEEDED', 'Das Passwort wurde zurückgesetzt. Sie sollten in den nächsten Minuten ein Email mit dem entsprchenden Link erhalten.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'GENERATE_NEW_PASSWORD_SUCCEEDED', 'Das Passwort wurde zurÃ¼ckgesetzt. Sie sollten in den nÃ¤chsten Minuten ein Email mit dem entsprchenden Link erhalten.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'AIRCRAFT_TYPE', 'Flugzeug Typ', 1, SYSDATETIME())
@@ -512,7 +512,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'DEAC_INDEX', 'DEAC Index', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NOISE_CLASS', 'Lärmklasse', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NOISE_CLASS', 'LÃ¤rmklasse', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'NOISE_LEVEL', 'Noise Level', 1, SYSDATETIME())
@@ -533,10 +533,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'COMPANY', 'Firma', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'BUSINESS_EMAIL_ADDRESS', 'Email Adresse (geschäftlich)', 1, SYSDATETIME())
+     VALUES (NEWID(), 'BUSINESS_EMAIL_ADDRESS', 'Email Adresse (geschÃ¤ftlich)', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'BUSINESS_PHONE_NUMBER', 'Telefonnummer (geschäftlich)', 1, SYSDATETIME())
+     VALUES (NEWID(), 'BUSINESS_PHONE_NUMBER', 'Telefonnummer (geschÃ¤ftlich)', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'LICENSE_NUMBER', 'Lizenznummer', 1, SYSDATETIME())
@@ -554,7 +554,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'CLUB_MEMBER_NUMBER', 'Verein Mitgliednummer', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'CLUB_MEMBER_KEY', 'Verein Mitgliedschlüssel', 1, SYSDATETIME())
+     VALUES (NEWID(), 'CLUB_MEMBER_KEY', 'Verein MitgliedschlÃ¼ssel', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_GLIDER_INSTRUCTOR', 'Segelfluglehrer', 1, SYSDATETIME())
@@ -563,7 +563,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'IS_GLIDER_PILOT', 'Segelflugpilot', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_GLIDER_TRAINEE', 'Segelflugschüler', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_GLIDER_TRAINEE', 'SegelflugschÃ¼ler', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'IS_MOTOR_PILOT', 'Motorflugpilot', 1, SYSDATETIME())
@@ -578,7 +578,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'IS_TOW_PILOT', 'Schleppilot', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'IS_WINCH_OPERATOR', 'Windenführer', 1, SYSDATETIME())
+     VALUES (NEWID(), 'IS_WINCH_OPERATOR', 'WindenfÃ¼hrer', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'RECEIVE_FLIGHT_REPORTS', 'Flug Statistiken', 1, SYSDATETIME())
@@ -596,7 +596,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'MID_NAME', 'Zwischenname', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'USER_RELATED_PERSON', 'Zugehörige Person', 1, SYSDATETIME())
+     VALUES (NEWID(), 'USER_RELATED_PERSON', 'ZugehÃ¶rige Person', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'USER_ACCOUNT_STATE', 'Benutzerkonto Status', 1, SYSDATETIME())
@@ -617,7 +617,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'MY_DASHBOARD', 'Mein Dashboard', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MY_FLIGHTS', 'Meine Flüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MY_FLIGHTS', 'Meine FlÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'MY_SAFETY_STATUS', 'Mein Safety Status', 1, SYSDATETIME())
@@ -626,40 +626,40 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'MY_MEDICAL', 'Mein Medical', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'EXPIRES_AT', 'Läuft aus am', 1, SYSDATETIME())
+     VALUES (NEWID(), 'EXPIRES_AT', 'LÃ¤uft aus am', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'MY_START_PERMISSIONS', 'Meine Starterlaubnis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MY_NEXT_RESERVATIONS', 'Meine nächsten Reservationen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MY_NEXT_RESERVATIONS', 'Meine nÃ¤chsten Reservationen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_GREEN_TITLE', 'Grüner Bereich', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_GREEN_TITLE', 'GrÃ¼ner Bereich', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_GREEN_SUBTITLE', 'Der Übungsstand ist gut - trotzdem Vorsicht!', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_GREEN_SUBTITLE', 'Der Ãœbungsstand ist gut - trotzdem Vorsicht!', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_GREEN_DESCRIPTION', 'Geübte Piloten machten folgende Fehler <ul> <li>Segelflugzeug fehlerhaft ausgerüstet</li><li>mangelhafter Cockpitcheck</li><li>Fehlverhalten bei Startunterbrechungen</li><li>Fehler bei der Landeeinteilung (vor allem bei Außenlandungen)</li></ul>', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_GREEN_DESCRIPTION', 'GeÃ¼bte Piloten machten folgende Fehler <ul> <li>Segelflugzeug fehlerhaft ausgerÃ¼stet</li><li>mangelhafter Cockpitcheck</li><li>Fehlverhalten bei Startunterbrechungen</li><li>Fehler bei der Landeeinteilung (vor allem bei AuÃŸenlandungen)</li></ul>', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'SAFETY_YELLOW_TITLE', 'Gelber Bereich', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_YELLOW_SUBTITLE', 'Mehr Übung könnte nicht schaden - Unerwartete Ereignisse können gefährlich werden!', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_YELLOW_SUBTITLE', 'Mehr Ãœbung kÃ¶nnte nicht schaden - Unerwartete Ereignisse kÃ¶nnen gefÃ¤hrlich werden!', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_YELLOW_DESCRIPTION', 'Vorsicht ist geboten beim Start <ul> <li>in unbekannten Landschaftsregionen (z.B. Alpen)</li> <li>auf unbekannten Fluggeländen</li><li>auf selten geflogenen Flugzeugmustern</li><li>in einer selten durchgeführten Startart</li> </ul>', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_YELLOW_DESCRIPTION', 'Vorsicht ist geboten beim Start <ul> <li>in unbekannten Landschaftsregionen (z.B. Alpen)</li> <li>auf unbekannten FluggelÃ¤nden</li><li>auf selten geflogenen Flugzeugmustern</li><li>in einer selten durchgefÃ¼hrten Startart</li> </ul>', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'SAFETY_RED_TITLE', 'Roter Bereich', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_RED_SUBTITLE', 'Übung tut Not - Fliegen kann zum Risiko werden!', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_RED_SUBTITLE', 'Ãœbung tut Not - Fliegen kann zum Risiko werden!', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SAFETY_RED_DESCRIPTION', 'Für ungeübte Piloten gilt: <ul> <li>die ersten Starts nach einer längeren Pause nur mit vertrauten Mustern und bei unkritischen Wetterlagen durchführen</li> <li>falls der letzte Start mehr als drei Monate zurück liegt, ist Training mit einem Fluglehrer der beste Weg zu einem guten Übungsstand</li> </ul>', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SAFETY_RED_DESCRIPTION', 'FÃ¼r ungeÃ¼bte Piloten gilt: <ul> <li>die ersten Starts nach einer lÃ¤ngeren Pause nur mit vertrauten Mustern und bei unkritischen Wetterlagen durchfÃ¼hren</li> <li>falls der letzte Start mehr als drei Monate zurÃ¼ck liegt, ist Training mit einem Fluglehrer der beste Weg zu einem guten Ãœbungsstand</li> </ul>', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'AIR_MOVEMENTS', 'Luftbewegungen', 1, SYSDATETIME())
@@ -704,13 +704,13 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'NOTIFICATION_SETTINGS', 'Notifikationseinstellungen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MEDICAL_CLASS1_EXPIRE_DATE', 'Medical Class 1 Gültigkeit bis', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MEDICAL_CLASS1_EXPIRE_DATE', 'Medical Class 1 GÃ¼ltigkeit bis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MEDICAL_CLASS2_EXPIRE_DATE', 'Medical Class 2 Gültigkeit bis', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MEDICAL_CLASS2_EXPIRE_DATE', 'Medical Class 2 GÃ¼ltigkeit bis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MEDICAL_LAPL_EXPIRE_DATE', 'Medical LAPL Gültigkeit bis', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MEDICAL_LAPL_EXPIRE_DATE', 'Medical LAPL GÃ¼ltigkeit bis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'BLOCK_TIME_BEGIN', 'Beginn Blockzeit', 1, SYSDATETIME())
@@ -722,16 +722,16 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'BLOCK_TIME_DURATION', 'Blockzeit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'ENGINE_BEGIN', 'Beginn Motorzählerst.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'ENGINE_BEGIN', 'Beginn MotorzÃ¤hlerst.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'ENGINE_END', 'Ende Motorzählerst.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'ENGINE_END', 'Ende MotorzÃ¤hlerst.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'ENGINE_DURATION', 'Motorlaufzeit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LAST_ENGINE_TIME', 'Letzer Zählerstand', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LAST_ENGINE_TIME', 'Letzer ZÃ¤hlerstand', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'ERROR_NO_CORRESPONDING_PERSON', 'Der Benutzer "{{user}}" hat keine zugewiesene Person, weshalb keine Statistiken angezeigt werden.', 1, SYSDATETIME())
@@ -755,7 +755,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'HISTORY_OF', 'Historie von ', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MODIFICATION', 'Veränderung', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MODIFICATION', 'VerÃ¤nderung', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'CLOSE', 'Schliessen', 1, SYSDATETIME())
@@ -779,16 +779,16 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'TIME', 'Zeit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'GLIDER_INSTRUCTOR_LICENCE_EXPIRE_DATE', 'Segelfluglehrer Lizenz Gültigkeit bis', 1, SYSDATETIME())
+     VALUES (NEWID(), 'GLIDER_INSTRUCTOR_LICENCE_EXPIRE_DATE', 'Segelfluglehrer Lizenz GÃ¼ltigkeit bis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'WINCH_OPERATOR', 'Windenführer', 1, SYSDATETIME())
+     VALUES (NEWID(), 'WINCH_OPERATOR', 'WindenfÃ¼hrer', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'CHOOSE_PASSWORD', 'Passwort wählen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'CHOOSE_PASSWORD', 'Passwort wÃ¤hlen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'PASSWORD_CONFIRM', 'Passwort bestätigen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'PASSWORD_CONFIRM', 'Passwort bestÃ¤tigen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'SET_PASSWORD', 'Passwort setzen', 1, SYSDATETIME())
@@ -797,7 +797,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'CHOOSE_PASSWORD_FORM_EXPLANATION', 'Bitte geben sie ihr neues Passwort ein, um den Benutzer zu aktivieren.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'PASSWORD_MISMATCH', 'Die eingegebenen Passwörter stimmen nicht überein.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'PASSWORD_MISMATCH', 'Die eingegebenen PasswÃ¶rter stimmen nicht Ã¼berein.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'LANDED', 'gelandet', 1, SYSDATETIME())
@@ -815,7 +815,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'SHOW_HISTORY', 'Historie anzeigen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'DELETE', 'Löschen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'DELETE', 'LÃ¶schen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'EDIT', 'Bearbeiten', 1, SYSDATETIME())
@@ -824,10 +824,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'NR_OF_PASSENGERS', 'Anzahl Passagiere', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SEATS_INSUFFICIENT', 'Zu wenig Sitzplätze', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SEATS_INSUFFICIENT', 'Zu wenig SitzplÃ¤tze', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MINIMUM_NUMBER_OF_SEATS_REQUIRED', 'Mninimale Anzahl Sitzplätze', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MINIMUM_NUMBER_OF_SEATS_REQUIRED', 'Mninimale Anzahl SitzplÃ¤tze', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'BIRTHDAY', 'Geburtstag', 1, SYSDATETIME())
@@ -836,7 +836,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'MY_LICENSE_STATE', 'Mein Lizenz-Stand', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NO_MEDICAL_INFO', 'Hier würde das Ablaufdatum des Medicals angezeigt werden. Das Datum kann unter folgendem Link ganz einfach in der Rubrik "Lizenz" erfasst werden:', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NO_MEDICAL_INFO', 'Hier wÃ¼rde das Ablaufdatum des Medicals angezeigt werden. Das Datum kann unter folgendem Link ganz einfach in der Rubrik "Lizenz" erfasst werden:', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'RESET', 'Reset', 1, SYSDATETIME())
@@ -857,7 +857,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'FILTER_PERSON_FLAG_HasGliderPilotLicence', 'Segelflug Piloten', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FILTER_PERSON_FLAG_HasGliderTraineeLicence', 'Segelflug Schüler', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FILTER_PERSON_FLAG_HasGliderTraineeLicence', 'Segelflug SchÃ¼ler', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FILTER_PERSON_FLAG_HasMotorPilotLicence', 'Motorflug Piloten', 1, SYSDATETIME())
@@ -878,10 +878,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'MEMBER_STATE', 'Mitgliederstatus', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FLIGHT_COUNTER_UNIT_TYPE', 'Flug Zähler Einheit', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FLIGHT_COUNTER_UNIT_TYPE', 'Flug ZÃ¤hler Einheit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'ENGINE_COUNTER_UNIT_TYPE', 'Motor Zähler Einheit', 1, SYSDATETIME())
+     VALUES (NEWID(), 'ENGINE_COUNTER_UNIT_TYPE', 'Motor ZÃ¤hler Einheit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'TOW_DURATION', 'Schleppdauer', 1, SYSDATETIME())
@@ -908,34 +908,34 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'ACCOUNTING_RULE_FILTERS', 'Verrechnungs-Regeln', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FOR_SELF_STARTER_GLIDER_FLIGHTS', 'Für Selbstarter-Segelflugzeug Flüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FOR_SELF_STARTER_GLIDER_FLIGHTS', 'FÃ¼r Selbstarter-Segelflugzeug FlÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FOR_GLIDER_FLIGHTS', 'Für Segelflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FOR_GLIDER_FLIGHTS', 'FÃ¼r SegelflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FOR_TOWING_FLIGHTS', 'Für Schleppflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FOR_TOWING_FLIGHTS', 'FÃ¼r SchleppflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FOR_MOTOR_FLIGHTS', 'Für Motorflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FOR_MOTOR_FLIGHTS', 'FÃ¼r MotorflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'ACTIVE', 'Aktiv', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'START_LOCATIONS', 'Startplätze', 1, SYSDATETIME())
+     VALUES (NEWID(), 'START_LOCATIONS', 'StartplÃ¤tze', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LANDING_LOCATIONS', 'Landeplätze', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LANDING_LOCATIONS', 'LandeplÃ¤tze', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'DELIVERY_LINE_TEXT', 'Buchungszeile', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RECIPIENT', 'Empfänger', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RECIPIENT', 'EmpfÃ¤nger', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RECIPIENT_NAME', 'Empfänger Name', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RECIPIENT_NAME', 'EmpfÃ¤nger Name', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'NR_LANDINGS_AT_START_LOCATION', 'Anz. Ldg am Startort', 1, SYSDATETIME())
@@ -965,19 +965,19 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'FLIGHT_DURATION_UNLIMITED', 'Flugdauer unbegrenzt', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'THREASHOLD_TEXT', 'Threshold-Text für Buchungstext', 1, SYSDATETIME())
+     VALUES (NEWID(), 'THREASHOLD_TEXT', 'Threshold-Text fÃ¼r Buchungstext', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'INCLUDE_FLIGHT_TYPE_IN_BOOKING_TEXT', 'Flugart-Bezeichnung in Buchungstext integrieren', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NO_LANDING_TAX_FOR_GLIDER', 'Keine Landetaxen für Segelflugzeug', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NO_LANDING_TAX_FOR_GLIDER', 'Keine Landetaxen fÃ¼r Segelflugzeug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NO_LANDING_TAX_FOR_TOWING_AIRCRAFT', 'Keine Landetaxen für Schleppflugzeug', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NO_LANDING_TAX_FOR_TOWING_AIRCRAFT', 'Keine Landetaxen fÃ¼r Schleppflugzeug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'NO_LANDING_TAX_FOR_AIRCRAFT', 'Keine Landetaxen für Motorflugzeug', 1, SYSDATETIME())
+     VALUES (NEWID(), 'NO_LANDING_TAX_FOR_AIRCRAFT', 'Keine Landetaxen fÃ¼r Motorflugzeug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FLIGHT_CREW_TYPES', 'Crew Typen', 1, SYSDATETIME())
@@ -992,7 +992,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'PRIVATE_PHONE', 'Tel. Privat', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'BUSINESS_PHONE', 'Tel. Geschäft', 1, SYSDATETIME())
+     VALUES (NEWID(), 'BUSINESS_PHONE', 'Tel. GeschÃ¤ft', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'INVOICE_TO', 'Rechnung an', 1, SYSDATETIME())
@@ -1007,10 +1007,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'APPLY_FOR_TRY_FLIGHT', 'Anmeldung abschicken', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'APPLICATION_FOR_TRY_FLIGHT_WAS_SUCCESSFUL', 'Vielen Dank für Ihre Anmeldung. Wir freuen uns auf einen erfolgreichen Schnupperflugtag.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'APPLICATION_FOR_TRY_FLIGHT_WAS_SUCCESSFUL', 'Vielen Dank fÃ¼r Ihre Anmeldung. Wir freuen uns auf einen erfolgreichen Schnupperflugtag.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'BACK_TO_HOMEPAGE', 'Zurück zur Homepage', 1, SYSDATETIME())
+     VALUES (NEWID(), 'BACK_TO_HOMEPAGE', 'ZurÃ¼ck zur Homepage', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FLIGHT_STATES', 'Flug Status', 1, SYSDATETIME())
@@ -1028,10 +1028,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'FLIGHT_LANDED', 'Flugzeug gelandet', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FLIGHT_INVALID', 'Flug unvollständig', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FLIGHT_INVALID', 'Flug unvollstÃ¤ndig', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FLIGHT_VALID', 'Flug gültig', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FLIGHT_VALID', 'Flug gÃ¼ltig', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FLIGHT_LOCKED', 'Flug gesperrt', 1, SYSDATETIME())
@@ -1040,10 +1040,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'FLIGHT_DELIVERED', 'Flug verrechnet', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FLIGHT_DELIVERYPREPARATIONERROR', 'Lieferschein für Flug fehlerhaft', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FLIGHT_DELIVERYPREPARATIONERROR', 'Lieferschein fÃ¼r Flug fehlerhaft', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'FLIGHT_DELIVERYPREPARED', 'Lieferschein für Flug erstellt', 1, SYSDATETIME())
+     VALUES (NEWID(), 'FLIGHT_DELIVERYPREPARED', 'Lieferschein fÃ¼r Flug erstellt', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FLIGHT_DELIVERYBOOKED', 'Lieferschein verbucht', 1, SYSDATETIME())
@@ -1052,10 +1052,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'FLIGHT_EXCLUDEDFROMDELIVERYPROCESS', 'Flug aus der Verrechnung ausgeschlossen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'DELIVERY_PREPARATION_ERROR', 'Lieferschein für Flug fehlerhaft', 1, SYSDATETIME())
+     VALUES (NEWID(), 'DELIVERY_PREPARATION_ERROR', 'Lieferschein fÃ¼r Flug fehlerhaft', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'DELIVERY_PREPARED', 'Lieferschein für Flug erstellt', 1, SYSDATETIME())
+     VALUES (NEWID(), 'DELIVERY_PREPARED', 'Lieferschein fÃ¼r Flug erstellt', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'DELIVERY_BOOKED', 'Lieferschein verbucht', 1, SYSDATETIME())
@@ -1079,7 +1079,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'SEND_COUPON_TO', 'Gutschein', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'SEND_COUPON_TO_INVOICE_RECIPIENT', 'An Rechnungsempfänger schicken', 1, SYSDATETIME())
+     VALUES (NEWID(), 'SEND_COUPON_TO_INVOICE_RECIPIENT', 'An RechnungsempfÃ¤nger schicken', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'SEND_COUPON_TO_CANDIDATE', 'Direkt an Schnupperflug-Kandidat schicken', 1, SYSDATETIME())
@@ -1100,54 +1100,54 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'CREATE_TEST_DELIVERY', 'Test-Delivery erzeugen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RUN_ALL_TESTS', 'Alle Tests ausführen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RUN_ALL_TESTS', 'Alle Tests ausfÃ¼hren', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RUN', 'Ausführen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RUN', 'AusfÃ¼hren', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'RESEND_EMAIL_TOKEN', 'Email nicht bestätigt. Bestätigung erneut senden', 1, SYSDATETIME())
+     VALUES (NEWID(), 'RESEND_EMAIL_TOKEN', 'Email nicht bestÃ¤tigt. BestÃ¤tigung erneut senden', 1, SYSDATETIME())
 
 
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_towing_flight_referenced_for_towed_glider_flight', 'Kein Schleppflug erfasst für Segelflug mit Flugzeugschlepp', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_towing_flight_referenced_for_towed_glider_flight', 'Kein Schleppflug erfasst fÃ¼r Segelflug mit Flugzeugschlepp', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_Towing_flight_referenced_for_externally_started_glider_flight', 'Schleppflug erfasst für extern gestarteter Segelflug', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_Towing_flight_referenced_for_externally_started_glider_flight', 'Schleppflug erfasst fÃ¼r extern gestarteter Segelflug', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_winch_operator_set_for_winch_started_glider_flight', 'Kein Windenführer erfasst für Windenstart', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_winch_operator_set_for_winch_started_glider_flight', 'Kein WindenfÃ¼hrer erfasst fÃ¼r Windenstart', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_flight_date_set', 'Kein Flugdatum für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_flight_date_set', 'Kein Flugdatum fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_aircraft_set', 'Kein Flugzeug für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_aircraft_set', 'Kein Flugzeug fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_pilot_set', 'Kein Pilot für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_pilot_set', 'Kein Pilot fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_start_time_information_set', 'Keine Startzeit für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_start_time_information_set', 'Keine Startzeit fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_landing_time_information_set', 'Keine Landezeit für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_landing_time_information_set', 'Keine Landezeit fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_start_location_set', 'Kein Startort für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_start_location_set', 'Kein Startort fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_landing_location_set', 'Kein Landeort für Flug erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_landing_location_set', 'Kein Landeort fÃ¼r Flug erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_start_type_set', 'Keine Startart für Flug ausgewählt', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_start_type_set', 'Keine Startart fÃ¼r Flug ausgewÃ¤hlt', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_No_flight_type_set', 'Keine Flugart für Flug ausgewählt', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_No_flight_type_set', 'Keine Flugart fÃ¼r Flug ausgewÃ¤hlt', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'VALIDATION_ERROR_Number_of_landings_not_set', 'Anzahl Landungen für Flug nicht erfasst', 1, SYSDATETIME())
+     VALUES (NEWID(), 'VALIDATION_ERROR_Number_of_landings_not_set', 'Anzahl Landungen fÃ¼r Flug nicht erfasst', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'VALIDATION_ERROR_Number_of_landings_is_less_then_1', 'Anzahl Landungen ist kleiner als 1', 1, SYSDATETIME())
@@ -1159,7 +1159,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'VALIDATION', 'Validierung', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'CONFIRM_VALIDATE', 'Mit dieser Funktion werden alle Flüge validiert. Um Fehler in der Validierung zu vermeiden, sollte die Validierung erst am Ende des Flugtages durchgeführt werden. Soll die Validierung gestartet werden?', 1, SYSDATETIME())
+     VALUES (NEWID(), 'CONFIRM_VALIDATE', 'Mit dieser Funktion werden alle FlÃ¼ge validiert. Um Fehler in der Validierung zu vermeiden, sollte die Validierung erst am Ende des Flugtages durchgefÃ¼hrt werden. Soll die Validierung gestartet werden?', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'PERSON_CATEGORY', 'Personen Kategorie', 1, SYSDATETIME())
@@ -1168,13 +1168,13 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'PERSON_CATEGORIES', 'Personen Kategorien', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'STOP_RULE_ENGINE_WHEN_RULE_APPLIED', 'Bei Regel-Treffer nachfolgende Regeln überspringen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'STOP_RULE_ENGINE_WHEN_RULE_APPLIED', 'Bei Regel-Treffer nachfolgende Regeln Ã¼berspringen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'ACCOUNTING_UNIT_TYPE', 'Accounting Einheit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'ADD_AIRCRAFT', 'Flugzeug hinzufügen', 1, SYSDATETIME())
+     VALUES (NEWID(), 'ADD_AIRCRAFT', 'Flugzeug hinzufÃ¼gen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'Error_DbEntityValidationException', 'Datenbank-Validierungs-Fehler. Datensatz konnte nicht gespeichert oder aktualisiert werden!', 1, SYSDATETIME())
@@ -1186,10 +1186,10 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'Error_UserNotAuthenticated', 'Benutzer ist nicht authentiziert.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'Error_SoftDeleteDatabaseException', 'Datenbank-Fehler. Datensatz konnte nicht gelöscht bzw. aktualisiert werden.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'Error_SoftDeleteDatabaseException', 'Datenbank-Fehler. Datensatz konnte nicht gelÃ¶scht bzw. aktualisiert werden.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'Error_ArgumentOutOfRange', 'Das Argument ist ausserhalb des gültigen Wertebereichs. Argument: {{ArgumentName}}', 1, SYSDATETIME())
+     VALUES (NEWID(), 'Error_ArgumentOutOfRange', 'Das Argument ist ausserhalb des gÃ¼ltigen Wertebereichs. Argument: {{ArgumentName}}', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'Error_ReservationTypeNotFound', 'Reservierungs-Typ nicht gefunden!', 1, SYSDATETIME())
@@ -1201,28 +1201,28 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'Error_StartTimeOfGliderAndTowFlightsNotEqual', 'Start-Zeit ist nicht gleich zwischen Segelflug und Schleppflug!', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'Error_TowFlightWithoutGliderFlightIsNotValid', 'Schleppflug ohne Segelflug ist nicht gültig und kann nicht abgespeichert werden.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'Error_TowFlightWithoutGliderFlightIsNotValid', 'Schleppflug ohne Segelflug ist nicht gÃ¼ltig und kann nicht abgespeichert werden.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'Error_InternalServerException', 'Ein interner Server-Fehler ist aufgetreten. Das Entwickler-Team wurde informiert.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'Error_NotInRole_ClubAdmin', 'Keine Berechtigung! Zum Ausführen dieser Aktion musst du Club-Administrator sein.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'Error_NotInRole_ClubAdmin', 'Keine Berechtigung! Zum AusfÃ¼hren dieser Aktion musst du Club-Administrator sein.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'Error_InvalidCastException', 'Fehler bei der Konvertierung eines Wertes.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'Error_CantDeleteClubDueToActiveUsers', 'Club kann nicht gelöscht werden, da er noch aktivierte Benutzer hat.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'Error_CantDeleteClubDueToActiveUsers', 'Club kann nicht gelÃ¶scht werden, da er noch aktivierte Benutzer hat.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'Error_NotInSameClub', 'Keine Berechtigung zum Ausführen dieser Aktion.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'Error_NotInSameClub', 'Keine Berechtigung zum AusfÃ¼hren dieser Aktion.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MOTOR_INSTRUCTOR_LICENCE_EXPIRE_DATE', 'Motorfluglehrer Lizenz Gültigkeit bis', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MOTOR_INSTRUCTOR_LICENCE_EXPIRE_DATE', 'Motorfluglehrer Lizenz GÃ¼ltigkeit bis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'PART_M_LICENCE_EXPIRE_DATE', 'Part-M Lizenz Gültigkeit bis', 1, SYSDATETIME())
+     VALUES (NEWID(), 'PART_M_LICENCE_EXPIRE_DATE', 'Part-M Lizenz GÃ¼ltigkeit bis', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'HAS_PART_M_LICENCE', 'Part-M Lizenz', 1, SYSDATETIME())
@@ -1258,7 +1258,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'REPORT_MY_FLIGHTS_PREVIOUS_YEAR', 'Im Vorjahr', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LOCATION_REPORTS', 'Flüge auf Heimflugplatz', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LOCATION_REPORTS', 'FlÃ¼ge auf Heimflugplatz', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'REPORT_LOCATION_FLIGHTS_TODAY', 'Heute', 1, SYSDATETIME())
@@ -1273,7 +1273,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'REPORT_LOCATION_FLIGHTS_PREVIOUS_YEAR', 'Im Vorjahr', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MY_REPORTS', 'Meine Flüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MY_REPORTS', 'Meine FlÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'FLIGHT_REPORT_FILTER_CRITERIA', 'Report Kriterien', 1, SYSDATETIME())
@@ -1285,13 +1285,13 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'NO', 'Nein', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'GLIDER_FLIGHTS', 'Segelflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'GLIDER_FLIGHTS', 'SegelflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'MOTOR_FLIGHTS', 'Motorflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'MOTOR_FLIGHTS', 'MotorflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'TOW_FLIGHTS', 'Schleppflüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'TOW_FLIGHTS', 'SchleppflÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'LANGUAGE', 'Sprache', 1, SYSDATETIME())
@@ -1306,13 +1306,13 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'TOTAL_FLIGHT_DURATION', 'Total Flugzeit', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'TOTAL_FLIGHTS', 'Total Flüge', 1, SYSDATETIME())
+     VALUES (NEWID(), 'TOTAL_FLIGHTS', 'Total FlÃ¼ge', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'TOTAL_LANDINGS', 'Total Landungen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'LAST_MATCHED_RULE_FILTERS', 'Übereinstimmende Verrechnungs-Regeln beim Test', 1, SYSDATETIME())
+     VALUES (NEWID(), 'LAST_MATCHED_RULE_FILTERS', 'Ãœbereinstimmende Verrechnungs-Regeln beim Test', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'LAST_DELIVERY_DETAILS', 'Letzte Lieferschein-Details beim Test', 1, SYSDATETIME())
@@ -1336,7 +1336,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'APPLY_FOR_PASSENGER_FLIGHT', 'Registrierung abschicken', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'APPLICATION_FOR_PASSENGER_FLIGHT_WAS_SUCCESSFUL', 'Vielen Dank für Ihre Registrierung. Wir freuen uns auf einen unvergesslichen Passagierflug.', 1, SYSDATETIME())
+     VALUES (NEWID(), 'APPLICATION_FOR_PASSENGER_FLIGHT_WAS_SUCCESSFUL', 'Vielen Dank fÃ¼r Ihre Registrierung. Wir freuen uns auf einen unvergesslichen Passagierflug.', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'SEND_COUPON_TO_PASSENGER', 'Direkt an Passagier schicken', 1, SYSDATETIME())
@@ -1357,7 +1357,7 @@ INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationK
      VALUES (NEWID(), 'DELIVERY_INFORMATION', 'LS Informationen', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
-     VALUES (NEWID(), 'DELIVERY_RECIPIENTNAME', 'LS Empfänger', 1, SYSDATETIME())
+     VALUES (NEWID(), 'DELIVERY_RECIPIENTNAME', 'LS EmpfÃ¤nger', 1, SYSDATETIME())
 
 INSERT INTO [dbo].[LanguageTranslations] ([LanguageTranslationId], [TranslationKey], [TranslationValue], [LanguageId], [CreatedOn])
      VALUES (NEWID(), 'DELIVERY_FLIGHT_INFORMATION_IMMATRICULATION', 'Flugzeug', 1, SYSDATETIME())

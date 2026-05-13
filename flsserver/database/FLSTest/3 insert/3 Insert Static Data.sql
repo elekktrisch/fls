@@ -1,4 +1,4 @@
-
+ï»¿
 USE [FLSTest]
 
 
@@ -169,7 +169,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'9022f82e-95db-11e0-8d18-07f14724019b', 250, N'Frankreich', NULL, N'FR', CAST(N'2014-06-02 11:17:44.4587500' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'95c48d24-95db-11e0-a5e5-08f14724019b', 40, N'Österreich', NULL, N'AT', CAST(N'2014-06-02 11:17:44.4743750' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'95c48d24-95db-11e0-a5e5-08f14724019b', 40, N'Ã–sterreich', NULL, N'AT', CAST(N'2014-06-02 11:17:44.4743750' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'249c2ab2-cfe3-4cb5-9679-095d9ac7bddc', 124, N'Kanada', NULL, N'CA', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -181,7 +181,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'97333db0-c9ac-49bb-a8f9-0cd9f1029c7b', 320, N'Guatemala', NULL, N'GT', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'3f0c69fe-3e3a-465c-ba4d-0d3f8abc08e8', 231, N'Äthiopien', NULL, N'ET', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'3f0c69fe-3e3a-465c-ba4d-0d3f8abc08e8', 231, N'Ã„thiopien', NULL, N'ET', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'7691a9d6-f475-4ac1-9092-0d8eafb497ee', 499, N'Montenegro', NULL, N'ME', CAST(N'2016-06-07 22:53:46.8863938' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -235,9 +235,9 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'8aa8f214-0db6-4572-901c-34a8e01c7850', 84, N'Belize', NULL, N'BZ', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'c0e05ec9-656d-4d39-a3d2-35ac03f98868', 642, N'Rumänien', NULL, N'RO', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'c0e05ec9-656d-4d39-a3d2-35ac03f98868', 642, N'RumÃ¤nien', NULL, N'RO', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'f9886b0e-e314-4fdc-8b63-35b4421293e6', 643, N'Russische Föderation', NULL, N'RU', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'f9886b0e-e314-4fdc-8b63-35b4421293e6', 643, N'Russische FÃ¶deration', NULL, N'RU', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'a508bc2a-5d54-480b-93a7-378873e94e01', 300, N'Griechenland', NULL, N'GR', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -257,7 +257,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'381727b5-e431-47c6-837c-409edf6fc1c4', 72, N'Botsuana', NULL, N'BW', CAST(N'2016-06-07 22:53:46.8395236' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'288e3f48-5caa-4c5b-bb45-4159dd47dd15', 226, N'Äquatorialguinea', NULL, N'GQ', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'288e3f48-5caa-4c5b-bb45-4159dd47dd15', 226, N'Ã„quatorialguinea', NULL, N'GQ', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'2c7116e1-17ac-42f7-a14a-41931a0da2cf', 48, N'Bahrain', NULL, N'BH', CAST(N'2016-06-07 22:53:46.8395236' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -333,7 +333,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'3b4de4a9-e69c-48f0-9177-76008a6045d8', 203, N'Tschechische Republik', NULL, N'CZ', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'2d499cb2-1ea0-4ba5-b42e-78628757cc7b', 710, N'Südafrika', NULL, N'ZA', CAST(N'2016-06-07 22:53:47.0114076' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'2d499cb2-1ea0-4ba5-b42e-78628757cc7b', 710, N'SÃ¼dafrika', NULL, N'ZA', CAST(N'2016-06-07 22:53:47.0114076' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'd5087551-b3cc-43e4-a560-79d70ddccca7', 858, N'Uruguay', NULL, N'UY', CAST(N'2016-06-07 22:53:47.0114076' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -349,7 +349,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'7d3466ec-ba42-4f61-ba8b-7ed40a133be8', 620, N'Portugal', NULL, N'PT', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'26a02792-87d0-41c4-ad48-8078f6ddb056', 208, N'Dänemark', NULL, N'DK', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'26a02792-87d0-41c4-ad48-8078f6ddb056', 208, N'DÃ¤nemark', NULL, N'DK', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'4761f4e8-f584-4526-af3f-80fef47ab1a9', 212, N'Dominica', NULL, N'DM', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -371,7 +371,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'b8aa42ba-b9fb-4e88-b0bb-8de4c658e627', 308, N'Grenada', NULL, N'GD', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'04fc9e8a-ddd4-45ee-9d35-8f78ce807e03', 678, N'Sao Tomé und Principe', NULL, N'ST', CAST(N'2016-06-07 22:53:46.9176510' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'04fc9e8a-ddd4-45ee-9d35-8f78ce807e03', 678, N'Sao TomÃ© und Principe', NULL, N'ST', CAST(N'2016-06-07 22:53:46.9176510' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'c2cae6ba-b059-44db-a4c9-8f9133e82bfa', 492, N'Monaco', NULL, N'MC', CAST(N'2016-06-07 22:53:46.8863938' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -493,7 +493,7 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'98800033-7d36-4925-8778-de70d15ce5aa', 591, N'Panama', NULL, N'PA', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'6c3d605e-4312-40d1-bc51-e0ab493acedc', 818, N'Ägypten', NULL, N'EG', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'6c3d605e-4312-40d1-bc51-e0ab493acedc', 818, N'Ã„gypten', NULL, N'EG', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'4aa74c11-b362-4a15-a173-e22d08b1bdb4', 768, N'Togo', NULL, N'TG', CAST(N'2016-06-07 22:53:46.9176510' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -523,15 +523,15 @@ INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFu
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'81859e95-5456-4eb9-bdc0-f5105c65fddd', 634, N'Katar', NULL, N'QA', CAST(N'2016-06-07 22:53:46.9020133' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'727cf4ba-b641-469b-80cc-f571135a7508', 792, N'Türkei', NULL, N'TR', CAST(N'2016-06-07 22:53:46.9176510' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'727cf4ba-b641-469b-80cc-f571135a7508', 792, N'TÃ¼rkei', NULL, N'TR', CAST(N'2016-06-07 22:53:46.9176510' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'685898a9-1079-4567-b4c1-f66a141e6f7e', 368, N'Irak', NULL, N'IQ', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'5403d1e8-1135-4536-918f-f688ab9591df', 270, N'Gambia', NULL, N'GM', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'149f80ee-5d01-4a8d-9e12-f7b5ed05eede', 384, N'Côte d''Ivoire', NULL, N'CI', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'149f80ee-5d01-4a8d-9e12-f7b5ed05eede', 384, N'CÃ´te d''Ivoire', NULL, N'CI', CAST(N'2016-06-07 22:53:46.8552074' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
-INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'3db2066d-b99a-4c10-8868-f864b8356a8d', 826, N'Vereinigtes Königreich Großbritannien und Nordirland', NULL, N'GB', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
+INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'3db2066d-b99a-4c10-8868-f864b8356a8d', 826, N'Vereinigtes KÃ¶nigreich GroÃŸbritannien und Nordirland', NULL, N'GB', CAST(N'2016-06-07 22:53:46.8707785' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
 INSERT [dbo].[Countries] ([CountryId], [CountryIdIso], [CountryName], [CountryFullName], [CountryCodeIso2], [CreatedOn], [CreatedByUserId], [ModifiedOn], [ModifiedByUserId], [DeletedOn], [DeletedByUserId], [RecordState], [OwnerId], [OwnershipType], [IsDeleted]) VALUES (N'c92cfc1c-3532-4556-9a9a-fa058b4a5fca', 704, N'Vietnam', NULL, N'VN', CAST(N'2016-06-07 22:53:47.0114076' AS DateTime2), N'13731ee2-c1d8-455c-8ad1-c39399893fff', NULL, NULL, NULL, NULL, 1, N'a1dde2cb-6326-4bb2-897d-7cfc118e842b', 2, 0)
 
@@ -549,10 +549,10 @@ PRINT 'INSERT ElevationUnitTypes'
 SET IDENTITY_INSERT [ElevationUnitTypes] ON
 INSERT INTO [ElevationUnitTypes] ([ElevationUnitTypeId], [ElevationUnitTypeName], [ElevationUnitTypeKeyName], 
 	[ElevationUnitTypeShortName], [CreatedOn])
-     VALUES (1, 'Meter über Meer', 'MeterAboveSeaLevel', 'm.ü.M.', SYSDATETIME())
+     VALUES (1, 'Meter Ã¼ber Meer', 'MeterAboveSeaLevel', 'm.Ã¼.M.', SYSDATETIME())
 INSERT INTO [ElevationUnitTypes] ([ElevationUnitTypeId], [ElevationUnitTypeName], [ElevationUnitTypeKeyName], 
 	[ElevationUnitTypeShortName], [CreatedOn])
-     VALUES (2, 'Fuss über Meer', 'FeetAboveSealevel', 'ft.ü.M.', SYSDATETIME())
+     VALUES (2, 'Fuss Ã¼ber Meer', 'FeetAboveSealevel', 'ft.Ã¼.M.', SYSDATETIME())
 SET IDENTITY_INSERT [ElevationUnitTypes] OFF
 
 PRINT 'INSERT LengthUnitTypes'
@@ -594,7 +594,7 @@ SET IDENTITY_INSERT [AircraftTypes] OFF
 PRINT 'INSERT FlightCrewTypes'
 SET IDENTITY_INSERT [FlightCrewTypes] ON
 INSERT INTO [FlightCrewTypes] ([FlightCrewTypeId], [FlightCrewTypeName], [Comment], [CreatedOn])
-     VALUES (1, 'Pilot', 'Pilot oder Flugschüler', SYSDATETIME())
+     VALUES (1, 'Pilot', 'Pilot oder FlugschÃ¼ler', SYSDATETIME())
 
 INSERT INTO [FlightCrewTypes] ([FlightCrewTypeId], [FlightCrewTypeName], [Comment], [CreatedOn])
      VALUES (2, 'Copilot', 'Copilot / 2. Besatzung', SYSDATETIME())
@@ -606,13 +606,13 @@ INSERT INTO [FlightCrewTypes] ([FlightCrewTypeId], [FlightCrewTypeName], [Commen
      VALUES (4, 'Passagier', 'Passagier', SYSDATETIME())
 
 INSERT INTO [FlightCrewTypes] ([FlightCrewTypeId], [FlightCrewTypeName], [Comment], [CreatedOn])
-     VALUES (5, 'Windenführer', 'Windenführer', SYSDATETIME())
+     VALUES (5, 'WindenfÃ¼hrer', 'WindenfÃ¼hrer', SYSDATETIME())
 
 INSERT INTO [FlightCrewTypes] ([FlightCrewTypeId], [FlightCrewTypeName], [Comment], [CreatedOn])
-     VALUES (6, 'Observer', 'Überwachender Pilot oder Fluglehrer', SYSDATETIME())
+     VALUES (6, 'Observer', 'Ãœberwachender Pilot oder Fluglehrer', SYSDATETIME())
 
 INSERT INTO [FlightCrewTypes] ([FlightCrewTypeId], [FlightCrewTypeName], [Comment], [CreatedOn])
-     VALUES (10, 'Rechnungsempfänger', 'Rechnungsempfänger der Flugkosten / Invoice Recipient', SYSDATETIME())
+     VALUES (10, 'RechnungsempfÃ¤nger', 'RechnungsempfÃ¤nger der Flugkosten / Invoice Recipient', SYSDATETIME())
 SET IDENTITY_INSERT [FlightCrewTypes] OFF
 
 
@@ -638,8 +638,8 @@ INSERT INTO [FlightCostBalanceTypes] ([FlightCostBalanceTypeId],[FlightCostBalan
            ,[Comment],
 		   [PersonForInvoiceRequired],[IsForGliderFlights],[IsForTowFlights],[IsForMotorFlights],[CreatedOn])
      VALUES
-           (1,'Pilot bezahlt sämtliche Kosten', 
-		   'Rechnung wird mit sämtlichen anfallenden Segelflugkosten, Landetaxen an Pilot versendet.'
+           (1,'Pilot bezahlt sÃ¤mtliche Kosten', 
+		   'Rechnung wird mit sÃ¤mtlichen anfallenden Segelflugkosten, Landetaxen an Pilot versendet.'
            ,0, 1, 1, 1
            ,SYSDATETIME())
 
@@ -648,7 +648,7 @@ INSERT INTO [FlightCostBalanceTypes] ([FlightCostBalanceTypeId],[FlightCostBalan
 		   [PersonForInvoiceRequired],[IsForGliderFlights],[IsForTowFlights],[IsForMotorFlights],[CreatedOn])
      VALUES
            (2,'50:50 Pilot/Copilot',
-		   'Rechnung wird an Pilot und Copilot ausgestellt im Kostenverhältnis 50:50'
+		   'Rechnung wird an Pilot und Copilot ausgestellt im KostenverhÃ¤ltnis 50:50'
            ,0, 0, 0, 0
            ,SYSDATETIME())
 
@@ -657,7 +657,7 @@ INSERT INTO [FlightCostBalanceTypes] ([FlightCostBalanceTypeId],[FlightCostBalan
            ,[Comment],
 		   [PersonForInvoiceRequired],[IsForGliderFlights],[IsForTowFlights],[IsForMotorFlights],[CreatedOn])
      VALUES
-           (3,'Schlepppilot übernimmt Schleppkosten',
+           (3,'Schlepppilot Ã¼bernimmt Schleppkosten',
 		   'Rechnung mit den Segelflugkosten inkl. Landetaxen geht an den Segelflugpiloten, Schleppkosten werden dem Schlepppiloten in Rechnung gestellt.'
            ,0, 0, 0, 0
            ,SYSDATETIME())
@@ -667,7 +667,7 @@ INSERT INTO [FlightCostBalanceTypes] ([FlightCostBalanceTypeId],[FlightCostBalan
 		   [PersonForInvoiceRequired],[IsForGliderFlights],[IsForTowFlights],[IsForMotorFlights],[CreatedOn])
      VALUES
            (4,'Kein Fluglehrerhonorar verrechnen',
-		   'Dem Piloten/Schüler wird kein Fluglehrerhonorar in Rechnung gestellt.'
+		   'Dem Piloten/SchÃ¼ler wird kein Fluglehrerhonorar in Rechnung gestellt.'
            ,0, 1, 1, 1
            ,SYSDATETIME())
 
@@ -687,26 +687,26 @@ PRINT 'INSERT FlightStates'
 
 INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (0, N'Neu', N'Neuer Flug / Noch nicht gestartet', SYSUTCDATETIME())
 
-INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (5, N'Flugplan eröffnet', N'Flugplan eröffnet', SYSUTCDATETIME())
+INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (5, N'Flugplan erÃ¶ffnet', N'Flugplan erÃ¶ffnet', SYSUTCDATETIME())
 
-INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (8, N'Möglicherweise gestartet', N'Keine Startinformationen vorhanden.', SYSUTCDATETIME())
+INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (8, N'MÃ¶glicherweise gestartet', N'Keine Startinformationen vorhanden.', SYSUTCDATETIME())
 
 INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (10, N'Gestartet', N'Flugzeug gestartet / in der Luft', SYSUTCDATETIME())
 
-INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (15, N'Möglicherweise gelandet', N'Keine Landeinformationen vorhanden.', SYSUTCDATETIME())
+INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (15, N'MÃ¶glicherweise gelandet', N'Keine Landeinformationen vorhanden.', SYSUTCDATETIME())
 
 INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (20, N'Gelandet', N'Flugzeug gelandet', SYSUTCDATETIME())
 
 INSERT [dbo].[FlightAirStates] ([FlightAirStateId], [FlightAirStateName], [Comment], [CreatedOn]) VALUES (25, N'Geschlossen', N'Flug/Flugplan geschlossen', SYSUTCDATETIME())
 
 
-INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (0, N'Kein Prozess gelaufen', N'Für diesen Flug war noch kein Prozess gelaufen', SYSUTCDATETIME())
+INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (0, N'Kein Prozess gelaufen', N'FÃ¼r diesen Flug war noch kein Prozess gelaufen', SYSUTCDATETIME())
 
-INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (28, N'Ungültig', N'Flug wurde validiert, Angaben sind aber ungültig oder nicht plausibel', SYSUTCDATETIME())
+INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (28, N'UngÃ¼ltig', N'Flug wurde validiert, Angaben sind aber ungÃ¼ltig oder nicht plausibel', SYSUTCDATETIME())
 
-INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (30, N'Gültig', N'Flug wurde validiert und Angaben zum Flug sind gültig', SYSUTCDATETIME())
+INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (30, N'GÃ¼ltig', N'Flug wurde validiert und Angaben zum Flug sind gÃ¼ltig', SYSUTCDATETIME())
 
-INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (40, N'Gesperrt', N'Flug kann nicht mehr editiert werden und ist für Verrechnung bereit', SYSUTCDATETIME())
+INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (40, N'Gesperrt', N'Flug kann nicht mehr editiert werden und ist fÃ¼r Verrechnung bereit', SYSUTCDATETIME())
 
 INSERT [dbo].[FlightProcessStates] ([FlightProcessStateId], [FlightProcessStateName], [Comment], [CreatedOn]) VALUES (50, N'Lieferschein erstellt', N'Flug-Lieferschein / Rechnung wurde erstellt und Flug kann nicht mehr editiert werden', SYSUTCDATETIME())
 
@@ -785,7 +785,7 @@ VALUES	(@locationTypeId, 'Flugplatz mit Hartbelagpiste', 5, 1,	 SYSDATETIME(),		
 SET @locationTypeId = NEWID()
 INSERT INTO LocationTypes (LocationTypeId, LocationTypeName, LocationTypeCupId, IsAirfield, CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType)
 VALUES	(@locationTypeId, 'Anderer Lokationstyp', 99, 0,	 SYSDATETIME(),		 @insertUserId, @recordState, @ownerId, @ownershipType)
--- weitere LocationTypes noch nicht erfasst (Pässe, Berge, Sender, Tower, Tunnel, Brücken, etc.)
+-- weitere LocationTypes noch nicht erfasst (PÃ¤sse, Berge, Sender, Tower, Tunnel, BrÃ¼cken, etc.)
 -- siehe SeeYou Waypoint CUP file format description
 
 
@@ -804,7 +804,7 @@ VALUES (@locationId, 'Montricher', @SwitzerlandId, @locationTypeId, 'LSTR', 614,
 SET @locationId = NEWID()
 SET @locationTypeId = (SELECT LocationTypeId FROM LocationTypes WHERE LocationTypeCupId = 5)
 INSERT INTO Locations (LocationId, LocationName, CountryId, LocationTypeId, IcaoCode, Elevation, ElevationUnitType, RunwayLength, RunwayLengthUnitType, IsFastEntryRecord, CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType) 
-VALUES (@locationId, 'Schänis', @SwitzerlandId, @locationTypeId, 'LSZX', 416, 1, 500, 1, 0, SYSDATETIME(), @insertUserId, @recordState, @ownerId, @ownershipType)
+VALUES (@locationId, 'SchÃ¤nis', @SwitzerlandId, @locationTypeId, 'LSZX', 416, 1, 500, 1, 0, SYSDATETIME(), @insertUserId, @recordState, @ownerId, @ownershipType)
 SET @locationId = NEWID()
 INSERT INTO Locations (LocationId, LocationName, CountryId, LocationTypeId, IcaoCode, Elevation, ElevationUnitType, RunwayLength, RunwayLengthUnitType, IsFastEntryRecord, CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType) 
 VALUES (@locationId, 'Saanen', @SwitzerlandId, @locationTypeId, 'LSGK', 1008, 1, 1400, 1, 0, SYSDATETIME(), @insertUserId, @recordState, @ownerId, @ownershipType)
@@ -843,7 +843,7 @@ VALUES (4 ,'Defekt' , 0,SYSDATETIME())
 INSERT INTO [AircraftStates] ([AircraftStateId],[AircraftStateName],[IsAircraftFlyable],[CreatedOn])
 VALUES (5 ,'Wartung' ,0 ,SYSDATETIME())
 INSERT INTO [AircraftStates] ([AircraftStateId],[AircraftStateName],[IsAircraftFlyable],[CreatedOn])
-VALUES (6 ,'Nicht eingelöst' , 0, SYSDATETIME())
+VALUES (6 ,'Nicht eingelÃ¶st' , 0, SYSDATETIME())
 INSERT INTO [AircraftStates] ([AircraftStateId],[AircraftStateName],[IsAircraftFlyable],[CreatedOn])
 VALUES (99 ,'Ausrangiert' ,0 ,SYSDATETIME())
 SET IDENTITY_INSERT [AircraftStates] OFF
