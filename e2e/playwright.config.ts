@@ -31,15 +31,16 @@ import { defineConfig, devices } from '@playwright/test';
 //
 // Run both via `npx playwright test`; Playwright walks projects in the
 // declared order and respects the per-project `workers` override.
+// Truly read-only specs: do NOT destructure `freshDb`, do NOT mutate DB
+// state. Safe to run in parallel across multiple workers. Anything that
+// uses freshDb (workers run their own seed.sh, which DROP+CREATE the
+// shared FLSTest DB) lives in the mutate project, not here, because
+// concurrent seed.sh invocations race and corrupt the schema.
 const READ_ONLY_SPECS = [
   '01-public.spec.ts',
   '02-authenticated.spec.ts',
   '03-masterdata.spec.ts',
-  '11-reservation-scheduler.spec.ts',
-  '16-flight-reports-generation.spec.ts',
-  '17-custom-report-builder.spec.ts',
-  '25-multi-tenant-isolation.spec.ts',
-  '33-api-contract.spec.ts',
+  '08-email.spec.ts',
   'auth.spec.ts',
   'landing.spec.ts',
 ];

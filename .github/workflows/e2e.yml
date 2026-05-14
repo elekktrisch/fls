@@ -78,6 +78,11 @@ jobs:
 
       # ----- Apply schema + seed --------------------------------------------------
       - name: Apply FLSTest schema and seed
+        env:
+          # docker-compose -p fls-e2e names the container fls-e2e-mssql-1.
+          # seed.sh defaults to fls-mssql (the manual-launch name in
+          # TESTING.md Milestone 1). Override for CI.
+          FLS_MSSQL_CONTAINER: fls-e2e-mssql-1
         run: bash e2e/scripts/seed.sh
 
       # ----- Start the Mono Web API ----------------------------------------------
