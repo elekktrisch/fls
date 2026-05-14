@@ -54,7 +54,12 @@ export default defineConfig({
   // tests don't pay the seed cost — they finish in seconds.
   timeout: 60_000,
   expect: { timeout: 5_000 },
-  // Project-level fullyParallel + workers override these defaults.
+  // `workers` is a top-level option in Playwright (TestProject doesn't
+  // accept it — silently ignored if set per-project). Both projects share
+  // this pool. `fullyParallel` + `retries` ARE project-level and stay
+  // there. The constraint is backend throughput (single Mono + SQL
+  // Server); 12 has worked locally without choking the stack.
+  workers: 12,
   retries: 0,
   outputDir: '/tmp/fls-e2e-results',
   reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
@@ -102,7 +107,6 @@ export default defineConfig({
       name: 'read',
       testMatch: READ_ONLY_SPECS,
       fullyParallel: true,
-      workers: 2,
       retries: 1,
       use: { ...devices['Desktop Chrome'] },
     },
@@ -119,10 +123,8 @@ export default defineConfig({
       // test-data.ts) own their own rows; nothing shared between specs.
       // Safe to run in parallel.
       fullyParallel: true,
-      // 12 workers across one Mono + SQL Server stack. The constraint
-      // is backend throughput, not Playwright; retries: 1 absorbs the
-      // occasional /Token 500 / page-boot timing flake under load.
-      workers: 12,
+      // retries: 1 absorbs the occasional /Token 500 / page-boot timing
+      // flake under load. workers count is set at the top level.
       retries: 1,
       // Even after the per-test seed cost is gone, mutation UI flows are
       // multi-step (form fills, navigations, ng-table reloads). 60s
