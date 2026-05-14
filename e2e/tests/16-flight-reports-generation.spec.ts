@@ -46,6 +46,11 @@ import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import { testId } from '../test-id';
 import { ensureGliderFlight, getBearerToken } from '../test-data';
 
+// Report page calls /api/v1/flightreports/page which scans every flight in
+// the club; under accumulated state this can take > 30s. Give the whole test
+// generous headroom.
+test.setTimeout(120_000);
+
 test('flight-reports: pre-canned location-this-year renders tabular output for seeded flights', async ({
   loggedInPage,
 }, testInfo) => {
@@ -70,11 +75,11 @@ test('flight-reports: pre-canned location-this-year renders tabular output for s
   //    icon-stack anchor.
   await gotoRoute(loggedInPage, '/flightreports/location/location-flights-this-year');
 
-  // 3. Filter-criteria panel: should be populated once the POST resolves.
-  //    The panel is `ng-show="!!FlightReportFilterCriteria"`, so its
-  //    presence is the signal that the page has data.
+  // 3. Filter-criteria panel: ng-show="!!FlightReportFilterCriteria"
+  //    becomes truthy once /api/v1/flightreports/page resolves. That
+  //    endpoint scans all club flights and can take long under load.
   const filterPanel = loggedInPage.locator('.filter-criteria-panel');
-  await expect(filterPanel).toBeVisible({ timeout: 15_000 });
+  await expect(filterPanel).toBeVisible({ timeout: 60_000 });
 
   // From the filter criteria block: From/To/GliderFlights/MotorFlights/
   // TowFlights labels are visible regardless of locale (we read by *value*

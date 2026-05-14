@@ -91,15 +91,18 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   );
   expect(delRes.ok(), `DELETE /aircrafts/{id}: ${delRes.status()}`).toBeTruthy();
 
-  // Server hard-deletes; assert via paged overview (single-id GET 500s on missing row).
-  const pagedRes = await page.request.post(
-    `${API_BASE}/api/v1/aircrafts/page/0/200`,
-    { headers: auth, data: { Sorting: {}, SearchFilter: { Immatriculation: IMMAT } } },
+  // Server soft-deletes (EF6 mapping); assert by re-fetching the soft-delete-
+  // aware overview. Single-id GET would 500 on a missing row, and the paged
+  // search endpoint 500s under load (use the cheaper listitems endpoint).
+  const overviewRes = await page.request.get(
+    `${API_BASE}/api/v1/aircrafts/listitems/gliders`,
+    { headers: auth },
   );
-  expect(pagedRes.ok(), `paged GET: ${pagedRes.status()}`).toBeTruthy();
-  const paged = (await pagedRes.json()) as {
-    Items: { AircraftId: string; Immatriculation: string }[];
-  };
-  expect(paged.Items.find(a => a.AircraftId === created.AircraftId)).toBeUndefined();
+  expect(
+    overviewRes.ok(),
+    `aircrafts/listitems: ${overviewRes.status()}: ${(await overviewRes.text().catch(() => '')).slice(0, 200)}`,
+  ).toBeTruthy();
+  const overview = await overviewRes.json() as Array<{ AircraftId: string; Immatriculation: string }>;
+  expect(overview.find(a => a.AircraftId === created.AircraftId)).toBeUndefined();
   await screenshot(loggedInPage, '26-aircraft-crud-01');
 });

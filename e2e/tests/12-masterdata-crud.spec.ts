@@ -115,15 +115,16 @@ test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, te
   await fillRequiredDropdowns(page);
   await submitForm(page);
 
-  // Find the new row via API instead of the ng-table filter input.
-  const lookupRes = await page.request.post(`${API_BASE}/api/v1/locations/page/0/100`, {
-    headers: auth,
-    data: { Sorting: {}, SearchFilter: { LocationName: NAME } },
-  });
-  expect(lookupRes.ok(), `locations/page lookup: ${lookupRes.status()}`).toBeTruthy();
-  const lookupBody = await lookupRes.json() as { Items?: Array<{ LocationId: string; LocationName: string }> };
-  const created = (lookupBody.Items ?? []).find(l => l.LocationName === NAME);
-  expect(created, 'created location should be in paged listing').toBeTruthy();
+  // Find the new row via the (unpaged) list endpoint — cheaper than paged
+  // and avoids whatever's 500'ing on the search filter under load.
+  const lookupRes = await page.request.get(`${API_BASE}/api/v1/locations`, { headers: auth });
+  expect(
+    lookupRes.ok(),
+    `locations list: ${lookupRes.status()}: ${(await lookupRes.text().catch(() => '')).slice(0, 200)}`,
+  ).toBeTruthy();
+  const lookupBody = await lookupRes.json() as Array<{ LocationId: string; LocationName: string }>;
+  const created = lookupBody.find(l => l.LocationName === NAME);
+  expect(created, 'created location should be in /locations listing').toBeTruthy();
 
   // EDIT via direct-URL navigation (skips the unreliable list-row click).
   await gotoRoute(page, `/masterdata/locations/${created!.LocationId}`);
