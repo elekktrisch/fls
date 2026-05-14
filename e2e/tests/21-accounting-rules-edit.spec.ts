@@ -103,6 +103,12 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
     UseRuleForAllPersonCategoriesExceptListed: true,
     MatchedPersonCategories: [],
     ArticleTarget: { ArticleNumber: article!.ArticleNumber, DeliveryLineText: article!.ArticleName },
+    // AccountingUnitTypeId is REQUIRED for FlightTime rules — the resulting
+    // DeliveryItem inherits UnitType from this and DeliveryItem.UnitType is
+    // [Required]. Without this, an otherwise-passing rule emits an item that
+    // fails EF validation in DeliveryService.SaveChanges() and rolls back
+    // the whole flight's transition, leaving the flight stuck in Locked.
+    AccountingUnitTypeId: 10, // Min
     IsChargedToClubInternal: false,
   };
   const createRes = await loggedInPage.request.post(
@@ -142,4 +148,12 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
   expect(readBack.Description, 'PUT roundtrip should have persisted DESC_EDITED').toBe(DESC_EDITED);
 
   await screenshot(loggedInPage, '21-accounting-rules-edit-01');
+
+  // Clean up the rule we created — it matches all aircraft / start types
+  // and would otherwise apply to every glider flight in subsequent specs
+  // (e.g. #23 delivery-creation-workflow).
+  await loggedInPage.request.post(
+    `${API_BASE}/api/v1/accountingrulefilters/${created.AccountingRuleFilterId}`,
+    { headers: { ...headers, 'X-HTTP-Method-Override': 'DELETE' } },
+  );
 });
