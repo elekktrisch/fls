@@ -38,7 +38,7 @@ async function openFirstUserEditPage(page: Page): Promise<void> {
   const urlBefore = page.url();
   await firstRow.click();
   await page.waitForFunction((prev) => location.href !== prev, urlBefore);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(500);
 }
 
@@ -86,7 +86,7 @@ test('persons-add-modal: create person via $modal and assert in list', async ({
   // 6. The modal closes and UsersEditController.newPerson() chains
   //    `new PersonPersister(person).$save()`. Wait for the dialog to detach.
   await expect(dialog).toBeHidden({ timeout: 10_000 });
-  await loggedInPage.waitForLoadState('networkidle');
+  await loggedInPage.waitForLoadState('domcontentloaded');
 
   // 7. Verify the new person is queryable via the API (independent of UI
   //    filtering quirks). Pull the bearer token stashed by `loggedInPage`.

@@ -204,7 +204,7 @@ test('flights:create new glider flight via UI shows up in list', async ({ logged
   // NavigationCache.cancellingLocation, which was set to /flights when the
   // list controller first mounted.
   await loggedInPage.waitForURL(/#\/flights(\?|$)/, { timeout: SECONDARY_TIMEOUT });
-  await loggedInPage.waitForLoadState('networkidle');
+  await loggedInPage.waitForLoadState('domcontentloaded');
   await loggedInPage.waitForTimeout(500);
   await loggedInPage.waitForFunction(() => {
     const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];

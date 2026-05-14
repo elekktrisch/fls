@@ -57,7 +57,7 @@ async function submitForm(page: Page) {
   // Save = <button type="submit">; Cancel = <button type="button">.
   await page.locator('form button[type="submit"]').click();
   await page.waitForURL('**/#/masterdata/flightTypes', { timeout: 10_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 }
 

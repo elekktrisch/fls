@@ -112,7 +112,7 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   // Saving navigates back to /masterdata/aircrafts via $location.path.
   await page.locator('form button[type="submit"]').click();
   await page.waitForURL('**/#/masterdata/aircrafts', { timeout: 10_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 
   // Verify the edit persisted by re-reading via the API (cheaper than

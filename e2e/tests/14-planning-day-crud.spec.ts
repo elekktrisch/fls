@@ -150,7 +150,7 @@ test('planning:create planning day with crew shows up in /planning list', async 
 
     // Controller's save() -> $scope.cancel() navigates to /planning.
     await loggedInPage.waitForURL(/#\/planning(\?|$)/, { timeout: TIMEOUT });
-    await loggedInPage.waitForLoadState('networkidle');
+    await loggedInPage.waitForLoadState('domcontentloaded');
     await loggedInPage.waitForTimeout(500);
     await loggedInPage.waitForFunction(() => {
         const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];

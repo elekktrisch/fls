@@ -137,7 +137,7 @@ test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback'
 
   // AirMovementsController.save() -> $cancel() -> $location.path('/airmovements').
   await loggedInPage.waitForURL(/#\/airmovements$/, { timeout: 15_000 });
-  await loggedInPage.waitForLoadState('networkidle');
+  await loggedInPage.waitForLoadState('domcontentloaded');
 
   // API readback proves the mutation persisted.
   const after = await api<{ MotorFlightDetailsData: { FlightComment: string } }>(

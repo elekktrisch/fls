@@ -53,7 +53,7 @@ export async function loginViaUi(
   password: string,
 ): Promise<void> {
   await page.goto('/#/main');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
   // Reveal the navbar login form (the inline /main form is `hidden-lg
   // hidden-md hidden-sm` and never appears on the 1280-wide desktop viewport).
@@ -91,7 +91,7 @@ export async function waitForLoggedInState(page: Page): Promise<void> {
     if (!lr) return false;
     try { return !!JSON.parse(lr).access_token; } catch { return false; }
   }, undefined, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 }
 
 type Fixtures = { loggedInPage: Page; uiLoggedInPage: Page };

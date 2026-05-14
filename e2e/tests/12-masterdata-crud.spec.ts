@@ -60,7 +60,7 @@ async function submitForm(page: Page) {
   // After save the controller navigates back to `/masterdata/locations`; wait
   // for the list to be back on screen.
   await page.waitForURL('**/#/masterdata/locations', { timeout: 10_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 }
 

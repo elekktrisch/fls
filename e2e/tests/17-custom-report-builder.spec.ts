@@ -135,7 +135,7 @@ test('flightreports:custom builder applies filter and renders results', async ({
   // 4. The controller pushes #/flightreports/custom/<category>/<json>/apply.
   //    Wait for the URL transition, then for the result-page busy indicator.
   await loggedInPage.waitForURL(/#\/flightreports\/custom\/.+\/apply$/, { timeout: SECONDARY_TIMEOUT });
-  await loggedInPage.waitForLoadState('networkidle');
+  await loggedInPage.waitForLoadState('domcontentloaded');
   await loggedInPage.waitForTimeout(500);
   await loggedInPage.waitForFunction(() => {
     const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];

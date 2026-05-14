@@ -43,7 +43,7 @@ async function openFirstRowForm(page: Page): Promise<void> {
   const urlBefore = page.url();
   await target.click();
   await page.waitForFunction(prev => location.href !== prev, urlBefore);
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(500);
   // Wait for any busy indicator the form fetch may have introduced.
   await page.waitForFunction(() => {

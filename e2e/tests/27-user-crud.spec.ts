@@ -75,7 +75,7 @@ test('masterdata-users:create-edit-delete', async ({ loggedInPage, freshDb }) =>
   // handler calls $location.path('/masterdata/users') on success.
   await page.locator('form[name="userForm"] button[type="submit"]').click();
   await page.waitForURL(/\/masterdata\/users(?:\?|$|#)/, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await waitBusyClear(page);
 
   // The new row should appear in the list. The nonce in the username is unique
@@ -92,7 +92,7 @@ test('masterdata-users:create-edit-delete', async ({ loggedInPage, freshDb }) =>
   // ---------------------------------------------------------------------------
   await matchingRow.click();
   await page.waitForURL(/\/masterdata\/users\/[a-f0-9-]+/, { timeout: 10_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await waitBusyClear(page);
   const friendlyInput = page.locator('input#FriendlyName');
   await expect(friendlyInput).toBeVisible();
@@ -100,7 +100,7 @@ test('masterdata-users:create-edit-delete', async ({ loggedInPage, freshDb }) =>
   await friendlyInput.fill(friendlyEdited);
   await page.locator('form[name="userForm"] button[type="submit"]').click();
   await page.waitForURL(/\/masterdata\/users(?:\?|$|#)/, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await waitBusyClear(page);
 
   await expect(matchingRow).toHaveCount(1, { timeout: 15_000 });

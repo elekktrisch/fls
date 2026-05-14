@@ -81,7 +81,7 @@ async function waitForFormHydrated(page: Page): Promise<void> {
 async function submitForm(page: Page): Promise<void> {
   await page.locator('form[name="accountingRuleFilterForm"] button[type="submit"]').click();
   await page.waitForURL('**/#/masterdata/accountingRuleFilters', { timeout: FORM_TIMEOUT });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible', timeout: FORM_TIMEOUT });
 }
 

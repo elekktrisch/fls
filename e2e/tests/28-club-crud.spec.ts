@@ -79,7 +79,7 @@ test.describe('#28 club-crud (edit own club)', () => {
 
     // `$scope.save` on success calls `cancel()` → `$location.path('/masterdata/clubs')`.
     await loggedInPage.waitForURL(/#\/masterdata\/clubs(?:\?.*)?$/, { timeout: 15_000 });
-    await loggedInPage.waitForLoadState('networkidle');
+    await loggedInPage.waitForLoadState('domcontentloaded');
 
     // 5. Reload the edit form and assert the new values stuck.
     await gotoRoute(loggedInPage, `/masterdata/clubs/${clubId}`);

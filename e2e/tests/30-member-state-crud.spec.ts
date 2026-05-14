@@ -51,7 +51,7 @@ async function waitForListReady(page: Page): Promise<void> {
       return r.width === 0 && r.height === 0;
     });
   }, undefined, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 }
 
 test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage, freshDb }) => {

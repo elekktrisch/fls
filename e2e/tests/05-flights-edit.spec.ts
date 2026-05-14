@@ -87,7 +87,7 @@ test('flights-edit: round-trip FlightComment via form submit', async ({ loggedIn
   // FlightsController.save() -> doSave() -> $saveFlight (POST + X-HTTP-Method-Override: PUT)
   // -> on success calls $scope.cancel(), which navigates to '/flights'.
   await loggedInPage.waitForURL(/#\/flights$/, { timeout: 15_000 });
-  await loggedInPage.waitForLoadState('networkidle');
+  await loggedInPage.waitForLoadState('domcontentloaded');
 
   // 4. Assert persistence via API.
   const apiAfter = await readFlightCommentViaApi(loggedInPage, token);
