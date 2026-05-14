@@ -34,10 +34,10 @@
 import { test, expect } from '../fixtures';
 import type { Page } from '@playwright/test';
 
-const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
+import { testId } from '../test-id';
+import { ensureGliderFlight, getBearerToken } from '../test-data';
 
-// Fixed seed ID from _test-fixture.sql section 5 ("Historical flight").
-const HISTORICAL_FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
+const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 
 // Mirror of FLS.Data.WebApi.Flight.FlightProcessState.
 const ProcessState = {
@@ -46,16 +46,6 @@ const ProcessState = {
   Valid: 30,
   Locked: 40,
 } as const;
-
-async function getBearerToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('ngStorage-loginResult');
-    if (!raw) return null;
-    try { return JSON.parse(raw).access_token as string; } catch { return null; }
-  });
-  expect(token, 'expected access_token in sessionStorage from loggedInPage').toBeTruthy();
-  return token!;
-}
 
 async function getFlight(
   page: Page,
@@ -78,20 +68,25 @@ async function getFlight(
 
 test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
   loggedInPage,
-}) => {
+}, testInfo) => {
+  const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
+  // Create a Valid flight aged 3+ days so the workflow's >=2-day gate clears.
+  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: id.name,
+    processStateId: ProcessState.Valid,
+    createdOnDaysAgo: 3,
+  });
 
   // -------------------------------------------------------------------------
-  // Precondition: seeded historical flight is Valid (30) and aged >= 2 days.
+  // Precondition: test flight is Valid (30) and aged >= 2 days.
   // -------------------------------------------------------------------------
   const before = await getFlight(loggedInPage, token, HISTORICAL_FLIGHT_ID);
 
-  // The flight must be Valid to be eligible for locking. If it is not, the
-  // seed has drifted (or another spec in the same worker left it in another
-  // state). `freshDb` should guarantee Valid; bail out clearly if it didn't.
+  // The flight must be Valid to be eligible for locking.
   expect(
     before.ProcessStateId,
-    'seeded historical flight should start as Valid (30) — check _test-fixture.sql §5',
+    'test flight should start as Valid (30)',
   ).toBe(ProcessState.Valid);
 
   // Confirm the time gate is met: CreatedOn must be at least 2 days behind

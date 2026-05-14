@@ -28,12 +28,11 @@
 // FLS.Workflow.Activator cron console app uses (SERVER.md sec. 1).
 
 import { test, expect } from '../fixtures';
+import { testId } from '../test-id';
+import { ensureGliderFlight, getBearerToken as sharedGetToken } from '../test-data';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
-
-// Fixed seed ID from _test-fixture.sql (section 5).
-const HISTORICAL_FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 
 // Mirror of FLS.Data.WebApi.Flight.FlightProcessState (see also
 // FlightsServices.js client-side constants).
@@ -48,15 +47,7 @@ const ProcessState = {
   ExcludedFromDeliveryProcess: 99,
 } as const;
 
-async function getBearerToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('ngStorage-loginResult');
-    if (!raw) return null;
-    try { return JSON.parse(raw).access_token as string; } catch { return null; }
-  });
-  expect(token, 'expected access_token in sessionStorage from loggedInPage').toBeTruthy();
-  return token!;
-}
+const getBearerToken = sharedGetToken;
 
 async function getFlightProcessState(
   page: Page, token: string, flightId: string,
@@ -99,8 +90,17 @@ async function listDeliveriesForFlight(
 
 test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a Delivery row exists', async ({
   loggedInPage,
-}) => {
+}, testInfo) => {
+  const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
+  // Create a Valid flight aged 5 days so it passes both the locking
+  // job's >=2-day gate and the delivery-creation job's >=3-day-since-
+  // lock gate after we trigger /workflows/flightvalidation below.
+  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: id.name,
+    processStateId: ProcessState.Valid,
+    createdOnDaysAgo: 5,
+  });
 
   // ---- Precondition: seeded historical flight is Valid (30). -------------
   const initial = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
