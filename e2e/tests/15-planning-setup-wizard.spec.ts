@@ -75,11 +75,11 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
   // never an INSERT), so /planning starts empty for this worker.
   const page = loggedInPage;
 
-  // 1. Confirm baseline: /planning empty after seed (today-onwards filter is
-  //    irrelevant since the range we generate is in the future).
+  // 1. Baseline row count. The static seed (`4 or 5 Insert Test Data.sql`
+  //    line ~1033) inserts a handful of PlanningDays for the test club, so
+  //    the list is NOT empty after freshDb — we just diff after the wizard.
   await gotoRoute(page, PLANNING_LIST_ROUTE);
   const baseline = await countPlanningRows(page);
-  expect(baseline, 'planning list should be empty after freshDb seed').toBe(0);
 
   // 2. Open the wizard and wait for its async hydrations to finish.
   await gotoRoute(page, SETUP_ROUTE);

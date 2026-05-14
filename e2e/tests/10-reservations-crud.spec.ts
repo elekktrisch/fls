@@ -83,7 +83,7 @@ test('reservations-crud: create, edit, delete via /reservations', async ({ fresh
   const [aircraftsRes, pilotsRes, locationsRes] = await Promise.all([
     page.request.get(`${API_BASE}/api/v1/aircrafts/overview`, { headers: auth }),
     page.request.get(`${API_BASE}/api/v1/persons/gliderpilots/listitems/true`, { headers: auth }),
-    page.request.get(`${API_BASE}/api/v1/locations/listitems`, { headers: auth }),
+    page.request.get(`${API_BASE}/api/v1/locations`, { headers: auth }),
   ]);
   for (const [name, r] of [['aircrafts', aircraftsRes], ['pilots', pilotsRes], ['locations', locationsRes]] as const) {
     expect(r.ok(), `${name}: ${r.status()}`).toBeTruthy();

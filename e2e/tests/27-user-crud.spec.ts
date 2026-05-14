@@ -113,10 +113,14 @@ test('masterdata-users:create-edit-delete', async ({ freshLoggedInPage: loggedIn
   // present. If it isn't, treat that as the delete-is-blocked branch and stop here.
   const deleteLink = matchingRow.locator('a.delete-link');
   const deleteCount = await deleteLink.count();
-  if (deleteCount === 0) {
+  // ng-show="user.CanDeleteRecord" toggles a `.ng-hide` class rather than
+  // removing the element from the DOM. So a `count() === 0` test is wrong —
+  // the link is present but invisible. Check visibility too.
+  const deleteVisible = deleteCount > 0 ? await deleteLink.first().isVisible() : false;
+  if (deleteCount === 0 || !deleteVisible) {
     test.info().annotations.push({
       type: 'delete-skipped',
-      description: 'No delete link on the new user row (CanDeleteRecord=false). Stopping after create+edit.',
+      description: 'No visible delete link on the new user row (CanDeleteRecord=false). Stopping after create+edit.',
     });
     return;
   }

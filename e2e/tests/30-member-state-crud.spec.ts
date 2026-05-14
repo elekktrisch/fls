@@ -98,10 +98,18 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ freshLoggedIn
   const renamedRow = await findRowByName(page, renamedName);
   // The trash icon is the only `.fa-trash-o` inside the row (no testid).
   // TODO testid: add data-testid="row-delete" to the trash-icon anchor.
+  // Wait for the server-side DELETE (POST + X-HTTP-Method-Override) so we
+  // know the row is gone before asserting.
+  const deletePromise = page.waitForResponse(r =>
+    /\/api\/v1\/memberstates\/[a-f0-9-]+$/i.test(r.url()) && r.request().method() === 'POST',
+    { timeout: 10_000 });
   await renamedRow.locator('a:has(.fa-trash-o)').click();
+  await deletePromise;
 
-  // After delete the controller filters the row out of the in-memory array;
-  // poll until it's gone.
+  // Re-navigate so the ng-table reloads from the server (its in-memory copy
+  // may otherwise still surface the row).
+  await gotoRoute(page, '/masterdata/memberStates');
+  await waitForListReady(page);
   await expect(await findRowByName(page, renamedName)).toHaveCount(0, { timeout: 10_000 });
   expect(await rowCount(page)).toBe(initialCount);
   await screenshot(loggedInPage, '30-member-state-crud-01');

@@ -113,8 +113,17 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ freshLoggedInPag
   // from the database?")` raised by FlightTypeService.delete.
   page.once('dialog', dialog => dialog.accept());
   // The trash anchor is the sibling of the pencil <a>; it contains <span class="fa fa-trash-o">.
+  // Wait for the server-side DELETE (POST + X-HTTP-Method-Override) so we
+  // know the row is gone before we re-render.
+  const deletePromise = page.waitForResponse(r =>
+    /\/api\/v1\/flighttypes\/[a-f0-9-]+$/i.test(r.url()) && r.request().method() === 'POST',
+    { timeout: 10_000 });
   await editedRow.locator('a:has(.fa-trash-o)').click();
+  await deletePromise;
 
+  // ng-table caches its $data; re-navigate to force a reload.
+  await gotoRoute(page, '/masterdata/flightTypes');
+  await filterTo(page, CODE);
   await expect(rowByText(page, NAME_EDITED)).toHaveCount(0, { timeout: 10_000 });
   await screenshot(loggedInPage, '29-flight-type-crud-01');
 });
