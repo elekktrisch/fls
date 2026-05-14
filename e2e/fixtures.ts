@@ -168,7 +168,14 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     const seedScript = path.resolve(__dirname, 'scripts/seed.sh');
     const result = spawnSync('bash', [seedScript], {
       stdio: 'inherit',
-      env: process.env,
+      env: {
+        ...process.env,
+        // docker-compose -p fls-e2e names the container fls-e2e-mssql-1.
+        // seed.sh defaults to fls-mssql (manual `docker run --name fls-mssql`).
+        // Default to the compose name so the suite works out of the box; allow
+        // override via FLS_MSSQL_CONTAINER for devs running the manual stack.
+        FLS_MSSQL_CONTAINER: process.env.FLS_MSSQL_CONTAINER ?? 'fls-e2e-mssql-1',
+      },
     });
     if (result.status !== 0) {
       throw new Error(
