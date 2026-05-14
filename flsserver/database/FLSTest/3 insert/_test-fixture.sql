@@ -291,6 +291,25 @@ INSERT INTO AccountingRuleFilters (
     @testClubId, @ownershipClub, 0
 )
 
+-- 4d. Backfill the non-nullable bool columns the fixture INSERTs above did
+-- not specify. The schema allows NULL, but the EF6 model property is
+-- `public bool` (not `bool?`), so reading any row with NULL throws
+-- ConstraintException at model-load. The original
+-- `100 Insert AccountingRuleFilters.sql` sets every flag; the fixture
+-- INSERTs above only set the ones they care about, leaving the rest NULL.
+UPDATE AccountingRuleFilters SET
+    IsChargedToClubInternal       = COALESCE(IsChargedToClubInternal,       0),
+    IncludeThresholdText          = COALESCE(IncludeThresholdText,          0),
+    IncludeFlightTypeName         = COALESCE(IncludeFlightTypeName,         0),
+    NoLandingTaxForGlider         = COALESCE(NoLandingTaxForGlider,         0),
+    NoLandingTaxForTowingAircraft = COALESCE(NoLandingTaxForTowingAircraft, 0),
+    NoLandingTaxForAircraft       = COALESCE(NoLandingTaxForAircraft,       0)
+WHERE AccountingRuleFilterId IN (
+    'F1500004-0000-0000-0000-000000000001',
+    'F1500004-0000-0000-0000-000000000002',
+    'F1500004-0000-0000-0000-000000000003'
+)
+
 -- ---------------------------------------------------------------------------
 -- 5. Historical flight dated @anchor - 30 days. Aged enough to be eligible
 --    for Locked -> DeliveryPrepared via the DailyFlightValidationJob +
