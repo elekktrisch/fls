@@ -239,7 +239,17 @@ export const test = base.extend<Fixtures>({
     }
     // Force re-fetch in case prior creds got invalidated.
     cachedAuth = null;
-    await new Promise((r) => setTimeout(r, 200));
+    // After DROP+CREATE+RESTORE, EF's connection pool can briefly serve 500s
+    // before reconnecting. Probe the server until it's healthy. Caps at 5s.
+    {
+      const api = await playwright.request.newContext();
+      for (let i = 0; i < 25; i++) {
+        const probe = await api.get(`${API_BASE}/api/v1/countries`).catch(() => null);
+        if (probe && probe.ok()) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      await api.dispose();
+    }
     if (!cachedAuth) {
       const api = await playwright.request.newContext();
       cachedAuth = await fetchAuthData(api);

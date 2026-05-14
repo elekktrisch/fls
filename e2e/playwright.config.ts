@@ -117,6 +117,11 @@ export default defineConfig({
       testIgnore: READ_ONLY_SPECS,
       fullyParallel: false,
       workers: 1,
+      // Mutation tests pay the freshLoggedInPage cost (~5s seed restore +
+      // /Token + page boot) plus longer multi-step UI flows. 90s leaves
+      // headroom for the slowest end-to-end CRUD cycles without masking
+      // real hangs.
+      timeout: 90_000,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
