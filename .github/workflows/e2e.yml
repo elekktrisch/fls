@@ -138,9 +138,28 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
-      - name: Run Playwright
+      # Two invocations: read project (parallel, 2 workers) then mutate
+      # project (serial, 1 worker). They share the FLSTest DB so they must
+      # NOT run concurrently. Each step's status is captured; the job
+      # fails if either project did.
+      - name: Run Playwright (read project)
+        id: read
         working-directory: e2e
-        run: npx playwright test --reporter=list,html
+        run: npx playwright test --project=read --reporter=list,html
+        continue-on-error: true
+
+      - name: Run Playwright (mutate project)
+        id: mutate
+        working-directory: e2e
+        run: npx playwright test --project=mutate --reporter=list,html
+        continue-on-error: true
+
+      - name: Fail job if either project failed
+        if: steps.read.outcome != 'success' || steps.mutate.outcome != 'success'
+        run: |
+          echo "read project: ${{ steps.read.outcome }}"
+          echo "mutate project: ${{ steps.mutate.outcome }}"
+          exit 1
 
       # ----- Artifacts on failure -------------------------------------------------
       - name: Upload Playwright HTML report

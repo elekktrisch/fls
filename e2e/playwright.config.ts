@@ -88,16 +88,22 @@ export default defineConfig({
       name: 'read',
       testMatch: READ_ONLY_SPECS,
       fullyParallel: true,
-      workers: 3,
+      workers: 2,
+      retries: 1,
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      // No `dependencies: ['read']` — that would skip the entire mutate
+      // project if any read test fails, and we want mutate's results even
+      // when read flakes. Both projects share one FLSTest database, so
+      // they must NOT run concurrently. To enforce that, run the suite
+      // via two separate playwright invocations (`yarn test` /
+      // `npm test` invokes them in sequence; see package.json scripts).
       name: 'mutate',
       testIgnore: READ_ONLY_SPECS,
       fullyParallel: false,
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
-      dependencies: ['read'],
     },
   ],
 });
