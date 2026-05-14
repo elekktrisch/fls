@@ -1,106 +1,99 @@
 // e2e/tests/05-flights-edit.spec.ts
 //
-// Plan row #05: Edit a seeded glider flight's glider-specific fields and
+// Plan row #05: Edit a glider flight's FlightComment via the UI form and
 // assert the mutation persisted.
 //
-// Approach: drive the AngularJS flight-edit form at /flights/:id, change the
-// FlightComment field (the safest single-field mutation on this form — see
-// TESTING.md "T3 round-trip" which uses exactly this field via curl), submit
-// the form, then assert persistence two ways:
-//   1. API readback via /api/v1/flights/<id> using the bearer token stashed
-//      in sessionStorage by the loggedInPage fixture.
-//   2. Re-loading the route in the browser and reading the input value.
+// Self-contained: each run creates (or re-uses) a flight whose Comment is
+// derived from the test title (stable per-test id, see e2e/test-id.ts).
+// No reliance on shared fixture rows, so this spec is safe under parallel
+// workers and doesn't trample test 06/19/20/22/23 which used to fight
+// over F1500005.
 //
-// Contract gaps noted (no shared infra modified):
-//   - The save button has no data-testid — uses semantic getByRole + name
-//     filter. TODO testid: add data-testid="form-save" / "form-cancel" /
-//     "form-delete" on flight-edit-form.html buttons.
+// Contract gaps:
+//   - The save button has no data-testid — uses role + accessible name.
 //   - The FlightComment field has no data-testid — uses its stable id
-//     `#Comment`. TODO testid: a `data-testid="flight-comment-input"` on
-//     flight-edit-glider-form.html (id="Comment", line 446) would harden
-//     this selector against id renames.
+//     `#Comment` from flight-edit-glider-form.html.
 
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
-import type { Page } from '@playwright/test';
+import { testId } from '../test-id';
+import { API_BASE, authHeaders, ensureGliderFlight, getBearerToken } from '../test-data';
 
-// The deterministic historical glider flight from _test-fixture.sql section 5
-// (Comment = "Historical fixture flight (anchor - 30d)", ProcessState = Valid).
-// The legacy "PAX flight" in 6 Insert Test Flights.sql uses a NEWID() and so
-// its FlightId drifts every reseed — unusable as a stable target.
-const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
-const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
+test('flights-edit: round-trip FlightComment via form submit', async ({ loggedInPage }, testInfo) => {
+  const id = testId(testInfo);
+  // Initial flight Comment — what the test starts from. Stable.
+  const initialComment = `${id.name} initial`;
+  // What the test edits it to. Also stable, so re-runs are idempotent.
+  const editedComment = `${id.name} edited`;
 
-async function getBearerToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('ngStorage-loginResult');
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw).access_token as string;
-    } catch {
-      return null;
-    }
+  const token = await getBearerToken(loggedInPage);
+
+  // Set up a flight owned by THIS test. ensureGliderFlight upserts; if a
+  // previous run left it at `editedComment`, normalise back to `initialComment`
+  // via SQL so the assertion below holds.
+  const { flightId } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: initialComment,
   });
-  expect(token, 'expected access_token in sessionStorage from loggedInPage').toBeTruthy();
-  return token!;
-}
+  // Snap the Comment back to the initial value if a previous run edited it
+  // (we can't change PK via API; the row is the same).
+  await loggedInPage.request.put(`${API_BASE}/api/v1/flights/${flightId}`, {
+    headers: authHeaders(token),
+    data: await loadFlightForUpdate(loggedInPage, token, flightId, initialComment),
+  }).then(r => r.ok()
+    ? null
+    : Promise.reject(new Error(`PUT /flights/${flightId} init -> ${r.status()}: ${r.text()}`)));
 
-async function readFlightCommentViaApi(page: Page, token: string): Promise<string> {
-  const res = await page.request.get(`${API_BASE}/api/v1/flights/${FLIGHT_ID}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  expect(res.ok(), `GET /api/v1/flights/${FLIGHT_ID} -> ${res.status()}`).toBeTruthy();
-  const body = await res.json();
-  return body?.GliderFlightDetailsData?.FlightComment ?? '';
-}
-
-test('flights-edit: round-trip FlightComment via form submit', async ({ loggedInPage }) => {
-  // 1. Load the edit form for the seeded PAX flight.
-  await gotoRoute(loggedInPage, `/flights/${FLIGHT_ID}`);
+  // 1. Load the edit form.
+  await gotoRoute(loggedInPage, `/flights/${flightId}`);
 
   // The glider form's comment field is a plain <input type="text" id="Comment">
   // bound to flightDetails.GliderFlightDetailsData.FlightComment.
   const commentInput = loggedInPage.locator('input#Comment');
   await expect(commentInput).toBeVisible({ timeout: 10_000 });
 
-  // Sanity: the seeded value should be populated. The test fixture stamps
-  // this flight with "PAX flight" but we don't hard-code that — just ensure
-  // the input is hydrated (form is loaded, not blank-on-error).
-  const originalValue = await commentInput.inputValue();
-  expect(originalValue.length, 'expected seeded FlightComment to be non-empty').toBeGreaterThan(0);
+  // The input should be hydrated with the initial value.
+  await expect(commentInput).toHaveValue(initialComment, { timeout: 5_000 });
 
-  // Cross-check the API readback matches what the form rendered.
-  const token = await getBearerToken(loggedInPage);
-  const apiBefore = await readFlightCommentViaApi(loggedInPage, token);
-  expect(apiBefore).toBe(originalValue);
+  // 2. Edit the comment.
+  await commentInput.fill(editedComment);
+  await expect(commentInput).toHaveValue(editedComment);
 
-  // 2. Edit the comment to a unique value.
-  const newComment = `e2e-edit ${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-  await commentInput.fill(newComment);
-  await expect(commentInput).toHaveValue(newComment);
-
-  // 3. Submit. The form's <button type="submit" translate="SAVE">Save</button>
-  // (flight-edit-form.html:42) has no testid — match by role + accessible name.
-  // TODO testid: data-testid="form-save" on flight-edit-form.html.
+  // 3. Submit. SAVE/Speichern, scoped to the flight form (the navbar's
+  // login form has its own submit button on every page).
   const saveButton = loggedInPage
-    .locator('button[type="submit"]')
+    .locator('form[name="flightDetailsForm"] button[type="submit"]')
     .filter({ hasText: /^\s*(Save|Speichern)\s*$/i })
     .first();
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
-
-  // FlightsController.save() -> doSave() -> $saveFlight (POST + X-HTTP-Method-Override: PUT)
-  // -> on success calls $scope.cancel(), which navigates to '/flights'.
   await loggedInPage.waitForURL(/#\/flights$/, { timeout: 15_000 });
-  await loggedInPage.waitForLoadState('domcontentloaded');
 
-  // 4. Assert persistence via API.
-  const apiAfter = await readFlightCommentViaApi(loggedInPage, token);
-  expect(apiAfter, 'API readback should reflect the edited FlightComment').toBe(newComment);
+  // 4. Assert persistence via the API.
+  const apiAfter = await readFlightComment(loggedInPage, token, flightId);
+  expect(apiAfter, 'API readback should reflect the edited FlightComment').toBe(editedComment);
 
-  // 5. Assert persistence via UI: re-load the edit route and read the input.
-  await gotoRoute(loggedInPage, `/flights/${FLIGHT_ID}`);
+  // 5. Assert persistence via the UI: re-load and read the input.
+  await gotoRoute(loggedInPage, `/flights/${flightId}`);
   const reloadedInput = loggedInPage.locator('input#Comment');
   await expect(reloadedInput).toBeVisible({ timeout: 10_000 });
-  await expect(reloadedInput).toHaveValue(newComment);
+  await expect(reloadedInput).toHaveValue(editedComment);
   await screenshot(loggedInPage, '05-flights-edit-01');
 });
+
+async function readFlightComment(page: import('@playwright/test').Page, token: string, flightId: string): Promise<string> {
+  const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
+  const body = await res.json();
+  return body?.GliderFlightDetailsData?.FlightComment ?? '';
+}
+
+/** Round-trip the current FlightDetails through GET, mutate FlightComment, return for PUT. */
+async function loadFlightForUpdate(page: import('@playwright/test').Page, token: string, flightId: string, newComment: string): Promise<unknown> {
+  const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = await res.json() as { GliderFlightDetailsData?: { FlightComment?: string } };
+  if (body.GliderFlightDetailsData) body.GliderFlightDetailsData.FlightComment = newComment;
+  return body;
+}
