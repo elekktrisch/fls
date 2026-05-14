@@ -47,7 +47,12 @@ const READ_ONLY_SPECS = [
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 30_000,
+  // 60s per test: the mutate project's `freshLoggedInPage` fixture runs
+  // seed.sh per test (~4-5s on cache hit, ~30s on first/uncached). The
+  // test body itself rarely needs more than 10-15s, so 60s leaves plenty
+  // of headroom while still failing fast on real hangs. Read-project
+  // tests don't pay the seed cost — they finish in seconds.
+  timeout: 60_000,
   expect: { timeout: 5_000 },
   // Project-level fullyParallel + workers override these defaults.
   retries: 0,
