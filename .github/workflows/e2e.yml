@@ -1,0 +1,175 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same ref when a new commit lands.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright on Mono + Node 8 (flsweb) + Node 20 (e2e)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      FLS_LISTEN_URL: "http://*:25567/"
+      FLS_MSSQL_SA_PASSWORD: "Demo#FLS#2026"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ----- System prerequisites -------------------------------------------------
+      - name: Install Mono 6.12 (for flsserver build + run)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mono-complete
+
+      - name: Install NuGet CLI
+        run: |
+          sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
+          mono /usr/local/bin/nuget.exe help | head -1
+
+      # ----- Database + Mailpit ---------------------------------------------------
+      - name: Start docker-compose stack (mssql + mailpit)
+        run: |
+          docker compose -p fls-e2e up -d
+          # Wait for healthchecks to pass.
+          for i in $(seq 1 60); do
+            healthy=$(docker compose -p fls-e2e ps --format json | grep -c '"Health":"healthy"' || true)
+            if [ "$healthy" -ge 2 ]; then break; fi
+            sleep 2
+          done
+          docker compose -p fls-e2e ps
+
+      # ----- Build flsserver (.NET 4.5 under Mono) --------------------------------
+      - name: NuGet restore
+        working-directory: flsserver/src
+        run: mono /usr/local/bin/nuget.exe restore FLS.sln
+
+      - name: Build flsserver projects (xbuild)
+        working-directory: flsserver/src
+        run: |
+          for proj in \
+              FLS.Common/FLS.Common.csproj \
+              FLS.Server.Interfaces/FLS.Server.Interfaces.csproj \
+              FLS.Data.WebApi/FLS.Data.WebApi.csproj \
+              Alpinely.TownCrier/Alpinely.TownCrier.csproj \
+              FLS.Server.Data/FLS.Server.Data.csproj \
+              FLS.Server.Service/FLS.Server.Service.csproj \
+              FLS.Server.Web/FLS.Server.WebApi.csproj \
+              FLS.Server.Console/FLS.Server.Console.csproj ; do
+            echo "=== $proj ==="
+            xbuild "$proj" /p:Configuration=Debug
+          done
+
+      - name: Drop EntityFramework.SqlServer.dll into bin
+        working-directory: flsserver/src
+        run: |
+          cp packages/EntityFramework.6.2.0/lib/net45/EntityFramework.SqlServer.dll \
+             FLS.Server.Console/bin/Debug/
+
+      # ----- Apply schema + seed --------------------------------------------------
+      - name: Apply FLSTest schema and seed
+        run: bash e2e/scripts/seed.sh
+
+      # ----- Start the Mono Web API ----------------------------------------------
+      - name: Start FLS.Server.Console
+        working-directory: flsserver/src/FLS.Server.Console/bin/Debug
+        run: |
+          nohup mono FLS.Server.Console.exe > /tmp/fls-server.log 2>&1 &
+          # Wait for /api/v1/countries to respond 200.
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:25567/api/v1/countries || true)
+            if [ "$code" = "200" ]; then echo "API ready"; break; fi
+            sleep 2
+          done
+          curl -sS http://localhost:25567/api/v1/countries | head -c 200
+
+      # ----- Build + start flsweb (Node 8 webpack-dev-server) --------------------
+      - name: Set up Node 8 for flsweb
+        uses: actions/setup-node@v4
+        with:
+          node-version: 8
+
+      - name: Prepare flsweb tree at /tmp/flsweb-build
+        run: |
+          rm -rf /tmp/flsweb-build
+          cp -r flsweb /tmp/flsweb-build
+          # Case-sensitivity fixes (Linux-only).
+          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
+          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
+
+      - name: Install yarn 1 globally (Node 8 era)
+        run: npm install --global yarn@1
+
+      - name: yarn install (flsweb)
+        working-directory: /tmp/flsweb-build
+        run: yarn install --network-timeout 600000 || true
+        # `microtime` (optional native dep) prints node-gyp errors; safe to ignore.
+
+      - name: Start webpack-dev-server in background
+        working-directory: /tmp/flsweb-build
+        run: |
+          nohup yarn start > /tmp/flsweb.log 2>&1 &
+          # Wait for SPA root.
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || true)
+            if [ "$code" = "200" ]; then echo "Dev server ready"; break; fi
+            sleep 2
+          done
+
+      # ----- Switch to Node 20 for Playwright ------------------------------------
+      - name: Set up Node 20 for Playwright
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright deps
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: e2e
+        run: npx playwright test --reporter=list,html
+
+      # ----- Artifacts on failure -------------------------------------------------
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: /tmp/fls-e2e-report
+          if-no-files-found: ignore
+
+      - name: Upload Playwright traces / screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: /tmp/fls-e2e-results
+          if-no-files-found: ignore
+
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: |
+            /tmp/fls-server.log
+            /tmp/flsweb.log
+          if-no-files-found: ignore
+
+      # ----- Teardown -------------------------------------------------------------
+      - name: Tear down docker-compose stack
+        if: always()
+        run: docker compose -p fls-e2e down -v
