@@ -105,8 +105,8 @@ test('planning:create planning day with crew shows up in /planning list', async 
                             towingPilots: Array<{ PersonId: string; Lastname: string; Firstname: string }>;
                             instructors: Array<{ PersonId: string; Lastname: string; Firstname: string }>;
                         };
+                        $apply: () => void;
                     };
-                    $apply: () => void;
                 };
             };
         };
@@ -128,7 +128,8 @@ test('planning:create planning day with crew shows up in /planning list', async 
         s.planningDay.TowingPilotPersonId = towPilot.PersonId;
         s.planningDay.FlightOperatorPersonId = operator.PersonId;
         s.planningDay.InstructorPersonId = instructor.PersonId;
-        ngEl.$apply();
+        // `$apply` lives on the scope, not on the jqLite element wrapper.
+        s.$apply();
 
         return {
             location: loc.IcaoCode ?? loc.LocationName,

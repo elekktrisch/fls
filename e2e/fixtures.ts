@@ -114,6 +114,13 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     }, cachedAuth);
 
     const page = await context.newPage();
+    // addInitScript only fires on the FIRST navigation. The page starts on
+    // about:blank, where sessionStorage is inaccessible (SecurityError:
+    // "Access is denied for this document"). Do an initial navigation to
+    // `/` so any test that calls page.evaluate(sessionStorage...) before
+    // gotoRoute() works. Use `domcontentloaded` (cheap) — HMR keeps
+    // networkidle from ever firing.
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await use(page);
     await context.close();
   },

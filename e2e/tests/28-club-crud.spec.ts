@@ -32,7 +32,10 @@ import { test, expect, gotoRoute, screenshot } from '../fixtures';
 
 const CONTACT_INPUT = '#ContactName';
 const ADDRESS_INPUT = '#Address';
-const SAVE_BUTTON = 'button[type="submit"]';
+// Scope to the club edit form — the route also embeds a `<fls-history>`
+// dropdown that contains its own `button[type="submit"]`, so the bare
+// selector hits two elements.
+const SAVE_BUTTON = 'form[name="clubForm"] button[type="submit"]';
 
 test.describe('#28 club-crud (edit own club)', () => {
   test('edit own club ContactName + Address persists across reload', async ({
