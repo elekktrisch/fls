@@ -7,8 +7,16 @@
 # (database/FLSTest/3 insert/_test-fixture.sql). Idempotent: running twice
 # in a row produces the same result.
 #
+# Fast path: after the first successful seed, this script writes a
+# /var/opt/mssql/seed_<hash>.bak file inside the container, where <hash>
+# is a sha256 of all the seed-source SQL files. Subsequent runs detect the
+# .bak and `RESTORE DATABASE … FROM DISK = …` instead of replaying every
+# script (~25-30s -> ~2s). Change any seed file -> new hash -> automatic
+# rebuild. Force a rebuild with FLS_SEED_FORCE=1.
+#
 # Usage:
 #   bash e2e/scripts/seed.sh
+#   FLS_SEED_FORCE=1 bash e2e/scripts/seed.sh   # bypass .bak cache
 #
 # Requires: docker daemon, a running container named "fls-mssql" with sa/Demo#FLS#2026.
 
@@ -100,6 +108,49 @@ fi
 [[ -f "$INSERT_DIR/_test-fixture.sql" ]] || { log "missing _test-fixture.sql"; exit 1; }
 
 # ---------------------------------------------------------------------------
+# 0.5 Cache fast-path: if a .bak from a previous full seed exists and the
+# hash of the seed sources matches, RESTORE from it instead of replaying
+# every script. ~25-30s -> ~2s. Set FLS_SEED_FORCE=1 to bypass.
+# ---------------------------------------------------------------------------
+compute_seed_hash() {
+    {
+        find "$ALTER_DIR"  -maxdepth 1 -name '*.sql' -type f -print0 | sort -z | xargs -0 sha256sum
+        find "$INSERT_DIR" -maxdepth 1 -name '*.sql' -type f -print0 | sort -z | xargs -0 sha256sum
+    } | sha256sum | cut -c1-16
+}
+SEED_HASH="$(compute_seed_hash)"
+BAK_PATH="/var/opt/mssql/seed_${SEED_HASH}.bak"
+
+if [[ "${FLS_SEED_FORCE:-0}" != "1" ]] \
+        && docker exec "$CONTAINER" test -f "$BAK_PATH" 2>/dev/null; then
+    log "cache hit ($SEED_HASH); RESTORE FROM DISK = $BAK_PATH"
+    run_sql_query "
+IF DB_ID('FLSTest') IS NOT NULL
+BEGIN
+    ALTER DATABASE [FLSTest] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+END;
+RESTORE DATABASE [FLSTest] FROM DISK = N'$BAK_PATH' WITH REPLACE;
+ALTER DATABASE [FLSTest] SET MULTI_USER;
+" master >/dev/null
+    log "post-condition counts (restored):"
+    run_sql_query "SET NOCOUNT ON;
+SELECT 'Clubs',            COUNT(*) FROM Clubs
+UNION ALL SELECT 'ARFs(testclub)', COUNT(*) FROM AccountingRuleFilters WHERE ClubId='0FA7B76F-47BA-4138-8F96-671400FD7C83'
+UNION ALL SELECT 'PersonCategories', COUNT(*) FROM PersonCategories
+UNION ALL SELECT 'HistoricalFlights', COUNT(*) FROM Flights WHERE FlightDate < '2025-12-15'
+UNION ALL SELECT 'SmtpIsMailpit',  CASE WHEN EXISTS(SELECT 1 FROM SystemData WHERE SmtpServer='localhost' AND SmtpPort=1025) THEN 1 ELSE 0 END;
+" FLSTest
+    log "done (cached)."
+    exit 0
+fi
+
+if [[ "${FLS_SEED_FORCE:-0}" == "1" ]]; then
+    log "FLS_SEED_FORCE=1: skipping cache, doing full rebuild"
+else
+    log "cache miss ($SEED_HASH); will rebuild + create $BAK_PATH"
+fi
+
+# ---------------------------------------------------------------------------
 # 1. Drop + recreate FLSTest (idempotency the brute-force way).
 # ---------------------------------------------------------------------------
 log "drop + create FLSTest"
@@ -188,5 +239,15 @@ UNION ALL SELECT 'PersonCategories', COUNT(*) FROM PersonCategories
 UNION ALL SELECT 'HistoricalFlights', COUNT(*) FROM Flights WHERE FlightDate < '2025-12-15'
 UNION ALL SELECT 'SmtpIsMailpit',  CASE WHEN EXISTS(SELECT 1 FROM SystemData WHERE SmtpServer='localhost' AND SmtpPort=1025) THEN 1 ELSE 0 END;
 " FLSTest
+
+# ---------------------------------------------------------------------------
+# 6. Write the .bak cache so the next seed run takes the fast path.
+# Drop any older seed_*.bak files in the container so stale caches don't
+# pile up (each schema change produces a new hash).
+# ---------------------------------------------------------------------------
+log "creating seed cache: $BAK_PATH"
+run_sql_query "BACKUP DATABASE [FLSTest] TO DISK = N'$BAK_PATH' WITH FORMAT, INIT, COMPRESSION;" master >/dev/null || \
+    run_sql_query "BACKUP DATABASE [FLSTest] TO DISK = N'$BAK_PATH' WITH FORMAT, INIT;" master >/dev/null
+docker exec "$CONTAINER" bash -c "ls /var/opt/mssql/seed_*.bak 2>/dev/null | grep -v '^/var/opt/mssql/seed_${SEED_HASH}\\.bak\$' | xargs -r rm -f" || true
 
 log "done."
