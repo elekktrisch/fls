@@ -51,8 +51,29 @@ Build tools and versions. Test frameworks. CI status if visible. Deployment targ
 ### 7. Risk hotspots
 Each risk is one paragraph: what it is, why it matters for a rewrite, and what evidence in the code suggests it. Include risks flagged by the seed (don't re-derive) and any new ones you find. Examples of categories: licensing, multi-tenancy enforcement, undocumented runtime behavior, hand-rolled migration paths, schema/code coupling, external integrations with separate ownership, security defaults (open CORS, weak token rotation).
 
-### 8. Open questions for phase 2
-A bulleted list of questions the user needs to answer in the **vision & constraints** phase. These are the things you found that you could not decide on your own — non-functional requirements, target SLOs, acceptable downtime windows, team skills, hosting constraints, regulatory or compliance obligations.
+### 8. Findings pre-answered for downstream phases
+**This section is the contract with phases 2 and 3.** The point is that *they should not re-derive what the code already tells us*. Read the legacy code well enough here that the vision and ADR phases do not have to ask the user questions the code can already answer.
+
+A table — one row per finding — with these columns:
+
+| Finding | Current-state fact | Consumes in |
+|---|---|---|
+| Auth shape | (token type, lifetime, refresh present?, where stored, 401 handling) | phase-3 auth ADR |
+| Background-job mechanism | (in-process / cron / external scheduler, dispatch pattern, idempotency posture) | phase-3 jobs ADR |
+| Email infrastructure | (mail library, templating library + license, SMTP relay shape) | phase-3 email ADR |
+| Report / file export library | (library name + version + license posture; concrete consumers if any) | phase-3 export ADR |
+| i18n approach | (server-loaded / client-bundled / mixed, locale source) | phase-2 i18n constraint candidate |
+| Tenancy enforcement | (filter mechanism, where it lives, density of call sites) | phase-2 sacred-cow + phase-3 tenancy ADR |
+| Migration tooling | (auto-managed by ORM / hand-rolled / dedicated tool, count of scripts) | phase-3 migration-tool ADR |
+| Observability today | (log lib + destination, metrics, traces, error tracking) | phase-3 observability ADR |
+| API surface | (REST/GraphQL/RPC, endpoint count, public consumers known) | phase-3 API-shape ADR |
+| Build + deploy shape | (build tool, target runtime, hosting model) | phase-3 backend & hosting ADRs |
+| Migration cost markers | (controllers / services / entities / migrations / templates — concrete counts) | phase-4 estimates |
+
+Each finding cites the file(s) supporting it. The downstream skills are instructed to read this section before drafting questions.
+
+### 9. Open questions for phase 2
+A bulleted list of questions the user needs to answer in the **vision & constraints** phase. These are the things you found that you could not decide on your own — non-functional requirements, target SLOs, acceptable downtime windows, team skills, hosting constraints, regulatory or compliance obligations. **Anything answered by §8 does not belong here.**
 
 ## Quality bar
 
@@ -65,5 +86,5 @@ A bulleted list of questions the user needs to answer in the **vision & constrai
 ## When you are done
 
 1. Confirm the file exists and the sections are in order.
-2. Print a 5-line summary to the user: total features inventoried, integration count, risk count, open-question count, suggested next command.
+2. Print a 5-line summary to the user: total features inventoried, integration count, risk count, **pre-answered-finding count**, open-question count, suggested next command.
 3. Do **not** start phase 2. The user controls pacing.
