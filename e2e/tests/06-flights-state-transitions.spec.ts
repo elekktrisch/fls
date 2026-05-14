@@ -38,13 +38,10 @@
 //     would be the natural additions.
 
 import { expect, screenshot, test } from '../fixtures';
+import { testId } from '../test-id';
+import { API_BASE, ensureGliderFlight, getBearerToken as sharedGetToken, withPool as sharedWithPool } from '../test-data';
 import type { Page } from '@playwright/test';
 import sql from 'mssql';
-
-const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
-
-// Fixed seed ID from _test-fixture.sql (section 5: "Historical flight").
-const HISTORICAL_FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 
 // FlightProcessState enum values (mirror of FLS.Data.WebApi.Flight.FlightProcessState
 // + FlightsServices.js constants).
@@ -59,34 +56,8 @@ const ProcessState = {
   ExcludedFromDeliveryProcess: 99,
 } as const;
 
-const MSSQL_CONFIG: sql.config = {
-  user: 'sa',
-  password: 'Demo#FLS#2026',
-  server: 'localhost',
-  port: 1433,
-  database: 'FLSTest',
-  options: { trustServerCertificate: true, encrypt: false },
-  pool: { max: 2, min: 0, idleTimeoutMillis: 5000 },
-};
-
-async function withPool<T>(fn: (pool: sql.ConnectionPool) => Promise<T>): Promise<T> {
-  const pool = await new sql.ConnectionPool(MSSQL_CONFIG).connect();
-  try {
-    return await fn(pool);
-  } finally {
-    await pool.close();
-  }
-}
-
-async function getBearerToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('ngStorage-loginResult');
-    if (!raw) return null;
-    try { return JSON.parse(raw).access_token as string; } catch { return null; }
-  });
-  expect(token, 'expected access_token in sessionStorage from loggedInPage').toBeTruthy();
-  return token!;
-}
+const getBearerToken = sharedGetToken;
+const withPool = sharedWithPool;
 
 async function getFlightProcessState(page: Page, token: string, flightId: string): Promise<number> {
   const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
@@ -117,14 +88,17 @@ async function changeProcessState(
   return res.status();
 }
 
-test.describe.configure({ mode: 'serial' });
-
-test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', async ({ loggedInPage }) => {
+test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', async ({ loggedInPage }, testInfo) => {
+  const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
+  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: id.name,
+    processStateId: ProcessState.Valid,
+  });
 
-  // Sanity-check the precondition: the seeded historical flight is Valid (30).
+  // Sanity-check the precondition: the test's flight starts as Valid (30).
   const initial = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
-  expect(initial, 'seeded historical flight should start as Valid (30)').toBe(ProcessState.Valid);
+  expect(initial, 'test flight should start as Valid (30)').toBe(ProcessState.Valid);
 
   // Transition Valid -> ExcludedFromDeliveryProcess.
   const excludeStatus = await changeProcessState(
@@ -146,14 +120,18 @@ test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', as
   await screenshot(loggedInPage, '06-flights-state-transitions-01');
 });
 
-test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ loggedInPage }) => {
+test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ loggedInPage }, testInfo) => {
+  const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
+  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: id.name,
+    processStateId: ProcessState.Invalid,
+  });
 
-  // Force the historical flight into Invalid state. The server's ValidateFlights
+  // Force the test flight into Invalid state. The server's ValidateFlights
   // loop only revisits Invalid rows where BOTH ModifiedOn AND ValidatedOn
   // are non-null AND ModifiedOn >= ValidatedOn (FlightService.cs:924-930).
-  // Set ValidatedOn = the seed-anchor CreatedOn (in the past) and ModifiedOn
-  // = now (after the anchor) so the row is eligible for revalidation.
+  // Set ValidatedOn = yesterday, ModifiedOn = now so the row is eligible.
   await withPool(async pool => {
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, HISTORICAL_FLIGHT_ID)

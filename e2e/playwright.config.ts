@@ -115,13 +115,15 @@ export default defineConfig({
       // `npm test` invokes them in sequence; see package.json scripts).
       name: 'mutate',
       testIgnore: READ_ONLY_SPECS,
-      fullyParallel: false,
-      workers: 1,
-      // Mutation tests pay the freshLoggedInPage cost (~5s seed restore +
-      // /Token + page boot) plus longer multi-step UI flows. 90s leaves
-      // headroom for the slowest end-to-end CRUD cycles without masking
-      // real hangs.
-      timeout: 90_000,
+      // Self-contained tests using stable per-test ids (see test-id.ts +
+      // test-data.ts) own their own rows; nothing shared between specs.
+      // Safe to run in parallel.
+      fullyParallel: true,
+      workers: 3,
+      // Even after the per-test seed cost is gone, mutation UI flows are
+      // multi-step (form fills, navigations, ng-table reloads). 60s
+      // leaves headroom without masking real hangs.
+      timeout: 60_000,
       use: { ...devices['Desktop Chrome'] },
     },
   ],

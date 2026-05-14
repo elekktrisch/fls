@@ -34,9 +34,10 @@
  */
 
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
+import { testId } from '../test-id';
+import { ensureGliderFlight } from '../test-data';
 import type { Page, APIResponse } from '@playwright/test';
 
-const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001'; // deterministic historical fixture flight from _test-fixture.sql
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 const POLL_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 500;
@@ -65,40 +66,43 @@ async function getBearerToken(page: Page): Promise<string> {
   return token!;
 }
 
-async function fetchAuditLogs(page: Page, token: string): Promise<AuditLogOverview[]> {
+async function fetchAuditLogs(page: Page, token: string, flightId: string): Promise<AuditLogOverview[]> {
   const res: APIResponse = await page.request.get(
-    `${API_BASE}/api/v1/auditlogs/Flight/${FLIGHT_ID}`,
+    `${API_BASE}/api/v1/auditlogs/Flight/${flightId}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
-  expect(res.ok(), `GET /api/v1/auditlogs/Flight/${FLIGHT_ID} -> ${res.status()}`).toBeTruthy();
+  expect(res.ok(), `GET /api/v1/auditlogs/Flight/${flightId} -> ${res.status()}`).toBeTruthy();
   return (await res.json()) as AuditLogOverview[];
 }
 
-async function readFlight(page: Page, token: string): Promise<any> {
-  const res = await page.request.get(`${API_BASE}/api/v1/flights/${FLIGHT_ID}`, {
+async function readFlight(page: Page, token: string, flightId: string): Promise<any> {
+  const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  expect(res.ok(), `GET /api/v1/flights/${FLIGHT_ID} -> ${res.status()}`).toBeTruthy();
+  expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
   return await res.json();
 }
 
 test('audit-logs: PUT flight produces an audit-log entry visible via API', async ({
   loggedInPage,
-  freshDb,
-}) => {
+}, testInfo) => {
+  const id = testId(testInfo);
   // Visit any authenticated route so the page has a valid origin for
   // sessionStorage access (loggedInPage's init script seeds it only once
   // the page has navigated somewhere).
   await gotoRoute(loggedInPage, '/flights');
   const token = await getBearerToken(loggedInPage);
+  const { flightId: FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: id.name,
+  });
 
   // 1. Baseline: how many audit entries does the seeded flight already have?
-  const before = await fetchAuditLogs(loggedInPage, token);
+  const before = await fetchAuditLogs(loggedInPage, token, FLIGHT_ID);
   const baselineCount = before.length;
   const baselineIds = new Set(before.map(x => x.AuditLogId));
 
   // 2. Mutate via authenticated PUT.
-  const flight = await readFlight(loggedInPage, token);
+  const flight = await readFlight(loggedInPage, token, FLIGHT_ID);
   const newComment = `e2e-audit ${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
   flight.GliderFlightDetailsData.FlightComment = newComment;
   const mutatedAt = new Date();
@@ -120,7 +124,7 @@ test('audit-logs: PUT flight produces an audit-log entry visible via API', async
   let newEntries: AuditLogOverview[] = [];
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    after = await fetchAuditLogs(loggedInPage, token);
+    after = await fetchAuditLogs(loggedInPage, token, FLIGHT_ID);
     newEntries = after.filter(x => !baselineIds.has(x.AuditLogId));
     if (newEntries.length > 0) break;
     await loggedInPage.waitForTimeout(POLL_INTERVAL_MS);
