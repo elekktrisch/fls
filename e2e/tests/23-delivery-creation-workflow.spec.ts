@@ -87,9 +87,18 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
   // Eligibility is `CreatedOn <= today - 3d` (DeliveryService.cs); we
   // already set CreatedOn = today - 5d via ensureGliderFlight's
   // createdOnDaysAgo so locking + delivery both qualify on the same row.
-  await triggerWorkflow(loggedInPage, token, 'deliverycreation');
-
-  const finalState = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+  //
+  // Retry-poll: under parallel load #33 contract tests and #32 rules-engine
+  // tests also fire /workflows/deliverycreation. A single call isn't
+  // guaranteed to include our flight in its `Where(...).ToList()` snapshot.
+  // Fire deliverycreation up to N times until our flight transitions OR we
+  // give up.
+  let finalState: number = ProcessState.Locked;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await triggerWorkflow(loggedInPage, token, 'deliverycreation');
+    finalState = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
+    if (finalState !== ProcessState.Locked) break;
+  }
 
   // Happy path is DeliveryPrepared(50); DeliveryPreparationError(45) or
   // ExcludedFromDeliveryProcess(99) are degraded-pass branches.
