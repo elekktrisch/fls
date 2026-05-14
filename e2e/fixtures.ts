@@ -197,13 +197,17 @@ export { expect };
 
 export async function gotoRoute(page: Page, hashPath: string): Promise<void> {
   await page.goto('/#' + hashPath);
-  await page.waitForLoadState('networkidle');
+  // We used to wait for `networkidle` here, but webpack-dev-server's
+  // HMR/live-reload websocket keeps the network non-idle indefinitely
+  // (each gotoRoute would burn the 30s test timeout). `domcontentloaded`
+  // is enough since the AngularJS app boots after DOMContentLoaded and
+  // the busy-indicator + ng-digest waits below cover the actual settle.
+  await page.waitForLoadState('domcontentloaded');
   // Give AngularJS time to start rendering and mounting controllers so any
   // about-to-appear busy spinner is in the DOM before we wait for it to clear.
   await page.waitForTimeout(500);
   await waitForBusyIndicatorsToClear(page);
   // Final settle for ng digest cycles.
-  await page.waitForLoadState('networkidle');
   await page.waitForTimeout(300);
 }
 
