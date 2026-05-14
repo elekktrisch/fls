@@ -64,8 +64,7 @@ async function waitForPlanningFormReady(page: Page): Promise<void> {
     }, undefined, { timeout: TIMEOUT });
 }
 
-test('planning:create planning day with crew shows up in /planning list', async ({ loggedInPage, freshDb }) => {
-    void freshDb;
+test('planning:create planning day with crew shows up in /planning list', async ({ freshLoggedInPage: loggedInPage }) => {
 
     // 1. Baseline: open /planning and count today-onwards rows. The fixture
     //    seeds no planning days, but other tests in the worker may — so we

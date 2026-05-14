@@ -64,7 +64,6 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   loggedInPage,
   freshDb,
 }) => {
-  void freshDb;
   const page = loggedInPage;
   const token = await bearer(page);
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };

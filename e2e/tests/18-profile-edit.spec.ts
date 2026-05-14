@@ -73,8 +73,7 @@ async function getBearerToken(page: Page): Promise<string> {
   return token!;
 }
 
-test('profile-edit: testclubadmin updates own Person and reload confirms persistence', async ({ loggedInPage, freshDb }) => {
-  void freshDb;
+test('profile-edit: testclubadmin updates own Person and reload confirms persistence', async ({ freshLoggedInPage: loggedInPage }) => {
   const page = loggedInPage;
 
   // 1. Link testclubadmin to an existing TestClub Person, and capture that

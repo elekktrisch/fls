@@ -70,8 +70,7 @@ async function filterTo(page: Page, needle: string) {
   await search.fill(needle);
 }
 
-test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage, freshDb }) => {
-  void freshDb;
+test('masterdata-crud:flightTypes create-edit-delete', async ({ freshLoggedInPage: loggedInPage }) => {
   const page = loggedInPage;
 
   // ----- CREATE -----------------------------------------------------------

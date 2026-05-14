@@ -66,8 +66,7 @@ async function submitForm(page: Page) {
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 }
 
-test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage, freshDb }) => {
-  void freshDb;
+test('masterdata-crud:locations create-edit-delete', async ({ freshLoggedInPage: loggedInPage }) => {
   const page = loggedInPage;
 
   // ----- CREATE -----------------------------------------------------------

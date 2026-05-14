@@ -89,8 +89,7 @@ function rowByName(page: Page, name: string) {
   return page.locator('tbody [data-testid="row"]', { hasText: name });
 }
 
-test('accounting-rules:create FlightTime rule + edit description', async ({ loggedInPage, freshDb }) => {
-  void freshDb;
+test('accounting-rules:create FlightTime rule + edit description', async ({ freshLoggedInPage: loggedInPage }) => {
   const page = loggedInPage;
 
   // ----- baseline -----------------------------------------------------------

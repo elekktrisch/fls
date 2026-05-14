@@ -74,7 +74,6 @@ test('reservation-scheduler renders aircraft row, headers, and a seeded event', 
   loggedInPage,
   freshDb,
 }) => {
-  void freshDb;
 
   // Collect JS errors / page errors over the whole flow.
   const consoleErrors: string[] = [];

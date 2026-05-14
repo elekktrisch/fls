@@ -15,13 +15,29 @@ type AuthData = {
 let cachedAuth: AuthData | null = null;
 
 async function fetchAuthData(api: APIRequestContext): Promise<AuthData> {
-  const tokenRes = await api.post(`${API_BASE}/Token`, {
-    form: { grant_type: 'password', username: USERNAME, password: PASSWORD },
-  });
-  if (!tokenRes.ok()) {
-    throw new Error(`Token request failed: ${tokenRes.status()} ${await tokenRes.text()}`);
+  // The freshDb fixture may resolve in parallel with loggedInPage —
+  // Playwright doesn't sequence independent fixtures. If seed.sh is
+  // mid-DROP-DATABASE while /Token fires, the FLS server can return 500
+  // (Mono+EF momentarily can't reach FLSTest). Retry a few times with a
+  // short backoff so that race resolves transparently. Genuine auth
+  // failures (e.g. wrong password = 400, server-down = ECONNREFUSED)
+  // still surface after the retry budget is exhausted.
+  let tokenRes;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    tokenRes = await api.post(`${API_BASE}/Token`, {
+      form: { grant_type: 'password', username: USERNAME, password: PASSWORD },
+    });
+    if (tokenRes.ok()) break;
+    if (tokenRes.status() !== 500 && tokenRes.status() < 502) {
+      // 4xx (or 502/503/504) is not a race — fail fast.
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 500 * attempt));
   }
-  const loginResult = await tokenRes.json();
+  if (!tokenRes!.ok()) {
+    throw new Error(`Token request failed: ${tokenRes!.status()} ${await tokenRes!.text()}`);
+  }
+  const loginResult = await tokenRes!.json();
   const headers = { Authorization: `Bearer ${loginResult.access_token}` };
 
   const userRes = await api.get(`${API_BASE}/api/v1/users/my`, { headers });
@@ -94,7 +110,7 @@ export async function waitForLoggedInState(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
 }
 
-type Fixtures = { loggedInPage: Page; uiLoggedInPage: Page; freshDb: void };
+type Fixtures = { loggedInPage: Page; uiLoggedInPage: Page; freshDb: void; freshLoggedInPage: Page };
 
 export const test = base.extend<Fixtures>({
   loggedInPage: async ({ browser, playwright }, use) => {
@@ -192,7 +208,53 @@ export const test = base.extend<Fixtures>({
     // captured before the seed might reference stale IDs. Drop the cache so the
     // next `loggedInPage` re-fetches.
     cachedAuth = null;
+    // After DROP+CREATE+RESTORE, EF's connection pool can briefly serve 500s
+    // before reconnecting. Give it a beat so the test body's first call
+    // doesn't race with the recovery.
+    await new Promise((r) => setTimeout(r, 200));
     await use();
+  },
+
+  /**
+   * Convenience fixture: seed the DB, THEN create the logged-in page.
+   * Use this instead of `{ loggedInPage, freshDb }` whenever a test
+   * needs both — those two siblings would otherwise resolve in
+   * parallel, racing loggedInPage's /Token + page.goto/ against
+   * freshDb's DROP+CREATE+RESTORE.
+   */
+  freshLoggedInPage: async ({ browser, playwright }, use) => {
+    // Sequence: 1. seed.sh, 2. /Token (cached after first), 3. page+inject.
+    const seedScript = path.resolve(__dirname, 'scripts/seed.sh');
+    const result = spawnSync('bash', [seedScript], {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        FLS_MSSQL_CONTAINER: process.env.FLS_MSSQL_CONTAINER ?? 'fls-e2e-mssql-1',
+      },
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        `seed.sh exited with status ${result.status} (signal=${result.signal ?? 'none'}).`,
+      );
+    }
+    // Force re-fetch in case prior creds got invalidated.
+    cachedAuth = null;
+    await new Promise((r) => setTimeout(r, 200));
+    if (!cachedAuth) {
+      const api = await playwright.request.newContext();
+      cachedAuth = await fetchAuthData(api);
+      await api.dispose();
+    }
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await context.addInitScript((authData) => {
+      sessionStorage.setItem('ngStorage-loginResult', JSON.stringify(authData.loginResult));
+      sessionStorage.setItem('ngStorage-user', JSON.stringify(authData.user));
+      sessionStorage.setItem('ngStorage-userRoles', JSON.stringify(authData.userRoles));
+    }, cachedAuth);
+    const page = await context.newPage();
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await use(page);
+    await context.close();
   },
 });
 

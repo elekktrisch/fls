@@ -84,7 +84,6 @@ test.describe('multi-tenant isolation', () => {
     request,
     freshDb,
   }) => {
-    void freshDb;
 
     const tokenA = await tryLogin(request, CLUB_A);
     const tokenB = await tryLogin(request, CLUB_B);

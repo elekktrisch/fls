@@ -53,7 +53,7 @@ async function readFlightCommentViaApi(page: Page, token: string): Promise<strin
   return body?.GliderFlightDetailsData?.FlightComment ?? '';
 }
 
-test('flights-edit: round-trip FlightComment via form submit', async ({ loggedInPage, freshDb }) => {
+test('flights-edit: round-trip FlightComment via form submit', async ({ freshLoggedInPage: loggedInPage }) => {
   // 1. Load the edit form for the seeded PAX flight.
   await gotoRoute(loggedInPage, `/flights/${FLIGHT_ID}`);
 

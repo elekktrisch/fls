@@ -81,10 +81,9 @@ async function waitForConfigScopeReady(page: Page): Promise<void> {
   }, undefined, { timeout: SECONDARY_TIMEOUT });
 }
 
-test('flightreports:custom builder applies filter and renders results', async ({ loggedInPage, freshDb }) => {
+test('flightreports:custom builder applies filter and renders results', async ({ freshLoggedInPage: loggedInPage }) => {
   // freshDb gives us the deterministic 2026-01-01 anchor with the seeded
   // historical glider flight at 2025-12-02 (see _test-fixture.sql:295-357).
-  void freshDb;
 
   // 1. Navigate to the custom-config edit page. AngularJS's $location.path()
   //    URL-encodes `{}` to `%7B%7D`, so do the same here.

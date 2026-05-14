@@ -116,7 +116,7 @@ async function changeProcessState(
 
 test.describe.configure({ mode: 'serial' });
 
-test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', async ({ loggedInPage, freshDb }) => {
+test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', async ({ freshLoggedInPage: loggedInPage }) => {
   const token = await getBearerToken(loggedInPage);
 
   // Sanity-check the precondition: the seeded historical flight is Valid (30).
@@ -143,7 +143,7 @@ test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', as
   await screenshot(loggedInPage, '06-flights-state-transitions-01');
 });
 
-test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ loggedInPage, freshDb }) => {
+test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ freshLoggedInPage: loggedInPage }) => {
   const token = await getBearerToken(loggedInPage);
 
   // Force the historical flight into Invalid state. The server's ValidateFlights

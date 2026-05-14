@@ -50,7 +50,7 @@ async function api<T>(page: Page, token: string, method: 'GET' | 'POST', url: st
 
 test.describe.configure({ mode: 'serial' });
 
-test('airmovements-list: renders /airmovements (empty or seeded)', async ({ loggedInPage, freshDb }) => {
+test('airmovements-list: renders /airmovements (empty or seeded)', async ({ freshLoggedInPage: loggedInPage }) => {
   await gotoRoute(loggedInPage, '/airmovements');
   // The motor-flights list defaults its date filter to today..today. Seed has
   // no motor flight, so the list may legitimately render zero rows. Assert the
@@ -60,7 +60,7 @@ test('airmovements-list: renders /airmovements (empty or seeded)', async ({ logg
   await screenshot(loggedInPage, '07-airmovements-crud-01');
 });
 
-test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback', async ({ loggedInPage, freshDb }) => {
+test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback', async ({ freshLoggedInPage: loggedInPage }) => {
   const token = await getBearerToken(loggedInPage);
 
   // Look up the masterdata IDs the airmovements form would otherwise resolve

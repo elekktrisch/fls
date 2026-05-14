@@ -73,12 +73,11 @@ async function countTodayFlightRows(page: Page): Promise<number> {
   return page.locator('tbody [data-testid="row"]').count();
 }
 
-test('flights:create new glider flight via UI shows up in list', async ({ loggedInPage, freshDb }) => {
+test('flights:create new glider flight via UI shows up in list', async ({ freshLoggedInPage: loggedInPage }) => {
   // freshDb is the worker-scoped fixture (see fixtures.ts). It re-seeds the
   // FLSTest database to a deterministic baseline so we know exactly how many
   // rows are on the today-filtered list before we add ours: zero, because
   // every fixture flight is anchored 30 days before 2026-01-01.
-  void freshDb;
 
   // 1. Land on the flights list and capture the baseline row count.
   await gotoRoute(loggedInPage, FLIGHTS_LIST);
