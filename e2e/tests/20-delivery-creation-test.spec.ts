@@ -38,23 +38,18 @@
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
+import { testId } from '../test-id';
+import { ensureGliderFlight, getBearerToken } from '../test-data';
+
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 
-// Fixed seed ID from _test-fixture.sql section 5 ("Historical flight").
-const HISTORICAL_FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
-
-async function getBearerToken(page: Page): Promise<string> {
-  const token = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('ngStorage-loginResult');
-    if (!raw) return null;
-    try { return JSON.parse(raw).access_token as string; } catch { return null; }
-  });
-  expect(token, 'expected access_token in sessionStorage from loggedInPage').toBeTruthy();
-  return token!;
-}
-
-test('delivery-creation-test: generateExampleDelivery preview returns a DeliveryCreationResult', async ({ loggedInPage }) => {
+test('delivery-creation-test: generateExampleDelivery preview returns a DeliveryCreationResult', async ({ loggedInPage }, testInfo) => {
+  const id = testId(testInfo);
   const token = await getBearerToken(loggedInPage);
+  // Own a glider flight for this test (idempotent on re-run).
+  const { flightId: HISTORICAL_FLIGHT_ID } = await ensureGliderFlight(loggedInPage.request, token, {
+    comment: id.name,
+  });
 
   const res = await loggedInPage.request.get(
     `${API_BASE}/api/v1/deliverycreationtests/testdeliveryforflight/${HISTORICAL_FLIGHT_ID}`,
