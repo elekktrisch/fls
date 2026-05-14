@@ -221,6 +221,26 @@ IF NOT EXISTS (SELECT 1 FROM AccountingRuleFilterTypes WHERE AccountingRuleFilte
     VALUES (55, 'Start tax accounting rule filter', 'StartTaxAccountingRuleFilter', SYSDATETIME(), NULL)
 
 -- ---------------------------------------------------------------------------
+-- 3c. Article rows referenced by AccountingRuleFilter.ArticleTarget. The
+--     base seed wipes Articles ("3 Insert Static Data.sql"). The rules below
+--     embed ArticleNumber 5001 / 6001 in their ArticleTarget JSON; without
+--     the corresponding Articles rows the DeliveryService throws when it
+--     tries to materialize a Delivery, leaving the flight stuck in Locked.
+--     Spec #21 also needs a real article to attach to its UI/API rule.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: Articles (testclub)'
+DELETE FROM Articles WHERE ClubId = @testClubId AND ArticleNumber IN ('5001', '6001')
+INSERT INTO Articles (
+    ArticleId, ClubId, ArticleNumber, ArticleName, IsActive,
+    CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType, IsDeleted
+)
+VALUES
+    ('F1500006-0000-0000-0000-000000005001', @testClubId, '5001', 'Glider flight minutes', 1,
+        DATEADD(MINUTE, 4, @anchor), @insertUserId, @recordState, @testClubId, @ownershipClub, 0),
+    ('F1500006-0000-0000-0000-000000006001', @testClubId, '6001', 'Landegebuehr LSZK', 1,
+        DATEADD(MINUTE, 4, @anchor), @insertUserId, @recordState, @testClubId, @ownershipClub, 0)
+
+-- ---------------------------------------------------------------------------
 -- 4. AccountingRuleFilters for the test club. Covers Recipient(10),
 --    FlightTime(30), and LandingTax(60) -- three of the rule-type values
 --    documented in FLS.Data.WebApi/Accounting/RuleFilters/AccountingRuleFilterType.cs.
