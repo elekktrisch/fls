@@ -76,7 +76,15 @@ export default defineConfig({
       // flsweb webpack-dev-server (Node 8 via nvm). The source tree is
       // expected to have been copied to /tmp/flsweb-build with the two
       // case-sensitivity sed fixes already applied (TESTING.md Milestone 5).
-      command: 'cd /tmp/flsweb-build && yarn start',
+      //
+      // Invoke webpack-dev-server directly rather than `yarn start`.
+      // Yarn 1 runs an integrity check before script execution and
+      // re-attempts to install dependencies when node_modules / yarn.lock
+      // drift apart; that re-install hits the `microtime` optional native
+      // dep, which fails to compile under modern Python (collections.MutableSet
+      // gone in Python 3.10+). The direct bin invocation skips the check.
+      command:
+        'cd /tmp/flsweb-build && ./node_modules/.bin/webpack-dev-server --TARGET=DEV --SERVER_URL=http://localhost:25567/',
       url: 'http://localhost:3000/',
       reuseExistingServer: true,
       timeout: 180_000,

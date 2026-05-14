@@ -89,7 +89,12 @@ jobs:
       - name: Start FLS.Server.Console
         working-directory: flsserver/src/FLS.Server.Console/bin/Debug
         run: |
-          nohup mono FLS.Server.Console.exe > /tmp/fls-server.log 2>&1 &
+          # `setsid` detaches the child into its own session so it survives
+          # the runner's between-step process-group cleanup (otherwise the
+          # next step's playwright sees no API server and tries to spawn one
+          # via the webServer config, paying ~30s of cold-start overhead per
+          # `npx playwright test` invocation).
+          setsid nohup mono FLS.Server.Console.exe > /tmp/fls-server.log 2>&1 < /dev/null &
           # Wait for /api/v1/countries to respond 200.
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:25567/api/v1/countries || true)
@@ -123,7 +128,11 @@ jobs:
       - name: Start webpack-dev-server in background
         working-directory: /tmp/flsweb-build
         run: |
-          nohup yarn start > /tmp/flsweb.log 2>&1 &
+          # Invoke webpack-dev-server directly. `yarn start` re-runs an
+          # integrity check that retries installing `microtime`, which fails
+          # under modern Python (node-gyp / collections.MutableSet).
+          # `setsid` ensures the process survives across GH Actions steps.
+          setsid nohup ./node_modules/.bin/webpack-dev-server --TARGET=DEV --SERVER_URL=http://localhost:25567/ > /tmp/flsweb.log 2>&1 < /dev/null &
           # Wait for SPA root.
           for i in $(seq 1 90); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || true)
