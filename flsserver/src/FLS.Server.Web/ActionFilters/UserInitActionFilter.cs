@@ -16,8 +16,17 @@ namespace FLS.Server.WebApi.ActionFilters
         
         public override void OnActionExecuting(System.Web.Http.Controllers.HttpActionContext actionContext)
         {
-            var identityService = actionContext.ControllerContext.Configuration.DependencyResolver.GetService(typeof(IIdentityService)) as IIdentityService;
-            var userService = actionContext.ControllerContext.Configuration.DependencyResolver.GetService(typeof(UserService)) as UserService;
+            // Resolve from the per-request DependencyScope, NOT from
+            // Configuration.DependencyResolver. The latter is the root
+            // resolver, which under Unity's HierarchicalLifetimeManager
+            // returns the singleton-in-root instance — meaning every
+            // request shares the same IdentityService and concurrent
+            // requests overwrite each other's authenticated user.
+            // Per-request scope is what Web API + Unity.WebApi sets up
+            // automatically via BeginScope.
+            var scope = actionContext.Request.GetDependencyScope();
+            var identityService = scope.GetService(typeof(IIdentityService)) as IIdentityService;
+            var userService = scope.GetService(typeof(UserService)) as UserService;
             var controller = (actionContext.ControllerContext.Controller as ApiController);
             if (controller != null)
             {
