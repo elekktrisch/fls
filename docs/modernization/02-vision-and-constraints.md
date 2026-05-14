@@ -114,6 +114,7 @@ Things that surfaced during elicitation but aren't decided:
 - **EPPlus license verification.** R4 — need to confirm what version is pinned in `flsserver/`. Output of the verification feeds the Excel-export ADR.
 - **Production performance baseline.** Performance NFRs are "don't regress" — we need a one-time measurement of current p95s on the top 5 routes so the new system has something to compare against. Schedule for phase 4 or earlier.
 - **Audit-log scope per endpoint.** C12 says "every mutating endpoint". Define what fields the audit record carries (actor, before/after JSON?) during phase 3 or early phase 4.
+- **Product slug + final folder name.** Seed now uses the working slug `next/` for the new subtree (`next/server/`, `next/web/`, `next/database/`, `next/auth/`, `next/ops/`). The final user-facing product name and the rename of `next/` → final-slug is **deferred to a dedicated phase-4 naming story**. Until that story resolves, all docs and ADRs reference `next/...` paths.
 
 ---
 

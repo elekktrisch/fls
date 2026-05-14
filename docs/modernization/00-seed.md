@@ -20,7 +20,14 @@ The existing docs at the repo root are authoritative reading before any phase ru
 
 - **Strategy:** greenfield rewrite. Not strangler-fig, not in-place upgrade. New code is written from scratch in sibling folders.
 - **Coexistence:** old and new run separately. Hard cutover at the end. No reverse-proxy bridge, no shared session, no shared DB writes during the build phase.
-- **Repo layout:** new code in `flsserver-next/`, `flsweb-next/`, and (if DB is in scope) `database-next/`, all sibling to the existing folders inside this repo.
+- **Repo layout:** new code lives under a single top-level subtree, working slug `next/`, with sub-folders:
+  - `next/server/` — Spring Boot service
+  - `next/web/` — Angular frontend
+  - `next/database/` — Flyway migrations, seed data, test fixtures
+  - `next/auth/` — Keycloak realm exports + IdP config artifacts
+  - `next/ops/` — `docker-compose.yml`, Caddyfile, deploy scripts, runbooks
+  
+  The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repo. The final user-facing **product slug is deferred to a phase-4 naming story**; at cutover the `next/` parent is renamed in a single step. Until then, all docs and ADRs reference `next/...` paths.
 - **Database:** in scope **only** if a clean data-migration path exists. If reshape is required, the ADR for it must propose the migration tool, the cutover plan, and how to validate parity.
 - **Artifacts:** markdown only for now. The workflow does not push to GitHub Issues until stories exist that we want to track.
 
