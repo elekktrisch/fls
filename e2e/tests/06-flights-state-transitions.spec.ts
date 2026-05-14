@@ -94,8 +94,11 @@ async function getFlightProcessState(page: Page, token: string, flightId: string
   });
   expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
   const body = await res.json();
-  // FlightDetails DTO exposes ProcessStateId at the root.
-  return body.ProcessStateId as number;
+  // For glider flights, FlightDetails nests ProcessStateId inside
+  // GliderFlightDetailsData. (Motor flights would use MotorFlightDetailsData;
+  // the historical fixture is a glider so we read the glider path.) The
+  // FlightDetails DTO does NOT expose ProcessStateId at the root.
+  return body?.GliderFlightDetailsData?.ProcessStateId as number;
 }
 
 async function changeProcessState(

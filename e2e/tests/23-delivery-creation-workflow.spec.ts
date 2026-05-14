@@ -66,7 +66,8 @@ async function getFlightProcessState(
   });
   expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
   const body = await res.json();
-  return body.ProcessStateId as number;
+  // For glider flights, ProcessStateId is nested under GliderFlightDetailsData.
+  return body?.GliderFlightDetailsData?.ProcessStateId as number;
 }
 
 async function triggerWorkflow(
@@ -97,7 +98,7 @@ async function listDeliveriesForFlight(
 }
 
 test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a Delivery row exists', async ({
-  loggedInPage, freshDb,
+  freshLoggedInPage: loggedInPage,
 }) => {
   const token = await getBearerToken(loggedInPage);
 

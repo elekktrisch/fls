@@ -66,12 +66,18 @@ async function getFlight(
     headers: { Authorization: `Bearer ${token}` },
   });
   expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
-  return res.json();
+  const body = await res.json();
+  // For glider flights, ProcessStateId is nested under GliderFlightDetailsData,
+  // not at the FlightDetails root. (Motor flights would use the Motor variant.)
+  // CreatedOn is the same on root and nested; the root value is canonical.
+  return {
+    ProcessStateId: body?.GliderFlightDetailsData?.ProcessStateId,
+    CreatedOn: body?.CreatedOn ?? body?.GliderFlightDetailsData?.CreatedOn,
+  };
 }
 
 test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
-  loggedInPage,
-  freshDb,
+  freshLoggedInPage: loggedInPage,
 }) => {
   const token = await getBearerToken(loggedInPage);
 
