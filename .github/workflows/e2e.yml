@@ -50,6 +50,14 @@ jobs:
           docker compose -p fls-e2e ps
 
       # ----- Build flsserver (.NET 4.5 under Mono) --------------------------------
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: flsserver/src/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('flsserver/src/**/packages.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: NuGet restore
         working-directory: flsserver/src
         run: mono /usr/local/bin/nuget.exe restore FLS.sln
@@ -117,10 +125,21 @@ jobs:
           sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
           sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
 
+      - name: Cache flsweb node_modules
+        id: flsweb-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/flsweb-build/node_modules
+          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
+          restore-keys: |
+            flsweb-node-modules-${{ runner.os }}-
+
       - name: Install yarn 1 globally (Node 8 era)
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
         run: npm install --global yarn@1
 
       - name: yarn install (flsweb)
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
         working-directory: /tmp/flsweb-build
         run: yarn install --network-timeout 600000 || true
         # `microtime` (optional native dep) prints node-gyp errors; safe to ignore.
@@ -145,12 +164,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install Playwright deps
         working-directory: e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          # `--with-deps` always re-runs apt install for OS deps even on
+          # browser cache hit; that's fine, it's ~5s. Skip the browser
+          # download when the cache restored it.
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
 
       # Two invocations: read project (parallel, 2 workers) then mutate
       # project (serial, 1 worker). They share the FLSTest DB so they must
@@ -182,6 +219,14 @@ jobs:
         with:
           name: playwright-report
           path: /tmp/fls-e2e-report
+          if-no-files-found: ignore
+
+      - name: Upload full-page screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: e2e/screenshots
           if-no-files-found: ignore
 
       - name: Upload Playwright traces / screenshots
