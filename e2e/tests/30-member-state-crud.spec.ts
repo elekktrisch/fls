@@ -24,7 +24,7 @@
  * we select by that stable id rather than by translated label.
  */
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/memberStates';
@@ -105,4 +105,5 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage,
   // poll until it's gone.
   await expect(await findRowByName(page, renamedName)).toHaveCount(0, { timeout: 10_000 });
   expect(await rowCount(page)).toBe(initialCount);
+  await screenshot(loggedInPage, '30-member-state-crud-01');
 });

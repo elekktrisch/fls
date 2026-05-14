@@ -34,7 +34,7 @@
 //     `ng-if="busy"` rather than the shared `data-testid="busy-indicator"`,
 //     so `gotoRoute()` cannot see it. We wait on `.cssload-loader` directly.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -139,4 +139,5 @@ test('reservation-scheduler renders aircraft row, headers, and a seeded event', 
   // 8) No JS errors during the whole flow.
   expect(pageErrors, `page errors: ${pageErrors.join(' | ')}`).toEqual([]);
   expect(consoleErrors, `console errors: ${consoleErrors.join(' | ')}`).toEqual([]);
+  await screenshot(loggedInPage, '11-reservation-scheduler-01');
 });

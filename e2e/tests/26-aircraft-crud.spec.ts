@@ -35,7 +35,7 @@
 //     no `data-testid` (shared with all masterdata lists).
 //     TODO testid: `list-new`.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -155,4 +155,5 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
     Items: { AircraftId: string; Immatriculation: string }[];
   };
   expect(paged.Items.find(a => a.AircraftId === created.AircraftId)).toBeUndefined();
+  await screenshot(loggedInPage, '26-aircraft-crud-01');
 });

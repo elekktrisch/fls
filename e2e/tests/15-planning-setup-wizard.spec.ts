@@ -29,7 +29,7 @@
  *     on the two <fls-date-picker> inputs. Falls back to semantic selectors.
  */
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const SETUP_ROUTE = '/planningsetup';
@@ -143,4 +143,5 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
   ).toBeVisible({ timeout: 15_000 });
   const after = await countPlanningRows(page);
   expect(after, `expected ≥1 planning day created (baseline=${baseline})`).toBeGreaterThanOrEqual(1);
+  await screenshot(loggedInPage, '15-planning-setup-wizard-01');
 });

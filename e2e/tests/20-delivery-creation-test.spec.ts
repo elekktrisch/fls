@@ -35,7 +35,7 @@
 // deliveryCreationTests-edit.html and `data-testid="delivery-item-row"` on
 // the generated items table.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -90,6 +90,7 @@ test('delivery-creation-test: generateExampleDelivery preview returns a Delivery
     // Recipient on the delivery root — present even when nothing else matched.
     expect(result.CreatedDeliveryDetails.RecipientDetails, 'CreatedDeliveryDetails.RecipientDetails should be present').toBeTruthy();
   }
+  await screenshot(loggedInPage, '20-delivery-creation-test-01');
 });
 
 test('delivery-creation-test: stored regression tests endpoint returns a paged list', async ({ loggedInPage, freshDb }) => {
@@ -130,6 +131,7 @@ test('delivery-creation-test: stored regression tests endpoint returns a paged l
     // LastDeliveryCreationTestResult carries the diff (TestPassed + messages).
     expect(runBody.LastDeliveryCreationTestResult, 'run result has LastDeliveryCreationTestResult').toBeTruthy();
   }
+  await screenshot(loggedInPage, '20-delivery-creation-test-02');
 });
 
 test('delivery-creation-test: /masterdata/deliveryCreationTests list renders for club-admin', async ({ loggedInPage, freshDb }) => {
@@ -140,4 +142,5 @@ test('delivery-creation-test: /masterdata/deliveryCreationTests list renders for
   // The page is the deliveryCreationTests.html template; presence of the
   // <ng-view> rendering its table host is enough to confirm the route resolved.
   await expect(loggedInPage.locator('body')).toBeVisible();
+  await screenshot(loggedInPage, '20-delivery-creation-test-03');
 });

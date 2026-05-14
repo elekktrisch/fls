@@ -1,4 +1,4 @@
-import { test, expect, loginViaUi, waitForLoggedInState } from '../fixtures';
+import { test, expect, loginViaUi, screenshot, waitForLoggedInState } from '../fixtures';
 
 const USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
 const PASSWORD = process.env.FLS_PASSWORD ?? 's';
@@ -27,6 +27,7 @@ test.describe('auth flow (UI)', () => {
       expect(loginResult, 'sessionStorage["ngStorage-loginResult"] should be populated after UI login').toBeTruthy();
       const parsed = JSON.parse(loginResult as string);
       expect(parsed.access_token, 'login response must contain access_token').toBeTruthy();
+      await screenshot(page, 'auth-login-success');
     } finally {
       await context.close();
     }
@@ -57,6 +58,7 @@ test.describe('auth flow (UI)', () => {
         const parsed = JSON.parse(loginResult);
         expect(parsed.access_token, 'no token expected after failed login').toBeFalsy();
       }
+      await screenshot(page, 'auth-login-fail-wrong-password');
     } finally {
       await context.close();
     }
@@ -74,6 +76,7 @@ test.describe('auth flow (UI)', () => {
       expect(errorText.length, 'error message should be non-empty').toBeGreaterThan(0);
 
       expect(page.url()).toMatch(/#\/main/);
+      await screenshot(page, 'auth-login-fail-unknown-user');
     } finally {
       await context.close();
     }
@@ -113,6 +116,7 @@ test.describe('auth flow (UI)', () => {
         expect(parsed.access_token, 'access_token should be cleared after logout').toBeFalsy();
       }
       expect(userRecord, 'user record should be cleared after logout').toBeFalsy();
+      await screenshot(page, 'auth-logout');
     } finally {
       await context.close();
     }

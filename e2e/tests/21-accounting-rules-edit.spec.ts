@@ -43,7 +43,7 @@
  *   back to semantic selectors, same approach as 12-masterdata-crud.spec.ts.
  */
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/accountingRuleFilters';
@@ -181,4 +181,5 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
   await editedRow.click();
   await waitForFormHydrated(page);
   await expect(page.locator('#Description'), 'PUT roundtrip should have persisted the new Description').toHaveValue(DESC_EDITED);
+  await screenshot(loggedInPage, '21-accounting-rules-edit-01');
 });

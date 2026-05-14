@@ -22,7 +22,7 @@
 //     row directly via SQL. Seeding a type in the fixture would remove that
 //     side-channel.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 import sql from 'mssql';
 
@@ -145,4 +145,5 @@ test('reservations-crud: create, edit, delete via /reservations', async ({ logge
   // Cross-check via API.
   const verify = await page.request.get(`${API_BASE}/api/v1/aircraftreservations/${created.AircraftReservationId}`, { headers: auth });
   expect(verify.ok(), 'expected GET on deleted reservation to fail').toBeFalsy();
+  await screenshot(loggedInPage, '10-reservations-crud-01');
 });

@@ -32,7 +32,7 @@
  * form's Save/Cancel buttons currently have no `data-testid`. Falls back to
  * semantic + class selectors.
  */
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/flightTypes';
@@ -115,4 +115,5 @@ test('masterdata-crud:flightTypes create-edit-delete', async ({ loggedInPage, fr
   await editedRow.locator('a:has(.fa-trash-o)').click();
 
   await expect(rowByText(page, NAME_EDITED)).toHaveCount(0, { timeout: 10_000 });
+  await screenshot(loggedInPage, '29-flight-type-crud-01');
 });

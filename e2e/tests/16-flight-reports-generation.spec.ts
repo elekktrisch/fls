@@ -42,7 +42,7 @@
 // the existing `[data-testid="row"]` contract from SELECTORS.md instead of
 // shape-based selectors.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 
 test('flight-reports: pre-canned location-this-year renders tabular output for seeded flights', async ({
   loggedInPage,
@@ -127,4 +127,5 @@ test('flight-reports: pre-canned location-this-year renders tabular output for s
     .allInnerTexts();
   const hasPilot = pilotNames.some((t) => t.trim().length > 0);
   expect(hasPilot, 'expected at least one rendered PilotName cell to be non-empty').toBe(true);
+  await screenshot(loggedInPage, '16-flight-reports-generation-01');
 });

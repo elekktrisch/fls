@@ -20,7 +20,7 @@
 //     flight-edit-glider-form.html (id="Comment", line 446) would harden
 //     this selector against id renames.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const FLIGHT_ID = '728a5199-3e1e-43a6-970a-c3cd741884ff'; // seeded "PAX flight"
@@ -98,4 +98,5 @@ test('flights-edit: round-trip FlightComment via form submit', async ({ loggedIn
   const reloadedInput = loggedInPage.locator('input#Comment');
   await expect(reloadedInput).toBeVisible({ timeout: 10_000 });
   await expect(reloadedInput).toHaveValue(newComment);
+  await screenshot(loggedInPage, '05-flights-edit-01');
 });

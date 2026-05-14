@@ -33,7 +33,7 @@
  *     the UI assertion can stop relying on the `.history-link` class.
  */
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page, APIResponse } from '@playwright/test';
 
 const FLIGHT_ID = '728a5199-3e1e-43a6-970a-c3cd741884ff'; // seeded "PAX flight"
@@ -160,4 +160,5 @@ test('audit-logs: PUT flight produces an audit-log entry visible via API', async
   await gotoRoute(loggedInPage, '/flights');
   const historyLinks = loggedInPage.locator('tbody [data-testid="row"] a.history-link');
   await expect(historyLinks.first()).toBeVisible({ timeout: 10_000 });
+  await screenshot(loggedInPage, '19-audit-logs-01');
 });

@@ -26,7 +26,7 @@
 // before issuing the DELETE. We stub it via `page.on('dialog')` so the
 // browser auto-accepts.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
@@ -135,4 +135,5 @@ test('masterdata-users:create-edit-delete', async ({ loggedInPage, freshDb }) =>
   // user is gone server-side.
   await gotoRoute(page, '/masterdata/users');
   await expect(matchingRow).toHaveCount(0, { timeout: 15_000 });
+  await screenshot(loggedInPage, '27-user-crud-01');
 });

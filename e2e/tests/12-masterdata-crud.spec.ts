@@ -29,7 +29,7 @@
  * selectors, which is acceptable for a single-spec mutation flow but worth
  * adding to SELECTORS.md in a consolidation pass.
  */
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/locations';
@@ -120,4 +120,5 @@ test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage, fres
   await expect(page.locator('tbody [data-testid="row"]', { hasText: NAME })).toHaveCount(0, {
     timeout: 10_000,
   });
+  await screenshot(loggedInPage, '12-masterdata-crud-01');
 });

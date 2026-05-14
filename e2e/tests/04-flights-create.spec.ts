@@ -29,7 +29,7 @@
  *     locate it by translated label.
  */
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const FLIGHTS_LIST = '/flights';
@@ -223,4 +223,5 @@ test('flights:create new glider flight via UI shows up in list', async ({ logged
     loggedInPage.locator(`tbody [data-testid="row"]:has-text("${uniqueComment}")`),
     'newly-created flight row should be visible in the today list',
   ).toHaveCount(1);
+  await screenshot(loggedInPage, '04-flights-create-01');
 });

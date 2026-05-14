@@ -18,6 +18,7 @@
 import { test, expect } from '@playwright/test';
 import sql from 'mssql';
 import { findMessage } from '../mailpit';
+import { screenshot } from '../fixtures';
 
 
 // ---------------------------------------------------------------------------
@@ -128,6 +129,7 @@ test('public:trialflight registration creates Person row and sends email', async
       description: `No trial-flight email found for ${email}: ${(err as Error).message}`,
     });
   }
+  await screenshot(page, '09-public-flows-01');
 });
 
 // ---------------------------------------------------------------------------
@@ -182,6 +184,7 @@ test('public:passengerflight registration creates Person row and sends email', a
       description: `No passenger-flight email found for ${email}: ${(err as Error).message}`,
     });
   }
+  await screenshot(page, '09-public-flows-02');
 });
 
 // ---------------------------------------------------------------------------
@@ -214,6 +217,7 @@ test('public:lostpassword sends reset email to seeded user', async ({ page }) =>
   expect(mail.To.some(r => r.Address.toLowerCase() === TESTCLUBADMIN_EMAIL)).toBeTruthy();
   // Body should carry the confirmation link with userid + code.
   expect(mail.Text + mail.HTML).toMatch(/userid=[a-f0-9-]+&code=/i);
+  await screenshot(page, '09-public-flows-03');
 });
 
 // ---------------------------------------------------------------------------
@@ -261,4 +265,5 @@ test('public:confirm renders the password-set form when given a real reset token
   await expect(page.locator('[data-testid="confirm-email-form"]')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('input#newPassword')).toBeVisible();
   await expect(page.locator('input#newPasswordConfirm')).toBeVisible();
+  await screenshot(page, '09-public-flows-04');
 });

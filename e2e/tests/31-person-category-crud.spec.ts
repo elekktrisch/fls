@@ -37,7 +37,7 @@
  * worth promoting (e.g. `tree-row`, `tree-row-edit`, `tree-row-delete`) in a
  * consolidation pass.
  */
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page, Locator } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/personCategories';
@@ -121,4 +121,5 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage, freshDb }) =
   for (const name of SEEDED) {
     await expect(rowByName(page, name)).toHaveCount(1);
   }
+  await screenshot(loggedInPage, '31-person-category-crud-01');
 });

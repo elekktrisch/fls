@@ -28,7 +28,7 @@
 //     For now we lean on semantic selectors (getByRole('dialog'), id-based
 //     locators) and on the page's row-click pattern for the assertion.
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 async function openFirstUserEditPage(page: Page): Promise<void> {
@@ -140,4 +140,5 @@ test('persons-add-modal: create person via $modal and assert in list', async ({
     timeout: 10_000,
   });
   await expect(matchingRow).toContainText(firstname);
+  await screenshot(loggedInPage, '13-persons-add-modal-01');
 });

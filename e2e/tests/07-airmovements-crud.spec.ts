@@ -23,7 +23,7 @@
 //   - SAVE button has no testid (same gap as glider form).
 //     TODO testid: data-testid="form-save".
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -57,6 +57,7 @@ test('airmovements-list: renders /airmovements (empty or seeded)', async ({ logg
   // ng-table chrome is present (header row) instead of insisting on >=1 row.
   const table = loggedInPage.locator('table.fls').first();
   await expect(table).toBeVisible({ timeout: 10_000 });
+  await screenshot(loggedInPage, '07-airmovements-crud-01');
 });
 
 test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback', async ({ loggedInPage, freshDb }) => {
@@ -144,4 +145,5 @@ test('airmovements-crud: API-create motor flight, UI-edit comment, API-readback'
     loggedInPage, token, 'GET', `/api/v1/flights/${created.FlightId}`);
   expect(after.MotorFlightDetailsData.FlightComment, 'API readback should reflect the edited FlightComment')
     .toBe(editedComment);
+  await screenshot(loggedInPage, '07-airmovements-crud-02');
 });

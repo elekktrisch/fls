@@ -24,7 +24,7 @@
  *     (currently located by `button[type="submit"]` inside the form).
  */
 
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
 const PLANNING_LIST = '/planning';
@@ -167,4 +167,5 @@ test('planning:create planning day with crew shows up in /planning list', async 
         loggedInPage.locator(`tbody [data-testid="row"]:has-text("${uniqueRemarks}")`),
         'newly-created planning day row should be visible in /planning',
     ).toHaveCount(1);
+  await screenshot(loggedInPage, '14-planning-day-crud-01');
 });

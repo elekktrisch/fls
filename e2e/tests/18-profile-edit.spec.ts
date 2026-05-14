@@ -39,7 +39,7 @@
  * scope to the right-hand `<form>` (the one carrying `<fls-person-form>`)
  * and click its `button[type="submit"]`.
  */
-import { test, expect, gotoRoute } from '../fixtures';
+import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import sql from 'mssql';
 import type { Page } from '@playwright/test';
 
@@ -143,4 +143,5 @@ test('profile-edit: testclubadmin updates own Person and reload confirms persist
   await expect(page.locator('#AddressLine1')).toHaveValue(NEW_ADDR);
   await expect(page.locator('#MobilePhoneNumber')).toHaveValue(NEW_MOBILE);
   await expect(page.locator('#PrivatePhoneNumber')).toHaveValue(NEW_PHONE);
+  await screenshot(loggedInPage, '18-profile-edit-01');
 });

@@ -37,7 +37,7 @@
 //     `data-testid="exclude-from-delivery-toggle"` on the flight-edit form
 //     would be the natural additions.
 
-import { test, expect } from '../fixtures';
+import { expect, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 import sql from 'mssql';
 
@@ -140,6 +140,7 @@ test('flights-state: Valid -> ExcludedFromDeliveryProcess -> Valid (toggle)', as
 
   const afterInclude = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
   expect(afterInclude).toBe(ProcessState.Valid);
+  await screenshot(loggedInPage, '06-flights-state-transitions-01');
 });
 
 test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ loggedInPage, freshDb }) => {
@@ -175,4 +176,5 @@ test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ lo
   // in the fixture), so revalidation should land it on Valid (30).
   const finalState = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
   expect(finalState, 'revalidated flight should be Valid (30)').toBe(ProcessState.Valid);
+  await screenshot(loggedInPage, '06-flights-state-transitions-02');
 });
