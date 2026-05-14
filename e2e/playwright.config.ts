@@ -56,10 +56,12 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   // `workers` is a top-level option in Playwright (TestProject doesn't
   // accept it — silently ignored if set per-project). Both projects share
-  // this pool. `fullyParallel` + `retries` ARE project-level and stay
-  // there. The constraint is backend throughput (single Mono + SQL
-  // Server); 12 has worked locally without choking the stack.
-  workers: 12,
+  // this pool. `fullyParallel` + `retries` ARE project-level.
+  //
+  // The constraint is backend throughput (single Mono + SQL Server). 12
+  // caused test timeouts under load; 6 keeps real concurrency without
+  // pushing the stack into GC pause + EF-pool contention.
+  workers: 6,
   retries: 0,
   outputDir: '/tmp/fls-e2e-results',
   reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
