@@ -94,10 +94,9 @@ export async function waitForLoggedInState(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
 }
 
-type Fixtures = { loggedInPage: Page; uiLoggedInPage: Page };
-type WorkerFixtures = { freshDb: void };
+type Fixtures = { loggedInPage: Page; uiLoggedInPage: Page; freshDb: void };
 
-export const test = base.extend<Fixtures, WorkerFixtures>({
+export const test = base.extend<Fixtures>({
   loggedInPage: async ({ browser, playwright }, use) => {
     if (!cachedAuth) {
       const api = await playwright.request.newContext();
@@ -147,31 +146,28 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
   },
 
   /**
-   * Opt-in worker-scoped fixture that brings the FLSTest database back to a
-   * known, deterministic state by running `e2e/scripts/seed.sh`. Slow
-   * (~30-60s on a warm Docker daemon — it drops + recreates the database,
-   * re-applies the schema + every DBUpdate, replays the static seeds, and
-   * applies the deterministic test fixture).
+   * Opt-in PER-TEST fixture that brings the FLSTest database back to a
+   * known, deterministic state by running `e2e/scripts/seed.sh`.
    *
-   * Why "fresh seed" and not a transactional rollback?
+   * Why per-test? Mutation specs assume pristine state — e.g. the
+   * historical fixture flight is `Valid (30)`, the seeded
+   * AccountingRuleFilters are at known IDs, no test-created rows exist.
+   * Worker-scoped reseed leaked state between tests (test N's mutations
+   * broke test N+1's preconditions).
+   *
+   * The .bak cache in `seed.sh` keeps the per-test cost down to ~5s
+   * after the first run (which builds the cache in ~30s). Tests that
+   * don't need a pristine DB simply don't destructure `freshDb`.
+   *
+   * Why not a transactional rollback?
    * The FLS server runs on EF6 with its own connection pool — a per-test
    * BEGIN TRANSACTION from outside the server would never see EF's writes,
-   * and `Snapshot`-level isolation isn't available across the public API
-   * surface. So we pay the price of a full re-seed.
-   *
-   * Scope: worker. The seed runs once when the first test in a worker
-   * requests it; subsequent tests in the same worker reuse the seeded state.
-   * If you need per-test isolation, put each mutation test in its own
-   * `test.describe.configure({ mode: 'serial' })` block, or split mutation
-   * specs across worker boundaries.
+   * and Snapshot isolation isn't available across the public API surface.
    *
    * Usage:
    *   test('mutation flow', async ({ loggedInPage, freshDb }) => { ... });
-   *
-   * Tests that DON'T destructure `freshDb` get whatever state the previous
-   * test left behind — fine for the read-only suite.
    */
-  freshDb: [async ({}, use) => {
+  freshDb: async ({}, use) => {
     const seedScript = path.resolve(__dirname, 'scripts/seed.sh');
     const result = spawnSync('bash', [seedScript], {
       stdio: 'inherit',
@@ -197,7 +193,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     // next `loggedInPage` re-fetches.
     cachedAuth = null;
     await use();
-  }, { scope: 'worker' }],
+  },
 });
 
 export { expect };
