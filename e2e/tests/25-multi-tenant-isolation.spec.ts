@@ -6,6 +6,8 @@
 // filter by ClubId). A failure here is a real tenancy bug, not flaky data.
 
 import { test, expect } from '../fixtures';
+import { withPool } from '../test-data';
+import sql from 'mssql';
 import type { APIRequestContext } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -100,15 +102,10 @@ test.describe('multi-tenant isolation', () => {
     // Surface the ClubId both calls saw — if these are equal, the auth
     // pipeline merged the two users into the same ClubId. If they differ
     // and the flight filter STILL leaks, the bug is elsewhere.
-    test.info().annotations.push({
-      type: 'tokenA-clubid',
-      description: String(userA.ClubId),
-    });
-    test.info().annotations.push({
-      type: 'tokenB-clubid',
-      description: String(userB.ClubId),
-    });
-    expect(userA.ClubId, 'testclubadmin should live in TestClub').not.toBe(userB.ClubId);
+    expect(
+      userA.ClubId,
+      `tokenA-clubid=${userA.ClubId}  tokenB-clubid=${userB.ClubId}`,
+    ).not.toBe(userB.ClubId);
 
     // Flights
     const flightsA = await getPaged<{ FlightId: string }>(
@@ -126,10 +123,26 @@ test.describe('multi-tenant isolation', () => {
       flightIdsA.has(TESTCLUB_HISTORICAL_FLIGHT_ID.toLowerCase()),
       'TestClub admin should see the seeded historical glider flight',
     ).toBeTruthy();
-    expect(
-      flightIdsB.has(TESTCLUB_HISTORICAL_FLIGHT_ID.toLowerCase()),
-      'OtherClub admin must NOT see TestClub\'s historical glider flight',
-    ).toBeFalsy();
+    // If OtherClub sees the historical flight, diagnose: what does the
+    // server believe its OwnerId is RIGHT NOW? If it equals userB.ClubId,
+    // some other test mutated the row. If it still equals testClubId,
+    // the filter itself is broken.
+    if (flightIdsB.has(TESTCLUB_HISTORICAL_FLIGHT_ID.toLowerCase())) {
+      const owner = await withPool(async (pool) => {
+        const r = await pool.request()
+          .input('id', sql.UniqueIdentifier, TESTCLUB_HISTORICAL_FLIGHT_ID)
+          .query('SELECT CAST(OwnerId AS NVARCHAR(40)) AS OwnerId FROM Flights WHERE FlightId = @id');
+        return r.recordset[0]?.OwnerId ?? '<missing>';
+      });
+      expect(
+        false,
+        `OtherClub admin saw F1500005-... flight. ` +
+        `userA.ClubId=${userA.ClubId} userB.ClubId=${userB.ClubId} ` +
+        `flight.OwnerId=${owner}. ` +
+        `If flight.OwnerId == userB.ClubId, a test mutated the seed row. ` +
+        `If flight.OwnerId == userA.ClubId, the API filter is broken (or auth context leaked).`,
+      ).toBeTruthy();
+    }
 
     // Disjoint set check: intersection empty.
     const flightIntersection = [...flightIdsA].filter(id => flightIdsB.has(id));
