@@ -55,7 +55,9 @@ async function openListAndWait(page: Page) {
 
 async function submitForm(page: Page) {
   // Save = <button type="submit">; Cancel = <button type="button">.
-  await page.locator('form button[type="submit"]').click();
+  // Scope to flightTypeForm — the always-rendered navbar login form has
+  // its own submit button.
+  await page.locator('form[name="flightTypeForm"] button[type="submit"]').click();
   await page.waitForURL('**/#/masterdata/flightTypes', { timeout: 10_000 });
   await page.waitForLoadState('domcontentloaded');
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });

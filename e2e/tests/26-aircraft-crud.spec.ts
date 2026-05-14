@@ -109,8 +109,10 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   // Mutate Comment (plain text, no validators) so the form stays $valid.
   await page.locator('#Comment').fill(COMMENT_EDITED);
   // Save: the Save button is the `<button type="submit">` in aircrafts-edit.html.
-  // Saving navigates back to /masterdata/aircrafts via $location.path.
-  await page.locator('form button[type="submit"]').click();
+  // Saving navigates back to /masterdata/aircrafts via $location.path. Scope
+  // to aircraftForm — the always-rendered navbar login form has its own
+  // submit button.
+  await page.locator('form[name="aircraftForm"] button[type="submit"]').click();
   await page.waitForURL('**/#/masterdata/aircrafts', { timeout: 10_000 });
   await page.waitForLoadState('domcontentloaded');
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });

@@ -73,7 +73,7 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage,
   await page.locator('input#MemberStateName').waitFor({ state: 'visible' });
   await page.locator('input#MemberStateName').fill(createName);
   // TODO testid: add data-testid="form-save" to the save submit button.
-  await page.locator('button[type="submit"]').click();
+  await page.locator('form[name="memberStateForm"] button[type="submit"]').click();
 
   await waitForListReady(page);
   expect(await rowCount(page)).toBe(initialCount + 1);
@@ -87,7 +87,7 @@ test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage,
   await nameInput.waitFor({ state: 'visible' });
   await expect(nameInput).toHaveValue(createName);
   await nameInput.fill(renamedName);
-  await page.locator('button[type="submit"]').click();
+  await page.locator('form[name="memberStateForm"] button[type="submit"]').click();
 
   await waitForListReady(page);
   await expect(await findRowByName(page, renamedName)).toHaveCount(1);

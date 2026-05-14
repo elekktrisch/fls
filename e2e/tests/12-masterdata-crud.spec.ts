@@ -55,8 +55,10 @@ async function openListAndWait(page: Page) {
 
 async function submitForm(page: Page) {
   // Cancel + Save buttons are siblings inside `locations-edit.html`. Save is
-  // the `<button type="submit">` (Cancel is `type="button"`).
-  await page.locator('form button[type="submit"]').click();
+  // the `<button type="submit">` (Cancel is `type="button"`). Scope to the
+  // location edit form — the navbar's desktop login form also has a
+  // `button[type="submit"]` (Login) and lives on every page.
+  await page.locator('form[name="locationForm"] button[type="submit"]').click();
   // After save the controller navigates back to `/masterdata/locations`; wait
   // for the list to be back on screen.
   await page.waitForURL('**/#/masterdata/locations', { timeout: 10_000 });

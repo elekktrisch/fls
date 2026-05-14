@@ -156,6 +156,21 @@ INSERT INTO PersonCategories (
         DATEADD(MINUTE, 3, @anchor), @insertUserId, @recordState, @testClubId, @ownershipClub, 0)
 
 -- ---------------------------------------------------------------------------
+-- 3b. Backfill missing AccountingRuleFilterTypes rows so the rule-engine
+--    per-type spec can insert DoNotInvoiceFlight (5) and StartTax (55).
+--    The enum (AccountingRuleFilterType.cs) defines 10 values; the static
+--    seed in `3 Insert Static Data.sql` only inserts 8 of them (10/20/30/
+--    40/50/60/70/80), so any FK-protected INSERT against those two type
+--    ids would fail with a FK constraint violation.
+-- ---------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM AccountingRuleFilterTypes WHERE AccountingRuleFilterTypeId = 5)
+    INSERT INTO AccountingRuleFilterTypes (AccountingRuleFilterTypeId, AccountingRuleFilterTypeName, AccountingRuleFilterTypeKeyName, CreatedOn, ModifiedOn)
+    VALUES (5, 'Do not invoice flight rule filter', 'DoNotInvoiceFlightRuleFilter', SYSDATETIME(), NULL)
+IF NOT EXISTS (SELECT 1 FROM AccountingRuleFilterTypes WHERE AccountingRuleFilterTypeId = 55)
+    INSERT INTO AccountingRuleFilterTypes (AccountingRuleFilterTypeId, AccountingRuleFilterTypeName, AccountingRuleFilterTypeKeyName, CreatedOn, ModifiedOn)
+    VALUES (55, 'Start tax accounting rule filter', 'StartTaxAccountingRuleFilter', SYSDATETIME(), NULL)
+
+-- ---------------------------------------------------------------------------
 -- 4. AccountingRuleFilters for the test club. Covers Recipient(10),
 --    FlightTime(30), and LandingTax(60) -- three of the rule-type values
 --    documented in FLS.Data.WebApi/Accounting/RuleFilters/AccountingRuleFilterType.cs.
