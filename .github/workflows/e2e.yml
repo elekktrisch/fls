@@ -17,7 +17,6 @@ jobs:
     name: Playwright on Mono + Node 8 (flsweb) + Node 20 (e2e)
     runs-on: ubuntu-22.04
     timeout-minutes: 30
-    # gh-pages deploy needs write access to push the gh-pages branch.
     permissions:
       contents: write
 
@@ -29,30 +28,23 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # ----- System prerequisites -------------------------------------------------
-      - name: Install Mono 6.12 (for flsserver build + run)
+      # ----- Kick off the slow independent steps in parallel ---------------------
+      # These all run concurrently as background shell processes. They saturate
+      # the runner's 2 cores by overlapping CPU-bound (xbuild, gyp), I/O-bound
+      # (apt install Mono, NuGet restore, yarn install, docker pull) work.
+      - name: Install Mono 6.12 (start in background)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y mono-complete
+          (sudo apt-get update -qq && sudo apt-get install -y -qq mono-complete && touch /tmp/.done-mono) > /tmp/mono.log 2>&1 &
+          echo "mono install PID=$!"
 
-      - name: Install NuGet CLI
+      - name: Start docker-compose stack (background)
         run: |
-          sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
-          mono /usr/local/bin/nuget.exe help | head -1
+          # docker images: pull + start; healthcheck wait happens later
+          # together with the rest of the join points.
+          (docker compose -p fls-e2e up -d && touch /tmp/.done-stack) > /tmp/stack.log 2>&1 &
+          echo "compose up PID=$!"
 
-      # ----- Database + Mailpit ---------------------------------------------------
-      - name: Start docker-compose stack (mssql + mailpit)
-        run: |
-          docker compose -p fls-e2e up -d
-          # Wait for healthchecks to pass.
-          for i in $(seq 1 60); do
-            healthy=$(docker compose -p fls-e2e ps --format json | grep -c '"Health":"healthy"' || true)
-            if [ "$healthy" -ge 2 ]; then break; fi
-            sleep 2
-          done
-          docker compose -p fls-e2e ps
-
-      # ----- Build flsserver (.NET 4.5 under Mono) --------------------------------
+      # ----- Caches (synchronous; quick) ----------------------------------------
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -60,6 +52,47 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('flsserver/src/**/packages.config') }}
           restore-keys: |
             nuget-${{ runner.os }}-
+
+      - name: Cache flsweb node_modules
+        id: flsweb-cache
+        uses: actions/cache@v4
+        with:
+          path: flsweb-node_modules
+          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
+          restore-keys: |
+            flsweb-node-modules-${{ runner.os }}-
+
+      # ----- Prepare flsweb tree + start yarn install in background -------------
+      - uses: actions/setup-node@v4
+        with: { node-version: 8 }
+
+      - name: Prepare flsweb tree + yarn install (background)
+        run: |
+          rm -rf /tmp/flsweb-build
+          cp -r flsweb /tmp/flsweb-build
+          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
+          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
+          if [ -d flsweb-node_modules ]; then
+            mv flsweb-node_modules /tmp/flsweb-build/node_modules
+            echo "yarn install: cache hit, skipping" > /tmp/yarn.log
+            touch /tmp/.done-yarn
+          else
+            (sudo npm install --global yarn@1 -s \
+              && cd /tmp/flsweb-build \
+              && yarn install --network-timeout 600000 || true \
+              && touch /tmp/.done-yarn) > /tmp/yarn.log 2>&1 &
+            echo "yarn install PID=$!"
+          fi
+
+      # ----- Join point #1: need Mono before we can NuGet-restore + xbuild ------
+      - name: Wait for Mono install
+        run: |
+          while [ ! -f /tmp/.done-mono ]; do sleep 2; done
+          tail -3 /tmp/mono.log
+
+      - name: Install NuGet CLI
+        run: |
+          sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
 
       - name: NuGet restore
         working-directory: flsserver/src
@@ -77,92 +110,61 @@ jobs:
               FLS.Server.Service/FLS.Server.Service.csproj \
               FLS.Server.Web/FLS.Server.WebApi.csproj \
               FLS.Server.Console/FLS.Server.Console.csproj ; do
-            echo "=== $proj ==="
             xbuild "$proj" /p:Configuration=Debug
           done
 
-      - name: Drop EntityFramework.SqlServer.dll into bin
+      - name: Drop EF SqlServer DLL into bin
         working-directory: flsserver/src
         run: |
           cp packages/EntityFramework.6.2.0/lib/net45/EntityFramework.SqlServer.dll \
              FLS.Server.Console/bin/Debug/
 
-      # ----- Apply schema + seed --------------------------------------------------
+      # ----- Join point #2: need the docker stack healthy before seeding -------
+      - name: Wait for docker stack healthchecks
+        run: |
+          while [ ! -f /tmp/.done-stack ]; do sleep 1; done
+          for i in $(seq 1 60); do
+            healthy=$(docker compose -p fls-e2e ps --format json | grep -c '"Health":"healthy"' || true)
+            if [ "$healthy" -ge 2 ]; then break; fi
+            sleep 2
+          done
+          docker compose -p fls-e2e ps
+
       - name: Apply FLSTest schema and seed
         env:
-          # docker-compose -p fls-e2e names the container fls-e2e-mssql-1.
-          # seed.sh defaults to fls-mssql (the manual-launch name in
-          # TESTING.md Milestone 1). Override for CI.
           FLS_MSSQL_CONTAINER: fls-e2e-mssql-1
         run: bash e2e/scripts/seed.sh
 
-      # ----- Start the Mono Web API ----------------------------------------------
       - name: Start FLS.Server.Console
         working-directory: flsserver/src/FLS.Server.Console/bin/Debug
         run: |
-          # `setsid` detaches the child into its own session so it survives
-          # the runner's between-step process-group cleanup (otherwise the
-          # next step's playwright sees no API server and tries to spawn one
-          # via the webServer config, paying ~30s of cold-start overhead per
-          # `npx playwright test` invocation).
           setsid nohup mono FLS.Server.Console.exe > /tmp/fls-server.log 2>&1 < /dev/null &
-          # Wait for /api/v1/countries to respond 200.
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:25567/api/v1/countries || true)
             if [ "$code" = "200" ]; then echo "API ready"; break; fi
             sleep 2
           done
-          curl -sS http://localhost:25567/api/v1/countries | head -c 200
 
-      # ----- Build + start flsweb (Node 8 webpack-dev-server) --------------------
-      - name: Set up Node 8 for flsweb
-        uses: actions/setup-node@v4
-        with:
-          node-version: 8
-
-      - name: Prepare flsweb tree at /tmp/flsweb-build
+      # ----- Join point #3: need yarn install done before starting dev server --
+      - name: Wait for yarn install
         run: |
-          rm -rf /tmp/flsweb-build
-          cp -r flsweb /tmp/flsweb-build
-          # Case-sensitivity fixes (Linux-only).
-          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
-          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
-
-      - name: Cache flsweb node_modules
-        id: flsweb-cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/flsweb-build/node_modules
-          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
-          restore-keys: |
-            flsweb-node-modules-${{ runner.os }}-
-
-      - name: Install yarn 1 globally (Node 8 era)
-        if: steps.flsweb-cache.outputs.cache-hit != 'true'
-        run: npm install --global yarn@1
-
-      - name: yarn install (flsweb)
-        if: steps.flsweb-cache.outputs.cache-hit != 'true'
-        working-directory: /tmp/flsweb-build
-        run: yarn install --network-timeout 600000 || true
-        # `microtime` (optional native dep) prints node-gyp errors; safe to ignore.
+          while [ ! -f /tmp/.done-yarn ]; do sleep 2; done
+          # If a cache miss installed node_modules, push it back to the cache path.
+          if [ ! -d flsweb-node_modules ] && [ -d /tmp/flsweb-build/node_modules ]; then
+            cp -r /tmp/flsweb-build/node_modules flsweb-node_modules
+          fi
+          tail -3 /tmp/yarn.log
 
       - name: Start webpack-dev-server in background
         working-directory: /tmp/flsweb-build
         run: |
-          # Invoke webpack-dev-server directly. `yarn start` re-runs an
-          # integrity check that retries installing `microtime`, which fails
-          # under modern Python (node-gyp / collections.MutableSet).
-          # `setsid` ensures the process survives across GH Actions steps.
           setsid nohup ./node_modules/.bin/webpack-dev-server --TARGET=DEV --SERVER_URL=http://localhost:25567/ > /tmp/flsweb.log 2>&1 < /dev/null &
-          # Wait for SPA root.
           for i in $(seq 1 90); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || true)
             if [ "$code" = "200" ]; then echo "Dev server ready"; break; fi
             sleep 2
           done
 
-      # ----- Switch to Node 20 for Playwright ------------------------------------
       - name: Set up Node 20 for Playwright
         uses: actions/setup-node@v4
         with:
@@ -183,27 +185,16 @@ jobs:
         working-directory: e2e
         run: |
           npm ci
-          # `--with-deps` always re-runs apt install for OS deps even on
-          # browser cache hit; that's fine, it's ~5s. Skip the browser
-          # download when the cache restored it.
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
             npx playwright install-deps chromium
           else
             npx playwright install --with-deps chromium
           fi
 
-      # Two invocations: read project (parallel, 2 workers) then mutate
-      # project (serial, 1 worker). They share the FLSTest DB so they must
-      # NOT run concurrently. Each step's status is captured; the job
-      # fails if either project did.
+      # ----- Run tests ----------------------------------------------------------
       - name: Run Playwright (read project)
         id: read
         working-directory: e2e
-        # The reporter list comes from playwright.config.ts (list + html,
-        # html writes to /tmp/fls-e2e-report). Don't pass --reporter on
-        # the CLI; that overrides the config and dumps to the default
-        # `e2e/playwright-report/` directory, defeating our gh-pages
-        # copy step below.
         run: npx playwright test --project=read
         continue-on-error: true
 
@@ -226,18 +217,12 @@ jobs:
         if: always()
         run: |
           mkdir -p public
-          # Playwright HTML reports (test results, traces, failure screenshots)
-          # — one per project, kept separate because the two invocations would
-          # otherwise overwrite each other at /tmp/fls-e2e-report.
           if [ -d /tmp/fls-e2e-report-read   ]; then cp -r /tmp/fls-e2e-report-read   public/report-read;   fi
           if [ -d /tmp/fls-e2e-report-mutate ]; then cp -r /tmp/fls-e2e-report-mutate public/report-mutate; fi
-          # Full-page screenshots from the screenshot() helper.
           if [ -d e2e/screenshots ]; then cp -r e2e/screenshots public/screenshots; fi
-          # Server + dev-server logs (useful when CI fails).
           mkdir -p public/logs
           [ -f /tmp/fls-server.log ] && cp /tmp/fls-server.log public/logs/ || true
           [ -f /tmp/flsweb.log ]     && cp /tmp/flsweb.log     public/logs/ || true
-          # Index page with thumbnails of all screenshots + links to the report.
           {
             echo '<!doctype html><meta charset="utf-8"><title>FLS e2e</title>'
             echo '<style>body{font-family:system-ui;margin:2em;max-width:1200px}'
@@ -267,18 +252,6 @@ jobs:
             fi
           } > public/index.html
 
-      - name: Fail job if either project failed
-        if: steps.read.outcome != 'success' || steps.mutate.outcome != 'success'
-        run: |
-          echo "read project: ${{ steps.read.outcome }}"
-          echo "mutate project: ${{ steps.mutate.outcome }}"
-          # Don't exit non-zero here; that would skip the gh-pages deploy
-          # below. The dedicated "Mark job as failed" step further down
-          # propagates the failure once the report is published.
-
-      # ----- Deploy to gh-pages -------------------------------------------------
-      # The first time this fires, set Settings -> Pages -> Source = "gh-pages
-      # branch / root" in the repo. The deploy action will create the branch.
       - name: Deploy to gh-pages
         if: github.ref == 'refs/heads/main' && always()
         uses: peaceiris/actions-gh-pages@v4
@@ -290,11 +263,10 @@ jobs:
           enable_jekyll: false
           commit_message: "e2e: ${{ steps.read.outcome }}/${{ steps.mutate.outcome }} for ${{ github.sha }}"
 
-      - name: Mark job as failed (post-deploy)
-        if: steps.read.outcome != 'success' || steps.mutate.outcome != 'success'
-        run: exit 1
-
-      # ----- Teardown -------------------------------------------------------------
       - name: Tear down docker-compose stack
         if: always()
         run: docker compose -p fls-e2e down -v
+
+      - name: Mark job as failed (post-deploy)
+        if: steps.read.outcome != 'success' || steps.mutate.outcome != 'success'
+        run: exit 1

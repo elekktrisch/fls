@@ -70,6 +70,13 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     viewport: { width: 1280, height: 800 },
+    // Per-aspect timeouts. Each one short-circuits independently so a
+    // failure tells us WHICH aspect is slow, not just "test hit 60s".
+    //   actionTimeout     — click/fill/check/uncheck/selectOption/etc.
+    //   navigationTimeout — page.goto / waitForURL / waitForLoadState
+    // expect.timeout (toBeVisible, toHaveCount, …) is separate, set below.
+    actionTimeout: 10_000,
+    navigationTimeout: 15_000,
   },
   webServer: [
     {
