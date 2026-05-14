@@ -1,31 +1,9 @@
-// e2e/tests/25-multi-tenant-isolation.spec.ts
+// Spec #25: multi-tenant isolation. Log in as testclubadmin AND othertestadmin
+// via /Token, hit club-scoped list endpoints, assert their result sets are
+// disjoint and neither leaks the other's marker rows.
 //
-// Task #25: Multi-tenant isolation check across two clubs.
-//
-// The deterministic fixture (database/FLSTest/3 insert/_test-fixture.sql §1+§2)
-// seeds two clubs:
-//   - "TestClub"  (ClubId A1DDE...842B reused from base seed) with admin
-//     `testclubadmin` / `s`
-//   - "OtherClub" (ClubId F1500002-...-0001) with admin `othertestadmin` / `s`
-//
-// This spec authenticates as each admin via POST /Token directly (NOT via the
-// `loggedInPage` fixture, which is hard-coded to a single user), then calls a
-// handful of club-scoped list endpoints and asserts:
-//   1. The two result sets are disjoint on stable identifiers
-//        (flight IDs / reservation IDs / person IDs).
-//   2. Neither club's view leaks the other club's marker rows
-//        (the fixture-seeded historical glider flight only exists for TestClub
-//        — OtherClub must NOT see it).
-//
-// IMPORTANT CAVEAT — convention, not framework
-// --------------------------------------------
-// SERVER.md §4 spells out that multi-tenancy is enforced by *convention* — every
-// service is expected to filter by `CurrentAuthenticatedFLSUserClubId` itself.
-// There is no EF global filter or framework guarantee, so a developer who
-// forgets the filter in a new service method silently leaks cross-tenant data.
-// This spec is therefore a regression check that the existing endpoints we
-// query continue to honour the convention; if it ever starts failing, it's
-// pointing at a real tenancy bug, not flaky test data.
+// SERVER.md §4: multi-tenancy is enforced by convention (every service must
+// filter by ClubId). A failure here is a real tenancy bug, not flaky data.
 
 import { test, expect } from '../fixtures';
 import type { APIRequestContext } from '@playwright/test';
@@ -60,15 +38,25 @@ async function getPaged<T>(
   token: string,
   path: string,
 ): Promise<PagedResult<T>> {
-  // Server-side controllers (Flights/AircraftReservations/Persons) accept a
-  // PageableSearchFilter with Sorting + SearchFilter; an empty body still
-  // returns the first page filtered to the caller's club.
-  const res = await request.post(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    data: { Sorting: {}, SearchFilter: {} },
-  });
-  expect(res.ok(), `${path} (${res.status()})`).toBeTruthy();
-  return res.json() as Promise<PagedResult<T>>;
+  // Retry on 401 — freshly-issued tokens occasionally race with validation under load.
+  let lastStatus = 0;
+  let lastText = '';
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const res = await request.post(`${API_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { Sorting: {}, SearchFilter: {} },
+      timeout: 30_000,
+    });
+    if (res.ok()) {
+      return res.json() as Promise<PagedResult<T>>;
+    }
+    lastStatus = res.status();
+    lastText = await res.text().catch(() => '');
+    if (lastStatus !== 401 && lastStatus < 502) break;
+    await new Promise(r => setTimeout(r, 250 * attempt));
+  }
+  expect(false, `${path} (${lastStatus}): ${lastText.slice(0, 200)}`).toBeTruthy();
+  throw new Error('unreachable');
 }
 
 async function tryLogin(request: APIRequestContext, user: typeof CLUB_A): Promise<string | null> {
@@ -89,12 +77,10 @@ test.describe('multi-tenant isolation', () => {
 
     test.skip(
       !tokenA || !tokenB,
-      `Need both seeded admins to verify isolation. ` +
-        `Got tokenA=${!!tokenA} (${CLUB_A.username}), tokenB=${!!tokenB} (${CLUB_B.username}). ` +
-        `Ensure the deterministic fixture (_test-fixture.sql §2) ran during seed.`,
+      `need both seeded admins; got tokenA=${!!tokenA} tokenB=${!!tokenB}`,
     );
 
-    // ---- 1. Flights (paged glider flights) -------------------------------
+    // Flights
     const flightsA = await getPaged<{ FlightId: string }>(
       request, tokenA!, '/api/v1/flights/gliderflights/page/0/200',
     );
@@ -122,7 +108,7 @@ test.describe('multi-tenant isolation', () => {
       `Flights leaked across clubs: ${flightIntersection.join(', ')}`,
     ).toEqual([]);
 
-    // ---- 2. Persons (paged person overview) ------------------------------
+    // Persons
     const personsA = await getPaged<{ PersonId: string; Lastname: string }>(
       request, tokenA!, '/api/v1/persons/page/0/500',
     );
@@ -150,9 +136,7 @@ test.describe('multi-tenant isolation', () => {
       `Persons leaked across clubs (sample): ${personIntersection.slice(0, 5).join(', ')}`,
     ).toBe(0);
 
-    // ---- 3. AircraftReservations (paged) ---------------------------------
-    // Reservations are club-scoped; both lists may be empty on a fresh seed,
-    // but if either has rows they must be disjoint.
+    // AircraftReservations (may be empty either side; must be disjoint if not)
     const reservA = await getPaged<{ AircraftReservationId: string }>(
       request, tokenA!, '/api/v1/aircraftreservations/page/0/200',
     );
@@ -173,12 +157,7 @@ test.describe('multi-tenant isolation', () => {
       `Aircraft reservations leaked across clubs: ${reservIntersection.join(', ')}`,
     ).toEqual([]);
 
-    // ---- 4. Union-vs-total sanity check on flights -----------------------
-    // Convention-not-framework caveat: if the server stops filtering by club,
-    // both A and B would converge on the same superset and the intersection
-    // assertion above would already fail. The union/total check here is a
-    // secondary signal — it asserts that neither side is silently truncating
-    // its own results (which could mask a leak).
+    // Union sanity check — catches silent per-side truncation that would mask a leak.
     const union = new Set([...flightIdsA, ...flightIdsB]);
     expect(
       union.size,

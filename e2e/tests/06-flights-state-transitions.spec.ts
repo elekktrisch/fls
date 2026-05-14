@@ -1,41 +1,8 @@
-// e2e/tests/06-flights-state-transitions.spec.ts
+// Spec #06: flight process-state transitions, driven via API.
+//   (a) Valid → ExcludedFromDeliveryProcess → Valid via PUT changeprocessstate.
+//   (b) Invalid → Valid via POST /api/v1/flights/validate.
 //
-// Plan row #06: Flight process-state transitions.
-//   (a) Exclude-from-delivery toggle on a Valid flight: Valid (30) ->
-//       ExcludedFromDeliveryProcess (99) -> Valid (30).
-//   (b) Revalidate an Invalid flight: Invalid (28) -> Valid (30) via the
-//       /api/v1/flights/validate endpoint.
-//
-// UI-vs-API choice: API-driven.
-//   - The `ManuallySetFlightProcessState` transition (server: FlightService.cs:1368)
-//     is reached from the AngularJS client only indirectly via UI flows that
-//     don't have stable testid markers, and the legal transitions are a small
-//     server-enforced state machine that's far cleaner to drive with PUT
-//     /api/v1/flights/changeprocessstate/{id}.
-//   - For (b), the only legitimate Invalid -> Valid path is POST
-//     /api/v1/flights/validate (FlightsController.cs:271). The client's
-//     `$scope.validateFlights` (FlightsController.js:824) just confirms +
-//     POSTs that same URL, so an API call exercises the same code path
-//     without needing a confirm() shim.
-//
-// Test setup:
-//   - The deterministic fixture seeds a historical glider flight with
-//     ProcessStateId = 30 (Valid) at the well-known ID
-//     F1500005-0000-0000-0000-000000000001 (see
-//     flsserver/database/FLSTest/3 insert/_test-fixture.sql section 5).
-//   - For test (a) we use that flight as-is.
-//   - For test (b) we first flip its ProcessStateId to 28 (Invalid) via a
-//     direct SQL write, and set ModifiedOn > ValidatedOn so the server-side
-//     ValidateFlights loop (FlightService.cs:909) picks it up. The flight
-//     fixture is otherwise valid (proper aircraft + pilot + locations), so
-//     re-validation should land it back on 30 (Valid).
-//
-// Contract gaps (none introduced; not modifying shared infra):
-//   - There is no UI testid for the "exclude from delivery" toggle or for
-//     the "Validate flights" button. If a future spec wants the UI path,
-//     `data-testid="validate-flights-button"` on flights.html and
-//     `data-testid="exclude-from-delivery-toggle"` on the flight-edit form
-//     would be the natural additions.
+// Each test owns its own flight via ensureGliderFlight + a stable testId.
 
 import { expect, screenshot, test } from '../fixtures';
 import { testId } from '../test-id';
@@ -65,10 +32,8 @@ async function getFlightProcessState(page: Page, token: string, flightId: string
   });
   expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
   const body = await res.json();
-  // For glider flights, FlightDetails nests ProcessStateId inside
-  // GliderFlightDetailsData. (Motor flights would use MotorFlightDetailsData;
-  // the historical fixture is a glider so we read the glider path.) The
-  // FlightDetails DTO does NOT expose ProcessStateId at the root.
+  // FlightDetails nests ProcessStateId under GliderFlightDetailsData (or
+  // MotorFlightDetailsData), not at the root.
   return body?.GliderFlightDetailsData?.ProcessStateId as number;
 }
 
@@ -128,9 +93,7 @@ test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ lo
     processStateId: ProcessState.Invalid,
   });
 
-  // Force the test flight into Invalid state. The server's ValidateFlights
-  // loop only revisits Invalid rows where BOTH ModifiedOn AND ValidatedOn
-  // are non-null AND ModifiedOn >= ValidatedOn (FlightService.cs:924-930).
+  // ValidateFlights only revisits Invalid rows where ModifiedOn >= ValidatedOn.
   // Set ValidatedOn = yesterday, ModifiedOn = now so the row is eligible.
   await withPool(async pool => {
     const r = await pool.request()
@@ -147,15 +110,14 @@ test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ lo
   const precondition = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
   expect(precondition, 'flight should now be Invalid (28)').toBe(ProcessState.Invalid);
 
-  // Trigger validation for the current user's club (TestClub).
+  // Validate scans every club flight — see TEST_WRITING.md §3 on workflow timeouts.
   const res = await loggedInPage.request.post(`${API_BASE}/api/v1/flights/validate`, {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     data: {},
+    timeout: 60_000,
   });
   expect(res.ok(), `POST /api/v1/flights/validate -> ${res.status()}`).toBeTruthy();
 
-  // The flight is otherwise well-formed (aircraft, pilot, locations all set
-  // in the fixture), so revalidation should land it on Valid (30).
   const finalState = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
   expect(finalState, 'revalidated flight should be Valid (30)').toBe(ProcessState.Valid);
   await screenshot(loggedInPage, '06-flights-state-transitions-02');

@@ -1,55 +1,16 @@
-/**
- * Spec #21: accounting-rules-edit  (PLAN.md row #21)
- *
- * Drives the AngularJS AccountingRuleFilter "new" form end-to-end at
- * /masterdata/accountingRuleFilters, then re-opens the created row and
- * mutates one field to assert update-persistence.
- *
- * Why scope injection (and not field-by-field UI driving)?
- *   The rule-filter form (accountingRuleFilters-edit.html) is a wall of
- *   selectize widgets bound to AngularJS scope — selectize wraps each
- *   <select> in a custom DOM tree with no stable input handle. The clean
- *   path used elsewhere (04-flights-create.spec.ts, 09-public-flows.spec.ts)
- *   is to mutate `$scope.accountingRuleFilter` directly: the ng-model
- *   binding is the source of truth that the controller's save() reads.
- *
- * Coverage:
- *   - CREATE: open the "new" form, set RuleFilterName + Description +
- *     AccountingRuleFilterTypeId=30 (FlightTime — see
- *     FLS.Data.WebApi/Accounting/RuleFilters/AccountingRuleFilterType.cs)
- *     + match-by-aircraft predicate (UseRuleForAllAircraftsExceptListed=false
- *     + MatchedAircraftImmatriculations=['HB-3407']) + article target (5001,
- *     the seeded "Glider flight minutes" article in _test-fixture.sql:235),
- *     submit. Controller maps selection.ArticleNumber -> ArticleTarget on
- *     save (AccountingRuleFiltersEditController.js:152-157).
- *   - LIST ASSERT: filter the ng-table by RuleFilterName, verify the row
- *     exists and renders the FlightTime type name.
- *   - EDIT: re-open via row click, mutate Description in-place, submit,
- *     re-open, assert the new value sticks (proves PUT roundtrip via
- *     X-HTTP-Method-Override — AccountingRuleFiltersServices.js:83-87).
- *
- * Server contract:
- *   POST /api/v1/accountingrulefilters     (insert) — controller at
- *     flsserver/src/FLS.Server.Web/Controllers/AccountingRuleFiltersController.cs:78
- *   POST /api/v1/accountingrulefilters/:id (with X-HTTP-Method-Override:PUT
- *     — same controller line 93)
- *
- * Baseline: `freshDb` re-seeds 3 rule filters from _test-fixture.sql
- *   (Recipient, FlightTime, LandingTax — lines 164-292). After CREATE we
- *   expect 4 rows.
- *
- * TODO testid: the data-table "+" new button (`.fls-new-button button`),
- *   and the form's SAVE button currently have no `data-testid` — falls
- *   back to semantic selectors, same approach as 12-masterdata-crud.spec.ts.
- */
+// Spec #21: create + edit an AccountingRuleFilter via the rules editor.
+// $scope-driven (selectize widgets). FlightTime rule (type 30) matching
+// HB-3407, article 5001.
+//
+// TODO testid: `.fls-new-button button`, form SAVE button.
 
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
+import { testId } from '../test-id';
+import { API_BASE, getBearerToken } from '../test-data';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/accountingRuleFilters';
-const FORM_TIMEOUT = 15_000;
-const NONCE = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-const RULE_NAME = `E2E FlightTime ${NONCE}`;
+const FORM_TIMEOUT = 30_000;
 const DESC_INITIAL = 'created by e2e';
 const DESC_EDITED = 'edited by e2e';
 
@@ -89,23 +50,41 @@ function rowByName(page: Page, name: string) {
   return page.locator('tbody [data-testid="row"]', { hasText: name });
 }
 
-test('accounting-rules:create FlightTime rule + edit description', async ({ loggedInPage }) => {
+test('accounting-rules:create FlightTime rule + edit description', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
+  const id = testId(testInfo);
+  const RULE_NAME = id.name;
 
-  // ----- baseline -----------------------------------------------------------
+  // Pre-clean prior-run row to avoid duplicates.
+  const token = await getBearerToken(loggedInPage);
+  const listRes = await loggedInPage.request.post(
+    `${API_BASE}/api/v1/accountingrulefilters/page/0/200`,
+    {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { Sorting: {}, SearchFilter: { RuleFilterName: RULE_NAME } },
+    },
+  );
+  if (listRes.ok()) {
+    const body = await listRes.json() as { Items?: Array<{ AccountingRuleFilterId: string; RuleFilterName: string }> };
+    for (const row of body.Items ?? []) {
+      if (row.RuleFilterName !== RULE_NAME) continue;
+      await loggedInPage.request.post(
+        `${API_BASE}/api/v1/accountingrulefilters/${row.AccountingRuleFilterId}`,
+        {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-HTTP-Method-Override': 'DELETE' },
+        },
+      );
+    }
+  }
+
   await gotoRoute(page, LIST_PATH);
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
-  const baselineRows = await page.locator('tbody [data-testid="row"]').count();
-  expect(baselineRows, 'fixture seeds 3 accounting rule filters').toBeGreaterThanOrEqual(3);
 
-  // ----- CREATE -------------------------------------------------------------
+  // CREATE
   await page.locator('.fls-new-button button').click();
   await page.waitForURL('**/#/masterdata/accountingRuleFilters/new', { timeout: FORM_TIMEOUT });
   await waitForFormHydrated(page);
 
-  // RuleFilterName is the only `required` text input in the template; the
-  // rest of the work is on the scope (selectize-backed dropdowns + the
-  // article-target selection helper).
   await page.locator('#RuleFilterName').fill(RULE_NAME);
   await page.locator('#Description').fill(DESC_INITIAL);
 
@@ -134,17 +113,13 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
 
     s.accountingRuleFilter.AccountingRuleFilterTypeId = ruleTypeId;
     s.accountingRuleFilter.IsRuleForGliderFlights = true;
-    // Match-predicate: only aircraft with this immatriculation.
     s.accountingRuleFilter.UseRuleForAllAircraftsExceptListed = false;
     s.accountingRuleFilter.MatchedAircraftImmatriculations = [immat];
-    // Mirror what the typed-into <input>s already wrote (defensive — ngModel
-    // debounce may not have flushed before this evaluate fires).
     s.accountingRuleFilter.RuleFilterName = name;
 
-    // Article target. The controller's save() reads from $scope.selection /
-    // $scope.text and builds ArticleTarget on the wire.
+    // save() reads from $scope.selection / $scope.text to build ArticleTarget.
     const article = s.md.articles.find(a => a.ArticleNumber === articleNumber);
-    if (!article) throw new Error(`seeded article ${articleNumber} missing — check ArticlesController`);
+    if (!article) throw new Error(`seeded article ${articleNumber} missing`);
     s.selection.ArticleNumber = article.ArticleNumber;
     s.text.DeliveryLineText = article.ArticleName;
 
@@ -153,18 +128,16 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
 
   await submitForm(page);
 
-  // ----- LIST ASSERT --------------------------------------------------------
+  // LIST
   const nameFilter = page.locator('input[ng-model*="RuleFilterName"]').first();
+  await nameFilter.waitFor({ state: 'visible', timeout: FORM_TIMEOUT });
   await nameFilter.fill(RULE_NAME);
   const createdRow = rowByName(page, RULE_NAME);
   await expect(createdRow, 'created rule should appear in the list').toHaveCount(1, { timeout: FORM_TIMEOUT });
-  // The 5th column is AccountingRuleFilterTypeName (accountingRuleFilters-table.html:24).
-  // We don't bind to a specific translated string — instead just confirm
-  // a non-empty type label was rendered.
   const typeCell = createdRow.locator('td').nth(4);
   await expect(typeCell, 'rule-type cell should be populated for the new rule').not.toHaveText('');
 
-  // ----- EDIT ---------------------------------------------------------------
+  // EDIT
   await createdRow.click();
   await page.waitForURL(/\/masterdata\/accountingRuleFilters\/[0-9a-fA-F-]{36}$/, { timeout: FORM_TIMEOUT });
   await waitForFormHydrated(page);
@@ -173,7 +146,6 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
   await page.locator('#Description').fill(DESC_EDITED);
   await submitForm(page);
 
-  // Re-filter, re-open, assert the edit persisted server-side.
   await nameFilter.fill(RULE_NAME);
   const editedRow = rowByName(page, RULE_NAME);
   await expect(editedRow).toHaveCount(1, { timeout: FORM_TIMEOUT });

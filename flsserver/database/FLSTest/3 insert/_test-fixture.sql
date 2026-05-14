@@ -179,6 +179,14 @@ UPDATE Users
    AND PersonId IS NULL
    AND @testClubAdminPersonId IS NOT NULL
 
+-- 2c. Set TestClub.HomebaseId = LSZK. `3 Insert Static Data.sql` resets every
+--    club's HomebaseId to NULL, but several client routes (the club edit
+--    form's `required` Homebase selectize, the planning-setup wizard's
+--    default LocationId, FlightReports' homebase filter) treat NULL as
+--    missing config and either disable submission or short-circuit.
+PRINT 'Fixture: set TestClub.HomebaseId = LSZK'
+UPDATE Clubs SET HomebaseId = @lszk WHERE ClubId = @testClubId AND HomebaseId IS NULL
+
 -- ---------------------------------------------------------------------------
 -- 3a. Backfill missing FlightProcessStates rows so manual state transitions
 --    (PUT /api/v1/flights/changeprocessstate/{id}) can target the full

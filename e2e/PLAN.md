@@ -1,13 +1,12 @@
 # e2e-gap plan
 
-Reconstructed 2026-05-14. Tracks the planned Playwright spec files that
-extend the existing coverage in `e2e/tests/`. Existing specs are numbered
-`01`, `02`, `03`, `08`, `09` (already in the repo); this plan slots new
-specs into the gaps `04`-`07`, `10`-`23`, and `25`. Each row should be
-updated as the spec lands.
+Roadmap of numbered Playwright specs. All rows landed by 2026-05-14
+(waves 1 + 2 + wave-3 fixes).
 
-See `e2e/SELECTORS.md` for the `data-testid` contract that all UI specs
-lean on, and `e2e/README.md` for how to bring up the stack.
+For **how to write a new spec correctly**, read `e2e/TEST_WRITING.md`
+first — the parallelism, stable-id, and AngularJS rules there are
+load-bearing. `e2e/SELECTORS.md` is the `data-testid` contract.
+`e2e/README.md` is the stack-up.
 
 ## Task table
 
@@ -48,41 +47,21 @@ lean on, and `e2e/README.md` for how to bring up the stack.
 
 (Out of the spec-numbering grid:) `.github/workflows/e2e.yml` — CI workflow that brings up the stack and runs the suite on every PR.
 
-## Cross-cutting risks
+## Cross-cutting risks (still live)
 
-1. **Time gates (#22, #23).** `LockFlights` requires age ≥ 2 days;
-   `CreateDeliveriesFromFlights` requires lock-age ≥ 3 days. The
-   `_test-fixture.sql` anchors all timestamps to a 2026-01-01 base, so
-   aged states are reachable without clock manipulation — but the
-   fixture must seed flights at the right age relative to that anchor.
-2. **Modal-driven flows (#13, possibly #04).** There is no `data-testid`
-   contract for modals. A new spec that needs to drive a modal must
-   either lean on `getByRole` / `getByLabel`, or extend
-   `SELECTORS.md` with new contract markers (and patch the template).
-3. **Test isolation between mutation specs.** `freshDb` is worker-scoped.
-   Mutation specs that share a worker can interfere. Use Playwright's
-   `test.describe.serial` blocks where order matters.
-4. **Rule precedence (#21, #23).** `SERVER.md` flags as an open question
-   how multiple matching `Recipient` rules combine (first-wins?
-   last-write-wins?). The spec should pin the observed behavior with an
-   assertion.
-
-## Spec-writing conventions (apply to every new spec)
-
-- TypeScript, ESM-style imports, top-of-file shebang-free.
-- Reuse fixtures from `e2e/fixtures.ts`: `loggedInPage` (fast,
-  session-storage injection) for the default, `uiLoggedInPage` only when
-  a spec actually needs the real login flow, `freshDb` for any spec
-  that mutates state.
-- Lean on the existing `data-testid` contract (`SELECTORS.md`). If a new
-  testid is needed, **note it in the spec's leading comment** but do
-  not modify shared template files in the parallel batch — those go
-  through a follow-up consolidation pass.
-- Wait pattern: `gotoRoute()` already polls `.busy-indicator`. Do not
-  rely on `networkidle`.
-- Use Mailpit helpers from `e2e/mailpit.ts` for any email assertion.
-- Output dirs land under `/tmp/fls-e2e-*` per `playwright.config.ts` —
-  do not write artifacts into `/c/...`.
+1. **Time gates (#22, #23).** `LockFlights` requires `CreatedOn ≤
+   today - 2d`; `CreateDeliveriesFromFlights` requires `LockedOn ≤
+   today - 3d`. `ensureGliderFlight({ createdOnDaysAgo: N })` handles
+   CreatedOn; backdate `LockedOn` via `withPool` after locking. See
+   `TEST_WRITING.md §4`.
+2. **Modal-driven flows.** No `data-testid` contract for modals yet.
+   Lean on `getByRole` / `getByLabel`, or extend `SELECTORS.md`.
+3. **Rule precedence (#21, #23, #32).** `SERVER.md` flags as an open
+   question how multiple matching `Recipient` rules combine
+   (first-wins? last-wins?). Specs should pin the observed behavior.
+4. **Mono + SQL Server ceiling.** `workers: 6` is the empirical max
+   before back-end timeouts cascade. Don't increase without verifying
+   on CI.
 
 ## What this plan does not cover
 

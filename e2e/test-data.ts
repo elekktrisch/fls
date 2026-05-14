@@ -1,19 +1,10 @@
-// Helpers for tests that need their own data instead of relying on
-// fixture-seed rows. Lookups are by a stable, test-title-derived
-// identifier so re-runs hit the same row (and parallel runs of
-// different tests don't collide).
+// Helpers for self-contained tests — see e2e/TEST_WRITING.md.
 //
-// The pattern: every test that needs a flight (or aircraft, person, …)
-// calls the corresponding `createOrGetFlight` / `createOrGetX` helper
-// with its `testId(testInfo)` slug. The helper:
-//   1. Looks up by the unique field (e.g. Comment for flights).
-//   2. If present: returns the existing row's id.
-//   3. If absent: creates it via the public API.
-//
-// State-mutating tests (e.g. flight-state, locking, delivery-creation)
-// often also need to UPDATE specific columns that the public API won't
-// let them set (ProcessStateId, ValidatedOn, CreatedOn …). Those use a
-// raw SQL connection via `mssql`. See `MSSQL` below.
+//   - ensureGliderFlight: idempotent create-or-find a flight identified by
+//     Comment. Supports optional state + CreatedOn overrides via SQL.
+//   - withPool: raw SQL escape hatch for columns the public API won't let
+//     you set (LockedOn, ValidatedOn, …).
+//   - getBearerToken / authHeaders: read the cached token off sessionStorage.
 import type { APIRequestContext, Page } from '@playwright/test';
 import sql from 'mssql';
 
@@ -57,20 +48,13 @@ export function authHeaders(token: string): Record<string, string> {
 // Flights
 // ---------------------------------------------------------------------------
 
-/**
- * Find a glider flight whose Comment matches `comment` exactly (the unique
- * field we use to identify test-owned flights). Returns `null` if missing.
- */
+/** Find a glider flight by exact Comment match, or null. */
 export async function findFlightByComment(
   request: APIRequestContext,
   token: string,
   comment: string,
 ): Promise<{ FlightId: string } | null> {
-  // The /flights/gliderflights/page endpoint returns a paged FlightOverview
-  // (not the full FlightDetails). The PagedSearchFilter envelope expects
-  // SearchFilter (object) but server-side we'd have to push a date range
-  // wide enough to include test flights from any time. Easier: query SQL
-  // for the Comment directly — single round trip, no filter wrangling.
+  // SQL is simpler than the paged endpoint here (no date-range envelope).
   return await withPool(async (pool) => {
     const r = await pool.request()
       .input('comment', sql.NVarChar, comment)
@@ -92,13 +76,9 @@ export type EnsureGliderFlightOpts = {
 };
 
 /**
- * Ensure a self-launch glider flight with the given Comment exists. Returns
- * its `FlightId`. Idempotent: if a flight with that Comment is already
- * present, that one is returned (and any state-overrides re-applied).
- *
- * Picks a 2-seat no-engine glider (HB-3407 by preference) and the first
- * seeded glider pilot to populate the required FK fields. Self-launch
- * StartType=3 keeps the tow chain optional.
+ * Idempotent upsert of a self-launch glider flight identified by Comment.
+ * Picks HB-3407 (preferred) or a 2-seat no-engine glider; first seeded glider
+ * pilot; LSZK (or first) start/landing location.
  */
 export async function ensureGliderFlight(
   request: APIRequestContext,
@@ -106,7 +86,6 @@ export async function ensureGliderFlight(
   opts: EnsureGliderFlightOpts,
 ): Promise<{ flightId: string; aircraftId: string; pilotPersonId: string; flightTypeId: string; startLocationId: string }> {
   const headers = authHeaders(token);
-  // First-class data lookups so we can post a self-consistent FlightDetails.
   const [gliders, pilots, ftypes, locations] = await Promise.all([
     request.get(`${API_BASE}/api/v1/aircrafts/listitems/gliders`, { headers }),
     request.get(`${API_BASE}/api/v1/persons/gliderpilots/listitems/true`, { headers }),
@@ -132,7 +111,6 @@ export async function ensureGliderFlight(
   const ftype   = ftypeList.find(t => !t.IsPassengerFlight && !t.InstructorRequired) ?? ftypeList[0];
   const loc     = locList.find(l => l.IcaoCode === 'LSZK') ?? locList[0];
 
-  // Look up by Comment first.
   const existing = await findFlightByComment(request, token, opts.comment);
   let flightId: string;
   if (existing) {
@@ -182,8 +160,7 @@ export async function ensureGliderFlight(
         r.input('daysAgo', sql.Int, opts.createdOnDaysAgo);
         sets.push('CreatedOn = DATEADD(DAY, -@daysAgo, SYSDATETIME())');
       }
-      // ValidatedOn must be non-null for the Invalid->Valid revalidation path
-      // (FlightService.cs:924-930) and for the locking job to pick the row up.
+      // ValidatedOn must be non-null for Invalid→Valid revalidation + locking.
       sets.push('ValidatedOn = COALESCE(ValidatedOn, DATEADD(DAY, -1, SYSDATETIME()))');
       sets.push('ModifiedOn = SYSDATETIME()');
       await r.query(`UPDATE Flights SET ${sets.join(', ')} WHERE FlightId = @id`);

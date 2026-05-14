@@ -2,9 +2,20 @@
 
 Playwright + TypeScript suite that exercises the full FLS stack
 (SQL Server + Mono Web API + AngularJS client) as the behavioral parity
-contract for the upcoming rewrite. See `../TESTING.md` for the full manual
-playbook and `../CLAUDE.md` / `../SERVER.md` / `../CLIENT.md` for the
-mental model.
+contract for the upcoming rewrite.
+
+Docs:
+
+- `TEST_WRITING.md` — **read this before writing a new spec.** The
+  self-contained-parallel model, AngularJS quirks, timeout rules.
+- `PLAN.md` — numbered spec roadmap (all rows landed).
+- `SELECTORS.md` — `data-testid` contract.
+- `../CLAUDE.md` / `../SERVER.md` / `../CLIENT.md` — full mental model.
+- `../TESTING.md` — manual stack-up playbook (more detail than the
+  quickstart below).
+- `.github/workflows/e2e.yml` — CI workflow. Runs read + mutate
+  projects, publishes the HTML report + failure screenshots to
+  gh-pages.
 
 ## Bringing up the stack from zero
 

@@ -43,10 +43,20 @@
 // shape-based selectors.
 
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
+import { testId } from '../test-id';
+import { ensureGliderFlight, getBearerToken } from '../test-data';
 
 test('flight-reports: pre-canned location-this-year renders tabular output for seeded flights', async ({
   loggedInPage,
-}) => {
+}, testInfo) => {
+  // Self-contained: ensure at least one glider flight from THIS test exists
+  // for the current year (location filter is the testclub homebase = LSZK,
+  // which is also what ensureGliderFlight defaults to). Don't depend on
+  // seed-fixture flights surviving the accumulating-state model.
+  const id = testId(testInfo);
+  const token = await getBearerToken(loggedInPage);
+  await ensureGliderFlight(loggedInPage.request, token, { comment: id.name });
+
   // 1. Picker page — landing for /flightreports. Confirms the route loads
   //    and the navigation links the controller's switch-case maps from.
   await gotoRoute(loggedInPage, '/flightreports');
