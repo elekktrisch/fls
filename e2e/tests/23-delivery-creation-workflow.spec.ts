@@ -6,7 +6,8 @@
 
 import { test, expect } from '../fixtures';
 import { testId } from '../test-id';
-import { ensureGliderFlight, getBearerToken as sharedGetToken } from '../test-data';
+import { ensureGliderFlight, getBearerToken as sharedGetToken, withPool } from '../test-data';
+import sql from 'mssql';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -92,6 +93,33 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
 
   // Happy path is DeliveryPrepared(50); DeliveryPreparationError(45) or
   // ExcludedFromDeliveryProcess(99) are degraded-pass branches.
+  if (finalState === ProcessState.Locked) {
+    // Diagnose: query the row directly. The deliverycreation job's filter is:
+    //   FlightType.ClubId == clubId
+    //   AND FlightAircraftType in (GliderFlight, MotorFlight)
+    //   AND ProcessStateId == Locked
+    //   AND TruncateTime(CreatedOn) <= today - 3d
+    // If we hit this branch, dump enough to tell which clause failed.
+    const row = await withPool(async (pool) => {
+      const r = await pool.request()
+        .input('id', sql.UniqueIdentifier, HISTORICAL_FLIGHT_ID)
+        .query(`SELECT
+                  CAST(f.OwnerId AS NVARCHAR(40))            AS OwnerId,
+                  CAST(ft.ClubId AS NVARCHAR(40))            AS FlightType_ClubId,
+                  f.FlightAircraftType,
+                  f.ProcessStateId,
+                  CONVERT(NVARCHAR(30), f.CreatedOn, 126)    AS CreatedOn,
+                  CONVERT(NVARCHAR(30), SYSDATETIME(), 126)  AS ServerNow
+                FROM Flights f
+                LEFT JOIN FlightTypes ft ON ft.FlightTypeId = f.FlightTypeId
+                WHERE f.FlightId = @id`);
+      return r.recordset[0];
+    });
+    expect(
+      false,
+      `flight still Locked(40); diagnostic: ${JSON.stringify(row)}`,
+    ).toBeTruthy();
+  }
   expect(finalState, `flight still Locked(40) — job did not pick it up`).not.toBe(ProcessState.Locked);
 
   expect(

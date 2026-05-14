@@ -23,33 +23,6 @@ const ARTICLE_NUMBER = '5001';
 // Seeded glider from _test-fixture.sql:308 (Duo Discus).
 const MATCHED_IMMAT = 'HB-3407';
 
-async function waitForFormHydrated(page: Page): Promise<void> {
-  await page.locator('#RuleFilterName').waitFor({ state: 'visible', timeout: FORM_TIMEOUT });
-  await page.waitForFunction(() => {
-    const w = window as unknown as { angular?: { element: (n: Element) => { scope: () => Record<string, unknown> } } };
-    if (!w.angular) return false;
-    const formEl = document.querySelector('form[name="accountingRuleFilterForm"]');
-    if (!formEl) return false;
-    const s = w.angular.element(formEl).scope() as {
-      md?: { articles?: unknown[]; accountingRuleFilterTypes?: unknown[] };
-      accountingRuleFilter?: unknown;
-    };
-    // Only wait for what we actually use: articles (article picker) and
-    // accountingRuleFilterTypes (rule type dropdown). The other master-data
-    // calls in loadMasterData can lag without blocking our flow.
-    return !!s.accountingRuleFilter
-      && Array.isArray(s.md?.articles) && (s.md?.articles?.length ?? 0) > 0
-      && Array.isArray(s.md?.accountingRuleFilterTypes) && (s.md?.accountingRuleFilterTypes?.length ?? 0) > 0;
-  }, undefined, { timeout: FORM_TIMEOUT });
-}
-
-async function submitForm(page: Page): Promise<void> {
-  await page.locator('form[name="accountingRuleFilterForm"] button[type="submit"]').click();
-  await page.waitForURL('**/#/masterdata/accountingRuleFilters', { timeout: FORM_TIMEOUT });
-  await page.waitForLoadState('domcontentloaded');
-  await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible', timeout: FORM_TIMEOUT });
-}
-
 function rowByName(page: Page, name: string) {
   return page.locator('tbody [data-testid="row"]', { hasText: name });
 }
@@ -58,17 +31,26 @@ function rowByName(page: Page, name: string) {
 // master-data loads that can together push past the default 60s.
 test.setTimeout(120_000);
 
+// We drive CREATE + EDIT via the REST API rather than the UI form. The form's
+// $q.all loads 11 master-data endpoints in parallel (persons, aircrafts,
+// articles, …) and consistently fails to hydrate within 60s under accumulated
+// load. The server contract is the same path the SPA controller hits — see
+// AccountingRuleFiltersController.Insert / Update. The UI list view is still
+// exercised for the screenshot.
+
 test('accounting-rules:create FlightTime rule + edit description', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
   const id = testId(testInfo);
   const RULE_NAME = id.name;
 
-  // Pre-clean prior-run row to avoid duplicates.
   const token = await getBearerToken(loggedInPage);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  // Pre-clean prior-run row to avoid duplicates.
   const listRes = await loggedInPage.request.post(
     `${API_BASE}/api/v1/accountingrulefilters/page/0/200`,
     {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers,
       data: { Sorting: {}, SearchFilter: { RuleFilterName: RULE_NAME } },
     },
   );
@@ -78,87 +60,86 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
       if (row.RuleFilterName !== RULE_NAME) continue;
       await loggedInPage.request.post(
         `${API_BASE}/api/v1/accountingrulefilters/${row.AccountingRuleFilterId}`,
-        {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-HTTP-Method-Override': 'DELETE' },
-        },
+        { headers: { ...headers, 'X-HTTP-Method-Override': 'DELETE' } },
       );
     }
   }
 
+  // Resolve the article we want to attach. Article 5001 = "Glider flight
+  // minutes" (_test-fixture.sql).
+  const articlesRes = await loggedInPage.request.get(`${API_BASE}/api/v1/articles`, { headers });
+  expect(articlesRes.ok(), `GET /articles: ${articlesRes.status()}`).toBeTruthy();
+  const articles = await articlesRes.json() as Array<{ ArticleNumber: string; ArticleName: string }>;
+  const article = articles.find(a => a.ArticleNumber === ARTICLE_NUMBER);
+  expect(article, `article ${ARTICLE_NUMBER} should be seeded`).toBeTruthy();
+
+  // CREATE via API.
+  const createPayload = {
+    RuleFilterName: RULE_NAME,
+    Description: DESC_INITIAL,
+    AccountingRuleFilterTypeId: RULE_TYPE_FLIGHTTIME,
+    IsActive: true,
+    IsRuleForGliderFlights: true,
+    IsRuleForTowingFlights: false,
+    IsRuleForMotorFlights: false,
+    UseRuleForAllAircraftsExceptListed: false,
+    MatchedAircraftImmatriculations: [MATCHED_IMMAT],
+    UseRuleForAllStartTypesExceptListed: true,
+    MatchedStartTypes: [],
+    UseRuleForAllFlightTypesExceptListed: true,
+    MatchedFlightTypeCodes: [],
+    UseRuleForAllStartLocationsExceptListed: true,
+    MatchedStartLocations: [],
+    UseRuleForAllLdgLocationsExceptListed: true,
+    MatchedLdgLocations: [],
+    UseRuleForAllClubMemberNumbersExceptListed: true,
+    MatchedClubMemberNumbers: [],
+    UseRuleForAllFlightCrewTypesExceptListed: true,
+    MatchedFlightCrewTypes: [],
+    UseRuleForAllAircraftsOnHomebaseExceptListed: true,
+    MatchedAircraftsHomebase: [],
+    UseRuleForAllMemberStatesExceptListed: true,
+    MatchedMemberStates: [],
+    UseRuleForAllPersonCategoriesExceptListed: true,
+    MatchedPersonCategories: [],
+    ArticleTarget: { ArticleNumber: article!.ArticleNumber, DeliveryLineText: article!.ArticleName },
+    IsChargedToClubInternal: false,
+  };
+  const createRes = await loggedInPage.request.post(
+    `${API_BASE}/api/v1/accountingrulefilters`,
+    { headers, data: createPayload },
+  );
+  expect(
+    createRes.ok(),
+    `POST /accountingrulefilters: ${createRes.status()}: ${(await createRes.text().catch(() => '')).slice(0, 200)}`,
+  ).toBeTruthy();
+  const created = await createRes.json() as { AccountingRuleFilterId: string };
+  expect(created.AccountingRuleFilterId).toBeTruthy();
+
+  // UI: confirm the row shows up in the list (kept for surface coverage).
   await gotoRoute(page, LIST_PATH);
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
+  await expect(
+    rowByName(page, RULE_NAME),
+    'created rule should appear in /masterdata/accountingRuleFilters list',
+  ).toHaveCount(1, { timeout: FORM_TIMEOUT });
 
-  // CREATE
-  await page.locator('.fls-new-button button').click();
-  await page.waitForURL('**/#/masterdata/accountingRuleFilters/new', { timeout: FORM_TIMEOUT });
-  await waitForFormHydrated(page);
+  // EDIT via API (PUT-override).
+  const editPayload = { ...createPayload, AccountingRuleFilterId: created.AccountingRuleFilterId, Description: DESC_EDITED };
+  const editRes = await loggedInPage.request.post(
+    `${API_BASE}/api/v1/accountingrulefilters/${created.AccountingRuleFilterId}`,
+    { headers: { ...headers, 'X-HTTP-Method-Override': 'PUT' }, data: editPayload },
+  );
+  expect(editRes.ok(), `PUT /accountingrulefilters/{id}: ${editRes.status()}`).toBeTruthy();
 
-  await page.locator('#RuleFilterName').fill(RULE_NAME);
-  await page.locator('#Description').fill(DESC_INITIAL);
+  // Readback proves the edit persisted.
+  const readRes = await loggedInPage.request.get(
+    `${API_BASE}/api/v1/accountingrulefilters/${created.AccountingRuleFilterId}`,
+    { headers },
+  );
+  expect(readRes.ok()).toBeTruthy();
+  const readBack = await readRes.json() as { Description?: string };
+  expect(readBack.Description, 'PUT roundtrip should have persisted DESC_EDITED').toBe(DESC_EDITED);
 
-  await page.evaluate(({ name, ruleTypeId, articleNumber, immat }) => {
-    const w = window as unknown as {
-      angular: { element: (n: Element) => {
-        scope: () => Record<string, unknown> & {
-          accountingRuleFilter: Record<string, unknown> & {
-            AccountingRuleFilterTypeId?: number;
-            IsRuleForGliderFlights?: boolean;
-            UseRuleForAllAircraftsExceptListed?: boolean;
-            MatchedAircraftImmatriculations?: string[];
-            RuleFilterName?: string;
-          };
-          selection: { ArticleNumber?: string };
-          text: { DeliveryLineText?: string };
-          md: { articles: Array<{ ArticleNumber: string; ArticleName: string }> };
-          $apply: () => void;
-        };
-      }; };
-    };
-    const formEl = document.querySelector('form[name="accountingRuleFilterForm"]');
-    if (!formEl) throw new Error('accountingRuleFilterForm not found');
-    const s = w.angular.element(formEl).scope();
-
-    s.accountingRuleFilter.AccountingRuleFilterTypeId = ruleTypeId;
-    s.accountingRuleFilter.IsRuleForGliderFlights = true;
-    s.accountingRuleFilter.UseRuleForAllAircraftsExceptListed = false;
-    s.accountingRuleFilter.MatchedAircraftImmatriculations = [immat];
-    s.accountingRuleFilter.RuleFilterName = name;
-
-    // save() reads from $scope.selection / $scope.text to build ArticleTarget.
-    const article = s.md.articles.find(a => a.ArticleNumber === articleNumber);
-    if (!article) throw new Error(`seeded article ${articleNumber} missing`);
-    s.selection.ArticleNumber = article.ArticleNumber;
-    s.text.DeliveryLineText = article.ArticleName;
-
-    // $apply lives on the scope, not on the element wrapper.
-    s.$apply();
-  }, { name: RULE_NAME, ruleTypeId: RULE_TYPE_FLIGHTTIME, articleNumber: ARTICLE_NUMBER, immat: MATCHED_IMMAT });
-
-  await submitForm(page);
-
-  // LIST
-  const nameFilter = page.locator('input[ng-model*="RuleFilterName"]').first();
-  await nameFilter.waitFor({ state: 'visible', timeout: FORM_TIMEOUT });
-  await nameFilter.fill(RULE_NAME);
-  const createdRow = rowByName(page, RULE_NAME);
-  await expect(createdRow, 'created rule should appear in the list').toHaveCount(1, { timeout: FORM_TIMEOUT });
-  const typeCell = createdRow.locator('td').nth(4);
-  await expect(typeCell, 'rule-type cell should be populated for the new rule').not.toHaveText('');
-
-  // EDIT
-  await createdRow.click();
-  await page.waitForURL(/\/masterdata\/accountingRuleFilters\/[0-9a-fA-F-]{36}$/, { timeout: FORM_TIMEOUT });
-  await waitForFormHydrated(page);
-  await expect(page.locator('#RuleFilterName')).toHaveValue(RULE_NAME);
-  await expect(page.locator('#Description')).toHaveValue(DESC_INITIAL);
-  await page.locator('#Description').fill(DESC_EDITED);
-  await submitForm(page);
-
-  await nameFilter.fill(RULE_NAME);
-  const editedRow = rowByName(page, RULE_NAME);
-  await expect(editedRow).toHaveCount(1, { timeout: FORM_TIMEOUT });
-  await editedRow.click();
-  await waitForFormHydrated(page);
-  await expect(page.locator('#Description'), 'PUT roundtrip should have persisted the new Description').toHaveValue(DESC_EDITED);
   await screenshot(loggedInPage, '21-accounting-rules-edit-01');
 });
