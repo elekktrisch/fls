@@ -1,6 +1,6 @@
 import { test, gotoRoute, screenshot } from '../fixtures';
 
-const FLIGHT_ID = '728a5199-3e1e-43a6-970a-c3cd741884ff'; // seeded "PAX flight"
+const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001'; // deterministic historical fixture flight from _test-fixture.sql
 
 const AUTH_ROUTES: { name: string; path: string }[] = [
   { name: 'dashboard',                        path: '/main' },

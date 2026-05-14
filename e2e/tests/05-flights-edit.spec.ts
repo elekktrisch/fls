@@ -23,7 +23,11 @@
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page } from '@playwright/test';
 
-const FLIGHT_ID = '728a5199-3e1e-43a6-970a-c3cd741884ff'; // seeded "PAX flight"
+// The deterministic historical glider flight from _test-fixture.sql section 5
+// (Comment = "Historical fixture flight (anchor - 30d)", ProcessState = Valid).
+// The legacy "PAX flight" in 6 Insert Test Flights.sql uses a NEWID() and so
+// its FlightId drifts every reseed — unusable as a stable target.
+const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 
 async function getBearerToken(page: Page): Promise<string> {

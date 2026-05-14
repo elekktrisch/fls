@@ -36,7 +36,7 @@
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import type { Page, APIResponse } from '@playwright/test';
 
-const FLIGHT_ID = '728a5199-3e1e-43a6-970a-c3cd741884ff'; // seeded "PAX flight"
+const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001'; // deterministic historical fixture flight from _test-fixture.sql
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 const POLL_TIMEOUT_MS = 15_000;
 const POLL_INTERVAL_MS = 500;
