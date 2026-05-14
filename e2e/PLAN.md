@@ -38,12 +38,12 @@ lean on, and `e2e/README.md` for how to bring up the stack.
 | 23 | `23-delivery-creation-workflow.spec.ts`| Trigger delivery job; assert DeliveryPrepared                                              | L          | done     |
 | 25 | `25-multi-tenant-isolation.spec.ts`    | Cross-club visibility check                                                                | M          | done     |
 | 26 | `26-aircraft-crud.spec.ts`             | Create / edit / delete aircraft via /masterdata/aircrafts                                  | M          | pending  |
-| 27 | `27-user-crud.spec.ts`                 | Create / edit / delete user via /masterdata/users                                          | M          | pending  |
-| 28 | `28-club-crud.spec.ts`                 | Edit own club via /masterdata/clubs (create may be SysAdmin-only)                          | M          | pending  |
-| 29 | `29-flight-type-crud.spec.ts`          | Create / edit / delete flight type via /masterdata/flightTypes                             | M          | pending  |
-| 30 | `30-member-state-crud.spec.ts`         | Create / edit / delete member state via /masterdata/memberStates                           | M          | pending  |
-| 31 | `31-person-category-crud.spec.ts`      | Create / edit / delete person category via /masterdata/personCategories                    | M          | pending  |
-| 32 | `32-rules-engine-per-type.spec.ts`     | One DeliveryCreationTest case per `AccountingRuleFilter` rule type (10 types)              | L          | pending  |
+| 27 | `27-user-crud.spec.ts`                 | Create / edit / delete user via /masterdata/users                                          | M          | done     |
+| 28 | `28-club-crud.spec.ts`                 | Edit own club via /masterdata/clubs (create may be SysAdmin-only)                          | M          | done     |
+| 29 | `29-flight-type-crud.spec.ts`          | Create / edit / delete flight type via /masterdata/flightTypes                             | M          | done     |
+| 30 | `30-member-state-crud.spec.ts`         | Create / edit / delete member state via /masterdata/memberStates                           | M          | done     |
+| 31 | `31-person-category-crud.spec.ts`      | Create / edit / delete person category via /masterdata/personCategories                    | M          | done     |
+| 32 | `32-rules-engine-per-type.spec.ts`     | One DeliveryCreationTest case per `AccountingRuleFilter` rule type (10 types)              | L          | done     |
 | 33 | `33-api-contract.spec.ts`              | Hit every `/api/v1/*` endpoint the client uses; assert shape/keys/status                   | L          | pending  |
 
 (Out of the spec-numbering grid:) `.github/workflows/e2e.yml` — CI workflow that brings up the stack and runs the suite on every PR.
