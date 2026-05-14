@@ -16,27 +16,27 @@ lean on, and `e2e/README.md` for how to bring up the stack.
 | 01 | `01-public.spec.ts`                    | Public-route screenshot smoke                                                              | S          | done     |
 | 02 | `02-authenticated.spec.ts`             | Authenticated-route screenshot smoke                                                       | S          | done     |
 | 03 | `03-masterdata.spec.ts`                | Read-only masterdata list and form open                                                    | M          | done     |
-| 04 | `04-flights-create.spec.ts`            | Create new glider flight via form; assert in list                                          | M          | pending  |
-| 05 | `05-flights-edit.spec.ts`              | Edit a seeded flight's glider-specific fields; assert DB mutation                          | M          | pending  |
-| 06 | `06-flights-state-transitions.spec.ts` | Invalid→Valid revalidation; exclude-from-delivery toggle                                  | L          | pending  |
-| 07 | `07-airmovements-crud.spec.ts`         | Motor aircraft CRUD mirror of flights                                                      | M          | pending  |
+| 04 | `04-flights-create.spec.ts`            | Create new glider flight via form; assert in list                                          | M          | done     |
+| 05 | `05-flights-edit.spec.ts`              | Edit a seeded flight's glider-specific fields; assert DB mutation                          | M          | done     |
+| 06 | `06-flights-state-transitions.spec.ts` | Invalid→Valid revalidation; exclude-from-delivery toggle                                  | L          | done     |
+| 07 | `07-airmovements-crud.spec.ts`         | Motor aircraft CRUD mirror of flights                                                      | M          | done     |
 | 08 | `08-email.spec.ts`                     | Mailpit-based email delivery for workflows + public forms                                  | M          | done     |
 | 09 | `09-public-flows.spec.ts`              | Public unauthenticated flow tests (trial/passenger/reset/confirm)                          | M          | done     |
-| 10 | `10-reservations-crud.spec.ts`         | Create / edit / delete aircraft reservation                                                | M          | pending  |
-| 11 | `11-reservation-scheduler.spec.ts`     | Scheduler grid renders, slots align, no collisions                                         | M          | pending  |
-| 12 | `12-masterdata-crud.spec.ts`           | Full CRUD cycle for one entity (locations)                                                 | M          | pending  |
-| 13 | `13-persons-add-modal.spec.ts`         | Modal-driven person creation                                                               | S          | pending  |
-| 14 | `14-planning-day-crud.spec.ts`         | Create planning day + crew assignment                                                      | M          | pending  |
-| 15 | `15-planning-setup-wizard.spec.ts`     | Drive `/planningsetup` wizard end-to-end                                                  | M          | pending  |
-| 16 | `16-flight-reports-generation.spec.ts` | Per-pilot report renders with flight data                                                  | M          | pending  |
-| 17 | `17-custom-report-builder.spec.ts`     | Build custom report with filters                                                           | L          | pending  |
-| 18 | `18-profile-edit.spec.ts`              | Edit own Person fields, save                                                               | S          | pending  |
-| 19 | `19-audit-logs.spec.ts`                | Mutate flight, assert audit entries appear                                                 | M          | pending  |
-| 20 | `20-delivery-creation-test.spec.ts`    | Run regression harness; assert items match                                                 | M          | pending  |
-| 21 | `21-accounting-rules-edit.spec.ts`     | Create / edit recipient + tiered billing rule                                              | L          | pending  |
-| 22 | `22-flight-locking-workflow.spec.ts`   | Trigger validation job; assert Valid → Locked                                              | L          | pending  |
-| 23 | `23-delivery-creation-workflow.spec.ts`| Trigger delivery job; assert DeliveryPrepared                                              | L          | pending  |
-| 25 | `25-multi-tenant-isolation.spec.ts`    | Cross-club visibility check                                                                | M          | pending  |
+| 10 | `10-reservations-crud.spec.ts`         | Create / edit / delete aircraft reservation                                                | M          | done     |
+| 11 | `11-reservation-scheduler.spec.ts`     | Scheduler grid renders, slots align, no collisions                                         | M          | done     |
+| 12 | `12-masterdata-crud.spec.ts`           | Full CRUD cycle for one entity (locations)                                                 | M          | done     |
+| 13 | `13-persons-add-modal.spec.ts`         | Modal-driven person creation                                                               | S          | done     |
+| 14 | `14-planning-day-crud.spec.ts`         | Create planning day + crew assignment                                                      | M          | done     |
+| 15 | `15-planning-setup-wizard.spec.ts`     | Drive `/planningsetup` wizard end-to-end                                                  | M          | done     |
+| 16 | `16-flight-reports-generation.spec.ts` | Per-pilot report renders with flight data                                                  | M          | done     |
+| 17 | `17-custom-report-builder.spec.ts`     | Build custom report with filters                                                           | L          | done     |
+| 18 | `18-profile-edit.spec.ts`              | Edit own Person fields, save                                                               | S          | done     |
+| 19 | `19-audit-logs.spec.ts`                | Mutate flight, assert audit entries appear                                                 | M          | done     |
+| 20 | `20-delivery-creation-test.spec.ts`    | Run regression harness; assert items match                                                 | M          | done     |
+| 21 | `21-accounting-rules-edit.spec.ts`     | Create / edit recipient + tiered billing rule                                              | L          | done     |
+| 22 | `22-flight-locking-workflow.spec.ts`   | Trigger validation job; assert Valid → Locked                                              | L          | done     |
+| 23 | `23-delivery-creation-workflow.spec.ts`| Trigger delivery job; assert DeliveryPrepared                                              | L          | done     |
+| 25 | `25-multi-tenant-isolation.spec.ts`    | Cross-club visibility check                                                                | M          | done     |
 
 ## Cross-cutting risks
 
