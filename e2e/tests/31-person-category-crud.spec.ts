@@ -59,7 +59,7 @@ async function waitForTreeReady(page: Page): Promise<void> {
   await page.locator('.editable-tree-row', { hasText: SEEDED[0] }).waitFor({ state: 'visible' });
 }
 
-test('person-category-crud:add-edit-delete', async ({ freshLoggedInPage: loggedInPage }) => {
+test('person-category-crud:add-edit-delete', async ({ loggedInPage }) => {
   const page = loggedInPage;
 
   await gotoRoute(page, LIST_PATH);

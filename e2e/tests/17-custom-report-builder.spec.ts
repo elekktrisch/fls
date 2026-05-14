@@ -81,7 +81,7 @@ async function waitForConfigScopeReady(page: Page): Promise<void> {
   }, undefined, { timeout: SECONDARY_TIMEOUT });
 }
 
-test('flightreports:custom builder applies filter and renders results', async ({ freshLoggedInPage: loggedInPage }) => {
+test('flightreports:custom builder applies filter and renders results', async ({ loggedInPage }) => {
   // freshDb gives us the deterministic 2026-01-01 anchor with the seeded
   // historical glider flight at 2025-12-02 (see _test-fixture.sql:295-357).
 

@@ -41,7 +41,7 @@ async function waitBusyClear(page: Page): Promise<void> {
   }, undefined, { timeout: 15_000 });
 }
 
-test('masterdata-users:create-edit-delete', async ({ freshLoggedInPage: loggedInPage }) => {
+test('masterdata-users:create-edit-delete', async ({ loggedInPage }) => {
   const page = loggedInPage;
 
   // Auto-accept the window.confirm() prompt the delete action raises.

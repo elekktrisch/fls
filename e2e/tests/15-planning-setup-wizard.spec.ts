@@ -69,7 +69,7 @@ async function countPlanningRows(page: Page): Promise<number> {
   return page.locator('tbody [data-testid="row"]').count();
 }
 
-test('planning-setup:wizard bulk-creates planning days for date range', async ({ freshLoggedInPage: loggedInPage }) => {
+test('planning-setup:wizard bulk-creates planning days for date range', async ({ loggedInPage }) => {
   // freshDb: re-seeded DB. _test-fixture.sql does not seed any PlanningDay
   // rows (grep -in 'PlanningDay' finds only a notification-pref reference,
   // never an INSERT), so /planning starts empty for this worker.

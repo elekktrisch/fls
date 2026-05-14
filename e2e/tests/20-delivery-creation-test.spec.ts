@@ -53,7 +53,7 @@ async function getBearerToken(page: Page): Promise<string> {
   return token!;
 }
 
-test('delivery-creation-test: generateExampleDelivery preview returns a DeliveryCreationResult', async ({ freshLoggedInPage: loggedInPage }) => {
+test('delivery-creation-test: generateExampleDelivery preview returns a DeliveryCreationResult', async ({ loggedInPage }) => {
   const token = await getBearerToken(loggedInPage);
 
   const res = await loggedInPage.request.get(
@@ -93,7 +93,7 @@ test('delivery-creation-test: generateExampleDelivery preview returns a Delivery
   await screenshot(loggedInPage, '20-delivery-creation-test-01');
 });
 
-test('delivery-creation-test: stored regression tests endpoint returns a paged list', async ({ freshLoggedInPage: loggedInPage }) => {
+test('delivery-creation-test: stored regression tests endpoint returns a paged list', async ({ loggedInPage }) => {
   const token = await getBearerToken(loggedInPage);
 
   // The seeded fixture does NOT seed any DeliveryCreationTest rows for the
@@ -134,7 +134,7 @@ test('delivery-creation-test: stored regression tests endpoint returns a paged l
   await screenshot(loggedInPage, '20-delivery-creation-test-02');
 });
 
-test('delivery-creation-test: /masterdata/deliveryCreationTests list renders for club-admin', async ({ freshLoggedInPage: loggedInPage }) => {
+test('delivery-creation-test: /masterdata/deliveryCreationTests list renders for club-admin', async ({ loggedInPage }) => {
   // Light UI smoke: the list page is reachable and the busy indicator
   // settles. Seeded list is empty (per 03-masterdata.spec.ts) so we don't
   // assert on row count — but the page must not 404 or error out.

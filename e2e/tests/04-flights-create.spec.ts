@@ -43,7 +43,9 @@ const SECONDARY_TIMEOUT = 15_000;
 async function waitForFlightFormReady(page: Page): Promise<void> {
   // The form hosts a `fls-busy-indicator` (data-testid="busy-indicator") that's
   // visible while loadMasterdata() is in flight. Wait for it to clear.
-  await page.locator('input#FlightDate').waitFor({ state: 'visible', timeout: SECONDARY_TIMEOUT });
+  // `#FlightDate` is a <fls-date-picker> directive, not an <input>; match
+  // any element type.
+  await page.locator('#FlightDate').waitFor({ state: 'visible', timeout: SECONDARY_TIMEOUT });
   await page.waitForFunction(() => {
     const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];
     return spinners.every(el => {
@@ -73,7 +75,10 @@ async function countTodayFlightRows(page: Page): Promise<number> {
   return page.locator('tbody [data-testid="row"]').count();
 }
 
-test('flights:create new glider flight via UI shows up in list', async ({ freshLoggedInPage: loggedInPage }) => {
+// Self-contained: each run creates a new glider flight with a stable,
+// test-title-derived comment. Re-running picks up the same row (or
+// creates one if the comment was changed). No freshDb dependency.
+test('flights:create new glider flight via UI shows up in list', async ({ loggedInPage }) => {
   // freshDb is the worker-scoped fixture (see fixtures.ts). It re-seeds the
   // FLSTest database to a deterministic baseline so we know exactly how many
   // rows are on the today-filtered list before we add ours: zero, because
@@ -117,8 +122,8 @@ test('flights:create new glider flight via UI shows up in list', async ({ freshL
             startTypeChanged: () => void;
             formatGliderStart: () => void;
             formatGliderLanding: () => void;
+            $apply: () => void;
           };
-          $apply: () => void;
         };
       };
     };
@@ -179,7 +184,8 @@ test('flights:create new glider flight via UI shows up in list', async ({ freshL
     s.flightTypeChanged();
     s.formatGliderStart();
     s.formatGliderLanding();
-    ngEl.$apply();
+    // $apply lives on the scope, not on the element wrapper.
+    s.$apply();
 
     return {
       aircraft: glider.Immatriculation,

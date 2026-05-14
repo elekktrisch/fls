@@ -76,7 +76,7 @@ async function waitForSchedulerLoaded(page: Page): Promise<void> {
 // on this test stack (>60s even with all aircraft registered for the
 // signed-in user). Re-enable once the scheduler can hydrate in <30s.
 test.skip('reservation-scheduler renders aircraft row, headers, and a seeded event', async ({
-  freshLoggedInPage: loggedInPage,
+  loggedInPage,
 }) => {
 
   // Collect JS errors / page errors over the whole flow.

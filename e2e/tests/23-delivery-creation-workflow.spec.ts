@@ -98,7 +98,7 @@ async function listDeliveriesForFlight(
 }
 
 test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a Delivery row exists', async ({
-  freshLoggedInPage: loggedInPage,
+  loggedInPage,
 }) => {
   const token = await getBearerToken(loggedInPage);
 

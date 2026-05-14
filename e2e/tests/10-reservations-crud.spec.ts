@@ -72,7 +72,7 @@ async function ensureReservationType(): Promise<string> {
 
 test.describe.configure({ mode: 'serial' });
 
-test('reservations-crud: create, edit, delete via /reservations', async ({ freshLoggedInPage: loggedInPage }) => {
+test('reservations-crud: create, edit, delete via /reservations', async ({ loggedInPage }) => {
   const page = loggedInPage;
   const token = await bearer(page);
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };

@@ -77,7 +77,7 @@ async function getFlight(
 }
 
 test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
-  freshLoggedInPage: loggedInPage,
+  loggedInPage,
 }) => {
   const token = await getBearerToken(loggedInPage);
 

@@ -54,7 +54,7 @@ async function waitForListReady(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
 }
 
-test('masterdata:member-state CRUD via pencil-link list', async ({ freshLoggedInPage: loggedInPage }) => {
+test('masterdata:member-state CRUD via pencil-link list', async ({ loggedInPage }) => {
   const page = loggedInPage;
   const nonce = `${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
   const createName = `E2EState-${nonce}`;
