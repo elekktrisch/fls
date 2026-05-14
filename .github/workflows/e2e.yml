@@ -199,8 +199,14 @@ jobs:
         continue-on-error: true
 
       - name: Stash read project's HTML report
-        if: always() && hashFiles('/tmp/fls-e2e-report/index.html') != ''
-        run: mv /tmp/fls-e2e-report /tmp/fls-e2e-report-read
+        if: always()
+        # hashFiles() only inspects ${{ github.workspace }} — paths under /tmp
+        # always return empty, so we used to silently skip this step on every
+        # run. Check from shell instead.
+        run: |
+          if [ -f /tmp/fls-e2e-report/index.html ]; then
+            mv /tmp/fls-e2e-report /tmp/fls-e2e-report-read
+          fi
 
       - name: Run Playwright (mutate project)
         id: mutate
@@ -209,8 +215,11 @@ jobs:
         continue-on-error: true
 
       - name: Stash mutate project's HTML report
-        if: always() && hashFiles('/tmp/fls-e2e-report/index.html') != ''
-        run: mv /tmp/fls-e2e-report /tmp/fls-e2e-report-mutate
+        if: always()
+        run: |
+          if [ -f /tmp/fls-e2e-report/index.html ]; then
+            mv /tmp/fls-e2e-report /tmp/fls-e2e-report-mutate
+          fi
 
       # ----- Bundle report + screenshots + logs for gh-pages ---------------------
       - name: Assemble gh-pages artifact
