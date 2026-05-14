@@ -18,3 +18,4 @@ e2e/screenshots
 # whole .claude/ tree by default, but track deliberate artifacts like skills.
 .claude/*
 !.claude/skills/
+!.claude/agents/
