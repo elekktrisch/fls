@@ -141,16 +141,18 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
     page.locator('tbody [data-testid="row"]', { hasText: IMMAT }),
   ).toHaveCount(0, { timeout: 10_000 });
 
-  // Belt-and-braces: the server should now 404 the aircraft (or return it
-  // with IsDeleted=true, depending on the soft-delete pattern). Accept either.
-  const afterDelete = await page.request.get(
-    `${API_BASE}/api/v1/aircrafts/${created.AircraftId}`,
-    { headers: auth },
+  // Belt-and-braces: the aircraft must not be listable any more. The server
+  // does a hard delete (`AircraftService.DeleteAircraft` → `context.Remove`),
+  // so the row's overview must be gone. We assert via the paged overview
+  // endpoint (used by the list itself) rather than the single-id GET, since
+  // the latter throws an EntityNotNull-driven 500 against a missing row.
+  const pagedRes = await page.request.post(
+    `${API_BASE}/api/v1/aircrafts/page/0/200`,
+    { headers: auth, data: { Sorting: {}, SearchFilter: { Immatriculation: IMMAT } } },
   );
-  if (afterDelete.ok()) {
-    const body = (await afterDelete.json()) as { IsDeleted?: boolean };
-    expect(body.IsDeleted).toBeTruthy();
-  } else {
-    expect([404, 400]).toContain(afterDelete.status());
-  }
+  expect(pagedRes.ok(), `paged GET: ${pagedRes.status()}`).toBeTruthy();
+  const paged = (await pagedRes.json()) as {
+    Items: { AircraftId: string; Immatriculation: string }[];
+  };
+  expect(paged.Items.find(a => a.AircraftId === created.AircraftId)).toBeUndefined();
 });
