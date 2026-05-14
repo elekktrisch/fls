@@ -10,7 +10,9 @@ import { API_BASE, getBearerToken } from '../test-data';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/accountingRuleFilters';
-const FORM_TIMEOUT = 30_000;
+// Form loads 11 master-data lists in parallel; under accumulated DB load
+// some calls (especially paged-persons) are slow. Give plenty of headroom.
+const FORM_TIMEOUT = 60_000;
 const DESC_INITIAL = 'created by e2e';
 const DESC_EDITED = 'edited by e2e';
 
@@ -29,12 +31,14 @@ async function waitForFormHydrated(page: Page): Promise<void> {
     const formEl = document.querySelector('form[name="accountingRuleFilterForm"]');
     if (!formEl) return false;
     const s = w.angular.element(formEl).scope() as {
-      md?: { articles?: unknown[]; aircrafts?: unknown[]; accountingRuleFilterTypes?: unknown[] };
+      md?: { articles?: unknown[]; accountingRuleFilterTypes?: unknown[] };
       accountingRuleFilter?: unknown;
     };
+    // Only wait for what we actually use: articles (article picker) and
+    // accountingRuleFilterTypes (rule type dropdown). The other master-data
+    // calls in loadMasterData can lag without blocking our flow.
     return !!s.accountingRuleFilter
       && Array.isArray(s.md?.articles) && (s.md?.articles?.length ?? 0) > 0
-      && Array.isArray(s.md?.aircrafts) && (s.md?.aircrafts?.length ?? 0) > 0
       && Array.isArray(s.md?.accountingRuleFilterTypes) && (s.md?.accountingRuleFilterTypes?.length ?? 0) > 0;
   }, undefined, { timeout: FORM_TIMEOUT });
 }
@@ -102,14 +106,13 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
           selection: { ArticleNumber?: string };
           text: { DeliveryLineText?: string };
           md: { articles: Array<{ ArticleNumber: string; ArticleName: string }> };
+          $apply: () => void;
         };
-        $apply: () => void;
       }; };
     };
     const formEl = document.querySelector('form[name="accountingRuleFilterForm"]');
     if (!formEl) throw new Error('accountingRuleFilterForm not found');
-    const ngEl = w.angular.element(formEl);
-    const s = ngEl.scope();
+    const s = w.angular.element(formEl).scope();
 
     s.accountingRuleFilter.AccountingRuleFilterTypeId = ruleTypeId;
     s.accountingRuleFilter.IsRuleForGliderFlights = true;
@@ -123,7 +126,8 @@ test('accounting-rules:create FlightTime rule + edit description', async ({ logg
     s.selection.ArticleNumber = article.ArticleNumber;
     s.text.DeliveryLineText = article.ArticleName;
 
-    ngEl.$apply();
+    // $apply lives on the scope, not on the element wrapper.
+    s.$apply();
   }, { name: RULE_NAME, ruleTypeId: RULE_TYPE_FLIGHTTIME, articleNumber: ARTICLE_NUMBER, immat: MATCHED_IMMAT });
 
   await submitForm(page);

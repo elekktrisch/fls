@@ -53,22 +53,25 @@ test('planning-setup:wizard bulk-creates planning days for date range', async ({
     const w = window as unknown as {
       angular: {
         element: (n: Element) => {
-          scope: () => { setup: Record<string, unknown>; locations: Array<{ LocationId: string; IcaoCode?: string }> };
-          $apply: (fn?: () => void) => void;
+          scope: () => {
+            setup: Record<string, unknown>;
+            locations: Array<{ LocationId: string; IcaoCode?: string }>;
+            $apply: (fn?: () => void) => void;
+          };
         };
       };
     };
     const form = document.querySelector('form[role="form"]');
     if (!form) throw new Error('planning-setup form not found');
-    const ngEl = w.angular.element(form);
-    const s = ngEl.scope();
+    const s = w.angular.element(form).scope();
     s.setup.StartDate = new Date(startIso);
     s.setup.EndDate = new Date(endIso);
     if (!s.setup.LocationId) {
       const loc = s.locations.find(l => l.IcaoCode === 'LSZK') ?? s.locations[0];
       s.setup.LocationId = loc.LocationId;
     }
-    ngEl.$apply();
+    // $apply lives on the scope, not on the element wrapper — see TEST_WRITING.md §6.
+    s.$apply();
     return {
       hasLocation: !!s.setup.LocationId,
       everySat: !!s.setup.EverySaturday,

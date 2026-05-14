@@ -52,15 +52,14 @@ test('flightreports:custom builder applies filter and renders results', async ({
           scope: () => {
             custom: Record<string, unknown>;
             md: { locations: Array<{ LocationId: string; IcaoCode?: string }> };
+            $apply: () => void;
           };
-          $apply: () => void;
         };
       };
     };
     const panel = document.querySelector('.filter-criteria-panel');
     if (!panel) throw new Error('filter-criteria-panel not found');
-    const ngEl = w.angular.element(panel);
-    const s = ngEl.scope();
+    const s = w.angular.element(panel).scope();
     s.custom = s.custom || {};
     s.custom.FlightDate = { From: from, To: to };
     s.custom.GliderFlights = true;
@@ -68,7 +67,8 @@ test('flightreports:custom builder applies filter and renders results', async ({
     s.custom.TowFlights = true;
     const lszk = s.md.locations.find(l => l.IcaoCode === 'LSZK') ?? s.md.locations[0];
     s.custom.LocationId = lszk.LocationId;
-    ngEl.$apply();
+    // $apply lives on the scope, not on the element wrapper.
+    s.$apply();
     return { locationId: s.custom.LocationId as string };
   }, { from: FROM_DATE, to: TO_DATE });
 

@@ -1,48 +1,13 @@
-// Rules-engine per-type coverage (task #32).
+// Spec #32: one case per AccountingRuleFilterType — POST a minimal rule,
+// preview-delivery against the seeded historical flight, assert the rule
+// matched and its side effect appears in the result. Serial mode so cases
+// share the per-suite fixture-rule deactivate / restore in beforeAll/afterAll.
 //
-// One Playwright spec, ten test cases — one per AccountingRuleFilter rule
-// type (per FLS.Data.WebApi/Accounting/RuleFilters/AccountingRuleFilterType.cs).
-// For each type we:
-//   1. POST a minimal AccountingRuleFilter that targets the seeded historical
-//      flight `F1500005-0000-0000-0000-000000000001` (glider, 47 min, 1 ldg
-//      at LSZK, flight-type code 63, IsSoloFlight=0, StartType=3 (Self-launch),
-//      Valid+Landed; see flsserver/database/FLSTest/3 insert/_test-fixture.sql
-//      §5 for the canonical layout).
-//   2. GET `/api/v1/deliverycreationtests/testdeliveryforflight/{flightId}`
-//      to invoke the rules engine in dry-run mode (DeliveryService.cs:373).
-//   3. Assert that the new rule's id appears in `MatchedAccountingRuleFilterIds`,
-//      and that the rule's side-effect (article number / quantity / unit /
-//      recipient / DoNotInvoiceFlight short-circuit) shows up in the result.
-//   4. DELETE the rule afterwards so subsequent cases see a clean slate.
-//
-// Isolation strategy:
-//   The fixture in `_test-fixture.sql` §4 pre-creates three IsActive=1 rules
-//   for the test club (Recipient/FlightTime/LandingTax). At `beforeAll` we
-//   PUT them with IsActive=false to silence them, then at `afterAll` we PUT
-//   them back to IsActive=true. Together with `serial` mode this lets each
-//   test case assert against an isolated rule set, no matter what the
-//   previous test left behind. We avoid `freshDb` because re-seeding for ten
-//   cases is prohibitively slow (~30-60s each).
-//
-// Per-type rule of thumb (see DeliveryItemRulesEngine.cs for the canonical
-// pipeline order):
-//   - DoNotInvoiceFlight: short-circuits → 0 DeliveryItems, DoNotInvoiceFlight
-//     flag implied (we just observe that no other rules emitted anything).
-//   - Recipient: sets RecipientDetails.PersonId / RecipientName; no item.
-//   - NoLandingTax: sets internal flags only; no item, but the rule id
-//     appears in MatchedAccountingRuleFilterIds.
-//   - FlightTime: emits ONE item with quantity = duration (47 min → 47.0 in
-//     min-unit) and our article number.
-//   - InstructorFee: emits an item with ItemText "Fluglehrer-Honorar ..."
-//     (the rule runs even for solo flights — InstructorDisplayName is empty).
-//   - AdditionalFuelFee: emits an item with ItemText starting with our
-//     DeliveryLineText.
-//   - StartTax: emits an item with quantity = 1, unit type "Start".
-//   - LandingTax: emits an item with quantity = NrOfLdgs (1), unit "Landung".
-//   - VsfFee: emits an item with quantity = NrOfLdgs (1).
-//   - EngineTime: glider seed flight has no engine times → loop's gating
-//     check (ActiveEngineTimeInSeconds > 0) keeps the rule from firing.
-//     We `test.skip` this case with the contract gap noted.
+// Note: DoNotInvoiceFlightRule used to silently fail to set HasMatched —
+// fixed in flsserver. Other product bugs in this area:
+// AdditionalInfo / FlightCostPaidByPerson / FlightCostPaidByPilot /
+// FlightDeliveryInfo are similarly missing HasMatched, but they're not
+// covered by the 10-type enum so the bug is latent there.
 
 import { test, expect, APIRequestContext } from '@playwright/test';
 
@@ -50,20 +15,17 @@ const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
 const USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
 const PASSWORD = process.env.FLS_PASSWORD ?? 's';
 
-// Canonical seed flight — glider, LSZK/LSZK, 47 min, 1 ldg, FlightCode '63',
-// StartType 3 (Self-launch), IsSoloFlight 0, Valid+Landed.
-// Source: flsserver/database/FLSTest/3 insert/_test-fixture.sql §5.
+// Seed flight from _test-fixture.sql §5: glider HB-3407 at LSZK, 47 min, 1 ldg.
 const FLIGHT_ID = 'F1500005-0000-0000-0000-000000000001';
 
-// Fixture rule ids from _test-fixture.sql §4. We deactivate these for the
-// duration of the spec so they don't pollute MatchedAccountingRuleFilterIds.
+// Fixture rule ids from _test-fixture.sql §4 — deactivated for this spec.
 const FIXTURE_RULE_IDS = [
-  'F1500004-0000-0000-0000-000000000001', // Recipient: Flight Pilot
-  'F1500004-0000-0000-0000-000000000002', // FlightTime: Glider per minute
-  'F1500004-0000-0000-0000-000000000003', // LandingTax: LSZK
+  'F1500004-0000-0000-0000-000000000001', // Recipient
+  'F1500004-0000-0000-0000-000000000002', // FlightTime
+  'F1500004-0000-0000-0000-000000000003', // LandingTax
 ];
 
-// AccountingRuleFilterType enum mirror (server: AccountingRuleFilterType.cs).
+// Mirror of AccountingRuleFilterType.cs.
 const RT = {
   DoNotInvoiceFlight: 5,
   Recipient: 10,
@@ -77,11 +39,10 @@ const RT = {
   EngineTime: 80,
 } as const;
 
-// AccountingUnitType enum mirror (server: AccountingUnitType.cs).
+// Mirror of AccountingUnitType.cs.
 const UT = { Min: 10, Sec: 20, Ldgs: 30, StartOrFlight: 40 } as const;
 
-// Minimal `AccountingRuleFilterDetails` payload. Defaults mirror the C# DTO
-// ctor and the SQL fixture rules. Override only the fields each rule needs.
+// Minimal payload — defaults mirror C# DTO ctor; override per rule type.
 function baseRulePayload(name: string, typeId: number): Record<string, unknown> {
   return {
     AccountingRuleFilterId: '00000000-0000-0000-0000-000000000000',
@@ -170,8 +131,7 @@ test.describe('rules-engine per-type coverage', () => {
     token = (await tokenRes.json()).access_token;
     auth = { Authorization: `Bearer ${token}` };
 
-    // Snapshot + deactivate fixture rules so they don't pollute the rules
-    // engine's matched-rule set during our per-type assertions.
+    // Deactivate fixture rules so they don't pollute MatchedAccountingRuleFilterIds.
     for (const id of FIXTURE_RULE_IDS) {
       const getRes = await api.get(`${API_BASE}/api/v1/accountingrulefilters/${id}`, { headers: auth });
       if (!getRes.ok()) {
@@ -189,9 +149,7 @@ test.describe('rules-engine per-type coverage', () => {
   });
 
   test.afterAll(async () => {
-    // Restore fixture rules (idempotent — IsActive=true). Best-effort: log
-    // failures but don't fail the suite, because the next freshDb seed run
-    // will normalize the state anyway.
+    // Restore IsActive=true on fixture rules. Best-effort: a re-seed normalizes.
     for (const [id, original] of fixtureRuleSnapshots) {
       try {
         await api.put(`${API_BASE}/api/v1/accountingrulefilters/${id}`, {
@@ -205,9 +163,6 @@ test.describe('rules-engine per-type coverage', () => {
     await api.dispose();
   });
 
-  // -------------------------------------------------------------------------
-  // Helpers — per-test rule lifecycle and preview invocation.
-  // -------------------------------------------------------------------------
   async function createRule(payload: Record<string, unknown>): Promise<string> {
     const res = await api.post(`${API_BASE}/api/v1/accountingrulefilters`, {
       headers: { ...auth, 'Content-Type': 'application/json' },
@@ -232,10 +187,6 @@ test.describe('rules-engine per-type coverage', () => {
     expect(res.ok(), `preview: ${res.status()} ${await res.text()}`).toBeTruthy();
     return (await res.json()) as DeliveryCreationResult;
   }
-
-  // -------------------------------------------------------------------------
-  // Test cases — one per AccountingRuleFilterType enum member.
-  // -------------------------------------------------------------------------
 
   test('DoNotInvoiceFlight short-circuits the pipeline', async () => {
     const id = await createRule({

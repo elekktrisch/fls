@@ -130,7 +130,16 @@ await page.evaluate(({ value }) => {
 ```
 
 Note: `$apply` lives on the **scope**, not on the element wrapper.
-`ngEl.scope().$apply()` works; `ngEl.$apply()` is not a function.
+`ngEl.scope().$apply()` works; `ngEl.$apply()` is **not** a function and
+will crash with `TypeError: ngEl.$apply is not a function`. The trap is
+that TS type defs sometimes claim `$apply` on the wrapper — don't trust
+them. Pattern:
+
+```ts
+const s = w.angular.element(el).scope();
+// ... mutate s.* ...
+s.$apply();   // GOOD
+```
 
 ### ng-show vs DOM presence
 
@@ -178,6 +187,68 @@ Also: `TestClub.HomebaseId` is set to LSZK in `_test-fixture.sql §2c`.
 If you need a homebase id in a test, look it up from
 `$scope.locations` (find by `IcaoCode === 'LSZK'`).
 
+### EF6 soft-delete + unique constraints
+
+Many entities (`Aircraft`, `AccountingRuleFilter`, `Club`, `Article`,
+`Reservation`, …) are mapped with EF6's soft-delete pattern:
+
+```csharp
+modelBuilder.Entity<Aircraft>()
+    .Map(m => m.Requires("IsDeleted").HasValue(false))
+    .Ignore(m => m.IsDeleted);
+```
+
+`context.Aircrafts.Remove(entity)` translates to **`UPDATE SET IsDeleted=1`**,
+not a real DELETE. The row stays in the table.
+
+This collides with unique constraints that don't include `IsDeleted`. The
+Aircraft table has a unique index on `(Immatriculation, DeletedOn)` — but
+the soft-delete only flips `IsDeleted`, leaving `DeletedOn=NULL`. So a
+re-insert with the same Immatriculation conflicts with the soft-deleted
+row, but the paged API endpoint filters soft-deleted rows out — meaning
+your pre-clean via API silently does nothing.
+
+**Rule:** for entities that participate in soft-delete + unique
+constraints (Aircraft is the documented case; check others), pre-clean
+via raw SQL `DELETE FROM <table> WHERE <field> = @stable_id` using
+`withPool`. Don't rely on the API DELETE.
+
+```ts
+await withPool(async (pool) => {
+  await pool.request()
+    .input('immat', sql.NVarChar, IMMAT)
+    .query('DELETE FROM Aircrafts WHERE Immatriculation = @immat');
+});
+```
+
+### Hover-only / offscreen action links
+
+Editable-tree directives and some toolbar buttons are rendered but
+become visible only on hover or when scrolled into view. With an
+accumulating DB the page grows long, your stable-id row gets pushed
+offscreen, and `.click()` fails the visibility check with
+`element is not visible`.
+
+**Rule:** before clicking icon-anchors inside a list/tree row, call
+`.scrollIntoViewIfNeeded()`:
+
+```ts
+const editLink = row.locator('.tree-node-manipulation-link').nth(0);
+await editLink.scrollIntoViewIfNeeded();
+await editLink.click();
+```
+
+### Master-data hydration races
+
+Some edit forms (notably accounting rules) call `$q.all` over 11+
+master-data endpoints. Under accumulated DB load some calls
+(`PagedPersons.getAllPersons` is the slowest) blow past 30s. Don't
+wait for all of them — only the dropdowns your test actually uses.
+
+If your spec asserts on `$scope.md.X`, scope the wait to just the X
+your spec reads. And budget at least **60s** for forms with wide
+master-data dependencies.
+
 ## 7. Auth + bearer-token notes
 
 - `loggedInPage` injects `sessionStorage` via `addInitScript` and does
@@ -206,7 +277,26 @@ row, …), add it to this file. The `.bak` cache key in `seed.sh` hashes
 all `.sql` files, so a change here invalidates the cache and forces a
 reseed on the next run.
 
-## 9. UI vs API split
+## 9. Product bugs surfaced + patched by the suite
+
+The suite has found and patched these server-side bugs. Each is a
+real defect (not a test fixture quirk) — if you see similar patterns
+elsewhere, flag them:
+
+- **`FlightService.ManuallySetFlightProcessState` missing `SaveChanges()`**:
+  every state transition silently dropped. Fixed by adding the call.
+- **`DoNotInvoiceFlightRule.Apply` never sets `AccountingRuleFilter.HasMatched = true`**:
+  every other rule type sets it; this one doesn't, so the rule
+  appears to match (sets `DoNotInvoiceFlight = true`) but is invisible
+  in `MatchedAccountingRuleFilterIds`. Fixed by adding the assignment.
+  Similar omissions in `AdditionalInfoRule`, `FlightCostPaidByPersonRule`,
+  `FlightCostPaidByPilotRule`, `FlightDeliveryInfoRule` — latent because
+  no test covers them.
+- **EF6 soft-delete unique-constraint conflict**: covered in §6 above —
+  not a code bug, but a schema/EF-mapping conflict that's worth patching
+  if it ever bites a production user.
+
+## 10. UI vs API split
 
 When deciding what to drive through the UI:
 
@@ -224,7 +314,7 @@ For a UI-CRUD spec, the canonical shape is:
 3. (Optional) API readback to verify persistence beyond the
    ng-table's in-memory copy.
 
-## 10. Things that are NOT root causes
+## 11. Things that are NOT root causes
 
 When a spec fails, these are common red herrings:
 

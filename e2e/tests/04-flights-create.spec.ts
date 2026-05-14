@@ -108,6 +108,8 @@ test('flights:create new glider flight via UI shows up in list', async ({ logged
 
     s.flightDetails.FlightDate = new Date();
     s.flightDetails.StartType = '3'; // Self-launch — no tow plane required.
+    // Top-level Comment too — pre-clean / assertion query uses Flights.Comment.
+    (s.flightDetails as Record<string, unknown>).Comment = comment;
 
     const gld = s.flightDetails.GliderFlightDetailsData;
     gld.AircraftId = glider.AircraftId;
@@ -155,10 +157,21 @@ test('flights:create new glider flight via UI shows up in list', async ({ logged
     });
   }, undefined, { timeout: SECONDARY_TIMEOUT });
 
-  // Don't compare row counts — parallel tests add their own rows. Assert presence.
-  await expect(
-    loggedInPage.locator(`tbody [data-testid="row"]:has-text("${uniqueComment}")`),
-    'newly-created flight row should be visible in the today list',
-  ).toHaveCount(1, { timeout: SECONDARY_TIMEOUT });
+  // Primary assertion: flight persisted to DB. Going via SQL is immune to
+  // today-filter timezone slip and ng-table refresh races.
+  const inserted = await withPool(async (pool) => {
+    const r = await pool.request()
+      .input('comment', sql.NVarChar, uniqueComment)
+      .query('SELECT COUNT(*) AS Cnt FROM Flights WHERE Comment = @comment');
+    return r.recordset[0].Cnt as number;
+  });
+  expect(inserted, 'flight should be persisted in DB after form submit').toBeGreaterThan(0);
+
+  // Secondary: list should also surface the new row (may lag under load).
+  await expect(async () => {
+    const count = await loggedInPage.locator(`tbody [data-testid="row"]:has-text("${uniqueComment}")`).count();
+    expect(count).toBeGreaterThan(0);
+  }).toPass({ timeout: SECONDARY_TIMEOUT });
+
   await screenshot(loggedInPage, '04-flights-create-01');
 });

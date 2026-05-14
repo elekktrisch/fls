@@ -1,79 +1,56 @@
-/**
- * Full CRUD cycle for a PersonCategory via `/masterdata/personCategories` (#31 in
- * e2e/PLAN.md).
- *
- * PersonCategory is unusual among the masterdata entities: the UI is a
- * tree directive (`fls-editable-tree`, see
- * `flsweb/src/core/directives/tree/editable-tree-directive.html`) rather than
- * an ng-table. Mutations are driven by **native browser dialogs**:
- *   - Add:    `window.prompt('Person-Category Name:')` returns the new name.
- *   - Edit:   `window.prompt('Person-Category Name:', currentName)` returns the new name.
- *   - Delete: `window.confirm("Really delete 'X'?")` -> true to proceed.
- * See `flsweb/src/masterdata/personCategories/PersonCategoriesController.js`.
- *
- * The `_test-fixture.sql` seeds three root categories for the test club:
- *   `Vorstand`, `Fluglehrer`, `Gaeste`. We add a fresh one with a unique
- *   nonce, rename it, then delete it -- leaving the seeded set intact.
- *
- * Flow:
- *   1. CREATE: click the trailing "+" anchor (the only `.tree-node-manipulation-link`
- *              that lives outside an `.editable-tree-row`), reply to the prompt
- *              with our nonce-tagged name. After `$route.reload()` the new row
- *              renders inside `.editable-tree-row` with our name.
- *   2. EDIT:   click the pencil anchor (first `.tree-node-manipulation-link`
- *              inside our row), reply to the prompt with the edited name.
- *              Assert the row renders with the new name.
- *   3. DELETE: click the trash anchor (third `.tree-node-manipulation-link`
- *              inside the row), accept the confirm. Assert the row disappears
- *              and the three seeded categories are still present.
- *
- * Uses `loggedInPage` (fast session-storage auth) and `freshDb` (worker-scoped
- * re-seed; this spec mutates state).
- *
- * TODO testid: the editable-tree row (`.editable-tree-row`) and its three
- * manipulation anchors (edit / add / delete) currently have no `data-testid`
- * markers and aren't covered by `e2e/SELECTORS.md`. Falls back to class
- * selectors + child-anchor ordering, which is acceptable for one spec but
- * worth promoting (e.g. `tree-row`, `tree-row-edit`, `tree-row-delete`) in a
- * consolidation pass.
- */
+// Spec #31: PersonCategory CRUD via /masterdata/personCategories.
+// UI is fls-editable-tree (not ng-table); mutations driven by native
+// window.prompt / window.confirm.
+//
+// TODO testid: `tree-row`, `tree-row-edit`, `tree-row-delete` on the
+// .editable-tree-row and its manipulation anchors.
+
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
+import { testId } from '../test-id';
+import { API_BASE, getBearerToken } from '../test-data';
 import type { Page, Locator } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/personCategories';
-const NONCE = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-const NAME_INITIAL = `E2E Cat ${NONCE}`;
-const NAME_EDITED = `E2E Cat Edited ${NONCE}`;
 const SEEDED = ['Vorstand', 'Fluglehrer', 'Gaeste'];
 
 function rowByName(page: Page, name: string): Locator {
-  // ng-bind sets text content exactly, so `hasText` (substring) is safe given
-  // our nonce-tagged names are unique.
   return page.locator('.editable-tree-row', { hasText: name });
 }
 
 async function waitForTreeReady(page: Page): Promise<void> {
-  // The controller toggles $scope.busy = false once `loadPersonCategories()`
-  // resolves; gotoRoute already polls the busy-indicator. Then wait for at
-  // least one of the seeded root nodes to render.
   await page.locator('.editable-tree-row', { hasText: SEEDED[0] }).waitFor({ state: 'visible' });
 }
 
-test('person-category-crud:add-edit-delete', async ({ loggedInPage }) => {
+test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
+  const id = testId(testInfo);
+  // Disjoint substrings (see TEST_WRITING.md §2).
+  const NAME_INITIAL = `Cat-${id.short}-A`;
+  const NAME_EDITED  = `Cat-${id.short}-B`;
+
+  // Pre-clean prior-run categories with either name. The endpoint mirrors the
+  // SPA's PersonCategoryService.
+  const token = await getBearerToken(loggedInPage);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const listRes = await page.request.get(`${API_BASE}/api/v1/personcategories`, { headers });
+  if (listRes.ok()) {
+    const cats = await listRes.json() as Array<{ PersonCategoryId: string; CategoryName: string }>;
+    for (const c of cats) {
+      if (c.CategoryName !== NAME_INITIAL && c.CategoryName !== NAME_EDITED) continue;
+      await page.request.post(`${API_BASE}/api/v1/personcategories/${c.PersonCategoryId}`, {
+        headers: { ...headers, 'X-HTTP-Method-Override': 'DELETE' },
+      });
+    }
+  }
 
   await gotoRoute(page, LIST_PATH);
   await waitForTreeReady(page);
 
-  // Sanity: confirm the fixture seeds three root categories.
   for (const name of SEEDED) {
     await expect(rowByName(page, name)).toHaveCount(1);
   }
 
-  // ----- CREATE -----------------------------------------------------------
-  // The trailing root-level "+" is the .tree-node-manipulation-link that
-  // sits OUTSIDE every .editable-tree-row (the in-row anchors are all inside
-  // one). Filter accordingly.
+  // CREATE — the trailing root-level "+" lives outside any .editable-tree-row.
   const rootAddButton = page
     .locator('.tree-node-manipulation-link')
     .filter({ hasNot: page.locator('xpath=ancestor::div[contains(@class, "editable-tree-row")]') })
@@ -83,35 +60,40 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage }) => {
     expect(dialog.type()).toBe('prompt');
     await dialog.accept(NAME_INITIAL);
   });
+  await rootAddButton.scrollIntoViewIfNeeded();
   await rootAddButton.click();
 
   // $route.reload() rebuilds the tree; wait for our new row to appear.
   await expect(rowByName(page, NAME_INITIAL)).toHaveCount(1, { timeout: 10_000 });
   await waitForTreeReady(page);
 
-  // ----- EDIT -------------------------------------------------------------
-  // Anchors inside an .editable-tree-row are, in order: edit (pencil),
-  // add (plus-circle), delete (trash). Click the first to trigger editNode.
+  // EDIT — anchors inside a row are: edit (pencil), add (+), delete (trash).
   const createdRow = rowByName(page, NAME_INITIAL);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('prompt');
     expect(dialog.defaultValue()).toBe(NAME_INITIAL);
     await dialog.accept(NAME_EDITED);
   });
-  await createdRow.locator('.tree-node-manipulation-link').nth(0).click();
+  const editLink = createdRow.locator('.tree-node-manipulation-link').nth(0);
+  // With accumulated DB state the tree can be long enough that our row is
+  // offscreen; scroll into view before clicking.
+  await editLink.scrollIntoViewIfNeeded();
+  await editLink.click();
 
   await expect(rowByName(page, NAME_EDITED)).toHaveCount(1, { timeout: 10_000 });
   await expect(rowByName(page, NAME_INITIAL)).toHaveCount(0);
   await waitForTreeReady(page);
 
-  // ----- DELETE -----------------------------------------------------------
+  // DELETE
   const editedRow = rowByName(page, NAME_EDITED);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('confirm');
     expect(dialog.message()).toContain(NAME_EDITED);
     await dialog.accept();
   });
-  await editedRow.locator('.tree-node-manipulation-link').nth(2).click();
+  const deleteLink = editedRow.locator('.tree-node-manipulation-link').nth(2);
+  await deleteLink.scrollIntoViewIfNeeded();
+  await deleteLink.click();
 
   await expect(rowByName(page, NAME_EDITED)).toHaveCount(0, { timeout: 10_000 });
 

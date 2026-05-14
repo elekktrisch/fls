@@ -14,6 +14,7 @@ namespace FLS.Server.Service.Accounting.Rules
         public override RuleBasedDeliveryDetails Apply(RuleBasedDeliveryDetails ruleBasedDelivery)
         {
             ruleBasedDelivery.DoNotInvoiceFlight = true;
+            AccountingRuleFilter.HasMatched = true;
 
             return base.Apply(ruleBasedDelivery);
         }

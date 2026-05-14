@@ -5,6 +5,8 @@
 
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
 import { testId } from '../test-id';
+import { withPool } from '../test-data';
+import sql from 'mssql';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -34,20 +36,16 @@ test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async 
   const token = await bearer(page);
   const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // Pre-clean prior-run aircraft.
-  const existing = await page.request.post(`${API_BASE}/api/v1/aircrafts/page/0/200`, {
-    headers: auth,
-    data: { Sorting: {}, SearchFilter: { Immatriculation: IMMAT } },
+  // Pre-clean via raw SQL. EF6 soft-deletes Aircrafts (Remove sets IsDeleted=1
+  // but leaves DeletedOn=NULL), and the unique constraint is on
+  // (Immatriculation, DeletedOn) — two NULL DeletedOn rows collide. The paged
+  // API endpoint filters out soft-deleted rows so we can't find them via API.
+  // SQL gets us at the raw table.
+  await withPool(async (pool) => {
+    await pool.request()
+      .input('immat', sql.NVarChar, IMMAT)
+      .query('DELETE FROM Aircrafts WHERE Immatriculation = @immat');
   });
-  if (existing.ok()) {
-    const body = await existing.json() as { Items?: Array<{ AircraftId: string; Immatriculation: string }> };
-    for (const a of body.Items ?? []) {
-      if (a.Immatriculation !== IMMAT) continue;
-      await page.request.post(`${API_BASE}/api/v1/aircrafts/${a.AircraftId}`, {
-        headers: { ...auth, 'X-HTTP-Method-Override': 'DELETE' },
-      });
-    }
-  }
 
   // CREATE via API — AircraftType=1 (Glider).
   const createRes = await page.request.post(`${API_BASE}/api/v1/aircrafts`, {
