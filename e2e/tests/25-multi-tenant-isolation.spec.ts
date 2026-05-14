@@ -91,12 +91,24 @@ test.describe('multi-tenant isolation', () => {
     });
     expect(meA.ok(), `/users/my A: ${meA.status()}`).toBeTruthy();
     expect(meB.ok(), `/users/my B: ${meB.status()}`).toBeTruthy();
-    const userA = await meA.json() as { Username?: string; UserName?: string };
-    const userB = await meB.json() as { Username?: string; UserName?: string };
+    const userA = await meA.json() as { Username?: string; UserName?: string; ClubId?: string };
+    const userB = await meB.json() as { Username?: string; UserName?: string; ClubId?: string };
     const nameA = userA.Username ?? userA.UserName;
     const nameB = userB.Username ?? userB.UserName;
     expect(nameA, 'tokenA must resolve to testclubadmin').toBe(CLUB_A.username);
     expect(nameB, 'tokenB must resolve to othertestadmin').toBe(CLUB_B.username);
+    // Surface the ClubId both calls saw — if these are equal, the auth
+    // pipeline merged the two users into the same ClubId. If they differ
+    // and the flight filter STILL leaks, the bug is elsewhere.
+    test.info().annotations.push({
+      type: 'tokenA-clubid',
+      description: String(userA.ClubId),
+    });
+    test.info().annotations.push({
+      type: 'tokenB-clubid',
+      description: String(userB.ClubId),
+    });
+    expect(userA.ClubId, 'testclubadmin should live in TestClub').not.toBe(userB.ClubId);
 
     // Flights
     const flightsA = await getPaged<{ FlightId: string }>(
