@@ -1442,6 +1442,13 @@ namespace FLS.Server.Service
                         break;
 
                 }
+                // The original implementation mutated `flight.ProcessStateId` on
+                // the EF-tracked entity but never persisted the change — every
+                // transition (Valid -> ExcludedFromDeliveryProcess, Locked ->
+                // ExcludedFromDeliveryProcess, etc.) was silently dropped when
+                // the DbContext disposed. Save the changes so the manual
+                // state-toggle actually sticks.
+                context.SaveChanges();
             }
 
             return GetFlightDetails(flightId);

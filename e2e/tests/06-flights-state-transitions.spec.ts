@@ -150,16 +150,17 @@ test('flights-state: Invalid -> Valid via /api/v1/flights/validate', async ({ fr
   const token = await getBearerToken(loggedInPage);
 
   // Force the historical flight into Invalid state. The server's ValidateFlights
-  // loop only revisits Invalid rows where ModifiedOn >= ValidatedOn
-  // (FlightService.cs:924-930), so we stamp ModifiedOn into the future relative
-  // to ValidatedOn (or NULL out ValidatedOn) to make it eligible.
+  // loop only revisits Invalid rows where BOTH ModifiedOn AND ValidatedOn
+  // are non-null AND ModifiedOn >= ValidatedOn (FlightService.cs:924-930).
+  // Set ValidatedOn = the seed-anchor CreatedOn (in the past) and ModifiedOn
+  // = now (after the anchor) so the row is eligible for revalidation.
   await withPool(async pool => {
     const r = await pool.request()
       .input('id', sql.UniqueIdentifier, HISTORICAL_FLIGHT_ID)
       .input('invalidState', sql.Int, ProcessState.Invalid)
       .query(`UPDATE Flights
                  SET ProcessStateId = @invalidState,
-                     ValidatedOn = NULL,
+                     ValidatedOn = DATEADD(DAY, -1, SYSDATETIME()),
                      ModifiedOn = SYSDATETIME()
                WHERE FlightId = @id`);
     expect(r.rowsAffected[0], 'expected to flip 1 flight row to Invalid').toBe(1);

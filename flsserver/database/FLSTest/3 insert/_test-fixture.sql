@@ -156,6 +156,24 @@ INSERT INTO PersonCategories (
         DATEADD(MINUTE, 3, @anchor), @insertUserId, @recordState, @testClubId, @ownershipClub, 0)
 
 -- ---------------------------------------------------------------------------
+-- 3a. Backfill missing FlightProcessStates rows so manual state transitions
+--    (PUT /api/v1/flights/changeprocessstate/{id}) can target the full
+--    FlightProcessState enum. The static seed only inserts 0/28/30/40/50,
+--    leaving 45 (DeliveryPreparationError), 60 (DeliveryBooked) and 99
+--    (ExcludedFromDeliveryProcess) missing — the FK_Flights_FlightProcessStates
+--    constraint then rejects every state-transition UPDATE to one of those.
+-- ---------------------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM FlightProcessStates WHERE FlightProcessStateId = 45)
+    INSERT INTO FlightProcessStates (FlightProcessStateId, FlightProcessStateName, Comment, CreatedOn)
+    VALUES (45, 'Lieferschein-Fehler', 'DeliveryPreparationError', SYSDATETIME())
+IF NOT EXISTS (SELECT 1 FROM FlightProcessStates WHERE FlightProcessStateId = 60)
+    INSERT INTO FlightProcessStates (FlightProcessStateId, FlightProcessStateName, Comment, CreatedOn)
+    VALUES (60, 'Verbucht', 'DeliveryBooked', SYSDATETIME())
+IF NOT EXISTS (SELECT 1 FROM FlightProcessStates WHERE FlightProcessStateId = 99)
+    INSERT INTO FlightProcessStates (FlightProcessStateId, FlightProcessStateName, Comment, CreatedOn)
+    VALUES (99, 'Vom Lieferschein-Prozess ausgeschlossen', 'ExcludedFromDeliveryProcess', SYSDATETIME())
+
+-- ---------------------------------------------------------------------------
 -- 3b. Backfill missing AccountingRuleFilterTypes rows so the rule-engine
 --    per-type spec can insert DoNotInvoiceFlight (5) and StartTax (55).
 --    The enum (AccountingRuleFilterType.cs) defines 10 values; the static
