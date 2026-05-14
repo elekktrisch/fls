@@ -30,12 +30,10 @@
  * adding to SELECTORS.md in a consolidation pass.
  */
 import { expect, gotoRoute, screenshot, test } from '../fixtures';
+import { testId } from '../test-id';
 import type { Page } from '@playwright/test';
 
 const LIST_PATH = '/masterdata/locations';
-const NONCE = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-const NAME = `E2E Test Location ${NONCE}`;
-const ICAO = `E2E${NONCE.slice(-4)}`.toUpperCase().slice(0, 6);
 const DESC_INITIAL = 'created by e2e';
 const DESC_EDITED = 'edited by e2e';
 
@@ -53,6 +51,73 @@ async function openListAndWait(page: Page) {
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 }
 
+const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
+
+async function ensureLocationDeleted(page: Page, name: string): Promise<void> {
+  // Idempotent cleanup: stable test ids re-touch the same row, so a
+  // previous run's leftover blocks the CREATE step. Find by name via the
+  // paged endpoint and DELETE if present.
+  const token = await page.evaluate(() => {
+    const raw = sessionStorage.getItem('ngStorage-loginResult');
+    if (!raw) return null;
+    try { return JSON.parse(raw).access_token as string; } catch { return null; }
+  });
+  if (!token) return;
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const listRes = await page.request.post(`${API_BASE}/api/v1/locations/page/0/100`, {
+    headers,
+    data: { Sorting: {}, SearchFilter: { LocationName: name } },
+  });
+  if (!listRes.ok()) return;
+  const body = await listRes.json() as { Items?: { LocationId: string; LocationName: string }[] };
+  for (const row of body.Items ?? []) {
+    if (row.LocationName !== name) continue;
+    // DELETE via POST + X-HTTP-Method-Override (the controller pattern).
+    await page.request.post(`${API_BASE}/api/v1/locations/${row.LocationId}`, {
+      headers: { ...headers, 'X-HTTP-Method-Override': 'DELETE' },
+    });
+  }
+}
+
+async function fillRequiredDropdowns(page: Page): Promise<void> {
+  // The locations form has two required selectize dropdowns (Country,
+  // LocationType) without testids. Drive them via the AngularJS scope:
+  // the controller already calls Countries + LocationTypes service loaders
+  // (md.countries, md.locationTypes) during init.
+  await page.waitForFunction(() => {
+    const w = window as unknown as {
+      angular: { element: (n: Element) => { scope: () => unknown } };
+    };
+    const form = document.querySelector('form[name="locationForm"]');
+    if (!form) return false;
+    const s = w.angular.element(form).scope() as {
+      md?: { countries?: unknown[]; locationTypes?: unknown[] };
+    };
+    return Array.isArray(s.md?.countries) && (s.md?.countries.length ?? 0) > 0
+      && Array.isArray(s.md?.locationTypes) && (s.md?.locationTypes.length ?? 0) > 0;
+  }, undefined, { timeout: 10_000 });
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      angular: { element: (n: Element) => { scope: () => unknown } };
+    };
+    const form = document.querySelector('form[name="locationForm"]')!;
+    const s = w.angular.element(form).scope() as {
+      location?: { CountryId?: string; LocationTypeId?: string };
+      md: {
+        countries: { CountryId: string; CountryName: string }[];
+        locationTypes: { LocationTypeId: string; LocationTypeName: string }[];
+      };
+      $apply: (fn?: () => void) => void;
+    };
+    if (!s.location) return;
+    s.location.CountryId =
+      s.md.countries.find(c => c.CountryName === 'Schweiz')?.CountryId
+      ?? s.md.countries[0].CountryId;
+    s.location.LocationTypeId = s.md.locationTypes[0].LocationTypeId;
+    s.$apply();
+  });
+}
+
 async function submitForm(page: Page) {
   // Cancel + Save buttons are siblings inside `locations-edit.html`. Save is
   // the `<button type="submit">` (Cancel is `type="button"`). Scope to the
@@ -66,8 +131,20 @@ async function submitForm(page: Page) {
   await page.locator('tbody [data-testid="row"]').first().waitFor({ state: 'visible' });
 }
 
-test('masterdata-crud:locations create-edit-delete', async ({ freshLoggedInPage: loggedInPage }) => {
+// Self-contained: each run uses a stable, test-title-derived
+// LocationName ("E2E 12-masterdata-crud-..."), so re-running the test
+// always touches the same row in the DB (useful for debugging). No
+// freshDb dependency. Safe under parallel workers because different
+// tests have different stable IDs.
+test('masterdata-crud:locations create-edit-delete', async ({ loggedInPage }, testInfo) => {
+  const id = testId(testInfo);
+  const NAME = id.name;
+  const ICAO = id.short;
   const page = loggedInPage;
+
+  // Idempotent cleanup: previous-run leftover would block the CREATE step
+  // (LocationName unique-ish, plus ICAO collision). Delete by name first.
+  await ensureLocationDeleted(page, NAME);
 
   // ----- CREATE -----------------------------------------------------------
   await openListAndWait(page);
@@ -78,6 +155,9 @@ test('masterdata-crud:locations create-edit-delete', async ({ freshLoggedInPage:
   await page.locator('#LocationName').fill(NAME);
   await page.locator('#IcaoCode').fill(ICAO);
   await page.locator('#Description').fill(DESC_INITIAL);
+  // CountryId + LocationTypeId are required ([Required] on the DTO) but
+  // their dropdowns have no testid; drive them via $scope.
+  await fillRequiredDropdowns(page);
   await submitForm(page);
 
   // Filter the list to our unique LocationName so we don't depend on default
