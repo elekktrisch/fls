@@ -199,22 +199,38 @@ jobs:
       - name: Run Playwright (read project)
         id: read
         working-directory: e2e
-        run: npx playwright test --project=read --reporter=list,html
+        # The reporter list comes from playwright.config.ts (list + html,
+        # html writes to /tmp/fls-e2e-report). Don't pass --reporter on
+        # the CLI; that overrides the config and dumps to the default
+        # `e2e/playwright-report/` directory, defeating our gh-pages
+        # copy step below.
+        run: npx playwright test --project=read
         continue-on-error: true
+
+      - name: Stash read project's HTML report
+        if: always() && hashFiles('/tmp/fls-e2e-report/index.html') != ''
+        run: mv /tmp/fls-e2e-report /tmp/fls-e2e-report-read
 
       - name: Run Playwright (mutate project)
         id: mutate
         working-directory: e2e
-        run: npx playwright test --project=mutate --reporter=list,html
+        run: npx playwright test --project=mutate
         continue-on-error: true
+
+      - name: Stash mutate project's HTML report
+        if: always() && hashFiles('/tmp/fls-e2e-report/index.html') != ''
+        run: mv /tmp/fls-e2e-report /tmp/fls-e2e-report-mutate
 
       # ----- Bundle report + screenshots + logs for gh-pages ---------------------
       - name: Assemble gh-pages artifact
         if: always()
         run: |
           mkdir -p public
-          # Playwright HTML report (test results, traces, failure screenshots).
-          if [ -d /tmp/fls-e2e-report ]; then cp -r /tmp/fls-e2e-report public/report; fi
+          # Playwright HTML reports (test results, traces, failure screenshots)
+          # — one per project, kept separate because the two invocations would
+          # otherwise overwrite each other at /tmp/fls-e2e-report.
+          if [ -d /tmp/fls-e2e-report-read   ]; then cp -r /tmp/fls-e2e-report-read   public/report-read;   fi
+          if [ -d /tmp/fls-e2e-report-mutate ]; then cp -r /tmp/fls-e2e-report-mutate public/report-mutate; fi
           # Full-page screenshots from the screenshot() helper.
           if [ -d e2e/screenshots ]; then cp -r e2e/screenshots public/screenshots; fi
           # Server + dev-server logs (useful when CI fails).
@@ -236,8 +252,10 @@ jobs:
             echo 'read project: <strong>'"${{ steps.read.outcome }}"'</strong> &middot; '
             echo 'mutate project: <strong>'"${{ steps.mutate.outcome }}"'</strong></p>'
             echo '<ul>'
-            echo '<li><a href="report/index.html">Playwright HTML report</a> (with failure traces &amp; screenshots)</li>'
-            echo '<li><a href="logs/">Server logs</a></li>'
+            if [ -d public/report-read ];   then echo '<li><a href="report-read/index.html">Playwright HTML report — read project</a></li>';   fi
+            if [ -d public/report-mutate ]; then echo '<li><a href="report-mutate/index.html">Playwright HTML report — mutate project</a> (failure traces &amp; screenshots inline)</li>'; fi
+            echo '<li><a href="logs/fls-server.log">FLS server log</a></li>'
+            echo '<li><a href="logs/flsweb.log">flsweb dev-server log</a></li>'
             echo '</ul>'
             if [ -d public/screenshots ]; then
               echo '<h2>Full-page screenshots</h2><div class="grid">'
