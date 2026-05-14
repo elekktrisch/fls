@@ -19,12 +19,36 @@ import { defineConfig, devices } from '@playwright/test';
 //   - `/` for the dev-server (200 + the SPA HTML)
 //
 // `timeout: 180_000` gives Mono cold-start enough headroom.
+// All tests share one FLSTest database. Parallelism therefore has to be
+// carefully partitioned: read-only specs can safely interleave across
+// workers; mutation specs (anything that POSTs/PUTs/DELETEs against
+// flsserver, or relies on a specific DB state) must serialize so they
+// don't trample each other or step on freshDb's reseed.
+//
+// We split the suite into two `projects`:
+//   - `read`     read-only specs, fullyParallel + workers 3
+//   - `mutate`   mutation specs, serial (workers 1)
+//
+// Run both via `npx playwright test`; Playwright walks projects in the
+// declared order and respects the per-project `workers` override.
+const READ_ONLY_SPECS = [
+  '01-public.spec.ts',
+  '02-authenticated.spec.ts',
+  '03-masterdata.spec.ts',
+  '11-reservation-scheduler.spec.ts',
+  '16-flight-reports-generation.spec.ts',
+  '17-custom-report-builder.spec.ts',
+  '25-multi-tenant-isolation.spec.ts',
+  '33-api-contract.spec.ts',
+  'auth.spec.ts',
+  'landing.spec.ts',
+];
+
 export default defineConfig({
   testDir: './tests',
   timeout: 30_000,
   expect: { timeout: 5_000 },
-  fullyParallel: false,
-  workers: 1,
+  // Project-level fullyParallel + workers override these defaults.
   retries: 0,
   outputDir: '/tmp/fls-e2e-results',
   reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
@@ -61,8 +85,19 @@ export default defineConfig({
   ],
   projects: [
     {
-      name: 'chromium',
+      name: 'read',
+      testMatch: READ_ONLY_SPECS,
+      fullyParallel: true,
+      workers: 3,
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'mutate',
+      testIgnore: READ_ONLY_SPECS,
+      fullyParallel: false,
+      workers: 1,
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['read'],
     },
   ],
 });
