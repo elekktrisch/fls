@@ -12,9 +12,14 @@ namespace FLS.Server.WebApi
         /// <summary>Integrates Unity when the application starts.</summary>
         public static void Start()
         {
-            // Use UnityHierarchicalDependencyResolver if you want to use a new child container for each IHttpController resolution.
-            // var resolver = new UnityHierarchicalDependencyResolver(UnityConfig.GetConfiguredContainer());
-            var resolver = new UnityDependencyResolver(UnityConfig.GetConfiguredContainer());
+            // Use UnityHierarchicalDependencyResolver: BeginScope() gives a new
+            // child container per HTTP request, so types registered with
+            // HierarchicalLifetimeManager (notably IIdentityService) become
+            // per-request instead of effectively-singleton. Without this,
+            // concurrent requests share the same IdentityService and one
+            // request's SetUser can overwrite another's between the action
+            // filter and the controller reading it.
+            var resolver = new UnityHierarchicalDependencyResolver(UnityConfig.GetConfiguredContainer());
 
             //var oldProvider = FilterProviders.Providers.Single(f => f is FilterAttributeFilterProvider);
             //FilterProviders.Providers.Remove(oldProvider);
