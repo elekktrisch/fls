@@ -179,13 +179,21 @@ UPDATE Users
    AND PersonId IS NULL
    AND @testClubAdminPersonId IS NOT NULL
 
--- 2c. Set TestClub.HomebaseId = LSZK. `3 Insert Static Data.sql` resets every
---    club's HomebaseId to NULL, but several client routes (the club edit
---    form's `required` Homebase selectize, the planning-setup wizard's
---    default LocationId, FlightReports' homebase filter) treat NULL as
---    missing config and either disable submission or short-circuit.
-PRINT 'Fixture: set TestClub.HomebaseId = LSZK'
-UPDATE Clubs SET HomebaseId = @lszk WHERE ClubId = @testClubId AND HomebaseId IS NULL
+-- 2c. Set TestClub.HomebaseId = LSZK + enable workflow jobs.
+--    `3 Insert Static Data.sql` resets HomebaseId to NULL; several client
+--    routes (club edit form's `required` Homebase selectize, planning-
+--    setup wizard's default LocationId, FlightReports' homebase filter)
+--    treat NULL as missing config and short-circuit.
+--    `Clubs.RunDeliveryCreationJob` defaults to 0 in DBUpdate_v1.9.7,
+--    so the DeliveryCreationJob's `clubs.Where(c => c.RunDeliveryCreationJob)`
+--    skips every club out of the box — the workflow returns in ~10ms
+--    with zero deliveries created. Spec #23 needs the job to actually
+--    pick up the test flight.
+PRINT 'Fixture: set TestClub.HomebaseId + RunDeliveryCreationJob'
+UPDATE Clubs
+   SET HomebaseId = @lszk,
+       RunDeliveryCreationJob = 1
+ WHERE ClubId = @testClubId
 
 -- ---------------------------------------------------------------------------
 -- 3a. Backfill missing FlightProcessStates rows so manual state transitions
