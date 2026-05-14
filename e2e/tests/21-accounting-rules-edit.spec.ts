@@ -54,6 +54,10 @@ function rowByName(page: Page, name: string) {
   return page.locator('tbody [data-testid="row"]', { hasText: name });
 }
 
+// Bump the per-test budget: the rule-filter edit form fires 11 parallel
+// master-data loads that can together push past the default 60s.
+test.setTimeout(120_000);
+
 test('accounting-rules:create FlightTime rule + edit description', async ({ loggedInPage }, testInfo) => {
   const page = loggedInPage;
   const id = testId(testInfo);

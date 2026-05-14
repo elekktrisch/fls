@@ -6,8 +6,7 @@
 
 import { test, expect } from '../fixtures';
 import { testId } from '../test-id';
-import { ensureGliderFlight, getBearerToken as sharedGetToken, withPool } from '../test-data';
-import sql from 'mssql';
+import { ensureGliderFlight, getBearerToken as sharedGetToken } from '../test-data';
 import type { Page } from '@playwright/test';
 
 const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
@@ -84,14 +83,9 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
   const afterValidation = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);
   test.skip(afterValidation !== ProcessState.Locked, `flight state ${afterValidation}, expected Locked (40)`);
 
-  // Deliverycreation needs LockedOn ≤ today - 3d; flightvalidation just set it to now.
-  await withPool(async (pool) => {
-    await pool.request()
-      .input('id', sql.UniqueIdentifier, HISTORICAL_FLIGHT_ID)
-      .query(`UPDATE Flights
-                 SET LockedOn = DATEADD(DAY, -5, SYSDATETIME())
-               WHERE FlightId = @id`);
-  });
+  // Eligibility is `CreatedOn <= today - 3d` (DeliveryService.cs); we
+  // already set CreatedOn = today - 5d via ensureGliderFlight's
+  // createdOnDaysAgo so locking + delivery both qualify on the same row.
   await triggerWorkflow(loggedInPage, token, 'deliverycreation');
 
   const finalState = await getFlightProcessState(loggedInPage, token, HISTORICAL_FLIGHT_ID);

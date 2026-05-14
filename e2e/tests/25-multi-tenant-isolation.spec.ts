@@ -80,6 +80,24 @@ test.describe('multi-tenant isolation', () => {
       `need both seeded admins; got tokenA=${!!tokenA} tokenB=${!!tokenB}`,
     );
 
+    // Diagnostic: confirm each token actually resolves to its intended user.
+    // If these mismatch, the auth filter is broken (or Playwright's request
+    // context is sharing a cookie that the server prefers over our bearer).
+    const meA = await request.get(`${API_BASE}/api/v1/users/my`, {
+      headers: { Authorization: `Bearer ${tokenA!}` },
+    });
+    const meB = await request.get(`${API_BASE}/api/v1/users/my`, {
+      headers: { Authorization: `Bearer ${tokenB!}` },
+    });
+    expect(meA.ok(), `/users/my A: ${meA.status()}`).toBeTruthy();
+    expect(meB.ok(), `/users/my B: ${meB.status()}`).toBeTruthy();
+    const userA = await meA.json() as { Username?: string; UserName?: string };
+    const userB = await meB.json() as { Username?: string; UserName?: string };
+    const nameA = userA.Username ?? userA.UserName;
+    const nameB = userB.Username ?? userB.UserName;
+    expect(nameA, 'tokenA must resolve to testclubadmin').toBe(CLUB_A.username);
+    expect(nameB, 'tokenB must resolve to othertestadmin').toBe(CLUB_B.username);
+
     // Flights
     const flightsA = await getPaged<{ FlightId: string }>(
       request, tokenA!, '/api/v1/flights/gliderflights/page/0/200',

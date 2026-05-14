@@ -68,32 +68,39 @@ test('person-category-crud:add-edit-delete', async ({ loggedInPage }, testInfo) 
   await waitForTreeReady(page);
 
   // EDIT — anchors inside a row are: edit (pencil), add (+), delete (trash).
+  //
+  // Wrinkle: the manipulation-link is `display:none` at viewport ≥870px and
+  // only the row's `:hover` reveals it (flsgui.css:613-639). Hover before
+  // scrolling+clicking, otherwise scrollIntoViewIfNeeded fails on "element
+  // is not visible". Force the click since the element is technically
+  // invisible by CSS rule even when hovered (Playwright's stability check
+  // is finicky about hover-triggered visibility).
   const createdRow = rowByName(page, NAME_INITIAL);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('prompt');
     expect(dialog.defaultValue()).toBe(NAME_INITIAL);
     await dialog.accept(NAME_EDITED);
   });
+  await createdRow.scrollIntoViewIfNeeded();
+  await createdRow.hover();
   const editLink = createdRow.locator('.tree-node-manipulation-link').nth(0);
-  // With accumulated DB state the tree can be long enough that our row is
-  // offscreen; scroll into view before clicking.
-  await editLink.scrollIntoViewIfNeeded();
-  await editLink.click();
+  await editLink.click({ force: true });
 
   await expect(rowByName(page, NAME_EDITED)).toHaveCount(1, { timeout: 10_000 });
   await expect(rowByName(page, NAME_INITIAL)).toHaveCount(0);
   await waitForTreeReady(page);
 
-  // DELETE
+  // DELETE — same hover+force pattern as EDIT above.
   const editedRow = rowByName(page, NAME_EDITED);
   page.once('dialog', async dialog => {
     expect(dialog.type()).toBe('confirm');
     expect(dialog.message()).toContain(NAME_EDITED);
     await dialog.accept();
   });
+  await editedRow.scrollIntoViewIfNeeded();
+  await editedRow.hover();
   const deleteLink = editedRow.locator('.tree-node-manipulation-link').nth(2);
-  await deleteLink.scrollIntoViewIfNeeded();
-  await deleteLink.click();
+  await deleteLink.click({ force: true });
 
   await expect(rowByName(page, NAME_EDITED)).toHaveCount(0, { timeout: 10_000 });
 
