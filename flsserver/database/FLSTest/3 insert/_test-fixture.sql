@@ -560,5 +560,41 @@ UPDATE Clubs
        SendPassengerFlightRegistrationOperatorEmailTo = N'passenger-organizer@e2e.fls.local'
  WHERE ClubId = @testClubId
 
+-- ---------------------------------------------------------------------------
+-- 9. Settings rows the client requests on first paint of the trial-flight and
+--    reservation-scheduler pages. Without these the controllers throw
+--    EntityNotFoundException -- the trial-flight one is caught and logged at
+--    Error level (RegistrationService.GetTrialFlightsDates) and the scheduler
+--    one bubbles out as a 500 (SettingsController.GetValue). Both surface as
+--    noise in fls-server.log on every CI run.
+--
+--    9a. TrialFlight.EventDates -- looked up by ClubKey, value is a JSON
+--        List<DateTime>. An empty list would be enough to silence the log,
+--        but tests/01-public.spec.ts picks a concrete date from the dropdown
+--        so we seed one that is reliably in the future.
+--    9b. AircraftIdsToDisplayInScheduler -- per-USER setting (UserId column,
+--        no Club filter), value is a JSON array of AircraftIds. Empty array
+--        matches what the client falls back to in its .catch() today.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: Settings (TrialFlight.EventDates, AircraftIdsToDisplayInScheduler)'
+DELETE FROM Settings
+ WHERE (ClubId = @testClubId       AND SettingKey = 'TrialFlight.EventDates')
+    OR (UserId = @testClubAdminId  AND SettingKey = 'AircraftIdsToDisplayInScheduler')
+
+INSERT INTO Settings (
+    SettingId, ClubId, UserId, SettingKey, SettingValue, IsPublic,
+    CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType
+) VALUES
+    ('F1500008-0000-0000-0000-000000000001', @testClubId, NULL,
+        'TrialFlight.EventDates',
+        N'["2099-06-15T10:00:00","2099-08-25T10:00:00"]', 0,
+        DATEADD(MINUTE, 8, @anchor), @insertUserId, @recordState,
+        @testClubId, @ownershipClub),
+    ('F1500008-0000-0000-0000-000000000002', NULL, @testClubAdminId,
+        'AircraftIdsToDisplayInScheduler',
+        N'[]', 0,
+        DATEADD(MINUTE, 8, @anchor), @insertUserId, @recordState,
+        @testClubId, @ownershipClub)
+
 PRINT '=== DETERMINISTIC TEST FIXTURE: complete ==='
 GO
