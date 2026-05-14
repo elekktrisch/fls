@@ -110,7 +110,7 @@ export async function ensureGliderFlight(
   const [gliders, pilots, ftypes, locations] = await Promise.all([
     request.get(`${API_BASE}/api/v1/aircrafts/listitems/gliders`, { headers }),
     request.get(`${API_BASE}/api/v1/persons/gliderpilots/listitems/true`, { headers }),
-    request.get(`${API_BASE}/api/v1/flighttypes/gliders/listitems/true`, { headers }),
+    request.get(`${API_BASE}/api/v1/flighttypes/gliders`, { headers }),
     request.get(`${API_BASE}/api/v1/locations`, { headers }),
   ]);
   for (const [name, r] of [['gliders', gliders], ['pilots', pilots], ['ftypes', ftypes], ['locations', locations]] as const) {

@@ -46,7 +46,6 @@ import { expect, gotoRoute, screenshot, test } from '../fixtures';
 
 test('flight-reports: pre-canned location-this-year renders tabular output for seeded flights', async ({
   loggedInPage,
-  freshDb,
 }) => {
   // 1. Picker page — landing for /flightreports. Confirms the route loads
   //    and the navigation links the controller's switch-case maps from.

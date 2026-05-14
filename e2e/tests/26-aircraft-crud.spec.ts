@@ -62,7 +62,6 @@ test.describe.configure({ mode: 'serial' });
 
 test('aircraft-crud: create via API, edit Comment via UI, delete via UI', async ({
   loggedInPage,
-  freshDb,
 }) => {
   const page = loggedInPage;
   const token = await bearer(page);

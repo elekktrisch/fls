@@ -82,7 +82,6 @@ async function tryLogin(request: APIRequestContext, user: typeof CLUB_A): Promis
 test.describe('multi-tenant isolation', () => {
   test('cross-club data is disjoint on flights / persons / reservations', async ({
     request,
-    freshDb,
   }) => {
 
     const tokenA = await tryLogin(request, CLUB_A);

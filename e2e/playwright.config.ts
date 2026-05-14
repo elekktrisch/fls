@@ -119,7 +119,10 @@ export default defineConfig({
       // test-data.ts) own their own rows; nothing shared between specs.
       // Safe to run in parallel.
       fullyParallel: true,
-      workers: 3,
+      // 2 workers > 1: real concurrency; <= 2 keeps the single Mono +
+      // SQL Server stack comfortably under load. Bumping to 3+ caused
+      // /Token 500s and intermittent page-load timeouts.
+      workers: 2,
       // Even after the per-test seed cost is gone, mutation UI flows are
       // multi-step (form fills, navigations, ng-table reloads). 60s
       // leaves headroom without masking real hangs.

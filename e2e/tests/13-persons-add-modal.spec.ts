@@ -44,7 +44,6 @@ async function openFirstUserEditPage(page: Page): Promise<void> {
 
 test('persons-add-modal: create person via $modal and assert in list', async ({
   loggedInPage,
-  freshDb,
 }) => {
   // 1. Reach a user-edit page so the "NEW" person modal trigger is available.
   //    The button lives in user-form-fields.html next to the person selectize:

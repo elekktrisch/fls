@@ -40,7 +40,6 @@ const SAVE_BUTTON = 'form[name="clubForm"] button[type="submit"]';
 test.describe('#28 club-crud (edit own club)', () => {
   test('edit own club ContactName + Address persists across reload', async ({
     loggedInPage,
-    freshDb,
   }) => {
     // 1. Visit the list so the route is registered and the ng-table renders.
     await gotoRoute(loggedInPage, '/masterdata/clubs');
