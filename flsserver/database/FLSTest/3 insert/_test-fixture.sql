@@ -156,6 +156,30 @@ INSERT INTO PersonCategories (
         DATEADD(MINUTE, 3, @anchor), @insertUserId, @recordState, @testClubId, @ownershipClub, 0)
 
 -- ---------------------------------------------------------------------------
+-- 2b. Link testclubadmin to a seeded TestClub Person. The static seed
+--    leaves Users.PersonId NULL for every TestClub user; downstream the
+--    Dashboard suppresses statistics ("user has no assigned person") and
+--    /profile renders an empty form (the `<fls-person-form>` is
+--    ng-if'd on myUser.PersonId). Link them now so profile, dashboard,
+--    and audit/login flows work without per-test workarounds.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: link testclubadmin.PersonId to a seeded TestClub pilot'
+DECLARE @testClubAdminPersonId uniqueidentifier
+SELECT TOP 1 @testClubAdminPersonId = p.PersonId
+  FROM Persons p
+  INNER JOIN PersonClub pc ON pc.PersonId = p.PersonId
+ WHERE pc.ClubId = @testClubId
+   AND p.HasGliderPilotLicence = 1
+ ORDER BY p.Lastname
+
+UPDATE Users
+   SET PersonId = @testClubAdminPersonId
+ WHERE UserName = 'testclubadmin'
+   AND ClubId   = @testClubId
+   AND PersonId IS NULL
+   AND @testClubAdminPersonId IS NOT NULL
+
+-- ---------------------------------------------------------------------------
 -- 3a. Backfill missing FlightProcessStates rows so manual state transitions
 --    (PUT /api/v1/flights/changeprocessstate/{id}) can target the full
 --    FlightProcessState enum. The static seed only inserts 0/28/30/40/50,
