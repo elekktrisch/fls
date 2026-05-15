@@ -5,6 +5,7 @@ epic: E-02
 status: in_progress
 started_at: 2026-05-15
 github_issue: 15
+github_pr: 16
 depends_on: []
 acceptance:
   - A Spring Boot CLI app at `next/database/extract/` (standalone Gradle subproject, Java 25 + Spring Boot 4.0.x to match `next/server/`) connects to a SQL Server source DB, reads metadata, and emits ephemeral JSON files under `next/database/extract/raw/` (gitignored). Source is parameterized via env vars (`MSSQL_HOST`, `MSSQL_USER`, `MSSQL_PASSWORD`, `MSSQL_DATABASE`); the FLSTest-seeded container is the default first-pass source, prod is the eventual second-pass source.
