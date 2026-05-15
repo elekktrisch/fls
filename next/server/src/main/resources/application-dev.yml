@@ -5,6 +5,9 @@ server:
 management:
   endpoint:
     health:
+      # Full health details (db, disk, mail) are useful locally but constitute
+      # info disclosure on any reachable network. Contract: the dev profile
+      # MUST NOT be deployed beyond loopback. Prod uses `when_authorized`.
       show-details: always
 logging:
   level:

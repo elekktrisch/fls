@@ -70,9 +70,14 @@ tasks.withType<JavaCompile>().configureEach {
     }
 }
 
-// Test compile: NullAway / errorprone off (mocks + null assertions are legitimate).
+// Test compile: NullAway off (mocks + null assertions are legitimately
+// nullable / unset). Keep the rest of Error Prone's checks active — disabling
+// errorprone wholesale would silently drop FutureReturnValueIgnored,
+// EqualsHashCode, etc. as the test suite grows.
 tasks.named<JavaCompile>("compileTestJava") {
-    options.errorprone.enabled = false
+    options.errorprone.nullaway {
+        severity = CheckSeverity.OFF
+    }
 }
 
 // Custom verification task: runs the demo compile in a sub-Gradle invocation

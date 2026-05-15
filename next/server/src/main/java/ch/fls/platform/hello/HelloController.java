@@ -1,7 +1,6 @@
 package ch.fls.platform.hello;
 
 import java.time.Instant;
-import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -9,10 +8,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HelloController {
 
+    public record HelloResponse(String message, Instant timestamp) {}
+
     @GetMapping("/api/v1/hello")
-    public Map<String, String> hello() {
-        return Map.of(
-                "message", "Hello FLS",
-                "timestamp", Instant.now().toString());
+    public HelloResponse hello() {
+        return new HelloResponse("Hello FLS", Instant.now());
     }
 }
