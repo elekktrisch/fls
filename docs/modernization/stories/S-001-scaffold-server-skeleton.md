@@ -509,3 +509,4 @@ These specialists' analyses disagreed; surfaced for operator input.
    - **Trade-off:** stub now = visible prod-config gap surfaced earlier; defer = leaner skeleton, deferred decision visible at S-021 PR time. README note documenting the deferral handles either choice.
 
 <!-- modernize-refine: end -->
+
