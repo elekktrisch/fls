@@ -1,6 +1,6 @@
 ---
 name: requirements-engineer
-description: Hardens a draft user story by surfacing edge cases, hidden requirements, scope clarifications, and non-functional concerns. Use during just-in-time story refinement before implementation, or when a feature spec feels too thin to write tests against. Read-only — analyzes and reports, does not modify the story.
+description: Hardens a story by surfacing edge cases, hidden requirements, scope clarifications, NFRs. Used by /modernize-refine. Read-only.
 tools: Read, Glob, Grep, Bash, WebFetch
 ---
 

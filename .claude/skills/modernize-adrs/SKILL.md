@@ -1,6 +1,6 @@
 ---
 name: modernize-adrs
-description: Phase 3 of the modernization workflow. For each major architectural decision required by the rewrite, drafts an ADR comparing options against the vision's decision criteria, then asks the user to pick. Writes docs/modernization/adrs/NNNN-<slug>.md. Trigger when the user invokes /modernize-adrs, after phases 1 and 2 are complete.
+description: Phase 3 — draft an ADR per major rewrite decision (options against vision criteria), ask user to pick. Writes docs/modernization/adrs/. Trigger: /modernize-adrs (after phases 1-2).
 ---
 
 # Phase 3 — Architecture Decision Records

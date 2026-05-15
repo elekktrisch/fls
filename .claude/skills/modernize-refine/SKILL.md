@@ -1,6 +1,6 @@
 ---
 name: modernize-refine
-description: Phase 5 of the modernization workflow. Refines a single user story just-in-time before implementation by spawning five specialist subagents (requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer) in parallel and synthesizing their analysis into new sections in the story file. Trigger when the user invokes /modernize-refine <story-id> (e.g. /modernize-refine S-058), after phase 4 has produced the story.
+description: Phase 5 — refine one story by spawning 5 specialist subagents in parallel (requirements/solution/security/qa/performance-engineer); synthesize into the story file. Trigger: /modernize-refine S-NNN.
 ---
 
 # Phase 5 — Story Refinement (just-in-time)

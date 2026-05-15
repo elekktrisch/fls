@@ -17,7 +17,7 @@ This ADR covers the **library + templating** layer. The **SMTP relay / sending i
 ### Option A — Spring `JavaMailSender` + Thymeleaf templates
 - **Capabilities:** `spring-boot-starter-mail` exposes `JavaMailSender` injectable everywhere; `MimeMessageHelper` builds messages with attachments / inline images. Thymeleaf renders HTML templates from `src/main/resources/templates/email/*.html` with the model object as context; supports localization via `spring.messages` (the same i18n surface as the web side, if shared).
 - **Fit to criteria:** operability ✓ (one Spring starter + one templating library; both already in the application's dependency graph for other reasons). Mature ecosystem ✓ (default Spring stack). Preserves sacred cows ✓ (the templates are migrated content; the sending mechanism is interchangeable).
-- **Migration cost:** medium — port each existing email template from `Alpinely.TownCrier` syntax to Thymeleaf. The current templates live in `flsserver/src/FLS.Server.Service/Email/` (see [SERVER.md "Job catalog"](../../SERVER.md)) — content migrates, syntax changes.
+- **Migration cost:** medium — port each existing email template from `Alpinely.TownCrier` syntax to Thymeleaf. The current templates live in `flsserver/src/FLS.Server.Service/Email/` (see [SERVER.md "Job catalog"](../../legacy/server.md)) — content migrates, syntax changes.
 - **Ecosystem risk:** low.
 - **Escape hatch:** templating engine is swappable (Mustache, Pebble, Freemarker) without changing the sending API. Sending API is swappable to Simple Java Mail or transactional APIs without changing the templates.
 

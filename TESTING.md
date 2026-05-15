@@ -2,7 +2,7 @@
 
 Manual playbook to reproduce the happy-path demo from scratch on a fresh Ubuntu host without Microsoft licenses. Confirmed working against Ubuntu 25.10 + Mono 6.12.0.199 + SQL Server 2022 Developer Edition.
 
-For the **mental model** of what each piece does, see [SERVER.md](SERVER.md) and [CLIENT.md](CLIENT.md). For the **fast-path summary** read [CLAUDE.md](CLAUDE.md). This document is the step-by-step instructions.
+For the **mental model** of what each piece does, see [docs/legacy/server.md](docs/legacy/server.md) and [docs/legacy/web.md](docs/legacy/web.md). For the **fast-path summary** read [CLAUDE.md](CLAUDE.md). This document is the step-by-step instructions.
 
 ## Acceptance test
 
@@ -189,7 +189,7 @@ cd /c/Users/roman/IdeaProjects/fls/flsserver
 git checkout linux-demo
 ```
 
-(If the branch doesn't exist yet, create it with `git checkout -b linux-demo` and apply the changes documented in `SERVER.md`'s "How it actually works" notes, summarized at the bottom of this file.)
+(If the branch doesn't exist yet, create it with `git checkout -b linux-demo` and apply the changes documented in `docs/legacy/server.md`'s "How it actually works" notes, summarized at the bottom of this file.)
 
 ### 2.2 Restore NuGet packages
 

@@ -6,7 +6,7 @@
 
 ## Context
 
-The current system runs ~8 scheduled jobs ([current-state §2 → "Email & scheduled jobs"](../01-current-state.md#email--scheduled-jobs)): daily flight validation, daily report, monthly aircraft stats, planning-day notifications, licence-expiry warnings, delivery creation (rules engine), delivery mail export, aircraft DB sync. Trigger mechanism today is OS cron → `FLS.Workflow.Activator` console app → bearer-token-authenticated `GET /api/v1/workflows/<name>` → in-process dispatch via `WorkflowService.Run()`, with routing by UTC hour ([SERVER.md insight 1](../../SERVER.md)). The `job_scheduling_data_2_0.xsd` in the source tree is a dead Quartz schema.
+The current system runs ~8 scheduled jobs ([current-state §2 → "Email & scheduled jobs"](../01-current-state.md#email--scheduled-jobs)): daily flight validation, daily report, monthly aircraft stats, planning-day notifications, licence-expiry warnings, delivery creation (rules engine), delivery mail export, aircraft DB sync. Trigger mechanism today is OS cron → `FLS.Workflow.Activator` console app → bearer-token-authenticated `GET /api/v1/workflows/<name>` → in-process dispatch via `WorkflowService.Run()`, with routing by UTC hour ([server.md insight 1](../../legacy/server.md)). The `job_scheduling_data_2_0.xsd` in the source tree is a dead Quartz schema.
 
 For a single-instance Spring Boot deployment ([ADR 0010](.) — pending, but the soft preference for "fewer moving parts" makes single-instance the default), the simplest model is in-process scheduling. The current external-cron-to-HTTP architecture exists primarily to avoid an in-process scheduler in the .NET app; in Spring Boot we have one for free.
 

@@ -112,7 +112,7 @@ Grouped by domain. Rows: feature → primary code paths → user persona → e2e
 
 ## 3. Architecture digest
 
-Bullet the load-bearing patterns. Detail lives in [`SERVER.md`](../../SERVER.md) and [`CLIENT.md`](../../CLIENT.md); not repeated here.
+Bullet the load-bearing patterns. Detail lives in [`../legacy/server.md`](../legacy/server.md) and [`../legacy/web.md`](../legacy/web.md); not repeated here.
 
 - **Workflow ≠ Quartz.** Background jobs are HTTP endpoints on `WorkflowsController`. External OS-level cron hits them via the `FLS.Workflow.Activator` console app. `WorkflowService.Run()` dispatches by UTC hour. The `job_scheduling_data_2_0.xsd` in the service tree is a **dead schema** — no in-process scheduler.
 - **Two-dimensional flight state.** `FlightAirState` is *computed*, never stored; `FlightProcessState` is *stored* and workflow-driven. Time gates: ≥2 days to lock, ≥3 more days to bill. See [seed §Sacred cows](00-seed.md#sacred-cows-must-survive-the-rewrite).

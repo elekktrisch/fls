@@ -1,6 +1,6 @@
 ---
 name: modernize-implement
-description: Phase 6 of the modernization workflow. Implements a single refined user story end-to-end. On invocation, **creates a GitHub issue** mirroring the story (stamps `github_issue: N` on the story frontmatter) and uses the issue number as the commit-message ref (`#N: <summary>`, NOT the `S-NNN` story ID). **First** defines the parity-verification strategy (e2e preferred → API-level acceptable → unit-level last resort) and writes the parity / acceptance tests so they fail; THEN writes the code to make them pass (strict TDD). Honors the refinement's design notes — parity tests assert observable behavior, NOT legacy API shape decisions the design notes deliberately restructured. **Commits autonomously per work-package** (red tests / DB migration / backend slice / frontend slice / status update); pushes at locally-green work-package boundaries; monitors CI via `gh run watch` in the background; closes the GitHub issue via `Closes #N` in the final commit. MAY spawn parallel general-purpose sub-agents for orthogonal sub-tasks (backend / frontend / e2e) within a single story, and MAY consult specialist agents read-only (solution-architect, implementation-architect, performance-engineer, security-engineer, qa-engineer, legacy-investigator) for mid-implementation forks the refinement didn't cover. Trigger when the user invokes /modernize-implement <story-id> (e.g. /modernize-implement S-058), after phase 5 (modernize-refine) has produced the refinement sections.
+description: Phase 6 — implement one refined story end-to-end. Creates a GitHub issue, writes parity tests first (TDD), commits per work-package, pushes at green boundaries, monitors CI, closes the issue. Trigger: /modernize-implement S-NNN.
 ---
 
 # Phase 6 — Story Implementation
@@ -15,8 +15,9 @@ This is the only phase that produces code. Everything before it has been plannin
 2. The story file exists at `docs/modernization/stories/S-NNN-*.md`.
 3. The story has `refined: true` in its frontmatter. If not, **bail** with: "Story not refined. Run `/modernize-refine S-NNN` first."
 4. The story has `status: todo` (not `in_progress`, not `done`, not `blocked`). If `in_progress`, ask whether to resume. If `done`, refuse. If `blocked`, refuse and surface the block reason.
-5. Every story in `depends_on` has `status: done`. If not, **bail** with: "Dependency S-NNN is `<status>`. Resolve before implementing this story."
+5. Every story in `depends_on` has `status: done` **AND its PR is merged into `main`** (`gh pr view <PR> --json state` returns `MERGED`, or the story has no `github_pr:` because it predates the PR workflow / used the fallback). A `done` story whose PR is still open means its code isn't on `main` yet — bail with: "Dependency S-NNN is done but its PR #<N> isn't merged. Merge it first, then resume."
 6. The working tree is clean (no uncommitted changes outside of test snapshots / lockfiles you yourself will produce). If dirty, ask before proceeding — uncommitted changes from a half-done previous story are a footgun.
+7. Current branch is `main` (or the configured default). The skill creates a story branch off `main` at Step 2 — if you're already on a feature branch from another story, bail.
 
 These are the only legitimate blocking conditions. Everything else is derivable.
 
@@ -75,6 +76,49 @@ If any of these is true — `gh auth status` fails, `git remote -v` shows no Git
 
 The operator catches up later by creating issues retroactively if they want the tracker. This is symmetric with the CI fallback — same trigger condition, same "go local-only" outcome.
 
+## Feature branch + draft PR lifecycle (autonomous within this skill)
+
+Each story runs on its own feature branch with a draft PR opened at first push. The PR is the artifact `/modernize-review` anchors to (it's where Copilot review attaches, where CI runs, where the operator merges). Trunk-direct pushes are reserved for the fallback case below.
+
+### Branch creation
+
+At Step 2 (alongside status flip + issue creation):
+
+1. Derive the branch name from the story file: `story/<story-id-with-slug>`. The story file is `docs/modernization/stories/S-NNN-<slug>.md`; the branch is `story/S-NNN-<slug>` (e.g. `story/S-058-flight-validator-port`).
+2. If the branch already exists locally or on remote (story resumption): `git checkout story/S-NNN-<slug>`. Don't re-create.
+3. If it doesn't exist: `git checkout -b story/S-NNN-<slug>` off `main` (or the configured default branch). Bail if `main` is dirty.
+4. The initial `#N: start` commit lands on this branch, not on `main`.
+
+### Draft PR creation
+
+At the **first push** (the backend-slice push per the push-timing policy below):
+
+1. `git push -u origin story/S-NNN-<slug>`.
+2. `gh pr create --draft --base main --head story/S-NNN-<slug> --title "S-NNN: <story title>" --body "<body>"`.
+3. PR body:
+   - First line: `Closes #N` (links to the tracking issue; auto-closes it on merge).
+   - One short paragraph: "Implements story S-NNN. Design in `docs/modernization/stories/S-NNN-<slug>.md`."
+   - Acceptance criteria as a markdown checklist (mirrors the issue).
+   - Parity strategy line (filled in after Step 2.5).
+4. Stamp the story frontmatter with `github_pr: <number>` for later resume + review.
+5. If the PR already exists (resumption with `github_pr:` set): verify it's still open + draft via `gh pr view`. Reuse.
+
+### Ready-for-review at done
+
+At Step 7 (after the final commit + push + CI green):
+
+1. `gh pr ready <PR>` — flips draft → ready-for-review. This is the signal to operator + `/modernize-review` that the story is mergeable.
+2. The PR auto-closes the issue on merge (because of `Closes #N` in the body). The skill does **not** merge — operator owns that.
+
+### Fallback when GitHub or branch workflow is unavailable
+
+Symmetric with the issue + CI fallbacks. Skip the branch + PR lifecycle entirely if any of:
+- `gh auth status` fails.
+- `git remote -v` shows no remote.
+- The operator's repo policy is trunk-only (heuristic: no `.github/branch-protection.yml`, no recent PRs; pragmatically — only skip if `gh pr create` fails on first attempt).
+
+In fallback: commit + push directly to whatever branch was checked out (the legacy trunk behavior). Don't stamp `github_pr:` on the frontmatter. Document the fallback in the done report.
+
 ## Commit and push policy (autonomous within this skill)
 
 This skill **commits and pushes autonomously**. The operator pre-authorizes both by invoking `/modernize-implement` — that invocation is the consent. Outside this skill the general "ask before push" rule still applies; inside it, the operator gets a stream of commits + CI runs as the story progresses.
@@ -132,10 +176,10 @@ Push at **work-package boundaries that are locally green** — not after every c
 
 - Commit 1 (red tests): **don't push** — the suite is red on purpose; CI would just confirm the red and burn a run.
 - Commit 2 (DB migration): **push only if it stands alone** (rare); usually batched with the backend slice.
-- Commit 3 (backend slice + tests green): **push.** CI runs server tests + dependency checks.
+- Commit 3 (backend slice + tests green): **first push.** `git push -u origin story/S-NNN-<slug>` → **open the draft PR** per the Feature branch + draft PR lifecycle section. CI runs server tests + dependency checks on the PR.
 - Commit 4 (frontend slice + tests green): **push.** CI runs web tests + e2e.
 - Commit 5 (perf / security final): **push if it touches anything non-trivial.** Empty pass → no push.
-- Commit 6 (status update): **push.** Final.
+- Commit 6 (status update): **push** + `gh pr ready <PR>` to flip draft → ready-for-review. Final.
 
 Between pushes, dispatch the CI watch in the background and continue with the next work-package's coding. The Bash tool's `run_in_background: true` is the mechanism:
 
@@ -195,7 +239,13 @@ Then, **create the GitHub issue** per the GitHub issue lifecycle section above:
 3. If the frontmatter already has `github_issue: N`, verify the issue is still open. State mismatch → escalate per Step 5.
 4. If `gh` is unavailable or the create call fails, skip silently and use the story-ID fallback for commit messages.
 
-**Commit this initial state** (status + issue stamp) with message `#N: start` (or `S-NNN: start` in fallback mode). This is the only commit allowed before Step 2.5's red tests — it captures the "work started" milestone for the audit trail.
+Then, **create the feature branch** per the Feature branch + draft PR lifecycle section above:
+
+1. Bail if `main` is dirty — uncommitted state would leak across the branch boundary.
+2. `git checkout -b story/S-NNN-<slug>` (or `git checkout story/S-NNN-<slug>` if it already exists from a prior partial run).
+3. The draft PR is **not** opened yet — that happens at the first push (after the backend slice is locally green). Opening a draft PR before any code exists is noise.
+
+**Commit this initial state** (status + issue stamp) with message `#N: start` (or `S-NNN: start` in fallback mode) **on the feature branch**. This is the only commit allowed before Step 2.5's red tests — it captures the "work started" milestone for the audit trail.
 
 ### Step 2.5 — Define the parity-verification strategy FIRST, then write the tests
 
@@ -326,6 +376,24 @@ For each, ask the user with a precise, single question. Don't pile up alternativ
 - Performance plan's latency target met (where measurable in test; defer prod measurement to S-111).
 - No regression in previously-done stories.
 
+### Step 6.5 — Reflect conventions in docs (only when something durable changed)
+
+If the story established a pattern others will follow, or surfaced a decision an ADR doesn't yet capture, update the relevant doc. The bar is: *another implementer asks "how do we do X?" tomorrow — is the answer in code + ADRs + conventions?* If not, write the missing line.
+
+**Update — when:**
+- **A new pattern others will mirror** (tenant-scoped read, Signal Store composition, Testcontainers slice setup, validation helper, error-translation shape): add a 2-5 line entry to `next/server/CONVENTIONS.md` or `next/web/CONVENTIONS.md` (create if missing). Cite the canonical example by `file:line` — don't paraphrase the code.
+- **An ADR's intent shifted** (implementation revealed a corner the ADR didn't cover, or a criterion changed weight): **propose** an ADR amendment in the done report. Don't auto-edit ADRs.
+- **A workflow / operational decision** (new env var, deployment knob, CI gate, secret name): one-liner in `docs/modernization/operations.md` (create if missing).
+
+**Do NOT update:**
+- Anything restating what the code says (controller endpoints, DTO shapes, function signatures — those live in the OpenAPI spec and the source).
+- Per-story changelogs — the git log + story file already capture that.
+- `flsserver/` or `flsweb/` READMEs — legacy is reference-only.
+
+Most S-sized stories: no doc update. Note `(no doc changes)` in the done report and move on.
+
+If doc *was* updated, **commit it as its own work-package** with message `#N: docs — <one-line subject>` (or `S-NNN: docs — …` in fallback) before Step 7's status flip.
+
 ### Step 7 — Update status, final commit + push, close issue, report
 
 Update the story's frontmatter:
@@ -337,17 +405,20 @@ done_at: <ISO date>
 
 **Commit the status update** with message `#N: mark done` and body `Closes #N` (in fallback mode without GitHub: `S-NNN: mark done`, no `Closes` keyword). **Push.** Watch the final CI run; if it goes green, proceed; if it goes red, fall into the CI-failure-handling section before reporting done.
 
-**Verify issue closure** (if GitHub is configured):
+**Mark the PR ready-for-review** (if GitHub is configured):
 
-1. After the final push lands on the default branch, `gh issue view N --json state` should show `CLOSED` (auto-close fired on the `Closes #N` keyword).
-2. If still `OPEN` (e.g. the branch hasn't merged yet because the repo uses a PR workflow), close manually: `gh issue close N`.
-3. Apply the `status/done` label if it exists: `gh issue edit N --add-label status/done --remove-label status/in-progress`.
-4. Post the final summary comment per the GitHub issue lifecycle section (parity layer used, commit count, CI run outcomes).
+1. `gh pr ready <PR>` — flips draft → ready-for-review. This is the signal that the story is now eligible for `/modernize-review`.
+2. Apply the `status/done` label on the tracking issue if it exists: `gh issue edit N --add-label status/done --remove-label status/in-progress`. The issue stays **open** until the operator merges the PR — `Closes #N` only fires on merge.
+3. Post the final summary comment on the issue (parity layer used, commit count, CI run outcomes, PR URL).
+
+In fallback mode (no GitHub / no PR): close the issue manually with `gh issue close N` if `gh` is available; otherwise skip.
 
 Print to the user:
 
 - Story ID + title.
-- **GitHub issue:** `#N` + URL + final state (CLOSED). In fallback mode: `(no GitHub issue — local commits only; reason: <gh unavailable / no remote / etc.>)`.
+- **Branch:** `story/S-NNN-<slug>`. In fallback mode: `(trunk — no feature branch; reason: <gh unavailable / no remote / pr-create failed>)`.
+- **GitHub issue:** `#N` + URL + state (typically still `OPEN` — closes on PR merge). In fallback mode: `(no GitHub issue — local commits only; reason: <…>)`.
+- **GitHub PR:** `#M` + URL + state (`READY_FOR_REVIEW`). Operator action: review (`/modernize-review S-NNN`) then merge. In fallback mode: `(no PR — commits pushed directly to current branch)`.
 - **Parity strategy used:** which layer (e2e / API integration / unit), with one-sentence rationale. If you dropped below e2e, *why* the higher layer was infeasible. If the story is greenfield (no parity oracle), state that.
 - **Commits made:** count + the title of each (one line each, prefixed with `#N` or `S-NNN`). Reader scans this in a few seconds to see the story's logical decomposition.
 - **CI runs:** count + outcomes (`run-id: status`). If any required a fix-commit, name it.
@@ -359,7 +430,9 @@ Print to the user:
 - **Specialist consults made (if any):** which agent, what fork, what recommendation, whether the recommendation was followed. The operator may want to fold recurring forks back into the refinement template.
 - **Parallel sub-agents used (if any):** what split (e.g. backend / frontend / e2e), wall-clock saved (approx).
 - **CI / push fallback used (if any):** when CI wasn't configured / `gh` not installed / no remote, document that commits are local-only and the operator picks up.
-- Suggested next action: `/modernize-refine <next-S-id>` from `_ORDER.md`.
+- **Doc updates:** which conventions / ops docs were touched (with commit ref), or `(no doc changes)` if the story didn't establish a durable pattern.
+- **ADR amendments proposed (if any):** which ADR + what shifted + recommended change. Mark explicitly as *proposed* — the operator decides whether to amend. (Surfaced again at `/modernize-finalize` time.)
+- Suggested next action: `/modernize-review S-NNN` — review the story you just implemented. Then `/modernize-rework` (if findings) → `/modernize-finalize` (to merge). Refining the *next* story (`/modernize-refine <next-S-id>`) waits until this one is merged.
 
 ## Quality bar
 
@@ -379,13 +452,19 @@ Print to the user:
 - **Update status atomically.** `in_progress` at the start, `done` at the end. No half-states.
 - **Parallel sub-agents on disjoint paths only.** Same-file conflicts between sub-agents are silent failures.
 - **Specialist consults are read-only and one-shot.** No code-writing specialists; no chained consults.
+- **One feature branch per story.** `story/S-NNN-<slug>`, branched off `main`. Draft PR opens at first push, flips to ready-for-review at status:done. Trunk-direct commits only in the GitHub-unavailable fallback.
+- **The skill does not merge.** The PR sits ready-for-review for `/modernize-review` and then the operator. Auto-merge is not a feature of this skill.
+- **Code is self-explanatory.** Default to zero comments. Lean on naming, modularization, and structure to communicate intent. Add a comment only when the WHY is non-obvious — a hidden invariant, a workaround for a specific bug, a surprising constraint. Never write comments that restate the WHAT (the code does that), reference the current task / issue ("added for #42"), or paraphrase function names in docstrings. If you feel the urge to comment, first try renaming a variable, extracting a function, or splitting a module.
+- **Docs capture decisions and conventions, not code.** If the story established a pattern others will mirror, add a short entry to the relevant `CONVENTIONS.md` citing the canonical example by `file:line`. If an ADR's intent shifted, propose an amendment in the done report (don't auto-edit). Otherwise no doc changes — most stories don't need any.
 
 ## What this skill does *not* do
 
-- It does not write or modify ADRs.
+- It does not write or modify ADRs. ADR amendments are *proposed* in the done report; the operator decides.
+- It does not document what the code already says. No README sections paraphrasing controller endpoints (the OpenAPI spec does that); no comments restating obvious behavior.
 - It does not split stories or rewrite acceptance criteria. If the story is wrong, stop and escalate.
 - It does not force-push, amend pushed commits, or rewrite history. Mistakes are fixed forward with new commits.
-- It does not push to `main` directly when a feature branch + PR workflow is established for the repo. Without explicit branch convention, push to the current branch.
+- It does not push to `main` directly — story-per-branch is the default workflow. Trunk-direct only in the documented fallback when `gh` is unavailable or `gh pr create` fails.
+- It does not merge PRs. The PR is left ready-for-review; `/modernize-review` runs against it and the operator merges.
 - It does not delete GitHub issues. Mistakes are fixed by reopen + clarifying comment, never `gh issue delete`.
 - It does not transfer issues between repos or move them to GitHub Projects boards. Label-level tracking is the limit; richer project-management is the operator's call.
 - It does not auto-create missing labels. If the labels named in the GitHub-issue-lifecycle policy don't exist in the repo, the issue is created without them — the operator owns the label taxonomy.

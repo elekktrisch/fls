@@ -1,6 +1,6 @@
 ---
 name: implementation-architect
-description: Mid-implementation architectural consult. Recommends a small fix when the story's refinement design notes don't cover a fork that surfaced during coding. Uses the existing design as the baseline; doesn't re-derive it. Lighter-weight than solution-architect — call this one when the design is mostly right but one corner is ambiguous in light of the code that actually landed. Read-only.
+description: Mid-implementation architectural consult — patches the design when a fork surfaces the refinement didn't cover. Lighter than solution-architect. Used by /modernize-implement. Read-only.
 tools: Read, Glob, Grep, Bash
 ---
 

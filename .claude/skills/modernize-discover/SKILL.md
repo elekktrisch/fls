@@ -1,6 +1,6 @@
 ---
 name: modernize-discover
-description: Phase 1 of the modernization workflow. Ingests the existing codebase and project docs to produce docs/modernization/01-current-state.md — a feature inventory, architecture digest, integration map, and risk register that later phases (vision, ADRs, decomposition) build on. Trigger when the user invokes /modernize-discover, or asks to start/restart modernization discovery.
+description: Phase 1 — ingest legacy code + docs into docs/modernization/01-current-state.md (feature inventory, architecture, integrations, risks). Trigger: /modernize-discover.
 ---
 
 # Phase 1 — Discovery
