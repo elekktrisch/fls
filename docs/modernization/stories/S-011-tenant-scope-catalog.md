@@ -2,7 +2,9 @@
 id: S-011
 title: Catalog tenant-scoped vs cross-tenant entities
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-15
+github_issue: 17
 depends_on: [S-010]
 acceptance:
   - A reference doc `next/database/tenant-catalog.md` lists every entity in two columns: tenant-scoped (carries `club_id`) vs. cross-tenant (no `club_id`).
@@ -399,4 +401,14 @@ These specialists' analyses surfaced operator-decision points; the skill does no
 5. **Public-flow allowlist table name.** Architect's `public_flow_club` vs. security's `club_public_slug`. Functionally identical. Minor; pick at implement time. Surfaced for completeness.
 
 <!-- modernize-refine: end -->
+
+## Assumptions made (implement-time, 2026-05-15)
+
+Operator decisions on the refinement's 5 open design questions:
+
+1. **Catalog shape: hybrid** (Q1) — slim MD narrative + committed `tenant-rules.yaml` overrides + extractor-emitted `tenant-classification.json` (ephemeral, gitignored). Architect's recommended reshape away from AC1's literal 2-column MD. Matches S-010's "re-runnable tooling > frozen MD" precedent.
+2. **Drift-control: build-time `@Entity` reflection check** (Q3) — S-011 declares the contract (machine-readable JSON shape + closed-vocabulary bucket values); S-022 implements the reflection check that asserts every `@Entity` has a catalog entry and vice versa. Failures are deterministic + actionable.
+3. **Catalog naming: dual columns** (Q4) — every catalog row carries both `legacy_table` (matches S-010 extractor output) and `target_entity` (next-system Java entity name). S-016 (migration) consumes `legacy_table`; S-022 (annotations) consumes `target_entity`.
+4. **Tenant-id column type: `Long`** (Q2) — performance-engineer's recommendation (8-byte index entries, clean PK semantics, matches legacy `bigint ClubId`). Pinned here as the catalog's documented choice; S-022 implements. Operator can override at S-022 implement time if a UUID-driven cross-instance argument emerges.
+5. **Public-flow allowlist table name: `public_flow_club`** (Q5) — architect's preferred name (matches the `<feature>_<entity>` convention used by the modernized schema). Functionally identical to security's `club_public_slug` alternative.
 
