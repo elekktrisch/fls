@@ -98,6 +98,8 @@ public class MetadataExtractor {
         emitted.add(runStep(config, "sql/metadata/triggers.sql", "triggers.json", false));
         emitted.add(runStep(config, "sql/metadata/identity-columns.sql", "identity-columns.json", false));
 
+        emitted.add(emitTenantClassification(config));
+
         if (config.allowAggregateCounts()) {
             emitted.add(runStep(config, "sql/aggregate/row-counts.sql", "row-counts.json", true));
             emitted.add(runStep(config, "sql/aggregate/storage-stats.sql", "storage-stats.json", true));
@@ -326,6 +328,66 @@ public class MetadataExtractor {
         wrapper.put("budget_seconds", budget);
         wrapper.put("top_tables", top);
         return writeJson(config.outDir().resolve("cutover-window.json"), wrapper);
+    }
+
+    /**
+     * S-011 tenant-scope classification. Re-reads the just-emitted tables /
+     * columns / fks JSON, applies the {@code tenant-rules.yaml} overrides, and
+     * writes {@code tenant-classification.json} with one entry per legacy
+     * table. Consumers: S-022 (annotations), S-023 (unscoped contexts), S-024
+     * (leakage CI), S-025 (public-flow resolver).
+     */
+    private Path emitTenantClassification(ExtractConfig config) {
+        try {
+            var tablesJson = json.readTree(config.outDir().resolve("tables.json").toFile());
+            var columnsJson = json.readTree(config.outDir().resolve("columns.json").toFile());
+            var fksJson = json.readTree(config.outDir().resolve("fks.json").toFile());
+            var rulesYaml = ch.fls.legacyextract.tenant.TenantClassifier.loadRules(locateTenantRulesYaml());
+
+            var entries = ch.fls.legacyextract.tenant.TenantClassifier.classify(
+                    tablesJson, columnsJson, fksJson, rulesYaml);
+
+            var wrapper = new LinkedHashMap<String, Object>();
+            wrapper.put("version", 1);
+            wrapper.put("generated_at", java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now()));
+            wrapper.put("tenant_id_type",
+                    rulesYaml != null ? rulesYaml.path("tenant_id_type").asText("Long") : "Long");
+            wrapper.put("hibernate_pin",
+                    rulesYaml != null ? rulesYaml.path("hibernate_pin").asText("6.x") : "6.x");
+            wrapper.put("entities", entries);
+            // Surface the unscoped call sites + public-flow allowlist verbatim
+            // so S-023 / S-025 don't need to re-read the YAML.
+            if (rulesYaml != null) {
+                if (rulesYaml.has("public_flow_allowlist")) {
+                    wrapper.put("public_flow_allowlist", rulesYaml.get("public_flow_allowlist"));
+                }
+                if (rulesYaml.has("unscoped_call_sites")) {
+                    wrapper.put("unscoped_call_sites", rulesYaml.get("unscoped_call_sites"));
+                }
+            }
+            return writeJson(config.outDir().resolve("tenant-classification.json"), wrapper);
+        } catch (IOException e) {
+            throw new IllegalStateException("could not emit tenant-classification.json", e);
+        }
+    }
+
+    /**
+     * Locate {@code next/database/tenant-rules.yaml} relative to the current
+     * working directory. The extractor runs from
+     * {@code next/database/extract/}, so the rules file is at {@code ../}.
+     * Walk up to make the locator robust to test working-directory choice.
+     */
+    private static Path locateTenantRulesYaml() {
+        Path cursor = Path.of(".").toAbsolutePath().normalize();
+        for (int i = 0; i < 6; i++) {
+            Path candidate = cursor.resolve("next/database/tenant-rules.yaml");
+            if (Files.exists(candidate)) {
+                return candidate;
+            }
+            cursor = cursor.getParent();
+            if (cursor == null) break;
+        }
+        return null;
     }
 
     private Path emitAuditLogSizing(ExtractConfig config) {

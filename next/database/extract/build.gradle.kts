@@ -24,6 +24,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("com.microsoft.sqlserver:mssql-jdbc:12.10.0.jre11")
     implementation("com.fasterxml.jackson.module:jackson-module-parameter-names")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     // No Testcontainers — the bundled docker-java hardcodes Docker REST API
