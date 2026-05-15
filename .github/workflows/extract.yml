@@ -1,0 +1,61 @@
+name: extract
+
+# Scoped to next/database/extract/ (the FLS legacy SQL Server metadata
+# extractor — see the module README). Kept separate from ci.yml so changes
+# to this subtree don't trigger the expensive legacy-e2e lane.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'next/database/extract/**'
+      - '.github/workflows/extract.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'next/database/extract/**'
+      - '.github/workflows/extract.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: extract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build + test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Pre-pull SQL Server image
+        # docker pull is the slowest step in the integration test (~700MB
+        # image); pulling here lets ./gradlew test re-use the cached layer.
+        run: docker pull mcr.microsoft.com/mssql/server:2022-latest
+
+      - name: Build + test
+        working-directory: next/database/extract
+        # The integration test spins up SQL Server via the `docker` CLI
+        # directly (sandbox API negotiation limitation — see module README's
+        # "Why not Testcontainers" section). GitHub Actions runners ship
+        # Docker, so this runs natively.
+        run: ./gradlew build --no-daemon
+
+      - name: Upload test report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extract-test-report
+          path: next/database/extract/build/reports/tests/test
+          retention-days: 7
+          if-no-files-found: ignore

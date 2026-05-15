@@ -1,10 +1,8 @@
-# JetBrains workspace state (the .idea/.gitignore controls finer-grained excludes)
-.idea/workspace.xml
-.idea/shelf/
-.idea/httpRequests/
-.idea/queries/
-.idea/dataSources/
-.idea/dataSources.local.xml
+# JetBrains — ignore the whole .idea folder + every .iml. Files currently
+# tracked under .idea/ stay tracked (gitignore doesn't retroactively apply);
+# run `git rm --cached -r .idea/ '*.iml'` to untrack them if desired.
+.idea/
+*.iml
 
 # OS junk
 .DS_Store
