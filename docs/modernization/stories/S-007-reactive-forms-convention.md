@@ -6,7 +6,7 @@ status: todo
 depends_on: [S-002, S-004]
 acceptance:
   - A reference form (e.g. `HelloEditForm`) demonstrates typed Reactive Forms (`FormGroup<{...}>`), control-level validation messages, async validators, submit-disabled state.
-  - Conventions are documented: validation lives in form definitions (not in components); error rendering is via a reusable `<fls-field-errors>` component.
+  - Conventions are documented: validation lives in form definitions (not in components); error rendering is via a reusable `<fls-field-errors>` component (lives at `next/web/src/app/shared/ui/molecules/field-errors/` per atomic-design layout in `next/web/CLAUDE.md` §1).
   - The reference form integrates with the generated API client from S-004 — submitted values are typed against the generated DTO.
   - A pattern for "edit" vs. "create" modes (single form, two routes) is documented.
 estimate: S
