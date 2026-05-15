@@ -1,5 +1,9 @@
 # Flight Logging System (FLS)
 
+[![e2e](https://github.com/elekktrisch/fls/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/elekktrisch/fls/actions/workflows/e2e.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](flsserver/LICENSE)
+[![modernization](https://img.shields.io/badge/modernization-planning%20complete-blue)](docs/modernization/)
+
 A multi-tenant system for managing glider and motor flight operations — reservations, flight logging, planning, accounting/invoicing exports, and email workflows.
 
 This repository bundles the two independently-versioned components plus an end-to-end test harness that boots both via docker-compose.
