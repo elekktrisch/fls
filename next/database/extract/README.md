@@ -143,6 +143,27 @@ path. Rather than carry the workaround indefinitely, the test infra drives
 the container lifecycle through the `docker` CLI directly — the CLI does
 its own version negotiation and works against any modern daemon.
 
+### Running the tests locally — Docker is required
+
+The integration test class is gated by `@EnabledIf("dockerAvailable")`. If
+the `docker` CLI can't reach a running daemon when the test class is
+loaded, every test is **skipped** (not failed) and you'll see a multi-line
+diagnostic on stderr.
+
+- **Windows / macOS:** start Docker Desktop, wait for the whale icon to
+  stop spinning. Verify with `docker info` from a fresh shell. If you see
+  `error during connect: ...npipe...dockerDesktopLinuxEngine`, the daemon
+  isn't up yet.
+- **Linux:** `sudo systemctl start docker` (or `service docker start`).
+- **WSL2 on Windows:** either enable "Use the WSL 2 based engine" in
+  Docker Desktop settings (the Windows-side daemon is shared into WSL),
+  or install Docker Engine directly inside the WSL distro.
+
+CI runs Docker natively on `ubuntu-22.04` runners, so PRs are gated on
+real test execution even when a local dev's tests skip. There's no
+substitute test backend — the schema-metadata queries are SQL-Server-
+specific and don't run against H2 / Postgres.
+
 ## Apple Silicon / non-x86
 
 `mcr.microsoft.com/mssql/server` is x86-only. On ARM use

@@ -11,6 +11,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,15 +35,48 @@ import org.springframework.test.context.DynamicPropertySource;
  * negotiates only 1.32. Driving via {@code docker} CLI bypasses that.
  */
 @SpringBootTest(properties = "extract.run-on-startup=false")
+@EnabledIf(value = "dockerAvailable",
+        disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class MetadataExtractorIntegrationTest {
 
     private static final MssqlTestContainerLifecycle MSSQL = new MssqlTestContainerLifecycle();
+    private static final boolean DOCKER_AVAILABLE = tryStartContainer();
 
-    static {
-        // Spring evaluates @DynamicPropertySource before @BeforeAll, so the
-        // container must be live before the class is loaded. Static-init
-        // block runs once per JVM and ahead of all other lifecycle hooks.
-        MSSQL.start();
+    /**
+     * Spring evaluates {@code @DynamicPropertySource} before {@code @BeforeAll},
+     * so the container must be live before the class is loaded. The static-init
+     * path attempts the start; if Docker isn't reachable (typical for
+     * Windows-without-Docker-Desktop, or any host without a docker daemon),
+     * the test class is disabled cleanly via {@code @EnabledIf} below rather
+     * than failing with {@code ExceptionInInitializerError}.
+     */
+    private static boolean tryStartContainer() {
+        try {
+            MSSQL.start();
+            return true;
+        } catch (Throwable t) {
+            System.err.println("""
+                    [fls-extract] Skipping MetadataExtractorIntegrationTest — Docker unreachable.
+
+                      Root cause: %s
+
+                      To run the integration tests locally you need a working Docker daemon:
+                        - Windows / macOS: start Docker Desktop and wait for the whale icon
+                          to stop spinning. Verify with `docker info` from a fresh shell.
+                        - Linux: `sudo systemctl start docker` (or `service docker start`).
+                        - WSL2 on Windows: enable "Use the WSL 2 based engine" in Docker
+                          Desktop settings, OR install Docker Engine inside the WSL distro.
+
+                      The CI workflow runs Docker natively, so PRs are gated on real test runs
+                      even when local dev skips.
+                    """.formatted(t.getMessage()));
+            return false;
+        }
+    }
+
+    /** Predicate target for {@link EnabledIf}. */
+    static boolean dockerAvailable() {
+        return DOCKER_AVAILABLE;
     }
 
     @AfterAll
