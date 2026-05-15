@@ -1,15 +1,15 @@
 ---
 name: modernize-review
-description: Phase 7 — review one implemented story across 3 streams: maintainability, security, usability via specialist subagents. Synthesizes into a ## Review section; files issues for blockers. Trigger: /modernize-review S-NNN.
+description: Phase 7 — review one implemented story across 4 streams: maintainability, security, usability, parity via specialist subagents. Synthesizes into a ## Review section; files issues for blockers. Trigger: /modernize-review S-NNN.
 ---
 
 # Phase 7 — Story Review (post-implement)
 
-You are running phase 7 of the modernization workflow. Your job is to take **one** just-implemented story (S-NNN) and produce an honest, actionable review of the code it landed — primarily focused on **maintainability**, secondarily on **security** and **usability**.
+You are running phase 7 of the modernization workflow. Your job is to take **one** just-implemented story (S-NNN) and produce an honest, actionable review of the code it landed — primarily focused on **maintainability** and **parity** (the two dimensions that determine whether the rewrite is delivering on its reason for being), secondarily on **security** and **usability**.
 
-The implement phase optimized for getting tests green and the story `done`. Review is the deliberate second pass that asks the questions implementation pressure suppresses: is this code something the team will want to extend a year from now? did the security plan actually land in the code, or just in the design notes? is the user-facing surface internally consistent with what already exists?
+The implement phase optimized for getting tests green and the story `done`. Review is the deliberate second pass that asks the questions implementation pressure suppresses: is this code something the team will want to extend a year from now? does the new behavior actually match the legacy oracle (not just "tests pass" — does the *oracle* itself hold up)? did the security plan actually land in the code, or just in the design notes? is the user-facing surface internally consistent with what already exists?
 
-**Anchored on the PR when one exists.** The implement skill leaves a ready-for-review PR per story. This skill operates against that PR's diff: runs three specialist subagents in parallel, synthesizes findings into the story file. The PR is also where the operator merges from after blockers clear. For legacy / fallback stories without a PR, the skill falls back to commit-range mode.
+**Anchored on the PR when one exists.** The implement skill leaves a ready-for-review PR per story. This skill operates against that PR's diff: runs four specialist subagents in parallel, synthesizes findings into the story file. The PR is also where the operator merges from after blockers clear. For legacy / fallback stories without a PR, the skill falls back to commit-range mode.
 
 Review is **just-in-time, not batch** — never review more than one story per invocation. Stale review is worse than no review. Most stories will be reviewed once and the findings either merged or rejected by the operator.
 
@@ -59,11 +59,12 @@ A version pin that has since been deprecated or a deprecated API used in the dif
 
 Skip libraries the diff doesn't touch. Don't fetch generic programming docs.
 
-### Step 2 — Spawn the three reviewers in parallel
+### Step 2 — Spawn the four reviewers in parallel
 
-Launch all three subagents in a single message with three Agent tool calls:
+Launch all four subagents in a single message with four Agent tool calls:
 
 - `maintainability-reviewer` — primary focus. Code clarity, layering adherence, naming, duplication, test depth, dead code, dependency hygiene, ADR conformance, migration safety, comment / doc quality.
+- `parity-reviewer` — does the new-stack behavior match the legacy oracle for the parity-relevant flows? Tests anchored on behavior (not legacy URL shape)? Fixtures derived from legacy (not invented)? Deliberate drift documented? Degrades gracefully (returns `(N/A — <reason>)`) when no oracle exists (greenfield stories, pre-harness phase).
 - `security-reviewer` — did the security plan land? `@PreAuthorize` annotations, tenant gates, input validation, audit events, PII handling, secrets, OWASP applicability gaps.
 - `usability-reviewer` — UI consistency, i18n key coverage (no hardcoded strings), loading / empty / error states, accessibility basics (labels, ARIA, keyboard), responsive behavior, error-message clarity, parity-of-feel with surrounding components.
 
@@ -71,11 +72,12 @@ Each subagent's prompt **must include**:
 - The absolute path to the story file.
 - The absolute paths to ADRs in `adr_refs`.
 - The diff range (commit SHAs) + a short list of changed file paths. In PR mode also include the PR number + URL so reviewers can cite line-anchored findings the operator can click through to.
-- The absolute path to the relevant refinement section the reviewer should treat as the contract (Design notes for maintainability, Security plan for security, Design notes + Test plan for usability since there's no dedicated UX section).
+- The absolute path to the relevant refinement section the reviewer should treat as the contract (Design notes for maintainability, Test plan + `parity_test` frontmatter for parity, Security plan for security, Design notes + Test plan for usability since there's no dedicated UX section).
+- The value of `parity_test` frontmatter (for the parity-reviewer specifically — names the behavior oracle the diff was built against, if any).
 - A reminder of project context — multi-tenancy by `@TenantId`, sacred cows in `00-seed.md`, the `next/server/` + `next/web/` layout, German default locale.
 - The agent's output format (specified in each agent's system prompt; call it out so the synthesis step is mechanical).
 
-Send the three Agent calls in **one message** so they run concurrently. Each returns a markdown blob with findings categorized blocker / improvement / nudge.
+Send the four Agent calls in **one message** so they run concurrently. Each returns a markdown blob with findings categorized blocker / improvement / nudge.
 
 ### Step 3 — Synthesize, don't re-decide
 
@@ -83,9 +85,11 @@ The three outputs are inputs, not drafts. You compose them into the story file's
 
 **Severity rubric (apply when synthesizing — don't let reviewers downgrade their own findings):**
 
-- **blocker** — the implementation breaks a refinement contract, an ADR, a sacred cow, or a security invariant. Examples: missing `@PreAuthorize` on a mutating endpoint; cross-tenant query without `@TenantId`; an acceptance criterion has no passing test; a Flyway migration is destructive without rollback. Blockers must be fixed before the story is considered shipped.
-- **improvement** — code works and honors the contract but the next maintainer will pay a tax. Examples: function-length, naming clarity, duplicated helper, missing i18n key, test that exercises the wrong layer, dependency added without justification, a comment that explains the what instead of the why.
-- **nudge** — minor / cosmetic / situational. Examples: opportunity to extract a helper that *might* pay off later, a marginally-clearer error message, a UX micro-polish. Operator can ignore without owing anyone an explanation.
+- **blocker** — the implementation breaks a refinement contract, an ADR, a sacred cow, a security invariant, or a parity invariant. Examples: missing `@PreAuthorize` on a mutating endpoint; cross-tenant query without `@TenantId`; an acceptance criterion has no passing test; a Flyway migration is destructive without rollback; **silent behavioral divergence from the legacy oracle on a parity-relevant flow**; a parity test that pins legacy URL shape instead of asserting behavior on a load-bearing parity claim. Blockers must be fixed before the story is considered shipped.
+- **improvement** — code works and honors the contract but the next maintainer will pay a tax. Examples: function-length, naming clarity, duplicated helper, missing i18n key, test that exercises the wrong layer, dependency added without justification, a comment that explains the what instead of the why, a parity test at unit-level when API-level was feasible.
+- **nudge** — minor / cosmetic / situational. Examples: opportunity to extract a helper that *might* pay off later, a marginally-clearer error message, a UX micro-polish, an extra parity scenario worth adding. Operator can ignore without owing anyone an explanation.
+
+**Parity-specific N/A handling:** the parity-reviewer returns `(N/A — <reason>)` when no behavior oracle exists for the story (greenfield, or pre-harness phase). Preserve the N/A note in the synthesized `### Parity` section verbatim — do not invent findings to fill it. The N/A is itself useful information for the operator: it documents that the story's parity claim is unverified, and links forward to the harness story that will eventually close the gap.
 
 **Conflict resolution:**
 - If two reviewers' findings overlap, merge them into one finding at the higher severity, cross-referenced. Specialists agreeing on the same line is the highest-signal pattern in the review.
@@ -105,6 +109,12 @@ Append (or replace, if already present) a single `## Review` section **after the
 
 ### Maintainability
 - **[blocker]** <one-line finding> — `<path>:<line>`. <one-sentence why-it-matters>. **Fix:** <one-line action>.
+- **[improvement]** ...
+- **[nudge]** ...
+
+### Parity
+**Oracle:** <name of fixture / harness / golden-file set used, or `(N/A — <reason>)`>
+- **[blocker]** ...
 - **[improvement]** ...
 - **[nudge]** ...
 
@@ -134,9 +144,10 @@ Add or update:
 reviewed: true
 reviewed_at: <today's date, ISO>
 review_outcome: <pass | blockers | improvements-only>
-review_blockers: <count>
+review_blockers: <count>                # total across all four dimensions
 review_improvements: <count>
 review_nudges: <count>
+review_parity_oracle: <one-line name of oracle used, or `N/A — <reason>`>
 ```
 
 `review_outcome`:
@@ -168,7 +179,7 @@ Print to the user:
 - Story ID + title.
 - **PR / diff reviewed:** PR number + URL (or SHA range in commit-only mode), commit count, file count, line-delta (+/-).
 - **Outcome:** `pass` / `blockers` / `improvements-only` — bold.
-- **Findings counts** by dimension × severity (compact form: `maintainability: 1B/3I/2N · security: 0B/1I/0N · usability: 0B/2I/1N`).
+- **Findings counts** by dimension × severity (compact form: `maintainability: 1B/3I/2N · parity: 0B/1I/0N (oracle: e2e/parity/flight-create) · security: 0B/1I/0N · usability: 0B/2I/1N`). For parity, include the oracle name (or `N/A — <reason>`) inline.
 - **Blockers** (full list, one line each with path + which reviewer flagged it) — these need resolution before the story merges.
 - **GitHub issues filed** for blockers: numbers + URLs. In fallback mode: "no GitHub — file these manually: <list>".
 - **Top 3 improvements** worth surfacing in conversation even though they live in the story file.
@@ -182,13 +193,14 @@ Print to the user:
 
 - **One story per invocation.** Batching is forbidden.
 - **Context7 freshness pass before reviewers.** Every library / framework / SDK / API the diff touches gets its current docs fetched via Context7 (Step 1.5) and the facts handed to each reviewer. Subagents have no Context7 access — front-loading is the only way to catch deprecated APIs and dead version pins.
-- **Three reviewers, one parallel batch.** Sequential spawning wastes wall-clock.
+- **Four reviewers, one parallel batch.** Sequential spawning wastes wall-clock.
 - **Anchor on the PR when available.** PR mode gives line-anchored cite-by-link in findings + a clean merge gate. Commit-only mode is the documented fallback when no PR exists.
 - **Review against the contract, not against taste.** A reviewer who flags "I'd have named this differently" is wasting the operator's time. Flag what the refinement promised vs. what the code shipped.
 - **Severity discipline.** Blocker = contract / ADR / invariant break, not "smells off." If you can't name what was broken, it's not a blocker.
 - **Synthesis is mechanical, not editorial.** The reviewers own the findings; you own the layout. Don't paraphrase a blocker into an improvement to keep the outcome optimistic.
 - **Replace, don't append, on re-run.** Reviewing twice should not double the file.
-- **Maintainability is the headline.** When the three dimensions disagree about which finding leads, maintainability wins. The vision (`02-vision-and-constraints.md`) treats long-term maintainability as the rewrite's reason-for-being; review reflects that priority.
+- **Maintainability and parity are the headlines.** When the four dimensions disagree about which finding leads, choose maintainability when the finding is about *long-term cost of ownership*, parity when the finding is about *whether the rewrite delivered the legacy behavior*. The vision (`02-vision-and-constraints.md`) treats long-term maintainability + behavior preservation as the rewrite's twin reasons-for-being; review reflects that priority.
+- **Parity-N/A is a finding shape, not a free pass.** If the parity-reviewer returns `(N/A — <reason>)`, preserve the reason in the section and in the `review_parity_oracle` frontmatter. A parity claim a reviewer couldn't verify is still an unverified claim — the operator should know.
 - **Blockers get issues; lesser findings don't.** Resist the urge to file an issue per finding — the story file is the right home for non-blocking work.
 - **Don't review what wasn't built.** If the diff is empty for the usability dimension (pure backend story), say "(N/A — no UI changes)" and move on. Don't invent findings to fill the section.
 
