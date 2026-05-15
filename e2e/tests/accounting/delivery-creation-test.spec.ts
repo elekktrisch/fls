@@ -36,7 +36,7 @@
 // the generated items table.
 
 import { expect, gotoRoute, screenshot, test } from '../../fixtures';
-import type { Page } from '@playwright/test';
+import type { APIResponse, Page } from '@playwright/test';
 
 import { testId } from '../../test-id';
 import { ensureGliderFlight, getBearerToken } from '../../test-data';
@@ -51,13 +51,29 @@ test('delivery-creation-test: generateExampleDelivery preview returns a Delivery
     comment: id.name,
   });
 
-  const res = await loggedInPage.request.get(
-    `${API_BASE}/api/v1/deliverycreationtests/testdeliveryforflight/${HISTORICAL_FLIGHT_ID}`,
-    { headers: { Authorization: `Bearer ${token}` } },
-  );
+  // Poll the rules-engine preview: under workers:6 contention, the first
+  // call can return MatchedAccountingRuleFilterIds populated but the
+  // CreatedDeliveryDetails.DeliveryItems list still empty — the rules
+  // engine has matched its filters but a downstream EF read in
+  // DeliveryService hasn't yet seen the items it just persisted to the
+  // session. The endpoint is idempotent (read-only preview), so a short
+  // re-probe gives a consistent snapshot. Stop as soon as we see either
+  // a no-match outcome (legitimately empty) or matched-with-items.
+  let res!: APIResponse;
+  let result: any;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    res = await loggedInPage.request.get(
+      `${API_BASE}/api/v1/deliverycreationtests/testdeliveryforflight/${HISTORICAL_FLIGHT_ID}`,
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 30_000 },
+    );
+    if (!res.ok()) break;
+    result = await res.json();
+    const matched = (result.MatchedAccountingRuleFilterIds as unknown[]).length;
+    const items = result.CreatedDeliveryDetails?.DeliveryItems as unknown[] | undefined;
+    if (matched === 0 || !result.CreatedDeliveryDetails || (items && items.length > 0)) break;
+    await new Promise(r => setTimeout(r, 300 * attempt));
+  }
   expect(res.ok(), `GET testdeliveryforflight -> ${res.status()}: ${await res.text()}`).toBeTruthy();
-
-  const result = await res.json();
 
   // Shape assertions against DeliveryCreationResult DTO
   // (FLS.Data.WebApi/Accounting/Testing/DeliveryCreationResult.cs).
