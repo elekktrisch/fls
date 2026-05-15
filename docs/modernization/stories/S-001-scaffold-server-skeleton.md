@@ -2,8 +2,9 @@
 id: S-001
 title: Scaffold next/server/ Spring Boot skeleton
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-15
+done_at: 2026-05-15
 github_issue: 1
 depends_on: []
 acceptance:
