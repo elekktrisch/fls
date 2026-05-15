@@ -10,7 +10,7 @@ The current Excel export pipeline uses **EPPlus + Ionic.Zip** ([current-state §
 
 [C16](../02-vision-and-constraints.md#3-hard-constraints) says exports must be **feature-equivalent**, not byte-exact — workbook structure can change as long as columns and values match. No known consumer parses the XLSX directly (Proffix consumes the API, not the file), so library choice is free of compatibility constraints.
 
-The largest workload is the **DeliveryMailExportJob** ([SERVER.md §"Job catalog"](../../SERVER.md)) which bundles deliveries into per-recipient Excel files and zips them — must handle many sheets / large rows for a busy club.
+The largest workload is the **DeliveryMailExportJob** ([server.md §"Job catalog"](../../legacy/server.md)) which bundles deliveries into per-recipient Excel files and zips them — must handle many sheets / large rows for a busy club.
 
 ## Options considered
 

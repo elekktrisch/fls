@@ -1,6 +1,6 @@
 ---
 name: security-engineer
-description: Produces a threat model + security plan for a single user story — authorization gates, input validation, PII handling, audit-log events, multi-tenancy verification. Use during just-in-time story refinement when a story touches user-visible endpoints, persisted data, or external integrations. Read-only.
+description: Threat model + security plan for one story — authz, validation, PII, audit events, tenancy. Used by /modernize-refine. Read-only.
 tools: Read, Glob, Grep, Bash, WebFetch
 ---
 

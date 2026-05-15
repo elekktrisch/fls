@@ -65,7 +65,7 @@ codebase, the new path is in the right column.
    `TEST_WRITING.md §4`.
 2. **Modal-driven flows.** No `data-testid` contract for modals yet.
    Lean on `getByRole` / `getByLabel`, or extend `SELECTORS.md`.
-3. **Rule precedence (#21, #23, #32).** `SERVER.md` flags as an open
+3. **Rule precedence (#21, #23, #32).** `../docs/legacy/server.md` flags as an open
    question how multiple matching `Recipient` rules combine
    (first-wins? last-wins?). Specs should pin the observed behavior.
 4. **Mono + SQL Server ceiling.** `workers: 6` is the empirical max

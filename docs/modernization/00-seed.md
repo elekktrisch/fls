@@ -12,8 +12,8 @@ The Flight Logging System (FLS), a multi-tenant SaaS for glider and motor flight
 The existing docs at the repo root are authoritative reading before any phase runs:
 
 - [`CLAUDE.md`](../../CLAUDE.md) — repo overview, build commands, project layout.
-- [`SERVER.md`](../../SERVER.md) — server mental model: workflow-via-HTTP+cron, two-dim flight state machine, rules engine, multi-tenancy convention, user/person split.
-- [`CLIENT.md`](../../CLIENT.md) — client mental model: ngRoute resolve-guard auth, `$http.defaults` token attachment, per-action cache invalidation, feature module map.
+- [`../legacy/server.md`](../legacy/server.md) — server mental model: workflow-via-HTTP+cron, two-dim flight state machine, rules engine, multi-tenancy convention, user/person split.
+- [`../legacy/web.md`](../legacy/web.md) — client mental model: ngRoute resolve-guard auth, `$http.defaults` token attachment, per-action cache invalidation, feature module map.
 - [`TESTING.md`](../../TESTING.md) — Playwright e2e harness; the e2e suite is the most reliable feature inventory available.
 
 ## Strategic anchors (do not re-litigate)
@@ -51,9 +51,9 @@ Each of these is an ADR, not an anchor. The workflow surfaces tradeoffs and the 
 If any of these break, the rewrite is a failed rewrite. The workflow treats them as constraints that ADRs must respect.
 
 - **Multi-tenancy.** Every domain entity carries a `ClubId`. Tenant isolation is currently enforced by convention (`CurrentAuthenticatedFLSUserClubId` on every query). The new system must enforce this *structurally* (row-level security, schema-per-tenant, query-level guard, etc.) — convention-only is no longer acceptable.
-- **The flight state machine.** Two-dimensional: `FlightAirState` (computed from timestamps) × `FlightProcessState` (workflow-driven, transitions per `SERVER.md` §2). The new system must preserve the process states and their time-gating semantics (≥2 days to lock, ≥3 days to bill).
+- **The flight state machine.** Two-dimensional: `FlightAirState` (computed from timestamps) × `FlightProcessState` (workflow-driven, transitions per `../legacy/server.md` §2). The new system must preserve the process states and their time-gating semantics (≥2 days to lock, ≥3 days to bill).
 - **User / Person separation.** Login principal (`User`, one `ClubId`) is distinct from human (`Person`, can be member of multiple clubs via `PersonClub`). The new system must keep this split — collapsing them breaks pilot rosters at multi-club sites.
-- **Accounting rules engine.** The decrement-loop pipeline described in `SERVER.md` §3 (`FlightTime` rules iteratively consume `ActiveFlightTime` and emit `DeliveryItem`s). Customers configure this; behavior must be bit-exact or migration breaks every invoice. `DeliveryCreationTest` (the regression harness) is how parity gets validated.
+- **Accounting rules engine.** The decrement-loop pipeline described in `../legacy/server.md` §3 (`FlightTime` rules iteratively consume `ActiveFlightTime` and emit `DeliveryItem`s). Customers configure this; behavior must be bit-exact or migration breaks every invoice. `DeliveryCreationTest` (the regression harness) is how parity gets validated.
 - **OGN integration.** Inbound flights from the [OGNAnalyser](https://github.com/sgacond/OGNAnalyser) project are written directly to the DB. The new system must accept the same inbound contract or the OGN side must be replaced too.
 - **Proffix integration.** Outbound deliveries are consumed by [PROFFIX-FLS-Sync](https://github.com/arminstutz/PROFFIX-FLS-Sync) via the public API. Either the new system serves a compatible API or Proffix sync gets rebuilt.
 

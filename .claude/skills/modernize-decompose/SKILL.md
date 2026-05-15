@@ -1,6 +1,6 @@
 ---
 name: modernize-decompose
-description: Phase 4 of the modernization workflow. Decomposes the rewrite into epics, stories, and tasks based on the current-state feature inventory, vision, and ADRs. Writes docs/modernization/epics/E-NN-*.md and stories/S-NN-*.md with dependency metadata. Trigger when the user invokes /modernize-decompose, after phases 1, 2, and 3 are complete.
+description: Phase 4 — decompose the rewrite into epics + stories with dependency metadata under docs/modernization/{epics,stories}/. Trigger: /modernize-decompose (after phases 1-3).
 ---
 
 # Phase 4 — Epic & Story Decomposition

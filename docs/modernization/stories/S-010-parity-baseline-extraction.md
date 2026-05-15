@@ -448,7 +448,7 @@ The earlier "FLSTest acceptable as stand-in" fallback is now **structurally OK, 
 
 - N/A — script-level guardrails only.
 - **`--allow-prod` flag operationally significant at scale.** Runbook entry mandatory before running:
-  1. Confirm low-traffic window (outside 22:00 UTC ±1h and outside 12:00 UTC ±1h per `SERVER.md` workflow schedule).
+  1. Confirm low-traffic window (outside 22:00 UTC ±1h and outside 12:00 UTC ±1h per `../../legacy/server.md` workflow schedule).
   2. Confirm `MSSQL_USER` matches `schema_baseline_extractor` (script asserts via `SELECT CURRENT_USER`).
   3. Confirm `MODE = 'LIMITED'` for all DMV queries (verifier checks).
   4. Confirm `excluded-tables.txt` review.

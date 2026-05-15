@@ -1,6 +1,6 @@
 ---
 name: performance-engineer
-description: Produces a performance plan for a single user story — hot-path identification, required indexes, N+1 risks, caching strategy, latency budget, memory considerations for streaming or batch paths. Use during just-in-time story refinement when a story has database queries, hot endpoints, scheduled jobs, or large-data export paths. Read-only.
+description: Performance plan for one story — hot paths, indexes, N+1, caching, latency budget. Used by /modernize-refine when a story has queries / hot endpoints / large data. Read-only.
 tools: Read, Glob, Grep, Bash, WebFetch
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: modernize-vision
-description: Phase 2 of the modernization workflow. Elicits target outcomes, non-functional requirements, and non-negotiable constraints from the user, then writes docs/modernization/02-vision-and-constraints.md. Trigger when the user invokes /modernize-vision, after phase 1 (modernize-discover) has produced 01-current-state.md.
+description: Phase 2 — elicit target outcomes, NFRs, constraints into docs/modernization/02-vision-and-constraints.md. Trigger: /modernize-vision (after phase 1).
 ---
 
 # Phase 2 — Vision & Constraints

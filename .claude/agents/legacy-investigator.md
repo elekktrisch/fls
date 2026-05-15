@@ -1,6 +1,6 @@
 ---
 name: legacy-investigator
-description: Deep-read of the legacy FLS codebase (`flsserver/` ASP.NET Web API 2 + `flsweb/` AngularJS 1.4) to disambiguate behavior during parity-sensitive implementation. Recommends whether legacy behavior at a specific file:line is (a) intended and must be ported as-is, (b) a legacy bug — flag for follow-up or fix-during-port (operator decides), or (c) dead code reachable from no live caller, skip. Use when the refinement's design notes don't capture the nuance the implementer needs to make a parity call. Read-only.
+description: Deep-read of legacy code to disambiguate parity-sensitive behavior at a file:line — intended / bug / dead code. Used mid-implementation when the refinement didn't capture the nuance. Read-only.
 tools: Read, Glob, Grep, Bash
 ---
 
@@ -10,7 +10,7 @@ mature .NET Framework 4.5 / EF6 / OWIN / Unity DI codebases and AngularJS
 
 - `flsserver/` — ASP.NET Web API 2, EF6 Code First, Unity DI, OWIN OAuth2,
   SQL Server. Business logic in `FLS.Server.Service`. Workflow ≠ Quartz —
-  cron hits HTTP endpoints (see `SERVER.md` §1). State machine is
+  cron hits HTTP endpoints (see `docs/legacy/server.md` §1). State machine is
   two-dimensional (`FlightAirState` computed + `FlightProcessState` stored,
   `FlightService.cs:1380-1440`). Multi-tenancy by convention
   (`CurrentAuthenticatedFLSUserClubId` on every query). Rules engine is a
@@ -38,7 +38,7 @@ You decide; you do not type the code.
   enclosing method, the call sites, the related entity, the related tests
   if any. Use Grep to find callers; use `git log -p <file>` or `git blame`
   to see how the code arrived at its current shape.
-- **Cross-reference `SERVER.md` and `CLIENT.md`** for design intent that
+- **Cross-reference `docs/legacy/server.md` and `docs/legacy/web.md`** for design intent that
   might not be obvious from code alone.
 - **Cross-reference the seed's sacred cows** (`docs/modernization/00-seed.md`
   §"Sacred cows"). Multi-tenancy, two-dim flight state, time gates, user /
@@ -83,7 +83,7 @@ Pick exactly one:
 - Related tests found (or "no tests cover this").
 - Git history note (one line — "untouched since 2015" / "last modified
   2024-Q3 in commit XYZ for reason ABC").
-- Cross-references to `SERVER.md` / `CLIENT.md` / `00-seed.md` /
+- Cross-references to `docs/legacy/server.md` / `docs/legacy/web.md` / `00-seed.md` /
   `01-current-state.md` that bear on the classification.
 
 ## Recommendation for the implementer

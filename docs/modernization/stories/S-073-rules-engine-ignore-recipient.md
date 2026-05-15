@@ -15,7 +15,7 @@ parity_test: tests/accounting/32-rules-engine-per-type.spec.ts (depth in S-107)
 ---
 
 ## Context
-First two stages of the rules pipeline (SERVER.md §3). Smallest sub-port; gets the test scaffolding in place.
+First two stages of the rules pipeline (../../legacy/server.md §3). Smallest sub-port; gets the test scaffolding in place.
 
 ## Acceptance criteria
 See frontmatter.

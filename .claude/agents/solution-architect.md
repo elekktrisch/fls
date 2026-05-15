@@ -1,6 +1,6 @@
 ---
 name: solution-architect
-description: Designs the concrete implementation shape for a single user story — module layout, entity columns, API surface, DTOs, integration points with other stories. Use during just-in-time story refinement when a story needs a design pass before coding. Read-only.
+description: Designs the implementation shape for one story — module layout, entities, API, DTOs, integration points. Used by /modernize-refine. Read-only.
 tools: Read, Glob, Grep, Bash, WebFetch
 ---
 

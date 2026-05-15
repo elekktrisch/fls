@@ -27,7 +27,7 @@ See frontmatter.
 - [ ] AccountingRuleFilter — model the predicates (aircraft type / immat list / locations / flight type codes / time ranges) as columns where natural, JSON for the bag of options. Reference S-010 + RulesEngine code paths.
 - [ ] AccountingUnitType + AccountingRuleFilterType lookups.
 - [ ] Delivery + DeliveryItem (with `article_id` + `quantity` + `unit_price` + `total`).
-- [ ] DeliveryCreationTest + DeliveryCreationTestItem (the regression harness from SERVER.md §3).
+- [ ] DeliveryCreationTest + DeliveryCreationTestItem (the regression harness from ../../legacy/server.md §3).
 
 ## Notes
 Schema for `AccountingRuleFilter` is non-trivial — the legacy schema mixes per-rule-type columns into one table. The reshape decision (keep one wide table vs. per-type tables vs. JSON `filter_config`) is part of this story; the recommendation is **one base table + jsonb filter_config + filter_type_id discriminator**, mirroring how the rules engine instantiates `Rule` objects from a base `AccountingRuleFilter` row at runtime.

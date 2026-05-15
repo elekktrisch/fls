@@ -10,7 +10,7 @@ Docs:
   self-contained-parallel model, AngularJS quirks, timeout rules.
 - `PLAN.md` — numbered spec roadmap (all rows landed).
 - `SELECTORS.md` — `data-testid` contract.
-- `../CLAUDE.md` / `../SERVER.md` / `../CLIENT.md` — full mental model.
+- `../CLAUDE.md` / `../docs/legacy/server.md` / `../docs/legacy/web.md` — full mental model.
 - `../TESTING.md` — manual stack-up playbook (more detail than the
   quickstart below).
 - `.github/workflows/e2e.yml` — CI workflow. Runs the suite and

@@ -32,8 +32,8 @@ The dashboard links to the Playwright HTML reports (read and mutate projects), t
 
 Legacy:
 - [CLAUDE.md](CLAUDE.md) — surface map: project layout, build commands, conventions
-- [SERVER.md](SERVER.md) — backend mental model: state machines, rules engine, jobs, multi-tenancy
-- [CLIENT.md](CLIENT.md) — AngularJS client mental model
+- [docs/legacy/server.md](docs/legacy/server.md) — backend mental model: state machines, rules engine, jobs, multi-tenancy
+- [docs/legacy/web.md](docs/legacy/web.md) — AngularJS client mental model
 - [TESTING.md](TESTING.md) — running the e2e suite locally and writing new tests
 
 Bridge → rewrite:

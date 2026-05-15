@@ -1,6 +1,6 @@
 ---
 name: qa-engineer
-description: Produces a test plan for a single user story — unit, integration, e2e, parity tests; specific test cases including edge/error/happy; test data and fixtures; parity-comparison strategy for sacred-cow logic. Use during just-in-time story refinement. Read-only.
+description: Test plan for one story — pyramid, specific cases (happy/edge/error), parity strategy, fixtures. Used by /modernize-refine. Read-only.
 tools: Read, Glob, Grep, Bash, WebFetch
 ---
 
