@@ -221,6 +221,16 @@ Read in parallel:
 
 Skim is not enough. The refinement sections give you what to build; the legacy code gives you the *behavior you must match*. Read both with the same attention.
 
+### Step 1.5 — Context7 freshness pass
+
+Before writing any production code, fetch current docs via Context7 for each library / framework / SDK / API the implementation will touch (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, JPA/Hibernate, springdoc-openapi, etc. — derive from `adr_refs` + design notes + the legacy code being replaced).
+
+Workflow per library: `mcp__context7__resolve-library-id` → pick best match (prefer version-pinned IDs when the story pins a version) → `mcp__context7__query-docs` for the specific question (current API names, deprecations, install commands, peer-dep matrix).
+
+This applies even when you "already know" the API — the modern Angular signal APIs, NgRx Signal Store features, Spring Boot 3.x security DSL, and Tailwind v4 vs v3 conventions in particular have shifted across recent releases and training data may lag. **Library facts from Context7 override training-data assumptions** when they conflict — flag the conflict in the done report so the operator can update the design notes if needed.
+
+Do not fetch docs for general programming concepts, refactoring patterns, or business logic — Context7 is for library / framework specifics only.
+
 ### Step 2 — Flip status to `in_progress` + create GitHub issue
 
 Update the story's frontmatter:
@@ -438,6 +448,7 @@ Print to the user:
 
 - **One story per invocation.** Never bundle stories. Even tiny S-estimated stories run independently.
 - **Refinement must exist.** `refined: false` is a hard bail.
+- **Context7 freshness pass before code.** Step 1.5 is not optional when the story touches any library / framework / SDK / API. Library facts from Context7 override training-data assumptions when they conflict; flag conflicts in the done report.
 - **Parity strategy defined FIRST, tests written FIRST.** Step 2.5 is mandatory before any production code. Watch the tests fail for the right reason before writing the code that makes them pass. A test that passes before its implementation existed is a broken test.
 - **Parity tests assert behavior, NOT legacy API shape.** Pass the acid-test question: would this parity assertion still pass if the new system used a completely different API shape that delivered the same end-user behavior? If no, rewrite the test at a higher layer or against the right invariant. Exception: shapes the refinement explicitly preserves (Proffix API, OGN contract, etc.) are parity-relevant.
 - **Pick the highest-feasible parity layer.** e2e > API integration > unit. Drop down a layer only when the higher one is genuinely infeasible, and document why in the done report.

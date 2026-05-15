@@ -10,6 +10,9 @@ acceptance:
   - ESLint + Prettier are configured; `ng lint` passes on the skeleton.
   - Unit-test runner (Vitest preferred over Karma+Jasmine — modern, Vite-fast) is configured; one passing component test exists.
   - Playwright is wired against the new app (separate from the legacy `e2e/`); one passing landing-page test exists.
+  - `next/web/CLAUDE.md` is preserved and matches the FE conventions (atomic design, signals-first, Tailwind tokens, a11y baseline, Context7 reminder). Pre-staged before this story; the implementer must respect it, not regenerate it.
+  - Atomic-design scaffold exists under `src/app/shared/ui/{atoms,molecules,organisms}/` with `.gitkeep` placeholders and path aliases `@ui/atoms/*`, `@ui/molecules/*`, `@ui/organisms/*` wired in `tsconfig.json`.
+  - Feature/routing convention is enforced from day one: `landing` lives at `src/app/features/landing/` with its own `landing.routes.ts` exporting `LANDING_ROUTES`; top-level `app.routes.ts` uses `loadChildren` (not `loadComponent`) per feature; eager routes are forbidden post-skeleton.
 estimate: M
 adr_refs: [0004]
 parity_test: none
@@ -22,18 +25,25 @@ refined_specialists: [requirements-engineer, solution-architect, security-engine
 Frontend twin of S-001. Establishes the Angular project skeleton.
 
 ## Acceptance criteria
-- See frontmatter. Plus: project uses standalone components (no NgModules); the `inject()` DI pattern; signal-based reactivity; control-flow syntax (`@if`/`@for`).
+- See frontmatter. Plus: project uses standalone components (no NgModules); the `inject()` DI pattern; signal-based reactivity; control-flow syntax (`@if`/`@for`); zoneless change detection.
+- All conventions in `next/web/CLAUDE.md` apply (atomic design taxonomy, Tailwind tokens, signals-first, a11y baseline). The implementer reads it before starting.
 
 ## Tasks
-- [ ] Generate skeleton via `ng new next-web --standalone --routing --style=css --strict`.
-- [ ] Add TailwindCSS via official Angular guide; commit `tailwind.config.js`.
+- [ ] Generate skeleton via `pnpm dlx @angular/cli@21 new` (see Build-tool decisions for full flags).
+- [ ] Add TailwindCSS v4 via the official `@tailwindcss/postcss` route: `pnpm add -D tailwindcss @tailwindcss/postcss`; commit `postcss.config.mjs` + `@import "tailwindcss";` + `@theme { ... }` block in `src/styles.css`. No `tailwind.config.js`.
 - [ ] Configure ESLint with `@angular-eslint` recommended; add Prettier.
 - [ ] Replace Karma+Jasmine with Vitest (or Jest if Vitest's Angular support has edges — re-evaluate at impl time).
 - [ ] Add Playwright in a separate `next/web/e2e/` directory; write one smoke spec hitting `ng serve`.
 - [ ] Confirm `tsconfig.json` is strict, no `any`.
+- [ ] Pre-create `src/app/shared/ui/{atoms,molecules,organisms}/.gitkeep` with empty `index.ts` per layer (`export {};`) so first imports resolve cleanly.
+- [ ] Wire `@ui/atoms/*`, `@ui/molecules/*`, `@ui/organisms/*` path aliases in `tsconfig.json`.
+- [ ] Land the feature-folder + per-feature-routes pattern: create `src/app/features/landing/landing.routes.ts` exporting `LANDING_ROUTES`; have `app.routes.ts` consume it via `loadChildren`. No `loadComponent` at top level.
+- [ ] Verify `next/web/CLAUDE.md` is committed (already pre-staged before this story); do not regenerate it from scratch.
 
 ## Notes
 Modern Angular (signal-based, Angular 21 line per ADR 0004). Closes — by virtue of TypeScript strict mode + S-003/S-004 — the precondition for R5's fix.
+
+The atomic-design folder scaffold is created in this story even though `shared/ui/` content lands later (S-008). Reason: cheaper to fix the layout once, before any feature story imports through it. See `next/web/CLAUDE.md` §1 for the layering rules.
 
 <!-- modernize-refine: start -->
 
@@ -49,16 +59,15 @@ next/web/
 ├── tsconfig.json                   # base; strict family flags on
 ├── tsconfig.app.json
 ├── tsconfig.spec.json
-├── eslint.config.mjs               # flat config (ESLint 9+ standard in 2026)
+├── eslint.config.mjs               # flat config (ESLint 10+; flat is the only supported format in v10)
 ├── .prettierrc
 ├── .prettierignore
-├── tailwind.config.js              # v3 chosen — see Alternatives
-├── postcss.config.js               # tailwindcss + autoprefixer
+├── postcss.config.mjs              # @tailwindcss/postcss only (autoprefixer + import handled by v4 internally)
 ├── proxy.conf.json                 # /api/v1/* + /Token + /oauth2/* + /realms/* → http://localhost:8080
 ├── vitest.config.ts                # @analogjs/vitest-angular preset (Karma fallback if AnalogJS lags)
 ├── .editorconfig
 ├── .gitignore                      # node_modules, dist, .angular, coverage, playwright-report, .auth/
-├── .nvmrc                          # 22 (active LTS in 2026)
+├── .nvmrc                          # 22.13 (Angular 21 needs 22.12+; ESLint 10 needs 22.13+)
 ├── README.md                       # one-command start, deploy artifact path, env / proxy conventions
 │
 ├── public/                         # Angular 17+ assets convention (replaces src/assets)
@@ -69,7 +78,7 @@ next/web/
 ├── src/
 │   ├── main.ts                     # bootstrapApplication(AppComponent, appConfig)
 │   ├── index.html                  # <fls-root></fls-root>, lang="de", <base href="/">, CSP stub
-│   ├── styles.css                  # @tailwind base/components/utilities
+│   ├── styles.css                  # @import "tailwindcss"; + @theme { ...design tokens... }
 │   │
 │   └── app/
 │       ├── app.component.ts        # standalone shell; selector fls-root
@@ -80,14 +89,20 @@ next/web/
 │       ├── core/                   # cross-cutting; auth/http interceptors/error handling land here
 │       │   └── .gitkeep
 │       │
-│       ├── features/               # one folder per domain feature (S-062b, S-097, ...)
+│       ├── features/               # one folder per feature; each owns its routes file
 │       │   └── landing/            # placeholder route /
+│       │       ├── landing.routes.ts        # exported `LANDING_ROUTES`; consumed via loadChildren
 │       │       ├── landing.component.ts
-│       │       └── landing.component.html  # "Hello FLS" + text-blue-600 smoke
+│       │       └── landing.component.html   # "Hello FLS" + text-blue-600 smoke
 │       │
 │       ├── shared/
-│       │   ├── ui/                 # S-008 primitives kit drops here
-│       │   │   └── .gitkeep
+│       │   ├── ui/                 # atomic-design primitives kit (S-008 fills these)
+│       │   │   ├── atoms/          # button, input, icon, badge, ...
+│       │   │   │   └── .gitkeep
+│       │   │   ├── molecules/      # form-field, search-input, menu-item, field-errors
+│       │   │   │   └── .gitkeep
+│       │   │   └── organisms/      # data-table, dialog, date-picker, nav-bar
+│       │   │       └── .gitkeep
 │       │   └── util/
 │       │       └── .gitkeep
 │       │
@@ -107,11 +122,14 @@ next/web/
 Path aliases in `tsconfig.json`:
 ```json
 "paths": {
-  "@app/*":      ["src/app/*"],
-  "@core/*":     ["src/app/core/*"],
-  "@features/*": ["src/app/features/*"],
-  "@shared/*":   ["src/app/shared/*"],
-  "@api/*":      ["src/app/api/*"]
+  "@app/*":          ["src/app/*"],
+  "@core/*":         ["src/app/core/*"],
+  "@features/*":     ["src/app/features/*"],
+  "@shared/*":       ["src/app/shared/*"],
+  "@ui/atoms/*":     ["src/app/shared/ui/atoms/*"],
+  "@ui/molecules/*": ["src/app/shared/ui/molecules/*"],
+  "@ui/organisms/*": ["src/app/shared/ui/organisms/*"],
+  "@api/*":          ["src/app/api/*"]
 }
 ```
 
@@ -120,18 +138,18 @@ Path aliases in `tsconfig.json`:
 | Knob | Decision | Rationale |
 |---|---|---|
 | **Angular CLI** | 21.x | ADR 0004. Use `application` builder (esbuild) — CLI default. |
-| **Tailwind** | **v3.4.x** | v4 (Oxide) is faster but its Angular CLI PostCSS integration is rougher in 2026. v3 is the safer foundation; upgrade is one story post-cutover. |
+| **Tailwind** | **v4.x** | GA + mature in 2026. CSS-first config via `@theme` directive in `styles.css` replaces `tailwind.config.js`. Single `@tailwindcss/postcss` plugin replaces the old `tailwindcss + autoprefixer` pair (vendor prefixing + `@import` resolution + nesting are built in). Oxide engine. |
 | **Package manager** | **pnpm** | Faster installs, content-addressable store saves disk with legacy `flsweb/` still present, Angular CLI supports `--package-manager=pnpm` natively. Signals "this is the new module" cleanly vs. legacy yarn. |
 | **Component prefix** | **`fls`** | Legacy uses `<fls-navigation-bar>` (`flsweb/src/index.html`). Preserves brand + paste-from-legacy. |
-| **Style language** | **CSS** | Tailwind only needs CSS. Reject SCSS — utilities replace nesting + variables. |
+| **Style language** | **CSS** | Tailwind only needs CSS. Reject SCSS — utilities + Tailwind v4's `@theme` + native CSS nesting replace SCSS features. |
 | **TS strict** | `strict: true` + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` + `noImplicitOverride` + `noFallthroughCasesInSwitch` + `noImplicitReturns` | Angular CLI strict is baseline; extras close doors that bite when scaling. Closes R5's structural precondition. |
-| **Zoneless change detection** | **Enabled** via `provideZonelessChangeDetection()` | Angular 21 stabilizes zoneless. Signals + control-flow + zoneless is the modern spine; drops zone.js (~30 KB gzipped). Greenfield deps are signal-first. |
+| **Zoneless change detection** | **Enabled** via `provideZonelessChangeDetection()` | Stable since Angular v20.2; Angular 21 inherits. Signals + control-flow + zoneless is the modern spine; drops zone.js (~30 KB gzipped). Greenfield deps are signal-first. |
 | **SSR / prerendering** | **Off** (`--ssr=false`) | CSR-only SPA. SSR buys nothing for internal tenant SaaS. |
 | **Standalone APIs** | Required everywhere | No NgModules. ESLint enforces. |
-| **Test runner** | **Vitest** via `@analogjs/vitest-angular`; Karma+Jasmine fallback if AnalogJS lags Angular 21 at impl time | Story prefers Vitest. See Open design questions. |
-| **Linter** | ESLint 9 flat config + `@angular-eslint` v21 | Flat config (`eslint.config.mjs`) is the ESLint 9 default. |
+| **Test runner** | **Vitest** via `@analogjs/vitest-angular`; Karma+Jasmine fallback if AnalogJS lags at impl time | AnalogJS docs confirm Angular 17–21 support; setup uses `setupTestBed({ zoneless: true })` per their v21+ guide. |
+| **Linter** | ESLint 10 flat config + `@angular-eslint` v21 | ESLint 10 drops eslintrc support entirely; flat config (`eslint.config.mjs`) is the only format. Requires Node 22.13+. |
 | **Formatter** | Prettier 3.x + `eslint-config-prettier` | ESLint defers to Prettier (avoid `eslint-plugin-prettier` — slower, noisier diffs). |
-| **Node** | 22 LTS | `.nvmrc` = `22`; `engines.node` = `>=22`. Angular 21 requires Node 22.12+. |
+| **Node** | 22.13+ LTS | `.nvmrc` = `22.13`; `engines.node` = `>=22.13`. Angular 21 needs 22.12+, ESLint 10 needs 22.13+ — pick the higher floor. |
 
 Generation command (recorded in README):
 ```
@@ -165,9 +183,25 @@ N/A — this story scaffolds the SPA. No entities, no DB, no JPA. Domain modelin
 
 **Client routes (`app.routes.ts`):**
 
-| Path | Component | `data` | Guard |
+Top-level `app.routes.ts` registers per-feature route arrays via `loadChildren` — never `loadComponent` directly. Each feature folder owns a `<feature>.routes.ts` exporting a `Routes` array. This keeps top-level routing readable as features grow.
+
+```ts
+// app.routes.ts
+export const routes: Routes = [
+  { path: '', loadChildren: () => import('@features/landing/landing.routes').then(m => m.LANDING_ROUTES) },
+  { path: '**', redirectTo: '' },
+];
+
+// features/landing/landing.routes.ts
+export const LANDING_ROUTES: Routes = [
+  { path: '', loadComponent: () => import('./landing.component').then(m => m.LandingComponent),
+    data: { showNavBar: false } },
+];
+```
+
+| Path | Owner | `data` | Guard |
 |---|---|---|---|
-| `/` | `LandingComponent` (placeholder) | `{ showNavBar: false }` | none |
+| `/` | `features/landing` | `{ showNavBar: false }` | none |
 | `**` | redirect to `/` | — | — |
 
 **Dev proxy (`proxy.conf.json`):**
@@ -206,7 +240,7 @@ No actual HTTP calls in S-002. Landing renders static text + `text-blue-600` smo
 
 ### Alternatives considered
 
-- **Tailwind v3 (chosen) vs. v4.** v3 has rock-solid Angular CLI + PostCSS integration; v4 Oxide is faster but the Angular integration story is still rougher in 2026. Foundation story → pick boring.
+- **Tailwind v4 (chosen) vs. v3.** v4 is GA + mature in 2026: `@tailwindcss/postcss` integrates cleanly with Angular CLI's esbuild PostCSS pipeline, CSS-first `@theme` config eliminates `tailwind.config.js`, Oxide is faster on large codebases, and the official upgrade tool exists for downstream library compat. v3 is still maintained but the rationale for picking it (v4 integration "rougher in 2026") is no longer true. Original draft chose v3; reversed during version verification.
 - **Vitest (chosen, with Karma fallback) vs. Karma+Jasmine vs. Jest.** Story prefers Vitest; Analog preset is the established Vitest+Angular path in 2026. Karma is officially deprecated by Angular. Jest+Angular has lagged Angular major bumps historically. Fallback only if AnalogJS plugin lags Angular 21.x at impl time. **See Open design questions.**
 - **Zoneless (chosen) vs. zone.js.** Zoneless is stable in Angular 21; aligns with signals-first direction; drops ~30 KB.
 - **`fls-` prefix (chosen) vs. `app-`.** Legacy continuity; template paste-from-legacy works.
@@ -226,18 +260,18 @@ No actual HTTP calls in S-002. Landing renders static text + `text-blue-600` smo
 - Port 4200 collision with parallel dev workflows; set explicit `--port` in `angular.json` `serve.options.port` or document.
 - SSR (`@angular/ssr`) prompts during `ng new` in Angular CLI 21 — must explicitly decline (`--ssr=false`).
 - `BrowserModule` leaks from copy-paste of stale templates — ESLint enforces standalone.
-- Reload break when `tailwind.config.js` changes: dev-server `watch` paths must cover Tailwind config + content globs.
+- Reload break when `styles.css` `@theme` or `@source` directives change: dev-server `watch` paths must cover the entry CSS so token edits trigger rebuilds.
 
 **AC2 — TailwindCSS wired; `text-blue-600` renders**
-- Tailwind v3 vs. v4: v3 chosen; story phrasing (`tailwind.config.js`) implies v3 mental model.
-- Content-scan misconfig: `content: ["./src/**/*.{html,ts}"]` must cover `.ts` (for inline templates / `[ngClass]` string templates).
-- PurgeCSS over-eagerness on dynamic class names (`bg-${color}-500`) — document `safelist` escape hatch.
-- Tailwind `preflight` clashes with Angular CDK overlays + native form controls landing in S-007/S-008 — keep `preflight: true`; flag.
-- PostCSS plugin order: `tailwindcss` → `autoprefixer`.
+- Tailwind v4 chosen. Source-scanning is automatic in v4 (no `content` glob array) — it walks `@source` directives + the entry CSS's import graph. If a UI primitive lives outside the standard scan path, add `@source "../path/**/*.{html,ts}";` to `styles.css`.
+- Dynamic class names (`bg-${color}-500`) — v4 still needs explicit `@source inline` or full class strings for safelisting.
+- Tailwind `preflight` clashes with Angular CDK overlays + native form controls landing in S-007/S-008 — keep enabled; opt out per-tree if needed.
+- PostCSS pipeline: single `@tailwindcss/postcss` plugin (autoprefixer + `@import` + nesting are now built-in).
 
 **AC3 — ESLint + Prettier; `ng lint` passes**
 - `@angular-eslint` major must match Angular major (21).
-- ESLint 9+ flat config (`eslint.config.mjs`) — `@angular-eslint` v21+ supports it. Pick flat (forward path).
+- ESLint 10 flat config (`eslint.config.mjs`) — eslintrc support is removed in v10; flat config is the only supported format. `@angular-eslint` v21+ supports it.
+- Node 22.13+ required by ESLint 10 (Node 22.12 is enough for Angular 21 alone but ESLint 10 raises the floor).
 - Prettier integration: `eslint-config-prettier` (turns off conflicting rules) — Prettier runs separately. Do NOT use `eslint-plugin-prettier`.
 - `ng lint` is NOT a built-in command since Angular 12; must be wired via `@angular-eslint/builder` (`ng add @angular-eslint/schematics`).
 - Editor-side autofix conflict: `.editorconfig` is the single source of truth.
@@ -256,7 +290,7 @@ No actual HTTP calls in S-002. Landing renders static text + `text-blue-600` smo
 
 ### Hidden requirements
 
-- **Node engine pin** — `.nvmrc` + `package.json` `engines.node`.
+- **Node engine pin** — `.nvmrc` = `22.13`; `engines.node` = `>=22.13`. Bumped from raw 22 to satisfy ESLint 10's floor.
 - **Package manager pin** — `packageManager` field + lockfile committed.
 - **TS strict surface** — clarify beyond `strict: true`: enable `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`.
 - **Path aliases** — `@app/*`, `@core/*`, `@features/*`, `@shared/*`, `@api/*`.
@@ -520,10 +554,10 @@ N/A — no streaming, no large in-memory state.
 - `"useDefineForClassFields": true` (default).
 - `"moduleResolution": "bundler"` — required for correct ESM tree-shaking with esbuild.
 
-Tailwind v3:
-- `content: ['./src/**/*.{html,ts}']` — narrow purge globs are the single biggest CSS-size lever. Do NOT add `'./node_modules/**/*'` even when a UI lib later wants it; enumerate specific files. Wide globs blow CSS up to 50–100 KB instantly.
-- `corePlugins`: default.
-- PostCSS via `postcss.config.js` with `tailwindcss` + `autoprefixer`; do NOT add `cssnano` — esbuild handles minification.
+Tailwind v4:
+- Source-scanning is automatic (no `content` glob). Default scan covers files reachable from the entry CSS's `@import` graph + the project root. If a UI primitive lives outside the standard scan, add `@source "../path/**/*.{html,ts}";` to `styles.css`. Enumerate specific paths — never `@source "./node_modules/**/*"`, which blows CSS up.
+- Tokens live in `styles.css` `@theme { ... }` block. No `tailwind.config.js`.
+- PostCSS: single `@tailwindcss/postcss` plugin. No `autoprefixer` (built in), no `cssnano` (esbuild handles minification).
 
 Routing convention (README + code-review enforcement from S-003 onward):
 - **Every feature route after S-002 must use `loadComponent: () => import(...)` for lazy loading.** Eager routes are reserved for auth/login shell + placeholder. This is the lever that keeps `initial` under 500 KB as feature work compounds.
@@ -537,12 +571,12 @@ Preconnect / DNS prefetch:
 
 ### Risks
 
-- **Tailwind v3 PostCSS pipeline divergence between `ng serve` and `ng build`.** JIT can purge differently when dev-server's file watcher races with esbuild's incremental output. Mitigation: run `ng build --configuration production` locally + visually verify before merging S-002. Canonical smoke for any Tailwind config change.
+- **Tailwind v4 source-scan divergence between `ng serve` and `ng build`.** v4's automatic scan can pick up files differently when dev-server's file watcher races with esbuild's incremental output, especially for new UI files added to non-default scan paths. Mitigation: run `ng build --configuration production` locally + visually verify before merging S-002. Canonical smoke for any `@source` directive or `styles.css` change.
 - **Initial-bundle budget too tight tripping on first real feature.** 500 KB error ceiling is generous now (~150 KB) but tightens fast once `@angular/forms` + `HttpClient` + first OpenAPI client land (S-005/S-006). Mitigation: revisit budget in S-006's perf plan; expect to raise `maximumError` to ~750 KB once data fetching + reactive forms are in. Never raise without measuring.
 - **Source maps accidentally on in prod.** Mitigation: CI check greps `dist/next-web/browser/*.map` after prod build and fails if any exist (or asserts only present in `staging` config).
 - **`ng serve` cold-start regression as deps accumulate.** Each new Angular sub-package adds ~0.5–1 s to esbuild's dep pre-bundle. Mitigation: track cold-start in each perf plan starting S-006; if > 15 s, audit imports.
 - **Zoneless edge cases with future 3rd-party libs.** Some older `ng2-*` or RxJS-heavy state libs assume change-detection ticks. When evaluating libs in S-006 (state) and S-008 (primitives), explicitly check zoneless compatibility. If a critical lib requires zone.js, that's an architect-level revisit — do NOT silently re-add zone.js.
-- **Tailwind content-glob drift.** If a future story adds component files outside `src/` (e.g. `next/web/libs/`), Tailwind won't purge them and won't pick up utility classes either. Mitigation: when introducing any new source folder, update `content` globs in the same PR.
+- **Tailwind v4 source-path drift.** If a future story adds component files outside the default scan (e.g. `next/web/libs/`), Tailwind v4's automatic scan won't pick them up. Mitigation: when introducing any new source folder, add an `@source "../path/**/*.{html,ts}";` directive in `styles.css` in the same PR.
 
 ## Open design questions
 
