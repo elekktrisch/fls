@@ -2,8 +2,12 @@
 id: S-002
 title: Scaffold next/web/ Angular skeleton
 epic: E-01
-status: todo
+status: done
+started_at: 2026-05-15
+done_at: 2026-05-15
 depends_on: []
+github_issue: 8
+github_pr: 9
 acceptance:
   - `ng serve` runs the dev server; a placeholder "Hello FLS" route renders.
   - TailwindCSS is wired and a sample utility class (`text-blue-600`) renders correctly.
@@ -19,6 +23,18 @@ parity_test: none
 refined: true
 refined_at: 2026-05-15
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+reviewed: true
+reviewed_at: 2026-05-15
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 4
+review_nudges: 3
+reworked: true
+reworked_at: 2026-05-15
+rework_address_now: 14
+rework_deferred: 2
+rework_accepted: 4
+rework_followups: [S-126, S-127]
 ---
 
 ## Context
@@ -588,3 +604,54 @@ These specialists' analyses disagreed (or hedged): surfaced for operator input.
    - **Trade-off:** Vitest-first is forward-looking but couples the project to a third-party adapter's release cadence. Karma-first is boring + stable but ships with a deprecated runner that S-109's port (when it lands) inherits. **Implementer's call at PR time;** either choice keeps test names + assertions stable.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-15 (re-review after rework) · **PR:** #9 · **Diff size:** 9 commits, 49 files, +7481 / −9 · **Outcome:** improvements-only (0 blockers, 4 improvements, 3 nudges — down from 3/11/5)
+
+The prior review's 3 blockers + 11 improvements + 5 nudges were triaged in `/modernize-rework`: 14 address-now (now applied in commits `5f5612d` + `70e5942`), 2 deferred (→ S-126, S-127), 4 accepted. All address-now items verified landed cleanly. This section captures findings against the post-rework code.
+
+### Maintainability
+
+- **[improvement]** README "Layout" tree still names `app.ts` after the rename — `next/web/README.md:62`. The rework renamed `app.ts` → `app.component.ts` (per U-I2); the prose at line 84 of the story's design notes still describes the old naming as well, but that's frozen historical doc. The README is the live one a new contributor reads. **Fix:** update the `app.ts` line in the README's Layout tree to `app.component.ts` (and reflect the `<main>` + `<router-outlet/>` shape).
+- **[improvement]** `startWith(false)` is redundant given `toSignal(..., { initialValue: false })` — `next/web/src/app/app.component.ts:33,40`. Both seed the same initial value; the pipe's `startWith` then immediately emits `false`, which is identical to the `initialValue`. A future reader has to reason about whether they serve different purposes. **Fix:** drop `startWith(false)` from the rxjs pipe; keep `{ initialValue: false }` on `toSignal` (or vice versa — keep one, not both).
+- **[improvement]** `<main>` landmark wraps the future nav-bar slot — `next/web/src/app/app.component.ts:10-15`. HTML semantics place `<nav>` outside `<main>` so AT users can skip the chrome to land in `<main>`. Today the slot is just a comment; when S-008 plugs in `<fls-nav-bar />`, it'll render inside `<main>`, breaking the canonical "skip to main content" affordance. **Cross-reviewer agreement:** flagged by both maintainability (nudge) and usability (improvement). **Fix:** move the `@if (showNavBar()) { <fls-nav-bar/> }` block outside `<main>`: `@if (showNavBar()) { ... } <main><router-outlet/></main>`.
+- **[improvement]** `bypassSecurityTrust*` selector still misses destructured calls — `next/web/eslint.config.mjs:43-47`. The broadened `CallExpression[callee.property.name=/^bypassSecurityTrust/]` catches `sanitizer.bypassSecurityTrustHtml(...)` (the realistic pattern), but not `const { bypassSecurityTrustHtml } = sanitizer; bypassSecurityTrustHtml(x);` — at the call site the callee is a bare `Identifier`, not a `MemberExpression`. Defense-in-depth gap; not load-bearing today (no DomSanitizer destructuring in the codebase yet). **Fix:** add a second selector `VariableDeclarator > ObjectPattern Property[key.name=/^bypassSecurityTrust/]` to catch the destructure at the binding site.
+
+### Security
+
+- (no findings — security plan verified landed in full; the destructured-bypassTrust gap above is a maintainability concern about the lint rule's shape, listed there to avoid double-counting.) **Outcome: pass.**
+
+### Usability
+
+- **[nudge]** `<main>` landmark has no `id` / `aria-label` for a future skip-link target — `next/web/src/app/app.component.ts:10`. CLAUDE.md §5 commits to WCAG 2.1 AA; a "skip to main content" link is the canonical baseline pattern and needs an anchor in the shell. Pinning `id="main"` (or `aria-labelledby`) now is one attribute that locks in tomorrow's a11y baseline without waiting for the skip-link itself.
+
+### Maintainability nudges
+
+- **[nudge]** `window.localStorage` syntax selector misses bare member access — `next/web/eslint.config.mjs:48-53`. The selector requires `object.type='MemberExpression'`, so it catches `window.localStorage.setItem(...)` but not `const x = window.localStorage` (rebinding to evade the global ban). The `no-restricted-globals` rule catches the bare `localStorage` identifier, so the gap is narrow but present. **Fix:** broaden to also match `MemberExpression[object.name='window'][property.name=/^(local|session)Storage$/]` (bare-access variant).
+- **[nudge]** Stray local edit to `.claude/skills/modernize-implement/SKILL.md` (Step 6.7 self-review consult) is in the working tree but not committed — not part of S-002 but visible alongside it. **Fix:** decide whether to stash, commit separately, or revert before merging S-002 to keep the PR scoped.
+
+### Cross-reviewer agreements
+
+- **`<main>` landmark wraps the nav-bar slot** — maintainability + usability both flagged. The cheap fix is move the slot outside `<main>` now while the template is one line; harder once S-008 plugs in `<fls-nav-bar/>` and downstream features assume the current structure.
+
+### Address-now items verified landed (no longer flagged)
+
+- ✓ B2 `provideBrowserGlobalErrorListeners()` removed (`app.config.ts` imports only `ApplicationConfig` + `provideZonelessChangeDetection` + router).
+- ✓ B3 `showNavBar` signal wired (`app.component.ts:23-36`).
+- ✓ U-I2 rename `app.ts` → `app.component.ts`, class `AppComponent` (matches CLAUDE.md §6).
+- ✓ U-N2 `<main>` landmark present (but see the cross-reviewer finding above for the slot-placement issue).
+- ✓ S-I1 `bypassSecurityTrust*` selector broadened to `CallExpression[callee.property.name=/^bypassSecurityTrust/]`.
+- ✓ S-I2 `no-restricted-globals` + secondary `no-restricted-syntax` cover `localStorage`/`sessionStorage` reads + writes + `window.*` variants.
+- ✓ S-I3 `template/no-bypass-trust` documented as non-existent in @angular-eslint v21; TS-side rule is the gate.
+- ✓ S-I4 `.npmrc` adds `ignore-scripts=true`; `pnpm-workspace.yaml` `onlyBuiltDependencies` allowlist still works.
+- ✓ M-I1 `@source` directive removed from `styles.css`.
+- ✓ M-I2 `.vscode/launch.json` Karma debug-URL replaced with Vitest node-attach.
+- ✓ M-I3 `npm_config_ignore_scripts: 'true'` removed from CI's next-build install + build steps.
+- ✓ S-N1 CSP `style-src 'unsafe-inline'` removed; Playwright + prod build remain green.
+- ✓ U-N1 `// TODO(S-097)` comment on `landing.component.ts`.
+- ✓ U-N3 6 empty `index.ts` barrels deleted; `.gitkeep` preserved.
+
+<!-- modernize-review: end -->
