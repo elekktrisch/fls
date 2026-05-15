@@ -19,6 +19,19 @@ parity_test: none
 refined: true
 refined_at: 2026-05-14
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+reviewed: true
+reviewed_at: 2026-05-15
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 0
+review_nudges: 4
+review_pass: 2
+reworked: true
+reworked_at: 2026-05-15
+rework_address_now: 7
+rework_deferred: 3
+rework_accepted: 10
+rework_followups: [S-123, S-124, S-125]
 ---
 
 ## Context
@@ -509,4 +522,45 @@ These specialists' analyses disagreed; surfaced for operator input.
    - **Trade-off:** stub now = visible prod-config gap surfaced earlier; defer = leaner skeleton, deferred decision visible at S-021 PR time. README note documenting the deferral handles either choice.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-15 (re-baseline, pass 2) · **PR:** #5 (OPEN, head `f1ec8db`) · **Diff size:** 3 commits on top of merged #2; address-now slice 5 files, +30/-9 · **Outcome:** improvements-only (4 nudges only; 0 blockers, 0 improvements)
+
+Re-baseline after the rework cycle. Pass 1 found 0 blockers / 11 improvements / 9 nudges; triaged as 7 address-now / 3 deferred / 10 accepted. All 7 address-now items landed in `f1ec8db` and pass local `./gradlew check` + `verifyNullAwayFailsOnViolation`. Prior accepted rationales + deferred story pointers are preserved in PR #5's commit history (a30329d, e7cd9a6).
+
+### Verification of pass-1 address-now fixes (all verified ✓)
+
+- **M-1 Jackson strict-mode** — `application.yml:19-22` adds `spring.jackson.mapper.accept-case-insensitive-properties: false`; correct nesting; complements the existing `fail-on-unknown-properties: true`.
+- **M-2 HelloController record** — `HelloResponse(String message, Instant timestamp)` introduced; leftover `java.util.Map` import removed; JSON shape preserved (`message` + `timestamp`); `HelloControllerIT` jsonPath assertions still match; `Instant` now serializes via Jackson's `write-dates-as-timestamps: false` (ISO-8601, same wire format).
+- **M-3 compileTestJava errorprone narrowed** — `build.gradle.kts:75-78` replaces wholesale `enabled = false` with `nullaway { severity = CheckSeverity.OFF }`; required `CheckSeverity` import already present; WHY-comment names the checks the prior blanket disable was eating.
+- **S-2 dev show-details comment** — `application-dev.yml:8-11` pins the loopback-only contract and points at prod `when_authorized` for contrast; setting value unchanged.
+- **U-1 JDK 25 install clarity** — `README.md` Run section: Foojay auto-provision called out; bootstrap JDK 17+ requirement explicit with three concrete install commands (sdk/brew/apt).
+- **U-4 port-collision recovery** — `README.md` Run section: `BindException` → `SERVER_PORT=8081 ./gradlew bootRun` (or `.env`) documented under the `bootRun` block.
+- **U-5 default `0.0.0.0:8080` bind** — `README.md` Run section: first sentence after the bootRun block; cross-references S-044 reverse proxy.
+
+### Maintainability
+- **[nudge]** README Run section grew from 2 sentences to two ~6-line paragraphs after U-1/U-4/U-5 — `next/server/README.md` Run section. Readable but dense for a "Run" header. A future micro-edit could promote a short "Prerequisites" subhead above the JDK paragraph — purely cosmetic.
+- **[nudge]** `HelloResponse` is a `public` nested record inside `HelloController` — `next/server/src/main/java/ch/fls/platform/hello/HelloController.java:11`. Fine for the soon-to-be-removed demo endpoint (TODO(S-020) marker still in place); flag here only so reviewers don't mistake it for a precedent — domain DTOs should live in their own files / response packages per the ADR-driven layout. (+ Security concurs: minimum-surface principle.)
+
+### Security
+- **[nudge]** `HelloController.HelloResponse` is `public` — same line as above. Functionally fine (Jackson needs accessible record); if S-020/S-003 later move it, a `package-private` record minimises the API-surface footprint. Non-blocking; record components are exactly the prior `Map.of(...)` shape — no field widening.
+
+### Usability (developer-facing — backend-only story)
+- **[nudge]** Minor inconsistency: install snippets pin JDK 21 (`21-tem`, `temurin@21`, `openjdk-21-jdk`) while the prose says "JDK 17+" — `next/server/README.md` JDK requirements paragraph. Not wrong (21 is a reasonable concrete recommendation), but a first-time reader may wonder why the floor (17) and the examples (21) differ. One half-line ("examples use 21 LTS; 17+ is sufficient") would close it.
+- **[nudge]** The JDK requirements paragraph leads with what Foojay does and then pivots to what the contributor must do — `next/server/README.md`. Flipping the order ("You need JDK 17+ on PATH to bootstrap Gradle; Foojay then handles JDK 25 automatically") would read more action-first. Cosmetic.
+
+### AC1 walkthrough
+A new contributor with any JDK 17+ on PATH lands on the Run block, sees the three commands, gets bind-address + port-collision context immediately after, and JDK requirements clarified next. Clone → run → curl is achievable within 60 seconds of reading. **AC1 satisfied.**
+
+### Cross-stream agreements
+- **`HelloResponse` public visibility** — flagged by **maintainability** and **security** as a nudge (same line, same rationale: minimum-surface / precedent-setting). Synthesized as a single nudge; not blocking given the TODO(S-020) marker on the controller.
+
+### Carry-over from pass-1 triage (preserved in PR #5 commit history)
+- **3 deferred** → follow-up stories filed and tracked in `_ORDER.md`: **S-123** springdoc classpath lockdown · **S-124** `.env.example` key annotations · **S-125** `open-in-view=false` README warning. All three reviewers confirm the deferral framing is still appropriate.
+- **10 accepted** with rationales (1 placeholder-controller scope, 9 nudges "minor; not worth this PR's scope"). Rationales are in the previous review commit (a30329d) for audit trail; not re-flagged here.
+
+<!-- modernize-review: end -->
 

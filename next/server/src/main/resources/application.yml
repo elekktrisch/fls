@@ -16,6 +16,10 @@ spring:
         write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: true
+    mapper:
+      # Strict matching at the DTO boundary: a field named `clubId` does NOT
+      # accept payload key `ClubId`. Catches API contract drift loudly.
+      accept-case-insensitive-properties: false
     default-property-inclusion: non_null
     time-zone: UTC
   threads:

@@ -13,8 +13,18 @@ curl http://localhost:8080/actuator/health
 curl http://localhost:8080/api/v1/hello
 ```
 
-You need JDK 25. The Gradle wrapper auto-provisions one via Foojay if your
-machine has a different default JDK; just run the command and let it download.
+The server binds to `0.0.0.0:8080` by default (all network interfaces; no
+`server.address` is pinned). In dev you reach it via `localhost`; in prod it
+sits behind a reverse proxy (S-044). If startup fails with `BindException:
+Address already in use`, override the port with `SERVER_PORT=8081 ./gradlew
+bootRun` (or set it in `.env`).
+
+**JDK requirements:** the Gradle wrapper auto-provisions JDK 25 via Foojay,
+so you don't need to install it manually. You DO need a working JDK 17+ on
+your `PATH` to bootstrap Gradle itself — any modern OS-provided JDK works
+(e.g. `sdk install java 21-tem`, `brew install temurin@21`, or
+`apt install openjdk-21-jdk`). Once Gradle starts, Foojay handles the
+JDK 25 toolchain download on first build.
 
 ## Build + test
 

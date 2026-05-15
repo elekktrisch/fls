@@ -9,6 +9,9 @@ Topological sort of stories grouped by phase. Within each phase, listed in depen
 These have no dependencies and can begin immediately, in parallel, across as many people as the team has. The first three should start the same day.
 
 - S-001 — M — Scaffold next/server/ Spring Boot skeleton
+  - S-123 — S — Lock down springdoc off-state until S-003 wires it (rework follow-up from S-001)
+  - S-124 — S — Annotate next/server/.env.example keys with usage notes (rework follow-up from S-001)
+  - S-125 — S — Surface open-in-view=false consequence in next/server/README.md (rework follow-up from S-001)
 - S-002 — M — Scaffold next/web/ Angular skeleton
 - S-010 — M — Extract production-schema parity baseline
 - S-019 — M — Keycloak in docker-compose + realm export committed
