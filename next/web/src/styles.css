@@ -1,7 +1,5 @@
 @import 'tailwindcss';
 
-@source "./**/*.{html,ts}";
-
 @theme {
   --color-brand-50: oklch(0.97 0.014 254.6);
   --color-brand-100: oklch(0.93 0.034 254.6);

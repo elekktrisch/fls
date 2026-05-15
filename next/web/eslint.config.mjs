@@ -24,15 +24,32 @@ export default tseslint.config(
         { type: 'element', prefix: 'fls', style: 'kebab-case' },
       ],
       '@angular-eslint/prefer-standalone': 'error',
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'localStorage',
+          message:
+            'Direct localStorage usage is forbidden (R10 calcification risk). Auth-owned files in S-021 are the only allowlist; use a typed wrapper there.',
+        },
+        {
+          name: 'sessionStorage',
+          message:
+            'Direct sessionStorage usage is forbidden (R10 calcification risk). Auth-owned files in S-021 are the only allowlist; use a typed wrapper there.',
+        },
+      ],
       'no-restricted-syntax': [
         'error',
         {
-          selector: "MemberExpression[object.name='DomSanitizer'][property.name=/^bypassSecurityTrust/]",
-          message: 'DomSanitizer.bypassSecurityTrust* is forbidden — sanitize inputs at the source.',
+          selector:
+            "CallExpression[callee.property.name=/^bypassSecurityTrust/]",
+          message:
+            'DomSanitizer.bypassSecurityTrust* is forbidden — sanitize inputs at the source. Override only with a per-line eslint-disable + reviewer approval comment.',
         },
         {
-          selector: "CallExpression[callee.object.name=/^(localStorage|sessionStorage)$/][callee.property.name='setItem']",
-          message: 'Direct localStorage/sessionStorage writes are forbidden — auth-owned files in S-021 are the only allowlist.',
+          selector:
+            "MemberExpression[object.type='MemberExpression'][object.property.name=/^(local|session)Storage$/]",
+          message:
+            'window.localStorage / window.sessionStorage are forbidden (R10 calcification risk). See no-restricted-globals message.',
         },
       ],
     },
@@ -45,6 +62,11 @@ export default tseslint.config(
     ],
     rules: {
       '@angular-eslint/template/no-any': 'error',
+      // Note: the security plan listed `@angular-eslint/template/no-bypass-trust`
+      // but that rule does not exist in @angular-eslint v21. The TS-side
+      // `no-restricted-syntax` selector for `bypassSecurityTrust*` is the
+      // actual guard; templates can't directly reach DomSanitizer anyway
+      // (component binding is the only path).
     },
   },
 );
