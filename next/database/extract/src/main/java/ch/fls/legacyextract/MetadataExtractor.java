@@ -51,6 +51,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class MetadataExtractor {
 
+    // Cutover-window math constants (AC4).
+    // Conservative end-to-end MB/s for bulk migrate (bcp out + COPY in). The
+    // worked example in the refinement uses 30 MB/s; S-017 rehearsal will
+    // calibrate. Override via -Dextract.throughput.mb-per-sec=N.
+    private static final double DEFAULT_THROUGHPUT_MB_PER_SEC = 30.0;
+    // Postgres index rebuild throughput; CREATE INDEX is parallelizable +
+    // generally faster than bulk insert.
+    private static final double DEFAULT_REINDEX_MB_PER_SEC = 50.0;
+    // C6 sacred-cow cutover budget: ≤ 6 hours = 21,600 seconds.
+    private static final long CUTOVER_BUDGET_SECONDS = 21_600L;
+
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
 
@@ -97,6 +108,7 @@ public class MetadataExtractor {
             if (auditSizing != null) {
                 emitted.add(auditSizing);
             }
+            emitted.add(emitCutoverWindow(config));
         }
 
         Duration duration = Duration.between(start, Instant.now());
@@ -266,6 +278,56 @@ public class MetadataExtractor {
         return writeJson(config.outDir().resolve("column-cardinality.json"), out);
     }
 
+    /**
+     * Per-top-10-table cutover-window estimate. Reuses the storage-stats
+     * query (already ordered by {@code total_mb} desc) and applies the
+     * conservative end-to-end throughput constant (30 MB/s default; override
+     * via the {@code extract.throughput.mb-per-sec} system property) plus a
+     * separate reindex throughput (50 MB/s). The C6 ≤ 6h cutover budget
+     * (21,600 seconds) is the denominator for the {@code pct_of_budget}
+     * column.
+     *
+     * <p>Surfaced finding for S-016 / S-017: at production-shape scale the
+     * bulk-data step is ~0.1-1% of the budget. The window is bounded by
+     * verification + ANALYZE + smoke tests, not row volume. S-016 should
+     * NOT over-engineer parallel-load.
+     */
+    private Path emitCutoverWindow(ExtractConfig config) {
+        String sql = readClasspath("sql/aggregate/storage-stats.sql");
+        SqlGuard.assertAggregateSafe("sql/aggregate/storage-stats.sql", sql);
+        List<Map<String, Object>> stats = jdbc.queryForList(sql);
+
+        double throughput = throughputMbPerSec();
+        double reindexThroughput = reindexThroughputMbPerSec();
+        long budget = CUTOVER_BUDGET_SECONDS;
+
+        List<Map<String, Object>> top = new ArrayList<>();
+        int n = Math.min(stats.size(), 10);
+        for (int i = 0; i < n; i++) {
+            Map<String, Object> r = stats.get(i);
+            double totalMb = toDouble(r.get("total_mb"));
+            double migrate = totalMb / throughput;
+            double reindex = totalMb / reindexThroughput;
+            double subtotal = migrate + reindex;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("schema", r.get("schema_name"));
+            row.put("table", r.get("table_name"));
+            row.put("storage_mb", totalMb);
+            row.put("migrate_seconds", migrate);
+            row.put("reindex_seconds", reindex);
+            row.put("subtotal_seconds", subtotal);
+            row.put("pct_of_budget", budget > 0 ? (subtotal / budget) * 100.0 : 0.0);
+            top.add(row);
+        }
+
+        Map<String, Object> wrapper = new LinkedHashMap<>();
+        wrapper.put("throughput_mb_per_sec", throughput);
+        wrapper.put("reindex_throughput_mb_per_sec", reindexThroughput);
+        wrapper.put("budget_seconds", budget);
+        wrapper.put("top_tables", top);
+        return writeJson(config.outDir().resolve("cutover-window.json"), wrapper);
+    }
+
     private Path emitAuditLogSizing(ExtractConfig config) {
         String sql = readClasspath("sql/aggregate/audit-log-sizing.sql");
         SqlGuard.assertAggregateSafe("sql/aggregate/audit-log-sizing.sql", sql);
@@ -335,6 +397,34 @@ public class MetadataExtractor {
             return file;
         } catch (IOException e) {
             throw new IllegalStateException("could not write " + file, e);
+        }
+    }
+
+    private static double throughputMbPerSec() {
+        return parseDoubleProp("extract.throughput.mb-per-sec", DEFAULT_THROUGHPUT_MB_PER_SEC);
+    }
+
+    private static double reindexThroughputMbPerSec() {
+        return parseDoubleProp("extract.reindex-throughput.mb-per-sec", DEFAULT_REINDEX_MB_PER_SEC);
+    }
+
+    private static double parseDoubleProp(String name, double fallback) {
+        String v = System.getProperty(name);
+        if (v == null || v.isBlank()) return fallback;
+        try {
+            return Double.parseDouble(v);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static double toDouble(Object o) {
+        if (o == null) return 0.0;
+        if (o instanceof Number n) return n.doubleValue();
+        try {
+            return Double.parseDouble(o.toString());
+        } catch (NumberFormatException e) {
+            return 0.0;
         }
     }
 

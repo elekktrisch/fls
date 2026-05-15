@@ -112,6 +112,7 @@ under `src/main/java/ch/fls/legacyextract/output/`.
 | `index-usage.json` | only with `--allow-aggregate-counts` | per-index seeks/scans/lookups/updates since SQL Server restart, plus `sqlserver_start_time` for context |
 | `column-cardinality.json` | only with `--allow-aggregate-counts` | per (indexed column) `approx_distinct, method, sampled_rows` |
 | `audit-log-sizing.json` | only with `--allow-aggregate-counts` | total rows, total MB, avg row size, fan-out ratio, blob-column max/avg `DATALENGTH` (sampled) for `AuditLogs` and `AuditLogDetails` |
+| `cutover-window.json` | only with `--allow-aggregate-counts` | per-top-10-table cutover-window estimate: `storage_mb`, `migrate_seconds` (`storage_mb / 30`), `reindex_seconds` (`storage_mb / 50`), `subtotal_seconds`, `pct_of_budget`. Throughput overridable via `-Dextract.throughput.mb-per-sec=N`. Surfaces the S-016 / S-017 finding that bulk-data migration is < 1% of the C6 ≤ 6h budget — the window is bounded by verification, not row volume. |
 
 ## Tests
 

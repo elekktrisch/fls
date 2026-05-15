@@ -210,6 +210,39 @@ class MetadataExtractorIntegrationTest {
         // audit-log-sizing.json is conditional on AuditLogs+AuditLogDetails
         // existing. FLSTest fixture has both → file should be produced.
         assertThat(out.resolve("audit-log-sizing.json")).exists();
+        // Cutover-window estimate — AC4. Top-10 by storage MB, with
+        // migrate_seconds + pct_of_budget per table.
+        assertThat(out.resolve("cutover-window.json")).exists();
+    }
+
+    @Test
+    void cutover_window_json_carries_top10_with_migrate_seconds(@TempDir Path out) throws IOException {
+        extractor.extractTo(new ExtractConfig(true, true, out));
+        JsonNode cw = JSON.readTree(out.resolve("cutover-window.json").toFile());
+
+        assertThat(cw.get("throughput_mb_per_sec").asDouble())
+                .as("default throughput constant is 30 MB/s per the refinement worked example")
+                .isEqualTo(30.0);
+        assertThat(cw.get("budget_seconds").asLong())
+                .as("C6 sacred-cow cutover budget is 6 hours = 21600 s")
+                .isEqualTo(21_600L);
+
+        JsonNode top = cw.get("top_tables");
+        assertThat(top.isArray()).isTrue();
+        assertThat(top.size())
+                .as("top_tables should be non-empty for the seeded fixture")
+                .isGreaterThan(0)
+                .isLessThanOrEqualTo(10);
+
+        JsonNode first = top.get(0);
+        assertThat(first.get("table").asText()).isNotBlank();
+        assertThat(first.get("storage_mb").asDouble()).isNotNegative();
+        assertThat(first.get("migrate_seconds").asDouble()).isNotNegative();
+        assertThat(first.get("reindex_seconds").asDouble()).isNotNegative();
+        assertThat(first.get("subtotal_seconds").asDouble()).isNotNegative();
+        assertThat(first.get("pct_of_budget").asDouble())
+                .as("at FLSTest scale, bulk-data migration is < 1% of cutover budget — surfaces the S-016 'don't over-engineer parallel load' finding")
+                .isLessThan(5.0);
     }
 
     // ---- helpers ----
