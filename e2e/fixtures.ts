@@ -16,27 +16,38 @@ type AuthData = {
 let cachedAuth: AuthData | null = null;
 
 async function fetchAuthData(api: APIRequestContext): Promise<AuthData> {
-  // The freshDb fixture may resolve in parallel with loggedInPage —
-  // Playwright doesn't sequence independent fixtures. If seed.sh is
-  // mid-DROP-DATABASE while /Token fires, the FLS server can return 500
-  // (Mono+EF momentarily can't reach FLSTest). Retry a few times with a
-  // short backoff so that race resolves transparently. Genuine auth
-  // failures (e.g. wrong password = 400, server-down = ECONNREFUSED)
-  // still surface after the retry budget is exhausted.
+  // Two races to absorb here:
+  //  1. freshDb may DROP/CREATE FLSTest while /Token fires — Mono+EF returns
+  //     a transient 5xx until the connection pool reconnects.
+  //  2. With workers: 6, all six workers can hit /Token simultaneously on
+  //     the first test. Mono's per-request thread setup under that burst
+  //     can push the post past the default per-call timeout, surfacing as
+  //     a thrown TimeoutError (no status), not a 5xx response.
+  // Treat both as retriable; only 4xx (genuine auth failure) fails fast.
   let tokenRes;
+  let lastErr: unknown;
   for (let attempt = 1; attempt <= 6; attempt++) {
-    tokenRes = await api.post(`${API_BASE}/Token`, {
-      form: { grant_type: 'password', username: USERNAME, password: PASSWORD },
-    });
-    if (tokenRes.ok()) break;
-    if (tokenRes.status() !== 500 && tokenRes.status() < 502) {
-      // 4xx (or 502/503/504) is not a race — fail fast.
-      break;
+    try {
+      tokenRes = await api.post(`${API_BASE}/Token`, {
+        form: { grant_type: 'password', username: USERNAME, password: PASSWORD },
+        timeout: 30_000,
+      });
+      if (tokenRes.ok()) { lastErr = undefined; break; }
+      if (tokenRes.status() !== 500 && tokenRes.status() < 502) {
+        // 4xx (or 502/503/504) is not a race — fail fast.
+        break;
+      }
+    } catch (err) {
+      lastErr = err;
+      tokenRes = undefined;
     }
     await new Promise((r) => setTimeout(r, 500 * attempt));
   }
-  if (!tokenRes!.ok()) {
-    throw new Error(`Token request failed: ${tokenRes!.status()} ${await tokenRes!.text()}`);
+  if (!tokenRes) {
+    throw lastErr ?? new Error('Token request failed: no response and no error captured');
+  }
+  if (!tokenRes.ok()) {
+    throw new Error(`Token request failed: ${tokenRes.status()} ${await tokenRes.text()}`);
   }
   const loginResult = await tokenRes!.json();
   const headers = { Authorization: `Bearer ${loginResult.access_token}` };

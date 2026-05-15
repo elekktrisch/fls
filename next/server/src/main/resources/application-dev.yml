@@ -1,0 +1,12 @@
+server:
+  error:
+    include-message: always
+    include-binding-errors: always
+management:
+  endpoint:
+    health:
+      show-details: always
+logging:
+  level:
+    root: INFO
+    ch.fls: DEBUG

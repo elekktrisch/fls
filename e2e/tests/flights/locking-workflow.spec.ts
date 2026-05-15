@@ -52,8 +52,14 @@ async function getFlight(
   token: string,
   flightId: string,
 ): Promise<{ ProcessStateId: number; CreatedOn?: string }> {
+  // 30s per-call: under workers:6 burst the default 10s tripped before
+  // Mono finished servicing the request, surfacing as a TimeoutError and
+  // tearing the test down before the poll loop's own 5s deadline could
+  // even start. The flight read is cheap server-side; the headroom only
+  // covers thread-pool contention, not a slow query.
   const res = await page.request.get(`${API_BASE}/api/v1/flights/${flightId}`, {
     headers: { Authorization: `Bearer ${token}` },
+    timeout: 30_000,
   });
   expect(res.ok(), `GET /api/v1/flights/${flightId} -> ${res.status()}`).toBeTruthy();
   const body = await res.json();
@@ -111,7 +117,7 @@ test('flight-locking: Valid -> Locked via /workflows/flightvalidation', async ({
   // -------------------------------------------------------------------------
   const workflowRes = await loggedInPage.request.get(
     `${API_BASE}/api/v1/workflows/flightvalidation`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: { Authorization: `Bearer ${token}` }, timeout: 30_000 },
   );
   expect(
     workflowRes.ok(),

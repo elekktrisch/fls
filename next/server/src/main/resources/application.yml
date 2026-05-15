@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: fls-server
+  profiles:
+    default: dev
+  jpa:
+    # No JPA starter on the classpath yet — this is a no-op until S-012, but
+    # locks the invariant so Hibernate session boundaries are correct when JPA
+    # arrives. open-in-view=true is the OSIV footgun that hides N+1 in dev.
+    open-in-view: false
+  jackson:
+    datatype:
+      datetime:
+        # Jackson 3 moved WRITE_DATES_AS_TIMESTAMPS out of SerializationFeature
+        # into DateTimeFeature. ISO-8601 strings, not unix-millis.
+        write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: true
+    default-property-inclusion: non_null
+    time-zone: UTC
+  threads:
+    virtual:
+      # JEP 491 (Java 25) eliminated `synchronized` pinning. Re-audit when
+      # S-018 ShedLock + S-022 @TenantId ThreadLocal propagation land.
+      enabled: true
+
+server:
+  port: 8080
+  http2:
+    enabled: true
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
+    min-response-size: 1024
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    include-binding-errors: never
+  shutdown: graceful
+  tomcat:
+    max-http-form-post-size: 1MB
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+        exclude: env,heapdump,threaddump,loggers,configprops,beans,shutdown
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+
+# springdoc is on the classpath so S-003 can wire it without a dep change.
+# Endpoints are dormant here.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

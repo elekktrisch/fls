@@ -2,7 +2,11 @@
 id: S-001
 title: Scaffold next/server/ Spring Boot skeleton
 epic: E-01
-status: todo
+status: done
+started_at: 2026-05-15
+done_at: 2026-05-15
+github_issue: 1
+github_pr: 2
 depends_on: []
 acceptance:
   - A new contributor can clone the repo, install JDK 25, and run the server with one command, hitting `GET /actuator/health` returning 200.
@@ -505,3 +509,4 @@ These specialists' analyses disagreed; surfaced for operator input.
    - **Trade-off:** stub now = visible prod-config gap surfaced earlier; defer = leaner skeleton, deferred decision visible at S-021 PR time. README note documenting the deferral handles either choice.
 
 <!-- modernize-refine: end -->
+
