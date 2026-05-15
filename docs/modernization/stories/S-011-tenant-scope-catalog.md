@@ -2,9 +2,11 @@
 id: S-011
 title: Catalog tenant-scoped vs cross-tenant entities
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-15
+done_at: 2026-05-15
 github_issue: 17
+github_pr: 18
 depends_on: [S-010]
 acceptance:
   - A reference doc `next/database/tenant-catalog.md` lists every entity in two columns: tenant-scoped (carries `club_id`) vs. cross-tenant (no `club_id`).
