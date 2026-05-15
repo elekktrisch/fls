@@ -140,7 +140,13 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 - Atomic-design components (atoms/molecules) get unit tests. Organisms get unit + a Playwright integration when they have non-trivial keyboard/ARIA behavior.
 - Coverage targets are not enforced by CI in S-002 — they accumulate per feature story.
 
-## 9. Don't list
+## 9. Local-environment quirks (sandbox)
+
+- `node_modules/` in this folder is a **symlink** to `/home/agent/fls-build/next-web/node_modules/`. The mounted Windows host FS at `/c/Users/...` cannot reliably `rmdir` deeply-nested directories during `pnpm install`, so the store + the live `node_modules` both live on the Linux-local FS. Don't `rm -rf` the symlink target without recreating it.
+- pnpm is configured project-wide with `nodeLinker: hoisted` + `packageImportMethod: copy` (see `pnpm-workspace.yaml`). Don't switch to symlinked layout — that retriggers the cross-FS issue.
+- **Install scripts are globally disabled** (`pnpm config set ignore-scripts true`, `npm config set ignore-scripts true`). esbuild's platform binary is selected via the `ESBUILD_BINARY_PATH` env var (persisted in `/etc/sandbox-persistent.sh`) — no postinstall needed.
+
+## 10. Don't list
 
 - No NgModules.
 - No constructor DI in new code.

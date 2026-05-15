@@ -1,0 +1,11 @@
+/dist
+/node_modules
+/.angular
+/coverage
+/playwright-report
+/e2e/test-results
+/e2e/playwright-report
+/test-results
+/out-tsc
+pnpm-lock.yaml
+src/app/api/generated/**

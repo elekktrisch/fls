@@ -1,0 +1,12 @@
+nodeLinker: hoisted
+packageImportMethod: copy
+onlyBuiltDependencies:
+  - esbuild
+  - lmdb
+  - msgpackr-extract
+  - "@parcel/watcher"
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true
