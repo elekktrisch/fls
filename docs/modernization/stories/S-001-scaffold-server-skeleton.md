@@ -32,6 +32,10 @@ rework_address_now: 7
 rework_deferred: 3
 rework_accepted: 10
 rework_followups: [S-123, S-124, S-125]
+merged: true
+merged_at: 2026-05-15
+merge_commit: 2388c4d
+github_pr_finalize: 5
 ---
 
 ## Context
