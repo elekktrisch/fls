@@ -1,0 +1,7 @@
+# Ops are Linux-only (vision C1). Force LF normalization so Windows
+# contributors don't accidentally ship CRLFs to the deploy host.
+* text=auto eol=lf
+
+/gradlew text eol=lf
+*.bat text eol=crlf
+*.jar binary
