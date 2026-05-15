@@ -6,6 +6,7 @@ status: done
 started_at: 2026-05-15
 done_at: 2026-05-15
 github_issue: 1
+github_pr: 2
 depends_on: []
 acceptance:
   - A new contributor can clone the repo, install JDK 25, and run the server with one command, hitting `GET /actuator/health` returning 200.
