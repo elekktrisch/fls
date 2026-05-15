@@ -3,7 +3,7 @@ id: S-065
 title: Flight reports + custom report builder
 epic: E-07
 status: todo
-depends_on: [S-062, S-093]
+depends_on: [S-062a, S-093]
 acceptance:
   - Server-side `FlightReportService` ported.
   - SPA reports: pre-canned reports (`/flightreports/:category/:type`); custom report builder (`/flightreports/custom/:category/:filter/...`).

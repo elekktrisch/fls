@@ -3,7 +3,7 @@ id: S-063
 title: Glider↔Tow link integrity (TowFlightId recursion in validation + cascade)
 epic: E-07
 status: todo
-depends_on: [S-062]
+depends_on: [S-062a]
 acceptance:
   - When a glider flight has `start_type=Towing`, a linked tow Flight is required (1:1 via `tow_flight_id`).
   - Validation of the glider flight recurses through `tow_flight_id` — both must be valid for the glider to reach Valid.

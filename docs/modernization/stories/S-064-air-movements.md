@@ -3,7 +3,7 @@ id: S-064
 title: Air movements (motor aircraft) UI + endpoint parity
 epic: E-07
 status: todo
-depends_on: [S-062]
+depends_on: [S-062a, S-062c]
 acceptance:
   - Motor-aircraft flight UI lives at `/airmovements` (parity with legacy `flsweb/src/flights/airmovements/`).
   - Backend uses the same Flight controller endpoints (no separate controller — same entity).

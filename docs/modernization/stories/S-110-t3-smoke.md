@@ -3,7 +3,7 @@ id: S-110
 title: T3-equivalent smoke against new stack
 epic: E-13
 status: todo
-depends_on: [S-020, S-021, S-062]
+depends_on: [S-020, S-021, S-062c]
 acceptance:
   - A smoke spec: log in (via OIDC), GET `/api/v1/users/my`, GET a flight, PUT an update, GET again to confirm persistence.
   - Runs in CI on every PR.

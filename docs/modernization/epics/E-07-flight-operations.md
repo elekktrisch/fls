@@ -17,7 +17,9 @@ Port the single `Flight` entity (discriminated by `FlightAircraftType`), the two
 - [ ] S-059 — `FlightProcessState` stored state + transition matrix
 - [ ] S-060 — `FlightAirState` computed state derivation
 - [ ] S-061 — Time-gate enforcement (≥2d lock, ≥3d bill) — code + tests
-- [ ] S-062 — Flight create/edit (glider + tow forms — single entity, dual UI)
+- [ ] S-062a — Flight CRUD backend + DTOs + validator port
+- [ ] S-062b — Flight list page (paginated, filterable)
+- [ ] S-062c — Flight create/edit forms (glider + tow) + copy flow
 - [ ] S-063 — Glider↔Tow link integrity (TowFlightId recursion in validation + cascade semantics)
 - [ ] S-064 — Air movements (motor aircraft) UI + endpoint parity
 - [ ] S-065 — Flight reports + custom report builder
