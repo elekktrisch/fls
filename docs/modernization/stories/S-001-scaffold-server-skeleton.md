@@ -2,7 +2,9 @@
 id: S-001
 title: Scaffold next/server/ Spring Boot skeleton
 epic: E-01
-status: todo
+status: in_progress
+started_at: 2026-05-15
+github_issue: 1
 depends_on: []
 acceptance:
   - A new contributor can clone the repo, install JDK 25, and run the server with one command, hitting `GET /actuator/health` returning 200.
