@@ -2,8 +2,9 @@
 id: S-010
 title: Extract production-schema parity baseline
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-15
+done_at: 2026-05-15
 github_issue: 15
 github_pr: 16
 depends_on: []
