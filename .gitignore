@@ -21,3 +21,6 @@ e2e/screenshots
 !.claude/agents/
 next/server/build
 next/server/.gradle
+next/web/node_modules
+next/web/dist
+next/web/.angular
