@@ -35,7 +35,7 @@ These are the only blocking conditions. Everything else is per-story and handled
 
 ## Per-story disposition logic
 
-For each story file under `docs/modernization/stories/S-NNN-*.md`, parse the frontmatter and classify into exactly one of:
+For each story file under `docs/modernization/stories/S-NNN-*.md` — **top-level only**, not `stories/implemented/` (those are already shipped; nothing for the sweep to do) — parse the frontmatter and classify into exactly one of:
 
 ### Finalize (auto)
 
@@ -54,7 +54,7 @@ All of:
 ### Defer (skip, log, but report)
 
 Any of:
-- `merged: true` — story is already shipped; nothing to do.
+- `merged: true` — story is already shipped; nothing to do. (Rare at top level — finalize moves these to `implemented/`. If you see `merged: true` at top level, it's an artifact of a partial finalize or a hand-stamped story; skip it silently and surface the path in the report so the operator can move it manually with `git mv`.)
 - `reviewed: false` — story hasn't been reviewed yet.
 - `review_outcome: blockers` — operator needs to rework.
 - `## Review` has an un-accepted `[blocker]` bullet.
@@ -77,7 +77,7 @@ Any of:
 
 ### Step 1 — Enumerate candidates fast
 
-1. `ls docs/modernization/stories/S-*.md` to get the story-file list.
+1. `ls docs/modernization/stories/S-*.md` to get the story-file list. **Do not recurse into `stories/implemented/`** — those files are finalized and have nothing to do for the sweep.
 2. For each, read **only** the frontmatter (lines 1 to the second `---`) — full body reads come later if the story is eligible. This keeps the sweep cheap when most stories are clearly ineligible.
 3. From frontmatter alone, reject any story where `merged: true` or `reviewed: false` or `review_outcome: blockers` — the cheap rejects.
 4. Result: a candidate list (typically << 10 even with 100+ stories in the project).
@@ -101,14 +101,20 @@ For each eligible candidate, run the **automation subset** of `/modernize-finali
 
 1. **Skip Step 1 (ADR amendments)** — by sweep design, candidates with ADR proposals are already in the defer bucket.
 2. **Skip Step 2 (merge-strategy confirmation)** — sweep defaults to **squash** (the documented default). No prompt.
-3. **Step 3 — Merge the PR**: `gh pr merge <M> --squash --delete-branch --subject "S-NNN: <title>" --body "Closes #N"`.
-   - On `not mergeable` / `requires review` / any other non-zero: move this candidate to the defer bucket with the gh error verbatim. Continue.
-4. **Step 4 — skipped** (no ADR amendments by definition).
-5. **Step 5 — Verify issue closure + apply labels**, same as the interactive flow.
-6. **Step 6 — Local cleanup** (`git checkout main && git pull --ff-only`, `git branch -D story/S-NNN-<slug>`, `git fetch -p`).
-7. **Step 7 — Stamp story frontmatter** with `merged: true`, `merged_at`, `merge_commit`, and commit-and-push `S-NNN: stamp merged state` directly to `main`.
+3. **Step 2.5 — Pre-merge bookkeeping commit on the PR branch:** same as the interactive flow:
+   - `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. On diverged refs, move this candidate to the defer bucket with reason "branch diverged from origin" and continue.
+   - Stamp story frontmatter: `merged: true`, `merged_at: <today>`. Do not stamp `merge_commit:` (recoverable post-merge via `gh pr view`; not needed in frontmatter).
+   - `mkdir -p docs/modernization/stories/implemented && git mv docs/modernization/stories/S-NNN-<slug>.md docs/modernization/stories/implemented/S-NNN-<slug>.md`.
+   - Commit `#N: archive — stamp merged state + move to implemented/` and push.
+   - `gh run watch --exit-status <latest-run-id>` until CI is green. On red CI: move to the defer bucket with reason "CI failed on bookkeeping commit"; continue.
+4. **Step 3 — Merge the PR**: `gh pr merge <M> --squash --delete-branch --subject "S-NNN: <title>" --body "Closes #N"`.
+   - On `not mergeable` / `requires review` / any other non-zero: move this candidate to the defer bucket with the gh error verbatim. The bookkeeping commit from Step 2.5 stays on the PR branch — the next sweep pass (or interactive finalize) picks up from there.
+5. **Step 4 — skipped** (no ADR amendments by definition).
+6. **Step 5 — Verify issue closure + apply labels**, same as the interactive flow.
+7. **Step 6 — Local cleanup** (`git checkout main && git pull --ff-only`, `git branch -D story/S-NNN-<slug>`, `git fetch -p`).
+8. **Step 7 — skipped** — the bookkeeping was done pre-merge (in Step 2.5). The squash commit on `main` already carries the `merged: true` stamp and the `implemented/` path.
 
-Between candidates: re-pull `main` to incorporate the prior candidate's stamp commit, then proceed.
+Between candidates: re-pull `main` to incorporate the prior candidate's squash commit, then proceed.
 
 ### Step 4 — Report
 
@@ -137,7 +143,7 @@ Print to the user:
 - **Serial finalize.** Two sweeps shouldn't run concurrently on the same repo; the skill assumes a single instance per repo at any time. If a `/loop` invocation overlaps, the second will see a dirty tree (mid-stamp commit) and bail at preconditions — acceptable; the next tick picks up.
 - **Verify, don't trust.** After each `gh pr merge`, verify via `gh pr view` that state is `MERGED` and the merge commit SHA is recoverable. After local-branch delete, verify the remote is pruned. Same posture as the interactive finalize.
 - **Defer is not skip-and-forget.** Every deferred story appears in the report with the reason. The operator's at-a-glance scan of the report is the audit trail.
-- **Bookkeeping-only commits go to main.** The merged-state stamp commit per finalized story is direct-to-main, same as the interactive finalize. This is a documented exception to story-per-branch; the sweep doesn't expand the exception set.
+- **Bookkeeping rides the PR, not main.** The merged-state stamp + archive move are committed on the PR branch (Step 2.5), so the squash carries them. The sweep does not write direct-to-main per story; finalized stories produce exactly one commit on `main` (the squash).
 - **No ADR auto-apply.** Even when an ADR amendment proposal is "obviously safe," the sweep defers. ADRs are governance artifacts; the operator owns them. The interactive `/modernize-finalize` is the only path that touches ADRs.
 - **Idempotent at the boundary.** Re-running the sweep immediately after a clean run does nothing — the just-finalized stories all have `merged: true` and skip at Step 1.
 
@@ -147,10 +153,10 @@ Print to the user:
 - It does not override `CHANGES_REQUESTED` reviews. Those defer.
 - It does not pick merge strategy. Squash only.
 - It does not rebase, resolve conflicts, or fix red CI. Those are operator (or `/modernize-rework`) responsibilities; the sweep waits.
-- It does not modify story frontmatter beyond `merged: true / merged_at / merge_commit`.
+- It does not modify story frontmatter beyond `merged: true` + `merged_at` (set on the PR branch in Step 2.5 — `merge_commit:` is not stamped). It also moves the story file to `stories/implemented/` as part of the same Step 2.5 commit.
 - It does not create or modify ADRs, epics, refinements, or reviews.
 - It does not run tests. CI is the gate; if CI is green the sweep trusts it.
-- It does not push to `main` outside of the merged-state stamp commits (one per finalized story).
+- It does not push to `main` at all per story. Step 2.5's bookkeeping commit lives on the PR branch and rides the squash. (ADR amendments would be the only direct-to-main path, and the sweep defers any story with ADR amendments to interactive finalize.)
 - It does not delete stories or archive them.
 
 ## When done

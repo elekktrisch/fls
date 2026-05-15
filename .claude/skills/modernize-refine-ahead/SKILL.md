@@ -31,12 +31,15 @@ These are the only legitimate `AskUserQuestion` calls. Story selection and refin
 
 ## Story selection rule
 
-Walk `_ORDER.md` top-to-bottom. A story is **eligible** for speculative refinement when **all** of:
+Walk `_ORDER.md` top-to-bottom. For each story ID, resolve its file at `docs/modernization/stories/S-NNN-*.md` — **top-level only**. If the file is not at the top level (it lives in `docs/modernization/stories/implemented/`), the story is already finalized and is **silently skipped** from the candidate set — never offer to re-refine a shipped story. (When checking `depends_on:` status for an eligible candidate, resolve those dependency files via the two-step glob — top-level then `implemented/` — because most upstream deps live in `implemented/`.)
 
-1. `status: todo` in its frontmatter (not `in_progress`, `done`, or `blocked`).
-2. `refined: false` (or `refined:` field absent — same thing).
-3. Every story listed in `depends_on:` has `status: done` AND `merged: true` (the dependency's code has actually landed). A dependency whose PR is still open is too soft a foundation — refinement against a moving target produces stale advice.
-4. The story is not in an explicitly-skipped epic (see the `Skipped-epics list` below — empty by default).
+A story is **eligible** for speculative refinement when **all** of:
+
+1. The story file is at the top level of `docs/modernization/stories/` (not in `implemented/`).
+2. `status: todo` in its frontmatter (not `in_progress`, `done`, or `blocked`).
+3. `refined: false` (or `refined:` field absent — same thing).
+4. Every story listed in `depends_on:` has `status: done` AND `merged: true` (the dependency's code has actually landed). A dependency whose PR is still open is too soft a foundation — refinement against a moving target produces stale advice.
+5. The story is not in an explicitly-skipped epic (see the `Skipped-epics list` below — empty by default).
 
 Stop selecting at the first ineligible-and-not-yet-refined story whose ineligibility is a hard block (missing dependency), **except** that you may skip past stories that are temporarily ineligible because they're already `refined: true` (those are fine — they were refined earlier; just don't double-refine).
 
@@ -116,7 +119,7 @@ Print to the user:
 
 - **Stories refined:** count + per-story headline ("S-NNN — `Open design questions` count: 0 / refinement size delta: +N lines").
 - **Stories skipped:** count + per-story reason (ineligible, malformed, specialist-failure).
-- **Buffer state:** approximate count of refined-but-not-implemented stories now in the buffer (scan `_ORDER.md` for `status: todo` + `refined: true`).
+- **Buffer state:** approximate count of refined-but-not-implemented stories now in the buffer (scan top-level `docs/modernization/stories/S-*.md` — NOT `implemented/` — for `status: todo` + `refined: true`).
 - **Suggested next action:** `/modernize-implement <S-NNN>` against the freshly-refined story at the top of the buffer (the first eligible `status: todo` + `refined: true` in `_ORDER.md`).
 
 ## Quality bar

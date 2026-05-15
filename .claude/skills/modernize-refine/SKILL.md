@@ -12,7 +12,9 @@ Refinement is **just-in-time, not batch**: never refine more than one story per 
 ## Preconditions
 
 1. The argument is a single story ID: `S-NNN`. If the user passed something else, ask for the ID.
-2. The story file exists at `docs/modernization/stories/S-NNN-*.md`. If not, bail.
+2. The story file exists at `docs/modernization/stories/S-NNN-*.md` (top-level). If not found there, also check `docs/modernization/stories/implemented/S-NNN-*.md`:
+   - If found in `implemented/`: refuse with "Story S-NNN is already finalized (in stories/implemented/). Refining a shipped story would produce a spec disconnected from its already-merged code. If you genuinely need to re-open it, copy the file back to stories/ first."
+   - If not found in either location: bail.
 3. The story is not already `status: done`. If it is, ask the user whether to re-refine (warn that this overwrites prior refinement).
 4. If `refined: true` is already set in the frontmatter, warn the user and ask: re-refine (overwrite the existing refinement sections) or abort.
 
@@ -27,6 +29,7 @@ Read in parallel:
 - Every ADR listed in the story's `adr_refs`.
 - `00-seed.md`, `01-current-state.md`, `02-vision-and-constraints.md` — for the project-wide invariants.
 - `_ORDER.md` — to confirm `depends_on` are real and to find the relevant up-stream stories.
+- The **upstream stories** named in `depends_on:`. These typically live in `docs/modernization/stories/implemented/` (most foundational stories have already shipped by the time a later story is refined). Resolve each via a two-step glob: `docs/modernization/stories/S-NNN-*.md` first, then `docs/modernization/stories/implemented/S-NNN-*.md`. Read whichever you find — implemented stories are reference-only but remain authoritative for their refinement / design decisions.
 
 You should *not* read every story or every ADR — only the ones this story depends on or references. Keep context focused.
 

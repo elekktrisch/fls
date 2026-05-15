@@ -1,6 +1,6 @@
 # Flight Logging System (FLS)
 
-[![e2e](https://github.com/elekktrisch/fls/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/elekktrisch/fls/actions/workflows/e2e.yml)
+[![ci](https://github.com/elekktrisch/fls/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elekktrisch/fls/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](flsserver/LICENSE)
 [![modernization](https://img.shields.io/badge/modernization-planning%20complete-blue)](docs/modernization/)
 

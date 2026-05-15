@@ -43,16 +43,19 @@ These are the only blocking conditions.
 
 ## Story selection rule
 
+Walk `_ORDER.md` top-to-bottom. For each story ID, resolve its file at `docs/modernization/stories/S-NNN-*.md` — **top-level only**. Story IDs whose file is in `docs/modernization/stories/implemented/` are silently skipped (already finalized; not fleet candidates). Resolve `depends_on:` lookups via the two-step glob (top-level then `implemented/`).
+
 A story is **fleet-eligible** when **all** of:
 
-1. `status: todo` (not in-flight, not done, not blocked).
-2. All `depends_on` entries have `merged: true`.
-3. The story has not been called out as foundational. Heuristic — fleet-INELIGIBLE if any of:
+1. The story file is at the top level of `docs/modernization/stories/` (not in `implemented/`).
+2. `status: todo` (not in-flight, not done, not blocked).
+3. All `depends_on` entries have `merged: true`.
+4. The story has not been called out as foundational. Heuristic — fleet-INELIGIBLE if any of:
    - The story is in epic E-01 (foundations) or E-02 (database/migration spine) or E-03 (identity/auth/tenancy).
    - The story's `parity_test` references a harness that doesn't yet exist (e.g. `delivery-test-harness` referenced before S-079 is merged).
    - The story's `## Design notes` (if refined) explicitly says "must be implemented before parallel work begins."
-4. The story does not share a file path with any other selected story. Pairwise check: scan each candidate's `## Tasks` and `## Design notes` for `next/server/src/.../<file>` and `next/web/src/.../<file>` references. Two stories with overlapping target paths are not co-fleetable; pick one for this run, defer the other.
-5. The story is in a different *epic* from every other selected story (cross-epic preferred — within-epic increases conflict risk).
+5. The story does not share a file path with any other selected story. Pairwise check: scan each candidate's `## Tasks` and `## Design notes` for `next/server/src/.../<file>` and `next/web/src/.../<file>` references. Two stories with overlapping target paths are not co-fleetable; pick one for this run, defer the other.
+6. The story is in a different *epic* from every other selected story (cross-epic preferred — within-epic increases conflict risk).
 
 Walk `_ORDER.md` top-to-bottom. Apply the rules; collect up to `N` co-fleetable stories. If fewer than `N` are co-fleetable, fleet what you have and report the gap.
 

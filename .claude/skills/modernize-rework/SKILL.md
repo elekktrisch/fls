@@ -36,7 +36,9 @@ The skill has two modes, selected by the operator at invocation:
 ## Preconditions
 
 1. The argument is a single story ID `S-NNN`, optionally followed by `--bold`. If missing, ask.
-2. The story file exists at `docs/modernization/stories/S-NNN-*.md`.
+2. The story file exists at `docs/modernization/stories/S-NNN-*.md` (top-level). If not found there, also check `docs/modernization/stories/implemented/S-NNN-*.md`:
+   - If found in `implemented/`: refuse with "Story S-NNN is already finalized (in stories/implemented/). Rework triage runs before finalize — once shipped, follow-ups land as fresh stories. If you genuinely need to re-triage, copy the file back to stories/ first."
+   - If not found in either location: bail.
 3. The story has `reviewed: true`. If not, bail — there's nothing to rework. Run `/modernize-review S-NNN` first.
 4. The story's `review_outcome` is `blockers` or `improvements-only`. If `pass`, refuse with: "Nothing to rework — review found no findings. Run `/modernize-finalize S-NNN` instead."
 5. The `## Review` section is present and parseable (between the `<!-- modernize-review: start -->` / `end -->` delimiters). If malformed, bail with: "Review section corrupted. Re-run `/modernize-review S-NNN` first."
@@ -117,7 +119,7 @@ When the operator invoked with `--bold`, apply these rules *before* prompting. F
 
 **For each `defer`:**
 
-- Generate the next available story ID. Find the highest `S-NNN` in `docs/modernization/stories/`, increment.
+- Generate the next available story ID. Find the highest `S-NNN` across **both** `docs/modernization/stories/S-*.md` and `docs/modernization/stories/implemented/S-*.md` (implemented stories still own their IDs — minting a fresh ID must avoid collisions with shipped work), then increment.
 - Slugify the finding text (lowercase, kebab-case, ≤ 6 words).
 - Create `docs/modernization/stories/S-NNN-<slug>.md` with frontmatter:
   ```yaml

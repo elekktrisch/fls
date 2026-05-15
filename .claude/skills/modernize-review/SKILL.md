@@ -16,7 +16,9 @@ Review is **just-in-time, not batch** — never review more than one story per i
 ## Preconditions
 
 1. The argument is a single story ID `S-NNN`. If missing, ask.
-2. The story file exists at `docs/modernization/stories/S-NNN-*.md`.
+2. The story file exists at `docs/modernization/stories/S-NNN-*.md` (top-level). If not found there, also check `docs/modernization/stories/implemented/S-NNN-*.md`:
+   - If found in `implemented/`: refuse with "Story S-NNN is already finalized (in stories/implemented/). The review pass ran before finalize; re-running it now would compare a stale diff. If you genuinely need to re-review, copy the file back to stories/ first."
+   - If not found in either location: bail.
 3. The story has `status: done` in its frontmatter. If `in_progress`, ask whether to review the partial work (early-feedback mode) or wait. If `todo` or `blocked`, refuse. If already `reviewed: true`, warn and ask: re-review (overwrite the existing `## Review` section) or abort.
 4. The story has `refined: true`. Review compares the diff against the refinement contracts (design notes / security plan / test plan / performance plan); without those there's no baseline to assess against. Bail with: "Story not refined — review needs the refinement sections as the contract baseline. Run `/modernize-refine S-NNN` first if you want to retro-spec, or skip review."
 5. A diff is locatable for the story (see Step 1 below). If no PR exists for the story and no commits reference the story's GitHub issue and no commits fall in the `started_at` → `done_at` window, bail — there's nothing to review.

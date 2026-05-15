@@ -12,10 +12,12 @@ This is the only phase that produces code. Everything before it has been plannin
 ## Preconditions (verify before doing any work)
 
 1. The argument is a single story ID `S-NNN`. If missing, ask.
-2. The story file exists at `docs/modernization/stories/S-NNN-*.md`.
+2. The story file exists at `docs/modernization/stories/S-NNN-*.md` (top-level). If not found there, also check `docs/modernization/stories/implemented/S-NNN-*.md`:
+   - If found in `implemented/`: refuse with "Story S-NNN is already finalized (in stories/implemented/). Its code has shipped on `main`. Re-implementing is not supported by this skill; if you genuinely need to rework it, copy the file back to stories/ first."
+   - If not found in either location: bail.
 3. The story has `refined: true` in its frontmatter. If not, **bail** with: "Story not refined. Run `/modernize-refine S-NNN` first."
 4. The story has `status: todo` (not `in_progress`, not `done`, not `blocked`). If `in_progress`, ask whether to resume. If `done`, refuse. If `blocked`, refuse and surface the block reason.
-5. Every story in `depends_on` has `status: done` **AND its PR is merged into `main`** (`gh pr view <PR> --json state` returns `MERGED`, or the story has no `github_pr:` because it predates the PR workflow / used the fallback). A `done` story whose PR is still open means its code isn't on `main` yet — bail with: "Dependency S-NNN is done but its PR #<N> isn't merged. Merge it first, then resume."
+5. Every story in `depends_on` has `status: done` **AND its PR is merged into `main`** (`gh pr view <PR> --json state` returns `MERGED`, or the story has no `github_pr:` because it predates the PR workflow / used the fallback). A `done` story whose PR is still open means its code isn't on `main` yet — bail with: "Dependency S-NNN is done but its PR #<N> isn't merged. Merge it first, then resume." Resolve dependency story files via the two-step glob (top-level then `implemented/`) — finalized dependencies live in `implemented/`.
 6. The working tree is clean (no uncommitted changes outside of test snapshots / lockfiles you yourself will produce). If dirty, ask before proceeding — uncommitted changes from a half-done previous story are a footgun.
 7. Current branch is `main` (or the configured default). The skill creates a story branch off `main` at Step 2 — if you're already on a feature branch from another story, bail.
 

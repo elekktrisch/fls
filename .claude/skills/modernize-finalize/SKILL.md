@@ -12,7 +12,7 @@ This is a one-shot terminal skill. Unlike `/modernize-rework`, finalize does not
 ## Preconditions
 
 1. The argument is a single story ID `S-NNN`. If missing, ask.
-2. The story file exists at `docs/modernization/stories/S-NNN-*.md`.
+2. The story file exists at `docs/modernization/stories/S-NNN-*.md` (top-level — pending stories). If the file is found instead at `docs/modernization/stories/implemented/S-NNN-*.md`, refuse with: "Story S-NNN is already finalized (in stories/implemented/). Nothing to do." This is the post-finalize resting state — moving it back to top-level is a manual operator decision (e.g. genuine re-opening), not a skill responsibility.
 3. The story has `reviewed: true`.
 4. The story's `review_outcome` is `pass` or `improvements-only`. If `blockers`, refuse with: "Review still has blockers. Resolve via `/modernize-rework S-NNN` → fix → `/modernize-review S-NNN` → finalize."
 5. The story's `## Review` section has no `[blocker]` bullets without an `[accepted: ...]` annotation (sweep the section to verify — `review_outcome` alone could be stale if a re-review hasn't been run).
@@ -57,6 +57,35 @@ Single `AskUserQuestion`:
 
 Squash is the documented default per the modernize-* workflow design. Other choices are escape hatches.
 
+### Step 2.5 — Pre-merge bookkeeping commit on the PR branch
+
+The merged-state stamp + the move to `stories/implemented/` are committed **on the PR branch before the merge**, so the squash merge commit on `main` carries them. This eliminates the post-merge direct-to-main commit (formerly Step 7) — the merge IS the bookkeeping.
+
+Rationale: a post-merge `S-NNN: stamp merged state` commit on `main` is a separate push, separate CI run, and separate audit-log entry. Folding it into the PR makes each finalized story produce exactly one commit on `main` (the squash) plus optionally one for ADR amendments (Step 4).
+
+Steps:
+
+1. **Switch to the PR branch:** `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. The working tree must be clean (precondition 10); if `pull` reports diverged refs, bail with "PR branch has diverged from origin — investigate before finalizing."
+2. **Update story frontmatter** (still at `docs/modernization/stories/S-NNN-<slug>.md` — top-level on the PR branch):
+   ```yaml
+   merged: true
+   merged_at: <today's ISO date>
+   status: done   # confirm; should already be done from implement
+   ```
+   Do **not** stamp `merge_commit:`. The SHA isn't known until after the merge, and a post-merge commit just to add it would defeat the point of this step. The merge SHA is recoverable from `git log -1 --format=%H -- docs/modernization/stories/implemented/S-NNN-<slug>.md` after the move, or from `gh pr view M --json mergeCommit -q .mergeCommit.oid` immediately after the merge (used for the report at Step 8 only).
+3. **Move the story file:**
+   - `mkdir -p docs/modernization/stories/implemented` (no-op if already present).
+   - `git mv docs/modernization/stories/S-NNN-<slug>.md docs/modernization/stories/implemented/S-NNN-<slug>.md`. `git mv` preserves history and stages the rename.
+4. **Commit + push:** `#N: archive — stamp merged state + move to implemented/` (or `S-NNN: archive — ...` in GitHub-fallback mode). Then `git push origin story/S-NNN-<slug>`.
+5. **Wait for CI green on the freshened head.** The push triggers a fresh CI run; branch-protection rules will block the upcoming merge if CI isn't green. Use `gh run watch --exit-status <latest-run-id>` (the run id comes from `gh run list --branch story/S-NNN-<slug> --limit 1 --json databaseId -q '.[0].databaseId'`). On red CI:
+   - Surface the failure to the operator + the run URL.
+   - Refuse with "CI failed on the bookkeeping commit — likely a markdown-lint rule on the frontmatter or path move. Investigate; once fixed, re-run finalize."
+   - Do **not** auto-revert. The bookkeeping commit is recoverable (a re-run with a fix is straightforward), and reverting risks racing against the operator's investigation.
+
+**Why this layout works:** the markdown-only diff (frontmatter stamp + file rename) typically clears CI in seconds (no Java/TS compile, no test run beyond markdown lint). The wall-clock added vs. the old post-merge stamp is on the order of one CI cycle — and that cycle was happening *anyway* if the operator hand-stamped post-merge.
+
+If precondition 6 noted the repo allows `gh pr merge --auto`, the skill MAY substitute Step 2.5's manual `gh run watch` with `gh pr merge --auto --squash` (queues the merge for when CI passes). This is an optimization; the default flow uses the explicit watch-then-merge pattern for predictability.
+
 ### Step 3 — Merge the PR
 
 Based on the operator's choice:
@@ -65,15 +94,15 @@ Based on the operator's choice:
 - Merge commit: `gh pr merge M --merge --delete-branch`.
 - Rebase: `gh pr merge M --rebase --delete-branch`.
 
-The `--delete-branch` flag deletes the remote feature branch. The skill explicitly handles the local branch separately in Step 5 (safer than letting `gh` shell out).
+The `--delete-branch` flag deletes the remote feature branch. The skill explicitly handles the local branch separately in Step 6 (safer than letting `gh` shell out).
 
 Wait for the merge to complete (`gh pr merge` is synchronous when given a state that's mergeable). If `gh pr merge` returns non-zero:
 
-- `not mergeable` (conflicts with main): refuse with "PR has conflicts with main. Resolve them on the story branch, push, then re-run finalize."
+- `not mergeable` (conflicts with main): refuse with "PR has conflicts with main. Resolve them on the story branch, push, then re-run finalize." The bookkeeping commit from Step 2.5 sits on the branch; the operator's conflict resolution proceeds from there.
 - `requires review` (branch protection): refuse with "Branch protection requires a human reviewer's approval. Get the approval, then re-run finalize."
 - Any other error: surface the gh error verbatim and refuse.
 
-Capture the merge commit SHA from `gh pr view M --json mergeCommit -q .mergeCommit.oid`.
+Capture the merge commit SHA from `gh pr view M --json mergeCommit -q .mergeCommit.oid` — used in the Step 8 report only; not stamped on the frontmatter (the file is already in `implemented/` with `merged: true`, and `git log` is the authoritative source for the SHA).
 
 ### Step 4 — Commit any pending ADR amendments to main
 
@@ -90,7 +119,7 @@ ADR amendments do not go through their own PR — they're stamped on `main` dire
 1. `gh issue view N --json state` — should be `CLOSED` (auto-close fired on `Closes #N` keyword in the squash-merge commit message).
 2. If still `OPEN` (rare — e.g. `Closes` keyword was malformed): close manually with `gh issue close N`.
 3. Apply labels (best-effort, skip silently if missing): `--add-label status/merged --remove-label status/in-progress` and any `status/done` label that was applied at review time.
-4. Post a final comment on the issue: "Merged in <merge-commit-SHA>. Story file: `docs/modernization/stories/S-NNN-<slug>.md`."
+4. Post a final comment on the issue: "Merged in <merge-commit-SHA>. Story file: `docs/modernization/stories/implemented/S-NNN-<slug>.md`."
 
 ### Step 6 — Local cleanup
 
@@ -98,20 +127,11 @@ ADR amendments do not go through their own PR — they're stamped on `main` dire
 2. `git branch -D story/S-NNN-<slug>` — delete the local feature branch. If it's the current branch (shouldn't be after checkout main, but safeguard), bail rather than delete the current branch.
 3. Verify the remote branch is gone: `git fetch -p` to prune; `git branch -r --list 'origin/story/S-NNN-<slug>'` should return empty.
 
-### Step 7 — Stamp story frontmatter
+### Step 7 — *(removed)*
 
-Update the story file's frontmatter:
+The merged-state frontmatter stamp + the move to `stories/implemented/` happen in **Step 2.5 before the merge**, so the squash commit carries them. No post-merge direct-to-main commit is needed for bookkeeping (ADR amendments in Step 4 remain the only legitimate direct-to-main writes).
 
-```yaml
-merged: true
-merged_at: <ISO date>
-merge_commit: <SHA from Step 3>
-status: done  # confirm; should already be done from implement
-```
-
-Commit this single-file change to `main` with message `S-NNN: stamp merged state` and push. This commit lives on `main`, not on a branch — it's the final breadcrumb that the story has shipped.
-
-If ADR amendments also landed in Step 4, the frontmatter stamp can be folded into the same commit (operator preference; default is separate commits for log clarity).
+`_ORDER.md` is **not** edited at any step. It is a planning artifact and references implemented stories as predecessors of unfinalized ones; mutating it would invalidate dependency context for downstream stories. The presence of `merged: true` + the `implemented/` path is the signal that the story has shipped.
 
 ### Step 8 — Report
 
@@ -124,6 +144,7 @@ Print to the user:
 - **ADR amendments processed (if any):** ADR IDs + applied/skipped/manual-edit per amendment.
 - **Issue:** `#N` + URL + `CLOSED` state.
 - **Branch cleanup:** local `story/S-NNN-<slug>` deleted, remote pruned.
+- **Archive:** story file moved to `docs/modernization/stories/implemented/S-NNN-<slug>.md` (Step 7.5).
 - **Follow-up stories from rework (if any):** the rework frontmatter's `rework_followups` list. Operator may want to refine + implement these next.
 - **Suggested next action:** `/modernize-refine <next-S-id>` from `_ORDER.md`. If rework follow-ups exist, surface those as candidates.
 
@@ -137,6 +158,9 @@ Print to the user:
 - **ADR amendments commit to main directly.** No PR for governance-doc edits the operator already approved. Document the exception in the report.
 - **Verify, don't trust.** After every state-changing call (`gh pr merge`, branch delete, issue close), verify with a read-side call (`gh pr view`, `git branch`, `gh issue view`). The skill's report is only as honest as its verification.
 - **Local main stays clean.** After Step 6, the operator is on `main`, fast-forwarded, with the feature branch gone. Next story starts from a clean slate.
+- **Finalized stories archive to `stories/implemented/`.** Step 2.5's `git mv` is mandatory — it's how selection skills (refine-ahead, fleet, sweep-finalize) know the story is no longer a work candidate. Skipping the move leaks finalized stories back into refinement / implementation passes.
+- **Bookkeeping rides the PR, not main.** The merged-state stamp + the archive move are committed on the PR branch (Step 2.5), so the squash commit carries them. No post-merge direct-to-main commit is needed for per-story bookkeeping — keeps `main`'s log to one commit per story.
+- **`merge_commit:` is not stamped on the frontmatter.** It can't be known at pre-merge time, and a post-merge stamp commit would defeat Step 2.5's purpose. The merge SHA is recoverable from `git log -- docs/modernization/stories/implemented/S-NNN-*.md` (and is reported at Step 8).
 
 ## What this skill does *not* do
 
@@ -144,10 +168,10 @@ Print to the user:
 - It does not run tests. The PR's CI is the gate; if green, finalize proceeds. If red, finalize refuses (precondition 8).
 - It does not iterate the rework cycle. That's `/modernize-rework`.
 - It does not auto-create stories. Follow-up stories were created by `/modernize-rework`; finalize only surfaces them.
-- It does not reorder `_ORDER.md`. Order is set at decompose / rework time.
+- It does not reorder `_ORDER.md`. Order is set at decompose / rework time. The story ID remains in `_ORDER.md` even after the file moves to `implemented/` — downstream stories' `depends_on` still references it, and the order is the planning record of how the work was executed.
 - It does not force-merge past failing CI or branch protection. Those are real gates; the operator addresses them outside this skill.
-- It does not delete the story file or archive it. Story files are permanent record; `merged: true` + `merge_commit:` is the signal that the story has shipped.
-- It does not push to `main` outside of Steps 4 and 7. Those two pushes (ADR amendments + frontmatter stamp) are the only direct-to-main writes; the PR merge itself is GitHub-side.
+- It does not delete the story file. Step 2.5 **moves** it into `stories/implemented/`; the content is preserved verbatim. Story files are permanent record; `merged: true` + the `implemented/` path are the signals that the story has shipped.
+- It does not push to `main` outside of Step 4. The ADR-amendments push is the only direct-to-main write — Step 2.5's bookkeeping commit lives on the PR branch and rides the squash. The PR merge itself is GitHub-side.
 
 ## When done
 
