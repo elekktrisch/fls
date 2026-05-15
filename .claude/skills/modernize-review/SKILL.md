@@ -43,6 +43,22 @@ Then read in parallel:
 
 The refinement sections are the **contract**. The review's first question is always: did the implementation honor the contract?
 
+### Step 1.5 — Context7 freshness pass
+
+Identify every library / framework / SDK / API touched by the diff (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, JPA/Hibernate, springdoc-openapi, etc. — `git diff <range> -- '**/package.json' '**/pom.xml' '**/build.gradle*'` for dependency changes; scan the diff for new imports). For each, fetch current docs via Context7 to verify:
+
+- **Version pins are still alive** (the story may have been refined months ago — check the package version against current major).
+- **APIs used in the diff are still recommended** (not deprecated, not superseded by a newer pattern).
+- **Peer-dep alignment is correct** (e.g. @angular-eslint major matches Angular major; NgRx Signals major matches Angular major).
+
+Workflow per library: `mcp__context7__resolve-library-id` → pick best match → `mcp__context7__query-docs` for the specific question.
+
+Pass the synthesized facts (1-3 lines per library — current major, key API names, deprecations) into each reviewer's prompt as a "Library facts" block. Reviewers run in subagents that **do not have Context7 access** — front-loading is the only way to keep reviewer findings anchored to current docs rather than training-data assumptions.
+
+A version pin that has since been deprecated or a deprecated API used in the diff is a **maintainability finding** (not a security one) — improvement at minimum, blocker if the deprecation has a hard cut-off date that lands before the project ships.
+
+Skip libraries the diff doesn't touch. Don't fetch generic programming docs.
+
 ### Step 2 — Spawn the three reviewers in parallel
 
 Launch all three subagents in a single message with three Agent tool calls:
@@ -165,6 +181,7 @@ Print to the user:
 ## Quality bar
 
 - **One story per invocation.** Batching is forbidden.
+- **Context7 freshness pass before reviewers.** Every library / framework / SDK / API the diff touches gets its current docs fetched via Context7 (Step 1.5) and the facts handed to each reviewer. Subagents have no Context7 access — front-loading is the only way to catch deprecated APIs and dead version pins.
 - **Three reviewers, one parallel batch.** Sequential spawning wastes wall-clock.
 - **Anchor on the PR when available.** PR mode gives line-anchored cite-by-link in findings + a clean merge gate. Commit-only mode is the documented fallback when no PR exists.
 - **Review against the contract, not against taste.** A reviewer who flags "I'd have named this differently" is wasting the operator's time. Flag what the refinement promised vs. what the code shipped.

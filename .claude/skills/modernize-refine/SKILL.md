@@ -30,6 +30,16 @@ Read in parallel:
 
 You should *not* read every story or every ADR — only the ones this story depends on or references. Keep context focused.
 
+### Step 1.5 — Context7 freshness pass
+
+For every library / framework / SDK / API the story is likely to touch (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, etc. — derive from `adr_refs` + acceptance criteria + the legacy code being replaced), fetch the **current** API surface and version status via Context7 **before** spawning specialists.
+
+Workflow per library: `mcp__context7__resolve-library-id` → pick best match → `mcp__context7__query-docs` for the specific question (latest stable version, peer-dep matrix, whether an API is still recommended or has been superseded).
+
+Pass the synthesized facts (1-3 lines per library — current major, key API names, deprecations) into each specialist's prompt as a "Library facts" block. Specialists run in subagents that **do not have Context7 access** — front-loading the lookup is the only way to keep their recommendations current.
+
+Skip libraries the story doesn't touch. Don't fetch generic programming docs.
+
 ### Step 2 — Spawn the five specialists in parallel
 
 Launch all five subagents in a single message with five Agent tool calls:
@@ -45,6 +55,7 @@ Each subagent's prompt **must include**:
 - The absolute paths to the ADRs referenced by `adr_refs`.
 - The story's `depends_on` IDs (so the agent can read those stories' refinements if they exist).
 - A brief reminder of the project context (the 122-story FLS modernization, sacred cows, multi-tenancy by `@TenantId`).
+- **The Library facts block from Step 1.5** — the specialist must pin versions and APIs against these facts, not against training-data assumptions.
 - The agent's output format (already in their system prompt, but call it out so they emit it cleanly).
 
 Send the five Agent calls in **one message** so they run concurrently. Each returns a single markdown blob in their agent-defined format.
@@ -109,6 +120,7 @@ Print to the user:
 ## Quality bar
 
 - **One story per invocation.** Batching is forbidden — refinement is JIT by design.
+- **Context7 freshness pass before specialists.** Every library / framework / SDK / API the story touches gets its current docs fetched via Context7 (Step 1.5) and the facts handed to each specialist. Subagents have no Context7 access — front-loading is the only way to keep version pins and API recommendations current.
 - **Five specialists, one parallel batch.** Sequential spawning wastes wall-clock.
 - **Synthesis is mechanical, not editorial.** The specialists own the analysis; you own the layout. Don't paraphrase their findings into something weaker.
 - **Replace, don't append, on re-run.** Refining twice should not double the file.
