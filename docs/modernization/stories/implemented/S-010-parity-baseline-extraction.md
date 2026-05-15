@@ -2,12 +2,18 @@
 id: S-010
 title: Extract production-schema parity baseline
 epic: E-02
-status: todo
+status: done
+started_at: 2026-05-15
+done_at: 2026-05-15
+github_issue: 15
+github_pr: 16
 depends_on: []
 acceptance:
-  - A reference doc `next/database/legacy-baseline.md` lists every table, column (type + nullability), primary key, foreign key, index, and check constraint in the current production SQL Server schema.
-  - The doc is generated from the live DB (or its dump), not hand-typed.
-  - The doc is the explicit input for the new Postgres schema design in S-012..S-014.
+  - A Spring Boot CLI app at `next/database/extract/` (standalone Gradle subproject, Java 25 + Spring Boot 4.0.x to match `next/server/`) connects to a SQL Server source DB, reads metadata, and emits ephemeral JSON files under `next/database/extract/raw/` (gitignored). Source is parameterized via env vars (`MSSQL_HOST`, `MSSQL_USER`, `MSSQL_PASSWORD`, `MSSQL_DATABASE`); the FLSTest-seeded container is the default first-pass source, prod is the eventual second-pass source.
+  - The extraction reads `INFORMATION_SCHEMA` + `sys.*` + `sys.dm_db_*` only; never reads row data from application tables. Application-table aggregate queries (`COUNT`, `APPROX_COUNT_DISTINCT`, `MAX(DATALENGTH(...))`) are permitted only behind a `--allow-aggregate-counts` flag; `sys.dm_db_index_physical_stats` uses `'LIMITED'` mode only. Enforced by JUnit tests + a runtime guard in the SQL-runner.
+  - The JSON outputs cover every table, column (type + nullability + default + identity + computed flag), primary key, foreign key (with cascade behavior), unique constraint, check constraint, default constraint, index (with columns + filter predicate + includes), view, trigger. Output shapes are stable + documented in record-class JavaDoc; downstream stories (S-012/S-013/S-014/S-016) consume the JSON directly by re-running the extraction.
+  - When invoked with `--allow-aggregate-counts` against a prod-shape source, the JSON outputs additionally include: per-table row count + storage MB (from `sys.dm_db_partition_stats`), per-index size MB + reads/writes since SQL Server restart (from `sys.dm_db_index_usage_stats`), NDV for every indexed column (`APPROX_COUNT_DISTINCT` on SQL Server 2019+, `TABLESAMPLE` fallback otherwise), audit-log sizing breakdown for both `AuditLogs` and `AuditLogDetails`, and per-top-10-table cutover-window estimate (storage MB / 30 MB/s default; constant configurable).
+  - Module is tested via JUnit 5 + Testcontainers (`org.testcontainers:mssqlserver`) only — no mocking, no in-memory DB emulation, no unit-test tier. A single integration test class spins up the SQL Server container, applies synthetic DDL exercising every output record shape, runs the extractor, and asserts the JSON outputs. `./gradlew test` is the verification gate.
 estimate: M
 adr_refs: [0002, 0003]
 parity_test: none
@@ -762,3 +768,44 @@ These specialists' analyses surfaced operator-decision points; the skill does no
 6. **Throughput-constant calibration timing.** §3.5 cutover math uses `30 MB/s` default. S-017 rehearsal measures real. **Recommend:** ship S-010 with `30 MB/s` default + per-table seconds estimates. Update §3.5 numbers (single-line + renderer recompute) after first rehearsal. If first rehearsal shows < 15 MB/s sustained, C6 ≤ 6h budget at risk for audit-log specifically — flag S-016 to plan parallel-load strategy.
 
 <!-- modernize-refine: end -->
+
+## Assumptions made (implement-time, 2026-05-15)
+
+Operator decisions on the refinement's 6 open design questions. Recorded here verbatim so reviewers / future-Claude can see what shifted between refine and implement.
+
+1. **AC4 added** (Q1). The refinement's recommended fourth acceptance criterion is now in frontmatter — scale-bearing content (row counts, storage MB, cardinality, audit-log sizing, cutover-window math) is gating, not "recommended in Notes."
+
+2. **`--allow-aggregate-counts` gated flag** (Q2). Aggregate-only queries (`COUNT`, `APPROX_COUNT_DISTINCT`, `MAX`, `AVG`, `SUM` on user tables) are permitted behind the flag, with explicit operator confirmation logged in commit-message provenance. Pre-merge verifier blocks any `FROM <app_table>` not wrapped in an aggregate function and not behind the gate. The `DENY SELECT ON dbo.Persons / dbo.AuditLogDetails` table-level DENY (Q3 sub-question) is therefore **NOT** applied — it would block the few permitted aggregates. Security-in-depth comes from script-level guards + verifiers + read-only role + `VIEW SERVER STATE` narrowly granted, not table-level DENY.
+
+3. **FLSTest fixture is the first-pass source** (Q3 on source). No prod access from this sandbox. The script targets a Dockerized SQL Server seeded with `flsserver/database/FLSTest/` scripts. The MD + script + verifiers + an FLSTest-derived run land in this story. §3.5-equivalent fields in the JSON carry FLSTest-derived placeholder values + banner; downstream stories (S-013, S-016, S-027, S-107) gate their implement-phase entry on a prod-source re-run.
+
+4. **Lean MD + ephemeral JSON, NOT a 5K-10K-line frozen MD** (Q4 + follow-up override). Operator override of refinement's "single big doc" recommendation, applied twice:
+   - "no need to write down everything in an md document. rather opt for re-exporting from the seeded legacy db using the script to be developed"
+   - "no need to commit raw json files to git. we just re-export from the legacy-db if data is needed"
+
+   Concrete shape:
+   - `next/database/legacy-baseline.md` is **small** (target ≤ 500 lines): provenance ledger, sacred-cow narrative, PII catalog (column-level, FADP-classified), tenant-scope catalog (including the `indirect-tenant via Aircrafts` finding), source-of-truth precedence rule, EF-mapping drift narrative, dead-table flags, cutover-window math implications, runbook pointer to the script. No per-table column tables; the script's JSON outputs cover that.
+   - `raw/*.json` is **entirely gitignored**. No allow-list. Re-export when needed.
+   - Verifiers no longer assert on committed JSON content. They run the extraction script against a freshly-seeded FLSTest container (CI provides the container) and verify the JSON outputs the script produced. Locally an operator runs `./verify.sh` which seeds a throwaway container and runs the same flow.
+   - Refinement's Doc structure §0-§14 is reinterpreted: §0/§1/§2/§4/§13 narrative goes into the slim MD; §3/§5/§6-§12 mechanical content lives in JSON re-emitted by the script; §3.5/§14 mixed-content split — implications-prose in MD, raw numbers in JSON.
+
+5. **Throughput constant 30 MB/s default** (Q6). S-017 rehearsal calibrates. Single-line edit in script when actual is known.
+
+6. **S-010 ↔ S-011 boundary** (Q5). Deferred to S-011 refinement (carry-over from earlier refine note). S-010 emits the raw `ClubId`-column list to JSON + flags the `Flights → Aircrafts.OwnerClubId` indirect-tenancy case in JavaDoc on the `TenantScope` record / in the module README. S-011 builds the classified strategy on top.
+
+7. **Implementation language pivot — Python+shell → Spring Boot CLI** (operator override mid-implement). The refinement's `extract-legacy-schema.{sh,py}` + `render.py` + ~20 bash verifiers are dropped. Replaced by a small Spring Boot CLI app at `next/database/extract/` (standalone Gradle subproject, Java 25 + Spring Boot 4.0.6 matching `next/server/`). Justification: easier to maintain (one runtime, Gradle build), easier to test (JUnit 5 + Testcontainers mssql replace the 20-verifier corpus natively), and the same module is positioned to grow the Postgres-transformation pipeline for S-016 without a language switch.
+
+   Concrete differences from the refinement:
+   - **No verifier scripts.** JUnit tests assert the security guardrails (no SELECT * via parser; no DETAILED mode via runtime guard; no row-data leakage via output-content assertions).
+   - **No render.py / no rendered curation MD.** Operator override (3rd time, this session): "drop the whole verifier-script concept too... a small spring-boot app would be easier to maintain and test." The Spring Boot module's README + record-class JavaDoc + a single short module-level README replace the MD's narrative role. Sacred-cow / PII / tenant-scope reasoning lives as JavaDoc on the relevant record types (e.g. `record TenantScope(...)` documents the indirect-tenant Aircrafts case) so future-readers find it next to the code that emits it.
+   - **JSON outputs unchanged** in shape from refinement (tables/columns/pks/fks/uniques/checks/defaults/indexes/views/triggers/identity-columns/ef-mappings + gated row-counts/storage-stats/index-sizes/index-usage/column-cardinality). Emitted via Jackson with deterministic ordering.
+   - **EF-mapping cross-reference deferred** to a follow-up story (suggest S-010b: EF Mapping drift report). Rationale: the SQL Server metadata extraction is the central deliverable; EF-mapping drift is only consumed during S-013 design and can be a smaller stand-alone tool. Cuts complexity from this branch.
+   - **Runbook lives in `next/database/extract/README.md`** — how to start a Docker SQL Server container, seed it with FLSTest, run `./gradlew bootRun --args="--allow-aggregate-counts"`, and where to find the JSON outputs (`raw/`).
+
+8. **Test philosophy — integration-tests only, no mocking** (operator override mid-implement). The refinement's ~20-verifier bash corpus was first replaced with JUnit + Testcontainers; operator further simplified: "for tests, please only write integrationtests that connect to the actual mssql database, no need to set up any mocking." Concrete shape:
+   - **One integration test class** (`MetadataExtractorIntegrationTest`) — starts SQL Server in a Docker container, seeds it with the real `flsserver/database/FLSTest/` fixture (62 alter scripts in DBUpdate-version order), runs the extractor end-to-end, asserts the JSON outputs contain known FLS tables (Flights, AuditLogs, AccountingRuleFilters, etc.).
+   - **No separate unit tests** for `SqlGuard`, `CliRunner`, or any helper. They are exercised through the integration path (the `SqlGuard.scanClasspathResources()` startup safety net runs in `@BeforeAll`; CLI parsing is observed by the Spring DI bootstrap).
+   - **No `DataSource` / `JdbcTemplate` mocking, no in-memory DB emulation, no synthetic DDL.** The real FLSTest fixture against the real `mcr.microsoft.com/mssql/server:2022-latest` image is the only test substrate.
+   - Skipping the unit tier means refactors are tested against real SQL Server behavior and real legacy schema shape, not against test doubles that drift from production semantics. Slower per-run, simpler corpus, fewer false-confidence signals.
+
+9. **Container lifecycle via Docker CLI, not Testcontainers** (sandbox-driven). Testcontainers 1.21.x bundles docker-java 3.4.x which negotiates Docker REST API 1.32; modern Docker daemons (29.x) require ≥1.44 and reject the older negotiation. Overriding via `DOCKER_API_VERSION` env, system property, or `~/.testcontainers.properties` did not flow through to the actual request URL prefix. Rather than carrying that workaround, the test infra drives the container lifecycle through the `docker` CLI directly (`MssqlTestContainerLifecycle`). The CLI auto-negotiates the daemon's actual API version; SQL Server is started with `docker run -d`, port read back via `docker port`, readiness checked via JDBC, and torn down via `docker rm -f` in a shutdown hook. Drop-in replacement for Testcontainers; ~5 fewer dependencies; no docker-java in the dep tree at all.

@@ -28,6 +28,7 @@ See frontmatter.
 - [ ] Write sampled-value checks (random 1% sample per table, value-compare key columns).
 - [ ] Build a one-page HTML or markdown report from verification output.
 - [ ] Document the order: tables migrated in topological FK order; constraints disabled during bulk insert then re-enabled.
+- [ ] **Continuous-migration CI harness**: the script must be designed re-runnable from day 1 so a scheduled job (nightly or per-PR-touching-schema) can: spin up a fresh Postgres, replay V1__baseline, run the migration against a legacy snapshot (or anonymized fixture if prod-snapshot access isn't available in CI), and fail loud on schema drift, row-count drift, or FK-integrity regressions. File this as a follow-up story (suggest S-016b) once the script shape is known — the design constraint here is just: keep the script side-effect-clean, parameterize source/target connection strings, and emit machine-readable verification output (JSON alongside the HTML/MD report) so CI can assert on it.
 
 ## Notes
 This story is L. Tasks decompose it but the inherent complexity is real (~60 entity types). Plan for ~10 working days.

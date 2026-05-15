@@ -1,0 +1,14 @@
+# Ephemeral extraction output — re-run the app against the seeded legacy DB
+# whenever fresh data is needed. Nothing under raw/ is allow-listed; the
+# durable artifacts are the source code, JavaDoc, and module README.
+raw/
+out/
+.env
+.env.local
+
+# Standard Gradle / IDE
+.gradle/
+build/
+.idea/
+*.iml
+.vscode/
