@@ -19,3 +19,5 @@ e2e/screenshots
 .claude/*
 !.claude/skills/
 !.claude/agents/
+next/server/build
+next/server/.gradle
