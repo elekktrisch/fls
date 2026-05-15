@@ -2,10 +2,12 @@
 id: S-002
 title: Scaffold next/web/ Angular skeleton
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-15
+done_at: 2026-05-15
 depends_on: []
 github_issue: 8
+github_pr: 9
 acceptance:
   - `ng serve` runs the dev server; a placeholder "Hello FLS" route renders.
   - TailwindCSS is wired and a sample utility class (`text-blue-600`) renders correctly.
