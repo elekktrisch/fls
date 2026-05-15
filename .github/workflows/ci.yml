@@ -398,20 +398,46 @@ jobs:
         working-directory: next/server
         run: ./gradlew build --no-daemon
 
-      - name: Set up Node 20
+      - name: Set up Node 22
         if: steps.detect.outputs.web == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: next/web/package-lock.json
+          node-version-file: next/web/.nvmrc
 
-      - name: Build next/web
+      - name: Set up pnpm
+        if: steps.detect.outputs.web == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        if: steps.detect.outputs.web == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('next/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install next/web deps
         if: steps.detect.outputs.web == 'true'
         working-directory: next/web
+        env:
+          CI: 'true'
+          npm_config_ignore_scripts: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint + format + test + build next/web
+        if: steps.detect.outputs.web == 'true'
+        working-directory: next/web
+        env:
+          npm_config_ignore_scripts: 'true'
         run: |
-          npm ci
-          npm run build
+          pnpm lint
+          pnpm format
+          pnpm test
+          pnpm build:prod
 
   # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
