@@ -221,6 +221,20 @@ Read in parallel:
 
 Skim is not enough. The refinement sections give you what to build; the legacy code gives you the *behavior you must match*. Read both with the same attention.
 
+### Step 1.4 — Speculative-refinement freshness check
+
+If the story's frontmatter has `refined_speculative: true`, the refinement was done ahead of implement time (via `/modernize-refine-ahead`) and may be stale. **Re-refine if any of:**
+
+- `refined_speculative_at` is older than 14 days.
+- Any ADR in `adr_refs` has been modified (`git log -1 --format=%cI docs/modernization/adrs/NNNN-*.md`) after `refined_speculative_at`.
+- Any story in `depends_on` has `merged_at` later than `refined_speculative_at`.
+
+If re-refine is needed: invoke `/modernize-refine S-NNN` (JIT, single-story flow) before proceeding. The JIT re-refine flips `refined_speculative: false` and updates `refined_at`. Then continue.
+
+If the staleness check is clean: proceed with the speculative refinement as-is. Note the speculative origin in the done report so the operator knows the spec wasn't topped up just-in-time.
+
+If `refined_speculative` is absent or `false`: skip this step — the refinement is already JIT-fresh.
+
 ### Step 1.5 — Context7 freshness pass
 
 Before writing any production code, fetch current docs via Context7 for each library / framework / SDK / API the implementation will touch (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, JPA/Hibernate, springdoc-openapi, etc. — derive from `adr_refs` + design notes + the legacy code being replaced).
@@ -404,6 +418,36 @@ Most S-sized stories: no doc update. Note `(no doc changes)` in the done report 
 
 If doc *was* updated, **commit it as its own work-package** with message `#N: docs — <one-line subject>` (or `S-NNN: docs — …` in fallback) before Step 7's status flip.
 
+### Step 6.7 — Self-review against the contract (pre-push gate)
+
+Before flipping `status: done` and pushing the final commit, run a single read-only consult against the diff to catch the obvious contract violations that `/modernize-review` would otherwise flag as blockers. The goal isn't a full review (that's phase 7) — it's a cheap last-mile pass that closes the most common review→rework loops at source.
+
+**Why this exists:** the implement phase optimizes for getting tests green; a tired implementer ships diffs that pass tests but skip an `@PreAuthorize`, miss an acceptance criterion's test mapping, or silently re-shape the API away from the design notes. Catching those before the PR flips ready-for-review shrinks the average review→rework loop from ~1.5 cycles to ~1.0.
+
+**How to run:**
+
+1. Spawn **one** `maintainability-reviewer` Agent call with a scoped prompt:
+   - Story file path.
+   - ADR paths from `adr_refs`.
+   - The diff range — `git diff main...HEAD` from the story branch (or the equivalent commit range in fallback mode).
+   - **Scope override (this is the critical bit — different from the phase-7 invocation):** "**Blockers only.** Surface only findings that break a refinement contract, ADR, sacred cow, or security invariant, or that leave an acceptance criterion without a passing test. Skip improvements and nudges entirely — those belong to phase-7 review. If no blockers exist, return `(none)`."
+   - The five refinement-section paths to anchor the contract baseline.
+2. Wait for the consult to return (single agent, no fan-out, fast — typically under 90 seconds).
+
+**Disposition:**
+
+- **No blockers (`(none)`):** proceed to Step 7. Record the consult in the done report.
+- **Blockers found, all addressable in a single small commit:** fix them now, commit as `#N: self-review fixes — <one-line summary>` (or `S-NNN: self-review fixes — …` in fallback mode), push, watch CI, then proceed to Step 7. The done report names the consult, lists the blockers, and shows the fix commit.
+- **Blockers found that require a real redesign (design-notes contradiction, missing acceptance criterion, ADR conflict):** **stop and escalate per Step 5.** Don't fix-and-push past a structural blocker — that's exactly the case that should not silently disappear into a self-review fix commit. Surface to the operator with the consult's finding verbatim.
+
+**Rules:**
+
+- **One consult per story.** Re-running self-review after a fix commit is allowed once (to confirm the fix landed); a third invocation is a sign the consult is hunting and should be escalated.
+- **The consult is read-only.** It never writes code. Fix commits are the parent skill's job.
+- **Do not downgrade.** A finding the consult flagged as a blocker is not "actually fine on second thought" — either fix it or escalate it. The temptation to wave findings through is exactly what this gate exists to resist.
+- **Skip the gate only if the diff is bookkeeping-only** — e.g. a story that only flips frontmatter or only touches docs. Note the skip + reason in the done report.
+- **Specialist consult logged in done report.** Step 7's report lists this consult alongside any other Step 4.5 consults — operator can see the full advisory trail.
+
 ### Step 7 — Update status, final commit + push, close issue, report
 
 Update the story's frontmatter:
@@ -437,6 +481,7 @@ Print to the user:
 - Acceptance criteria status: each criterion + how it was verified.
 - Parity test result (if applicable): pass / known-delta-with-rationale.
 - Performance test result (if applicable): measured latency vs. budget.
+- **Self-review consult (Step 6.7):** outcome (`no blockers` / `<N> blockers fixed in <commit>` / `escalated`), and any blocker text the consult surfaced. If skipped (bookkeeping-only diff), the skip reason.
 - **Specialist consults made (if any):** which agent, what fork, what recommendation, whether the recommendation was followed. The operator may want to fold recurring forks back into the refinement template.
 - **Parallel sub-agents used (if any):** what split (e.g. backend / frontend / e2e), wall-clock saved (approx).
 - **CI / push fallback used (if any):** when CI wasn't configured / `gh` not installed / no remote, document that commits are local-only and the operator picks up.
@@ -463,6 +508,7 @@ Print to the user:
 - **Update status atomically.** `in_progress` at the start, `done` at the end. No half-states.
 - **Parallel sub-agents on disjoint paths only.** Same-file conflicts between sub-agents are silent failures.
 - **Specialist consults are read-only and one-shot.** No code-writing specialists; no chained consults.
+- **Self-review gate before push.** Step 6.7's `maintainability-reviewer` consult runs blockers-only against the diff before the status-flip push. Either zero blockers (proceed), small fix commit (proceed), or escalate (stop). Skip only for bookkeeping-only diffs; note the skip in the report.
 - **One feature branch per story.** `story/S-NNN-<slug>`, branched off `main`. Draft PR opens at first push, flips to ready-for-review at status:done. Trunk-direct commits only in the GitHub-unavailable fallback.
 - **The skill does not merge.** The PR sits ready-for-review for `/modernize-review` and then the operator. Auto-merge is not a feature of this skill.
 - **Code is self-explanatory.** Default to zero comments. Lean on naming, modularization, and structure to communicate intent. Add a comment only when the WHY is non-obvious — a hidden invariant, a workaround for a specific bug, a surprising constraint. Never write comments that restate the WHAT (the code does that), reference the current task / issue ("added for #42"), or paraphrase function names in docstrings. If you feel the urge to comment, first try renaming a variable, extracting a function, or splitting a module.
