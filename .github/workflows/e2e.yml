@@ -228,6 +228,9 @@ jobs:
       # ----- Bundle report + screenshots + logs for gh-pages ---------------------
       - name: Assemble gh-pages artifact
         if: always()
+        env:
+          READ_OUTCOME: ${{ steps.read.outcome }}
+          MUTATE_OUTCOME: ${{ steps.mutate.outcome }}
         run: |
           mkdir -p public
           if [ -d /tmp/fls-e2e-report-read   ]; then cp -r /tmp/fls-e2e-report-read   public/report-read;   fi
@@ -236,34 +239,35 @@ jobs:
           mkdir -p public/logs
           [ -f /tmp/fls-server.log ] && cp /tmp/fls-server.log public/logs/ || true
           [ -f /tmp/flsweb.log ]     && cp /tmp/flsweb.log     public/logs/ || true
-          {
-            echo '<!doctype html><meta charset="utf-8"><title>FLS e2e</title>'
-            echo '<style>body{font-family:system-ui;margin:2em;max-width:1200px}'
-            echo 'h1{margin-top:0}h2{margin-top:2em}'
-            echo '.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1em}'
-            echo '.card{border:1px solid #ddd;padding:.5em;border-radius:6px}'
-            echo '.card img{width:100%;height:auto;display:block}'
-            echo '.card a{font-family:monospace;font-size:12px;word-break:break-all}'
-            echo 'a{color:#0a58ca}</style>'
-            echo "<h1>FLS e2e — $(date -u '+%Y-%m-%d %H:%M:%S UTC')</h1>"
-            echo '<p>Commit: <code>'"${GITHUB_SHA}"'</code> &middot; '
-            echo 'read project: <strong>'"${{ steps.read.outcome }}"'</strong> &middot; '
-            echo 'mutate project: <strong>'"${{ steps.mutate.outcome }}"'</strong></p>'
-            echo '<ul>'
-            if [ -d public/report-read ];   then echo '<li><a href="report-read/index.html">Playwright HTML report — read project</a></li>';   fi
-            if [ -d public/report-mutate ]; then echo '<li><a href="report-mutate/index.html">Playwright HTML report — mutate project</a> (failure traces &amp; screenshots inline)</li>'; fi
-            echo '<li><a href="logs/fls-server.log">FLS server log</a></li>'
-            echo '<li><a href="logs/flsweb.log">flsweb dev-server log</a></li>'
-            echo '</ul>'
-            if [ -d public/screenshots ]; then
-              echo '<h2>Full-page screenshots</h2><div class="grid">'
-              for f in public/screenshots/*.png; do
-                name=$(basename "$f")
-                echo '<div class="card"><a href="screenshots/'"$name"'"><img src="screenshots/'"$name"'" loading="lazy" alt="'"$name"'"></a><a href="screenshots/'"$name"'">'"$name"'</a></div>'
-              done
-              echo '</div>'
-            fi
-          } > public/index.html
+
+          # Build the per-run dynamic fragments. The template at
+          # .github/pages/index.html contains ${VAR} placeholders that
+          # envsubst fills in below.
+          REPORTS=""
+          add_card() {
+            REPORTS="${REPORTS}<a class=\"card\" href=\"$1\"><h3>$2</h3><p>$3</p></a>"
+          }
+          if [ -d public/report-read ];   then add_card "report-read/index.html"   "Playwright report — read"   "Read-only test project."; fi
+          if [ -d public/report-mutate ]; then add_card "report-mutate/index.html" "Playwright report — mutate" "Mutating test project with failure traces &amp; screenshots inline."; fi
+          if [ -f public/logs/fls-server.log ]; then add_card "logs/fls-server.log" "FLS server log"        "Mono / ASP.NET Web API output."; fi
+          if [ -f public/logs/flsweb.log ];     then add_card "logs/flsweb.log"     "flsweb dev-server log" "Webpack dev-server stdout."; fi
+
+          SCREENSHOTS=""
+          if [ -d public/screenshots ] && compgen -G "public/screenshots/*.png" > /dev/null; then
+            SCREENSHOTS='<section><h2>Full-page screenshots</h2><div class="gallery">'
+            for f in public/screenshots/*.png; do
+              name=$(basename "$f")
+              SCREENSHOTS="${SCREENSHOTS}<a class=\"shot\" href=\"screenshots/${name}\"><img src=\"screenshots/${name}\" loading=\"lazy\" alt=\"${name}\"><span>${name}</span></a>"
+            done
+            SCREENSHOTS="${SCREENSHOTS}</div></section>"
+          fi
+
+          export TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          export COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          export REPORTS SCREENSHOTS
+
+          envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${READ_OUTCOME} ${MUTATE_OUTCOME} ${REPORTS} ${SCREENSHOTS}' \
+            < .github/pages/index.html > public/index.html
 
       - name: Deploy to gh-pages
         if: github.ref == 'refs/heads/main' && always()
