@@ -30,3 +30,16 @@ See frontmatter.
 
 ## Notes
 Legacy stores translations in DB (`LanguageTranslation` table) — content migrates to bundled JSON. One-time export script could populate the initial JSON files from the legacy DB; consider as a task in S-057.
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+Vision-doc amendment 2026-05-15b (C21 mobile-first whole-app) implies one small adjustment to this story:
+
+- **AC-DIR-1 (mobile-friendly language picker).** The language picker is reachable from a mobile-friendly entry point — not buried in a hover-only nav menu. Typical placements: nav-bar overflow menu (hamburger) item; user-profile drawer item; footer link. The reference component demonstrates the pattern at `<md` viewport.
+- **AC-DIR-2 (locale switching does not break offline cache).** Lazy locale loading (if chosen) must work offline — i.e. all configured locales are served by the PWA service worker (C17 / ADR 0014); switching locale while offline succeeds without a network request.
+
+**Refinement status flag:** Story is unrefined. Fold the above into the AC list when `/modernize-refine S-005` runs.
+
+<!-- amendment-2026-05-15b: end -->

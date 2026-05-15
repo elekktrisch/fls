@@ -39,3 +39,32 @@ See frontmatter.
 The legacy app leans on `ng-table` + `selectize` + `pikaday`. Matching their feature surface (paged, sortable, filterable tables; tag-style selects; date picker) is the bar.
 
 Keep each primitive's public API small. Extend on demand from feature stories — over-spec'd primitives are a known trap (legacy R10 was effectively this).
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+Vision-doc amendment 2026-05-15b (see [`02-vision-and-constraints.md`](../02-vision-and-constraints.md) §C21–C24 + §F1–F16) sets the mobile-first + dense-desktop conventions that every primitive in this kit must encode. ADR 0017 (responsive breakpoint + density conventions) will be the cross-cutting decision; this story is where the conventions become real code.
+
+**Layered acceptance criteria (additive — extend the baseline list, do not replace):**
+
+- **AC-DIR-1 (breakpoint tokens in `@theme`).** Tailwind v4 design tokens include the FLS breakpoint set as CSS custom properties: `--breakpoint-sm: 360px; --breakpoint-md: 768px; --breakpoint-lg: 1024px; --breakpoint-xl: 1440px`. Every primitive's responsive behavior uses these (no ad-hoc media queries). (§2 NFR "responsive breakpoints".)
+- **AC-DIR-2 (density tokens).** Two density modes encoded as `data-density="comfortable"` (default; mobile + tablet) and `data-density="dense"` (≥lg). Tokens for padding scale, font scale, and row-height vary by density attribute. The mode is selected by a `<fls-density-provider>` directive at the layout root, normally driven by viewport breakpoint via `@container` queries; can be overridden per subtree.
+- **AC-DIR-3 (touch-target lint).** ESLint custom rule + axe-core check in Playwright: every interactive primitive renders a hit area ≥ 44 × 44 CSS px when ancestor `data-density="comfortable"`, ≥ 28 × 28 CSS px when `data-density="dense"` (icon-only secondary actions). Build fails on violation. (§2 NFR "touch targets".)
+- **AC-DIR-4 (`<fls-data-table>` card-mode variant).** Below `--breakpoint-md`, `<fls-data-table>` renders as a stack of cards instead of rows (`mode="auto"` default; `mode="row"` / `mode="card"` forces). Column-to-card mapping is declarative — table consumers pass `[primary]`, `[secondary]`, `[meta]` slots. S-062b consumes this.
+- **AC-DIR-5 (`<fls-autocomplete>` with recency-bias).** New primitive (or `<fls-select>` variant) supporting:
+  - Searchable list with fuzzy-match across multiple fields.
+  - "Recently used (last 7 days)" group at top of dropdown.
+  - "Recently used" set sourced from a `RecentlyUsedService` (per-user, localStorage-backed, scoped by primitive-key like `aircraft` / `pilot` / `location`).
+  - Mobile-first: full-width on `<md`, native-feeling inertia scroll, large hit targets per AC-DIR-3.
+  - Replaces selectize from the legacy SPA (current-state §6) wholesale.
+- **AC-DIR-6 (`<fls-time-now-button>`).** New primitive: button that sets a bound `<input type="time">` to the current minute rounded down. Used by S-062c on glider/tow start/landing time fields. Replaces the inline "Set Now" + format-on-blur dance from `FlightsController.js:716–736`.
+- **AC-DIR-7 (`<fls-sticky-bar>`).** New primitive: layout slot for sticky action bars (typically save / cancel). Anchors to viewport bottom on `<md`, in-flow on `≥md`. Supports a "compact" variant for dense desktop. Used by S-062c, S-064, public-flow forms.
+- **AC-DIR-8 (`<fls-accordion-section>`).** New primitive: accordion section with header, expand/collapse state managed via signal. Section auto-collapses (configurable) when fields inside become "complete". Used by S-062c on mobile to chunk the 35-field form. Same primitive used by reservations + planning where applicable.
+- **AC-DIR-9 (native input types preferred).** `<fls-input>` and `<fls-form-field>` documentation explicitly recommends `type="time"`, `type="date"`, `inputmode="numeric"`, `autocomplete` hints over custom JS widgets. The CSS-only date / time pickers from a previous Tailwind kit are NOT introduced. (§F10 / soft pref §4 "native input types".)
+- **AC-DIR-10 (Storybook / sample page parametrized by viewport).** A primitives showcase page exists under `next/web/src/app/dev/primitives/` that mounts every primitive at each breakpoint (sm / md / lg / xl) — reviewable visually before consumers consume. Playwright snapshot test runs at all four viewports.
+- **AC-DIR-11 (a11y at both densities).** The existing a11y baseline applies to both `comfortable` and `dense` density modes. Keyboard focus ring is visible at both; in dense mode the ring is slightly thinner but still meets WCAG 2.4.7 (≥ 2 px or sufficient contrast).
+
+**Refinement status flag:** Story is currently unrefined (`refined:` absent). When `/modernize-refine S-008` runs, fold these directive ACs into the primitive list + design tokens + a11y plan natively — do not preserve this amendment block as a separate section once refinement lands. Once refined, the original "Acceptance criteria" frontmatter list should grow to include AC-DIR-1..AC-DIR-11 as primary criteria, not appended ones.
+
+<!-- amendment-2026-05-15b: end -->

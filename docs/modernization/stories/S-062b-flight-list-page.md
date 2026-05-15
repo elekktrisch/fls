@@ -308,3 +308,30 @@ This story owns **list-page parity smoke + load characterization**. Form/edit co
 - **TableSettingsCache writes** are local, no cross-SPA contention.
 
 <!-- modernize-refine: end -->
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+Vision-doc amendment 2026-05-15b (see [`02-vision-and-constraints.md`](../02-vision-and-constraints.md) §C21–C24) designates the flight list as **the** airfield hot-path screen alongside flight-edit (S-062c). The list is what the operator sees first on flight days — its mobile UX matters as much as the form's.
+
+**Layered acceptance criteria (additive):**
+
+- **AC-DIR-1 (mobile-first card layout).** At viewports `<md` (< 768 px) the list renders as a stack of cards (one card per flight) showing the legacy-equivalent of "immat + pilot + start/landing times + state badge + actions menu". The `<fls-data-table>` primitive (S-008) supports a "card mode" at `<md` and reverts to a row-table at `≥md`. Same data, breakpoint-driven layout. (Vision §F2, §F3.)
+- **AC-DIR-2 (dense-desktop variant).** At `≥lg`, the table renders with denser row padding + a compact filter bar (inline labels, smaller spacing). Same component, CSS-driven density (C22). The legacy "filter bar takes 30% of vertical real estate" pattern is not carried forward.
+- **AC-DIR-3 (sticky filter + sticky pagination).** Filter bar sticks to the top of the viewport (under the nav-bar); pagination sticks to the bottom. On mobile, both collapse to a floating action button that expands a sheet. Prevents the user from scrolling a tall result set just to refine the filter.
+- **AC-DIR-4 (touch targets on row actions).** Row actions (Edit / Copy / Delete) meet ≥ 44 × 44 CSS px on `<md`; on dense desktop ≥ 28 × 28 px for icon-only buttons. (§2 NFR "touch targets".)
+- **AC-DIR-5 (keyboard-first dense navigation).** On `≥lg`: Tab/Shift+Tab walks rows; Enter = open edit on focused row; `n` = new flight; `/` = focus filter; arrow keys move row focus. Playwright spec asserts core navigation completes without mouse.
+- **AC-DIR-6 (offline-aware list).** When offline, the list renders the last-cached page from IndexedDB (refresh on reconnect). A subtle "offline — last refreshed at HH:mm" banner sits under the filter. Consumes the PWA service worker (C17 / ADR 0014). The list must not present a blank state when offline if cached data exists.
+- **AC-DIR-7 (mobile-class connectivity).** At simulated 200 ms RTT + intermittent loss: cached list renders immediately; refetch is non-blocking; no spinner > 3 s. (§2 NFR.)
+- **AC-DIR-8 (saved-filter recency).** "Recently used filter combos" surface as one-tap chips above the filter bar (last 5 distinct combos per user). Generalizes the per-field-recency pattern from S-062c AC-DIR-6 to the filter bar. (§F8.)
+
+**Refinement status flag:** Story was refined on 2026-05-14 — same caveat as S-062c. **Recommend `/modernize-refine S-062b` re-run** so the directive folds into the design + test + performance plans rather than living as an appended block.
+
+**Inputs picked up from sibling stories:**
+
+- S-008 — `<fls-data-table>` card-mode variant, density tokens, touch-target lint.
+- S-006 — Signal-Store-backed offline cache; refetch-on-mutation policy already covers the offline-edge case (`MutationBus.flightChanged$` flushes the cache on the first reconnect refetch).
+- S-067 / ADR 0014 — offline machinery.
+
+<!-- amendment-2026-05-15b: end -->

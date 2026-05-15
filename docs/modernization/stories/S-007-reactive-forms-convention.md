@@ -28,3 +28,23 @@ See frontmatter.
 
 ## Notes
 Pair with S-008 for input components.
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+Vision-doc amendment 2026-05-15b (§F9, §F10) sets two form-level conventions that this story is the right place to land:
+
+- **AC-DIR-1 (inline validation, not on-blur).** The reference form demonstrates inline validation: error messages render next to the offending field (via `<fls-field-errors>` from S-008) and update as the user types / moves focus. The legacy "validate-on-blur + surface errors in a top-level `MessageManager` bar" pattern is **not** carried forward. The convention doc covers: (a) how to wire control-level validators eagerly; (b) how to surface server-side `ValidationErrorDto` per-field; (c) how to distinguish "validation error" (per-field) from "save error" (toast).
+- **AC-DIR-2 (native input types preferred).** Convention doc recommends `type="time"`, `type="date"`, `inputmode="numeric"`, `type="email"`, `type="tel"`, and `autocomplete` hints over custom JS widgets. Examples cover the gotchas: storing a `Date` in a form control while binding to a `type="date"` string input; locale formatting for date pickers; the difference between `type="time"` `value` ("HH:mm") and a `Date` object. Closes the legacy "text-with-format-on-blur" pattern from `FlightsController.js`.
+- **AC-DIR-3 (mobile-first form layout convention).** Convention doc covers the responsive-form pattern: stacked labels + single column at `<md`; inline labels + multi-column at `≥lg`. Form layout is CSS-driven on the component, not branched in TypeScript. Example shows a `<fls-form-field>` rendering correctly across all breakpoints without per-breakpoint template variants.
+- **AC-DIR-4 (auto-save / IndexedDB draft convention).** Convention doc covers the pattern from S-062c AC-DIR-9: debounced auto-save to IndexedDB; restore on reload with a "continue from draft / start fresh" prompt; clear draft on successful save. The reference form demonstrates this against the hello endpoint.
+- **AC-DIR-5 (keyboard-only completion convention).** Convention doc lists the standard keyboard contract for forms in the new app: Tab / Shift+Tab traverses controls in source order; Enter inside a single-line input submits the form (unless the form opted out); Esc on a dirty form prompts before discarding; Ctrl+S = save (debounced); Ctrl+D = save + copy where applicable. Stories that adopt the convention inherit the contract.
+
+**Refinement status flag:** Story is currently unrefined. When `/modernize-refine S-007` runs, fold these directive ACs into the convention doc + reference-form ACs natively — do not preserve this amendment block as a separate section once refinement lands.
+
+**Inputs picked up from sibling stories:**
+
+- S-008 — `<fls-field-errors>`, `<fls-form-field>`, native-input primitives.
+
+<!-- amendment-2026-05-15b: end -->

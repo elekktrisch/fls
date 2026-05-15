@@ -27,3 +27,17 @@ See frontmatter.
 
 ## Notes
 Choose: route flag (`data: { publicLayout: true }`) is the cleanest. The layout component checks the flag from the activated route.
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+Vision-doc amendment 2026-05-15b (C21 mobile-first whole-app, including public surfaces) requires:
+
+- **AC-DIR-1 (mobile-first landing + nav-bar).** The landing page renders correctly and usably at viewport ≥ 360 × 640 portrait. The nav-bar mechanism collapses to a hamburger / overflow menu at `<md`; on `≥md` it renders inline. Same component, breakpoint-driven layout per C22.
+- **AC-DIR-2 (touch targets on landing CTAs).** Primary CTAs (trial-flight, passenger-flight, login) meet ≥ 44 × 44 CSS px hit area on `<md`. (§2 NFR "touch targets".)
+- **AC-DIR-3 (whitelabel splash works at all breakpoints).** The per-club splash photo (C19) renders correctly and proportionally at every breakpoint — `object-fit: cover` with breakpoint-aware focal-point hints, not a fixed pixel size. Same for the per-club logo in the nav-bar.
+
+**Refinement status flag:** Story is unrefined. Fold the above into the AC list when `/modernize-refine S-097` runs.
+
+<!-- amendment-2026-05-15b: end -->

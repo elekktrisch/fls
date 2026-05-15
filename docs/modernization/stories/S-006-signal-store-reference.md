@@ -29,3 +29,20 @@ See frontmatter.
 
 ## Notes
 S-021 replaces the placeholder `SessionStore` body with real OIDC. The store shape stays.
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+Vision-doc amendment 2026-05-15b (§F11, §F15, §F12) introduces two store-level patterns this story is the right place to demonstrate:
+
+- **AC-DIR-1 (aggressive-prefetch pattern).** The reference store doc covers the "prefetch on app start" convention: a `bootstrapPrefetch()` method on the `SessionStore` (or a sibling `AppBootstrapStore`) that, after successful auth, fires off the masterdata GETs (aircraft / persons / locations / flight-types / routes for the user's tenant) in parallel and loads them into per-domain Signal Stores. Subsequent flight-edit form opens find data in-hand and feel instant. Doc covers: (a) cancellation on logout; (b) re-fetch on tenant switch; (c) how to skip the prefetch on a public-flow route. Used by S-062c to satisfy its time-to-log NFR.
+- **AC-DIR-2 (offline-aware refetch convention).** Refetch policy doc adds: when a refetch fails due to offline state, the store falls back to its IndexedDB-cached payload (if any) and surfaces `offline: true` in the store's signals. Components subscribe to `offline` to render the "offline — last refreshed at HH:mm" banner. PWA service worker (C17 / ADR 0014) owns the actual network detection.
+- **AC-DIR-3 (Signal-Store-driven conditional render).** The reference form / store pair demonstrates how to drive conditional template rendering from store-derived signals (not template-side `*ngIf` cascades). Pattern: a `computed()` signal in the store exposes "is X required / visible"; template uses `@if (store.showX())`. Avoids the AngularJS-era pattern where template directives recalculate visibility per digest cycle. Consumed by S-062c for its many conditional sections (winch operator, observer, passenger, engine counters, invoice recipient, route fields).
+- **AC-DIR-4 (lint rule for `MutationBus` consumption).** Existing lint rule that components only inject stores (not `HttpClient` directly) extends to: domain stores must consume cross-domain mutation events via a single `MutationBus` signal, not direct subscriptions to sibling stores. Avoids store-to-store coupling. Already implied by the refetch-on-mutation pattern; formalize in the lint.
+
+**Refinement status flag:** Story is currently unrefined. When `/modernize-refine S-006` runs, fold these directive ACs into the reference-store + convention-doc ACs natively.
+
+**Why here, not S-062c:** the prefetch + offline + signal-driven conditional-render patterns are conventions every domain store inherits, not flight-specific. Pinning them in S-006 keeps the per-feature stories cheap.
+
+<!-- amendment-2026-05-15b: end -->

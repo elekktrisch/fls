@@ -597,3 +597,39 @@ These are the form-relevant open questions carried from the original S-062. Back
 4. **`FlightStateMapper` enum drift (R5).** Both `FlightProcessState` (stored) and `FlightAirState` (computed) flow to the SPA. The new system derives both from the generated OpenAPI client (closing R5). Confirm `FlightAirState` is included in the OpenAPI spec as an enum, not stringified ad-hoc. Verify via S-004 codegen output.
 
 <!-- modernize-refine: end -->
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+The vision-doc amendment 2026-05-15b (see [`02-vision-and-constraints.md`](../02-vision-and-constraints.md) §C21–C24 + §F1–F16) designates the flight-edit form as **the** airfield hot-path screen alongside the flight list (S-062b). This story is the primary landing zone for that directive.
+
+**Layered acceptance criteria (additive to existing AC list — do not remove the parity ACs):**
+
+- **AC-DIR-1 (mobile-first single-column layout).** At viewports `<lg` (< 1024 px), the form renders as a single column with sectioned accordion (Aircraft → Pilots → Times → Locations → Costs); glider and tow are accordion siblings, not side-by-side. Sticky save bar anchored to viewport bottom. (Vision §F2.)
+- **AC-DIR-2 (dense-desktop variant).** At `≥lg` (≥ 1024 px), the form renders in a dense multi-column grid (4 columns at `xl`, glider + tow side-by-side as legacy intends but tighter padding + inline labels). **Same component**, breakpoint-driven layout — no parallel desktop component (C22). (§F3.)
+- **AC-DIR-3 (keyboard-only completion on dense).** On `≥lg`: Tab / Shift+Tab natural order; Enter = save; Esc = cancel-with-dirty-confirm; Ctrl+D = save+copy; number keys 1–5 select the most-common flight-types. Playwright spec asserts the form saves with zero mouse events. (§F4, §2 NFR "keyboard-only completion".)
+- **AC-DIR-4 ("Copy from Last" preserved as first-class).** Existing localStorage-backed `local-storage-preferences.ts` + per-field "Copy from Last" buttons remain unchanged. They are not replaced by AC-DIR-5. (C24, §F5.)
+- **AC-DIR-5 (smart defaults from server context).** When the form opens blank (no localStorage hint, no copy), the SPA calls `GET /api/v1/flights/last-context?aircraftId=<club-default>&date=<today>` (added in S-062a) and patches with the last-saved field combo. Smart defaults **never** overwrite an explicit "Copy from Last" action. Empty response → falls back to `flight-form-defaults.ts`. (§F6, §F7.)
+- **AC-DIR-6 (recency-biased autocompletes).** All dropdowns (aircraft, pilot, observer, passenger, location, route) surface "recently used by this user, last 7 days" at the top of the list before the rest of the catalog. Consumes `<fls-autocomplete>` primitive from S-008. (§F8.)
+- **AC-DIR-7 (inline validation, not on-blur).** Errors pin next to the offending field; update as the user types / moves focus. Soft pref §4. Supersedes legacy on-blur + top-message-bar pattern. (§F9.)
+- **AC-DIR-8 (native input types).** `<input type="time">` (native mobile picker); `<input type="date">`; `inputmode="numeric"` for counters / nrOfLdgs. The `<fls-time-now-button>` primitive (S-008) wraps the legacy "Set Now" semantics on top of native time inputs. No text-with-format-on-blur. (§F10, §F14.)
+- **AC-DIR-9 (auto-save draft to IndexedDB).** Form debounce-saves (500 ms) the in-progress draft to IndexedDB on every field change. On connection loss, queued via PWA service worker (C18 / ADR 0014). On reload, draft restored with "continue from draft / start fresh" prompt. (§F12.)
+- **AC-DIR-10 (touch-target compliance).** Primary actions on mobile viewports ≥ 44 × 44 CSS px hit area; on dense desktop, ≥ 28 × 28 px for icon-only secondary actions. Enforced by primitives kit (S-008); verified by axe-core in Playwright. (§2 NFR "touch targets".)
+- **AC-DIR-11 (time-to-log benchmark).** Scripted Playwright "stopwatch" test logs a typical glider-with-tow flight on dense desktop in ≤ 60 s and on phone viewport (360 × 640) in ≤ 90 s. Recorded per release; informational, not a blocking gate. (§2 NFR "time-to-log".)
+- **AC-DIR-12 (online 409 conflict UX).** When a `PUT` returns 409 (via the `@Version` check from S-067), the form shows the diff inline with per-field "keep mine / keep theirs", keeps the draft visible, and never auto-retries. Applies in addition to the existing AC-9 412 toast. (§F13, soft pref §4 "optimistic-concurrency UX".)
+- **AC-DIR-13 (smooth conditional sections).** Dependent fields (e.g. tow block when StartType=Towing; instructor when `InstructorRequired`) appear/disappear via Signal-Store render control; 150 ms slide-in; focus moves to first new field. No layout jank. (§F15.)
+- **AC-DIR-14 (marginal-connectivity graceful degradation).** At simulated 200 ms RTT + intermittent loss: dropdown data served from Signal Store cache; save attempts queue via service worker; no spinner > 3 s blocks the user. (§2 NFR "marginal-connectivity graceful degradation".)
+
+**Refinement status flag:** This story was refined on 2026-05-14, *before* the 2026-05-15b directive. The existing form-store + coordinator + prefs-service design accommodates the directive without architectural change, but the design-notes, test-plan, and performance-plan sections were written without it. **Recommend `/modernize-refine S-062c` is re-run before implementation begins** so the directive folds into the per-section refinement rather than living as an appended block.
+
+**Inputs picked up from sibling stories:**
+
+- S-008 — `<fls-autocomplete>` with recency-bias, `<fls-time-now-button>`, density tokens, breakpoint utilities, touch-target lint.
+- S-007 — inline-validation + native-input form convention.
+- S-062a — `GET /api/v1/flights/last-context` endpoint.
+- S-006 — Signal-Store-driven conditional render + aggressive prefetch on app start.
+- S-067 + ADR 0014 — conflict + offline machinery.
+- S-067 — `@Version` column + 409 / 412 surfacing.
+
+<!-- amendment-2026-05-15b: end -->

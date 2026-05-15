@@ -525,3 +525,31 @@ k6 load tests + cold-cache LCP belong to S-062b (list) and S-062c (forms).
 - **Server-required-but-no-client-`required` fields** (`flightTypeId`, `pilotPersonId` on both blocks): if we switch to eager validation (Q3), client gets `Validators.required` parity in S-062c.
 
 <!-- modernize-refine: end -->
+
+<!-- amendment-2026-05-15b: start -->
+
+## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
+
+The 2026-05-15b vision-doc amendment lands one **new backend endpoint** in S-062a (everything else is client-side and handled by S-062b / S-062c / S-008 / S-007). See [`02-vision-and-constraints.md`](../02-vision-and-constraints.md) §F6.
+
+**Layered acceptance criterion (additive):**
+
+- **AC-DIR-1 (`/api/v1/flights/last-context` endpoint).** A new `GET /api/v1/flights/last-context?aircraftId={id}&date={yyyy-MM-dd}` endpoint returns the field-combo of the **last saved flight** for the same `(operating_club_id, aircraft_id, flight_date)`, intended to seed the flight-edit form's empty state. Response is a thin `FlightLastContextDto` (NOT the full `FlightDetailDto`):
+  - `flightTypeId` (last used for this aircraft on this date)
+  - `pilotPersonId`
+  - `startLocationId` / `ldgLocationId`
+  - `outboundRoute` / `inboundRoute`
+  - `flightCostBalanceType`
+  - `invoiceRecipientPersonId`
+  - `startType`
+  - For tow aircraft path: `tow.aircraftId`, `tow.pilotPersonId`, `tow.flightTypeId`, `tow.ldgLocationId`
+  - **Times are NOT returned** (the user wants pre-fill on what to fly with, not when).
+  - **404 if no match** — client falls back to per-club defaults.
+- **Tenant scope.** Subject to the same `@TenantId` filter as every other read (C3). Cross-tenant 404 — never leak which aircraft other clubs flew.
+- **Authorization.** Same as `GET /flights/{id}` — any authenticated user with `FLIGHT_READ` for the tenant.
+- **Caching.** No server-side cache — query is cheap (single indexed read). Client (S-062c) consumes it once on form open; no re-fetch.
+- **Test.** Integration test covers: (a) returns last-flight context when present; (b) returns 404 when no prior flight; (c) cross-tenant aircraft returns 404; (d) tow context populated when last flight was towing-start, omitted otherwise.
+
+**Refinement status flag:** Story was refined on 2026-05-14 *before* the directive. The new endpoint is small and additive — does NOT require a full re-refine, but the implementer should fold AC-DIR-1 into the endpoint inventory, DTO list, and IT plan as a one-pass amendment. Mark the existing "Tasks" list with `/api/v1/flights/last-context` as a final task.
+
+<!-- amendment-2026-05-15b: end -->
