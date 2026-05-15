@@ -1,6 +1,8 @@
 package ch.fls.legacyextract;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -60,7 +62,7 @@ final class FlsTestFixtureSeeder {
         int skipped = 0;
         int failed = 0;
         for (Path script : scripts) {
-            String content = Files.readString(script);
+            String content = readScript(script);
             String[] batches = GO_SEPARATOR.split(content);
             for (String batch : batches) {
                 String trimmed = batch.strip();
@@ -116,6 +118,25 @@ final class FlsTestFixtureSeeder {
                 m.group(3) != null ? Integer.parseInt(m.group(3)) : 0,
                 m.group(4) != null ? Integer.parseInt(m.group(4)) : 0,
         };
+    }
+
+    /**
+     * Read a SQL script handling both UTF-8 and UTF-16 BOMs. Legacy FLSTest
+     * scripts exported from SSMS use UTF-16 LE; the older hand-written ones
+     * are plain UTF-8. Detect via BOM; fall back to UTF-8.
+     */
+    private static String readScript(Path script) throws IOException {
+        byte[] bytes = Files.readAllBytes(script);
+        if (bytes.length >= 2 && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xFE) {
+            return new String(bytes, 2, bytes.length - 2, Charset.forName("UTF-16LE"));
+        }
+        if (bytes.length >= 2 && (bytes[0] & 0xFF) == 0xFE && (bytes[1] & 0xFF) == 0xFF) {
+            return new String(bytes, 2, bytes.length - 2, Charset.forName("UTF-16BE"));
+        }
+        if (bytes.length >= 3 && (bytes[0] & 0xFF) == 0xEF && (bytes[1] & 0xFF) == 0xBB && (bytes[2] & 0xFF) == 0xBF) {
+            return new String(bytes, 3, bytes.length - 3, StandardCharsets.UTF_8);
+        }
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     record SeedResult(int scriptsProcessed, int batchesApplied, int batchesSkipped, int batchesFailed) {}

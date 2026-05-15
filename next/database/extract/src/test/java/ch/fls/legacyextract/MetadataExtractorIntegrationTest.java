@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,33 +16,45 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MSSQLServerContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * End-to-end integration test. Spins up SQL Server via Testcontainers, seeds
- * it with the actual FLSTest fixture from {@code flsserver/database/FLSTest/},
- * runs the extractor, asserts the JSON outputs contain real FLS tables.
+ * End-to-end integration test. Starts SQL Server in a Docker container via
+ * the {@code docker} CLI, seeds it with the actual FLSTest fixture from
+ * {@code flsserver/database/FLSTest/}, runs the extractor, asserts the JSON
+ * outputs contain real FLS tables.
  *
  * <p>Per the test philosophy for this stack: this is the only test class.
  * No mocking, no unit-test tier, no synthetic schema. The real legacy
  * fixture is the substrate — and incidentally the substrate the operator
  * uses when re-running the extractor locally.
+ *
+ * <p>Container lifecycle is driven by {@link MssqlTestContainerLifecycle}
+ * rather than Testcontainers because the sandbox's Docker daemon enforces
+ * Docker REST API ≥ 1.44, and Testcontainers 1.21.x's bundled docker-java
+ * negotiates only 1.32. Driving via {@code docker} CLI bypasses that.
  */
 @SpringBootTest(properties = "extract.run-on-startup=false")
-@Testcontainers
 class MetadataExtractorIntegrationTest {
 
-    @Container
-    static final MSSQLServerContainer<?> MSSQL =
-            new MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest").acceptLicense();
+    private static final MssqlTestContainerLifecycle MSSQL = new MssqlTestContainerLifecycle();
+
+    static {
+        // Spring evaluates @DynamicPropertySource before @BeforeAll, so the
+        // container must be live before the class is loaded. Static-init
+        // block runs once per JVM and ahead of all other lifecycle hooks.
+        MSSQL.start();
+    }
+
+    @AfterAll
+    static void stopContainer() {
+        MSSQL.stop();
+    }
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", MSSQL::getJdbcUrl);
-        r.add("spring.datasource.username", MSSQL::getUsername);
-        r.add("spring.datasource.password", MSSQL::getPassword);
+        r.add("spring.datasource.url", MSSQL::jdbcUrl);
+        r.add("spring.datasource.username", MSSQL::username);
+        r.add("spring.datasource.password", MSSQL::password);
         r.add("spring.datasource.driver-class-name", () -> "com.microsoft.sqlserver.jdbc.SQLServerDriver");
     }
 
@@ -109,9 +122,12 @@ class MetadataExtractorIntegrationTest {
         //   - AuditLogs + AuditLogDetails — largest PII container
         //   - AccountingRuleFilters — rules-engine config
         //   - Deliveries / DeliveryItems — invoice flow terminal state
-        var names = nodeValues(tables, "name");
+        var names = nodeValues(tables, "table_name");
+        // Legacy table names use singular for join tables (PersonClub,
+        // FlightCrew) but plural for entity tables (Flights, Persons).
         assertThat(names).contains(
-                "Flights", "Persons", "Aircrafts", "Clubs", "PersonClubs",
+                "Flights", "Persons", "Aircrafts", "Clubs", "PersonClub",
+                "FlightCrew",
                 "AuditLogs", "AuditLogDetails",
                 "AccountingRuleFilters",
                 "Deliveries", "DeliveryItems");
@@ -128,9 +144,9 @@ class MetadataExtractorIntegrationTest {
         boolean hasFlightDate = false;
         boolean hasNoClubId = true;
         for (JsonNode c : cols) {
-            if ("Flights".equals(c.get("table").asText())) {
+            if ("Flights".equals(c.get("table_name").asText())) {
                 flightColumnCount++;
-                String name = c.get("name").asText();
+                String name = c.get("column_name").asText();
                 if ("FlightDate".equalsIgnoreCase(name)) hasFlightDate = true;
                 if ("ClubId".equalsIgnoreCase(name)) hasNoClubId = false;
             }

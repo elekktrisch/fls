@@ -120,13 +120,27 @@ under `src/main/java/ch/fls/legacyextract/output/`.
 ```
 
 **Integration-tests only — no mocking, no unit-test tier.** Per the test
-philosophy for this stack: every test connects to a real SQL Server via
-Testcontainers. The single integration test class spins up SQL Server,
-applies a synthetic DDL that exercises each output record shape, runs the
-extractor end-to-end, and asserts the JSON outputs. ~30-60s per run after
-the Testcontainers image is cached. The `SqlGuard.scanClasspathResources()`
-boot-time safety net is exercised by the same test (catches forbidden SQL
-patterns at the classpath level).
+philosophy for this stack, every test connects to a real SQL Server in a
+Docker container. The single integration test class
+(`MetadataExtractorIntegrationTest`) starts a SQL Server container via
+`MssqlTestContainerLifecycle` (which shells out to the `docker` CLI rather
+than using Testcontainers — see "Why not Testcontainers" below), seeds it
+with the actual FLSTest fixture (`flsserver/database/FLSTest/`), runs the
+extractor end-to-end, and asserts the JSON outputs contain real FLS tables.
+~60-90s per run after the SQL Server image is cached. The
+`SqlGuard.scanClasspathResources()` boot-time safety net is exercised by
+the same test (catches forbidden SQL patterns at the classpath level).
+
+### Why not Testcontainers
+
+Testcontainers 1.21.x ships docker-java 3.4.x, which negotiates Docker REST
+API version 1.32 by default. Recent Docker daemons (29.x and newer) enforce
+a minimum API version of 1.44 and reject the older negotiation. Setting
+`DOCKER_API_VERSION=1.45` via env / system property / `~/.testcontainers.properties`
+doesn't override the hardcoded constant deep inside docker-java's request
+path. Rather than carry the workaround indefinitely, the test infra drives
+the container lifecycle through the `docker` CLI directly — the CLI does
+its own version negotiation and works against any modern daemon.
 
 ## Apple Silicon / non-x86
 
