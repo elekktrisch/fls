@@ -295,6 +295,15 @@ elsewhere, flag them:
 - **EF6 soft-delete unique-constraint conflict**: covered in §6 above —
   not a code bug, but a schema/EF-mapping conflict that's worth patching
   if it ever bites a production user.
+- **`DeliveryOverview` (paged endpoint) doesn't carry `FlightId`**:
+  `POST /api/v1/deliveries/page` returns `DeliveryId`, `BatchId`,
+  `RecipientName`, a flat `FlightInformation` (only `AircraftImmatriculation`
+  + `StartDateTime`), and nothing else from the underlying `Delivery` row.
+  A test asserting "a Delivery exists for this flight" cannot filter by
+  FlightId through this endpoint — every `d.FlightId` lookup is `undefined`.
+  Workaround: query `Deliveries` directly via `withPool` (see test #23's
+  `listDeliveriesForFlight`). Server-side fix would be to add `FlightId`
+  to `DeliveryOverview`, but that's a legacy server change.
 
 ## 10. UI vs API split
 
@@ -326,6 +335,16 @@ When a spec fails, these are common red herrings:
 - **"It's flaky on CI but passes locally."** CI has more accumulated
   state (other parallel tests) than your local single-run. Treat the
   flake as the steady-state signal.
+- **"It started failing right after I made the upstream more reliable."**
+  Often not a regression in your hardening. A flaky test can be passing
+  only via a degraded-pass branch (skip / "no-op" assertion when the
+  prerequisite didn't materialize). Once you make the prerequisite
+  reliable, control flow finally reaches the real assertion — and a
+  latent bug in *that* assertion surfaces. Spec #23 is the canonical
+  example: the deliverycreation retry-poll commit made the workflow
+  reliably produce a Delivery row, which exposed that
+  `listDeliveriesForFlight` was filtering on a field the API doesn't
+  return. Don't revert the hardening; fix the assertion.
 
 Related: the `e2e/scripts/seed.sh` `.bak` cache is keyed on a hash of
 all `.sql` files; touching the fixture invalidates it.
