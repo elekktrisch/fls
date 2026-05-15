@@ -425,14 +425,11 @@ jobs:
         working-directory: next/web
         env:
           CI: 'true'
-          npm_config_ignore_scripts: 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Lint + format + test + build next/web
         if: steps.detect.outputs.web == 'true'
         working-directory: next/web
-        env:
-          npm_config_ignore_scripts: 'true'
         run: |
           pnpm lint
           pnpm format
