@@ -1,5 +1,6 @@
 import { test as base, expect, Page, APIRequestContext } from '@playwright/test';
 import { spawnSync } from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 
 const USERNAME = process.env.FLS_USERNAME ?? 'testclubadmin';
@@ -297,9 +298,22 @@ async function waitForBusyIndicatorsToClear(page: Page): Promise<void> {
   }, undefined, { timeout: 15_000 });
 }
 
+/**
+ * Save a full-page screenshot under e2e/screenshots/<category>/<name>.png.
+ *
+ * The category is auto-derived from the directory the running spec lives in
+ * (e.g. tests/flights/create.spec.ts → category "flights"). Callers don't
+ * pass the category — they just pass a short name unique within their
+ * category. The gh-pages publisher walks these subfolders to group
+ * screenshots by feature area.
+ */
 export async function screenshot(page: Page, name: string): Promise<void> {
+  const info = base.info();
+  const category = path.basename(path.dirname(info.file));
+  const dir = path.join(__dirname, 'screenshots', category);
+  await fs.promises.mkdir(dir, { recursive: true });
   await page.screenshot({
-    path: `screenshots/${name}.png`,
+    path: path.join(dir, `${name}.png`),
     fullPage: true,
   });
 }

@@ -78,7 +78,8 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 }
 .card:hover, .card:focus-visible { border-color: var(--primary); transform: translateY(-1px); outline: none; }
 .card p { font-size: .875rem; margin-top: .25rem; }
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.cat { font-size: .95rem; margin: 1.25rem 0 .5rem; letter-spacing: -.005em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); text-transform: uppercase; font-weight: 600; }
 .shot {
   display: block;
   background: var(--surface);
@@ -110,8 +111,7 @@ footer a:hover { color: var(--primary-hover); text-decoration: underline; }
       <span>Commit <code>${COMMIT_SHORT}</code></span>
     </div>
     <div class="pills">
-      <span class="pill pill--${READ_OUTCOME}">read &middot; ${READ_OUTCOME}</span>
-      <span class="pill pill--${MUTATE_OUTCOME}">mutate &middot; ${MUTATE_OUTCOME}</span>
+      <span class="pill pill--${PW_OUTCOME}">playwright &middot; ${PW_OUTCOME}</span>
     </div>
   </header>
 

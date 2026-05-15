@@ -19,43 +19,42 @@ import { defineConfig, devices } from '@playwright/test';
 //   - `/` for the dev-server (200 + the SPA HTML)
 //
 // `timeout: 180_000` gives Mono cold-start enough headroom.
-// All tests share one FLSTest database. Parallelism therefore has to be
-// carefully partitioned: read-only specs can safely interleave across
-// workers; mutation specs (anything that POSTs/PUTs/DELETEs against
-// flsserver, or relies on a specific DB state) must serialize so they
-// don't trample each other or step on freshDb's reseed.
 //
-// We split the suite into two `projects`:
-//   - `read`     read-only specs, fullyParallel + workers 3
-//   - `mutate`   mutation specs, serial (workers 1)
+// Test layout: specs are grouped by feature category under tests/<category>/.
+// Each category is exposed as its own Playwright `project`, so the HTML
+// report shows a coloured project badge per test and you can filter with
+// `npx playwright test --project=<category>` (e.g. `--project=flights`).
 //
-// Run both via `npx playwright test`; Playwright walks projects in the
-// declared order and respects the per-project `workers` override.
-// Truly read-only specs: do NOT destructure `freshDb`, do NOT mutate DB
-// state. Safe to run in parallel across multiple workers. Anything that
-// uses freshDb (workers run their own seed.sh, which DROP+CREATE the
-// shared FLSTest DB) lives in the mutate project, not here, because
-// concurrent seed.sh invocations race and corrupt the schema.
-const READ_ONLY_SPECS = [
-  '01-public.spec.ts',
-  '02-authenticated.spec.ts',
-  '03-masterdata.spec.ts',
-  '08-email.spec.ts',
-  'auth.spec.ts',
-  'landing.spec.ts',
-];
+// Tests are self-contained-parallel (see TEST_WRITING.md §1): each owns
+// its rows via a stable id and pre-cleans, so the read-vs-mutate split is
+// no longer needed — everything shares one worker pool at top-level
+// `workers: 6`.
+
+const CATEGORIES = [
+  'auth',
+  'public',
+  'flights',
+  'planning',
+  'reservations',
+  'masterdata',
+  'accounting',
+  'reporting',
+  'email',
+  'profile',
+  'multi-tenant',
+  'api',
+] as const;
 
 export default defineConfig({
   testDir: './tests',
-  // 60s per test: the mutate project's `freshLoggedInPage` fixture runs
-  // seed.sh per test (~4-5s on cache hit, ~30s on first/uncached). The
-  // test body itself rarely needs more than 10-15s, so 60s leaves plenty
-  // of headroom while still failing fast on real hangs. Read-project
-  // tests don't pay the seed cost — they finish in seconds.
+  // 60s per test: most UI flows finish in 10-15s, but multi-step forms
+  // (master-data hydration + ng-table reload + selectize widgets) plus
+  // the occasional workflow-job poll need real headroom. 60s leaves room
+  // without masking genuine hangs.
   timeout: 60_000,
   expect: { timeout: 5_000 },
   // `workers` is a top-level option in Playwright (TestProject doesn't
-  // accept it — silently ignored if set per-project). Both projects share
+  // accept it — silently ignored if set per-project). All projects share
   // this pool. `fullyParallel` + `retries` ARE project-level.
   //
   // The constraint is backend throughput (single Mono + SQL Server). 12
@@ -111,35 +110,16 @@ export default defineConfig({
       stderr: 'pipe',
     },
   ],
-  projects: [
-    {
-      name: 'read',
-      testMatch: READ_ONLY_SPECS,
-      fullyParallel: true,
-      retries: 1,
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      // No `dependencies: ['read']` — that would skip the entire mutate
-      // project if any read test fails, and we want mutate's results even
-      // when read flakes. Both projects share one FLSTest database, so
-      // they must NOT run concurrently. To enforce that, run the suite
-      // via two separate playwright invocations (`yarn test` /
-      // `npm test` invokes them in sequence; see package.json scripts).
-      name: 'mutate',
-      testIgnore: READ_ONLY_SPECS,
-      // Self-contained tests using stable per-test ids (see test-id.ts +
-      // test-data.ts) own their own rows; nothing shared between specs.
-      // Safe to run in parallel.
-      fullyParallel: true,
-      // retries: 1 absorbs the occasional /Token 500 / page-boot timing
-      // flake under load. workers count is set at the top level.
-      retries: 1,
-      // Even after the per-test seed cost is gone, mutation UI flows are
-      // multi-step (form fills, navigations, ng-table reloads). 60s
-      // leaves headroom without masking real hangs.
-      timeout: 60_000,
-      use: { ...devices['Desktop Chrome'] },
-    },
-  ],
+  // One project per feature category. All share the same browser, viewport,
+  // parallelism and retry policy — the project list is purely an
+  // organisational lens for the HTML report and CLI filtering.
+  projects: CATEGORIES.map((category) => ({
+    name: category,
+    testDir: `./tests/${category}`,
+    fullyParallel: true,
+    // retries: 1 absorbs the occasional /Token 500 / page-boot timing
+    // flake under load. workers count is set at the top level.
+    retries: 1,
+    use: { ...devices['Desktop Chrome'] },
+  })),
 });

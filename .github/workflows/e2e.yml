@@ -196,46 +196,21 @@ jobs:
           fi
 
       # ----- Run tests ----------------------------------------------------------
-      - name: Run Playwright (read project)
-        id: read
+      - name: Run Playwright
+        id: pw
         working-directory: e2e
-        run: npx playwright test --project=read
+        run: npx playwright test
         continue-on-error: true
-
-      - name: Stash read project's HTML report
-        if: always()
-        # hashFiles() only inspects ${{ github.workspace }} — paths under /tmp
-        # always return empty, so we used to silently skip this step on every
-        # run. Check from shell instead.
-        run: |
-          if [ -f /tmp/fls-e2e-report/index.html ]; then
-            mv /tmp/fls-e2e-report /tmp/fls-e2e-report-read
-          fi
-
-      - name: Run Playwright (mutate project)
-        id: mutate
-        working-directory: e2e
-        run: npx playwright test --project=mutate
-        continue-on-error: true
-
-      - name: Stash mutate project's HTML report
-        if: always()
-        run: |
-          if [ -f /tmp/fls-e2e-report/index.html ]; then
-            mv /tmp/fls-e2e-report /tmp/fls-e2e-report-mutate
-          fi
 
       # ----- Bundle report + screenshots + logs for gh-pages ---------------------
       - name: Assemble gh-pages artifact
         if: always()
         env:
-          READ_OUTCOME: ${{ steps.read.outcome }}
-          MUTATE_OUTCOME: ${{ steps.mutate.outcome }}
+          PW_OUTCOME: ${{ steps.pw.outcome }}
         run: |
           mkdir -p public
-          if [ -d /tmp/fls-e2e-report-read   ]; then cp -r /tmp/fls-e2e-report-read   public/report-read;   fi
-          if [ -d /tmp/fls-e2e-report-mutate ]; then cp -r /tmp/fls-e2e-report-mutate public/report-mutate; fi
-          if [ -d e2e/screenshots ]; then cp -r e2e/screenshots public/screenshots; fi
+          if [ -d /tmp/fls-e2e-report ]; then cp -r /tmp/fls-e2e-report public/report; fi
+          if [ -d e2e/screenshots ];    then cp -r e2e/screenshots    public/screenshots; fi
           mkdir -p public/logs
           [ -f /tmp/fls-server.log ] && cp /tmp/fls-server.log public/logs/ || true
           [ -f /tmp/flsweb.log ]     && cp /tmp/flsweb.log     public/logs/ || true
@@ -247,26 +222,38 @@ jobs:
           add_card() {
             REPORTS="${REPORTS}<a class=\"card\" href=\"$1\"><h3>$2</h3><p>$3</p></a>"
           }
-          if [ -d public/report-read ];   then add_card "report-read/index.html"   "Playwright report — read"   "Read-only test project."; fi
-          if [ -d public/report-mutate ]; then add_card "report-mutate/index.html" "Playwright report — mutate" "Mutating test project with failure traces &amp; screenshots inline."; fi
-          if [ -f public/logs/fls-server.log ]; then add_card "logs/fls-server.log" "FLS server log"        "Mono / ASP.NET Web API output."; fi
-          if [ -f public/logs/flsweb.log ];     then add_card "logs/flsweb.log"     "flsweb dev-server log" "Webpack dev-server stdout."; fi
+          if [ -d public/report ];              then add_card "report/index.html"     "Playwright report"     "All categories. Failure traces &amp; screenshots inline."; fi
+          if [ -f public/logs/fls-server.log ]; then add_card "logs/fls-server.log"   "FLS server log"        "Mono / ASP.NET Web API output."; fi
+          if [ -f public/logs/flsweb.log ];     then add_card "logs/flsweb.log"       "flsweb dev-server log" "Webpack dev-server stdout."; fi
 
+          # Screenshots are organised into per-category subfolders by the
+          # `screenshot()` helper in fixtures.ts (derived from the spec's
+          # parent directory). Render one gallery section per category.
           SCREENSHOTS=""
-          if [ -d public/screenshots ] && compgen -G "public/screenshots/*.png" > /dev/null; then
-            SCREENSHOTS='<section><h2>Full-page screenshots</h2><div class="gallery">'
-            for f in public/screenshots/*.png; do
-              name=$(basename "$f")
-              SCREENSHOTS="${SCREENSHOTS}<a class=\"shot\" href=\"screenshots/${name}\"><img src=\"screenshots/${name}\" loading=\"lazy\" alt=\"${name}\"><span>${name}</span></a>"
+          if [ -d public/screenshots ]; then
+            for catdir in public/screenshots/*/; do
+              [ -d "$catdir" ] || continue
+              compgen -G "${catdir}*.png" > /dev/null || continue
+              cat=$(basename "$catdir")
+              if [ -z "$SCREENSHOTS" ]; then
+                SCREENSHOTS='<section><h2>Full-page screenshots</h2>'
+              fi
+              SCREENSHOTS="${SCREENSHOTS}<h3 class=\"cat\">${cat}</h3><div class=\"gallery\">"
+              for f in "${catdir}"*.png; do
+                name=$(basename "$f")
+                rel="screenshots/${cat}/${name}"
+                SCREENSHOTS="${SCREENSHOTS}<a class=\"shot\" href=\"${rel}\"><img src=\"${rel}\" loading=\"lazy\" alt=\"${cat}/${name}\"><span>${name}</span></a>"
+              done
+              SCREENSHOTS="${SCREENSHOTS}</div>"
             done
-            SCREENSHOTS="${SCREENSHOTS}</div></section>"
+            [ -n "$SCREENSHOTS" ] && SCREENSHOTS="${SCREENSHOTS}</section>"
           fi
 
           export TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           export COMMIT_SHORT="${GITHUB_SHA:0:7}"
           export REPORTS SCREENSHOTS
 
-          envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${READ_OUTCOME} ${MUTATE_OUTCOME} ${REPORTS} ${SCREENSHOTS}' \
+          envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${PW_OUTCOME} ${REPORTS} ${SCREENSHOTS}' \
             < .github/pages/index.html > public/index.html
 
       - name: Deploy to gh-pages
@@ -278,12 +265,12 @@ jobs:
           publish_branch: gh-pages
           force_orphan: true
           enable_jekyll: false
-          commit_message: "e2e: ${{ steps.read.outcome }}/${{ steps.mutate.outcome }} for ${{ github.sha }}"
+          commit_message: "e2e: ${{ steps.pw.outcome }} for ${{ github.sha }}"
 
       - name: Tear down docker-compose stack
         if: always()
         run: docker compose -p fls-e2e down -v
 
       - name: Mark job as failed (post-deploy)
-        if: steps.read.outcome != 'success' || steps.mutate.outcome != 'success'
+        if: steps.pw.outcome != 'success'
         run: exit 1

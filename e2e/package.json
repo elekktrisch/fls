@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "playwright test --project=read; status=$?; playwright test --project=mutate; mexit=$?; if [ $status -ne 0 ] || [ $mexit -ne 0 ]; then exit 1; fi",
-    "test:read": "playwright test --project=read",
-    "test:mutate": "playwright test --project=mutate"
+    "test": "playwright test"
   },
   "keywords": [],
   "author": "",

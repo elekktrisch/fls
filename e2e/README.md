@@ -13,9 +13,44 @@ Docs:
 - `../CLAUDE.md` / `../SERVER.md` / `../CLIENT.md` — full mental model.
 - `../TESTING.md` — manual stack-up playbook (more detail than the
   quickstart below).
-- `.github/workflows/e2e.yml` — CI workflow. Runs read + mutate
-  projects, publishes the HTML report + failure screenshots to
+- `.github/workflows/e2e.yml` — CI workflow. Runs the suite and
+  publishes the HTML report + per-category screenshot galleries to
   gh-pages.
+
+## Test layout
+
+Specs live under `tests/<category>/`. Each category is exposed as a
+Playwright `project` (see `playwright.config.ts`) so the HTML report
+shows a coloured project badge per test and you can filter on the CLI:
+
+```bash
+npx playwright test --project=flights
+npx playwright test --project=accounting -g "rules-edit"
+```
+
+Current categories:
+
+| Category       | What lives here                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| `auth`         | Login flow + authenticated-routes screenshot smoke                                         |
+| `public`       | Unauthenticated landing / trial-flight / lost-password / confirm flows                     |
+| `flights`      | Glider + motor flight CRUD, state transitions, locking workflow, audit logs                |
+| `planning`     | Planning-day CRUD + `/planningsetup` wizard                                                |
+| `reservations` | Reservation CRUD + scheduler grid                                                          |
+| `masterdata`   | CRUD for locations, persons, aircrafts, users, clubs, flight types, member states, ...    |
+| `accounting`   | Accounting rules editor, delivery-creation test harness + workflow, per-type rules engine |
+| `reporting`    | Pre-canned + custom flight reports                                                        |
+| `email`        | Mailpit-backed email-notification specs                                                    |
+| `profile`      | Profile edit                                                                               |
+| `multi-tenant` | Cross-club visibility / isolation                                                          |
+| `api`          | Raw `/api/v1/*` contract checks                                                            |
+
+Screenshots taken via the `screenshot()` helper in `fixtures.ts` are
+written to `e2e/screenshots/<category>/<name>.png`. The category is
+auto-derived from the spec's parent directory — callers pass only a
+short, category-local name (e.g. `screenshot(page, 'create-01')` from
+inside `tests/flights/create.spec.ts` lands at
+`screenshots/flights/create-01.png`).
 
 ## Bringing up the stack from zero
 
@@ -82,10 +117,11 @@ The `webServer` block in `playwright.config.ts` will:
 - Otherwise spawn them via the configured `command` and wait up to 180s
   for each to come up.
 
-To run a single spec or test:
+To run a single spec, category, or test:
 
 ```bash
-npx playwright test tests/02-authenticated.spec.ts
+npx playwright test tests/auth/authenticated-routes-smoke.spec.ts
+npx playwright test --project=flights
 npx playwright test -g 'flights list'
 ```
 
