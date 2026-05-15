@@ -78,7 +78,7 @@ The operator catches up later by creating issues retroactively if they want the 
 
 ## Feature branch + draft PR lifecycle (autonomous within this skill)
 
-Each story runs on its own feature branch with a draft PR opened at first push. The PR is the artifact `/modernize-review` anchors to (it's where Copilot review attaches, where CI runs, where the operator merges). Trunk-direct pushes are reserved for the fallback case below.
+Each story runs on its own feature branch with a draft PR opened at first push. The PR is the artifact `/modernize-review` anchors to (it's where CI runs and where the operator merges from after review). Trunk-direct pushes are reserved for the fallback case below.
 
 ### Branch creation
 
