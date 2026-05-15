@@ -1,0 +1,451 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel in-progress runs for the same ref when a new commit lands.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Decide which lanes need to run based on what changed.
+  #
+  #   legacy → builds + e2e against the flsserver (Mono) + flsweb (Node 8) stack
+  #   next   → builds the rewrite under next/
+  #
+  # Markdown-only diffs match neither lane: the only job that runs is the
+  # `required` aggregator (always green), which keeps branch protection
+  # satisfied without spending compute.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: detect changes
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    outputs:
+      legacy: ${{ steps.filter.outputs.legacy }}
+      next: ${{ steps.filter.outputs.next }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            legacy:
+              - 'flsserver/**'
+              - 'flsweb/**'
+              - 'e2e/**'
+              - 'docker-compose.yml'
+              - '.github/workflows/ci.yml'
+              - '.github/pages/**'
+              - '!**/*.md'
+            next:
+              - '.github/workflows/ci.yml'
+              - 'next/**'
+              - '!**/*.md'
+
+  # ---------------------------------------------------------------------------
+  # Legacy server build — Mono + xbuild. Self-contained: produces a
+  # FLS.Server.Console/bin/Debug folder with the EF SqlServer DLL dropped in,
+  # ready for the e2e job to download and run with `mono`.
+  # ---------------------------------------------------------------------------
+  legacy-server-build:
+    name: legacy server build
+    needs: changes
+    if: needs.changes.outputs.legacy == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Mono 6.12
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mono-complete
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: flsserver/src/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('flsserver/src/**/packages.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Install NuGet CLI
+        run: sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
+
+      - name: NuGet restore
+        working-directory: flsserver/src
+        run: mono /usr/local/bin/nuget.exe restore FLS.sln
+
+      - name: Build flsserver projects (xbuild)
+        working-directory: flsserver/src
+        run: |
+          for proj in \
+              FLS.Common/FLS.Common.csproj \
+              FLS.Server.Interfaces/FLS.Server.Interfaces.csproj \
+              FLS.Data.WebApi/FLS.Data.WebApi.csproj \
+              Alpinely.TownCrier/Alpinely.TownCrier.csproj \
+              FLS.Server.Data/FLS.Server.Data.csproj \
+              FLS.Server.Service/FLS.Server.Service.csproj \
+              FLS.Server.Web/FLS.Server.WebApi.csproj \
+              FLS.Server.Console/FLS.Server.Console.csproj ; do
+            xbuild "$proj" /p:Configuration=Debug
+          done
+
+      - name: Drop EF SqlServer DLL into bin
+        working-directory: flsserver/src
+        run: |
+          cp packages/EntityFramework.6.2.0/lib/net45/EntityFramework.SqlServer.dll \
+             FLS.Server.Console/bin/Debug/
+
+      - name: Upload FLS.Server.Console bin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flsserver-console-bin
+          path: flsserver/src/FLS.Server.Console/bin/Debug
+          retention-days: 1
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Legacy web build — Node 8 + yarn install. Warms the flsweb-node_modules
+  # cache that the e2e job will then restore. We do NOT upload node_modules
+  # as an artifact (too large); the cache write/read across jobs is reliable
+  # because `e2e` depends on this job finishing.
+  # ---------------------------------------------------------------------------
+  legacy-web-build:
+    name: legacy web build
+    needs: changes
+    if: needs.changes.outputs.legacy == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 8 }
+
+      - name: Cache flsweb node_modules
+        id: flsweb-cache
+        uses: actions/cache@v4
+        with:
+          path: flsweb-node_modules
+          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
+          restore-keys: |
+            flsweb-node-modules-${{ runner.os }}-
+
+      - name: yarn install (if cache miss)
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        run: |
+          # Prepare a working copy: the two case-sensitivity sed fixes have to
+          # land before yarn install runs the postinstall scripts that compile
+          # the bundle paths.
+          rm -rf /tmp/flsweb-build
+          cp -r flsweb /tmp/flsweb-build
+          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
+          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
+          sudo npm install --global yarn@1 -s
+          cd /tmp/flsweb-build
+          yarn install --network-timeout 600000
+          cp -r /tmp/flsweb-build/node_modules ${GITHUB_WORKSPACE}/flsweb-node_modules
+
+  # ---------------------------------------------------------------------------
+  # e2e — boots the legacy stack (docker + Mono runtime + webpack-dev-server)
+  # and runs Playwright. Receives prebuilt artifacts from the two legacy build
+  # jobs so it doesn't repeat xbuild or yarn install.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: e2e (Playwright)
+    needs: [changes, legacy-server-build, legacy-web-build]
+    if: needs.changes.outputs.legacy == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      FLS_LISTEN_URL: "http://*:25567/"
+      FLS_MSSQL_SA_PASSWORD: "Demo#FLS#2026"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Kick off the two slow independent installs in parallel.
+      - name: Install Mono 6.12 (background)
+        run: |
+          (sudo apt-get update -qq && sudo apt-get install -y -qq mono-complete && touch /tmp/.done-mono) > /tmp/mono.log 2>&1 &
+          echo "mono install PID=$!"
+
+      - name: Start docker-compose stack (background)
+        run: |
+          (docker compose -p fls-e2e up -d && touch /tmp/.done-stack) > /tmp/stack.log 2>&1 &
+          echo "compose up PID=$!"
+
+      - name: Download FLS.Server.Console bin
+        uses: actions/download-artifact@v4
+        with:
+          name: flsserver-console-bin
+          path: flsserver/src/FLS.Server.Console/bin/Debug
+
+      - name: Restore flsweb node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: flsweb-node_modules
+          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
+          restore-keys: |
+            flsweb-node-modules-${{ runner.os }}-
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 8 }
+
+      - name: Prepare flsweb tree
+        run: |
+          rm -rf /tmp/flsweb-build
+          cp -r flsweb /tmp/flsweb-build
+          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
+          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
+          if [ ! -d flsweb-node_modules ]; then
+            echo "flsweb-node_modules cache restore failed — legacy-web-build did not populate it"
+            exit 1
+          fi
+          mv flsweb-node_modules /tmp/flsweb-build/node_modules
+
+      - name: Wait for Mono install
+        run: |
+          while [ ! -f /tmp/.done-mono ]; do sleep 2; done
+          tail -3 /tmp/mono.log
+
+      - name: Wait for docker stack healthchecks
+        run: |
+          while [ ! -f /tmp/.done-stack ]; do sleep 1; done
+          for i in $(seq 1 60); do
+            healthy=$(docker compose -p fls-e2e ps --format json | grep -c '"Health":"healthy"' || true)
+            if [ "$healthy" -ge 2 ]; then break; fi
+            sleep 2
+          done
+          docker compose -p fls-e2e ps
+
+      - name: Apply FLSTest schema and seed
+        env:
+          FLS_MSSQL_CONTAINER: fls-e2e-mssql-1
+        run: bash e2e/scripts/seed.sh
+
+      - name: Start FLS.Server.Console
+        working-directory: flsserver/src/FLS.Server.Console/bin/Debug
+        run: |
+          setsid nohup mono FLS.Server.Console.exe > /tmp/fls-server.log 2>&1 < /dev/null &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:25567/api/v1/countries || true)
+            if [ "$code" = "200" ]; then echo "API ready"; break; fi
+            sleep 2
+          done
+
+      - name: Start webpack-dev-server in background
+        working-directory: /tmp/flsweb-build
+        run: |
+          setsid nohup ./node_modules/.bin/webpack-dev-server --TARGET=DEV --SERVER_URL=http://localhost:25567/ > /tmp/flsweb.log 2>&1 < /dev/null &
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || true)
+            if [ "$code" = "200" ]; then echo "Dev server ready"; break; fi
+            sleep 2
+          done
+
+      - name: Set up Node 20 for Playwright
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright deps
+        working-directory: e2e
+        run: |
+          npm ci
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Run Playwright
+        id: pw
+        working-directory: e2e
+        run: npx playwright test
+        continue-on-error: true
+
+      - name: Assemble gh-pages artifact
+        if: always()
+        env:
+          PW_OUTCOME: ${{ steps.pw.outcome }}
+        run: |
+          mkdir -p public
+          if [ -d /tmp/fls-e2e-report ]; then cp -r /tmp/fls-e2e-report public/report; fi
+          if [ -d e2e/screenshots ];    then cp -r e2e/screenshots    public/screenshots; fi
+          mkdir -p public/logs
+          [ -f /tmp/fls-server.log ] && cp /tmp/fls-server.log public/logs/ || true
+          [ -f /tmp/flsweb.log ]     && cp /tmp/flsweb.log     public/logs/ || true
+
+          REPORTS=""
+          add_card() {
+            REPORTS="${REPORTS}<a class=\"card\" href=\"$1\"><h3>$2</h3><p>$3</p></a>"
+          }
+          if [ -d public/report ];              then add_card "report/index.html"     "Playwright report"     "All categories. Failure traces &amp; screenshots inline."; fi
+          if [ -f public/logs/fls-server.log ]; then add_card "logs/fls-server.log"   "FLS server log"        "Mono / ASP.NET Web API output."; fi
+          if [ -f public/logs/flsweb.log ];     then add_card "logs/flsweb.log"       "flsweb dev-server log" "Webpack dev-server stdout."; fi
+
+          SCREENSHOTS=""
+          if [ -d public/screenshots ]; then
+            for catdir in public/screenshots/*/; do
+              [ -d "$catdir" ] || continue
+              compgen -G "${catdir}*.png" > /dev/null || continue
+              cat=$(basename "$catdir")
+              if [ -z "$SCREENSHOTS" ]; then
+                SCREENSHOTS='<section><h2>Full-page screenshots</h2>'
+              fi
+              SCREENSHOTS="${SCREENSHOTS}<h3 class=\"cat\">${cat}</h3><div class=\"gallery\">"
+              for f in "${catdir}"*.png; do
+                name=$(basename "$f")
+                rel="screenshots/${cat}/${name}"
+                SCREENSHOTS="${SCREENSHOTS}<a class=\"shot\" href=\"${rel}\"><img src=\"${rel}\" loading=\"lazy\" alt=\"${cat}/${name}\"><span>${name}</span></a>"
+              done
+              SCREENSHOTS="${SCREENSHOTS}</div>"
+            done
+            [ -n "$SCREENSHOTS" ] && SCREENSHOTS="${SCREENSHOTS}</section>"
+          fi
+
+          export TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          export COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          export REPORTS SCREENSHOTS
+
+          envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${PW_OUTCOME} ${REPORTS} ${SCREENSHOTS}' \
+            < .github/pages/index.html > public/index.html
+
+      - name: Deploy to gh-pages
+        if: github.ref == 'refs/heads/main' && always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          force_orphan: true
+          enable_jekyll: false
+          commit_message: "e2e: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      - name: Tear down docker-compose stack
+        if: always()
+        run: docker compose -p fls-e2e down -v
+
+      - name: Mark job as failed (post-deploy)
+        if: steps.pw.outcome != 'success'
+        run: exit 1
+
+  # ---------------------------------------------------------------------------
+  # next/ build — Spring Boot (Gradle) under next/server, Angular under
+  # next/web. Detects which subdir is buildable; runs only what exists.
+  # Decoupled from the legacy lane: changing only next/ doesn't trigger e2e
+  # (yet — we'll wire e2e against the rewrite once it can serve the smoke
+  # suite).
+  # ---------------------------------------------------------------------------
+  next-build:
+    name: next build
+    needs: changes
+    if: needs.changes.outputs.next == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect buildable next subdirs
+        id: detect
+        run: |
+          if [ -f next/server/build.gradle.kts ] || [ -f next/server/build.gradle ]; then
+            echo "server=true" >> $GITHUB_OUTPUT
+          else
+            echo "server=false" >> $GITHUB_OUTPUT
+          fi
+          if [ -f next/web/package.json ]; then
+            echo "web=true" >> $GITHUB_OUTPUT
+          else
+            echo "web=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK 25
+        if: steps.detect.outputs.server == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Gradle
+        if: steps.detect.outputs.server == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build next/server
+        if: steps.detect.outputs.server == 'true'
+        working-directory: next/server
+        run: ./gradlew build --no-daemon
+
+      - name: Set up Node 20
+        if: steps.detect.outputs.web == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: next/web/package-lock.json
+
+      - name: Build next/web
+        if: steps.detect.outputs.web == 'true'
+        working-directory: next/web
+        run: |
+          npm ci
+          npm run build
+
+  # ---------------------------------------------------------------------------
+  # Aggregator — single check to wire into branch protection. Passes when
+  # every upstream job either succeeded or was correctly skipped (e.g.
+  # docs-only PRs skip legacy + next, both jobs report `skipped`, aggregator
+  # is green).
+  # ---------------------------------------------------------------------------
+  required:
+    name: required
+    needs: [changes, legacy-server-build, legacy-web-build, e2e, next-build]
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - name: Check upstream job results
+        env:
+          R_CHANGES: ${{ needs.changes.result }}
+          R_LEGACY_SERVER: ${{ needs.legacy-server-build.result }}
+          R_LEGACY_WEB: ${{ needs.legacy-web-build.result }}
+          R_E2E: ${{ needs.e2e.result }}
+          R_NEXT: ${{ needs.next-build.result }}
+        run: |
+          fail=0
+          for pair in \
+              "changes:$R_CHANGES" \
+              "legacy-server-build:$R_LEGACY_SERVER" \
+              "legacy-web-build:$R_LEGACY_WEB" \
+              "e2e:$R_E2E" \
+              "next-build:$R_NEXT" ; do
+            name="${pair%%:*}"
+            result="${pair##*:}"
+            case "$result" in
+              success|skipped) printf "  %-22s %s\n" "$name" "$result" ;;
+              *)               printf "  %-22s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
+            esac
+          done
+          [ "$fail" = "0" ]
