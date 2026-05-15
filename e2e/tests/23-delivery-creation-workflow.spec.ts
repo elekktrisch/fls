@@ -49,20 +49,20 @@ async function triggerWorkflow(
   expect(res.ok(), `GET /api/v1/workflows/${name} -> ${res.status()}`).toBeTruthy();
 }
 
-async function listDeliveriesForFlight(
-  page: Page, token: string, flightId: string,
-): Promise<unknown[]> {
-  // Empty filter → all deliveries visible to current club; filter by FlightId client-side.
-  const res = await page.request.post(`${API_BASE}/api/v1/deliveries/page/0/100`, {
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    data: { PageStart: 0, PageSize: 100, SearchFilter: {}, Sorting: null },
+async function listDeliveriesForFlight(flightId: string): Promise<{ DeliveryId: string }[]> {
+  // The /api/v1/deliveries/page DTO (DeliveryOverview) doesn't expose FlightId,
+  // so we can't filter the API response by it. Query SQL directly — same
+  // pattern the diagnostic block below uses on the Locked-stuck path.
+  return withPool(async (pool) => {
+    const r = await pool.request()
+      .input('id', sql.UniqueIdentifier, flightId)
+      .query<{ DeliveryId: string }>(
+        `SELECT CAST(DeliveryId AS NVARCHAR(40)) AS DeliveryId
+           FROM Deliveries
+          WHERE FlightId = @id AND IsDeleted = 0`,
+      );
+    return r.recordset;
   });
-  expect(res.ok(), `POST /api/v1/deliveries/page -> ${res.status()}`).toBeTruthy();
-  const body = await res.json();
-  const items: any[] = body.Items ?? body.items ?? [];
-  return items.filter(d =>
-    (d.FlightId ?? d.flightId ?? '').toLowerCase() === flightId.toLowerCase(),
-  );
 }
 
 test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a Delivery row exists', async ({
@@ -137,9 +137,7 @@ test('delivery-creation-workflow: Locked -> DeliveryPrepared (with rules) and a 
   ).toContain(finalState);
 
   if (finalState === ProcessState.DeliveryPrepared) {
-    const deliveries = await listDeliveriesForFlight(
-      loggedInPage, token, HISTORICAL_FLIGHT_ID,
-    );
+    const deliveries = await listDeliveriesForFlight(HISTORICAL_FLIGHT_ID);
     expect(
       deliveries.length,
       `DeliveryPrepared but no Delivery row references FlightId ${HISTORICAL_FLIGHT_ID}`,

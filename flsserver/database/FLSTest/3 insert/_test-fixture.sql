@@ -22,6 +22,7 @@ DECLARE @anchor datetime2 = '2026-01-01T00:00:00'
 DECLARE @systemClubId  uniqueidentifier = 'A1DDE2CB-6326-4BB2-897D-7CFC118E842B'
 DECLARE @testClubId    uniqueidentifier = '0FA7B76F-47BA-4138-8F96-671400FD7C83'
 DECLARE @otherClubId   uniqueidentifier = 'F1500002-0000-0000-0000-000000000001'
+DECLARE @fgzoClubId    uniqueidentifier = 'F1500009-0000-0000-0000-000000000001'
 
 DECLARE @systemAdminRoleId    uniqueidentifier = '56352545-2454-3453-2343-C74244653451'
 DECLARE @clubAdminRoleId      uniqueidentifier = '92750A21-9BCD-FFFF-2343-23B44724019B'
@@ -67,6 +68,32 @@ BEGIN
         DATEADD(MINUTE, 1, @anchor), @insertUserId, @recordState,
         @systemClubId, @ownershipClub, 1,
         'other@glider-fls.ch', 'other@glider-fls.ch'
+    )
+END
+
+-- ---------------------------------------------------------------------------
+-- 1b. FGZO club. flsweb's TrialFlightResourceService.js hardcodes the URL
+--    /api/v1/trialflightsregistrations/availabledates/fgzo (case-insensitive
+--    on the server). Without a Clubs row keyed 'fgzo', the trial-flight
+--    public page logs an EntityNotFoundException on every load. Section 9
+--    below seeds the matching TrialFlight.EventDates Settings row.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: fgzo club'
+IF NOT EXISTS (SELECT 1 FROM Clubs WHERE ClubId = @fgzoClubId)
+BEGIN
+    INSERT INTO Clubs (
+        ClubID, ClubName, ClubKey, Address, Zip, City, CountryId,
+        Phone, FaxNumber, Email, WebPage, Contact,
+        CreatedOn, CreatedByUserId, RecordState,
+        OwnerId, OwnershipType, ClubStateId,
+        SendDeliveryMailExportTo, SendPlanningDayInfoMailTo
+    ) VALUES (
+        @fgzoClubId, 'Flugsportgruppe Zueri-Oberland', 'fgzo',
+        'Flugplatz FGZO', '8000', 'Zürich', @switzerlandId,
+        '044 222 33 44', '044 222 33 45', 'info@fgzo.ch', 'www.fgzo.ch', 'Sekretariat FGZO',
+        DATEADD(MINUTE, 1, @anchor), @insertUserId, @recordState,
+        @systemClubId, @ownershipClub, 1,
+        'fgzo@glider-fls.ch', 'fgzo@glider-fls.ch'
     )
 END
 
@@ -568,28 +595,27 @@ UPDATE Clubs
 --    one bubbles out as a 500 (SettingsController.GetValue). Both surface as
 --    noise in fls-server.log on every CI run.
 --
---    9a. TrialFlight.EventDates -- looked up by ClubKey, value is a JSON
---        List<DateTime>. An empty list would be enough to silence the log,
---        but tests/01-public.spec.ts picks a concrete date from the dropdown
---        so we seed one that is reliably in the future.
+--    9a. TrialFlight.EventDates -- attached to the FGZO club seeded in 1b
+--        above (the client URL is hardcoded). Value is a JSON List<DateTime>;
+--        we seed dates well in the future so any UI dropdown stays populated.
 --    9b. AircraftIdsToDisplayInScheduler -- per-USER setting (UserId column,
 --        no Club filter), value is a JSON array of AircraftIds. Empty array
 --        matches what the client falls back to in its .catch() today.
 -- ---------------------------------------------------------------------------
 PRINT 'Fixture: Settings (TrialFlight.EventDates, AircraftIdsToDisplayInScheduler)'
 DELETE FROM Settings
- WHERE (ClubId = @testClubId       AND SettingKey = 'TrialFlight.EventDates')
+ WHERE (ClubId = @fgzoClubId       AND SettingKey = 'TrialFlight.EventDates')
     OR (UserId = @testClubAdminId  AND SettingKey = 'AircraftIdsToDisplayInScheduler')
 
 INSERT INTO Settings (
     SettingId, ClubId, UserId, SettingKey, SettingValue, IsPublic,
     CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType
 ) VALUES
-    ('F1500008-0000-0000-0000-000000000001', @testClubId, NULL,
+    ('F1500008-0000-0000-0000-000000000001', @fgzoClubId, NULL,
         'TrialFlight.EventDates',
         N'["2099-06-15T10:00:00","2099-08-25T10:00:00"]', 0,
         DATEADD(MINUTE, 8, @anchor), @insertUserId, @recordState,
-        @testClubId, @ownershipClub),
+        @fgzoClubId, @ownershipClub),
     ('F1500008-0000-0000-0000-000000000002', NULL, @testClubAdminId,
         'AircraftIdsToDisplayInScheduler',
         N'[]', 0,
