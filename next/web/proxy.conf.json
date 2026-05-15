@@ -1,0 +1,23 @@
+{
+  "//": "DEV-ONLY proxy. Targets are pinned to http://localhost:8080. Do NOT add remote targets — legacy start-test/start-prod patterns are prohibited.",
+  "/api/v1/*": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/Token": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/oauth2/*": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/realms/*": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": true
+  }
+}
