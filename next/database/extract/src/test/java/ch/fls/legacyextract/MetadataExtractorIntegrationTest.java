@@ -279,6 +279,155 @@ class MetadataExtractorIntegrationTest {
                 .isLessThan(5.0);
     }
 
+    // ---- S-011 tenant-scope catalog tests ----
+
+    @Test
+    void tenant_classification_json_is_emitted(@TempDir Path out) {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        assertThat(out.resolve("tenant-classification.json"))
+                .as("S-011 catalog: tenant-classification.json is the machine-readable contract S-022/S-023/S-024/S-025 consume")
+                .exists();
+    }
+
+    @Test
+    void tenant_classification_covers_every_legacy_table(@TempDir Path out) throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+
+        JsonNode tables = JSON.readTree(out.resolve("tables.json").toFile());
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        var legacyTables = new java.util.HashSet<String>();
+        tables.forEach(n -> legacyTables.add(n.get("table_name").asText()));
+
+        var classified = new java.util.HashSet<String>();
+        classification.get("entities").forEach(n -> classified.add(n.get("legacy_table").asText()));
+
+        // Symmetric set-equality: every legacy table is classified, no orphan classification.
+        assertThat(classified)
+                .as("every legacy table from tables.json must be classified — completeness verifier")
+                .containsAll(legacyTables);
+        assertThat(legacyTables)
+                .as("no classification entry references a missing legacy table — orphan verifier")
+                .containsAll(classified);
+    }
+
+    @Test
+    void tenant_classification_buckets_are_from_closed_vocabulary(@TempDir Path out) throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        var allowedScopes = java.util.Set.of(
+                "TENANT_SCOPED", "CROSS_TENANT", "SYSTEM_GLOBAL",
+                "REFERENCE_DATA", "INDIRECT_TENANT", "PRINCIPAL_SUBJECT");
+
+        for (JsonNode entry : classification.get("entities")) {
+            String legacyScope = entry.get("legacy_scope").asText();
+            String targetScope = entry.get("target_scope").asText();
+            assertThat(allowedScopes)
+                    .as("legacy_scope for %s must be in the closed vocabulary", entry.get("legacy_table").asText())
+                    .contains(legacyScope);
+            assertThat(allowedScopes)
+                    .as("target_scope for %s must be in the closed vocabulary", entry.get("legacy_table").asText())
+                    .contains(targetScope);
+        }
+    }
+
+    @Test
+    void tenant_classification_flights_is_indirect_tenant_legacy_and_tenant_scoped_target(@TempDir Path out) throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        JsonNode flights = findClassification(classification, "Flights");
+        // Flights has no ClubId column in legacy → indirect tenant via Aircrafts.OwnerClubId.
+        // S-013 must denormalize club_id into the new flight table → target is TENANT_SCOPED.
+        assertThat(flights.get("legacy_scope").asText()).isEqualTo("INDIRECT_TENANT");
+        assertThat(flights.get("target_scope").asText()).isEqualTo("TENANT_SCOPED");
+        assertThat(flights.get("target_entity").asText()).isEqualTo("Flight");
+        // The denormalization recommendation must be carried as a precondition for S-013.
+        var preconditions = new java.util.ArrayList<String>();
+        flights.get("preconditions").forEach(n -> preconditions.add(n.asText()));
+        assertThat(preconditions)
+                .as("Flights classification must surface the S-013 denormalization precondition")
+                .anySatisfy(p -> assertThat(p).containsIgnoringCase("denormalize"));
+    }
+
+    @Test
+    void tenant_classification_known_gray_area_entities(@TempDir Path out) throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        assertScope(classification, "Persons", "CROSS_TENANT");
+        assertScope(classification, "PersonClub", "CROSS_TENANT");
+        assertScope(classification, "Users", "PRINCIPAL_SUBJECT");
+        assertScope(classification, "AuditLogs", "TENANT_SCOPED");
+        assertScope(classification, "AuditLogDetails", "TENANT_SCOPED");
+        assertScope(classification, "Countries", "REFERENCE_DATA");
+        assertScope(classification, "LanguageTranslations", "REFERENCE_DATA");
+    }
+
+    @Test
+    void tenant_classification_pii_blob_flag_on_audit_log_details(@TempDir Path out) throws IOException {
+        extractor.extractTo(new ExtractConfig(false, true, out));
+        JsonNode classification = JSON.readTree(out.resolve("tenant-classification.json").toFile());
+
+        JsonNode auditDetails = findClassification(classification, "AuditLogDetails");
+        assertThat(auditDetails.get("pii_blob").asBoolean())
+                .as("AuditLogDetails carries OriginalValue/NewValue blob columns — must be flagged pii_blob:true for S-027")
+                .isTrue();
+    }
+
+    @Test
+    void tenant_classification_curation_md_exists() {
+        Path catalogMd = locateRepoFile("next/database/tenant-catalog.md");
+        assertThat(catalogMd).as("S-011 deliverable: curation MD exists at next/database/tenant-catalog.md").exists();
+    }
+
+    @Test
+    void tenant_classification_rules_yaml_exists() {
+        Path rulesYaml = locateRepoFile("next/database/tenant-rules.yaml");
+        assertThat(rulesYaml).as("S-011 deliverable: committed YAML overrides exist at next/database/tenant-rules.yaml").exists();
+    }
+
+    @Test
+    void native_sql_register_exists() {
+        Path register = locateRepoFile("next/database/native-sql-register.md");
+        assertThat(register).as("S-011 deliverable: native-SQL escape-hatch register file exists (initially empty per security plan)").exists();
+    }
+
+    private static JsonNode findClassification(JsonNode classification, String legacyTable) {
+        for (JsonNode entry : classification.get("entities")) {
+            if (legacyTable.equals(entry.get("legacy_table").asText())) {
+                return entry;
+            }
+        }
+        throw new AssertionError("classification entry not found for legacy table: " + legacyTable);
+    }
+
+    private static void assertScope(JsonNode classification, String legacyTable, String expectedTargetScope) {
+        for (JsonNode entry : classification.get("entities")) {
+            if (legacyTable.equals(entry.get("legacy_table").asText())) {
+                assertThat(entry.get("target_scope").asText())
+                        .as("%s expected target_scope=%s", legacyTable, expectedTargetScope)
+                        .isEqualTo(expectedTargetScope);
+                return;
+            }
+        }
+        throw new AssertionError("legacy table not classified: " + legacyTable);
+    }
+
+    private static Path locateRepoFile(String repoRelativePath) {
+        Path cursor = Paths.get(".").toAbsolutePath().normalize();
+        for (int i = 0; i < 6; i++) {
+            Path candidate = cursor.resolve(repoRelativePath);
+            if (candidate.toFile().exists()) {
+                return candidate;
+            }
+            cursor = cursor.getParent();
+            if (cursor == null) break;
+        }
+        return Paths.get(repoRelativePath);
+    }
+
     // ---- helpers ----
 
     private static Path locateFlsTestFixture() {
