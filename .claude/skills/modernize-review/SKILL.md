@@ -1,15 +1,15 @@
 ---
 name: modernize-review
-description: Phase 7 — review one implemented story across 4 streams: 3 specialist subagents (maintainability/security/usability) + Copilot on the PR. Synthesizes into a ## Review section; files issues for blockers. Trigger: /modernize-review S-NNN.
+description: Phase 7 — review one implemented story across 3 streams: maintainability, security, usability via specialist subagents. Synthesizes into a ## Review section; files issues for blockers. Trigger: /modernize-review S-NNN.
 ---
 
 # Phase 7 — Story Review (post-implement)
 
-You are running phase 7 of the modernization workflow. Your job is to take **one** just-implemented story (S-NNN) and produce an honest, actionable review of the code it landed — primarily focused on **maintainability**, secondarily on **security** and **usability**, with **GitHub Copilot** as an independent fourth lens.
+You are running phase 7 of the modernization workflow. Your job is to take **one** just-implemented story (S-NNN) and produce an honest, actionable review of the code it landed — primarily focused on **maintainability**, secondarily on **security** and **usability**.
 
 The implement phase optimized for getting tests green and the story `done`. Review is the deliberate second pass that asks the questions implementation pressure suppresses: is this code something the team will want to extend a year from now? did the security plan actually land in the code, or just in the design notes? is the user-facing surface internally consistent with what already exists?
 
-**Anchored on the PR.** The implement skill leaves a ready-for-review PR per story. This skill operates against that PR: requests Copilot review, runs the three specialist subagents against the same diff, and synthesizes findings into the story file. The PR is also where the operator merges from after blockers clear.
+**Anchored on the PR when one exists.** The implement skill leaves a ready-for-review PR per story. This skill operates against that PR's diff: runs three specialist subagents in parallel, synthesizes findings into the story file. The PR is also where the operator merges from after blockers clear. For legacy / fallback stories without a PR, the skill falls back to commit-range mode.
 
 Review is **just-in-time, not batch** — never review more than one story per invocation. Stale review is worse than no review. Most stories will be reviewed once and the findings either merged or rejected by the operator.
 
@@ -20,7 +20,7 @@ Review is **just-in-time, not batch** — never review more than one story per i
 3. The story has `status: done` in its frontmatter. If `in_progress`, ask whether to review the partial work (early-feedback mode) or wait. If `todo` or `blocked`, refuse. If already `reviewed: true`, warn and ask: re-review (overwrite the existing `## Review` section) or abort.
 4. The story has `refined: true`. Review compares the diff against the refinement contracts (design notes / security plan / test plan / performance plan); without those there's no baseline to assess against. Bail with: "Story not refined — review needs the refinement sections as the contract baseline. Run `/modernize-refine S-NNN` first if you want to retro-spec, or skip review."
 5. A diff is locatable for the story (see Step 1 below). If no PR exists for the story and no commits reference the story's GitHub issue and no commits fall in the `started_at` → `done_at` window, bail — there's nothing to review.
-6. A PR exists for the story (`github_pr:` in frontmatter, status `OPEN` and `READY_FOR_REVIEW`). If the PR is `DRAFT`, ask whether to review the draft (early-feedback mode) or wait. If `MERGED`, proceed read-only against the merge commit. If absent entirely (legacy / fallback story), proceed in **commit-only mode** — 3 reviewer subagents but no Copilot stream.
+6. A PR exists for the story (`github_pr:` in frontmatter, status `OPEN` and `READY_FOR_REVIEW`). If the PR is `DRAFT`, ask whether to review the draft (early-feedback mode) or wait. If `MERGED`, proceed read-only against the merge commit. If absent entirely (legacy / fallback story), proceed in **commit-only mode** — the diff comes from the commit range instead of the PR.
 
 These are the only legitimate `AskUserQuestion` calls. Everything else is derived from the story file + PR + diff + refinement sections.
 
@@ -30,7 +30,7 @@ These are the only legitimate `AskUserQuestion` calls. Everything else is derive
 
 Find the artifact under review:
 
-1. **Preferred — by PR.** If frontmatter has `github_pr: M`, run `gh pr view M --json number,state,headRefName,baseRefName,headRefOid,baseRefOid,reviews,comments`. The diff is `<baseRefOid>..<headRefOid>` (compare-against-merge-base). The PR is also where Copilot review lives.
+1. **Preferred — by PR.** If frontmatter has `github_pr: M`, run `gh pr view M --json number,state,headRefName,baseRefName,headRefOid,baseRefOid`. The diff is `<baseRefOid>..<headRefOid>` (compare-against-merge-base).
 2. **Fallback — by commits.** If no `github_pr:` (legacy / fallback mode), enumerate commits as before: by issue ref (`git log --all --grep="#N\b"`), then story-ID prefix (`^S-NNN:`), then time window. The diff is `<first-commit>^..<last-commit>`.
 
 Capture the diff as a workable artifact: `git diff <range> --stat` for the file map; `git diff <range> -- 'next/server/**'` and `git diff <range> -- 'next/web/**'` for the slices a specialist will want.
@@ -43,23 +43,9 @@ Then read in parallel:
 
 The refinement sections are the **contract**. The review's first question is always: did the implementation honor the contract?
 
-### Step 1.5 — Trigger Copilot review (PR mode only; skip in commit-only mode)
+### Step 2 — Spawn the three reviewers in parallel
 
-GitHub Copilot can review PRs. Either it's already running (repo-level auto-review enabled) or you trigger it explicitly. The skill handles both.
-
-1. **Detect existing Copilot review.** From the `gh pr view --json reviews` output, scan for a review where the author is the Copilot bot (`author.is_bot` true AND login matches `copilot-pull-request-reviewer` / `github-copilot` / similar). If present and recent (≤ diff's last-commit timestamp), Copilot already reviewed — proceed to Step 2.
-2. **Request a review** if none present:
-   - `gh pr comment <PR> --body "@copilot review"` (the comment triggers Copilot review on demand).
-   - Alternative (if the comment trigger fails): `gh pr edit <PR> --add-reviewer "copilot-pull-request-reviewer[bot]"` — depends on repo configuration. Try the comment first.
-3. **Poll for Copilot's review.** Copilot review typically lands in 30s–3min. Poll `gh pr view <PR> --json reviews` every 30s up to a 5-minute ceiling. While polling, **do not block** — dispatch Step 2's reviewer subagents in parallel.
-4. **Capture findings** when the review lands:
-   - The review **summary** (`reviews[?].body` for the bot author) — top-level commentary.
-   - **Inline comments** via `gh api repos/{owner}/{repo}/pulls/{PR}/comments` — line-anchored findings; filter by `user.login` matching the bot.
-5. **Timeout / unavailable:** if no review appears within 5 minutes, mark Copilot stream `unavailable` and note the reason (timeout / bot disabled / API limit). Continue with 3 streams — Copilot is **best-effort**, not blocking.
-
-### Step 2 — Spawn the three reviewers in parallel (while Copilot is polling)
-
-Launch all three subagents in a single message with three Agent tool calls. Copilot's review is already in flight (Step 1.5); these three run concurrently with it.
+Launch all three subagents in a single message with three Agent tool calls:
 
 - `maintainability-reviewer` — primary focus. Code clarity, layering adherence, naming, duplication, test depth, dead code, dependency hygiene, ADR conformance, migration safety, comment / doc quality.
 - `security-reviewer` — did the security plan land? `@PreAuthorize` annotations, tenant gates, input validation, audit events, PII handling, secrets, OWASP applicability gaps.
@@ -75,11 +61,9 @@ Each subagent's prompt **must include**:
 
 Send the three Agent calls in **one message** so they run concurrently. Each returns a markdown blob with findings categorized blocker / improvement / nudge.
 
-While these run, finish polling for Copilot's review per Step 1.5. By the time the three subagents return, Copilot's review is either captured or marked `unavailable`.
-
 ### Step 3 — Synthesize, don't re-decide
 
-The four streams (3 reviewer subagents + Copilot) are inputs, not drafts. You compose them into the story file's `## Review` section. You do not re-argue what they found.
+The three outputs are inputs, not drafts. You compose them into the story file's `## Review` section. You do not re-argue what they found.
 
 **Severity rubric (apply when synthesizing — don't let reviewers downgrade their own findings):**
 
@@ -87,19 +71,10 @@ The four streams (3 reviewer subagents + Copilot) are inputs, not drafts. You co
 - **improvement** — code works and honors the contract but the next maintainer will pay a tax. Examples: function-length, naming clarity, duplicated helper, missing i18n key, test that exercises the wrong layer, dependency added without justification, a comment that explains the what instead of the why.
 - **nudge** — minor / cosmetic / situational. Examples: opportunity to extract a helper that *might* pay off later, a marginally-clearer error message, a UX micro-polish. Operator can ignore without owing anyone an explanation.
 
-**Handling Copilot's stream:** Copilot doesn't use this severity vocabulary. Map its findings as follows:
-
-- Copilot finding **contradicts a refinement contract / ADR / invariant** → blocker, same as our reviewers.
-- Copilot finding **flags a real bug or security gap** (null deref, off-by-one, missing escape, race) → blocker.
-- Copilot finding **suggests a cleanup or alternative** that doesn't violate a contract → improvement or nudge depending on impact.
-- Copilot finding **is style noise** ("consider const", "this could be a one-liner") that the formatter would already enforce → drop. Don't pollute the review with formatter-domain findings.
-- Copilot finding **duplicates a specialist reviewer's finding** → merge them under that reviewer's dimension; note "+ Copilot concurs" in the entry. Independent agreement is a strong signal.
-
 **Conflict resolution:**
-- If two streams' findings overlap, merge them into one finding at the higher severity, cross-referenced. A specialist + Copilot concurring on the same line is the highest-signal pattern in the review.
+- If two reviewers' findings overlap, merge them into one finding at the higher severity, cross-referenced. Specialists agreeing on the same line is the highest-signal pattern in the review.
 - If a reviewer's output is empty for a dimension that genuinely doesn't apply (e.g. usability on a pure backend story with no UI changes), preserve their "(N/A — no UI changes)" note rather than dropping the dimension.
 - If a reviewer produced clearly broken output (no structured sections, hallucinated paths), re-run that one reviewer with a clarifying prompt. Don't synthesize garbage.
-- If Copilot was `unavailable`, note that in the synthesis — don't pretend the stream existed.
 
 ### Step 4 — Write findings back into the story file
 
@@ -111,11 +86,10 @@ Append (or replace, if already present) a single `## Review` section **after the
 <!-- modernize-review: start -->
 
 **Reviewed:** <ISO date> · **PR:** #M (or `Diff: <short-sha>..<short-sha>` in commit-only mode) · **Diff size:** N commits, M files · **Outcome:** <pass / blockers / improvements-only>
-**Streams:** maintainability ✓ · security ✓ · usability ✓ · copilot ✓ (or `unavailable: <reason>`)
 
 ### Maintainability
 - **[blocker]** <one-line finding> — `<path>:<line>`. <one-sentence why-it-matters>. **Fix:** <one-line action>.
-- **[improvement]** ... (+ Copilot concurs)
+- **[improvement]** ...
 - **[nudge]** ...
 
 ### Security
@@ -126,15 +100,8 @@ Append (or replace, if already present) a single `## Review` section **after the
 - **[improvement]** ...
 - **[nudge]** ...
 
-### Copilot review
-<!-- findings unique to Copilot's stream — those that didn't merge into the three dimensions above -->
-- **[improvement]** <one-line finding> — `<path>:<line>`. Copilot-summary excerpt or paraphrase. **Fix:** <one-line action>.
-- ...
-<!-- if Copilot ran but had nothing unique to add: "(no additional findings beyond what the specialist reviewers covered)" -->
-<!-- if Copilot was unavailable: "(unavailable: <reason>; review proceeded with 3 specialist streams)" -->
-
-### Cross-stream agreements
-- <when ≥2 streams reinforced each other on the same finding — these are the highest-signal — list them with the streams that agreed>
+### Cross-reviewer agreements
+- <when ≥2 reviewers reinforced each other on the same finding — these are the highest-signal — list them with the reviewers that agreed>
 
 <!-- modernize-review: end -->
 ```
@@ -154,7 +121,6 @@ review_outcome: <pass | blockers | improvements-only>
 review_blockers: <count>
 review_improvements: <count>
 review_nudges: <count>
-review_copilot: <ran | unavailable | skipped-commit-mode>
 ```
 
 `review_outcome`:
@@ -186,12 +152,11 @@ Print to the user:
 - Story ID + title.
 - **PR / diff reviewed:** PR number + URL (or SHA range in commit-only mode), commit count, file count, line-delta (+/-).
 - **Outcome:** `pass` / `blockers` / `improvements-only` — bold.
-- **Streams:** `maintainability ✓ · security ✓ · usability ✓ · copilot <ran|unavailable:reason|skipped>`.
-- **Findings counts** by dimension × severity (compact form: `maintainability: 1B/3I/2N · security: 0B/1I/0N · usability: 0B/2I/1N · copilot: 0B/1I/0N`).
-- **Blockers** (full list, one line each with path + which stream(s) flagged it) — these need resolution before the story merges.
+- **Findings counts** by dimension × severity (compact form: `maintainability: 1B/3I/2N · security: 0B/1I/0N · usability: 0B/2I/1N`).
+- **Blockers** (full list, one line each with path + which reviewer flagged it) — these need resolution before the story merges.
 - **GitHub issues filed** for blockers: numbers + URLs. In fallback mode: "no GitHub — file these manually: <list>".
 - **Top 3 improvements** worth surfacing in conversation even though they live in the story file.
-- **Cross-stream agreements** (where ≥2 streams reinforced each other — highest-signal findings).
+- **Cross-reviewer agreements** (where ≥2 reviewers reinforced each other — highest-signal findings).
 - Suggested next action:
   - If `blockers`: "`/modernize-rework S-NNN` to triage findings (address-now / defer / accept) → operator fixes address-now items → `/modernize-review S-NNN` to re-baseline → `/modernize-finalize S-NNN` to ship."
   - If `improvements-only`: "`/modernize-rework S-NNN` to triage the improvements (defer the ones not worth fixing now, accept the rest with rationale) → `/modernize-finalize S-NNN`."
@@ -200,14 +165,13 @@ Print to the user:
 ## Quality bar
 
 - **One story per invocation.** Batching is forbidden.
-- **Four streams, three subagents in one parallel batch + Copilot async.** The three specialist subagents launch together; Copilot review is requested up front and polled in parallel. Don't serialize.
-- **Anchor on the PR when available.** PR mode unlocks Copilot, line-anchored cite-by-link, and a clean merge gate. Commit-only mode is the documented fallback when no PR exists.
-- **Copilot is best-effort, not blocking.** A 5-minute poll ceiling. If unavailable, 3-stream review still ships. Don't stall on the bot.
+- **Three reviewers, one parallel batch.** Sequential spawning wastes wall-clock.
+- **Anchor on the PR when available.** PR mode gives line-anchored cite-by-link in findings + a clean merge gate. Commit-only mode is the documented fallback when no PR exists.
 - **Review against the contract, not against taste.** A reviewer who flags "I'd have named this differently" is wasting the operator's time. Flag what the refinement promised vs. what the code shipped.
 - **Severity discipline.** Blocker = contract / ADR / invariant break, not "smells off." If you can't name what was broken, it's not a blocker.
 - **Synthesis is mechanical, not editorial.** The reviewers own the findings; you own the layout. Don't paraphrase a blocker into an improvement to keep the outcome optimistic.
 - **Replace, don't append, on re-run.** Reviewing twice should not double the file.
-- **Maintainability is the headline.** When the four streams disagree about which finding leads, maintainability wins. The vision (`02-vision-and-constraints.md`) treats long-term maintainability as the rewrite's reason-for-being; review reflects that priority. Copilot's findings are a complement to this, not a substitute — Copilot is strongest at "did you miss something obvious," weakest at "does this fit the project's conventions."
+- **Maintainability is the headline.** When the three dimensions disagree about which finding leads, maintainability wins. The vision (`02-vision-and-constraints.md`) treats long-term maintainability as the rewrite's reason-for-being; review reflects that priority.
 - **Blockers get issues; lesser findings don't.** Resist the urge to file an issue per finding — the story file is the right home for non-blocking work.
 - **Don't review what wasn't built.** If the diff is empty for the usability dimension (pure backend story), say "(N/A — no UI changes)" and move on. Don't invent findings to fill the section.
 
@@ -215,7 +179,6 @@ Print to the user:
 
 - It does not modify application code. Reviewers are read-only; the skill only writes to the story file + creates GitHub issues for blockers.
 - It does not merge the PR. Merging is the operator's call after blockers clear.
-- It does not engage Copilot in a conversation. If Copilot's review is wrong or incomplete, the operator can `@copilot` it directly on the PR; the skill doesn't iterate with the bot.
 - It does not modify the refinement sections. If the review reveals the refinement was wrong, that's a separate `/modernize-refine` re-run by the operator.
 - It does not modify acceptance criteria. If an AC is unmeetable as built, surface it as a blocker; the operator decides whether to amend the AC or fix the code.
 - It does not auto-flip `status: done` back to `in_progress`, even with blockers. The story is `done` per implementation; the blockers are follow-up work. The operator owns the gate.

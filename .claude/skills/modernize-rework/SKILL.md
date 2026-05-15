@@ -1,11 +1,11 @@
 ---
 name: modernize-rework
-description: Phase 8 — triage findings from /modernize-review (incl. Copilot inline comments). Per finding: address-now / defer (auto-files follow-up story) / accept (annotates with rationale). Iterates with /modernize-review until clean. Trigger: /modernize-rework S-NNN.
+description: Phase 8 — triage findings from /modernize-review. Per finding: address-now / defer (auto-files follow-up story) / accept (annotates with rationale). Iterates with /modernize-review until clean. Trigger: /modernize-rework S-NNN.
 ---
 
 # Phase 8 — Story Rework (post-review triage)
 
-You are running phase 8 of the modernization workflow. Your job is to take **one** just-reviewed story (S-NNN) and walk the operator through every finding in `## Review` + every unresolved Copilot inline comment on the PR, producing one of three decisions per finding: **address-now**, **defer**, **accept**.
+You are running phase 8 of the modernization workflow. Your job is to take **one** just-reviewed story (S-NNN) and walk the operator through every finding in `## Review`, producing one of three decisions per finding: **address-now**, **defer**, **accept**.
 
 This skill does not edit application code. It produces a triage state: a TaskCreate list for address-now items, a set of follow-up story files for defer items, and annotations on the current story for accept items. The operator does the actual code edits between this skill and the next `/modernize-review` re-run.
 
@@ -35,7 +35,6 @@ These are the only legitimate `AskUserQuestion` calls for *preconditions*. Per-f
 
 Read in parallel:
 - The story file (frontmatter + body + `## Review` section).
-- If `github_pr: M` is set: `gh pr view M --json reviews,comments` to get Copilot's inline comments. Also `gh api repos/{owner}/{repo}/pulls/M/comments` for the line-anchored review comments.
 - Every ADR listed in `adr_refs` (for context — finding rationale may cite ADRs).
 
 Parse the `## Review` section into a structured list:
@@ -44,26 +43,14 @@ Parse the `## Review` section into a structured list:
 [
   { dimension: "maintainability", severity: "blocker", text: "...", path: "...", line: ..., status: "open" },
   { dimension: "maintainability", severity: "improvement", text: "...", status: "open" },
-  ...
-  { dimension: "copilot", severity: "improvement", text: "...", anchored_to: "<comment-id>", status: "open" },
+  { dimension: "security", severity: "improvement", text: "...", status: "open" },
+  { dimension: "usability", severity: "nudge", text: "...", status: "open" },
 ]
 ```
 
-For Copilot inline comments not yet merged into the `## Review` synthesis: include them as separate findings with `dimension: "copilot-inline"`. These are the ones the synthesis step in `/modernize-review` dropped as "formatter-domain noise" or didn't surface — but the operator may still want to triage some explicitly.
-
 **Skip findings already marked `[accepted]` or `[deferred]`** in the existing `## Review` section. They were triaged in a prior rework pass; don't re-prompt.
 
-### Step 2 — Auto-resolve obsolete Copilot inline comments
-
-Before prompting the operator, sweep Copilot's inline comments for ones that no longer apply:
-
-1. For each Copilot inline comment, check: does the line it points at still exist in the current HEAD of the story's branch? Has it been edited since the comment was posted?
-2. If the line was removed or non-trivially edited (whitespace-only edits don't count): auto-resolve via `gh api -X POST repos/{owner}/{repo}/pulls/comments/{comment-id}/replies` with body `Auto-resolved by /modernize-rework — line no longer present or substantially edited.` Then mark the comment resolved.
-3. Report the count of auto-resolved comments in the operator output.
-
-This avoids dragging the operator through findings that the rework cycle has already invalidated.
-
-### Step 3 — Triage each finding (one prompt per finding)
+### Step 2 — Triage each finding (one prompt per finding)
 
 For each remaining open finding, present:
 
@@ -82,7 +69,7 @@ Ask the operator to pick:
 
 Improvements and nudges have no escalation — any of the three choices is valid.
 
-### Step 4 — Process the decisions
+### Step 3 — Process the decisions
 
 **For each `address-now`:**
 
@@ -135,7 +122,7 @@ Improvements and nudges have no escalation — any of the three choices is valid
 
 **Idempotency:** annotations replace any prior `[in-rework]` / `[deferred → S-XXX]` / `[accepted: ...]` prefix on the same bullet. A re-run of rework should produce the same annotations, not stack them.
 
-### Step 5 — Update story file + frontmatter
+### Step 4 — Update story file + frontmatter
 
 Replace the `## Review` section in place (annotations applied per Step 4). Don't touch anything else in the body.
 
@@ -154,7 +141,7 @@ rework_followups: [S-XXX, S-XXY, ...]  # IDs of follow-up stories created
 
 This commit is **bookkeeping, not code**. CI will run but should be a no-op for any code tests; only doc-level diffs.
 
-### Step 6 — Report + next-action prompt
+### Step 5 — Report + next-action prompt
 
 Print to the user:
 
@@ -163,7 +150,6 @@ Print to the user:
 - **Decisions:** `<X> address-now · <Y> deferred → <follow-up IDs> · <Z> accepted`.
 - **Address-now list** (the TaskCreate items, one line each with path).
 - **Deferred follow-ups:** new story IDs + titles. These are now in `_ORDER.md`.
-- **Auto-resolved Copilot comments:** count + (if non-zero) "Marked obsolete because the lines they pointed at have been edited or removed."
 - **Next action:**
   - If `address-now > 0`: "Fix the address-now items (TaskCreate list above), push to `story/S-NNN-<slug>`, then re-run `/modernize-review S-NNN` to re-baseline. After review is clean, `/modernize-finalize S-NNN`."
   - If `address-now == 0` (everything was deferred or accepted): "No code rework needed. Re-run `/modernize-review S-NNN` to confirm the annotations don't reveal any new blockers, then `/modernize-finalize S-NNN`."
@@ -176,7 +162,6 @@ Print to the user:
 - **Annotations replace, not stack.** A re-run of rework on the same story produces the same annotations, not a layered history. The `## Review` section stays scannable.
 - **Skill does not write code.** Address-now items go into TaskCreate for the operator. Don't try to auto-fix a "missing @PreAuthorize" or "rename this method" finding — those are operator-judgement calls.
 - **Follow-up stories carry provenance.** `origin: rework` and `origin_story: S-NNN` in frontmatter so the relationship is traceable from either side.
-- **Auto-resolve Copilot comments only when safe.** Line removed or substantially edited is safe. Whitespace-only or comment-only edits don't count — those don't change behavior and the original Copilot finding may still apply.
 
 ## What this skill does *not* do
 
