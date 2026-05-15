@@ -2,12 +2,15 @@
 id: S-010
 title: Extract production-schema parity baseline
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-15
+github_issue: 15
 depends_on: []
 acceptance:
-  - A reference doc `next/database/legacy-baseline.md` lists every table, column (type + nullability), primary key, foreign key, index, and check constraint in the current production SQL Server schema.
-  - The doc is generated from the live DB (or its dump), not hand-typed.
-  - The doc is the explicit input for the new Postgres schema design in S-012..S-014.
+  - An extraction script `next/database/extract/extract-legacy-schema.{sh,py}` re-exports every table, column (type + nullability), primary key, foreign key, index, unique + check + default constraint, view, trigger, and identity column from a SQL Server source DB into JSON files in `raw/`. Source is parameterized via env var; FLSTest fixture container is the default first-pass source, prod is the eventual second-pass source.
+  - The extraction is driven by metadata queries against `INFORMATION_SCHEMA` + `sys.*` + `sys.dm_db_*` only; never reads row data from application tables. Security-verifier set enforces this pre-merge.
+  - `raw/*.json` is ephemeral (gitignored entirely) — re-export from the seeded legacy DB when fresh data is needed. The script + a small curation MD (`next/database/legacy-baseline.md`) are the durable artifacts. The MD captures source-of-truth precedence, sacred-cow callouts, PII catalog narrative, tenant-scope catalog, the runbook for re-extraction, and reasoning bits that don't belong in JSON. The MD plus the re-runnable script together are the explicit input for the new Postgres schema design in S-012..S-014.
+  - When the script is run with `--allow-aggregate-counts` against a prod-shape source, the JSON outputs additionally include: per-table row count, storage MB, per-index size MB + reads/writes since SQL Server restart, NDV for every indexed column, audit-log sizing breakdown for both `AuditLogs` and `AuditLogDetails`, and per-top-10-table cutover-window estimate. FLSTest-source runs are structurally complete but the scale-bearing fields are placeholder-banner-marked.
 estimate: M
 adr_refs: [0002, 0003]
 parity_test: none
@@ -762,3 +765,27 @@ These specialists' analyses surfaced operator-decision points; the skill does no
 6. **Throughput-constant calibration timing.** §3.5 cutover math uses `30 MB/s` default. S-017 rehearsal measures real. **Recommend:** ship S-010 with `30 MB/s` default + per-table seconds estimates. Update §3.5 numbers (single-line + renderer recompute) after first rehearsal. If first rehearsal shows < 15 MB/s sustained, C6 ≤ 6h budget at risk for audit-log specifically — flag S-016 to plan parallel-load strategy.
 
 <!-- modernize-refine: end -->
+
+## Assumptions made (implement-time, 2026-05-15)
+
+Operator decisions on the refinement's 6 open design questions. Recorded here verbatim so reviewers / future-Claude can see what shifted between refine and implement.
+
+1. **AC4 added** (Q1). The refinement's recommended fourth acceptance criterion is now in frontmatter — scale-bearing content (row counts, storage MB, cardinality, audit-log sizing, cutover-window math) is gating, not "recommended in Notes."
+
+2. **`--allow-aggregate-counts` gated flag** (Q2). Aggregate-only queries (`COUNT`, `APPROX_COUNT_DISTINCT`, `MAX`, `AVG`, `SUM` on user tables) are permitted behind the flag, with explicit operator confirmation logged in commit-message provenance. Pre-merge verifier blocks any `FROM <app_table>` not wrapped in an aggregate function and not behind the gate. The `DENY SELECT ON dbo.Persons / dbo.AuditLogDetails` table-level DENY (Q3 sub-question) is therefore **NOT** applied — it would block the few permitted aggregates. Security-in-depth comes from script-level guards + verifiers + read-only role + `VIEW SERVER STATE` narrowly granted, not table-level DENY.
+
+3. **FLSTest fixture is the first-pass source** (Q3 on source). No prod access from this sandbox. The script targets a Dockerized SQL Server seeded with `flsserver/database/FLSTest/` scripts. The MD + script + verifiers + an FLSTest-derived run land in this story. §3.5-equivalent fields in the JSON carry FLSTest-derived placeholder values + banner; downstream stories (S-013, S-016, S-027, S-107) gate their implement-phase entry on a prod-source re-run.
+
+4. **Lean MD + ephemeral JSON, NOT a 5K-10K-line frozen MD** (Q4 + follow-up override). Operator override of refinement's "single big doc" recommendation, applied twice:
+   - "no need to write down everything in an md document. rather opt for re-exporting from the seeded legacy db using the script to be developed"
+   - "no need to commit raw json files to git. we just re-export from the legacy-db if data is needed"
+
+   Concrete shape:
+   - `next/database/legacy-baseline.md` is **small** (target ≤ 500 lines): provenance ledger, sacred-cow narrative, PII catalog (column-level, FADP-classified), tenant-scope catalog (including the `indirect-tenant via Aircrafts` finding), source-of-truth precedence rule, EF-mapping drift narrative, dead-table flags, cutover-window math implications, runbook pointer to the script. No per-table column tables; the script's JSON outputs cover that.
+   - `raw/*.json` is **entirely gitignored**. No allow-list. Re-export when needed.
+   - Verifiers no longer assert on committed JSON content. They run the extraction script against a freshly-seeded FLSTest container (CI provides the container) and verify the JSON outputs the script produced. Locally an operator runs `./verify.sh` which seeds a throwaway container and runs the same flow.
+   - Refinement's Doc structure §0-§14 is reinterpreted: §0/§1/§2/§4/§13 narrative goes into the slim MD; §3/§5/§6-§12 mechanical content lives in JSON re-emitted by the script; §3.5/§14 mixed-content split — implications-prose in MD, raw numbers in JSON.
+
+5. **Throughput constant 30 MB/s default** (Q6). S-017 rehearsal calibrates. Single-line edit in script when actual is known.
+
+6. **S-010 ↔ S-011 boundary** (Q5). Deferred to S-011 refinement (carry-over from earlier refine note). S-010 emits the raw `ClubId`-column list to JSON + flags the `Flights → Aircrafts.OwnerClubId` indirect-tenancy case in the MD's tenant-scope narrative. S-011 builds the classified strategy on top.
