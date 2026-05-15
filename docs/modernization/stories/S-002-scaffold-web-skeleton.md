@@ -35,6 +35,9 @@ rework_address_now: 14
 rework_deferred: 2
 rework_accepted: 4
 rework_followups: [S-126, S-127]
+merged: true
+merged_at: 2026-05-15
+merge_commit: fa3b382c9730d518d7244fbfcf2dcc6a422f05ee
 ---
 
 ## Context
