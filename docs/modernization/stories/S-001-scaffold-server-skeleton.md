@@ -19,6 +19,13 @@ parity_test: none
 refined: true
 refined_at: 2026-05-14
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+reviewed: true
+reviewed_at: 2026-05-15
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 11
+review_nudges: 9
+review_copilot: unavailable
 ---
 
 ## Context
@@ -509,4 +516,51 @@ These specialists' analyses disagreed; surfaced for operator input.
    - **Trade-off:** stub now = visible prod-config gap surfaced earlier; defer = leaner skeleton, deferred decision visible at S-021 PR time. README note documenting the deferral handles either choice.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-15 · **PR:** #2 (MERGED, squash `d09a8a1`) · **Diff size:** 1 squashed commit, 33 files, +1025/-25 · **Outcome:** improvements-only
+**Streams:** maintainability ✓ · security ✓ · usability ✓ · copilot unavailable (license not available; workflow excluded per PR #4)
+
+### Maintainability
+- **[improvement]** Jackson's `accept-case-insensitive-properties: false` was named in the Security plan as part of the strict-parsing posture but not pinned in `application.yml` — `next/server/src/main/resources/application.yml:11-20`. The first DTO inherits Jackson's case-insensitive default unless overridden later. **Fix:** add `spring.jackson.mapper.accept-case-insensitive-properties: false` alongside the existing `fail-on-unknown-properties` so the posture is complete now rather than retrofitted at the first DTO.
+- **[improvement]** `HelloController.hello()` returns an inline `Map.of(...)` rather than a record — `next/server/src/main/java/ch/fls/platform/hello/HelloController.java:13-17`. README pins "Prefer Java 25 records for DTOs", so the only exemplar controller in the skeleton sets the opposite precedent. **Fix:** replace with `record HelloResponse(String message, Instant timestamp)`; reinforces the convention and gives `HelloControllerIT` a typed shape to assert against. (+ Usability concurs — same exemplar argument.)
+- **[improvement]** `compileTestJava` turns Error Prone off wholesale — `next/server/build.gradle.kts:73-76`. Comment justifies it ("mocks + null assertions are legitimate"), but disabling the whole error-prone surface to silence NullAway loses every other Error Prone check on tests as the suite grows. **Fix:** keep errorprone enabled on test compile but flip only NullAway off — `options.errorprone.nullaway { severity = CheckSeverity.OFF }` (or `disable("NullAway")`).
+- **[nudge]** `verifyNullAwayFailsOnViolation` shells out to a sub-`gradlew` invocation with `--no-daemon` — `next/server/build.gradle.kts:82-123`. Works and is correctly guarded, but the cold-started second JVM is the expensive line in a CI minute budget. Acceptable today; revisit if CI minutes become a concern.
+- **[nudge]** `next/server/src/main/java/ch/fls/config/package-info.java` exists with `@NullMarked` only — Design notes call this "placeholder so the convention is set," which matches; a one-line javadoc on the package would make the intent self-explanatory to a future contributor who finds an empty directory.
+- **[nudge]** `.env.example` documents direnv usage but doesn't list which env vars are actually wired today — `next/server/.env.example:1-7`. A one-liner pointing to "no required env vars in S-001; placeholder for S-009/S-019" would prevent the confused-new-contributor lookup.
+
+### Security
+- **[improvement]** README/threat-model committed that "smoke test asserts [hello logs nothing]" but `HelloControllerIT.java:18` only asserts status + body shape. A regression that adds `log.info("hello called by {}", ...)` slips past CI. **Fix:** add an assertion that captures the test-scoped logger and verifies zero events from `ch.fls.platform.hello` (or a `@TestExecutionListener` that fails on emission). Locks the "no request data at INFO+" invariant before more endpoints arrive.
+- **[improvement]** `application-dev.yml:8` sets `management.endpoint.health.show-details: always` for the dev profile. Reasonable for local dev, but if a dev-profile container is ever reachable from a shared network, full health details (db ping, disk, mail) leak without auth. **Fix:** add a comment pinning "dev profile must not be deployed beyond loopback", or converge with prod and use `when_authorized` even in dev.
+- **[improvement]** `springdoc-openapi-starter-webmvc-ui` is on the classpath now with `api-docs.enabled=false` / `swagger-ui.enabled=false`. A stray `springdoc.swagger-ui.enabled=true` env var (Spring's relaxed binding) flips it on with no code change. **Fix:** either defer the dependency to S-003 (cleanest), or add an integration test asserting `/swagger-ui/index.html` returns 404 under the prod profile so the off-by-default state is regression-locked.
+- **[nudge]** `.env.example` is currently non-secret-bearing, but when S-009 / S-019 land, add a CI grep that fails the build if `.env.example` ever contains a value matching a high-entropy regex. Cheap insurance.
+- **[nudge]** `logback-spring.xml:11` reserves MDC keys correctly but the pattern renders `[,,]` on every line in S-001 (no populators yet). Cosmetic, not a security issue; S-031 JSON encoder will fix it.
+- **[nudge]** `FlsApplication.java` uses unconstrained `SpringApplication.run`. Future hardening (S-020+) may want a `SpringApplicationBuilder` with `.logStartupInfo(false)` in prod to suppress the active-profile + PID banner line that survives `banner-mode: off`.
+
+### Usability (developer-facing — backend-only story)
+- **[improvement]** AC1 "install JDK 25" step is glossed over — `next/server/README.md:16-17`. README says "You need JDK 25" then immediately says Foojay auto-provisions one; these are contradictory to a first-time reader. **Fix:** clarify with "you do NOT need to install JDK 25 — Foojay handles it; you DO need a working JDK 17+ to bootstrap Gradle" OR add the `sdk install java 25-tem` / `brew install temurin@25` snippet the Edge cases section anticipates.
+- **[improvement]** `.env.example` is effectively empty — two commented-out keys (`SPRING_PROFILES_ACTIVE`, `SERVER_PORT`) with no explanation of allowed values or defaults. **Fix:** one-line comment per key (e.g. `# Profile: dev|test|prod. Defaults to dev.`).
+- **[improvement]** `open-in-view=false` consequence is not surfaced in README. The `application.yml:9-10` comment is good but invisible from a README skim. Future contributors hitting `LazyInitializationException` in S-012+ deserve to know it's intentional. **Fix:** one sentence in the conventions table.
+- **[improvement]** Port-collision behavior is not documented — Edge cases explicitly anticipates "Port 8080 already in use locally" with `SERVER_PORT` override, but README doesn't connect "`BindException`" → "set `SERVER_PORT=8081`".
+- **[improvement]** `0.0.0.0` bind is not documented — Design notes list it as a required README item; skeleton in fact defaults there (no `server.address` set), but a contributor can't confirm without `netstat`. One sentence under Run would close it.
+- **[nudge]** README's `verifyNullAwayFailsOnViolation` example could mention it runs a sub-Gradle invocation, so contributors don't panic at the second daemon start.
+- **[nudge]** Conventions table is solid — consider hoisting "Servlet vs reactive", "Virtual threads", "No Spring Security yet" out of the table into a one-sentence preamble so a skimmer sees them in 5 seconds.
+- **[nudge]** Logback pattern's empty MDC slots (`[,,]`) on first-run logs look like a bug to a developer who hasn't read the story. A README sentence ("MDC slots show empty until S-022/S-027 populate them") would head off the false alarm.
+
+### Copilot review
+(unavailable: GitHub Copilot review license not available for this org; workflow excluded per merged PR #4. Review proceeded with 3 specialist streams.)
+
+### Cross-stream agreements
+- **HelloController exemplar should be a record, not a Map** — flagged by **maintainability** (improvement) and **usability** (nudge). Synthesized at improvement severity. Both reviewers cite the README's "Prefer Java 25 records for DTOs" convention; the only exemplar controller in the skeleton currently sets the opposite precedent for every downstream domain controller to pattern-match against.
+
+### Mitigations verified (positive signal)
+- Actuator lockdown landed exactly as specified: `application.yml:48-58` pins `include: health,info`, `exclude: env,heapdump,threaddump,loggers,configprops,beans,shutdown`, `show-details: when_authorized`. Error-response hardening (`include-stacktrace/message/exception/binding-errors`) all `never`/`false` at `application.yml:35-39`.
+- Supply chain is honest: `gradle/wrapper/gradle-wrapper.properties` pins `distributionSha256Sum` (verified against published checksum for gradle-9.4.1), wrapper JAR committed, toolchain pin `JavaLanguageVersion.of(25)` in `build.gradle.kts`, `.env` gitignored, `.env.example` tracked, no literal secrets in any YAML.
+- Story Design notes' "Integration with other stories" negative contract honored cleanly: no Flyway, no Spring Security starter, no JPA starter, no `@EnableScheduling`, no Dockerfile, no `SecurityFilterChain` — all deliberately absent.
+- NullAway side source set + `verifyNullAwayFailsOnViolation` Gradle task is real and demonstrably fails compile when the negative-demo `NullDereferenceDemo.java` is compiled. AC3 satisfied.
+
+<!-- modernize-review: end -->
 
