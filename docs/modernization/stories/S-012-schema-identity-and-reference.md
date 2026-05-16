@@ -65,6 +65,14 @@ The `User` ↔ `Person` distinction is sacred. Resist any urge to collapse them.
 
 The Keycloak user ID also needs a home — likely a `user.keycloak_sub` column (UUID) for the OIDC subject claim mapping. Decided in S-052 but reserve the column now.
 
+**Mid-implementation carry-alongs (rode this PR, not part of the identity baseline scope):**
+- **`modernize/aircraft-cross-tenant-amendment`** carry-forward: 2 commits that never reached `main` via their own PR (`65b3b13` CI paths-filter fix + `f474527` S-014 JIT refine). Operator chose to bundle into S-012's PR rather than spin a separate one.
+- **ADR 0020** (categorical column shape) — drafted mid-story after operator interrupt; retroactively reshaped `start_type.is_for_glider/tow/motor` boolean trio to `applicable_categories TEXT[]`.
+- **`next/ops/dev-up-full.sh`** + `docker-compose.yml` `next` profile + custom pgAdmin image — operator-convenience for inspecting the migrated DB via pgAdmin alongside the legacy MSSQL stack.
+- **`e2e/playwright.config.ts` `maxFailures: 10`** — added after a CI Playwright flake during the status:done push burned 20+ runner-minutes. Cap fails-fast on mass regressions; local runs override with `--max-failures=0`.
+- **Drop H2 testcontainer fallback** — every `@SpringBootTest` now boots against `SharedPostgresContainer`; `@EnabledIf("ch.fls.server.testsupport.SharedPostgresContainer#available")` with CI fail-loud guard.
+- **ADR 0021** (integration-test data isolation strategy) — pinned before S-022 lands JPA + INSERTs.
+
 <!-- modernize-refine: start -->
 
 ## Design notes

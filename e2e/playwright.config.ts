@@ -62,8 +62,13 @@ export default defineConfig({
   // pushing the stack into GC pause + EF-pool contention.
   workers: 6,
   retries: 0,
-  // Cap total failures so a mass-regression (server down, schema drift)
-  // doesn't burn 20+ runner-minutes hammering the same broken state.
+  // Cap total failures so a mass-regression (server down, schema drift,
+  // seed mismatch) doesn't burn 20+ runner-minutes hammering the same
+  // broken state across 155 specs × 2 retries. Trade-off: a real wave of
+  // failures in an early category (e.g. all `auth` specs) now hides any
+  // later-category failures until the auth issue is fixed and re-run.
+  // That's the right shape — first 10 failures usually share a root cause
+  // and fixing them in order is faster than triaging 70 simultaneous reds.
   // Override with `--max-failures=0` to surface every spec on a local run.
   maxFailures: 10,
   outputDir: '/tmp/fls-e2e-results',

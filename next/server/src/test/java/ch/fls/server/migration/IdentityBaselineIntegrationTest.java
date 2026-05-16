@@ -2,6 +2,8 @@ package ch.fls.server.migration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import static ch.fls.server.testsupport.MigrationAssertions.assertTableExists;
+
 import ch.fls.server.testsupport.PostgresTestContainerLifecycle;
 import ch.fls.server.testsupport.SharedPostgresContainer;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -86,18 +88,25 @@ class IdentityBaselineIntegrationTest {
                                 + "AND table_type = 'BASE TABLE'")) {
             while (rs.next()) actual.add(rs.getString(1));
         }
+        // The test name promises "all 19" — assert the exact set including the
+        // framework tables Flyway / S-009 land. containsAll would silently allow
+        // a 20th domain table to slip in undetected; containsExactlyInAnyOrder
+        // forces a deliberate update if the catalogue changes.
+        Set<String> frameworkTables = Set.of("flyway_schema_history", "app_meta");
+        Set<String> expectedExact = new LinkedHashSet<>();
+        expectedExact.addAll(expected);
+        expectedExact.addAll(frameworkTables);
         assertThat(actual)
-                .as("V2 migration must create all 19 identity + reference tables")
-                .containsAll(expected);
+                .as("V2 migration must create all 19 identity + reference tables + the framework tables")
+                .containsExactlyInAnyOrderElementsOf(expectedExact);
     }
 
     /** AC2 — every PK across the 19 tables is `uuid NOT NULL`. */
     @Test
     void all_pk_columns_are_uuid_not_null() throws Exception {
         // 19 tables × 1 PK each. Single info_schema query proves every PK is uuid + not null.
-        try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "person"); // canary: at least the identity baseline must be present
-        }
+        record PkRow(String table, String column, String type, String nullable) {}
+        List<PkRow> rows = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery("""
                         SELECT t.table_name, c.column_name, c.data_type, c.is_nullable
@@ -117,21 +126,33 @@ class IdentityBaselineIntegrationTest {
                             'club','club_extension','club_state','user','role','user_role',
                             'person','person_club','country','language','member_state','person_category',
                             'length_unit_type','elevation_unit_type','counter_unit_type','start_type',
-                            'email_template','extension_type','extension_value'
+                            'email_template','extension_value','extension_type'
                           )
                         """)) {
             while (rs.next()) {
-                String table = rs.getString("table_name");
-                String col = rs.getString("column_name");
-                String type = rs.getString("data_type");
-                String nullable = rs.getString("is_nullable");
-                assertThat(type)
-                        .as("PK %s.%s must be uuid (ADR 0019)", table, col)
-                        .isEqualTo("uuid");
-                assertThat(nullable)
-                        .as("PK %s.%s must be NOT NULL", table, col)
-                        .isEqualTo("NO");
+                rows.add(new PkRow(rs.getString("table_name"), rs.getString("column_name"),
+                        rs.getString("data_type"), rs.getString("is_nullable")));
             }
+        }
+        // Guard against the silent-zero-row pass: if V2 ever vanishes or the
+        // table catalogue drifts, an empty result set should make this test
+        // fail loudly rather than passing because the per-row loop never ran.
+        Set<String> seenTables = new LinkedHashSet<>();
+        for (PkRow row : rows) seenTables.add(row.table());
+        assertThat(seenTables)
+                .as("every one of the 19 in-scope tables must contribute a PK row to the join")
+                .containsExactlyInAnyOrder(
+                        "club", "club_extension", "club_state", "user", "role", "user_role",
+                        "person", "person_club", "country", "language", "member_state", "person_category",
+                        "length_unit_type", "elevation_unit_type", "counter_unit_type", "start_type",
+                        "email_template", "extension_value", "extension_type");
+        for (PkRow row : rows) {
+            assertThat(row.type())
+                    .as("PK %s.%s must be uuid (ADR 0019)", row.table(), row.column())
+                    .isEqualTo("uuid");
+            assertThat(row.nullable())
+                    .as("PK %s.%s must be NOT NULL", row.table(), row.column())
+                    .isEqualTo("NO");
         }
     }
 
@@ -550,19 +571,6 @@ class IdentityBaselineIntegrationTest {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    private static void assertTableExists(Connection conn, String tableName) throws java.sql.SQLException {
-        try (var stmt = conn.prepareStatement(
-                "SELECT 1 FROM information_schema.tables "
-                        + "WHERE table_schema = 'public' AND table_name = ?")) {
-            stmt.setString(1, tableName);
-            try (ResultSet rs = stmt.executeQuery()) {
-                assertThat(rs.next())
-                        .as("precondition: table public.%s must exist before column-shape checks", tableName)
-                        .isTrue();
             }
         }
     }

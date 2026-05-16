@@ -58,6 +58,21 @@
 -- Per-club seeds NOT in this migration: member_state, person_category.
 -- These are TENANT_SCOPED (legacy carries ClubId NOT NULL); S-016 seeds
 -- them per club from legacy data during cutover.
+--
+-- ============================================================================
+-- AUTH ARTIFACTS — OWNED BY KEYCLOAK (ADR 0007). DO NOT ADD TO `user`.
+-- ============================================================================
+-- The `user` table here is a principal-subject row that maps an FLS identity
+-- to a Keycloak `sub` (uuid). It is NOT an authentication store.
+--
+-- DO NOT add columns named `password_hash`, `password_salt`, `password`,
+-- `refresh_token`, `access_token`, `mfa_secret`, `totp_seed`, `security_stamp`,
+-- or any equivalent. Keycloak owns password storage, rotation, MFA, and
+-- session lifecycle. The S-052 backfill that populates `keycloak_sub`
+-- finalises the contract. A future PR adding a password-shaped column on
+-- `user` is wrong — flag it at PR review and re-direct to Keycloak realm
+-- config.
+-- ============================================================================
 
 -- =============================================================================
 -- 1. Reference tables (no FKs; loaded first so subsequent FKs can resolve)
@@ -268,8 +283,9 @@ CREATE TABLE "user" (
     access_failed_count         INTEGER       NOT NULL DEFAULT 0,
     remarks                     VARCHAR(250),
     account_state_id            SMALLINT      NOT NULL DEFAULT 1,
-    last_password_change_on     TIMESTAMPTZ,
-    force_password_change_next  BOOLEAN       NOT NULL DEFAULT false,
+    -- Legacy `last_password_change_on` + `force_password_change_next` are
+    -- intentionally NOT carried over. Keycloak owns password lifecycle
+    -- (ADR 0007). See the header block: no password-shaped columns on `user`.
     language_id                 UUID          NOT NULL,
     keycloak_sub                UUID,
     created_on                  TIMESTAMPTZ   NOT NULL DEFAULT now(),
