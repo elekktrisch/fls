@@ -2,7 +2,11 @@
 id: S-013
 title: V1__baseline part 2 — flights / aircraft / persons / clubs / locations
 epic: E-02
-status: todo
+status: done
+started_at: 2026-05-16
+done_at: 2026-05-16
+merged: true
+merged_at: 2026-05-16
 depends_on: [S-012]
 acceptance:
   - Tables defined: `flight`, `flight_crew`, `flight_crew_type`, `flight_type`, `flight_cost_balance_type`, `flight_process_state`, `flight_air_state`, `aircraft`, `aircraft_type`, `aircraft_state`, `aircraft_aircraft_state`, `aircraft_operating_counter`, `article`, `location`, `location_type`, `inoutbound_point` (16 tables — `flight_process_state` + `flight_air_state` promoted from "modelled as enum or lookup" into explicit lookup tables per ADR 0019 uniformity).
@@ -39,6 +43,29 @@ refined: true
 refined_at: 2026-05-16
 refined_speculative: false
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+github_issue: 32
+github_pr: 33
+reviewed: true
+reviewed_at: 2026-05-16
+review_outcome: blockers
+review_blockers: 2
+review_improvements: 13
+review_nudges: 7
+review_parity_oracle: "N/A — parity_test: none; greenfield schema reshape per ADR 0018+0019; enum value sets pinned via legacy_int_id + canonical UUID v7 seed JSON oracle"
+review_reviewers: [maintainability, security, tech-writer]
+reworked: true
+reworked_at: 2026-05-16
+rework_mode: interactive
+rework_address_now: 27
+rework_deferred: 24
+rework_accepted: 9
+rework_auto_decisions: 0
+rework_followups: [S-131]
+rework_meta_improvements: 2
+rework_meta_followups:
+  - { id: S-130, kind: workflow-improvement }
+rework_meta_prs:
+  - { branch: "chore/modernize-implement-body-sweep", url: "https://github.com/elekktrisch/fls/pull/39" }
 ---
 
 ## Context
@@ -48,17 +75,23 @@ Largest chunk of the schema and the load-bearing core for E-07. Sacred-cow shape
 See frontmatter.
 
 ## Tasks
-- [ ] Translate `Flight` columns from S-010 baseline; reshape allowed but document deltas.
-- [ ] Self-FK on `tow_flight_id`.
-- [ ] FlightCrew M:N between Flight and Person; with `FlightCrewType` lookup.
-- [ ] FlightType + FlightCostBalanceType with `is_for_glider`/`is_for_tow`/`is_for_motor` flags.
-- [ ] Aircraft + AircraftType + AircraftState + AircraftOperatingCounter.
-- [ ] Location + LocationType + InOutboundPoint.
-- [ ] Article (per-club, used by accounting rules).
-- [ ] Add the hot-path indexes (commit hash `99a69c4` in legacy got this right — port them).
+
+Tasks superseded by acceptance criteria — see frontmatter.
 
 ## Notes
-This story is L because it touches ~16 tables. Tasks split it into the verifiable sub-pieces. Don't try to do it all in one PR — land tables in groups (Flight + crew; Aircraft cluster; Location cluster) so review is tractable.
+
+This story is L because it touches ~16 tables. The legacy hot-path index
+inventory in `flsserver/src/FLS.Server.Data/Migrations/` informed the
+S-013 index grid; see `Design notes § Index strategy` below for the
+shipped per-table grid.
+
+## Implementation notes
+
+Shipped as `V3__flights_aircraft_locations.sql` (16 tables + 5 deferred
+FK columns on `club` + reference-data seeds with canonical UUID v7
+literals). Boyscout work along the way: S-128 post-merge bookkeeping,
+SKILL.md amendments (no-SHAs Quality-bar + finalize pre-merge ordering),
+pgAdmin port flip 8080→5050 to free 8080 for AlpenFlight's bootRun.
 
 <!-- modernize-refine: start -->
 
@@ -66,7 +99,7 @@ This story is L because it touches ~16 tables. Tasks split it into the verifiabl
 
 ### Migration shape
 
-Ships as **single `V<n+1>__flights_aircraft_locations.sql`** (~700-850 lines). `<n+1>` picked at implement time from `next/server/src/main/resources/db/migration/` listing — likely **V4** (S-009 V1 `app_meta`, S-018 V2 `shedlock`, S-012 V3 `identity_and_reference`); tests assert `>= 4` not `== 4` to tolerate ordering shifts.
+Ships as **single `V3__flights_aircraft_locations.sql`** (~840 lines). At implement time the listing in `next/server/src/main/resources/db/migration/` was V1 (`baseline` sentinel) + V2 (`identity_and_reference`); S-018 (ShedLock) deferred — `<n+1>` resolved to V3. Tests assert `>= 3` not `== 3` to tolerate ordering shifts when S-018 lands later.
 
 FK ordering: location_type → location → inoutbound_point; aircraft_type + aircraft_state; flight_cost_balance_type + flight_crew_type + flight_process_state + flight_air_state; flight_type; aircraft; aircraft_aircraft_state + aircraft_operating_counter; flight (with deferred self-FK constraint added post-create); flight_crew; article; **ALTER TABLE club** at the end (adds 5 FK columns to S-012's `club`).
 
@@ -168,7 +201,7 @@ Cross-tenant ride-through FKs (Hibernate `@TenantId` does NOT filter FK-by-id lo
 - `flight_crew_type_id uuid NOT NULL → flight_crew_type(id) RESTRICT`
 - `begin_flight_datetime TIMESTAMPTZ`, `end_flight_datetime TIMESTAMPTZ`, `begin_instruction_datetime TIMESTAMPTZ`, `end_instruction_datetime TIMESTAMPTZ`
 - `nr_of_ldgs SMALLINT` + `CHECK (>= 0)`, `nr_of_starts SMALLINT` + `CHECK (>= 0)`
-- Audit + soft-delete
+- Soft-delete (`deleted_on`, `deleted_by_user_id`) only — NO `created_on / created_by_user_id / modified_on / modified_by_user_id`. flight_crew is aggregate-internal to Flight (per ADR 0018); mutation events are captured via Flight's audit columns + the Flight aggregate-method boundary at S-022, not on the crew row.
 - **Composite UNIQUE `(flight_id, person_id, flight_crew_type_id) WHERE deleted_on IS NULL`** — sacred-cow partial-unique per `tenant-rules.yaml:303`.
 
 **`aircraft_aircraft_state`** (`AircraftAircraftState.cs:21-33`):
@@ -226,11 +259,11 @@ Cross-tenant ride-through FKs (Hibernate `@TenantId` does NOT filter FK-by-id lo
 **Reference data (7 tables; minimal columns + audit-light + `legacy_int_id SMALLINT UNIQUE`):**
 - `aircraft_type` (8 rows; bit-field codes: Unknown=0, Glider=1, GliderWithMotor=2, MotorGlider=4, MotorAircraft=8, MultiEngine=16, Jet=32, Helicopter=64 per `AircraftType.cs`) + `has_engine / requires_towing_info / may_be_towing_aircraft BOOLEAN NULL`.
 - `aircraft_state` (7 rows: OK/Information/Attention/Malfunction/Maintenance/Uninsured/EndOfLife per `AircraftStateKey.cs`) + `is_aircraft_flyable BOOLEAN NOT NULL`.
-- `location_type` (17 rows per legacy snapshot).
+- `location_type` (6 rows shipped from legacy `3 Insert Static Data.sql` fixture: `WAYPOINT/GRASS_RUNWAY/EXTERNAL_FIELD/GLIDER_AIRFIELD/CONCRETE_RUNWAY/OTHER`, legacy_int_id in {1..5, 99}; design originally anticipated 17 from a production snapshot we don't have — S-016 cutover can backfill richer per-club rows if any prod snapshots carry them).
 - `flight_crew_type` (7 rows: PilotOrStudent=1, CoPilot=2, FlightInstructor=3, Passenger=4, WinchOperator=5, Observer=6, FlightCostInvoiceRecipient=10 per `FlightCrewType.cs`).
 - `flight_process_state` (8 rows: NotProcessed=0, Invalid=28, Valid=30, Locked=40, DeliveryPreparationError=45, DeliveryPrepared=50, DeliveryBooked=60, ExcludedFromDeliveryProcess=99).
 - `flight_air_state` (7 rows: New, FlightPlanOpen, MightBeStarted, Started, MightBeLandedOrInAir, Landed, FlightPlanClosed).
-- `flight_cost_balance_type` (legacy snapshot) + `is_for_glider / is_for_tow / is_for_motor BOOLEAN NOT NULL DEFAULT false` + at-least-one CHECK.
+- `flight_cost_balance_type` (5 rows from legacy `3 Insert Static Data.sql`: `PILOT_PAYS_ALL/FIFTY_FIFTY_PILOT_COPILOT/TOW_PILOT_PAYS_TOW/NO_INSTRUCTOR_FEE/INVOICE_TO_PERSON`, legacy_int_id in 1..5) + `person_for_invoice_required BOOLEAN NOT NULL DEFAULT false` (legacy `PersonForInvoiceRequired` parity) + `is_for_glider / is_for_tow / is_for_motor BOOLEAN NOT NULL DEFAULT false` + at-least-one CHECK. **Seed reshape:** legacy `TOW_PILOT_PAYS_TOW` carried all 3 boolean flags = 0 (structurally wrong vs the at-least-one CHECK); the new schema flips `is_for_glider + is_for_tow` to `true` (structurally a glider+tow type).
 
 ### SQL `COMMENT ON COLUMN` for forensic clarity
 
@@ -384,52 +417,55 @@ Aircrafts:
   sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
   pii_ride_through: [aircraft_owner_person_id]
 
-# Append TENANT_SCOPED operational tables:
-flight:
+# Append TENANT_SCOPED operational tables. NOTE: top-level keys are the
+# legacy-SQL-Server table names (PascalCase + plural), matching the
+# tenant-rules.yaml convention shipped in S-011/S-012. The DB-side table
+# names (snake_case) appear in `tenant_column` and `target_entity` fields.
+Flights:
   kind: tenant-scoped
   target_entity: Flight
   tenant_column: operating_club_id
   emits_audit: true
-  ride_through_targets: [person, aircraft, location]   # aircraft now cross-tenant per amendment
-  pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route, coupon_number]
+  ride_through_targets: [Persons, Aircrafts, Locations]   # aircraft now cross-tenant per amendment
+  pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route]   # coupon_number off-list — voucher code is quasi-PII but lives in the sensitive-columns axis (S-027 may reclassify)
   preconditions:
     - "flight.operating_club_id set per-flight by operator (NOT denormalized from aircraft per 2026-05-16 Aircraft-cross-tenant amendment)"
     - "S-022 service layer enforces 'may this club use this aircraft?' via owner_club_id / charter agreement / public-rental checks"
 
-flight_crew:
+FlightCrew:
   kind: tenant-scoped  # indirect (via flight); operating_club_id denormalized at S-022 if needed
   target_entity: FlightCrew
-  ride_through_targets: [person]
+  ride_through_targets: [Persons]
   pii_ride_through: [person_id]
   emits_audit: true
 
-aircraft_aircraft_state:
+AircraftAircraftStates:
   kind: cross-tenant   # inherits from Aircraft per 2026-05-16 amendment
   target_entity: AircraftAircraftState
-  ride_through_targets: [person]
+  ride_through_targets: [Persons]
   pii_columns: [remarks]
   pii_ride_through: [noticed_by_person_id]
 
-aircraft_operating_counter:
+AircraftOperatingCounters:
   kind: cross-tenant   # inherits from Aircraft per 2026-05-16 amendment
   target_entity: AircraftOperatingCounter
 
-article:
+Articles:
   kind: tenant-scoped
   target_entity: Article
   tenant_column: operating_club_id
   emits_audit: true
 
 # REFERENCE_DATA entries
-location: { kind: reference, target_entity: Location, pii_columns: [description] }   # sacred-cow shared cross-tenant
-inoutbound_point: { kind: reference, target_entity: InOutboundPoint }
-location_type:    { kind: reference, target_entity: LocationType }
-aircraft_type:    { kind: reference, target_entity: AircraftType }
-aircraft_state:   { kind: reference, target_entity: AircraftState }
-flight_crew_type: { kind: reference, target_entity: FlightCrewType }
-flight_cost_balance_type: { kind: reference, target_entity: FlightCostBalanceType }
-flight_process_state: { kind: reference, target_entity: FlightProcessState }
-flight_air_state:     { kind: reference, target_entity: FlightAirState }
+Locations:       { kind: reference, target_entity: Location, pii_columns: [description] }   # sacred-cow shared cross-tenant
+InOutboundPoints: { kind: reference, target_entity: InOutboundPoint }
+LocationTypes:    { kind: reference, target_entity: LocationType }
+AircraftTypes:    { kind: reference, target_entity: AircraftType }
+AircraftStates:   { kind: reference, target_entity: AircraftState }
+FlightCrewTypes:  { kind: reference, target_entity: FlightCrewType }
+FlightCostBalanceTypes:  { kind: reference, target_entity: FlightCostBalanceType }
+FlightProcessStates:     { kind: reference, target_entity: FlightProcessState }
+FlightAirStates:         { kind: reference, target_entity: FlightAirState }
 ```
 
 ### Reference-data seeds — fixed canonical UUID v7 literals
@@ -444,7 +480,7 @@ Same approach as S-012:
 
 - New: `next/server/src/main/resources/db/migration/V<n+1>__flights_aircraft_locations.sql` (~700-850 lines).
 - Edit: `next/database/tenant-rules.yaml` (12 new entries + flight_type reclassification + PII catalog extensions).
-- New: `next/server/src/test/java/ch/fls/server/migration/FlightBaselineIntegrationTest.java` (~70-80 tests).
+- New: `next/server/src/test/java/ch/alpenflight/server/migration/FlightBaselineIntegrationTest.java` (~70-80 tests).
 - Extend: `MigrationFolderConventionsTest`, `FlywayBootstrapIntegrationTest`, `TenantCatalogConsistencyTest` (from S-012).
 - Extend: `next/server/src/test/resources/reference-seeds-canonical-uuids.json` (canonical UUIDs for the 7 new reference tables).
 - Edit: `next/server/src/test/resources/forbidden-migration-patterns.txt` — allowlist new reference-seed INSERTs; deny `INSERT INTO flight|flight_crew|aircraft|aircraft_aircraft_state|aircraft_operating_counter|article|location|inoutbound_point`.
@@ -510,7 +546,7 @@ Same approach as S-012:
 
 ### Things not the right shape
 
-- AC1 title says "V1__baseline part 2" — V1 is locked by S-009. Ships as V<n+1> (likely V4).
+- AC1 title says "V1__baseline part 2" — V1 is locked by S-009. Shipped as V3 (S-018 ShedLock deferred; main carried V1 + V2 at implement time).
 - AC1 frontmatter listed 14 tables; refinement promotes to 16 with `flight_process_state` + `flight_air_state`.
 - AC3 lists denormalized `*_pilot_person_id` columns that don't exist in legacy — crew is M:N via `flight_crew` only.
 - AC5 says "GliderWithMotor" Flight discriminator — that value belongs to `aircraft.aircraft_type_id`, NOT to `flight.flight_aircraft_type_id` (sparse {1,2,4} only).
@@ -534,7 +570,7 @@ Same approach as S-012:
 | (h) | Aircraft state spoofing | Med | Append-only via `Aircraft.recordState()` aggregate method; audit captures actor; CHECK valid_to >= valid_from |
 | (i) | AircraftOperatingCounter monotonic invariant violation | Med | CHECK >= 0 per column; service-layer monotonic guard (schema cannot enforce cross-row) |
 | (j) | DSAR cascade — Person erasure blanks pilot attribution | Med | `flight_crew.person_id ON DELETE RESTRICT` preserves attribution; `aircraft.aircraft_owner_person_id` + `aircraft_aircraft_state.noticed_by_person_id` SET NULL; column comments document |
-| (k) | UUID v7 timestamp leak in error messages | Low | UUID v7's leading 48 bits expose record creation time; for FLS Flight/Aircraft this is operationally-known anyway; document in CONVENTIONS.md |
+| (k) | UUID v7 timestamp leak in error messages | Low | UUID v7's leading 48 bits expose record creation time; for AlpenFlight Flight/Aircraft this is operationally-known anyway; document in CONVENTIONS.md |
 | (l) | Aggregate-prefix reveals entity type | Very Low | By design; humans + audit-log search benefit |
 | (m) | Forbidden-pattern regression on new reference seeds | Low | Extend allowlist + deny INSERTs into app tables |
 | (n) | Charter/cross-club aircraft use authorization gap (replaces former "denormalization drift" threat per 2026-05-16 amendment) | High | Aircraft is cross-tenant; service layer must verify the Flight's `operating_club_id` is authorized to use the aircraft (owner / charter / public-rental check) BEFORE accepting the Flight insert. Schema cannot enforce; S-022 + S-026 + audit log on every Flight insert with cross-club aircraft (`flight.operating_club_id != aircraft.owner_club_id`) for forensic trail. |
@@ -556,17 +592,17 @@ Same approach as S-012:
 
 Full CHECK list in Design notes per-column; key:
 - `flight.flight_date` sanity range; `ldg_date_time >= start_date_time`; `nr_of_ldgs >= 0`; `engine_end_*  >= engine_start_*`; `tow_flight_id <> id`; `tow only for glider`; `runway_*` regex; `coupon_number` regex.
-- `aircraft.immatriculation` regex + composite UNIQUE per club; `flarm_id` 6-hex regex; `year_of_manufacture` sane range; `nr_of_seats >= 1`; `mtom` sane; `spot_link` https-only.
+- `aircraft.immatriculation` VARCHAR(15) NOT NULL + global partial UNIQUE (no regex CHECK — aviation immatriculation format varies by jurisdiction and the per-column inventory at §"Per-table column inventory" → `aircraft` doesn't mandate one); `flarm_id` 6-hex regex; `year_of_manufacture` sane range; `nr_of_seats >= 1`; `mtom` sane; `spot_link` https-only.
 - `aircraft_operating_counter.at_date_time <= now + 1 day`; `*_in_seconds >= 0`.
 - `aircraft_aircraft_state.valid_to >= valid_from`.
-- `flight_type` at-least-one-of (is_for_glider OR is_for_tow OR is_for_motor).
+- `flight_cost_balance_type` at-least-one-of (is_for_glider OR is_for_tow OR is_for_motor) — NOT `flight_type` (the per-column inventory at §"Per-table column inventory" → `flight_type` carries `is_for_glider_flights / is_for_tow_flights / is_for_motor_flights` but without a structural CHECK; flight_cost_balance_type is the table that constrains at-least-one).
 - `location.icao_code` uppercase regex; `latitude/longitude` loose regex.
 - All UUID columns reject malformed input at the Postgres type level.
 
 ### PII handling
 
 Full catalog in tenant-rules.yaml block above. Categories:
-- **PII free-text:** `flight.comment/incident_comment/validation_errors/outbound_route/inbound_route/coupon_number`, `aircraft.comment`, `aircraft_aircraft_state.remarks`, `location.description`.
+- **PII free-text:** `flight.comment/incident_comment/validation_errors/outbound_route/inbound_route`, `aircraft.comment`, `aircraft_aircraft_state.remarks`, `location.description`. (`flight.coupon_number` is a structured VARCHAR(20) voucher code with a regex CHECK — quasi-PII but lives in the sensitive-columns axis, NOT the free-text PII list; S-027 may reclassify.)
 - **Cross-tenant PII ride-through:** `flight_crew.person_id`, `aircraft.aircraft_owner_person_id`, `aircraft_aircraft_state.noticed_by_person_id`.
 - **Commercially-sensitive:** `aircraft.immatriculation`, `flarm_id`, `competition_sign`, `aircraft_serial_number`, `mtom`, `noise_class`, `noise_level`, `spot_link`.
 - **Operationally sensitive (private airfield):** `location.location_name`, `location_short_name`, `icao_code`, `latitude`, `longitude`, `airport_frequency`.
@@ -822,7 +858,7 @@ Full per-table grid in Design notes. Load-bearing:
 
 - Index footprint at 5-year scale (~5M flights, ~25M flight_crew): ~+900 MB delta on flight + ~+900 MB on flight_crew + trivial elsewhere. **Aggregate S-013 delta ~2 GB.** Combined with S-012's ~300 MB and forward S-014 + S-027: inside ADR 0019's 3-5 GB envelope.
 - Postgres `shared_buffers`: **4 GB recommended** (was 1 GB after S-012). Document for S-019.
-- UUID v7 generator cost: ~30ns/ID at FLS write volume = invisible.
+- UUID v7 generator cost: ~30ns/ID at AlpenFlight write volume = invisible.
 
 ### Performance test plan
 
@@ -866,3 +902,51 @@ At 10M+ flights, declarative range partitioning on `flight_date` (per year). Has
 12. **Reference-data canonical UUIDs script** — extends S-012's generator with S-013's 7 reference tables; reuse the committed Java script.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-16 (re-review post-rework) · **PR:** [#33](https://github.com/elekktrisch/fls/pull/33) · **Diff size:** 12 commits, 20 files, +3230/-93 · **Outcome:** blockers
+
+### Maintainability
+
+- **[improvement]** [deferred → S-131] Live `Aircrafts` yaml entry lacks `ride_through_targets` despite the AC promising it — `next/database/tenant-rules.yaml:265-279` vs story AC line 34 ("ride_through_targets enumerated on `flight_crew`, `aircraft`, `aircraft_aircraft_state`") and design-notes example line 413. `TenantClassifier.java:116` reads the field via `toStringList(...)`; for Aircrafts it currently returns an empty list, so downstream S-027 / S-024 consumers see no cross-tenant ride-through declaration on the aggregate that needs one most. **Fix:** add `ride_through_targets: [Persons, Locations, Clubs]` to the Aircrafts override (or strike the AC promise + design-notes claim).
+- **[improvement]** [deferred → S-131] Design-notes yaml-example still carries lowercase-singular `Aircrafts.ride_through_targets: [person, location, club]` — `docs/modernization/stories/S-013-...md:413`. Rework's `[person]→[Persons]` pass only touched the live YAML; the design-notes example block stayed mixed-convention against its adjacent PascalCase-plural entries. Cross-reviewer reinforcement of the live-YAML omission above. **Fix:** flip to `[Persons, Locations, Clubs]` so the example is internally consistent.
+- **[improvement]** [deferred → S-131] Design-notes example's free-form "FK to Club" comment text reads singular while the value should be plural `Clubs` — `docs/modernization/stories/S-013-...md:413` comment. Bundle with the casing flip above.
+- **[nudge]** [deferred → S-131] `TenantCatalogConsistencyTest` JavaDoc broadened to "V2 + V3" but `assertTableExists` is still the only S-012-era import in evidence — cosmetic; flagged so the next S-014+ extension to this class refactors at the right boundary.
+- **[nudge]** [deferred → S-131] `S013_TABLES` list ordering interleaves aggregate roots / internals / reference tables historically rather than by aggregate-composition order — `FlightBaselineIntegrationTest.java:46-53`. Reordering would mirror the design-notes table at line 118.
+
+### Parity
+
+**Oracle:** N/A — `parity_test: none` (greenfield schema reshape per ADR 0018 + 0019) and diff carries no `flsserver/` / `flsweb/` references. Reference-data enum value sets pinned by `legacy_int_id SMALLINT UNIQUE` columns + canonical UUID v7 seed JSON oracle citing legacy enum source files.
+
+### Security
+
+- **[improvement]** [deferred → S-131] `tenant-rules.yaml` `Flights.pii_columns` test does not pin coupon_number absence — `next/server/src/test/java/ch/alpenflight/server/migration/TenantCatalogYamlTest.java:128-135`. The rework intentionally removed `coupon_number` from `Flights.pii_columns` (quasi-PII; sensitive-columns axis per Security plan §"PII handling" line 603), but the YAML test only asserts the 5 free-text columns are *present*; a future edit re-adding `coupon_number` would not fail the test, drifting the catalog from the Security plan. **Fix:** add `assertThat(...).doesNotContain("coupon_number")` with a one-line comment citing the rework rationale.
+- **[improvement]** [deferred → S-131] Aircraft ownership-exclusivity invariant is documented in SQL `COMMENT ON COLUMN` only — no test pin — `next/server/src/main/resources/db/migration/V3__flights_aircraft_locations.sql:735-736`. The rework's new comment carries the load-bearing exclusivity contract (one of `owner_club_id` / `aircraft_owner_person_id` NOT NULL or both NULL; never both set) that an S-022 implementer must read to write the service-layer check. If a future migration overwrites the comment, the contract vanishes silently. **Fix:** add a `pg_description` assertion in `FlightBaselineIntegrationTest` that the comment contains the key phrases ("Exclusive with aircraft.owner_club_id", "NEVER both set", "S-022").
+- **[improvement]** [deferred → S-131] 4× `club.default_*_flight_type_id` cross-tenant invariant pinned by comment only — `V3__flights_aircraft_locations.sql:742-749`. Same shape as the aircraft-ownership finding: the rework documents the invariant ("target flight_type.operating_club_id MUST equal this club.id"), but no test asserts the comment exists. Cross-tenant FK pointers are exactly the class of bug S-024 will hunt; the comment is the only schema-side artefact that names the constraint. **Fix:** parameterized test reading `pg_description` for the 4 columns and asserting "operating_club_id MUST equal this club.id" appears.
+- **[nudge]** [deferred → S-131] forbidden-migration-patterns comment inverts regex terminology — `next/server/src/test/resources/security/forbidden-migration-patterns.txt:23-27`. Comment says "the underscore is a `\B` boundary character vs. a word character"; underscore is actually a *word* character (`\w`) and thus does NOT create a `\b` boundary — that's why `aircraft\b` excludes `aircraft_type`. Conclusion is correct, phrasing is back-to-front and may confuse a future editor.
+- **[nudge]** [deferred → S-131] `Aircrafts.pii_columns` test does not pin absence of sensitive columns from the PII list — `TenantCatalogYamlTest.java:118-126`. Same defensive-test-pinning pattern as the coupon_number improvement.
+
+### Code quality
+
+- **[blocker]** [deferred → S-131] Test plan lists `location_type_seeded_17_canonical_values` but the shipped test is `_6_canonical_values` — `docs/modernization/stories/S-013-...md:733` vs `FlightBaselineIntegrationTest.java:966`. The per-table inventory at story line 260 was correctly updated to say "6 rows shipped"; the test-plan bullet still names the pre-rework test that no longer exists. A reader auditing test coverage against the test plan will conclude the 6-row test is missing. **Fix:** update the test-plan bullet at line 733 to `location_type_seeded_6_canonical_values` with the same parenthetical note already in the inventory.
+- **[blocker]** [deferred → S-131] `tenant_scoped_tables_have_audit_columns` test-plan bullet claims "7 tenant-scoped tables" but the list is 3 — `docs/modernization/stories/S-013-...md:745` vs `FlightBaselineIntegrationTest.java:67-68`. Story test-plan reads "parameterized over 7 tenant-scoped tables"; `S013_TENANT_SCOPED_TABLES` ships 3 entries (`flight`, `flight_type`, `article`). The rework's fix to the constant's Javadoc didn't propagate to the test-plan line in the story. **Fix:** update story line 745 to "parameterized over 3 direct tenant-scoped aggregate roots (flight, flight_type, article)".
+- **[improvement]** [deferred → S-131] Design notes `Flights` yaml-block includes `kind: tenant-scoped` but the actual `tenant-rules.yaml` `Flights` entry deliberately omits `kind:` — `docs/modernization/stories/S-013-...md:423` vs `next/database/tenant-rules.yaml:322-344`. The prior review's PascalCase fix added `kind: tenant-scoped` to the design-notes block while the real YAML's classifier note (lines 339-343) explains kind: is intentionally absent. A contributor copying the design-notes block would break classifier FK-hop-step behavior. **Fix:** remove `kind: tenant-scoped` from the design-notes example block and add a one-line inline note "(kind: deliberately omitted — see classifier note in tenant-rules.yaml:339)".
+- **[improvement]** [deferred → S-131] Security plan §"Cross-tenant leakage" still says "flight.operating_club_id denormalized from aircraft.operating_club_id" — `docs/modernization/stories/S-013-...md:627`. The 2026-05-16 Aircraft-cross-tenant amendment explicitly made `flight.operating_club_id` a per-flight operator-set column, NOT denormalized. Same story's AC, design notes, and YAML all reflect this; the stale leakage-section line contradicts. **Fix:** replace with "flight.operating_club_id set per-flight by operator; NOT denormalized from aircraft (per 2026-05-16 cross-tenant amendment); invariant enforced at S-022."
+- **[improvement]** [deferred → S-131] Migration header item (c) still references superseded denormalization framing — `docs/modernization/stories/S-013-...md:104`. Design notes "Migration shape" bullet (c) reads "`flight.operating_club_id` denormalization invariant"; after the amendment there is no denormalization. **Fix:** update to "(c) `flight.operating_club_id` per-flight operator assignment (per 2026-05-16 Aircraft-cross-tenant amendment; NOT denormalized from aircraft); invariant enforced at S-022."
+- **[improvement]** [deferred → S-131] §Risks still reads "tests assert >= N computed at runtime" — `docs/modernization/stories/S-013-...md:786`. `>= N` left as template token; "Migration shape" says `>= 3`. **Fix:** replace with `>= 3`.
+- **[improvement]** [deferred → S-131] Three new provocation tests share identical begin-txn → minimal-fixture → catchThrowable → assert-23514 → rollback shape with no helper — `FlightBaselineIntegrationTest.java:632-799`. Each test inlines 25-35 lines; the `aircraft` INSERT appears verbatim in two. Next committer adding a fourth provocation test will cargo-cult. **Fix:** extract a `provoke23514(Connection, String sqlIfExists)` helper (or `withRollback(Connection, ThrowingRunnable)` wrapper).
+- **[improvement]** [deferred → S-131] `flight_crew_has_no_created_modified_audit_columns` inline comment restates the constant's Javadoc — `FlightBaselineIntegrationTest.java:291-292`. Method name + constant Javadoc already communicate this. **Fix:** remove the body comment.
+- **[improvement]** [deferred → S-131] S-129 body references a specific SQL line `V3__flights_aircraft_locations.sql:623-624` — `docs/modernization/stories/S-129-...md:105`. Per the no-ephemeral-refs rule's spirit, line numbers in shipped SQL files rot when subsequent migrations alter them. **Fix:** replace with a prose description of the column + constraint rather than a line citation.
+- **[nudge]** [deferred → S-131] S-130 cross-ref uses a bare anchor `#review` — `docs/modernization/stories/S-130-...md:29`. Fragile if heading is renamed.
+- **[nudge]** [deferred → S-131] `flight_aircraft_type_id_value_3_rejected` test docstring says "Locale-independent" while the assertion already uses `Locale.ROOT` — `FlightBaselineIntegrationTest.java:629-632`. Redundant.
+- **[nudge]** [deferred → S-131] S-130 story title says "Security-plan ↔ inventory reconciliation pass" but body scopes to any refinement-section drift, not security-plan-specific.
+- **[nudge]** [deferred → S-131] `TenantCatalogYamlTest.flight_tenant_scope_precondition_met` uses `java.util.Locale.ROOT` fully-qualified inline rather than imported — `TenantCatalogYamlTest.java:164-166`. Inconsistent with class import style.
+
+### Cross-reviewer agreements
+
+- **Flights yaml-block design-notes drift** flagged by both `maintainability-reviewer` (example carries lowercase `[person, location, club]`) and `tech-writer-reviewer` (example adds `kind: tenant-scoped` that real YAML deliberately omits). Two distinct drift modes in the same code-block. Highest-signal finding — the rework's PascalCase fix re-created the same class of drift on the same load-bearing example.
+
+<!-- modernize-review: end -->

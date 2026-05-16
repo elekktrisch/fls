@@ -239,4 +239,31 @@ class FlywayBootstrapIntegrationTest {
                     .isEqualTo(1);
         }
     }
+
+    /**
+     * S-013 ships V<n>__flights_aircraft_locations.sql with n >= 3. Relaxed
+     * comparator tolerates ordering shifts (e.g. S-018 ShedLock landing earlier
+     * could push S-013 to V4 / V5).
+     */
+    @Test
+    void current_version_at_least_S013_after_baseline() {
+        assertThat(flyway.info().current().getVersion())
+                .as("after S-013, current schema version must be >= 3")
+                .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("3"));
+    }
+
+    @Test
+    void flyway_history_contains_flights_and_aircraft_row() throws Exception {
+        try (var conn = dataSource.getConnection();
+                var stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT count(*) FROM flyway_schema_history "
+                                + "WHERE success = true "
+                                + "AND script LIKE 'V%__flights_aircraft_locations.sql'")) {
+            rs.next();
+            assertThat(rs.getInt(1))
+                    .as("Flyway must have applied the flights_aircraft_locations migration")
+                    .isEqualTo(1);
+        }
+    }
 }

@@ -161,6 +161,21 @@ Print to the user:
 - **Finalized stories archive to `stories/implemented/`.** Step 2.5's `git mv` is mandatory — it's how selection skills (refine-ahead, fleet, sweep-finalize) know the story is no longer a work candidate. Skipping the move leaks finalized stories back into refinement / implementation passes.
 - **Bookkeeping rides the PR, not main.** The merged-state stamp + the archive move are committed on the PR branch (Step 2.5), so the squash commit carries them. No post-merge direct-to-main commit is needed for per-story bookkeeping — keeps `main`'s log to one commit per story.
 - **`merge_commit:` is not stamped on the frontmatter.** It can't be known at pre-merge time, and a post-merge stamp commit would defeat Step 2.5's purpose. The merge SHA is recoverable from `git log -- docs/modernization/stories/implemented/S-NNN-*.md` (and is reported at Step 8).
+- **Never embed git commit SHAs in committed docs.** Story files (incl. `## Review` body), READMEs, ADRs, CONVENTIONS.md, any text that ships in a commit — no `c1ef2f7`-style refs. The reference is broken by construction + squash-merge erases branch SHAs from `main` entirely. Cite by **commit subject**, **file:line**, **PR number** (`#N`), or **story ID** (`S-NNN`). SHAs are fine in ephemera (issue comments per Step 5's "Merged in <merge-commit-SHA>" template, PR descriptions, the operator-facing report) — the merge SHA lives on `main` and persists, branch SHAs don't.
+
+## Pre-merge bookkeeping ordering — guard against the git-mv trap
+
+Step 2.5 edits the story file (frontmatter stamps + `## Review`) and then runs `git mv` to move it from `stories/` to `stories/implemented/`. Git's rename detection can collapse the rename with content changes into "100% similar rename" — and `git commit -a` after a `git mv` sometimes captures the rename without the pre-mv content edits (they get tracked as post-mv unstaged modifications).
+
+**Mandatory ordering inside Step 2.5:**
+
+1. Edit the story file at the original path (stamps + `## Review` section).
+2. `git mv` the file to `stories/implemented/`.
+3. **`git add <new-path>`** explicitly to stage post-mv content (the rename is already staged but post-rename edits aren't auto-included).
+4. **`git diff --cached --stat`** to verify the staged diff shows BOTH the rename and the additions. If the stat reads "0 insertions, 0 deletions" with rename-detection on, the trap fired — re-stage and re-check.
+5. Commit + push only after the staged diff confirms both pieces.
+
+**Alternative cleaner ordering:** edit + commit first (one branch commit), then `git mv` + commit (another branch commit). Two branch commits, one squash commit on main. Use this if the trap recurs.
 
 ## What this skill does *not* do
 

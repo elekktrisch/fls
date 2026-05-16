@@ -94,6 +94,91 @@ class TenantCatalogYamlTest {
         assertThat(personCategories.get("kind")).isEqualTo("tenant-scoped");
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void flight_type_reclassified_to_tenant_scoped() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> flightTypes = (Map<String, Object>) overrides.get("FlightTypes");
+        assertThat(flightTypes.get("kind"))
+                .as("S-013 reclassifies FlightTypes from reference to tenant-scoped (legacy FlightType.cs:25 has ClubId NOT NULL)")
+                .isEqualTo("tenant-scoped");
+        assertThat(flightTypes.get("tenant_column")).isEqualTo("operating_club_id");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void aircraft_tenant_column_renamed_to_owner_club_id_with_legacy_pin() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> aircrafts = (Map<String, Object>) overrides.get("Aircrafts");
+        assertThat(aircrafts.get("kind"))
+                .as("Aircrafts reclassified to cross-tenant 2026-05-16")
+                .isEqualTo("cross-tenant");
+        assertThat(aircrafts.get("owner_column"))
+                .as("aircraft tenant column renamed: legacy OwnerClubId → new owner_club_id")
+                .isEqualTo("owner_club_id");
+        assertThat(aircrafts.get("tenant_column_legacy"))
+                .as("legacy OwnerClubId pin must remain for S-016 cutover")
+                .isEqualTo("OwnerClubId");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void tenant_rules_yaml_pii_columns_present_for_flight_aircraft_location() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> flights = (Map<String, Object>) overrides.get("Flights");
+        Map<String, Object> aircrafts = (Map<String, Object>) overrides.get("Aircrafts");
+        Map<String, Object> locations = (Map<String, Object>) overrides.get("Locations");
+        Map<String, Object> aircraftStates = (Map<String, Object>) overrides.get("AircraftAircraftStates");
+
+        assertThat((List<String>) flights.get("pii_columns"))
+                .as("Flights pii_columns must enumerate free-text PII")
+                .contains("comment", "incident_comment", "validation_errors",
+                          "outbound_route", "inbound_route");
+
+        assertThat((List<String>) aircrafts.get("pii_columns"))
+                .as("Aircrafts pii_columns must list at least the free-text comment")
+                .contains("comment");
+
+        assertThat((List<String>) aircrafts.get("sensitive_columns"))
+                .as("Aircrafts sensitive_columns must include flarm_id + spot_link")
+                .contains("flarm_id", "spot_link");
+
+        assertThat((List<String>) locations.get("pii_columns"))
+                .as("Locations pii_columns must include description")
+                .contains("description");
+
+        assertThat((List<String>) aircraftStates.get("pii_columns"))
+                .as("AircraftAircraftStates pii_columns must include remarks")
+                .contains("remarks");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void flight_tenant_scope_precondition_met() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> flights = (Map<String, Object>) overrides.get("Flights");
+        List<String> preconditions = (List<String>) flights.get("preconditions");
+        assertThat(preconditions)
+                .as("Flights.preconditions must enumerate the per-flight operating_club_id contract")
+                .isNotNull()
+                .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("operating_club_id")
+                        && p.toLowerCase(java.util.Locale.ROOT).contains("per-flight"))
+                .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("s-022")
+                        && p.toLowerCase(java.util.Locale.ROOT).contains("charter"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void article_classified_as_tenant_scoped() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> articles = (Map<String, Object>) overrides.get("Articles");
+        assertThat(articles)
+                .as("Articles override must exist (added in S-013)")
+                .isNotNull();
+        assertThat(articles.get("kind")).isEqualTo("tenant-scoped");
+        assertThat(articles.get("tenant_column")).isEqualTo("operating_club_id");
+    }
+
     /**
      * tenant-rules.yaml lives in a sibling Gradle module (next/database/).
      * Resolution strategy: walk up from the working dir until we find a

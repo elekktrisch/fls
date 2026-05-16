@@ -73,6 +73,35 @@ class MigrationFolderConventionsTest {
     }
 
     @Test
+    void flights_and_aircraft_migration_present() throws IOException {
+        List<Path> migrations = listMigrations();
+        assertThat(migrations)
+                .as("S-013 ships a V<n>__flights_aircraft_locations.sql migration (n >= 3)")
+                .anyMatch(p -> {
+                    String name = p.getFileName().toString();
+                    return name.endsWith("__flights_aircraft_locations.sql")
+                            && name.matches("^V\\d+__flights_aircraft_locations\\.sql$")
+                            && !name.startsWith("V1__")
+                            && !name.startsWith("V2__");
+                });
+    }
+
+    @Test
+    void flights_baseline_migration_is_non_empty() throws IOException {
+        List<Path> migrations = listMigrations();
+        Path file = migrations.stream()
+                .filter(p -> p.getFileName().toString().endsWith("__flights_aircraft_locations.sql"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "flights_aircraft_locations migration not found — see flights_and_aircraft_migration_present"));
+        String content = Files.readString(file, StandardCharsets.UTF_8);
+        String stripped = content.replaceAll("(?m)^--.*$", "").replaceAll("\\s+", "");
+        assertThat(stripped)
+                .as("flights_aircraft_locations migration must contain at least one non-comment statement")
+                .isNotEmpty();
+    }
+
+    @Test
     void every_file_matches_naming_convention() throws IOException {
         List<Path> migrations = listMigrations();
         for (Path m : migrations) {

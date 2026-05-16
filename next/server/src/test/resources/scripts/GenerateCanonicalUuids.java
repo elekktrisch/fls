@@ -1,12 +1,13 @@
-// Canonical seed-UUID generator for S-012 (and any future story that
-// regenerates reference-data seeds against a clean baseline).
+// Canonical seed-UUID generator for S-012 + S-013 (and any future story that
+// extends reference-data seeds against a clean baseline).
 //
 // THIS SCRIPT IS DOCUMENTATION, NOT BUILD INPUT.
-// The migration V2__identity_and_reference.sql embeds the UUID literals
-// produced by this script, and reference-seeds-canonical-uuids.json captures
-// the same output as a test-time oracle. Do not regenerate after the
-// migration has shipped to any environment — Flyway checksum-locks V2; a
-// UUID change requires a follow-up migration with cascading FK updates.
+// The baseline migrations V2__identity_and_reference.sql and
+// V3__flights_aircraft_locations.sql embed the UUID literals produced by this
+// script; reference-seeds-canonical-uuids.json captures the same output as a
+// test-time oracle. Do not regenerate after a migration has shipped to any
+// environment — Flyway checksum-locks every shipped V<n>__*.sql; a UUID
+// change would require a follow-up migration with cascading FK updates.
 //
 // Run as a Java single-file source-code program (JEP 330, Java 11+):
 //   java next/server/src/test/resources/scripts/GenerateCanonicalUuids.java
@@ -37,18 +38,29 @@ public class GenerateCanonicalUuids {
 
     private static final long TIMESTAMP_MS = 1778889600000L; // 2026-05-16T00:00:00Z
 
-    private static final Map<String, Long> TABLE_OFFSETS = Map.of(
-            "country",             1_000L,
-            "language",            2_000L,
-            "club_state",          3_000L,
-            "start_type",          4_000L,
-            "length_unit_type",    5_000L,
-            "elevation_unit_type", 6_000L,
-            "counter_unit_type",   7_000L,
-            "extension_type",      8_000L,
-            "role",                9_000L,
-            "email_template",     10_000L  // system-default rows (club_id IS NULL)
-    );
+    private static final Map<String, Long> TABLE_OFFSETS = new java.util.LinkedHashMap<>();
+    static {
+        // S-012 reference tables (offsets locked; Flyway checksum-protected once shipped).
+        TABLE_OFFSETS.put("country",                  1_000L);
+        TABLE_OFFSETS.put("language",                 2_000L);
+        TABLE_OFFSETS.put("club_state",               3_000L);
+        TABLE_OFFSETS.put("start_type",               4_000L);
+        TABLE_OFFSETS.put("length_unit_type",         5_000L);
+        TABLE_OFFSETS.put("elevation_unit_type",      6_000L);
+        TABLE_OFFSETS.put("counter_unit_type",        7_000L);
+        TABLE_OFFSETS.put("extension_type",           8_000L);
+        TABLE_OFFSETS.put("role",                     9_000L);
+        TABLE_OFFSETS.put("email_template",          10_000L); // system-default rows (club_id IS NULL)
+
+        // S-013 reference tables.
+        TABLE_OFFSETS.put("aircraft_type",           11_000L);
+        TABLE_OFFSETS.put("aircraft_state",          12_000L);
+        TABLE_OFFSETS.put("location_type",           13_000L);
+        TABLE_OFFSETS.put("flight_crew_type",        14_000L);
+        TABLE_OFFSETS.put("flight_process_state",    15_000L);
+        TABLE_OFFSETS.put("flight_air_state",        16_000L);
+        TABLE_OFFSETS.put("flight_cost_balance_type",17_000L);
+    }
 
     static String uuidV7(long counter) {
         long ts = TIMESTAMP_MS & ((1L << 48) - 1L);
@@ -174,6 +186,83 @@ public class GenerateCanonicalUuids {
         out.println("# role:");
         for (int i = 0; i < roles.length; i++) {
             out.printf("  %s = %s%n", roles[i], uuidV7(TABLE_OFFSETS.get("role") + i));
+        }
+
+        // S-013 reference tables — order matters: matches the per-table row
+        // ordinals embedded in V3__flights_aircraft_locations.sql.
+
+        // aircraft_type — bit-field codes preserved as legacy_int_id (sparse: 0,1,2,4,8,16,32,64).
+        String[] aircraftTypes = {
+                "UNKNOWN", "GLIDER", "GLIDER_WITH_MOTOR", "MOTOR_GLIDER",
+                "MOTOR_AIRCRAFT", "MULTI_ENGINE", "JET", "HELICOPTER"};
+        out.println();
+        out.println("# aircraft_type:");
+        for (int i = 0; i < aircraftTypes.length; i++) {
+            out.printf("  %s = %s%n", aircraftTypes[i], uuidV7(TABLE_OFFSETS.get("aircraft_type") + i));
+        }
+
+        // aircraft_state — per AircraftStateKey.cs; legacy_int_id sparse (1..6, 99).
+        String[] aircraftStates = {
+                "OK", "INFORMATION", "ATTENTION", "MALFUNCTION",
+                "MAINTENANCE", "UNINSURED", "END_OF_LIFE"};
+        out.println();
+        out.println("# aircraft_state:");
+        for (int i = 0; i < aircraftStates.length; i++) {
+            out.printf("  %s = %s%n", aircraftStates[i], uuidV7(TABLE_OFFSETS.get("aircraft_state") + i));
+        }
+
+        // location_type — 6 rows from legacy "3 Insert Static Data.sql"; LocationTypeCupId in {1,2,3,4,5,99}.
+        String[] locationTypes = {
+                "WAYPOINT", "GRASS_RUNWAY", "EXTERNAL_FIELD",
+                "GLIDER_AIRFIELD", "CONCRETE_RUNWAY", "OTHER"};
+        out.println();
+        out.println("# location_type:");
+        for (int i = 0; i < locationTypes.length; i++) {
+            out.printf("  %s = %s%n", locationTypes[i], uuidV7(TABLE_OFFSETS.get("location_type") + i));
+        }
+
+        // flight_crew_type — 7 rows from legacy seed; legacy_int_id in {1..6, 10}.
+        String[] flightCrewTypes = {
+                "PILOT_OR_STUDENT", "CO_PILOT", "FLIGHT_INSTRUCTOR", "PASSENGER",
+                "WINCH_OPERATOR", "OBSERVER", "FLIGHT_COST_INVOICE_RECIPIENT"};
+        out.println();
+        out.println("# flight_crew_type:");
+        for (int i = 0; i < flightCrewTypes.length; i++) {
+            out.printf("  %s = %s%n", flightCrewTypes[i], uuidV7(TABLE_OFFSETS.get("flight_crew_type") + i));
+        }
+
+        // flight_process_state — per FlightProcessState.cs enum; legacy_int_id in {0,28,30,40,45,50,60,99}.
+        String[] flightProcessStates = {
+                "NOT_PROCESSED", "INVALID", "VALID", "LOCKED",
+                "DELIVERY_PREPARATION_ERROR", "DELIVERY_PREPARED", "DELIVERY_BOOKED",
+                "EXCLUDED_FROM_DELIVERY_PROCESS"};
+        out.println();
+        out.println("# flight_process_state:");
+        for (int i = 0; i < flightProcessStates.length; i++) {
+            out.printf("  %s = %s%n", flightProcessStates[i], uuidV7(TABLE_OFFSETS.get("flight_process_state") + i));
+        }
+
+        // flight_air_state — per FlightAirState.cs enum; legacy_int_id in {0,5,8,10,15,20,25}.
+        String[] flightAirStates = {
+                "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED",
+                "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED"};
+        out.println();
+        out.println("# flight_air_state:");
+        for (int i = 0; i < flightAirStates.length; i++) {
+            out.printf("  %s = %s%n", flightAirStates[i], uuidV7(TABLE_OFFSETS.get("flight_air_state") + i));
+        }
+
+        // flight_cost_balance_type — 5 rows from legacy seed; is_for_glider / is_for_tow /
+        // is_for_motor flags re-pinned per design notes (legacy TOW_PILOT_PAYS_TOW row had
+        // all flags = 0, structurally wrong vs. the at-least-one CHECK).
+        String[] flightCostBalanceTypes = {
+                "PILOT_PAYS_ALL", "FIFTY_FIFTY_PILOT_COPILOT", "TOW_PILOT_PAYS_TOW",
+                "NO_INSTRUCTOR_FEE", "INVOICE_TO_PERSON"};
+        out.println();
+        out.println("# flight_cost_balance_type:");
+        for (int i = 0; i < flightCostBalanceTypes.length; i++) {
+            out.printf("  %s = %s%n",
+                    flightCostBalanceTypes[i], uuidV7(TABLE_OFFSETS.get("flight_cost_balance_type") + i));
         }
     }
 }

@@ -93,12 +93,15 @@ class IdentityBaselineIntegrationTest {
         // a 20th domain table to slip in undetected; containsExactlyInAnyOrder
         // forces a deliberate update if the catalogue changes.
         Set<String> frameworkTables = Set.of("flyway_schema_history", "app_meta");
-        Set<String> expectedExact = new LinkedHashSet<>();
-        expectedExact.addAll(expected);
-        expectedExact.addAll(frameworkTables);
+        Set<String> expectedRequired = new LinkedHashSet<>();
+        expectedRequired.addAll(expected);
+        expectedRequired.addAll(frameworkTables);
+        // containsAll (not containsExactlyInAnyOrder): subsequent migrations
+        // (V3+, V4+, ...) add more domain tables; this test pins S-012's required
+        // set without freezing the table catalogue at the V2 generation.
         assertThat(actual)
                 .as("V2 migration must create all 19 identity + reference tables + the framework tables")
-                .containsExactlyInAnyOrderElementsOf(expectedExact);
+                .containsAll(expectedRequired);
     }
 
     /** AC2 — every PK across the 19 tables is `uuid NOT NULL`. */
