@@ -62,6 +62,10 @@ export default defineConfig({
   // pushing the stack into GC pause + EF-pool contention.
   workers: 6,
   retries: 0,
+  // Cap total failures so a mass-regression (server down, schema drift)
+  // doesn't burn 20+ runner-minutes hammering the same broken state.
+  // Override with `--max-failures=0` to surface every spec on a local run.
+  maxFailures: 10,
   outputDir: '/tmp/fls-e2e-results',
   reporter: [['list'], ['html', { open: 'never', outputFolder: '/tmp/fls-e2e-report' }]],
   use: {
