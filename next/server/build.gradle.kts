@@ -29,9 +29,9 @@ buildscript {
     }
 }
 
-group = "ch.fls"
+group = "ch.alpenflight"
 version = "0.0.1-SNAPSHOT"
-description = "FLS server"
+description = "AlpenFlight server"
 
 java {
     toolchain {
@@ -89,8 +89,9 @@ dependencies {
 }
 
 nullaway {
-    // ch.fls is treated as @NullMarked; NullAway enforces non-null defaults
-    // for everything under it. Spring framework internals stay un-checked.
+    // ch.alpenflight is treated as @NullMarked; NullAway enforces non-null
+    // defaults for everything under it. Spring framework internals stay
+    // un-checked.
     onlyNullMarked = true
 }
 

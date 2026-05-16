@@ -16,9 +16,9 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * Ratchet tests for the FLS → AlpenFlight technical rebrand (S-128). Each
- * test asserts a single post-rename invariant: no surviving {@code ch.fls}
- * package, no surviving {@code [fls-server]} log prefix, Spring application
- * name and Gradle coordinates pinned to the AlpenFlight identifiers.
+ * test asserts a single post-rename invariant: no surviving legacy {@code ch.fls}
+ * package declaration, no surviving {@code [fls-server]} log prefix, Spring
+ * application name and Gradle coordinates pinned to the AlpenFlight identifiers.
  *
  * <p>Plain JUnit 5 + filesystem walk — no Spring context, no Docker, runs in
  * milliseconds via {@code ./gradlew check}. Catches regression-of-the-rebrand
@@ -26,38 +26,38 @@ import org.yaml.snakeyaml.Yaml;
  */
 class RebrandConventionsTest {
 
-    private static final String FORBIDDEN_PACKAGE_PREFIX = "package ch.fls";
+    private static final String FORBIDDEN_PACKAGE_PREFIX = "package ch." + "fls";
     private static final String FORBIDDEN_LOG_PREFIX = "[fls-server]";
 
     @Test
-    void no_class_under_ch_fls_package_in_main_sources() throws IOException {
+    void no_class_under_legacy_package_in_main_sources() throws IOException {
         List<String> offenders = findFilesContaining(
                 locateModuleRoot().resolve("src/main/java"),
                 FORBIDDEN_PACKAGE_PREFIX);
         assertThat(offenders)
-                .as("no .java file under src/main/java may declare `package ch.fls.*` — rebrand to ch.alpenflight is complete")
+                .as("no .java file under src/main/java may declare the legacy package prefix — rebrand to ch.alpenflight is complete")
                 .isEmpty();
     }
 
     @Test
-    void no_class_under_ch_fls_package_in_test_sources() throws IOException {
+    void no_class_under_legacy_package_in_test_sources() throws IOException {
         List<String> offenders = findFilesContaining(
                 locateModuleRoot().resolve("src/test/java"),
                 FORBIDDEN_PACKAGE_PREFIX);
         assertThat(offenders)
-                .as("no .java file under src/test/java may declare `package ch.fls.*` — rebrand to ch.alpenflight is complete")
+                .as("no .java file under src/test/java may declare the legacy package prefix — rebrand to ch.alpenflight is complete")
                 .isEmpty();
     }
 
     @Test
-    void no_class_under_ch_fls_package_in_nullaway_demo_sources() throws IOException {
+    void no_class_under_legacy_package_in_nullaway_demo_sources() throws IOException {
         Path demoRoot = locateModuleRoot().resolve("src/nullawayDemo/java");
         if (!Files.exists(demoRoot)) {
             return;
         }
         List<String> offenders = findFilesContaining(demoRoot, FORBIDDEN_PACKAGE_PREFIX);
         assertThat(offenders)
-                .as("no .java file under src/nullawayDemo/java may declare `package ch.fls.*`")
+                .as("no .java file under src/nullawayDemo/java may declare the legacy package prefix")
                 .isEmpty();
     }
 
@@ -87,6 +87,7 @@ class RebrandConventionsTest {
             try (Stream<Path> walk = Files.walk(root)) {
                 walk.filter(Files::isRegularFile)
                         .filter(p -> p.getFileName().toString().endsWith(".java"))
+                        .filter(p -> !isOwnTestFile(p))
                         .forEach(p -> {
                             try {
                                 String stripped = stripLineComments(Files.readString(p, StandardCharsets.UTF_8));
@@ -113,8 +114,8 @@ class RebrandConventionsTest {
                 .as("build.gradle.kts must declare group = \"ch.alpenflight\"")
                 .contains("group = \"ch.alpenflight\"");
         assertThat(content)
-                .as("build.gradle.kts must NOT declare group = \"ch.fls\"")
-                .doesNotContain("group = \"ch.fls\"");
+                .as("build.gradle.kts must NOT declare the legacy group coordinate")
+                .doesNotContain("group = \"ch." + "fls\"");
     }
 
     @Test
@@ -147,6 +148,7 @@ class RebrandConventionsTest {
         try (Stream<Path> walk = Files.walk(root)) {
             walk.filter(Files::isRegularFile)
                     .filter(p -> p.getFileName().toString().endsWith(".java"))
+                    .filter(p -> !isOwnTestFile(p))
                     .forEach(p -> {
                         try {
                             String content = Files.readString(p, StandardCharsets.UTF_8);
@@ -159,6 +161,16 @@ class RebrandConventionsTest {
                     });
         }
         return hits;
+    }
+
+    /**
+     * Exclude this test's own source file from the walks. The forbidden
+     * literals ({@code package ch.fls}, {@code [fls-server]}) appear in the
+     * test as the patterns it searches for; treating them as violations would
+     * make the test reject itself.
+     */
+    private static boolean isOwnTestFile(Path p) {
+        return p.getFileName().toString().equals("RebrandConventionsTest.java");
     }
 
     /**

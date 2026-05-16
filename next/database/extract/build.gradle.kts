@@ -4,9 +4,9 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
 }
 
-group = "ch.fls.legacyextract"
+group = "ch.alpenflight.legacyextract"
 version = "0.0.1-SNAPSHOT"
-description = "FLS legacy SQL Server metadata extractor"
+description = "AlpenFlight legacy SQL Server metadata extractor"
 
 java {
     toolchain {

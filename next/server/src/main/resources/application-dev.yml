@@ -20,4 +20,4 @@ management:
 logging:
   level:
     root: INFO
-    ch.fls: DEBUG
+    ch.alpenflight: DEBUG
