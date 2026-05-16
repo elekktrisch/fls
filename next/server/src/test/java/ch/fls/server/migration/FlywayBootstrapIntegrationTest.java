@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -33,6 +34,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * autoconfig.
  */
 @SpringBootTest
+@ActiveProfiles("test")
 @EnabledIf(value = "dockerAvailable",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class FlywayBootstrapIntegrationTest {
@@ -123,11 +125,11 @@ class FlywayBootstrapIntegrationTest {
         try (var conn = dataSource.getConnection();
                 var stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(
-                        "SELECT value FROM app_meta WHERE key = 'schema_baseline_version'")) {
+                        "SELECT meta_value FROM app_meta WHERE meta_key = 'schema_baseline_version'")) {
             assertThat(rs.next())
                     .as("V1 inserts the schema_baseline_version sentinel row")
                     .isTrue();
-            assertThat(rs.getString("value")).isEqualTo("S-009");
+            assertThat(rs.getString("meta_value")).isEqualTo("S-009");
         }
     }
 

@@ -3,6 +3,25 @@ spring:
     name: fls-server
   profiles:
     default: dev
+  datasource:
+    # Env-driven; application-dev.yml provides loopback defaults for local dev,
+    # application-prod.yml documents the production env-var contract.
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USER}
+    password: ${DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    # Every property pinned explicitly so future BOM bumps surface as
+    # visible config changes (per S-009 security plan).
+    enabled: true
+    locations: classpath:db/migration
+    out-of-order: false           # strict ordering
+    validate-on-migrate: true
+    baseline-on-migrate: false    # S-016 cutover overrides via its own profile
+    clean-disabled: true          # non-negotiable; protects against `flyway clean` on prod
+    schemas: public
+    default-schema: public
+    table: flyway_schema_history
   jpa:
     # No JPA starter on the classpath yet — this is a no-op until S-012, but
     # locks the invariant so Hibernate session boundaries are correct when JPA

@@ -119,5 +119,64 @@ suppress narrowly and explain why:
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/v1/hello` | Demo. Returns `{"message":"Hello FLS","timestamp":"<ISO-8601>"}`. Auth-gate or remove at S-020. |
-| GET | `/actuator/health` | Liveness/readiness composite. |
+| GET | `/actuator/health` | Liveness/readiness composite. Includes `db` indicator once Flyway autoconfig is wired. |
 | GET | `/actuator/info` | Empty until `info.*` keys land. |
+
+## Database migrations (Flyway)
+
+Schema lives in `src/main/resources/db/migration/V<n>__<desc>.sql`. Flyway
+runs `migrate()` at every Spring Boot startup. **Never amend a migration that
+has shipped to any environment** — its checksum is locked. Add a new
+`V<n+1>__…sql` instead. See [S-009](../../docs/modernization/stories/implemented/S-009-wire-flyway.md)
+for the rationale; see [CONVENTIONS.md](CONVENTIONS.md) for the rules.
+
+### Adding a new migration
+
+1. Pick the next version (`V2__…`, `V3__…`, …). Description should be
+   `snake_case` and read naturally: `V2__identity_and_reference.sql`.
+2. Drop the file under `src/main/resources/db/migration/`.
+3. `./gradlew test` boots the integration test suite against a Docker-CLI
+   Postgres container; this validates the new migration applies cleanly.
+4. For ad-hoc local validation without booting Spring:
+   ```bash
+   docker run -d --name fls-pg \
+     -e POSTGRES_PASSWORD=fls -e POSTGRES_USER=fls -e POSTGRES_DB=fls \
+     -p 5432:5432 postgres:17.4-alpine
+   ./gradlew flywayMigrate flywayValidate flywayInfo
+   docker rm -f fls-pg
+   ```
+   The Gradle plugin reads `DATASOURCE_URL` / `DATASOURCE_USER` /
+   `DATASOURCE_PASSWORD` env vars with loopback defaults.
+
+### Recovering from a botched migration
+
+If a migration fails mid-flight, `flyway_schema_history` records the failure
+with `success=false`. Spring Boot will refuse to start until the history is
+clean.
+
+**Operator-only manual recovery:**
+
+```bash
+DATASOURCE_URL=... ./gradlew flywayInfo    # see the failed entry
+DATASOURCE_URL=... ./gradlew flywayRepair  # remove failed entries
+# Fix the migration content (or add a new V<n+1>__fix.sql)
+DATASOURCE_URL=... ./gradlew flywayMigrate # retry
+```
+
+`flywayClean` is disabled by `application.yml` (`spring.flyway.clean-disabled=true`)
+and CANNOT be enabled from CI. Drop a schema by hand if you need to — and
+only in dev.
+
+### DataSource env vars
+
+| Env var | Purpose |
+|---|---|
+| `DATASOURCE_URL` | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/fls`) |
+| `DATASOURCE_USER` | Postgres username |
+| `DATASOURCE_PASSWORD` | Postgres password |
+
+The `dev` profile provides loopback defaults (`fls`/`fls` at
+`localhost:5432`); `prod` requires all three to be set explicitly. The
+`test` profile uses an in-memory H2 (MODE=PostgreSQL) DataSource for
+non-Flyway tests; the Flyway integration test overrides via a real Postgres
+container.
