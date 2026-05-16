@@ -2,7 +2,9 @@
 id: S-014
 title: V1__baseline part 3 — reservations / planning / accounting
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-16
+github_issue: 42
 depends_on: [S-013]
 acceptance:
   - Tables defined: `aircraft_reservation`, `aircraft_reservation_type`, `planning_day`, `planning_day_assignment`, `planning_day_assignment_type`, `accounting_rule_filter`, `accounting_rule_filter_type`, `accounting_unit_type`, `delivery`, `delivery_item`, `delivery_creation_test`, `delivery_creation_test_item` (12 tables) plus `club_delivery_number_counter` operational table (13th).
@@ -20,7 +22,7 @@ acceptance:
   - **Cross-tenant ride-through Person FKs** (sacred-cow): `delivery.recipient_person_id → person(id) SET NULL`; `aircraft_reservation.pilot_person_id → person(id) RESTRICT`; `aircraft_reservation.second_crew_person_id → person(id) SET NULL`; `planning_day_assignment.assigned_person_id → person(id) RESTRICT`.
   - **Per-club delivery numbering** (Swiss OR Art. 957a gap-free invariant): `delivery.delivery_number INTEGER NULL` (reshape from legacy VARCHAR) + `UNIQUE (operating_club_id, delivery_number) WHERE delivery_number IS NOT NULL AND deleted_on IS NULL` + `CHECK (process_state_id <> 20 OR delivery_number IS NOT NULL)` (Booked deliveries must carry a number). New `club_delivery_number_counter (operating_club_id uuid PK → club(id) CASCADE, next_number INTEGER NOT NULL DEFAULT 1)` for service-layer monotonic allocator at S-064. Soft-delete only on numbered deliveries; never hard DELETE.
   - **`tenant-rules.yaml` updates in scope**: 12 entries (5 aggregate roots + 4 internal entities denormalized `operating_club_id` + reclassifications + counter); reclassify `AircraftReservationTypes` + `PlanningDayAssignmentTypes` to `tenant-scoped`; keep `AccountingRuleFilterTypes` + `AccountingUnitTypes` as `reference`; **`AircraftReservations.ride_through_targets: [Persons, Aircrafts]`** (Aircrafts added per 2026-05-16 amendment); PII catalog (`delivery.recipient_*` 9 columns + free-text fields + jsonb whole-column on `accounting_rule_filter.filter_config` + `delivery_creation_test.expected_delivery/last_test_created_delivery`).
-  - Reference-data seeds: `accounting_rule_filter_type` (≥10 canonical codes per legacy `FLS.Server.Service/Accounting/Rules/*.cs`) + `accounting_unit_type` (≥3 canonical codes per legacy `AccountingUnitType.cs`). Fixed canonical UUIDs extending S-012/S-013's `reference-seeds-canonical-uuids.json`.
+  - Reference-data seeds: `accounting_rule_filter_type` (8 canonical codes per legacy `database/FLSTest/3 insert/3 Insert Static Data.sql`: RECIPIENT, NO_LANDING_TAX, FLIGHT_TIME, INSTRUCTOR_FEE, ADDITIONAL_FUEL_FEE, LANDING_TAX, VSF_FEE, ENGINE_TIME) + `accounting_unit_type` (4 canonical codes per same file: MINUTES, SECONDS, LANDINGS, START_OR_FLIGHT). Fixed canonical UUIDs extending S-012/S-013's `reference-seeds-canonical-uuids.json`. Rule-strategy classes in `flsserver/src/FLS.Server.Service/Accounting/Rules/*.cs` (DoNotInvoiceFlightRule, StartTaxRule, etc.) are CODE strategies, NOT seeded filter types — do not seed them.
   - Indexes per design notes (full grid): `(operating_club_id, process_state_id, delivery_date DESC)` on delivery; GiST `(aircraft_id, reservation_range) WHERE deleted_on IS NULL` on aircraft_reservation; `(operating_club_id, is_active, sort_indicator) WHERE deleted_on IS NULL` on accounting_rule_filter (THE hot index); GIN `(filter_config jsonb_path_ops)` (admin search only); per-FK supporting indexes.
   - Flyway migration succeeds against fresh Postgres in Testcontainers; new `ReservationsBaselineIntegrationTest` (~55 tests) asserts table presence + UUID type pins + state-machine CHECK + recipient-snapshot columns + generated `total_amount` + GiST index on aircraft_reservation + cross-tenant aircraft_id column comment + reference-data canonical-UUID pins; `TenantCatalogConsistencyTest` extends with reclassifications + aircraft-cross-tenant ride-through assertion.
 estimate: M
@@ -55,7 +57,7 @@ Schema for `AccountingRuleFilter` is non-trivial — the legacy schema mixes per
 
 ### Migration shape
 
-Ships as **single `V<n+2>__reservations_planning_accounting.sql`** (~600-700 lines). `<n+2>` picked at implement time from `db/migration/` listing — likely **V5** after S-009 V1 + S-012 V3 + S-013 V4. Tests assert `>= 5` not `== 5` to tolerate ordering shifts.
+Ships as **single `V4__reservations_planning_accounting.sql`** (~600-700 lines). Actual migration sequence on `main` is V1 baseline / V2 identity (S-012) / V3 flights-aircraft-locations (S-013), so S-014 lands at V4. Tests assert `>= 4` not `== 4` to tolerate ordering shifts.
 
 FK ordering across 3 clusters + counter:
 1. **Reservations:** `aircraft_reservation_type` → `aircraft_reservation`.
@@ -121,7 +123,7 @@ Cross-tenant ride-through Person FKs (sacred cow per ADR 0008):
 
 **`accounting_rule_filter`** + types (`AccountingRuleFilter.cs:22-89`, `AccountingRuleFilterType.cs:18-32`, `AccountingUnitType.cs:18-32`):
 - `accounting_rule_filter`: id uuid PK (`arf` prefix), `operating_club_id uuid NOT NULL`, `filter_type_id uuid NOT NULL → accounting_rule_filter_type(id) RESTRICT` (discriminator), `accounting_unit_type_id uuid NULL`, `rule_filter_name VARCHAR(250) NOT NULL`, `description TEXT`, `is_active BOOLEAN NOT NULL DEFAULT true`, `sort_indicator INTEGER NOT NULL DEFAULT 0` + `CHECK (>= 0)`, `stop_rule_engine_when_applied BOOLEAN`, `is_charged_to_club_internal BOOLEAN`, `article_target VARCHAR(50)`, `recipient_target VARCHAR(50)`, **`filter_config jsonb NOT NULL DEFAULT '{}'::jsonb`** (30+ legacy predicate columns collapse here), audit + soft-delete. UNIQUE `(operating_club_id, sort_indicator) WHERE deleted_on IS NULL` (deterministic engine output; Open Q12).
-- `accounting_rule_filter_type` (SYSTEM_GLOBAL; no ClubId): id uuid PK, `code VARCHAR(50) NOT NULL UNIQUE`, `name VARCHAR(100) NOT NULL`, `description TEXT`, `legacy_int_id SMALLINT UNIQUE`. Seed 10 canonical codes (`DoNotInvoiceFlight`, `Recipient`, `FlightTime`, `EngineTime`, `InstructorFee`, `LandingTax`, `StartTax`, `VsfFee`, `AdditionalFuelFee`, `NoLandingTax`).
+- `accounting_rule_filter_type` (SYSTEM_GLOBAL; no ClubId): id uuid PK, `code VARCHAR(50) NOT NULL UNIQUE`, `name VARCHAR(100) NOT NULL`, `description TEXT`, `legacy_int_id SMALLINT UNIQUE`. Seed 8 canonical codes from legacy `database/FLSTest/3 insert/3 Insert Static Data.sql`: RECIPIENT (10), NO_LANDING_TAX (20), FLIGHT_TIME (30), INSTRUCTOR_FEE (40), ADDITIONAL_FUEL_FEE (50), LANDING_TAX (60), VSF_FEE (70), ENGINE_TIME (80). (Refinement originally said 10 conflating rule-strategy code classes; legacy DB only seeds the 8 filter types — strategies like DoNotInvoiceFlightRule / StartTaxRule are code, not seeded rows.)
 - `accounting_unit_type` (SYSTEM_GLOBAL): id uuid PK, `code VARCHAR(50) NOT NULL UNIQUE`, `name VARCHAR(100) NOT NULL`, `legacy_int_id SMALLINT UNIQUE`. Seed ≥3 canonical codes per legacy.
 
 `filter_config` jsonb bag holds the legacy predicates: `is_rule_for_glider/towing/motor_flights`, `use_*_except_listed` flags + matched-list arrays (`matched_aircraft_immatriculations`, `matched_start_types`, `matched_flight_type_codes`, `matched_start_locations`, `matched_ldg_locations`, `matched_club_member_numbers`, `matched_flight_crew_types`, `matched_aircrafts_homebase`, `matched_member_states`, `matched_person_categories`), min/max `flight_time_in_seconds`, min/max `engine_time_in_seconds`, `include_threshold_text`, `threshold_text`, `include_flight_type_name`, `no_landing_tax_for_glider/towing/aircraft`, `extend_matching_flight_type_codes_to_glider_and_tow_flight`. Per-discriminator typed-shape validation at S-064.
@@ -277,9 +279,9 @@ CREATE UNIQUE INDEX ux_dct_club_flight_partial ON delivery_creation_test (operat
 
 ### Module layout
 
-- New: `next/server/src/main/resources/db/migration/V<n+2>__reservations_planning_accounting.sql` (~600-700 lines).
+- New: `next/server/src/main/resources/db/migration/V4__reservations_planning_accounting.sql` (~600-700 lines).
 - Edit: `next/database/tenant-rules.yaml` (12 entries + reclassifications + Aircraft-cross-tenant ride-through).
-- New: `next/server/src/test/java/ch/fls/server/migration/ReservationsBaselineIntegrationTest.java` (~55 tests).
+- New: `next/server/src/test/java/ch/alpenflight/server/migration/ReservationsBaselineIntegrationTest.java` (~55 tests). (Package is `ch.alpenflight` per the S-128 FLS → AlpenFlight technical rebrand, not the legacy `ch.fls`.)
 - Extend: `MigrationFolderConventionsTest`, `FlywayBootstrapIntegrationTest`, `TenantCatalogConsistencyTest`.
 - Extend: `next/server/src/test/resources/reference-seeds-canonical-uuids.json` (10 + ≥3 canonical UUIDs).
 - Extend: `next/server/src/test/resources/scripts/generate-canonical-uuids.java`.
@@ -287,7 +289,7 @@ CREATE UNIQUE INDEX ux_dct_club_flight_partial ON delivery_creation_test (operat
 
 ### Alternatives considered
 
-- **Chosen — single V<n+2> migration; UUID v7 PKs; `filter_config jsonb` + `filter_type_id` discriminator; SMALLINT process_state_id with CHECK; two TIMESTAMPTZ + generated tsrange (NOT EXCLUDE constraint); counter table for per-club delivery numbering; generated `total_amount` STORED.**
+- **Chosen — single V4 migration; UUID v7 PKs; `filter_config jsonb` + `filter_type_id` discriminator; SMALLINT process_state_id with CHECK; two TIMESTAMPTZ + generated tsrange (NOT EXCLUDE constraint); counter table for per-club delivery numbering; generated `total_amount` STORED.**
 - Rejected — per-type tables for AccountingRuleFilter (fragments rules engine).
 - Rejected — EXCLUDE USING gist on aircraft_reservation (multiple legitimate-overlap rules).
 - Rejected — Postgres ENUM for process_state_id (SMALLINT + CHECK + lookup table at S-064 is operator-friendlier).
@@ -435,8 +437,8 @@ Swiss tax law (OR 957a/958f, MWSTG 70) — invoice gap-free per fiscal year per 
 - `accounting_rule_filter_filter_config_is_jsonb_not_null`.
 - `accounting_rule_filter_gin_index_on_filter_config_jsonb_path_ops`.
 - `accounting_rule_filter_sort_indicator_unique_per_club_partial`.
-- `accounting_rule_filter_type_seeded_with_10_canonical_codes` (cite `Accounting/Rules/*.cs`).
-- `accounting_unit_type_seeded_with_at_least_3_rows`.
+- `accounting_rule_filter_type_seeded_with_8_canonical_codes` (cite `database/FLSTest/3 insert/3 Insert Static Data.sql`).
+- `accounting_unit_type_seeded_with_4_canonical_codes` (MINUTES, SECONDS, LANDINGS, START_OR_FLIGHT).
 - `aircraft_reservation_type_NOT_seeded_in_migration` (per-club via API).
 - `delivery_creation_test_flight_fk_cascade`.
 - `delivery_creation_test_has_9_ignore_boolean_columns` (parameterized).
@@ -459,7 +461,7 @@ JPA + `@UuidV7` → S-022. `@TenantId` filter → S-022. Aggregate-method invari
 
 ### Risks
 
-- V<n+2> collision — implementer reads listing; tests assert `>=`.
+- V4 ordering collision (S-018 ShedLock could land between V3 and V4 and push S-014 to V5) — tests assert `>= 4` not `== 4` to tolerate.
 - Reference-seed UUID immutability post-merge — committed generator script + JSON pin map.
 - Test boot-time growth — identical `@DynamicPropertySource` for context cache hits.
 - Generated-column choice — pinned GENERATED STORED; S-016 may revisit for legacy import edge cases.
@@ -552,7 +554,7 @@ EXPLAIN canaries (6 hot queries) at 10K-row fixture; force `enable_seqscan = off
 
 ### Migration shape
 
-Ships as **single `V<n+2>__reservations_planning_accounting.sql`** (~600-700 lines). `<n+2>` picked at implement time from `db/migration/` listing — likely V5 (after S-009 V1, S-012 V3, S-013 V4). Tests assert `>= 5` not `== 5` to tolerate ordering shifts. Header documents: UUID v7 convention; Aircraft-cross-tenant 2026-05-16 amendment; state-machine reshape from `flight.process_state_id + delivery.is_further_processed` to first-class `delivery.process_state_id`; `delivery_number` INTEGER reshape from legacy VARCHAR; `filter_config` jsonb per-discriminator typed shape; `expected_matched_filter_ids BIGINT[]` NOT FK-enforced; `aircraft_reservation_type` + `planning_day_assignment_type` reclassified TENANT_SCOPED; `delivery_creation_test_item` forward-looking table (NOT in legacy); `delivery_item.unit_price` + generated `total_amount` forward-looking (NOT in legacy).
+Ships as **single `V4__reservations_planning_accounting.sql`** (~600-700 lines). Actual migration sequence on `main` is V1 baseline / V2 identity (S-012) / V3 flights-aircraft-locations (S-013), so S-014 lands at V4. Tests assert `>= 4` not `== 4` to tolerate ordering shifts. Header documents: UUID v7 convention; Aircraft-cross-tenant 2026-05-16 amendment; state-machine reshape from `flight.process_state_id + delivery.is_further_processed` to first-class `delivery.process_state_id`; `delivery_number` INTEGER reshape from legacy VARCHAR; `filter_config` jsonb per-discriminator typed shape; `expected_matched_filter_ids BIGINT[]` NOT FK-enforced; `aircraft_reservation_type` + `planning_day_assignment_type` reclassified TENANT_SCOPED; `delivery_creation_test_item` forward-looking table (NOT in legacy); `delivery_item.unit_price` + generated `total_amount` forward-looking (NOT in legacy).
 
 FK ordering across 3 clusters + counter:
 1. **Reservations:** `aircraft_reservation_type` → `aircraft_reservation`.
@@ -668,7 +670,7 @@ The `filter_config` jsonb bag holds (per `AccountingRuleFilter.cs:42-115`): `is_
 
 **`accounting_rule_filter_type`** — **SYSTEM_GLOBAL** (`AccountingRuleFilterType.cs:18-32`, no `ClubId`):
 - `id uuid PRIMARY KEY`, `code VARCHAR(50) NOT NULL UNIQUE`, `name VARCHAR(100) NOT NULL`, `description TEXT`, `legacy_int_id SMALLINT UNIQUE`
-- Seed 10 canonical codes per legacy `FLS.Server.Service/Accounting/Rules/*.cs`: `DoNotInvoiceFlight`, `Recipient`, `FlightTime`, `EngineTime`, `InstructorFee`, `LandingTax`, `StartTax`, `VsfFee`, `AdditionalFuelFee`, `NoLandingTax`.
+- Seed 8 canonical codes per legacy `database/FLSTest/3 insert/3 Insert Static Data.sql`: RECIPIENT (10), NO_LANDING_TAX (20), FLIGHT_TIME (30), INSTRUCTOR_FEE (40), ADDITIONAL_FUEL_FEE (50), LANDING_TAX (60), VSF_FEE (70), ENGINE_TIME (80). Code rule classes under `FLS.Server.Service/Accounting/Rules/*.cs` (e.g. DoNotInvoiceFlightRule, StartTaxRule) are strategy implementations, NOT seeded filter types.
 
 **`accounting_unit_type`** — **SYSTEM_GLOBAL** (`AccountingUnitType.cs:18-32`):
 - `id uuid PRIMARY KEY`, `code VARCHAR(50) NOT NULL UNIQUE`, `name VARCHAR(100) NOT NULL`, `legacy_int_id SMALLINT UNIQUE`
@@ -923,9 +925,9 @@ ClubDeliveryNumberCounter:
 
 ### Module layout
 
-- New: `next/server/src/main/resources/db/migration/V<n+2>__reservations_planning_accounting.sql` (~600-700 lines).
+- New: `next/server/src/main/resources/db/migration/V4__reservations_planning_accounting.sql` (~600-700 lines).
 - Edit: `next/database/tenant-rules.yaml` (12 entries + reclassifications + Aircraft-cross-tenant ride-through addition).
-- New: `next/server/src/test/java/ch/fls/server/migration/ReservationsBaselineIntegrationTest.java` (~55 tests).
+- New: `next/server/src/test/java/ch/alpenflight/server/migration/ReservationsBaselineIntegrationTest.java` (~55 tests). (Package is `ch.alpenflight` per the S-128 FLS → AlpenFlight technical rebrand, not the legacy `ch.fls`.)
 - Extend: `MigrationFolderConventionsTest`, `FlywayBootstrapIntegrationTest`, `TenantCatalogConsistencyTest`.
 - Extend: `next/server/src/test/resources/reference-seeds-canonical-uuids.json` (canonical UUIDs for `accounting_rule_filter_type` ×10 + `accounting_unit_type` ≥3).
 - Extend: `next/server/src/test/resources/scripts/generate-canonical-uuids.java` (committed generator).
@@ -933,7 +935,7 @@ ClubDeliveryNumberCounter:
 
 ### Alternatives considered
 
-- **Chosen — single V<n+2> migration with 12 tables + counter + all aggregate roots + cross-tenant aircraft FK.** FK graph crosses 3 clusters; splitting forces fake bridge migrations. Single transactional unit.
+- **Chosen — single V4 migration with 12 tables + counter + all aggregate roots + cross-tenant aircraft FK.** FK graph crosses 3 clusters; splitting forces fake bridge migrations. Single transactional unit.
 - **Chosen — `filter_config` jsonb + `filter_type_id` discriminator** (per story Notes line 33). Legacy 30+ predicate columns are mostly NULL per filter; jsonb collapses cleanly. Per-discriminator typed shape validated at S-064; GIN index for admin search only (engine reads filter_config wholesale + interprets in Java).
 - Rejected — per-type tables for AccountingRuleFilter. Fragments rules engine code path; legacy + S-064 instantiate `Rule` polymorphically from one base table.
 - Rejected — `EXCLUDE USING gist (aircraft_id WITH =, reservation_range WITH &&)` for no-overlap on aircraft_reservation. Multiple legitimate-overlap business rules (maintenance vs. flight; multi-pilot; charter exemption); service layer (S-064) handles.
@@ -1129,7 +1131,7 @@ All `target.id` fields carry prefixed external form (`arv_...`/`dlv_...` etc.).
 - `vN_reservations_planning_accounting_is_non_empty`.
 
 **Extensions to `FlywayBootstrapIntegrationTest`:**
-- `current_version_at_least_5_after_s014` (`>=` not `==`).
+- `current_version_at_least_4_after_s014` (`>=` not `==`; n=4 because chain on `main` is V1/V2/V3 before this story).
 - `flyway_history_contains_reservations_planning_accounting_row`.
 
 **New `ReservationsBaselineIntegrationTest`** (~55 tests; shares `PostgresTestContainerLifecycle` + identical `@DynamicPropertySource`):
@@ -1181,8 +1183,8 @@ Accounting rule filter — JSON config:
 - `accounting_rule_filter_sort_indicator_unique_per_club_partial` (provoke dup → 23505).
 
 Reference-data seeds:
-- `accounting_rule_filter_type_seeded_with_10_canonical_codes` (cite `FLS.Server.Service/Accounting/Rules/*.cs`).
-- `accounting_unit_type_seeded_with_at_least_3_rows` (cite `AccountingUnitType.cs`).
+- `accounting_rule_filter_type_seeded_with_8_canonical_codes` (cite `database/FLSTest/3 insert/3 Insert Static Data.sql`).
+- `accounting_unit_type_seeded_with_4_canonical_codes` (MINUTES, SECONDS, LANDINGS, START_OR_FLIGHT).
 - `aircraft_reservation_type_NOT_seeded_in_migration` (per-club; operator creates via API).
 - `planning_day_assignment_type_NOT_seeded_in_migration`.
 
@@ -1239,7 +1241,7 @@ N/A — schema reshape. Reference-seed enum values pinned via legacy-code citati
 
 ### Risks
 
-- V<n+2> collision with S-013/S-018 ordering. Mitigation: implementer reads listing; tests assert `>=`.
+- V4 ordering collision with S-018 (ShedLock could land between V3 and V4 and push S-014 to V5). Mitigation: implementer reads listing; tests assert `>= 4`.
 - Reference-seed UUID immutability (Flyway checksum). Mitigation: committed generator script + JSON pin map + PR review.
 - Test boot-time growth. Mitigation: identical `@DynamicPropertySource` → context cache hits.
 - Generated-column vs stored-with-CHECK for `total_amount` — pinned as GENERATED STORED; legacy import edge cases may force flip to plain NUMERIC with deferred CHECK (S-016 may revisit).
