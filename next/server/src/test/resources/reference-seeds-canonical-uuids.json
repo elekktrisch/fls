@@ -3,8 +3,13 @@
     "generated_for_story": "S-012",
     "generation_timestamp_ms": 1778889600000,
     "generation_timestamp_iso": "2026-05-16T00:00:00Z",
-    "algorithm": "RFC 9562 UUID v7; 48-bit timestamp prefix fixed; per-table counter encodes the row's ordinal in the rand_a + rand_b fields. Deterministic by construction — re-running this script produces bit-identical output.",
-    "note": "DO NOT regenerate after the migration has been applied to any environment. Flyway checksum-locks the migration; a UUID change requires a follow-up migration with cascading FK updates."
+    "algorithm": "RFC 9562 UUID v7; 48-bit timestamp prefix fixed; per-table counter encodes the row's ordinal in the rand_a + rand_b fields. Deterministic by construction \u2014 re-running this script produces bit-identical output.",
+    "note": "DO NOT regenerate after the migration has been applied to any environment. Flyway checksum-locks the migration; a UUID change requires a follow-up migration with cascading FK updates.",
+    "updated_for_stories": [
+      "S-012",
+      "S-013"
+    ],
+    "updated_at_iso": "2026-05-16T00:00:00Z"
   },
   "country": [
     {
@@ -381,7 +386,7 @@
     {
       "iso2": "CI",
       "iso3": "CIV",
-      "name": "Côte d'Ivoire",
+      "name": "C\u00f4te d'Ivoire",
       "uuid": "019e2e15-2c00-741d-8000-00000000041d",
       "natural_key": "CI"
     },
@@ -402,7 +407,7 @@
     {
       "iso2": "CW",
       "iso3": "CUW",
-      "name": "Curaçao",
+      "name": "Cura\u00e7ao",
       "uuid": "019e2e15-2c00-7420-8000-000000000420",
       "natural_key": "CW"
     },
@@ -1270,7 +1275,7 @@
     {
       "iso2": "RE",
       "iso3": "REU",
-      "name": "Réunion",
+      "name": "R\u00e9union",
       "uuid": "019e2e15-2c00-749c-8000-00000000049c",
       "natural_key": "RE"
     },
@@ -1298,7 +1303,7 @@
     {
       "iso2": "BL",
       "iso3": "BLM",
-      "name": "Saint Barthélemy",
+      "name": "Saint Barth\u00e9lemy",
       "uuid": "019e2e15-2c00-74a0-8000-0000000004a0",
       "natural_key": "BL"
     },
@@ -1753,7 +1758,7 @@
     },
     {
       "code": "fr",
-      "name": "Français",
+      "name": "Fran\u00e7ais",
       "uuid": "019e2e15-2c00-77d1-8000-0000000007d1",
       "natural_key": "fr"
     },
@@ -1783,7 +1788,7 @@
     },
     {
       "code": "fr-CH",
-      "name": "Français suisse",
+      "name": "Fran\u00e7ais suisse",
       "uuid": "019e2e15-2c00-77d6-8000-0000000007d6",
       "natural_key": "fr-CH"
     },
@@ -1818,35 +1823,46 @@
     {
       "code": "WINCH_LAUNCH",
       "name": "Winch Launch",
-      "applicable_categories": ["GLIDER"],
+      "applicable_categories": [
+        "GLIDER"
+      ],
       "uuid": "019e2e15-2c00-7fa0-8000-000000000fa0",
       "natural_key": "WINCH_LAUNCH"
     },
     {
       "code": "AEROTOW",
       "name": "Aerotow",
-      "applicable_categories": ["GLIDER", "TOW"],
+      "applicable_categories": [
+        "GLIDER",
+        "TOW"
+      ],
       "uuid": "019e2e15-2c00-7fa1-8000-000000000fa1",
       "natural_key": "AEROTOW"
     },
     {
       "code": "SELF_START",
       "name": "Self Start",
-      "applicable_categories": ["GLIDER"],
+      "applicable_categories": [
+        "GLIDER"
+      ],
       "uuid": "019e2e15-2c00-7fa2-8000-000000000fa2",
       "natural_key": "SELF_START"
     },
     {
       "code": "EXTERNAL_START",
       "name": "External Start",
-      "applicable_categories": ["GLIDER"],
+      "applicable_categories": [
+        "GLIDER"
+      ],
       "uuid": "019e2e15-2c00-7fa3-8000-000000000fa3",
       "natural_key": "EXTERNAL_START"
     },
     {
       "code": "MOTOR",
       "name": "Motor",
-      "applicable_categories": ["MOTOR"],
+      "applicable_categories": [
+        "MOTOR"
+      ],
       "uuid": "019e2e15-2c00-7fa4-8000-000000000fa4",
       "natural_key": "MOTOR"
     }
@@ -1956,33 +1972,440 @@
   "role": [
     {
       "code": "ADMIN",
-      "description": "Administrator — full club control",
+      "description": "Administrator \u2014 full club control",
       "uuid": "019e2e15-2c00-7328-8000-000000002328",
       "natural_key": "ADMIN"
     },
     {
       "code": "FLIGHT_OPS",
-      "description": "Flight operations — daily flight + planning ops",
+      "description": "Flight operations \u2014 daily flight + planning ops",
       "uuid": "019e2e15-2c00-7329-8000-000000002329",
       "natural_key": "FLIGHT_OPS"
     },
     {
       "code": "INSTRUCTOR",
-      "description": "Flight instructor — training records + sign-offs",
+      "description": "Flight instructor \u2014 training records + sign-offs",
       "uuid": "019e2e15-2c00-732a-8000-00000000232a",
       "natural_key": "INSTRUCTOR"
     },
     {
       "code": "PILOT",
-      "description": "Active pilot — read own flights, file own records",
+      "description": "Active pilot \u2014 read own flights, file own records",
       "uuid": "019e2e15-2c00-732b-8000-00000000232b",
       "natural_key": "PILOT"
     },
     {
       "code": "READER",
-      "description": "Read-only — admin views, no mutation",
+      "description": "Read-only \u2014 admin views, no mutation",
       "uuid": "019e2e15-2c00-732c-8000-00000000232c",
       "natural_key": "READER"
+    }
+  ],
+  "aircraft_type": [
+    {
+      "code": "UNKNOWN",
+      "legacy_int_id": 0,
+      "description": "Unknown \u2014 type not set",
+      "has_engine": null,
+      "requires_towing_info": null,
+      "may_be_towing_aircraft": null,
+      "uuid": "019e2e15-2c00-7af8-8000-000000002af8",
+      "natural_key": "UNKNOWN"
+    },
+    {
+      "code": "GLIDER",
+      "legacy_int_id": 1,
+      "description": "Pure glider, no engine",
+      "has_engine": false,
+      "requires_towing_info": true,
+      "may_be_towing_aircraft": false,
+      "uuid": "019e2e15-2c00-7af9-8000-000000002af9",
+      "natural_key": "GLIDER"
+    },
+    {
+      "code": "GLIDER_WITH_MOTOR",
+      "legacy_int_id": 2,
+      "description": "Glider with motor or turbo",
+      "has_engine": true,
+      "requires_towing_info": true,
+      "may_be_towing_aircraft": false,
+      "uuid": "019e2e15-2c00-7afa-8000-000000002afa",
+      "natural_key": "GLIDER_WITH_MOTOR"
+    },
+    {
+      "code": "MOTOR_GLIDER",
+      "legacy_int_id": 4,
+      "description": "Touring motor glider (TMG)",
+      "has_engine": true,
+      "requires_towing_info": false,
+      "may_be_towing_aircraft": true,
+      "uuid": "019e2e15-2c00-7afb-8000-000000002afb",
+      "natural_key": "MOTOR_GLIDER"
+    },
+    {
+      "code": "MOTOR_AIRCRAFT",
+      "legacy_int_id": 8,
+      "description": "Motor aircraft or tow plane",
+      "has_engine": true,
+      "requires_towing_info": false,
+      "may_be_towing_aircraft": true,
+      "uuid": "019e2e15-2c00-7afc-8000-000000002afc",
+      "natural_key": "MOTOR_AIRCRAFT"
+    },
+    {
+      "code": "MULTI_ENGINE",
+      "legacy_int_id": 16,
+      "description": "Multi-engine motor aircraft",
+      "has_engine": true,
+      "requires_towing_info": false,
+      "may_be_towing_aircraft": false,
+      "uuid": "019e2e15-2c00-7afd-8000-000000002afd",
+      "natural_key": "MULTI_ENGINE"
+    },
+    {
+      "code": "JET",
+      "legacy_int_id": 32,
+      "description": "Jet aircraft",
+      "has_engine": true,
+      "requires_towing_info": false,
+      "may_be_towing_aircraft": false,
+      "uuid": "019e2e15-2c00-7afe-8000-000000002afe",
+      "natural_key": "JET"
+    },
+    {
+      "code": "HELICOPTER",
+      "legacy_int_id": 64,
+      "description": "Helicopter",
+      "has_engine": true,
+      "requires_towing_info": false,
+      "may_be_towing_aircraft": false,
+      "uuid": "019e2e15-2c00-7aff-8000-000000002aff",
+      "natural_key": "HELICOPTER"
+    }
+  ],
+  "aircraft_state": [
+    {
+      "code": "OK",
+      "legacy_int_id": 1,
+      "description": "Aircraft is fully operational",
+      "is_aircraft_flyable": true,
+      "uuid": "019e2e15-2c00-7ee0-8000-000000002ee0",
+      "natural_key": "OK"
+    },
+    {
+      "code": "INFORMATION",
+      "legacy_int_id": 2,
+      "description": "Informational note recorded; aircraft remains flyable",
+      "is_aircraft_flyable": true,
+      "uuid": "019e2e15-2c00-7ee1-8000-000000002ee1",
+      "natural_key": "INFORMATION"
+    },
+    {
+      "code": "ATTENTION",
+      "legacy_int_id": 3,
+      "description": "Attention required; aircraft remains flyable",
+      "is_aircraft_flyable": true,
+      "uuid": "019e2e15-2c00-7ee2-8000-000000002ee2",
+      "natural_key": "ATTENTION"
+    },
+    {
+      "code": "MALFUNCTION",
+      "legacy_int_id": 4,
+      "description": "Aircraft malfunction; grounded",
+      "is_aircraft_flyable": false,
+      "uuid": "019e2e15-2c00-7ee3-8000-000000002ee3",
+      "natural_key": "MALFUNCTION"
+    },
+    {
+      "code": "MAINTENANCE",
+      "legacy_int_id": 5,
+      "description": "Aircraft in maintenance; grounded",
+      "is_aircraft_flyable": false,
+      "uuid": "019e2e15-2c00-7ee4-8000-000000002ee4",
+      "natural_key": "MAINTENANCE"
+    },
+    {
+      "code": "UNINSURED",
+      "legacy_int_id": 6,
+      "description": "Insurance lapsed; grounded",
+      "is_aircraft_flyable": false,
+      "uuid": "019e2e15-2c00-7ee5-8000-000000002ee5",
+      "natural_key": "UNINSURED"
+    },
+    {
+      "code": "END_OF_LIFE",
+      "legacy_int_id": 99,
+      "description": "Aircraft retired / decommissioned",
+      "is_aircraft_flyable": false,
+      "uuid": "019e2e15-2c00-7ee6-8000-000000002ee6",
+      "natural_key": "END_OF_LIFE"
+    }
+  ],
+  "location_type": [
+    {
+      "code": "WAYPOINT",
+      "legacy_int_id": 1,
+      "description": "Navigation waypoint (non-airfield)",
+      "is_airfield": false,
+      "uuid": "019e2e15-2c00-72c8-8000-0000000032c8",
+      "natural_key": "WAYPOINT"
+    },
+    {
+      "code": "GRASS_RUNWAY",
+      "legacy_int_id": 2,
+      "description": "Airfield with grass runway",
+      "is_airfield": true,
+      "uuid": "019e2e15-2c00-72c9-8000-0000000032c9",
+      "natural_key": "GRASS_RUNWAY"
+    },
+    {
+      "code": "EXTERNAL_FIELD",
+      "legacy_int_id": 3,
+      "description": "Outlanding field (non-airfield)",
+      "is_airfield": false,
+      "uuid": "019e2e15-2c00-72ca-8000-0000000032ca",
+      "natural_key": "EXTERNAL_FIELD"
+    },
+    {
+      "code": "GLIDER_AIRFIELD",
+      "legacy_int_id": 4,
+      "description": "Glider-only airfield",
+      "is_airfield": true,
+      "uuid": "019e2e15-2c00-72cb-8000-0000000032cb",
+      "natural_key": "GLIDER_AIRFIELD"
+    },
+    {
+      "code": "CONCRETE_RUNWAY",
+      "legacy_int_id": 5,
+      "description": "Airfield with concrete / hard runway",
+      "is_airfield": true,
+      "uuid": "019e2e15-2c00-72cc-8000-0000000032cc",
+      "natural_key": "CONCRETE_RUNWAY"
+    },
+    {
+      "code": "OTHER",
+      "legacy_int_id": 99,
+      "description": "Other location type",
+      "is_airfield": false,
+      "uuid": "019e2e15-2c00-72cd-8000-0000000032cd",
+      "natural_key": "OTHER"
+    }
+  ],
+  "flight_crew_type": [
+    {
+      "code": "PILOT_OR_STUDENT",
+      "legacy_int_id": 1,
+      "description": "Pilot or student pilot",
+      "uuid": "019e2e15-2c00-76b0-8000-0000000036b0",
+      "natural_key": "PILOT_OR_STUDENT"
+    },
+    {
+      "code": "CO_PILOT",
+      "legacy_int_id": 2,
+      "description": "Co-pilot / second crew member",
+      "uuid": "019e2e15-2c00-76b1-8000-0000000036b1",
+      "natural_key": "CO_PILOT"
+    },
+    {
+      "code": "FLIGHT_INSTRUCTOR",
+      "legacy_int_id": 3,
+      "description": "Flight instructor / examiner",
+      "uuid": "019e2e15-2c00-76b2-8000-0000000036b2",
+      "natural_key": "FLIGHT_INSTRUCTOR"
+    },
+    {
+      "code": "PASSENGER",
+      "legacy_int_id": 4,
+      "description": "Passenger",
+      "uuid": "019e2e15-2c00-76b3-8000-0000000036b3",
+      "natural_key": "PASSENGER"
+    },
+    {
+      "code": "WINCH_OPERATOR",
+      "legacy_int_id": 5,
+      "description": "Winch operator",
+      "uuid": "019e2e15-2c00-76b4-8000-0000000036b4",
+      "natural_key": "WINCH_OPERATOR"
+    },
+    {
+      "code": "OBSERVER",
+      "legacy_int_id": 6,
+      "description": "Observing pilot or instructor",
+      "uuid": "019e2e15-2c00-76b5-8000-0000000036b5",
+      "natural_key": "OBSERVER"
+    },
+    {
+      "code": "FLIGHT_COST_INVOICE_RECIPIENT",
+      "legacy_int_id": 10,
+      "description": "Recipient of flight cost invoice",
+      "uuid": "019e2e15-2c00-76b6-8000-0000000036b6",
+      "natural_key": "FLIGHT_COST_INVOICE_RECIPIENT"
+    }
+  ],
+  "flight_process_state": [
+    {
+      "code": "NOT_PROCESSED",
+      "legacy_int_id": 0,
+      "description": "No processing has run on this flight yet",
+      "uuid": "019e2e15-2c00-7a98-8000-000000003a98",
+      "natural_key": "NOT_PROCESSED"
+    },
+    {
+      "code": "INVALID",
+      "legacy_int_id": 28,
+      "description": "Flight validated but data is invalid or implausible",
+      "uuid": "019e2e15-2c00-7a99-8000-000000003a99",
+      "natural_key": "INVALID"
+    },
+    {
+      "code": "VALID",
+      "legacy_int_id": 30,
+      "description": "Flight validated and data is valid",
+      "uuid": "019e2e15-2c00-7a9a-8000-000000003a9a",
+      "natural_key": "VALID"
+    },
+    {
+      "code": "LOCKED",
+      "legacy_int_id": 40,
+      "description": "Flight cannot be edited; ready for billing",
+      "uuid": "019e2e15-2c00-7a9b-8000-000000003a9b",
+      "natural_key": "LOCKED"
+    },
+    {
+      "code": "DELIVERY_PREPARATION_ERROR",
+      "legacy_int_id": 45,
+      "description": "Delivery preparation failed (no rule matched / no items)",
+      "uuid": "019e2e15-2c00-7a9c-8000-000000003a9c",
+      "natural_key": "DELIVERY_PREPARATION_ERROR"
+    },
+    {
+      "code": "DELIVERY_PREPARED",
+      "legacy_int_id": 50,
+      "description": "Delivery / invoice prepared; flight no longer editable",
+      "uuid": "019e2e15-2c00-7a9d-8000-000000003a9d",
+      "natural_key": "DELIVERY_PREPARED"
+    },
+    {
+      "code": "DELIVERY_BOOKED",
+      "legacy_int_id": 60,
+      "description": "Delivery booked in external finance system; terminal",
+      "uuid": "019e2e15-2c00-7a9e-8000-000000003a9e",
+      "natural_key": "DELIVERY_BOOKED"
+    },
+    {
+      "code": "EXCLUDED_FROM_DELIVERY_PROCESS",
+      "legacy_int_id": 99,
+      "description": "Excluded from delivery process; reversible to LOCKED",
+      "uuid": "019e2e15-2c00-7a9f-8000-000000003a9f",
+      "natural_key": "EXCLUDED_FROM_DELIVERY_PROCESS"
+    }
+  ],
+  "flight_air_state": [
+    {
+      "code": "NEW",
+      "legacy_int_id": 0,
+      "description": "New flight; not started yet",
+      "uuid": "019e2e15-2c00-7e80-8000-000000003e80",
+      "natural_key": "NEW"
+    },
+    {
+      "code": "FLIGHT_PLAN_OPEN",
+      "legacy_int_id": 5,
+      "description": "Flight plan opened",
+      "uuid": "019e2e15-2c00-7e81-8000-000000003e81",
+      "natural_key": "FLIGHT_PLAN_OPEN"
+    },
+    {
+      "code": "MIGHT_BE_STARTED",
+      "legacy_int_id": 8,
+      "description": "No start information available",
+      "uuid": "019e2e15-2c00-7e82-8000-000000003e82",
+      "natural_key": "MIGHT_BE_STARTED"
+    },
+    {
+      "code": "STARTED",
+      "legacy_int_id": 10,
+      "description": "Aircraft started / in flight",
+      "uuid": "019e2e15-2c00-7e83-8000-000000003e83",
+      "natural_key": "STARTED"
+    },
+    {
+      "code": "MIGHT_BE_LANDED_OR_IN_AIR",
+      "legacy_int_id": 15,
+      "description": "No landing information available",
+      "uuid": "019e2e15-2c00-7e84-8000-000000003e84",
+      "natural_key": "MIGHT_BE_LANDED_OR_IN_AIR"
+    },
+    {
+      "code": "LANDED",
+      "legacy_int_id": 20,
+      "description": "Aircraft landed",
+      "uuid": "019e2e15-2c00-7e85-8000-000000003e85",
+      "natural_key": "LANDED"
+    },
+    {
+      "code": "FLIGHT_PLAN_CLOSED",
+      "legacy_int_id": 25,
+      "description": "Flight / flight plan closed",
+      "uuid": "019e2e15-2c00-7e86-8000-000000003e86",
+      "natural_key": "FLIGHT_PLAN_CLOSED"
+    }
+  ],
+  "flight_cost_balance_type": [
+    {
+      "code": "PILOT_PAYS_ALL",
+      "legacy_int_id": 1,
+      "description": "Pilot pays all flight costs incl. landing fees",
+      "person_for_invoice_required": false,
+      "is_for_glider": true,
+      "is_for_tow": true,
+      "is_for_motor": true,
+      "uuid": "019e2e15-2c00-7268-8000-000000004268",
+      "natural_key": "PILOT_PAYS_ALL"
+    },
+    {
+      "code": "FIFTY_FIFTY_PILOT_COPILOT",
+      "legacy_int_id": 2,
+      "description": "Costs split 50:50 between pilot and co-pilot",
+      "person_for_invoice_required": false,
+      "is_for_glider": true,
+      "is_for_tow": false,
+      "is_for_motor": false,
+      "uuid": "019e2e15-2c00-7269-8000-000000004269",
+      "natural_key": "FIFTY_FIFTY_PILOT_COPILOT"
+    },
+    {
+      "code": "TOW_PILOT_PAYS_TOW",
+      "legacy_int_id": 3,
+      "description": "Tow pilot covers tow cost; glider pilot pays glider cost",
+      "person_for_invoice_required": false,
+      "is_for_glider": true,
+      "is_for_tow": true,
+      "is_for_motor": false,
+      "uuid": "019e2e15-2c00-726a-8000-00000000426a",
+      "natural_key": "TOW_PILOT_PAYS_TOW"
+    },
+    {
+      "code": "NO_INSTRUCTOR_FEE",
+      "legacy_int_id": 4,
+      "description": "No instructor fee charged to pilot/student",
+      "person_for_invoice_required": false,
+      "is_for_glider": true,
+      "is_for_tow": true,
+      "is_for_motor": true,
+      "uuid": "019e2e15-2c00-726b-8000-00000000426b",
+      "natural_key": "NO_INSTRUCTOR_FEE"
+    },
+    {
+      "code": "INVOICE_TO_PERSON",
+      "legacy_int_id": 5,
+      "description": "Invoice issued to named person",
+      "person_for_invoice_required": true,
+      "is_for_glider": true,
+      "is_for_tow": true,
+      "is_for_motor": true,
+      "uuid": "019e2e15-2c00-726c-8000-00000000426c",
+      "natural_key": "INVOICE_TO_PERSON"
     }
   ]
 }

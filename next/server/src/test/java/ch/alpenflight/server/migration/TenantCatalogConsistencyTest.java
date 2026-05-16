@@ -46,6 +46,87 @@ class TenantCatalogConsistencyTest {
     @Autowired DataSource dataSource;
 
     @Test
+    void every_s013_tenant_scoped_table_has_operating_club_id_uuid_not_null() throws Exception {
+        // S-013 tenant-scoped tables carry `operating_club_id` (renamed from
+        // legacy `ClubId` / `OwnerClubId` per the new-schema convention).
+        // flight_crew is aggregate-internal to flight and inherits via FK (no
+        // own operating_club_id column).
+        List<String> tables = List.of("flight", "flight_type", "article");
+        try (Connection conn = dataSource.getConnection()) {
+            for (String t : tables) {
+                try (var stmt = conn.prepareStatement(
+                        "SELECT data_type, is_nullable FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name=? AND column_name='operating_club_id'")) {
+                    stmt.setString(1, t);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        assertThat(rs.next()).as("%s must have operating_club_id", t).isTrue();
+                        assertThat(rs.getString("data_type")).isEqualTo("uuid");
+                        assertThat(rs.getString("is_nullable"))
+                                .as("%s.operating_club_id must be NOT NULL", t)
+                                .isEqualTo("NO");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void every_s013_reference_table_has_no_operating_club_id() throws Exception {
+        List<String> refs = List.of(
+                "aircraft_type", "aircraft_state", "location_type",
+                "flight_crew_type", "flight_process_state", "flight_air_state",
+                "flight_cost_balance_type");
+        try (Connection conn = dataSource.getConnection()) {
+            for (String t : refs) {
+                assertTableExists(conn, t);
+                try (var stmt = conn.prepareStatement(
+                        "SELECT 1 FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name=? "
+                                + "AND column_name IN ('operating_club_id', 'club_id')")) {
+                    stmt.setString(1, t);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        assertThat(rs.next())
+                                .as("reference table %s must NOT carry operating_club_id / club_id", t)
+                                .isFalse();
+                    }
+                }
+            }
+        }
+    }
+
+    /** Sacred cow: location is cross-tenant shared; no club_id / operating_club_id. */
+    @Test
+    void location_has_no_club_id() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            assertTableExists(conn, "location");
+            try (ResultSet rs = conn.createStatement().executeQuery(
+                    "SELECT 1 FROM information_schema.columns "
+                            + "WHERE table_schema='public' AND table_name='location' "
+                            + "AND column_name IN ('club_id', 'operating_club_id')")) {
+                assertThat(rs.next())
+                        .as("location must NOT carry a club_id / operating_club_id (sacred cow)")
+                        .isFalse();
+            }
+        }
+    }
+
+    /** Aircraft is CROSS_TENANT per 2026-05-16 amendment — owner_club_id is nullable. */
+    @Test
+    void aircraft_tenant_column_renamed_to_owner_club_id_nullable() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT data_type, is_nullable FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name='aircraft' "
+                                + "AND column_name='owner_club_id'")) {
+            assertThat(rs.next()).as("aircraft.owner_club_id must exist").isTrue();
+            assertThat(rs.getString("data_type")).isEqualTo("uuid");
+            assertThat(rs.getString("is_nullable"))
+                    .as("aircraft.owner_club_id must be NULLABLE (Aircraft is cross-tenant)")
+                    .isEqualTo("YES");
+        }
+    }
+
+    @Test
     void every_tenant_scoped_table_has_club_id_uuid_not_null() throws Exception {
         List<String> tables = List.of(
                 "club_extension", "member_state", "person_category");
