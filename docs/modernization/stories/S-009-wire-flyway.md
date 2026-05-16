@@ -2,9 +2,11 @@
 id: S-009
 title: Wire Flyway into Spring Boot + V1__baseline placeholder
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-16
+done_at: 2026-05-16
 github_issue: 19
+github_pr: 20
 depends_on: [S-001]
 acceptance:
   - `org.flywaydb:flyway-core` + `flyway-database-postgresql` are in the dependency graph.
