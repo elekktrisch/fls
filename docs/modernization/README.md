@@ -66,7 +66,7 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 | `implementation-architect` | Patch design when a fork surfaces the refinement didn't cover |
 | `legacy-investigator` | Disambiguate parity-sensitive legacy behavior at file:line |
 
-`solution-architect`, `security-engineer`, `qa-engineer`, `performance-engineer`, `requirements-engineer` from the refine bank are also reusable in implement-time consults. The agents are general personas, not FLS-specific — they're reusable outside the modernization workflow.
+`solution-architect`, `security-engineer`, `qa-engineer`, `performance-engineer`, `requirements-engineer` from the refine bank are also reusable in implement-time consults. The agents are general personas, not project-specific (here applied to the FLS → AlpenFlight rewrite) — they're reusable outside the modernization workflow.
 
 ## How to run
 
@@ -147,4 +147,4 @@ A story file evolves over its lifetime:
 
 ## Why "generic skills + project seed"
 
-The SKILL.md files in `.claude/skills/` are project-agnostic — they could plan and execute a modernization for any legacy app. The specialist agents in `.claude/agents/` are also general personas, not FLS-specific. Project context lives in [`00-seed.md`](00-seed.md), which the skills read as their first step. If you adapt this workflow to another project, you replace the seed and (almost) nothing else.
+The SKILL.md files in `.claude/skills/` are project-agnostic — they could plan and execute a modernization for any legacy app. The specialist agents in `.claude/agents/` are also general personas, not project-specific (here applied to the FLS → AlpenFlight rewrite). Project context lives in [`00-seed.md`](00-seed.md), which the skills read as their first step. If you adapt this workflow to another project, you replace the seed and (almost) nothing else.

@@ -163,7 +163,7 @@ mailpit:
 
 ```yaml
 backend:
-  image: fls-server:dev                # placeholder until S-040 produces a real image
+  image: alpenflight-server:dev                # placeholder until S-040 produces a real image
   build:                               # dual shape: image-if-exists, build-if-needed
     context: ../server
     dockerfile: Dockerfile             # added by S-040
@@ -258,7 +258,7 @@ services:
     profiles: !override [never]                   # disabled in prod; replace with external SMTP
 
   backend:
-    image: ghcr.io/<org>/fls-server:${BACKEND_TAG:?must be set}@sha256:<resolved-at-deploy>
+    image: ghcr.io/<org>/alpenflight-server:${BACKEND_TAG:?must be set}@sha256:<resolved-at-deploy>
     ports: !reset []                              # proxy-only
     restart: always
     environment:

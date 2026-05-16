@@ -1,4 +1,4 @@
-# fls-legacy-extract
+# alpenflight-legacy-extract
 
 Spring Boot CLI that reads metadata from a legacy FLS SQL Server database and
 emits ephemeral JSON describing the schema. The JSON is the input downstream
@@ -90,7 +90,7 @@ Pre-flight checklist:
 
 All under `raw/` (gitignored). Each file is a JSON array of records; the
 record shape is documented as JavaDoc on the corresponding Java record class
-under `src/main/java/ch/fls/legacyextract/output/`.
+under `src/main/java/ch/alpenflight/legacyextract/output/`.
 
 | File | Always emitted? | Records |
 |---|---|---|
@@ -127,7 +127,7 @@ Docker container. The single integration test class
 `MssqlTestContainerLifecycle` (which shells out to the `docker` CLI rather
 than using Testcontainers — see "Why not Testcontainers" below), seeds it
 with the actual FLSTest fixture (`flsserver/database/FLSTest/`), runs the
-extractor end-to-end, and asserts the JSON outputs contain real FLS tables.
+extractor end-to-end, and asserts the JSON outputs contain real FLSTest tables.
 ~60-90s per run after the SQL Server image is cached. The
 `SqlGuard.scanClasspathResources()` boot-time safety net is exercised by
 the same test (catches forbidden SQL patterns at the classpath level).
@@ -174,7 +174,7 @@ automatically — Testcontainers detects the architecture).
 
 - **Sacred-cow callouts + tenant-scope reasoning + PII catalog narrative**
   live as JavaDoc on the corresponding output record types in
-  `src/main/java/ch/fls/legacyextract/output/`. Future-readers find the
+  `src/main/java/ch/alpenflight/legacyextract/output/`. Future-readers find the
   reasoning next to the code that emits it.
 - **Source-of-truth precedence rule** (prod-applied DDL > `DBUpdate_v*.sql`
   > EF mappings; EF migration tree frozen at 2015) lives at the top of

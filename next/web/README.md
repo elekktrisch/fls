@@ -1,4 +1,4 @@
-# next/web — FLS modern frontend
+# next/web — AlpenFlight modern frontend
 
 Greenfield Angular 21 SPA. See [`CLAUDE.md`](./CLAUDE.md) for day-to-day conventions; [ADR 0004](../../docs/modernization/adrs/0004-frontend-framework-and-build-tool.md) for the framework decision; [S-002](../../docs/modernization/stories/S-002-scaffold-web-skeleton.md) for the skeleton scope.
 
@@ -54,7 +54,7 @@ Production build emits **`dist/web/browser/`** (Angular 17+ `application` builde
 ```
 src/
 ├── main.ts                            bootstrap entry
-├── index.html                         <fls-root/>, lang="de", base="/"
+├── index.html                         <af-root/>, lang="de", base="/"
 ├── styles.css                         @import "tailwindcss"; @theme { … }
 └── app/
     ├── app.config.ts                  providers (zoneless + router + view transitions)
@@ -71,7 +71,7 @@ src/
 public/                                 Angular 17+ assets (replaces src/assets)
 └── i18n/                               de.json / en.json / fr.json / it.json (S-005)
 
-e2e/                                    Playwright with FLS app
+e2e/                                    Playwright with AlpenFlight app
 ├── playwright.config.ts
 └── tests/landing.spec.ts
 ```

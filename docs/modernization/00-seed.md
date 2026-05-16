@@ -1,6 +1,6 @@
-# Modernization Seed — FLS
+# Modernization Seed — AlpenFlight (FLS → rewrite)
 
-Project-specific context that every phase of the modernization workflow reads first. Generic skills + this seed = an FLS-tailored plan.
+Project-specific context that every phase of the modernization workflow reads first. Generic skills + this seed = an AlpenFlight-tailored plan.
 
 ## What we're modernizing
 

@@ -4,12 +4,12 @@ import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/ro
 import { filter, map, startWith } from 'rxjs';
 
 @Component({
-  selector: 'fls-root',
+  selector: 'af-root',
   imports: [RouterOutlet],
   template: `
     <main>
       @if (showNavBar()) {
-        <!-- TODO(S-008): replace with <fls-nav-bar /> once the organism ships. -->
+        <!-- TODO(S-008): replace with <af-nav-bar /> once the organism ships. -->
       }
       <router-outlet />
     </main>

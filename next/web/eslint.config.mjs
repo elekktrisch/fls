@@ -17,11 +17,11 @@ export default tseslint.config(
     rules: {
       '@angular-eslint/directive-selector': [
         'error',
-        { type: 'attribute', prefix: 'fls', style: 'camelCase' },
+        { type: 'attribute', prefix: 'af', style: 'camelCase' },
       ],
       '@angular-eslint/component-selector': [
         'error',
-        { type: 'element', prefix: 'fls', style: 'kebab-case' },
+        { type: 'element', prefix: 'af', style: 'kebab-case' },
       ],
       '@angular-eslint/prefer-standalone': 'error',
       'no-restricted-globals': [

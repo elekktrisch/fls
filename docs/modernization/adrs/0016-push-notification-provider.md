@@ -26,14 +26,14 @@ The market has consolidated around three patterns: the W3C Web Push standard wit
 
 ### Option B — Firebase Cloud Messaging (FCM)
 - **Capabilities:** Google-managed delivery. Single SDK across iOS/Android/web; subscription tokens; topic-based messaging; analytics dashboard. Generous free tier (unlimited push for now).
-- **Fit to criteria:** criterion 4 ~ — Google offers EU regions for FCM data storage, but the FCM transport metadata routes through Google infrastructure regardless of region. FADP/GDPR compliance requires a Data Processing Addendum with Google; achievable but adds a contract. Criterion 7 ✗ — Google account dependency, Firebase console as a separate ops surface. Criterion 10 ✓ — free tier ample for FLS volume. Criterion 11 ✓ — well-supported. Criterion 12 ✓ — works with the SW.
+- **Fit to criteria:** criterion 4 ~ — Google offers EU regions for FCM data storage, but the FCM transport metadata routes through Google infrastructure regardless of region. FADP/GDPR compliance requires a Data Processing Addendum with Google; achievable but adds a contract. Criterion 7 ✗ — Google account dependency, Firebase console as a separate ops surface. Criterion 10 ✓ — free tier ample for AlpenFlight volume. Criterion 11 ✓ — well-supported. Criterion 12 ✓ — works with the SW.
 - **Migration cost:** medium — comparable to A. FCM SDK on client; Firebase Admin SDK on server.
 - **Ecosystem risk:** medium — Google could change FCM terms (history of deprecations: GCM → FCM in 2018; FCM API HTTP v1 in 2024). Migrating off FCM later is doable but a project.
 - **Escape hatch:** strip out the FCM SDK, replace with Web Push. FCM uses Web Push under the hood for browsers, so the data model is compatible.
 
 ### Option C — Third-party SaaS (OneSignal, Pusher, Pushwoosh)
 - **Capabilities:** managed dashboards, audience segmentation, A/B testing, scheduling, multi-channel orchestration (push + email + SMS in one console).
-- **Fit to criteria:** criterion 4 ✗ — most are US-hosted; data residency requires enterprise plans + DPAs and routing concerns. Criterion 7 ✗ — another vendor relationship, dashboard, billing. Criterion 10 ✗ — free tiers exist but cap at unrealistic volumes; FLS-scale would be in the paid tier. Criterion 11 ✓ — mature, but the maturity benefits are aimed at marketing teams (segmentation, A/B) that FLS doesn't have. Criterion 12 — works, but overkill.
+- **Fit to criteria:** criterion 4 ✗ — most are US-hosted; data residency requires enterprise plans + DPAs and routing concerns. Criterion 7 ✗ — another vendor relationship, dashboard, billing. Criterion 10 ✗ — free tiers exist but cap at unrealistic volumes; AlpenFlight-scale would be in the paid tier. Criterion 11 ✓ — mature, but the maturity benefits are aimed at marketing teams (segmentation, A/B) that AlpenFlight doesn't have. Criterion 12 — works, but overkill.
 - **Migration cost:** medium.
 - **Ecosystem risk:** medium-high — vendor relationships are not low-risk for a solo operator.
 - **Escape hatch:** migrate to A or B; the subscription tokens are not portable but resubscribing users is acceptable.
@@ -51,7 +51,7 @@ VAPID keys are generated once and stored in server config (treated as secrets pe
   - Privacy posture aligns with FADP: push payloads are encrypted end-to-end; the intermediate push services never see notification contents.
   - Pairs natively with the ADR 0015 service worker — one SW, two event handlers (`sync` for offline writes, `push` for notifications).
   - Mature ecosystem on the JVM side: `nl.martijndwars:web-push` is the standard Spring-compatible library.
-  - Works on Chrome / Edge / Firefox / Safari 16.4+ (macOS and iOS). Coverage is enough for FLS's user base (glider clubs in 2026 with smartphones).
+  - Works on Chrome / Edge / Firefox / Safari 16.4+ (macOS and iOS). Coverage is enough for AlpenFlight's user base (glider clubs in 2026 with smartphones).
 
 - **Negative:**
   - No segmentation / analytics dashboard out of the box. Mitigation: in-app inbox provides delivery audit; per-user push opt-out lives in user prefs; for ad-hoc analytics, the observability stack ([ADR 0011](0011-observability.md)) can chart `push.sent` / `push.delivered-410` / `push.opt-out` events.

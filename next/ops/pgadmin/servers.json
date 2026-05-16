@@ -1,7 +1,7 @@
 {
   "Servers": {
     "1": {
-      "Name": "FLS Target Postgres",
+      "Name": "AlpenFlight Target Postgres",
       "Group": "Servers",
       "Host": "postgres",
       "Port": 5432,

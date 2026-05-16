@@ -42,7 +42,7 @@ Testcontainers reuses a single Postgres container across the test JVM (`reuse=tr
 
 ### AC1 reinterpretation — `PostgresTestContainerLifecycle`, NOT the Testcontainers library
 
-The story's "Testcontainers Postgres" wording predates the sandbox finding from S-010/S-011/S-009. Testcontainers 1.21.x's bundled docker-java 3.4.x negotiates Docker REST API 1.32; the sandbox daemon requires ≥1.44. The working alternative is **`PostgresTestContainerLifecycle`** (`next/server/src/test/java/ch/fls/server/testsupport/`) — `docker run -d ... postgres:17.4-alpine`, port read via `docker port`, JDBC readiness poll, JVM shutdown hook.
+The story's "Testcontainers Postgres" wording predates the sandbox finding from S-010/S-011/S-009. Testcontainers 1.21.x's bundled docker-java 3.4.x negotiates Docker REST API 1.32; the sandbox daemon requires ≥1.44. The working alternative is **`PostgresTestContainerLifecycle`** (`next/server/src/test/java/ch/alpenflight/server/testsupport/`) — `docker run -d ... postgres:17.4-alpine`, port read via `docker port`, JDBC readiness poll, JVM shutdown hook.
 
 S-015 **does NOT add** `org.testcontainers:postgresql` to the dep graph. AC1 is reinterpreted as: "Test-DB strategy = Docker-CLI-managed Postgres via `PostgresTestContainerLifecycle` + per-test transactional rollback (default) or per-class clean-migrate (opt-out per documented escape hatch)."
 
@@ -64,7 +64,7 @@ Known-broken with rollback (document):
 
 ### Artifact layout
 
-New test-support sources under `next/server/src/test/java/ch/fls/server/testsupport/`:
+New test-support sources under `next/server/src/test/java/ch/alpenflight/server/testsupport/`:
 
 | File | Action | Content |
 |---|---|---|
@@ -72,7 +72,7 @@ New test-support sources under `next/server/src/test/java/ch/fls/server/testsupp
 | `WithTenant.java` | new | Method-and-class-level annotation: `@WithTenant(long clubId)`. Meta-annotated `@ExtendWith(TenantContextExtension.class)`. |
 | `TenantContextExtension.java` | new | JUnit 5 `BeforeEachCallback`/`AfterEachCallback`. Reads `@WithTenant` (method-then-class), stores `clubId` in `TenantTestContext`. At S-015: store-only. S-022 swaps the body to push into `SecurityContextHolder` / `CurrentTenantIdentifierResolver`. |
 | `TenantTestContext.java` | new | `ThreadLocal<Long>` holder with `set(Long)`, `current() -> Optional<Long>`, `clear()`. Plus `runAs(Long clubId, Runnable)` for mid-test switching and `runUnscoped(Runnable)` for the explicit S-023 unscoped path. |
-| `TenantTestSupportArchTest.java` | new | ArchUnit (or hand-rolled package-scan) rule: no class outside `ch.fls.server.testsupport..` may reference any class inside it. Belt-and-braces beyond Maven test-scope isolation. |
+| `TenantTestSupportArchTest.java` | new | ArchUnit (or hand-rolled package-scan) rule: no class outside `ch.alpenflight.server.testsupport..` may reference any class inside it. Belt-and-braces beyond Maven test-scope isolation. |
 | `PostgresIntegrationTestSmokeIT.java` | new | Meta-tests: base class boots + Flyway migrated + transactional rollback isolates methods + `@WithTenant(42)` captures + no-annotation → `Optional.empty()` + Postgres-backed hello smoke. |
 
 Existing classes (refactor in same PR):
@@ -85,7 +85,7 @@ Existing classes (refactor in same PR):
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional                                // default rollback per test
-@EnabledIf(value = "ch.fls.server.testsupport.PostgresIntegrationTest#dockerAvailable",
+@EnabledIf(value = "ch.alpenflight.server.testsupport.PostgresIntegrationTest#dockerAvailable",
            disabledReason = "Docker unreachable; start Docker Desktop / Engine")
 @ExtendWith(TenantContextExtension.class)
 public abstract class PostgresIntegrationTest {
@@ -111,7 +111,7 @@ public abstract class PostgresIntegrationTest {
     private static boolean tryStart(PostgresTestContainerLifecycle lc) {
         try { lc.start(); return true; }
         catch (Throwable t) {
-            System.err.println("[fls-server] Docker unreachable: " + t.getMessage());
+            System.err.println("[alpenflight-server] Docker unreachable: " + t.getMessage());
             return false;
         }
     }
@@ -157,7 +157,7 @@ S-015 ships the **surface**; S-022 ships the **behavior**.
 
 ### Module layout
 
-`ch.fls.server.testsupport` (test-only): hosts everything S-015 ships. Production code MUST NOT reference this package — ArchUnit rule enforces. The package already exists from S-009 (`PostgresTestContainerLifecycle`); S-015 adds the base class + tenant primitives + smoke meta-tests.
+`ch.alpenflight.server.testsupport` (test-only): hosts everything S-015 ships. Production code MUST NOT reference this package — ArchUnit rule enforces. The package already exists from S-009 (`PostgresTestContainerLifecycle`); S-015 adds the base class + tenant primitives + smoke meta-tests.
 
 ## Edge cases & hidden requirements
 
@@ -185,7 +185,7 @@ S-015 ships the **surface**; S-022 ships the **behavior**.
 ### Hidden requirements
 
 - **`junit-platform.properties`** under `next/server/src/test/resources/`: pin `junit.jupiter.execution.parallel.enabled=false`. Meta-test asserts.
-- **ArchUnit rule** (or equivalent package-scan test): `ch.fls.server.testsupport..` unreachable from `src/main/java`. Belt-and-braces beyond Maven test-scope.
+- **ArchUnit rule** (or equivalent package-scan test): `ch.alpenflight.server.testsupport..` unreachable from `src/main/java`. Belt-and-braces beyond Maven test-scope.
 - **`generate_statistics=true`** in `application-test.yml` (forward-looking — useful for N+1 detection helpers in S-022+).
 - **Container CI flag:** `withReuse(System.getenv("CI") == null)` if Testcontainers' reuse is ever wired (not at S-015; defer).
 - **Documentation note in `next/server/CONVENTIONS.md`:** "Test infrastructure for DB-touching tests" section. The S-009-set pattern (Docker-CLI direct, single static container, `@EnabledIf` gate) gets a paragraph on `extends PostgresIntegrationTest` + the rollback-by-default rule + the `@WithTenant` annotation surface.
@@ -278,7 +278,7 @@ The `runUnscoped` helper is the legitimate cross-tenant access path (system-admi
 
 ### Story-specific concerns
 
-- **Package gate (primary):** ArchUnit rule `noClasses().resideOutsideOfPackage("ch.fls.server.testsupport..").should().dependOnClassesThat().resideInAPackage("ch.fls.server.testsupport..")` — fails build if any `src/main` class references the test-support package.
+- **Package gate (primary):** ArchUnit rule `noClasses().resideOutsideOfPackage("ch.alpenflight.server.testsupport..").should().dependOnClassesThat().resideInAPackage("ch.alpenflight.server.testsupport..")` — fails build if any `src/main` class references the test-support package.
 - **Maven scope isolation (secondary):** test-scope classes invisible to `src/main` compilation. ArchUnit is belt-and-braces.
 - **Default tenant state:** `Optional.empty()` for absent `@WithTenant`. Forward-compatible with S-022's fail-closed resolver.
 - **Helper API surface to lock down:** `@WithTenant`, `TenantContextExtension`, `TenantTestContext.{set, current, clear, runAs, runUnscoped}`. Nothing else.

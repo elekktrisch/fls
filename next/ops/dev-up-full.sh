@@ -95,7 +95,7 @@ cat <<INFO
   Target Postgres            localhost:5432  (fls / fls)
   pgAdmin                    http://localhost:8080  (dev@example.com / dev)
 
-The 'FLS Target Postgres' connection appears pre-wired in pgAdmin on first
+The 'AlpenFlight Target Postgres' connection appears pre-wired in pgAdmin on first
 login. Schema 'public' is fully populated with the V1+V2 baseline (S-012).
 
 Tear down:

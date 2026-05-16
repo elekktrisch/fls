@@ -77,7 +77,7 @@ See frontmatter.
 
 ### Module layout — server-side only
 
-`ch.fls.flight.*`:
+`ch.alpenflight.flight.*`:
 - `web/FlightController.java` — REST controller, endpoints listed under API surface below.
 - `service/FlightApplicationService.java` — orchestrates create/update/copy/delete. **Owns the dual-row transaction** (glider + tow rows in one `@Transactional`). Only place outside the tx boundary that writes Flight rows during CRUD.
 - `service/FlightValidator.java` — port of `ValidateFlightBasics` plus the start-type-specific arms from `FlightService.cs:985-1039`. Pure function over `Flight` (no DB calls). Returns `List<ValidationError>`. Public API designed to be callable from S-083 (the daily job) without HTTP plumbing.

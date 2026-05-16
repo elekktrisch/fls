@@ -30,4 +30,4 @@ See frontmatter.
 ## Notes
 S-028 (cutover user import) writes the initial `user.keycloak_sub` values; this story handles the ongoing case (new users post-cutover).
 
-L because the Keycloak-FLS-DB sync is non-trivial. Webhook vs. on-login lazy sync vs. periodic full sync — pick one. Lazy on-login is simplest; document the trade-offs.
+L because the Keycloak-AlpenFlight-DB sync is non-trivial. Webhook vs. on-login lazy sync vs. periodic full sync — pick one. Lazy on-login is simplest; document the trade-offs.

@@ -11,20 +11,20 @@ Components live under `src/app/shared/ui/` in three layers. Each component is a 
 ```
 src/app/shared/ui/
 ├── atoms/           single-purpose, zero-dependency primitives
-│   ├── button/      <fls-button>
-│   ├── input/       <fls-input>
-│   ├── icon/        <fls-icon>
-│   └── badge/       <fls-badge>
+│   ├── button/      <af-button>
+│   ├── input/       <af-input>
+│   ├── icon/        <af-icon>
+│   └── badge/       <af-badge>
 ├── molecules/       compositions of 2–N atoms with one concern
-│   ├── form-field/  <fls-form-field>     label + input + error
-│   ├── search-input/<fls-search-input>   input + icon + clear
-│   ├── menu-item/   <fls-menu-item>      icon + label + chevron
-│   └── field-errors/<fls-field-errors>   reactive-forms error renderer (S-007)
+│   ├── form-field/  <af-form-field>     label + input + error
+│   ├── search-input/<af-search-input>   input + icon + clear
+│   ├── menu-item/   <af-menu-item>      icon + label + chevron
+│   └── field-errors/<af-field-errors>   reactive-forms error renderer (S-007)
 └── organisms/       feature-agnostic compositions; CDK-backed where applicable
-    ├── data-table/  <fls-data-table>     sortable + paginated + filterable
-    ├── dialog/      <fls-dialog>         CDK overlay
-    ├── date-picker/ <fls-date-picker>    CDK + headless
-    └── nav-bar/     <fls-nav-bar>        app shell nav
+    ├── data-table/  <af-data-table>     sortable + paginated + filterable
+    ├── dialog/      <af-dialog>         CDK overlay
+    ├── date-picker/ <af-date-picker>    CDK + headless
+    └── nav-bar/     <af-nav-bar>        app shell nav
 ```
 
 Path aliases (declared in `tsconfig.json`):
@@ -108,7 +108,7 @@ Lint-enforced baseline (deeper a11y testing — axe-core / visual contrast / man
 
 - ESLint: `@angular-eslint/template/recommended-extra` rules are on; do not weaken.
 - Every interactive element has a name (visible label, `aria-label`, or `aria-labelledby`). Icon-only buttons require `aria-label`.
-- Forms: every input is paired with a `<label for>` or wrapped in `<fls-form-field>` (which handles label association).
+- Forms: every input is paired with a `<label for>` or wrapped in `<af-form-field>` (which handles label association).
 - Keyboard: every interactive control is reachable via `Tab`; visible focus state is never removed (do not write `outline: none` without a replacement focus ring).
 - Headings: one `<h1>` per route; no skipped levels.
 - Color: never convey state by color alone — pair with icon, text, or aria attribute.
@@ -119,7 +119,7 @@ When unsure about a specific ARIA pattern, check the latest WAI-ARIA Authoring P
 
 ## 6. Templates, structure, and naming
 
-- Component selector prefix: `fls-` (matches legacy continuity).
+- Component selector prefix: `af-` (AlpenFlight brand prefix; short by Angular convention, parallel to `mat-` / `cdk-` / `ng-`).
 - File layout per component: `name.component.ts` (logic + template inline if < 30 lines, else external) + `name.component.spec.ts`. Avoid separate `name.component.html` for atoms/molecules unless the template is non-trivial.
 - One component per file. One default-exported standalone class per file.
 - Public API of a primitive folder is its `index.ts` (`export * from './button.component'`). Imports always go through `@ui/atoms/button`, never deep paths.
