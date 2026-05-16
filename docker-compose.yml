@@ -69,3 +69,58 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # ---------------------------------------------------------------------------
+  # next/ — target stack (Postgres + pgAdmin). Activated by passing the
+  # 'next' compose profile so the default `docker compose up` (used by
+  # e2e/scripts/dev-up.sh) still starts only mssql + mailpit.
+  #
+  #   docker compose -p fls-e2e --profile next up -d postgres pgadmin
+  #
+  # next/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
+  # in one command. pgAdmin loads next/ops/pgadmin-servers.json so the
+  # target connection appears pre-wired on first login.
+  # ---------------------------------------------------------------------------
+
+  postgres:
+    profiles: ["next"]
+    image: postgres:17.4-alpine
+    environment:
+      POSTGRES_DB: fls
+      POSTGRES_USER: fls
+      POSTGRES_PASSWORD: fls
+    ports:
+      - "5432:5432"
+    # No volume — data is ephemeral. `docker compose down` wipes it; the
+    # dev-up-full.sh script re-applies Flyway migrations after restart, so
+    # the baseline state is reproducible without persistence. Add a named
+    # volume here if you want survival across `down`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fls -d fls"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  pgadmin:
+    profiles: ["next"]
+    # Custom image baked with next/ops/pgadmin/servers.json so the FLS Target
+    # connection appears pre-wired on first login. Bind-mounting servers.json
+    # is unreliable on Docker Desktop without file-sharing for the repo path;
+    # baking it in is the portable route.
+    build:
+      context: ./next/ops/pgadmin
+      dockerfile: Dockerfile
+    image: fls-pgadmin:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # `.local` is rejected by pgadmin's email validator (reserved TLD).
+      # Use example.com for the placeholder dev login.
+      PGADMIN_DEFAULT_EMAIL: dev@example.com
+      PGADMIN_DEFAULT_PASSWORD: dev
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    ports:
+      - "8080:80"
