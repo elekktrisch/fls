@@ -93,7 +93,7 @@ cat <<INFO
   Mailpit Web UI              http://localhost:8025
 
   Target Postgres            localhost:5432  (alpenflight / alpenflight)
-  pgAdmin                    http://localhost:8080  (dev@example.com / dev)
+  pgAdmin                    http://localhost:5050  (dev@example.com / dev)
 
 The 'AlpenFlight Target Postgres' connection appears pre-wired in pgAdmin on first
 login. Schema 'public' is fully populated with the V1+V2 baseline (S-012).
