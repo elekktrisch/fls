@@ -525,7 +525,7 @@ class ReservationsBaselineIntegrationTest {
     }
 
     @Test
-    void aircraft_reservation_has_generated_tsrange_column() throws Exception {
+    void aircraft_reservation_has_generated_tstzrange_column() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT a.attgenerated, t.typname FROM pg_attribute a "
@@ -537,8 +537,10 @@ class ReservationsBaselineIntegrationTest {
                     .as("reservation_range must be GENERATED STORED")
                     .isEqualTo("s");
             assertThat(rs.getString("typname"))
-                    .as("reservation_range must be tsrange")
-                    .isEqualTo("tsrange");
+                    .as("reservation_range must be tstzrange (tsrange requires TIMESTAMP — "
+                            + "TIMESTAMPTZ::timestamp cast is not IMMUTABLE; tstzrange takes "
+                            + "TIMESTAMPTZ directly and is immutable)")
+                    .isEqualTo("tstzrange");
         }
     }
 
