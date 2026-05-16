@@ -2,8 +2,9 @@
 id: S-128
 title: Technical rebrand FLS → AlpenFlight (packages, configs, docs)
 epic: E-14
-status: in_progress
+status: done
 started_at: 2026-05-16
+done_at: 2026-05-16
 estimate: M
 parity_test: none
 depends_on: []
@@ -12,6 +13,7 @@ refined: true
 refined_at: 2026-05-16
 refined_specialists: [requirements, solution, qa]
 github_issue: 30
+github_pr: 31
 ---
 
 ## Context
