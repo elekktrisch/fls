@@ -285,7 +285,7 @@ overrides:
     emits_audit: true
     pii_columns: [remarks]
     pii_ride_through: [noticed_by_person_id]
-    ride_through_targets: [person]
+    ride_through_targets: [Persons]
     # Per-aircraft state history (FK: AircraftId; ValidFrom / ValidTo / NoticedByPersonId).
     # Inherits Aircrafts' cross-tenant classification (2026-05-16 amendment): airworthiness
     # state is a property of the physical aircraft, not of any one operating club. A grounded
@@ -324,7 +324,12 @@ overrides:
     rationale_ref: tenant-catalog.md#flights
     emits_audit: true
     ride_through_targets: [Persons, Aircrafts, Locations]
-    pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route, coupon_number]
+    pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route]
+    # coupon_number is structurally quasi-PII (voucher code tied to a Person)
+    # but is intentionally OFF this list — it has its own VARCHAR(20) + regex
+    # CHECK shape and the S-027 audit-redaction set treats free-text PII columns
+    # only. If a future audit policy wants coupon-redaction, classify under
+    # `sensitive_columns` (parallel to aircraft.flarm_id) rather than PII proper.
     # Per the 2026-05-16 Aircrafts → cross-tenant amendment: Flight.operating_club_id is NO
     # LONGER denormalized from aircraft.owner_club_id (the latter is now optional + cross-
     # tenant). Each Flight carries its own operating_club_id, set per-flight by the operator
@@ -391,9 +396,13 @@ overrides:
     kind: tenant-scoped
     target_entity: FlightCrew
     rationale_ref: tenant-catalog.md#flight-crew
+    emits_audit: true
     ride_through_targets: [Persons]
+    pii_ride_through: [person_id]
     # Composite UNIQUE (Flight, Person, CrewType). The Person ride-through is
-    # the canonical sacred-cow case (cross-club crew member).
+    # the canonical sacred-cow case (cross-club crew member). emits_audit +
+    # pii_ride_through follow the S-013 design notes contract — S-027 audit
+    # policy + PII-redaction policy consume both flags.
 
 # ---- Public-flow allowlist contract ----
 # DB-table-driven (NOT application property): operators enable/disable per-club

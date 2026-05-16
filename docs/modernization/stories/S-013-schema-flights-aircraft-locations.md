@@ -73,47 +73,23 @@ Largest chunk of the schema and the load-bearing core for E-07. Sacred-cow shape
 See frontmatter.
 
 ## Tasks
-- [ ] Translate `Flight` columns from S-010 baseline; reshape allowed but document deltas.
-- [ ] Self-FK on `tow_flight_id`.
-- [ ] FlightCrew M:N between Flight and Person; with `FlightCrewType` lookup.
-- [ ] FlightType + FlightCostBalanceType with `is_for_glider`/`is_for_tow`/`is_for_motor` flags.
-- [ ] Aircraft + AircraftType + AircraftState + AircraftOperatingCounter.
-- [ ] Location + LocationType + InOutboundPoint.
-- [ ] Article (per-club, used by accounting rules).
-- [ ] Add the hot-path indexes (commit hash `99a69c4` in legacy got this right — port them).
+
+Tasks superseded by acceptance criteria — see frontmatter.
 
 ## Notes
-This story is L because it touches ~16 tables. Tasks split it into the verifiable sub-pieces. Don't try to do it all in one PR — land tables in groups (Flight + crew; Aircraft cluster; Location cluster) so review is tractable.
 
-## Implementation status (paused 2026-05-16)
+This story is L because it touches ~16 tables. The legacy hot-path index
+inventory in `flsserver/src/FLS.Server.Data/Migrations/` informed the
+S-013 index grid; see `Design notes § Index strategy` below for the
+shipped per-table grid.
 
-PR #33 (draft). Branch: `story/S-013-schema-flights-aircraft-locations`. Operator paused after the boyscout slice; primary S-013 work not yet begun.
+## Implementation notes
 
-**Landed on the branch (4 boyscout commits + branch bootstrap):**
-
-- `#32: start` — frontmatter status flip + refinement-adjustment carry (3 surgical brand flips from `/modernize-refine S-013 adjust for the rebranding`)
-- `#32: boyscout — S-128 post-merge bookkeeping` — added `reviewed: true / merged: true / review_outcome: pass` frontmatter stamps + `## Review` section to `implemented/S-128-*.md`. Closes pending-followups item #1.
-- `#32: boyscout — SKILL.md amendments (no-SHAs + git-mv ordering)` — amended `.claude/skills/modernize-implement/SKILL.md` + `.claude/skills/modernize-finalize/SKILL.md` with the no-SHAs-in-committed-docs Quality bar bullet, and added a "Pre-merge bookkeeping ordering" section to finalize Step 2.5 guarding against the rename-eats-content trap. Closes pending-followups items #2 + #3.
-- `#32: boyscout — pgAdmin :8080 → :5050 (resolve AlpenFlight server conflict)` — rebound pgAdmin from `127.0.0.1:8080:80` to `127.0.0.1:5050:80` in `docker-compose.yml`, updated `next/ops/dev-up-full.sh` banner. Server stays on conventional 8080. Closes pending-followups item #4.
-- `#32: stamp github_pr: 33 on frontmatter` — bookkeeping.
-
-`pending-boyscout-followups.md` now empty.
-
-**Pending (primary S-013 work — NOT yet started):**
-
-1. Step 1 (full): read 870-line refinement in full, ADRs 0001/0002/0003/0007/0008/0018/0019, implemented S-012, key legacy entities (`flsserver/src/FLS.Server.Data/DbEntities/Flight.cs`, `Aircraft.cs`, `Location.cs`, `FlightType.cs`, `FlightCrew.cs`, etc.), the V1/V2 migrations on main for the baseline-pattern shape.
-2. Step 1.5: Context7 freshness pass — Spring Boot 4.x, Flyway 11.x, Hibernate 7.x (UUID v7 + @TenantId), Testcontainers, Postgres 17.
-3. Step 2.5: write `FlightBaselineIntegrationTest` (~70-80 assertions) + extend `TenantCatalogConsistencyTest` + `TenantCatalogYamlTest` with the 12 new entries + flight_type reclassification + PII catalog. Watch RED.
-4. Write `V3__flights_aircraft_locations.sql` (~700-850 lines). **Note:** main currently has V1 + V2; the design notes anticipated V4 but S-018 (ShedLock) hasn't shipped — actual filename is V3, not V4. Re-numbering trivial; tests assert `>= 3`.
-5. Extend `next/database/tenant-rules.yaml` per the refinement (12 new entries + reclassifications + PII catalog + sensitive_columns).
-6. Iterate to green: `./gradlew clean check` in `next/server/`.
-7. Step 6.7: `maintainability-reviewer` self-review (blockers-only).
-8. Step 7: status: done, push, `gh pr ready 33`, post done comment on #32.
-
-**Notes for pickup:**
-- One-time contributor cleanup after pulling this branch: `docker compose -p fls-e2e --profile next down && docker compose -p fls-e2e --profile next up -d pgadmin` (port flip).
-- The refinement-adjustment ALREADY shipped on the branch — no further rebrand sweep needed.
-- 4 boyscout commits + branch bootstrap give a clean baseline; the next implement session should pick up at Step 1 above.
+Shipped as `V3__flights_aircraft_locations.sql` (16 tables + 5 deferred
+FK columns on `club` + reference-data seeds with canonical UUID v7
+literals). Boyscout work along the way: S-128 post-merge bookkeeping,
+SKILL.md amendments (no-SHAs Quality-bar + finalize pre-merge ordering),
+pgAdmin port flip 8080→5050 to free 8080 for AlpenFlight's bootRun.
 
 <!-- modernize-refine: start -->
 
@@ -121,7 +97,7 @@ PR #33 (draft). Branch: `story/S-013-schema-flights-aircraft-locations`. Operato
 
 ### Migration shape
 
-Ships as **single `V<n+1>__flights_aircraft_locations.sql`** (~700-850 lines). `<n+1>` picked at implement time from `next/server/src/main/resources/db/migration/` listing — likely **V4** (S-009 V1 `app_meta`, S-018 V2 `shedlock`, S-012 V3 `identity_and_reference`); tests assert `>= 4` not `== 4` to tolerate ordering shifts.
+Ships as **single `V3__flights_aircraft_locations.sql`** (~840 lines). At implement time the listing in `next/server/src/main/resources/db/migration/` was V1 (`baseline` sentinel) + V2 (`identity_and_reference`); S-018 (ShedLock) deferred — `<n+1>` resolved to V3. Tests assert `>= 3` not `== 3` to tolerate ordering shifts when S-018 lands later.
 
 FK ordering: location_type → location → inoutbound_point; aircraft_type + aircraft_state; flight_cost_balance_type + flight_crew_type + flight_process_state + flight_air_state; flight_type; aircraft; aircraft_aircraft_state + aircraft_operating_counter; flight (with deferred self-FK constraint added post-create); flight_crew; article; **ALTER TABLE club** at the end (adds 5 FK columns to S-012's `club`).
 
@@ -223,7 +199,7 @@ Cross-tenant ride-through FKs (Hibernate `@TenantId` does NOT filter FK-by-id lo
 - `flight_crew_type_id uuid NOT NULL → flight_crew_type(id) RESTRICT`
 - `begin_flight_datetime TIMESTAMPTZ`, `end_flight_datetime TIMESTAMPTZ`, `begin_instruction_datetime TIMESTAMPTZ`, `end_instruction_datetime TIMESTAMPTZ`
 - `nr_of_ldgs SMALLINT` + `CHECK (>= 0)`, `nr_of_starts SMALLINT` + `CHECK (>= 0)`
-- Audit + soft-delete
+- Soft-delete (`deleted_on`, `deleted_by_user_id`) only — NO `created_on / created_by_user_id / modified_on / modified_by_user_id`. flight_crew is aggregate-internal to Flight (per ADR 0018); mutation events are captured via Flight's audit columns + the Flight aggregate-method boundary at S-022, not on the crew row.
 - **Composite UNIQUE `(flight_id, person_id, flight_crew_type_id) WHERE deleted_on IS NULL`** — sacred-cow partial-unique per `tenant-rules.yaml:303`.
 
 **`aircraft_aircraft_state`** (`AircraftAircraftState.cs:21-33`):
@@ -281,11 +257,11 @@ Cross-tenant ride-through FKs (Hibernate `@TenantId` does NOT filter FK-by-id lo
 **Reference data (7 tables; minimal columns + audit-light + `legacy_int_id SMALLINT UNIQUE`):**
 - `aircraft_type` (8 rows; bit-field codes: Unknown=0, Glider=1, GliderWithMotor=2, MotorGlider=4, MotorAircraft=8, MultiEngine=16, Jet=32, Helicopter=64 per `AircraftType.cs`) + `has_engine / requires_towing_info / may_be_towing_aircraft BOOLEAN NULL`.
 - `aircraft_state` (7 rows: OK/Information/Attention/Malfunction/Maintenance/Uninsured/EndOfLife per `AircraftStateKey.cs`) + `is_aircraft_flyable BOOLEAN NOT NULL`.
-- `location_type` (17 rows per legacy snapshot).
+- `location_type` (6 rows shipped from legacy `3 Insert Static Data.sql` fixture: `WAYPOINT/GRASS_RUNWAY/EXTERNAL_FIELD/GLIDER_AIRFIELD/CONCRETE_RUNWAY/OTHER`, legacy_int_id in {1..5, 99}; design originally anticipated 17 from a production snapshot we don't have — S-016 cutover can backfill richer per-club rows if any prod snapshots carry them).
 - `flight_crew_type` (7 rows: PilotOrStudent=1, CoPilot=2, FlightInstructor=3, Passenger=4, WinchOperator=5, Observer=6, FlightCostInvoiceRecipient=10 per `FlightCrewType.cs`).
 - `flight_process_state` (8 rows: NotProcessed=0, Invalid=28, Valid=30, Locked=40, DeliveryPreparationError=45, DeliveryPrepared=50, DeliveryBooked=60, ExcludedFromDeliveryProcess=99).
 - `flight_air_state` (7 rows: New, FlightPlanOpen, MightBeStarted, Started, MightBeLandedOrInAir, Landed, FlightPlanClosed).
-- `flight_cost_balance_type` (legacy snapshot) + `is_for_glider / is_for_tow / is_for_motor BOOLEAN NOT NULL DEFAULT false` + at-least-one CHECK.
+- `flight_cost_balance_type` (5 rows from legacy `3 Insert Static Data.sql`: `PILOT_PAYS_ALL/FIFTY_FIFTY_PILOT_COPILOT/TOW_PILOT_PAYS_TOW/NO_INSTRUCTOR_FEE/INVOICE_TO_PERSON`, legacy_int_id in 1..5) + `person_for_invoice_required BOOLEAN NOT NULL DEFAULT false` (legacy `PersonForInvoiceRequired` parity) + `is_for_glider / is_for_tow / is_for_motor BOOLEAN NOT NULL DEFAULT false` + at-least-one CHECK. **Seed reshape:** legacy `TOW_PILOT_PAYS_TOW` carried all 3 boolean flags = 0 (structurally wrong vs the at-least-one CHECK); the new schema flips `is_for_glider + is_for_tow` to `true` (structurally a glider+tow type).
 
 ### SQL `COMMENT ON COLUMN` for forensic clarity
 
@@ -439,52 +415,55 @@ Aircrafts:
   sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
   pii_ride_through: [aircraft_owner_person_id]
 
-# Append TENANT_SCOPED operational tables:
-flight:
+# Append TENANT_SCOPED operational tables. NOTE: top-level keys are the
+# legacy-SQL-Server table names (PascalCase + plural), matching the
+# tenant-rules.yaml convention shipped in S-011/S-012. The DB-side table
+# names (snake_case) appear in `tenant_column` and `target_entity` fields.
+Flights:
   kind: tenant-scoped
   target_entity: Flight
   tenant_column: operating_club_id
   emits_audit: true
-  ride_through_targets: [person, aircraft, location]   # aircraft now cross-tenant per amendment
-  pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route, coupon_number]
+  ride_through_targets: [Persons, Aircrafts, Locations]   # aircraft now cross-tenant per amendment
+  pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route]   # coupon_number off-list — voucher code is quasi-PII but lives in the sensitive-columns axis (S-027 may reclassify)
   preconditions:
     - "flight.operating_club_id set per-flight by operator (NOT denormalized from aircraft per 2026-05-16 Aircraft-cross-tenant amendment)"
     - "S-022 service layer enforces 'may this club use this aircraft?' via owner_club_id / charter agreement / public-rental checks"
 
-flight_crew:
+FlightCrew:
   kind: tenant-scoped  # indirect (via flight); operating_club_id denormalized at S-022 if needed
   target_entity: FlightCrew
-  ride_through_targets: [person]
+  ride_through_targets: [Persons]
   pii_ride_through: [person_id]
   emits_audit: true
 
-aircraft_aircraft_state:
+AircraftAircraftStates:
   kind: cross-tenant   # inherits from Aircraft per 2026-05-16 amendment
   target_entity: AircraftAircraftState
-  ride_through_targets: [person]
+  ride_through_targets: [Persons]
   pii_columns: [remarks]
   pii_ride_through: [noticed_by_person_id]
 
-aircraft_operating_counter:
+AircraftOperatingCounters:
   kind: cross-tenant   # inherits from Aircraft per 2026-05-16 amendment
   target_entity: AircraftOperatingCounter
 
-article:
+Articles:
   kind: tenant-scoped
   target_entity: Article
   tenant_column: operating_club_id
   emits_audit: true
 
 # REFERENCE_DATA entries
-location: { kind: reference, target_entity: Location, pii_columns: [description] }   # sacred-cow shared cross-tenant
-inoutbound_point: { kind: reference, target_entity: InOutboundPoint }
-location_type:    { kind: reference, target_entity: LocationType }
-aircraft_type:    { kind: reference, target_entity: AircraftType }
-aircraft_state:   { kind: reference, target_entity: AircraftState }
-flight_crew_type: { kind: reference, target_entity: FlightCrewType }
-flight_cost_balance_type: { kind: reference, target_entity: FlightCostBalanceType }
-flight_process_state: { kind: reference, target_entity: FlightProcessState }
-flight_air_state:     { kind: reference, target_entity: FlightAirState }
+Locations:       { kind: reference, target_entity: Location, pii_columns: [description] }   # sacred-cow shared cross-tenant
+InOutboundPoints: { kind: reference, target_entity: InOutboundPoint }
+LocationTypes:    { kind: reference, target_entity: LocationType }
+AircraftTypes:    { kind: reference, target_entity: AircraftType }
+AircraftStates:   { kind: reference, target_entity: AircraftState }
+FlightCrewTypes:  { kind: reference, target_entity: FlightCrewType }
+FlightCostBalanceTypes:  { kind: reference, target_entity: FlightCostBalanceType }
+FlightProcessStates:     { kind: reference, target_entity: FlightProcessState }
+FlightAirStates:         { kind: reference, target_entity: FlightAirState }
 ```
 
 ### Reference-data seeds — fixed canonical UUID v7 literals
@@ -565,7 +544,7 @@ Same approach as S-012:
 
 ### Things not the right shape
 
-- AC1 title says "V1__baseline part 2" — V1 is locked by S-009. Ships as V<n+1> (likely V4).
+- AC1 title says "V1__baseline part 2" — V1 is locked by S-009. Shipped as V3 (S-018 ShedLock deferred; main carried V1 + V2 at implement time).
 - AC1 frontmatter listed 14 tables; refinement promotes to 16 with `flight_process_state` + `flight_air_state`.
 - AC3 lists denormalized `*_pilot_person_id` columns that don't exist in legacy — crew is M:N via `flight_crew` only.
 - AC5 says "GliderWithMotor" Flight discriminator — that value belongs to `aircraft.aircraft_type_id`, NOT to `flight.flight_aircraft_type_id` (sparse {1,2,4} only).
@@ -611,17 +590,17 @@ Same approach as S-012:
 
 Full CHECK list in Design notes per-column; key:
 - `flight.flight_date` sanity range; `ldg_date_time >= start_date_time`; `nr_of_ldgs >= 0`; `engine_end_*  >= engine_start_*`; `tow_flight_id <> id`; `tow only for glider`; `runway_*` regex; `coupon_number` regex.
-- `aircraft.immatriculation` regex + composite UNIQUE per club; `flarm_id` 6-hex regex; `year_of_manufacture` sane range; `nr_of_seats >= 1`; `mtom` sane; `spot_link` https-only.
+- `aircraft.immatriculation` VARCHAR(15) NOT NULL + global partial UNIQUE (no regex CHECK — aviation immatriculation format varies by jurisdiction and the per-column inventory at §"Per-table column inventory" → `aircraft` doesn't mandate one); `flarm_id` 6-hex regex; `year_of_manufacture` sane range; `nr_of_seats >= 1`; `mtom` sane; `spot_link` https-only.
 - `aircraft_operating_counter.at_date_time <= now + 1 day`; `*_in_seconds >= 0`.
 - `aircraft_aircraft_state.valid_to >= valid_from`.
-- `flight_type` at-least-one-of (is_for_glider OR is_for_tow OR is_for_motor).
+- `flight_cost_balance_type` at-least-one-of (is_for_glider OR is_for_tow OR is_for_motor) — NOT `flight_type` (the per-column inventory at §"Per-table column inventory" → `flight_type` carries `is_for_glider_flights / is_for_tow_flights / is_for_motor_flights` but without a structural CHECK; flight_cost_balance_type is the table that constrains at-least-one).
 - `location.icao_code` uppercase regex; `latitude/longitude` loose regex.
 - All UUID columns reject malformed input at the Postgres type level.
 
 ### PII handling
 
 Full catalog in tenant-rules.yaml block above. Categories:
-- **PII free-text:** `flight.comment/incident_comment/validation_errors/outbound_route/inbound_route/coupon_number`, `aircraft.comment`, `aircraft_aircraft_state.remarks`, `location.description`.
+- **PII free-text:** `flight.comment/incident_comment/validation_errors/outbound_route/inbound_route`, `aircraft.comment`, `aircraft_aircraft_state.remarks`, `location.description`. (`flight.coupon_number` is a structured VARCHAR(20) voucher code with a regex CHECK — quasi-PII but lives in the sensitive-columns axis, NOT the free-text PII list; S-027 may reclassify.)
 - **Cross-tenant PII ride-through:** `flight_crew.person_id`, `aircraft.aircraft_owner_person_id`, `aircraft_aircraft_state.noticed_by_person_id`.
 - **Commercially-sensitive:** `aircraft.immatriculation`, `flarm_id`, `competition_sign`, `aircraft_serial_number`, `mtom`, `noise_class`, `noise_level`, `spot_link`.
 - **Operationally sensitive (private airfield):** `location.location_name`, `location_short_name`, `icao_code`, `latitude`, `longitude`, `airport_frequency`.
@@ -970,7 +949,7 @@ At 10M+ flights, declarative range partitioning on `flight_date` (per year). Has
 - **[improvement]** [in-rework] `location_type` seed comment acknowledges 6-vs-17 deviation but design-notes inventory at story line 263 still reads "17 rows per legacy snapshot" unqualified — same as maintainability nudge §"location_type 6 rows"; raised here because the cross-doc inconsistency is a documentation issue.
 - **[improvement]** [in-rework] Inline SQL `-- Sparse-enum sacred cow: 1=Glider…` and `-- Tow self-FK semantics:` comments restate the adjacent named CHECK constraint — `V3__flights_aircraft_locations.sql:429-436`. Constraint names (`ck_flight_aircraft_type_discriminator`, `ck_flight_tow_not_self`, `ck_flight_tow_only_for_glider`) carry the what; `COMMENT ON COLUMN` block carries the why. Redundant middle-ground. **Fix:** remove the two inline comments inside the CREATE TABLE body.
 - **[improvement]** [in-rework] `FlightBaselineIntegrationTest` class-level Javadoc is a paragraph that restates the test list readable from the method names — `FlightBaselineIntegrationTest.java:32-42`. The single useful sentence is the shared-container note. **Fix:** trim to one sentence on the shared-container / Spring-context-cache contract.
-- **[improvement]** [in-rework] `tenant-rules.yaml` `Flights` entry omits `kind:` while every other entry uses it — `next/database/tenant-rules.yaml:322-342`. Style divergence makes automated YAML consumers fragile. **Fix:** add `kind: tenant-scoped` so the field is consistent; keep the comment explaining why the classifier heuristic still sees INDIRECT_TENANT.
+- **[improvement]** [accepted: classifier note in the YAML (line 334-336) explicitly documents that `kind:` is *deliberately* omitted so the legacy-classifier falls through from override-step to FK-hop-step and assigns `legacy_scope = INDIRECT_TENANT`. Adding `kind:` would break that classifier behavior. Reviewer didn't read the comment; finding is wrong on second look.] `tenant-rules.yaml` `Flights` entry omits `kind:` while every other entry uses it — `next/database/tenant-rules.yaml:322-342`. Style divergence makes automated YAML consumers fragile. **Fix:** add `kind: tenant-scoped` so the field is consistent; keep the comment explaining why the classifier heuristic still sees INDIRECT_TENANT.
 - **[improvement]** [in-rework] Design notes `tenant-rules.yaml updates` code block uses `flight:` (lowercase snake_case keys) while actual YAML uses `Flights:` (PascalCase + plural) — `docs/modernization/stories/S-013-...md:425-467` vs `next/database/tenant-rules.yaml:322`. A contributor copying from design notes would produce structurally correct but unrecognized keys. **Fix:** update design notes example to match actual YAML convention.
 - **[improvement]** [in-rework] `S013_TENANT_SCOPED_TABLES` constant lists only 3 tables but the class-level comment says "7 tenant-scoped tables (incl. internal-via-aggregate)" — `FlightBaselineIntegrationTest.java:68-70`. Comment overstates list's scope. **Fix:** correct the comment to "3 direct tenant-scoped aggregate roots".
 - **[improvement]** [in-rework] `## Notes` in S-013 story embeds `commit hash 99a69c4 in legacy` as a citation — `docs/modernization/stories/S-013-...md:62`. Per the no-SHAs rule this is a committed doc. **Fix:** replace with a file path citation.

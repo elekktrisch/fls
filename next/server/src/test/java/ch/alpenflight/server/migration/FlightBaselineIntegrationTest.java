@@ -13,7 +13,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -30,16 +29,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Asserts S-013's V3__flights_aircraft_locations migration produced the
- * 16-table flight / aircraft / location baseline with UUID-everywhere PKs,
- * aggregate-prefix column comments on the 5 roots, the partial-unique
- * indexes, the sparse-enum CHECK on flight.flight_aircraft_type_id, the
- * tow self-FK + its two sacred-cow CHECKs, the cross-tenant Person FK
- * ride-throughs, the ALTER TABLE club deferred FK columns, and the
- * canonical reference seeds.
- *
- * <p>Shares the Postgres container with the other migration tests so
- * Spring's context cache reuses the same boot.
+ * Schema-shape assertions for the V3__flights_aircraft_locations migration.
+ * Shares the Postgres container with the other migration tests so Spring's
+ * context cache reuses the same boot.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -66,7 +58,12 @@ class FlightBaselineIntegrationTest {
             "flight_crew_type", "flight_process_state", "flight_air_state",
             "flight_cost_balance_type");
 
-    /** And the 7 tenant-scoped tables (incl. internal-via-aggregate). */
+    /**
+     * 3 direct tenant-scoped aggregate roots — these carry `operating_club_id`
+     * + the full audit-column quad. flight_crew is aggregate-internal under
+     * Flight; it inherits scope via FK and ships only soft-delete columns
+     * (mutation audit lives on Flight per ADR 0018).
+     */
     private static final List<String> S013_TENANT_SCOPED_TABLES = List.of(
             "flight", "flight_type", "article");
 
@@ -684,6 +681,116 @@ class FlightBaselineIntegrationTest {
                         .isInstanceOf(SQLException.class);
                 assertThat(((SQLException) thrown).getSQLState())
                         .as("SQLSTATE must be 23514 (check_violation)")
+                        .isEqualTo("23514");
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    /** Live provocation: aircraft_aircraft_state.valid_to < valid_from must be rejected. */
+    @Test
+    void aircraft_aircraft_state_valid_to_before_valid_from_rejected_by_check() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String acTypeGlider = canonicalSeedUuid("aircraft_type", "code", "GLIDER");
+                String acStateOk    = canonicalSeedUuid("aircraft_state", "code", "OK");
+                String aircraftId   = "00000000-0000-7002-8000-000000000001";
+                String stateId      = "00000000-0000-7002-8000-000000000002";
+
+                try (var s = conn.prepareStatement(
+                        "INSERT INTO aircraft (id, aircraft_type_id, immatriculation) "
+                                + "VALUES (?::uuid, ?::uuid, 'HB-VTV01')")) {
+                    s.setString(1, aircraftId);
+                    s.setString(2, acTypeGlider);
+                    s.executeUpdate();
+                }
+
+                Throwable thrown = catchThrowable(() -> {
+                    try (var s = conn.prepareStatement(
+                            "INSERT INTO aircraft_aircraft_state "
+                                    + "(id, aircraft_id, aircraft_state_id, valid_from, valid_to) "
+                                    + "VALUES (?::uuid, ?::uuid, ?::uuid, "
+                                    + "        TIMESTAMPTZ '2026-05-16 12:00+00', "
+                                    + "        TIMESTAMPTZ '2026-05-16 10:00+00')")) {
+                        s.setString(1, stateId);
+                        s.setString(2, aircraftId);
+                        s.setString(3, acStateOk);
+                        s.executeUpdate();
+                    }
+                });
+                assertThat(thrown).isInstanceOf(SQLException.class);
+                assertThat(((SQLException) thrown).getSQLState())
+                        .as("SQLSTATE must be 23514 (check_violation) — valid_to < valid_from")
+                        .isEqualTo("23514");
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    /** Live provocation: aircraft_operating_counter.at_date_time too far in future must be rejected. */
+    @Test
+    void aircraft_operating_counter_at_date_time_future_bound_rejected_by_check() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String acTypeGlider = canonicalSeedUuid("aircraft_type", "code", "GLIDER");
+                String aircraftId   = "00000000-0000-7003-8000-000000000001";
+                String counterId    = "00000000-0000-7003-8000-000000000002";
+
+                try (var s = conn.prepareStatement(
+                        "INSERT INTO aircraft (id, aircraft_type_id, immatriculation) "
+                                + "VALUES (?::uuid, ?::uuid, 'HB-AOC01')")) {
+                    s.setString(1, aircraftId);
+                    s.setString(2, acTypeGlider);
+                    s.executeUpdate();
+                }
+
+                Throwable thrown = catchThrowable(() -> {
+                    try (var s = conn.prepareStatement(
+                            "INSERT INTO aircraft_operating_counter "
+                                    + "(id, aircraft_id, at_date_time) "
+                                    + "VALUES (?::uuid, ?::uuid, now() + INTERVAL '30 days')")) {
+                        s.setString(1, counterId);
+                        s.setString(2, aircraftId);
+                        s.executeUpdate();
+                    }
+                });
+                assertThat(thrown).isInstanceOf(SQLException.class);
+                assertThat(((SQLException) thrown).getSQLState())
+                        .as("SQLSTATE must be 23514 (check_violation) — at_date_time > now()+1d")
+                        .isEqualTo("23514");
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    /** Live provocation: location.icao_code lowercase must be rejected. */
+    @Test
+    void location_icao_code_lowercase_rejected_by_check() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String chId         = canonicalSeedUuid("country", "iso2", "CH");
+                String locTypeGlider = canonicalSeedUuid("location_type", "code", "GLIDER_AIRFIELD");
+                String locationId   = "00000000-0000-7004-8000-000000000001";
+
+                Throwable thrown = catchThrowable(() -> {
+                    try (var s = conn.prepareStatement(
+                            "INSERT INTO location (id, location_name, country_id, location_type_id, icao_code) "
+                                    + "VALUES (?::uuid, 'Lower Speck', ?::uuid, ?::uuid, 'lszk')")) {
+                        s.setString(1, locationId);
+                        s.setString(2, chId);
+                        s.setString(3, locTypeGlider);
+                        s.executeUpdate();
+                    }
+                });
+                assertThat(thrown).isInstanceOf(SQLException.class);
+                assertThat(((SQLException) thrown).getSQLState())
+                        .as("SQLSTATE must be 23514 (check_violation) — icao_code must be uppercase")
                         .isEqualTo("23514");
             } finally {
                 conn.rollback();

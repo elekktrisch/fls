@@ -426,15 +426,12 @@ CREATE TABLE flight (
         FOREIGN KEY (process_state_id)            REFERENCES flight_process_state (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_flight_flight_cost_balance_type_id
         FOREIGN KEY (flight_cost_balance_type_id) REFERENCES flight_cost_balance_type (id) ON DELETE RESTRICT,
-    -- Sparse-enum sacred cow: 1=Glider, 2=Tow, 4=Motor (value 3 skipped).
     CONSTRAINT ck_flight_aircraft_type_discriminator
         CHECK (flight_aircraft_type_id IN (1, 2, 4)),
-    -- Tow self-FK semantics: no self-pair; only glider flights link a tow.
     CONSTRAINT ck_flight_tow_not_self
         CHECK (tow_flight_id IS NULL OR tow_flight_id <> id),
     CONSTRAINT ck_flight_tow_only_for_glider
         CHECK (tow_flight_id IS NULL OR flight_aircraft_type_id = 1),
-    -- Time ordering CHECKs.
     CONSTRAINT ck_flight_ldg_at_or_after_start
         CHECK (ldg_date_time IS NULL OR start_date_time IS NULL
                OR ldg_date_time >= start_date_time),
@@ -726,12 +723,30 @@ COMMENT ON COLUMN flight.tow_flight_id IS
     'Self-FK; populated ONLY for Glider flights with start_type=TowingByAircraft. Two CHECKs: no self-pair; only glider may link a tow. SET NULL on delete.';
 COMMENT ON COLUMN flight_crew.person_id IS
     'Cross-tenant Person FK (sacred cow per ADR 0008 + S-011). RESTRICT on delete preserves flight-history attribution; DSAR scrubs PII on Person row, not row-delete. Service layer (S-026) must verify PersonClub membership before INSERT.';
-COMMENT ON COLUMN aircraft.aircraft_owner_person_id IS
-    'Cross-tenant ride-through; SET NULL on delete for FADP erasure.';
 COMMENT ON COLUMN aircraft_aircraft_state.noticed_by_person_id IS
     'Cross-tenant ride-through; SET NULL on delete.';
 COMMENT ON COLUMN aircraft.spot_link IS
     'External URL; NEVER fetched server-side (A10 SSRF mitigation). https-only CHECK enforced. Render link only in UI.';
+
+-- Aircraft ownership-exclusivity invariant (service-layer enforced — schema can't express
+-- with-OR cheaply; cheap-CHECK would be brittle). One of: owner_club_id NOT NULL,
+-- aircraft_owner_person_id NOT NULL, or both NULL (charter pool / public rental fleet).
+-- NEVER both set on the same row. S-022 / S-026 enforces; this comment is the contract.
+COMMENT ON COLUMN aircraft.aircraft_owner_person_id IS
+    'Cross-tenant ride-through; SET NULL on delete for FADP erasure. Exclusive with aircraft.owner_club_id: one of owner_club_id / aircraft_owner_person_id may be NOT NULL or both NULL (charter pool); NEVER both set. Service layer (S-022/S-026) enforces — schema can''t express the with-OR cheaply.';
+
+-- Cross-tenant invariant on club.default_*_flight_type_id (4 FKs added at section 11).
+-- Each default_*_flight_type_id MUST point at a flight_type row whose
+-- operating_club_id = club.id. Schema FK only enforces target existence; the
+-- tenant-alignment invariant lives at the S-022/S-026 service layer.
+COMMENT ON COLUMN club.default_glider_flight_type_id IS
+    'Cross-tenant invariant: target flight_type.operating_club_id MUST equal this club.id. Service layer (S-022) enforces on update; schema cannot.';
+COMMENT ON COLUMN club.default_tow_flight_type_id IS
+    'Cross-tenant invariant: target flight_type.operating_club_id MUST equal this club.id. Service layer (S-022) enforces on update; schema cannot.';
+COMMENT ON COLUMN club.default_motor_flight_type_id IS
+    'Cross-tenant invariant: target flight_type.operating_club_id MUST equal this club.id. Service layer (S-022) enforces on update; schema cannot.';
+COMMENT ON COLUMN club.default_glider_with_motor_flight_type_id IS
+    'Cross-tenant invariant: target flight_type.operating_club_id MUST equal this club.id. Service layer (S-022) enforces on update; schema cannot. NOT in legacy Club.cs:77-81 — forward-looking; operator may drop for strict parity.';
 
 -- Free-text PII columns (S-027 audit-blob redaction policy).
 COMMENT ON COLUMN flight.comment            IS 'Free text; PII-spill risk; redact in audit blob and never log raw';

@@ -2,11 +2,12 @@
 // extends reference-data seeds against a clean baseline).
 //
 // THIS SCRIPT IS DOCUMENTATION, NOT BUILD INPUT.
-// The migration V2__identity_and_reference.sql embeds the UUID literals
-// produced by this script, and reference-seeds-canonical-uuids.json captures
-// the same output as a test-time oracle. Do not regenerate after the
-// migration has shipped to any environment — Flyway checksum-locks V2; a
-// UUID change requires a follow-up migration with cascading FK updates.
+// The baseline migrations V2__identity_and_reference.sql and
+// V3__flights_aircraft_locations.sql embed the UUID literals produced by this
+// script; reference-seeds-canonical-uuids.json captures the same output as a
+// test-time oracle. Do not regenerate after a migration has shipped to any
+// environment — Flyway checksum-locks every shipped V<n>__*.sql; a UUID
+// change would require a follow-up migration with cascading FK updates.
 //
 // Run as a Java single-file source-code program (JEP 330, Java 11+):
 //   java next/server/src/test/resources/scripts/GenerateCanonicalUuids.java

@@ -20,7 +20,13 @@ PASSWORD\s*'
 # PII data + app-table data committed to source control. Schema-only migrations
 # are mandatory; data backfill is S-016 / S-018 territory. Reference tables
 # (aircraft_type, location_type, ...) are explicitly NOT in this deny list —
-# their canonical UUID seeds ship via V<n>__*.sql by design.
+# their canonical UUID seeds ship via V<n>__*.sql by design. Future reference
+# tables (S-014+) must remain off this deny list by the same rationale.
+# The `\b` after each name is load-bearing: it excludes `aircraft_type` /
+# `aircraft_state` / `aircraft_aircraft_state` etc. only because the underscore
+# is a `\B` boundary character vs. a word character — DO NOT "tighten" the
+# regex into one that drops the `\b`; reference-seed INSERTs would silently
+# trip the deny list.
 INSERT\s+INTO\s+(person|person_club|audit_logs|audit_log_details|flight|flight_crew|aircraft|aircraft_aircraft_state|aircraft_operating_counter|article|location|inoutbound_point)\b
 
 # Destructive schema ops — allowlist exceptions via PR review.

@@ -18,11 +18,12 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Asserts the live schema produced by V2__identity_and_reference matches the
- * tenant-scope catalog's classification: tenant-scoped tables carry a
- * {@code club_id NOT NULL}, cross-tenant tables don't, reference tables
- * don't. Pure-YAML assertions over {@code next/database/tenant-rules.yaml}
- * live in {@link TenantCatalogYamlTest} (plain JUnit; no Docker dep).
+ * Asserts the live schema produced by the baseline migrations (V2 + V3)
+ * matches the tenant-scope catalog's classification: tenant-scoped tables
+ * carry a {@code club_id} / {@code operating_club_id} NOT NULL, cross-tenant
+ * tables don't, reference tables don't. Pure-YAML assertions over
+ * {@code next/database/tenant-rules.yaml} live in
+ * {@link TenantCatalogYamlTest} (plain JUnit; no Docker dep).
  */
 @SpringBootTest
 @ActiveProfiles("test")

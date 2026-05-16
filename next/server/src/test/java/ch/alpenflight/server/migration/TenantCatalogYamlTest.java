@@ -154,6 +154,21 @@ class TenantCatalogYamlTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void flight_tenant_scope_precondition_met() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> flights = (Map<String, Object>) overrides.get("Flights");
+        List<String> preconditions = (List<String>) flights.get("preconditions");
+        assertThat(preconditions)
+                .as("Flights.preconditions must enumerate the per-flight operating_club_id contract")
+                .isNotNull()
+                .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("operating_club_id")
+                        && p.toLowerCase(java.util.Locale.ROOT).contains("per-flight"))
+                .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("s-022")
+                        && p.toLowerCase(java.util.Locale.ROOT).contains("charter"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void article_classified_as_tenant_scoped() {
         Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
         Map<String, Object> articles = (Map<String, Object>) overrides.get("Articles");
