@@ -43,6 +43,14 @@ refined_speculative: false
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 github_issue: 32
 github_pr: 33
+reviewed: true
+reviewed_at: 2026-05-16
+review_outcome: blockers
+review_blockers: 5
+review_improvements: 19
+review_nudges: 8
+review_parity_oracle: "N/A — parity_test: none; greenfield schema reshape per ADR 0018+0019; enum value sets pinned via legacy_int_id + canonical UUID v7 seed JSON oracle"
+review_reviewers: [maintainability, security, tech-writer]
 ---
 
 ## Context
@@ -900,3 +908,66 @@ At 10M+ flights, declarative range partitioning on `flight_date` (per year). Has
 12. **Reference-data canonical UUIDs script** — extends S-012's generator with S-013's 7 reference tables; reuse the committed Java script.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-16 · **PR:** [#33](https://github.com/elekktrisch/fls/pull/33) · **Diff size:** 9 commits, 19 files, +2909/-46 · **Outcome:** blockers
+
+### Maintainability
+
+- **[blocker]** Story body's "Implementation status (paused 2026-05-16)" section contradicts `status: done` — `docs/modernization/stories/S-013-schema-flights-aircraft-locations.md:67-95`. Body claims "primary S-013 work not yet begun" with an 8-step pickup checklist; frontmatter is `status: done` / `done_at: 2026-05-16`. The next contributor doing follow-up or audit cannot tell whether the work shipped or stalled. **Fix:** delete or replace the section with a one-paragraph "Implementation notes" summarising what shipped. (Cross-reviewer agreement with tech-writer.)
+- **[improvement]** `flight_crew` design notes promise "Audit + soft-delete" but implementation ships soft-delete only — `next/server/src/main/resources/db/migration/V3__flights_aircraft_locations.sql:533-556` vs design notes §"Per-table column inventory" line 205. The test `flight_crew_has_no_created_modified_audit_columns` (`FlightBaselineIntegrationTest.java:292-310`) pins the absence with rationale "audit via Flight aggregate". Either add the audit columns or update the design notes contract to match the test. **Fix:** amend per-table inventory to drop the "Audit + soft-delete" bullet on flight_crew, cite aggregate-internal audit-via-root reasoning.
+- **[improvement]** Undeclared column `flight_cost_balance_type.person_for_invoice_required` not in design-notes inventory — `V3__flights_aircraft_locations.sql:187` vs story §"Reference data" line 267. Likely legacy-parity carry-over but the divergence wasn't flagged. **Fix:** add the column to design-notes inventory with one-line rationale.
+- **[improvement]** `tenant-rules.yaml` `FlightCrew` entry missing two design-notes-contracted keys — `next/database/tenant-rules.yaml:390-396` vs design-notes-yaml-block line 433-438. `pii_ride_through: [person_id]` and `emits_audit: true` are spec'd but absent. Downstream S-027 PII redaction + audit policy will consume the catalog and won't see these flags. **Fix:** add the two keys to the FlightCrew override.
+- **[improvement]** `ride_through_targets` casing inconsistent within `tenant-rules.yaml` — `next/database/tenant-rules.yaml:288` uses `[person]` (lowercase singular) while every other entry uses `[Persons]` / `[Aircrafts]` / `[Locations]` (TitleCase plural). `AircraftAircraftStates` is the odd-one-out. A future YAML consumer will hit a casing trap. **Fix:** change to `ride_through_targets: [Persons]`.
+- **[improvement]** `flight_tenant_scope_precondition_met` test from `Test plan` line 753 not implemented — no test in the diff walks `Flights.preconditions`. **Fix:** add a tiny YAML-level assertion in `TenantCatalogYamlTest` walking `Flights.preconditions`, or strike from the test-plan contract.
+- **[improvement]** `GenerateCanonicalUuids.java` header still references V2 only — `next/server/src/test/resources/scripts/GenerateCanonicalUuids.java:5-9`. The header reads "the migration V2__identity_and_reference.sql embeds the UUID literals produced by this script… Flyway checksum-locks V2"; the script now also feeds V3. **Fix:** update to "V2 + V3" or "every shipped V<n>__*.sql". (Cross-reviewer agreement with tech-writer.)
+- **[improvement]** `TenantCatalogConsistencyTest` JavaDoc still references V2 only — `TenantCatalogConsistencyTest.java:21-22` reads "Asserts the live schema produced by V2__identity_and_reference"; the class now also asserts S-013 (V3) shape (methods at lines 49, 74, 99, 115). **Fix:** broaden to "produced by the baseline migrations (V2 + V3)".
+- **[improvement]** Unused `java.util.Arrays` import — `FlightBaselineIntegrationTest.java:16`. **Fix:** remove.
+- **[nudge]** Design-notes test name `aircraft_tenant_column_renamed_to_operating_club_id` shipped as `…_to_owner_club_id_nullable` — `TenantCatalogConsistencyTest.java:115`. Implementation's name is more accurate (the column IS `owner_club_id`, not `operating_club_id`); design-notes carried a typo from the pre-amendment text.
+- **[nudge]** `flight_cost_balance_type.TOW_PILOT_PAYS_TOW` seed reshape from legacy all-zero flags to `(glider, tow)=(true, true)` — `V3__flights_aircraft_locations.sql:822-831`. Migration comment documents it; design notes don't reference the reshape. Worth a one-line backlog note for S-016 cutover.
+- **[nudge]** `location_type` ships 6 rows vs design notes' "17 rows per legacy snapshot" — `V3__flights_aircraft_locations.sql:782-787`. Migration comment explains the gap (legacy fixture only ships 6); design notes should be amended so the next refresh doesn't re-anticipate 17.
+
+### Parity
+
+**Oracle:** N/A — `parity_test: none` (greenfield schema reshape per ADR 0018 + 0019) and diff carries no `flsserver/` / `flsweb/` references. Reference-data enum value sets pinned via `legacy_int_id SMALLINT UNIQUE` columns + canonical UUID v7 seed JSON oracle (`reference-seeds-canonical-uuids.json`) citing legacy enum source files; S-016 cutover will use these for the legacy-int → new-UUID remap.
+
+### Security
+
+- **[improvement]** `flight_type` at-least-one-of CHECK named in `Security plan` line 596 is not in the schema — `V3__flights_aircraft_locations.sql:252-280`. Plan summary says `flight_type at-least-one-of (is_for_glider OR is_for_tow OR is_for_motor)`; only `flight_cost_balance_type` (line 191-192) carries this constraint. Plan text likely a typo for `flight_cost_balance_type` (design notes line 267 reads that way); clarify or land in V4.
+- **[improvement]** `aircraft.immatriculation` regex CHECK named in `Security plan` line 593 is not in the schema — `V3__flights_aircraft_locations.sql:297`. Plan input-validation summary says "regex"; only `VARCHAR(15) NOT NULL` + global UNIQUE landed. **Fix:** clarify whether the regex is expected; if yes, add `CHECK (immatriculation ~ '^[A-Za-z0-9-]{1,15}$')` in V4, or remove from plan summary.
+- **[improvement]** `flight.coupon_number` flagged as PII free-text in `tenant-rules.yaml` but missing SQL `COMMENT ON COLUMN` — `V3__flights_aircraft_locations.sql:396` vs `next/database/tenant-rules.yaml:327` (lists `coupon_number` in `Flights.pii_columns`). Plan PII section line 603 lists it among free-text PII; the SQL comment block (V3:737-744) ships 8 column comments and omits this one. **Fix:** add `COMMENT ON COLUMN flight.coupon_number` in V4, or remove from `tenant-rules.yaml` Flights.pii_columns.
+- **[improvement]** CHECK `aircraft_operating_counter.at_date_time <= now() + INTERVAL '1 day'` uses non-IMMUTABLE function — `V3__flights_aircraft_locations.sql:623-624`. Postgres permits `now()` in CHECK at table-create but does not re-evaluate at plan time; only enforced at row insert/update. May warn on future major-version upgrade. **Fix:** consider trigger-based enforcement or app-layer validation; document the limitation in a column comment if the constraint stays.
+- **[improvement]** No live integration tests for three load-bearing CHECK constraints — `FlightBaselineIntegrationTest.java`. `aircraft_aircraft_state.valid_to >= valid_from` (V3:588), `aircraft_operating_counter.at_date_time <= now()+1d` (V3:623), and `location.icao_code = upper(icao_code)` (V3:236) are present but lack the live-rejection test that `flight_aircraft_type_id IN (1,2,4)` got (line 634). **Fix:** add a provocation test per CHECK (SQLSTATE 23514 on violating INSERT) before S-022 lands JPA entities.
+- **[improvement]** `aircraft.aircraft_owner_person_id` ↔ `owner_club_id` exclusivity not schema-enforced (acknowledged deferred to S-022) — `V3__flights_aircraft_locations.sql:291-348`. Story line 190 defers explicitly. Defense-in-depth note: in V3 today a row may set both columns or neither, giving service-layer ambiguity. **Fix:** document the invariant inline in `aircraft.owner_club_id` / `aircraft_owner_person_id` column comments now (cheap).
+- **[improvement]** `club.default_*_flight_type_id` FKs allow cross-tenant pointers structurally — `V3__flights_aircraft_locations.sql:684-699`. No schema-side guarantee `club.default_glider_flight_type_id` points to a `flight_type` row whose `operating_club_id = club.id`. Plan defers cross-tenant invariants to S-022/S-026 generally but this specific path isn't called out. **Fix:** add to S-022 service-layer checklist; consider documenting via column comments on the 4 `default_*_flight_type_id` columns now.
+- **[nudge]** `flight.flight_aircraft_type_id` SMALLINT discriminator comment is excellent for semantics; could additionally pin the S-022 Java enum class name once known.
+- **[nudge]** PII column comments use prose-only redaction guidance — `V3__flights_aircraft_locations.sql:737-744`. When S-027's audit-blob redaction is built it'll want a programmatic marker; current free-text is good but could prefix `[PII]` to make extraction trivial.
+- **[nudge]** Forbidden-migration-patterns deny list uses `\b` after `aircraft` — correctly excludes `aircraft_type`/`aircraft_state` due to the underscore — `forbidden-migration-patterns.txt:24`. Worth a one-line comment in the file explaining the `\b`-vs-`_` semantics so a future editor doesn't try to "tighten" the regex into one that accidentally bans reference seeds.
+
+### Code quality
+
+- **[blocker]** "Implementation status (paused 2026-05-16)" section contradicts `status: done` frontmatter — `docs/modernization/stories/S-013-schema-flights-aircraft-locations.md:66-95`. Same finding as maintainability §1; raised to blocker by conflict-resolution rule. Section asserts "primary S-013 work not yet begun" with 8-step pickup; reality is the work shipped (V3 + 1113-line test class). **Fix:** delete or replace with a brief implementation-notes stamp.
+- **[blocker]** All `## Tasks` checkboxes remain unchecked despite `status: done` — `docs/modernization/stories/S-013-schema-flights-aircraft-locations.md:54-62`. Tasks describe work that shipped; unchecked boxes are a false progress signal. **Fix:** check the boxes or note "Tasks superseded by AC — see frontmatter" and remove the list.
+- **[blocker]** Design notes' "Migration shape" predicts V4; shipped as V3 — `docs/modernization/stories/S-013-...md:103` vs `V3__flights_aircraft_locations.sql`. Section enumeration ("S-009 V1, S-018 V2, S-012 V3") is wrong (S-018 ShedLock never landed); `tests assert >= 4` statement is stale. **Fix:** update "Migration shape" to record actual shipped state (V3; S-018 deferred; tests assert >= 3).
+- **[blocker]** "Things not the right shape" still says "Ships as V<n+1> (likely V4)" — `docs/modernization/stories/S-013-...md:547`. Pre-implementation prediction not updated to record outcome. **Fix:** update to "Shipped as V3 (S-018 ShedLock deferred; no V2 shedlock migration on branch)."
+- **[blocker]** Implementation-status section embeds `#32: …` commit-subject identifiers — `docs/modernization/stories/S-013-...md:73-77`. Per the no-SHAs / no-ephemeral-refs rule, commit subjects rot after squash-merge (commit graph is rewritten). Belong in PR body / git log, not the story file. **Fix:** if implementation notes must persist, describe what landed (e.g., "boyscout: pgAdmin port flip, SKILL.md no-SHA rule, S-128 bookkeeping") without embedding commit subject lines.
+- **[improvement]** `location_type` seed comment acknowledges 6-vs-17 deviation but design-notes inventory at story line 263 still reads "17 rows per legacy snapshot" unqualified — same as maintainability nudge §"location_type 6 rows"; raised here because the cross-doc inconsistency is a documentation issue.
+- **[improvement]** Inline SQL `-- Sparse-enum sacred cow: 1=Glider…` and `-- Tow self-FK semantics:` comments restate the adjacent named CHECK constraint — `V3__flights_aircraft_locations.sql:429-436`. Constraint names (`ck_flight_aircraft_type_discriminator`, `ck_flight_tow_not_self`, `ck_flight_tow_only_for_glider`) carry the what; `COMMENT ON COLUMN` block carries the why. Redundant middle-ground. **Fix:** remove the two inline comments inside the CREATE TABLE body.
+- **[improvement]** `FlightBaselineIntegrationTest` class-level Javadoc is a paragraph that restates the test list readable from the method names — `FlightBaselineIntegrationTest.java:32-42`. The single useful sentence is the shared-container note. **Fix:** trim to one sentence on the shared-container / Spring-context-cache contract.
+- **[improvement]** `tenant-rules.yaml` `Flights` entry omits `kind:` while every other entry uses it — `next/database/tenant-rules.yaml:322-342`. Style divergence makes automated YAML consumers fragile. **Fix:** add `kind: tenant-scoped` so the field is consistent; keep the comment explaining why the classifier heuristic still sees INDIRECT_TENANT.
+- **[improvement]** Design notes `tenant-rules.yaml updates` code block uses `flight:` (lowercase snake_case keys) while actual YAML uses `Flights:` (PascalCase + plural) — `docs/modernization/stories/S-013-...md:425-467` vs `next/database/tenant-rules.yaml:322`. A contributor copying from design notes would produce structurally correct but unrecognized keys. **Fix:** update design notes example to match actual YAML convention.
+- **[improvement]** `S013_TENANT_SCOPED_TABLES` constant lists only 3 tables but the class-level comment says "7 tenant-scoped tables (incl. internal-via-aggregate)" — `FlightBaselineIntegrationTest.java:68-70`. Comment overstates list's scope. **Fix:** correct the comment to "3 direct tenant-scoped aggregate roots".
+- **[improvement]** `## Notes` in S-013 story embeds `commit hash 99a69c4 in legacy` as a citation — `docs/modernization/stories/S-013-...md:62`. Per the no-SHAs rule this is a committed doc. **Fix:** replace with a file path citation.
+- **[nudge]** Story title says "flights / aircraft / persons / clubs / locations" — `docs/modernization/stories/S-013-...md:3`. "persons / clubs" are S-012 tables; S-013 scope is flights / aircraft / locations. File name is correct; title drifted from original.
+- **[nudge]** V3 SQL section banners use `-- ====` width-80; last section header (section 14, line 838) is shorter than others. Cosmetic.
+- **[nudge]** `GenerateCanonicalUuids.java:37` magic-number `1778889600000L` with trailing comment; could be a named constant.
+
+### Cross-reviewer agreements
+
+- **Paused-section vs `status: done`** flagged by both `maintainability-reviewer` and `tech-writer-reviewer`. Maintainability called it the **strongest signal**; tech-writer flagged as blocker. Synthesized as blocker per conflict-resolution rule.
+- **`GenerateCanonicalUuids.java` header references V2 only** flagged by both `maintainability-reviewer` and `tech-writer-reviewer`. Improvement-class.
+
+<!-- modernize-review: end -->
