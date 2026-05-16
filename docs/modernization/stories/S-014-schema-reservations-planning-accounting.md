@@ -2,8 +2,9 @@
 id: S-014
 title: V1__baseline part 3 — reservations / planning / accounting
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-16
+done_at: 2026-05-16
 github_issue: 42
 github_pr: 43
 depends_on: [S-013]
