@@ -2,7 +2,9 @@
 id: S-009
 title: Wire Flyway into Spring Boot + V1__baseline placeholder
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-16
+github_issue: 19
 depends_on: [S-001]
 acceptance:
   - `org.flywaydb:flyway-core` + `flyway-database-postgresql` are in the dependency graph.
@@ -432,4 +434,14 @@ These specialists' analyses surfaced operator-decision points; surfaced rather t
 5. **Tenant-rules.yaml edit ownership.** Recommendation: S-009 includes the `flyway_schema_history` + `app_meta` SYSTEM_GLOBAL overrides in `next/database/tenant-rules.yaml`. Alternative: a separate follow-up story. Recommend in-scope here — otherwise S-011's classifier emits UNKNOWN on the next re-run.
 
 <!-- modernize-refine: end -->
+
+## Assumptions made (implement-time, 2026-05-16)
+
+Operator decisions on the refinement's 5 open design questions:
+
+1. **flywayValidate CI trigger: every PR** (Q1) — extended `next-build` lane in `.github/workflows/ci.yml`; ~30s cost per PR run when `next/**` changes.
+2. **Datasource env-vars: `DATASOURCE_URL` / `DATASOURCE_USER` / `DATASOURCE_PASSWORD`** (Q2) — generic, matches Spring's own naming.
+3. **`PostgresTestContainerLifecycle` location: `next/server/src/test/java/ch/fls/server/testsupport/`** (Q3) — server module for the first consumer; S-015 extracts if a second story needs it.
+4. **Postgres role split (Q4) — deferred** to S-013 / S-016 ops. S-009 dev/test runs as the container's default `fls_test` user. Production split (`migrator` vs `app_runtime`) is flagged on those stories.
+5. **tenant-rules.yaml SYSTEM_GLOBAL overrides: in-scope for S-009** (Q5) — `flyway_schema_history` + `app_meta` added to `next/database/tenant-rules.yaml` as part of this story so S-011's classifier stays clean.
 
