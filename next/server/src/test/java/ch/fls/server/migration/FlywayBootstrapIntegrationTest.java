@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.fls.server.testsupport.PostgresTestContainerLifecycle;
+import ch.fls.server.testsupport.SharedPostgresContainer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +14,6 @@ import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.flywaydb.core.api.exception.FlywayValidateException;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,35 +35,11 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@EnabledIf(value = "dockerAvailable",
+@EnabledIf(value = "ch.fls.server.testsupport.SharedPostgresContainer#available",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class FlywayBootstrapIntegrationTest {
 
-    private static final PostgresTestContainerLifecycle POSTGRES = new PostgresTestContainerLifecycle();
-    private static final boolean DOCKER_AVAILABLE = tryStartContainer();
-
-    private static boolean tryStartContainer() {
-        try {
-            POSTGRES.start();
-            return true;
-        } catch (Throwable t) {
-            System.err.println("""
-                    [fls-server] Skipping FlywayBootstrapIntegrationTest — Docker unreachable.
-                      Root cause: %s
-                      Start Docker Desktop / Docker Engine and re-run.
-                    """.formatted(t.getMessage()));
-            return false;
-        }
-    }
-
-    static boolean dockerAvailable() {
-        return DOCKER_AVAILABLE;
-    }
-
-    @AfterAll
-    static void stopContainer() {
-        POSTGRES.stop();
-    }
+    private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
@@ -71,9 +47,6 @@ class FlywayBootstrapIntegrationTest {
         r.add("spring.datasource.username", POSTGRES::username);
         r.add("spring.datasource.password", POSTGRES::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        // Re-enable Flyway for the Postgres integration path; application-test.yml
-        // disables it for the H2-backed context-load smoke tests.
-        r.add("spring.flyway.enabled", () -> "true");
         r.add("spring.flyway.url", POSTGRES::jdbcUrl);
         r.add("spring.flyway.user", POSTGRES::username);
         r.add("spring.flyway.password", POSTGRES::password);

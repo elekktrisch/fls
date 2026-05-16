@@ -28,6 +28,13 @@ refined_speculative_at: 2026-05-16
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 github_issue: 24
 github_pr: 25
+reviewed: true
+reviewed_at: 2026-05-16
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 11
+review_nudges: 9
+review_parity_oracle: N/A — schema reshape per ADR 0008 + 0018 + 0019; S-016 owns the legacy-MSSQL → new-Postgres cutover parity oracle
 ---
 
 ## Context
@@ -599,3 +606,55 @@ N/A — schema reshape per ADR 0008 + 0018 + 0019. Legacy `dbo.*` shape is refer
 6. **Migration version (V2 vs V3).** Depends on whether S-018 has merged. Implementer reads `db/migration/` listing.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-16 · **PR:** [#25](https://github.com/elekktrisch/fls/pull/25) · **Diff size:** 7 commits (S-012 work) on top of merge-base, 19 files changed, +4292/-8 · **Outcome:** improvements-only
+
+### Maintainability
+
+- **[improvement]** `next/server/CONVENTIONS.md:73` cites `V2__identity_and_reference.sql:104-113` for `start_type.applicable_categories`, but the column + ADR 0020 comment block lives at `V2__identity_and_reference.sql:93-102` (line 104 is `ux_start_type_code`, 105+ is `length_unit_type`). Next reader who follows the citation lands on the wrong table and learns to mistrust convention citations. **Fix:** change the range to `V2__identity_and_reference.sql:93-102` (or just cite line 97).
+- **[improvement]** `assertTableExists` is duplicated verbatim between `IdentityBaselineIntegrationTest.java:581-592` and `TenantCatalogConsistencyTest.java:211-222`. Both tests live in the same package and share `PostgresTestContainerLifecycle`; a contributor extending the suite has to choose which copy to follow. **Fix:** lift to a package-private helper (e.g., `MigrationAssertions`) alongside `PostgresTestContainerLifecycle`.
+- **[improvement]** `IdentityBaselineIntegrationTest.all_19_tables_present` uses `containsAll` instead of `containsExactlyInAnyOrder` (`IdentityBaselineIntegrationTest.java:113-115`), despite the test name asserting "19 tables" and the Test plan specifying `containsExactlyInAnyOrder`. A future migration that silently adds a 20th identity-domain table would not surface here. **Fix:** swap to `containsExactlyInAnyOrder` against the 19 expected + the known framework set (`flyway_schema_history`, `app_meta`, `shedlock`-if-present).
+- **[improvement]** `TenantCatalogConsistencyTest` boots a full Postgres `@SpringBootTest`, but 3 of its 6 test methods (`tenant_rules_yaml_*`, `member_state_reclassified_*`, `person_category_reclassified_*`) touch only the parsed YAML and never the DataSource (`TenantCatalogConsistencyTest.java:87-145`). Booting Postgres + Spring for pure YAML assertions costs ~2-5s per CI run and couples a static check to Docker availability. **Fix:** split the pure-YAML assertions into a plain JUnit class (no `@SpringBootTest`, no `@EnabledIf`).
+- **[improvement]** `IdentityBaselineIntegrationTest.all_pk_columns_are_uuid_not_null` (`IdentityBaselineIntegrationTest.java:120-160`) silently passes if the joined query returns zero rows — the `while` loop just exits. The parameterized contract intent is lost. **Fix:** collect rows into a list and assert `size() == 19` before per-row checks.
+- **[improvement]** `next/ops/pgadmin/Dockerfile:5` pins `dpage/pgadmin4:latest`. The compose file is otherwise version-disciplined (`postgres:17.4-alpine`, etc.). A future `latest` push that changes the servers.json schema or auth defaults would break dev bring-up silently. **Fix:** pin to a concrete tag (e.g., `dpage/pgadmin4:8.14`).
+- **[improvement]** `e2e/playwright.config.ts:68` comment for `maxFailures: 10` mentions the `--max-failures=0` CLI override but not the trade-off in CI (a real wave of regressions in a single category now masks all later categories). The change is unrelated to S-012's identity baseline and rides this PR uncommented in the story file. **Fix:** add one line to the comment naming the situation it guards against and document the carry-along in the story Tasks/Notes (or move to its own micro-PR).
+- **[nudge]** `IdentityBaselineIntegrationTest.java:122-124` opens a Connection just for an `assertTableExists("person")` canary, immediately closes it, then opens a second Connection for the real query. **Fix:** drop the precondition canary or consolidate into one Connection.
+- **[nudge]** `IdentityBaselineIntegrationTest.start_type_seeds_have_expected_applicable_categories` (`IdentityBaselineIntegrationTest.java:374-389`) hardcodes Postgres-specific `'{X,Y}'` array-literal format. A future migration that flips to JSON or a typed array would fail with a confusing string-mismatch. **Fix:** parse the array (`rs.getArray("applicable_categories")`) and assert against a `List<String>`.
+- **[nudge]** `GenerateCanonicalUuids.java:36-178` is 8 near-identical `String[]` + `for (i; printf)` blocks. **Fix:** if/when extended, fold table emission into a single loop driven by `TABLE_OFFSETS`.
+- **[nudge]** `TenantCatalogConsistencyTest.locateTenantRules` (`TenantCatalogConsistencyTest.java:230-244`) ascends from cwd looking for `next/database/tenant-rules.yaml` — the previous design notes called out a Gradle `processTestResources` copy task. The filesystem walk is simpler; confirm the decision is intentional with a one-line note in the story.
+
+### Parity
+
+**Oracle:** N/A — schema reshape per ADR 0008 + 0018 + 0019 (+ ADR 0020 for `start_type`). Legacy `dbo.*` is reference-only for column lengths + nullabilities; S-016 will own the legacy-MSSQL → new-Postgres cutover parity oracle via `legacy_id_map (legacy_guid_or_int, new_uuid)`.
+
+Verification performed: (a) every reshape decision (UUID PK, no `gen_random_uuid()`, `person_club` surrogate-PK, `member_state`/`person_category` reclassification, ADR 0020 `start_type` array) is documented in the migration header `V2__identity_and_reference.sql:1-60` so the next implementer reading the migration alone sees the intent; (b) spot-checked column-shape parity for `person.lastname` (legacy `VARCHAR(100) NOT NULL` ⇒ `lastname VARCHAR(100) NOT NULL`), `club.club_key` (legacy `VARCHAR(10) NOT NULL` ⇒ `club_key VARCHAR(10) NOT NULL` + `ux_club_key`), `person_club.member_number` (legacy `VARCHAR(20)` nullable ⇒ `member_number VARCHAR(20)` nullable + partial unique `(club_id, member_number) WHERE member_number IS NOT NULL`) — all match. (c) `parity_test: none` frontmatter is correct.
+
+No findings.
+
+### Security
+
+- **[improvement]** Legacy `last_password_change_on` (TIMESTAMPTZ) + `force_password_change_next` (BOOLEAN) columns retained on `"user"` (`V2__identity_and_reference.sql:271-272`) despite "Keycloak owns auth artifacts" plan. These are not credentials themselves but plant the suggestion that the app still manages passwords — an S-052 implementer could legitimately re-introduce a `password_hash` column to "match the existing lifecycle fields." **Fix:** either drop both columns now (Keycloak owns rotation) or add a one-line SQL comment: "Legacy carry-over only — password lifecycle is owned by Keycloak (ADR 0007). Do not add a password_hash column."
+- **[improvement]** Migration header lacks the explicit "no password/token column" guard the Security plan mandated for OWASP A02 (`V2__identity_and_reference.sql:1-60`). The plan said: *"Migration header MUST flag 'future PR adding a password column is wrong.'"* The header covers ID strategy, aggregate composition, multi-tenancy, and PersonClub reshape — but never asserts "no auth artifacts on user; Keycloak owns." **Fix:** add a 2-line block in the header: "Auth artifacts (passwords, refresh tokens, MFA secrets) are owned by Keycloak per ADR 0007. Do NOT add `password_hash`, `password_salt`, `refresh_token`, or similar columns to `user` in any future migration."
+- **[improvement]** `docker-compose.yml:91-93` publishes Postgres `5432:5432` to all interfaces with credentials `fls/fls`. Dev-only (no volume, ephemeral) but on a developer laptop on an untrusted network the database is reachable from the LAN with a one-word guess. **Fix:** bind to localhost — `"127.0.0.1:5432:5432"` (and same for `8080` pgadmin); same for mssql/mailpit consistency.
+- **[improvement]** `PGADMIN_DEFAULT_PASSWORD: dev` is embedded in `docker-compose.yml:121` (servers.json correctly omits the postgres password). Dev-only operator convenience; not a production-leaning credential. **Fix:** add a one-line comment "DEV ONLY — never copy this block into a staging/prod compose."
+- **[nudge]** Forbidden-pattern strip only removes line comments (`--…`), not block comments (`/* … */`) — `MigrationFolderConventionsTest.java:107`. Today's V2 has zero block comments; a future migration using `/* DEFAULT gen_random_uuid() */` would trigger a false positive. **Fix (optional):** extend the strip to `(?s)/\*.*?\*/` as well, OR add a CONVENTIONS.md rule banning `/* */` block comments in migrations.
+- **[nudge]** ADR 0020 deferral of enum-subset validation entirely to Java is consistent with the plan; mentioned only so it surfaces in the S-022 entity review where `@TenantId` + aggregate-method authz land.
+
+### Usability
+
+(N/A — no UI changes; backend-schema-only story.)
+
+- **[nudge]** ANSI color escapes inside the heredoc print as literal `\033[1;32m...` text instead of green — `next/ops/dev-up-full.sh:89`. The `cat <<INFO` heredoc does not interpret backslash escapes the way `log()` does, so the operator sees raw escape sequences on the success banner. **Fix:** use `printf` with `%b`, or `$'\033[...'`-quoted variables (e.g., `GREEN=$'\033[1;32m'`) referenced inside the heredoc.
+- **[nudge]** Tear-down notes drift between the header comment and the final banner — `next/ops/dev-up-full.sh:23-25` vs `:101-104`. The header lists three commands with one trailing-comment style; the banner re-lists them differently. **Fix:** keep one canonical block (the banner) and have the header point at it.
+- **[nudge]** No fall-back hint when the legacy sub-script fails — `next/ops/dev-up-full.sh:47,51`. `set -euo pipefail` aborts cleanly but the operator gets no pointer to common Windows IPv6/`FLS_LISTEN_URL` traps. **Fix:** wrap step 1+2 in a `trap` that prints "see e2e/README for dev-up troubleshooting" on non-zero exit.
+
+### Cross-reviewer agreements
+
+- **Dev-stack hardening** — maintainability flagged `dpage/pgadmin4:latest` not version-pinned; security flagged the same `docker-compose.yml` block (`fls/fls` credential on all interfaces + `PGADMIN_DEFAULT_PASSWORD: dev` embedded without "DEV ONLY" comment). Same file (`docker-compose.yml` + `next/ops/pgadmin/Dockerfile`), overlapping concerns. Recommend tackling as one focused commit.
+- **Operator-experience polish on `dev-up-full.sh`** — usability flagged ANSI escapes + duplicated tear-down + missing fall-back hint; maintainability flagged the carry-along Playwright cap in the same convenience PR. Both reviewers see the dev-stack and operator script as a single-bundle area to clean up.
+
+<!-- modernize-review: end -->

@@ -37,30 +37,38 @@ for a new contributor.
   Ship SQL by default; reach for Java only when SQL genuinely won't fit.
 - **Canonical example:** `src/main/resources/db/migration/V1__baseline.sql`.
 
-## Test infrastructure for DB-touching tests — S-009
+## Test infrastructure for DB-touching tests — S-009 / S-012
 
-- **Real DB only, no mocking.** Integration tests run against a real
-  Postgres container driven by the docker CLI directly (Testcontainers
-  1.21.x can't negotiate Docker API ≥1.44 in our sandbox).
-- **Helper:** `src/test/java/ch/fls/server/testsupport/PostgresTestContainerLifecycle.java`.
-  Static-once per JVM run; image `postgres:17.4-alpine` pinned; readiness
-  probe via JDBC `SELECT 1`; JVM shutdown hook tears the container down.
-- **Guard:** every Docker-driven integration test class is annotated
-  `@EnabledIf("dockerAvailable")` so contributors without Docker still pass
-  `./gradlew check` cleanly (tests skip rather than fail).
+- **Real DB only, no mocking.** Every `@SpringBootTest` shares a single
+  Postgres 17 container; H2 was retired in S-012 once migrations started
+  using `uuid` / `TEXT[]` / partial indexes / `COMMENT ON COLUMN` (H2 even
+  in `MODE=PostgreSQL` can't parse all of that).
+- **Shared container:** `src/test/java/ch/fls/server/testsupport/SharedPostgresContainer.java`
+  is a JVM-singleton that wraps `PostgresTestContainerLifecycle` — one
+  container per JVM, lazily started on first reference, torn down by the
+  shutdown hook. Tests reuse it via `SharedPostgresContainer.INSTANCE`
+  in `@DynamicPropertySource`. Flyway migrate is idempotent across class
+  boots (V1+V2 apply once; subsequent boots no-op via
+  `flyway_schema_history`).
+- **Container helper:** `src/test/java/ch/fls/server/testsupport/PostgresTestContainerLifecycle.java`
+  drives the container via the `docker` CLI (Testcontainers 1.21.x can't
+  negotiate Docker API ≥1.44 in our sandbox). Image `postgres:17.4-alpine`
+  pinned; readiness probe via JDBC `SELECT 1`.
+- **Guard:** every `@SpringBootTest` class is annotated
+  `@EnabledIf("ch.fls.server.testsupport.SharedPostgresContainer#available")`,
+  so contributors without Docker still pass `./gradlew check` cleanly
+  (tests skip rather than fail).
+- **CI fail-loud guard.** `SharedPostgresContainer.available()` throws
+  (instead of returning false) when Docker is unreachable AND `CI=true` is
+  set (GitHub Actions / GitLab / CircleCI all set it). Otherwise a CI run
+  on a hiccuping Docker daemon would silently skip every DB-touching test
+  and report green — exactly the false-pass this gate exists to prevent.
 - **Static-asset tests** that only walk the classpath (no DB) live alongside
   the integration test in the same package, plain JUnit (no
-  `@SpringBootTest`).
-- **H2 fallback for non-Flyway `@SpringBootTest`** classes. Add
-  `@ActiveProfiles("test")` so the in-memory H2 DataSource from
-  `application-test.yml` is wired; otherwise the `dev` profile's
-  loopback-Postgres defaults will cause a connection refusal at boot.
-- **Flyway is disabled in the test profile.** The migrations are
-  Postgres-specific (`uuid` type, `TEXT[]` arrays, partial indexes,
-  `COMMENT ON COLUMN`); H2 even in `MODE=PostgreSQL` chokes on them.
-  Postgres-backed integration tests re-enable Flyway via
-  `@DynamicPropertySource` (`spring.flyway.enabled = true`). Canonical
-  example: `FlywayBootstrapIntegrationTest.datasourceProps`.
+  `@SpringBootTest`). Example: `MigrationFolderConventionsTest`.
+- **Slice tests** (`@WebMvcTest`, `@DataJpaTest`, etc.) don't auto-configure
+  a DataSource and don't need the shared container. Example:
+  `HelloControllerIT`.
 - **Canonical example:** `src/test/java/ch/fls/server/migration/FlywayBootstrapIntegrationTest.java`.
 
 ## Column shape (categorical / state / discriminator) — S-012, ADR 0020

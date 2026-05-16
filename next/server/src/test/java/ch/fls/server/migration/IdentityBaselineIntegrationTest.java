@@ -3,6 +3,7 @@ package ch.fls.server.migration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.fls.server.testsupport.PostgresTestContainerLifecycle;
+import ch.fls.server.testsupport.SharedPostgresContainer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.InputStream;
@@ -15,7 +16,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import javax.sql.DataSource;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -36,30 +36,12 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@EnabledIf(value = "dockerAvailable",
+@EnabledIf(value = "ch.fls.server.testsupport.SharedPostgresContainer#available",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class IdentityBaselineIntegrationTest {
 
-    private static final PostgresTestContainerLifecycle POSTGRES = new PostgresTestContainerLifecycle();
-    private static final boolean DOCKER_AVAILABLE = tryStartContainer();
+    private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static JsonNode canonicalSeeds;
-
-    private static boolean tryStartContainer() {
-        try {
-            POSTGRES.start();
-            return true;
-        } catch (Throwable t) {
-            System.err.println("""
-                    [fls-server] Skipping IdentityBaselineIntegrationTest — Docker unreachable.
-                      Root cause: %s
-                    """.formatted(t.getMessage()));
-            return false;
-        }
-    }
-
-    static boolean dockerAvailable() {
-        return DOCKER_AVAILABLE;
-    }
 
     @BeforeAll
     static void loadCanonicalSeeds() throws Exception {
@@ -69,18 +51,12 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    @AfterAll
-    static void stopContainer() {
-        POSTGRES.stop();
-    }
-
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
         r.add("spring.datasource.url", POSTGRES::jdbcUrl);
         r.add("spring.datasource.username", POSTGRES::username);
         r.add("spring.datasource.password", POSTGRES::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
-        r.add("spring.flyway.enabled", () -> "true");
         r.add("spring.flyway.url", POSTGRES::jdbcUrl);
         r.add("spring.flyway.user", POSTGRES::username);
         r.add("spring.flyway.password", POSTGRES::password);
