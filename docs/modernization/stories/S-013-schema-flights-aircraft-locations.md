@@ -63,7 +63,7 @@ rework_meta_improvements: 2
 rework_meta_followups:
   - { id: S-130, kind: workflow-improvement }
 rework_meta_prs:
-  - { branch: "chore/modernize-implement-body-sweep", url: "(pending — to be opened)" }
+  - { branch: "chore/modernize-implement-body-sweep", url: "https://github.com/elekktrisch/fls/pull/39" }
 ---
 
 ## Context
