@@ -1,5 +1,5 @@
 # Security-engineer-owned regex list. Consumed by
-# ch.fls.server.migration.MigrationFolderConventionsTest. Each non-empty,
+# ch.alpenflight.server.migration.MigrationFolderConventionsTest. Each non-empty,
 # non-comment line is a Java regex applied (case-insensitive, multi-line) to
 # every *.sql file under db/migration/.
 #

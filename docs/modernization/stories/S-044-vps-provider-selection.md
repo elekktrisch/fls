@@ -73,7 +73,7 @@ See frontmatter.
 | Account | Non-root `fls` user, key-only SSH, passwordless sudo gated by SSH key; root SSH disabled |
 | Firewall (UFW) | Default-deny inbound; allow `22/tcp`, `80/tcp`, `443/tcp`; default-allow outbound |
 | Services baked into host (not Docker) | `openssh-server`, `ufw`, `fail2ban` (sshd jail), `unattended-upgrades` (security pocket only, auto-reboot at 04:00), `chrony`, `docker-ce` + `docker-compose-plugin` |
-| Hostname | `fls-prod-01.fls.example` (placeholder — operator picks apex at DNS-cutover time) |
+| Hostname | `af-prod-01.alpenflight.ch` (placeholder — operator picks apex at DNS-cutover time) |
 | TZ | `Europe/Zurich` |
 | DNS | Cloudflare or DNSimple (decoupled from VPS provider) — A/AAAA/PTR/CAA |
 
@@ -106,7 +106,7 @@ Commit as `next/ops/vps-provider-evaluation.md`. Columns: provider, region(s), s
 #  1. apt update + install: curl, ca-certificates, gnupg, ufw, fail2ban,
 #     unattended-upgrades, chrony, jq.
 #  2. Stop + disable systemd-timesyncd; enable chrony.
-#  3. Create non-root user `fls` with sudo; seed authorized_keys from $FLS_SSH_PUBKEY
+#  3. Create non-root user `alpenflight` with sudo; seed authorized_keys from $ALPENFLIGHT_SSH_PUBKEY
 #     (script aborts if unset).
 #  4. Harden /etc/ssh/sshd_config: PermitRootLogin no, PasswordAuthentication no,
 #     KbdInteractiveAuthentication no, ChallengeResponseAuthentication no, UsePAM yes;
@@ -116,14 +116,14 @@ Commit as `next/ops/vps-provider-evaluation.md`. Columns: provider, region(s), s
 #     restart fail2ban.
 #  7. unattended-upgrades for security pocket only; enable auto-reboot at 04:00
 #     (Origins-Pattern Debian-Security or Ubuntu-Security).
-#  8. Set hostname from $FLS_HOSTNAME; update /etc/hosts.
+#  8. Set hostname from $ALPENFLIGHT_HOSTNAME; update /etc/hosts.
 #  9. Install Docker CE + compose plugin from Docker's apt repo (stable channel).
-#     Add `fls` to the `docker` group.
+#     Add `alpenflight` to the `docker` group.
 # 10. Print verification summary: hostname, kernel, docker version, ufw status,
 #     fail2ban status, chrony tracking.
 #
-# Required env:   FLS_HOSTNAME (e.g. fls-prod-01.fls.example), FLS_SSH_PUBKEY (ed25519).
-# Optional env:   FLS_TIMEZONE (default Europe/Zurich).
+# Required env:   ALPENFLIGHT_HOSTNAME (e.g. af-prod-01.alpenflight.ch), ALPENFLIGHT_SSH_PUBKEY (ed25519).
+# Optional env:   ALPENFLIGHT_TIMEZONE (default Europe/Zurich).
 ```
 
 **Alternative:** cloud-init `user-data.yml` blob for providers that support it (Hetzner Cloud, Exoscale). Same actions; consumer-side path differs.

@@ -59,8 +59,8 @@ See frontmatter.
 
 | Field | Value | Rationale |
 |---|---|---|
-| `realm` | `"fls"` | — |
-| `displayName` | `"FLS"` | — |
+| `realm` | `"alpenflight"` | — |
+| `displayName` | `"AlpenFlight"` | — |
 | `enabled` | `true` | — |
 | `registrationAllowed` | `false` | C14 — users land via cutover (S-028) or admin UI; no public signup pre-prod. |
 | `resetPasswordAllowed` | `true` | C14 — forced password reset at cutover. |

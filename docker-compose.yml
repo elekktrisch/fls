@@ -35,7 +35,7 @@
 
 # All ports bound to 127.0.0.1 so the dev stack is reachable only from the
 # host machine, not from the LAN. Credentials here are weak-by-design ("dev"
-# / "fls/fls" / "Demo#FLS#2026") for operator convenience — restricting the
+# / "alpenflight/alpenflight" / "Demo#FLS#2026") for operator convenience — restricting the
 # bind ensures a laptop on an untrusted network doesn't expose the DBs to
 # a one-word-guess attack.
 
@@ -92,9 +92,9 @@ services:
     profiles: ["next"]
     image: postgres:17.4-alpine
     environment:
-      POSTGRES_DB: fls
-      POSTGRES_USER: fls
-      POSTGRES_PASSWORD: fls
+      POSTGRES_DB: alpenflight
+      POSTGRES_USER: alpenflight
+      POSTGRES_PASSWORD: alpenflight
     ports:
       - "127.0.0.1:5432:5432"
     # No volume — data is ephemeral. `docker compose down` wipes it; the
@@ -102,7 +102,7 @@ services:
     # the baseline state is reproducible without persistence. Add a named
     # volume here if you want survival across `down`.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U fls -d fls"]
+      test: ["CMD-SHELL", "pg_isready -U alpenflight -d alpenflight"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -123,7 +123,7 @@ services:
     build:
       context: ./next/ops/pgadmin
       dockerfile: Dockerfile
-    image: fls-pgadmin:local
+    image: alpenflight-pgadmin:local
     depends_on:
       postgres:
         condition: service_healthy

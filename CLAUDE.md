@@ -27,7 +27,7 @@ If the task doesn't fit a lane, ask. Don't guess.
 
 - `flsserver/` — legacy ASP.NET Web API backend (.NET Framework 4.5, C#). **Reference only.** Mental model: `docs/legacy/server.md`.
 - `flsweb/` — legacy AngularJS 1.4 SPA. **Reference only.** Mental model: `docs/legacy/web.md`.
-- `next/` — the rewrite. New code goes here. Layout + decisions in `docs/modernization/adrs/`.
+- `next/` — the rewrite (AlpenFlight). New code goes here. Layout + decisions in `docs/modernization/adrs/`.
 - `docs/modernization/` — the modernization workflow output: current-state, vision, ADRs, epics, stories. Driven by the `/modernize-*` skills.
 - `docs/legacy/` — mental-model docs for the two legacy stacks. Read on demand.
 - `e2e/` — Playwright suite. Per-category projects (see `e2e/README*` if present).

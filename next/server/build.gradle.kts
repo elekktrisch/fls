@@ -29,9 +29,9 @@ buildscript {
     }
 }
 
-group = "ch.fls"
+group = "ch.alpenflight"
 version = "0.0.1-SNAPSHOT"
-description = "FLS server"
+description = "AlpenFlight server"
 
 java {
     toolchain {
@@ -89,8 +89,9 @@ dependencies {
 }
 
 nullaway {
-    // ch.fls is treated as @NullMarked; NullAway enforces non-null defaults
-    // for everything under it. Spring framework internals stay un-checked.
+    // ch.alpenflight is treated as @NullMarked; NullAway enforces non-null
+    // defaults for everything under it. Spring framework internals stay
+    // un-checked.
     onlyNullMarked = true
 }
 
@@ -171,9 +172,9 @@ configurations.matching {
 // dev defaults so an operator with a compose-up Postgres can invoke
 // `./gradlew flywayInfo` / `flywayValidate` locally.
 flyway {
-    url = System.getenv("DATASOURCE_URL") ?: "jdbc:postgresql://localhost:5432/fls"
-    user = System.getenv("DATASOURCE_USER") ?: "fls"
-    password = System.getenv("DATASOURCE_PASSWORD") ?: "fls"
+    url = System.getenv("DATASOURCE_URL") ?: "jdbc:postgresql://localhost:5432/alpenflight"
+    user = System.getenv("DATASOURCE_USER") ?: "alpenflight"
+    password = System.getenv("DATASOURCE_PASSWORD") ?: "alpenflight"
     locations = arrayOf("filesystem:src/main/resources/db/migration")
     outOfOrder = false
     cleanDisabled = true

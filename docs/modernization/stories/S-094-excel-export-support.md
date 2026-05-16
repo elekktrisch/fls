@@ -5,7 +5,7 @@ epic: E-11
 status: todo
 depends_on: [S-001, S-093]
 acceptance:
-  - `ch.fls.excel.ExcelExportSupport` provides: `headerRow(...)`, `dataRow(...)`, `currencyCell(...)`, `dateCell(...)`, `autoSize(...)`, `streamingWorkbook()`.
+  - `ch.alpenflight.excel.ExcelExportSupport` provides: `headerRow(...)`, `dataRow(...)`, `currencyCell(...)`, `dateCell(...)`, `autoSize(...)`, `streamingWorkbook()`.
   - Default styles match legacy output (header bold + bottom-border; currency right-aligned with locale-specific separators; dates as ISO).
   - Backed by SXSSF for streaming-mode workbooks.
   - One unit test per helper.

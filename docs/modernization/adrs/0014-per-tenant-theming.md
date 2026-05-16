@@ -51,7 +51,7 @@ Public flows (trial-flight, passenger-flight, landing-with-club-context) need br
 
 ## Decision
 
-Chosen: **Option A — Runtime CSS-variable injection from a branding endpoint**, with dual auth/public endpoints (`/api/v1/clubs/myClub/branding` and `/api/v1/clubs/by-key/{clubKey}/branding`). Driven by criterion 7 (solo-operator operability — single deployment, no build-pipeline-per-club) and criterion 12 (works natively with Angular 21 signals + Tailwind v3 CSS variables already locked by ADR 0004). Public-flow club resolution defers to [S-025](../stories/S-025-public-flow-tenant-from-url.md) for the URL shape; the theming ADR consumes whatever S-025 picks. Falls back to a default FLS theme when no club context is resolvable (raw landing page without a club URL parameter).
+Chosen: **Option A — Runtime CSS-variable injection from a branding endpoint**, with dual auth/public endpoints (`/api/v1/clubs/myClub/branding` and `/api/v1/clubs/by-key/{clubKey}/branding`). Driven by criterion 7 (solo-operator operability — single deployment, no build-pipeline-per-club) and criterion 12 (works natively with Angular 21 signals + Tailwind v3 CSS variables already locked by ADR 0004). Public-flow club resolution defers to [S-025](../stories/S-025-public-flow-tenant-from-url.md) for the URL shape; the theming ADR consumes whatever S-025 picks. Falls back to a default AlpenFlight theme when no club context is resolvable (raw landing page without a club URL parameter).
 
 Build-time theming (B) is rejected as ops-overkill for 12 tenants on a solo-operator setup. The per-tenant CSS file (C) is a viable secondary option but adds backend code where A keeps the surface client-side and aligned with existing fetch patterns. SSR (D) contradicts ADR 0004's CSR-only stance.
 

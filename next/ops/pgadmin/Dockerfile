@@ -1,4 +1,4 @@
-# Custom pgAdmin image: same as upstream + pre-wired FLS Target Postgres
+# Custom pgAdmin image: same as upstream + pre-wired AlpenFlight Target Postgres
 # connection so devs see the schema on first login without typing host/port.
 #
 # Built by docker-compose.yml's `pgadmin` service (profile: next).

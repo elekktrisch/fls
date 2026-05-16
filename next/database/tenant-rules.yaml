@@ -269,6 +269,27 @@ overrides:
     # Service layer (S-026) enforces "may this club use this aircraft?" via owner_club_id +
     # charter agreement + public-rental checks. Sacred-cow parallel to Person + Location.
 
+  AircraftAircraftStates:
+    kind: cross-tenant
+    target_entity: AircraftAircraftState
+    rationale_ref: tenant-catalog.md#aircraft
+    emits_audit: true
+    # Per-aircraft state history (FK: AircraftId; ValidFrom / ValidTo / NoticedByPersonId).
+    # Inherits Aircrafts' cross-tenant classification (2026-05-16 amendment): airworthiness
+    # state is a property of the physical aircraft, not of any one operating club. A grounded
+    # aircraft is grounded for every club that uses it. Service layer reads via the Aircraft
+    # aggregate; tenancy is enforced at the parent.
+
+  AircraftOperatingCounters:
+    kind: cross-tenant
+    target_entity: AircraftOperatingCounter
+    rationale_ref: tenant-catalog.md#aircraft
+    emits_audit: true
+    # Per-aircraft engine / flight-hour counter history (FK: AircraftId; AtDateTime, totals,
+    # next-maintenance thresholds). Inherits Aircrafts' cross-tenant classification: counters
+    # measure the physical aircraft's lifetime and accumulate across every operating club.
+    # Maintenance triggers (NextMaintenanceAt*) are airframe-level, not club-level.
+
   AuditLogs:
     kind: tenant-scoped
     target_entity: AuditLog
@@ -296,10 +317,15 @@ overrides:
     # tenant). Each Flight carries its own operating_club_id, set per-flight by the operator
     # (typically defaults to user.club_id at the API layer). Charter case: Club B operates
     # Club A's aircraft → flight.operating_club_id = Club B, aircraft.owner_club_id = Club A.
-    kind: tenant-scoped
+    #
+    # Classifier note: legacy Flights had no ClubId column — tenancy was INDIRECT via
+    # Aircrafts.OwnerClubId FK-hop. `kind:` is omitted so step 1 (override) doesn't fire and
+    # step 3 (FK-hop) correctly classifies legacy_scope = INDIRECT_TENANT. `target_scope`
+    # below pins the new-schema invariant: S-013 ships a real `club_id` column on flight.
+    target_scope: TENANT_SCOPED
     tenant_column: operating_club_id
     preconditions:
-      - "S-013 ships flight.operating_club_id as required column set per-flight by operator (no denormalization invariant from aircraft)"
+      - "S-013 ships flight.operating_club_id as required column set per-flight by operator (do not denormalize from aircraft.owner_club_id)"
       - "S-022 service layer enforces 'may this club use this aircraft?' (owner / charter / public-rental checks) via Aircraft aggregate"
 
   Deliveries:

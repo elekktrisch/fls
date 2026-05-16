@@ -1,6 +1,6 @@
-# fls-server
+# alpenflight-server
 
-The Spring Boot service for the FLS modernization. Sibling to `flsweb/` (legacy)
+The Spring Boot service for the AlpenFlight modernization. Sibling to `flsweb/` (legacy)
 and `flsserver/` (legacy) inside this repo. Story scope is tracked in
 [`docs/modernization/stories/`](../../docs/modernization/stories/); this
 skeleton was set up by [S-001](../../docs/modernization/stories/S-001-scaffold-server-skeleton.md).
@@ -30,7 +30,7 @@ JDK 25 toolchain download on first build.
 
 ```bash
 ./gradlew check                          # compile + unit + integration tests
-./gradlew bootJar                        # produces build/libs/fls-server-0.0.1-SNAPSHOT.jar
+./gradlew bootJar                        # produces build/libs/alpenflight-server-0.0.1-SNAPSHOT.jar
 ./gradlew verifyNullAwayFailsOnViolation # asserts that null-safety is enforced (AC3)
 ```
 
@@ -56,11 +56,11 @@ and contained — both tools build the same artifact.
 
 ## Java 25 + Spring Boot 4 conventions
 
-- **`@SpringBootApplication`** at `ch.fls.FlsApplication`. Component scan covers
-  every `ch.fls.<domain>` package added later (e.g. `ch.fls.flight`,
-  `ch.fls.aircraft`).
+- **`@SpringBootApplication`** at `ch.alpenflight.AlpenFlightApplication`. Component scan covers
+  every `ch.alpenflight.<domain>` package added later (e.g. `ch.alpenflight.flight`,
+  `ch.alpenflight.aircraft`).
 - **Package by domain, not by layer.** Cross-cutting non-domain code lives
-  under `ch.fls.platform` (this is where `HelloController` sits).
+  under `ch.alpenflight.platform` (this is where `HelloController` sits).
 - **`application.yml`**, not `application.properties`. Profile overrides go in
   `application-{dev,test,prod}.yml`.
 - **JSpecify `@NullMarked` at every package root.** Every new package needs a
@@ -81,6 +81,23 @@ and contained — both tools build the same artifact.
 | Flyway | Not wired. S-009. |
 | Lombok | No. |
 
+## Environment-variable naming
+
+App-owned env vars use the **`ALPENFLIGHT_*`** prefix (verbose, self-documenting,
+no collision with the wider shell-variable namespace). Decided per S-128 refinement
+§5; the alternative `AF_*` was rejected because it collides with common shell
+prefixes (AlphaFold, AppFleet, Airflow, "Application Fingerprint" in some CI
+systems) and loses the brand-signal value that long prefixes give in CI logs.
+
+**Exception:** infrastructure-provided env vars keep their conventional names
+(`DATASOURCE_URL`, `DATASOURCE_USER`, `DATASOURCE_PASSWORD`, `SERVER_PORT`,
+`SPRING_PROFILES_ACTIVE`, …). The `ALPENFLIGHT_*` prefix applies only to vars
+the app itself owns and reads from `@ConfigurationProperties` / `System.getenv`.
+
+Today the only app-owned env var is `ALPENFLIGHT_TEST_ROOT` in the extract
+module's `MetadataExtractorIntegrationTest` (locates the legacy FLSTest fixture
+under `flsserver/database/FLSTest/`).
+
 ## File layout
 
 ```
@@ -89,8 +106,8 @@ next/server/
 ├── settings.gradle.kts                                    # Foojay auto-toolchain
 ├── gradle/wrapper/                                        # pinned Gradle distro
 ├── gradlew[.bat]                                          # checked in
-├── src/main/java/ch/fls/
-│   ├── FlsApplication.java                                # @SpringBootApplication
+├── src/main/java/ch/alpenflight/
+│   ├── AlpenFlightApplication.java                                # @SpringBootApplication
 │   ├── package-info.java                                  # @NullMarked
 │   ├── config/                                            # placeholder; cross-cutting beans land here
 │   └── platform/hello/HelloController.java                # demo endpoint; remove at S-020
@@ -101,8 +118,8 @@ next/server/
 │   ├── application-prod.yml
 │   └── logback-spring.xml                                 # stub; S-031 swaps in JSON encoder. MDC keys
 │                                                          #   request_id / tenant_id / actor_user_id reserved.
-├── src/test/java/ch/fls/                                  # unit + integration tests
-└── src/nullawayDemo/java/ch/fls/nullaway/                 # source set the verify task expects to fail
+├── src/test/java/ch/alpenflight/                                  # unit + integration tests
+└── src/nullawayDemo/java/ch/alpenflight/nullaway/                 # source set the verify task expects to fail
 ```
 
 ## NullAway false-positives
@@ -139,11 +156,11 @@ for the rationale; see [CONVENTIONS.md](CONVENTIONS.md) for the rules.
    Postgres container; this validates the new migration applies cleanly.
 4. For ad-hoc local validation without booting Spring:
    ```bash
-   docker run -d --name fls-pg \
-     -e POSTGRES_PASSWORD=fls -e POSTGRES_USER=fls -e POSTGRES_DB=fls \
+   docker run -d --name alpenflight-pg \
+     -e POSTGRES_PASSWORD=alpenflight -e POSTGRES_USER=alpenflight -e POSTGRES_DB=alpenflight \
      -p 5432:5432 postgres:17.4-alpine
    ./gradlew flywayMigrate flywayValidate flywayInfo
-   docker rm -f fls-pg
+   docker rm -f alpenflight-pg
    ```
    The Gradle plugin reads `DATASOURCE_URL` / `DATASOURCE_USER` /
    `DATASOURCE_PASSWORD` env vars with loopback defaults.
@@ -171,11 +188,11 @@ only in dev.
 
 | Env var | Purpose |
 |---|---|
-| `DATASOURCE_URL` | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/fls`) |
+| `DATASOURCE_URL` | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/alpenflight`) |
 | `DATASOURCE_USER` | Postgres username |
 | `DATASOURCE_PASSWORD` | Postgres password |
 
-The `dev` profile provides loopback defaults (`fls`/`fls` at
+The `dev` profile provides loopback defaults (`alpenflight`/`alpenflight` at
 `localhost:5432`); `prod` requires all three to be set explicitly. The
 `test` profile uses an in-memory H2 (MODE=PostgreSQL) DataSource for
 non-Flyway tests; the Flyway integration test overrides via a real Postgres

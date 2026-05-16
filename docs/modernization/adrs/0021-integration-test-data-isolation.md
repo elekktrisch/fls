@@ -100,7 +100,7 @@ Chosen: **Option A — per-test unique `club_id` for tenant-scoped data, stable-
   - Test author has to choose a natural key for cross-tenant entities — discipline tax. Mitigation: helper that generates the key from `getClass().getSimpleName() + "_" + testMethodName`.
   - The shared schema accumulates test data over time. Mitigation: a `gradle cleanTestData` task that drops every test Club + every row with an `IT_` natural-key prefix. Runs at developer's discretion; not part of normal test flow.
   - Tests that genuinely need a clean slate (cutover script integration, OGN ingest E2E) opt out and pay the TRUNCATE tax. Documented per-case.
-  - Slightly slower test setup than `@Transactional` rollback (an INSERT + cleanup at start vs nothing). Negligible at FLS scale; ~5-10ms per test.
+  - Slightly slower test setup than `@Transactional` rollback (an INSERT + cleanup at start vs nothing). Negligible at AlpenFlight scale; ~5-10ms per test.
 
 - **Follow-ups (other ADRs / stories implied):**
   - **S-022** lands the `IntegrationTestSupport` helper class + the first JPA-using test that exercises the rule. Refinement at S-022 should produce an example test in the story body to set the precedent.

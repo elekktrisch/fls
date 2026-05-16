@@ -55,7 +55,7 @@ for a new contributor.
   negotiate Docker API ≥1.44 in our sandbox). Image `postgres:17.4-alpine`
   pinned; readiness probe via JDBC `SELECT 1`.
 - **Guard:** every `@SpringBootTest` class is annotated
-  `@EnabledIf("ch.fls.server.testsupport.SharedPostgresContainer#available")`,
+  `@EnabledIf("ch.alpenflight.server.testsupport.SharedPostgresContainer#available")`,
   so contributors without Docker still pass `./gradlew check` cleanly
   (tests skip rather than fail).
 - **CI fail-loud guard.** `SharedPostgresContainer.available()` throws

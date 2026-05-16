@@ -49,8 +49,8 @@ AC1's "in V1__baseline" predates S-009 going `done`. V1's checksum is locked per
 | `next/database/tenant-rules.yaml` | edit | Add `shedlock` SYSTEM_GLOBAL override (parallel to `flyway_schema_history` / `app_meta` entries from S-009). Without it S-011's classifier emits UNKNOWN |
 | `next/server/CONVENTIONS.md` | edit | Append "Background jobs / ShedLock — S-018" section with stub-vs-activate rule + future activation runbook |
 | `next/server/README.md` | edit | Database-migrations section gains a "ShedLock activation playbook" subsection (NOT a separate README under `db/migration/` — that folder stays SQL-only) |
-| `next/server/src/test/java/ch/fls/server/migration/MigrationFolderConventionsTest.java` | extend | 3 new tests (V2 present + correct DDL shape + no `@EnableSchedulerLock` leaked in `src/main/java`) |
-| `next/server/src/test/java/ch/fls/server/migration/FlywayBootstrapIntegrationTest.java` | extend | 2 new tests (table exists with the 4 expected columns + PK; table is empty post-boot) |
+| `next/server/src/test/java/ch/alpenflight/server/migration/MigrationFolderConventionsTest.java` | extend | 3 new tests (V2 present + correct DDL shape + no `@EnableSchedulerLock` leaked in `src/main/java`) |
+| `next/server/src/test/java/ch/alpenflight/server/migration/FlywayBootstrapIntegrationTest.java` | extend | 2 new tests (table exists with the 4 expected columns + PK; table is empty post-boot) |
 
 ### V2 DDL (exact)
 
@@ -94,7 +94,7 @@ Rationale: the staging discipline depends on a single chokepoint. Adding "well i
 
 One PR per step when HA arrives:
 
-1. **PR-1 — config.** Create `ch.fls.platform.scheduling.SchedulerLockConfiguration`:
+1. **PR-1 — config.** Create `ch.alpenflight.platform.scheduling.SchedulerLockConfiguration`:
    ```java
    @Configuration
    @EnableSchedulerLock(defaultLockAtMostFor = "PT10M", defaultLockAtLeastFor = "PT5S")
@@ -131,7 +131,7 @@ One PR per step when HA arrives:
 
 ### Module layout
 
-No new server subpackage at S-018. `ch.fls.platform.scheduling` is **reserved** for the future HA story to create (will hold `SchedulerLockConfiguration`). Creating it empty today is gold-plating.
+No new server subpackage at S-018. `ch.alpenflight.platform.scheduling` is **reserved** for the future HA story to create (will hold `SchedulerLockConfiguration`). Creating it empty today is gold-plating.
 
 ## Edge cases & hidden requirements
 
@@ -148,7 +148,7 @@ No new server subpackage at S-018. `ch.fls.platform.scheduling` is **reserved** 
 - **`shedlock` SYSTEM_GLOBAL in `tenant-rules.yaml`** (parallel to `flyway_schema_history` / `app_meta`). Without it, S-011's classifier emits UNKNOWN.
 - **`V2__shedlock.sql` header comment** explains the stub posture and references the activation runbook in CONVENTIONS.md.
 - **Pin ShedLock version explicitly** (`7.7.0`) — Spring Boot 4.0.6 BOM does NOT manage ShedLock. Same pattern as Flyway Gradle plugin pin in S-009.
-- **CI guard against premature activation.** Either a JUnit reflection test (`ShedLockNotActivatedTest` walking `ch.fls.*` for `@EnableSchedulerLock`) OR a CI grep step. Recommend the JUnit test — same test infra as `MigrationFolderConventionsTest`, no extra CI plumbing.
+- **CI guard against premature activation.** Either a JUnit reflection test (`ShedLockNotActivatedTest` walking `ch.alpenflight.*` for `@EnableSchedulerLock`) OR a CI grep step. Recommend the JUnit test — same test infra as `MigrationFolderConventionsTest`, no extra CI plumbing.
 - **Forward-looking note for HA story:** `locked_by` defaults to `${hostname}` — decide explicit `.withLockedByValue(...)` at activation; document in HA runbook.
 
 ### Scope clarifications
@@ -226,7 +226,7 @@ ShedLock writes are intentionally non-audited. Capture as explicit exclusion in 
 ### Story-specific concerns
 
 - **Forbid `@EnableSchedulerLock` until HA.** Enforcement options:
-  - **JUnit reflection test (recommended)** — `ShedLockNotActivatedTest` walks `ch.fls.*` for the annotation; same test infrastructure as `MigrationFolderConventionsTest`, no extra CI plumbing.
+  - **JUnit reflection test (recommended)** — `ShedLockNotActivatedTest` walks `ch.alpenflight.*` for the annotation; same test infrastructure as `MigrationFolderConventionsTest`, no extra CI plumbing.
   - CI grep alternative — cheaper but only catches source-tree adds, not third-party deps that bundle the annotation.
 - **`shedlock` table must remain empty until activation.** Post-boot assertion in `FlywayBootstrapIntegrationTest` catches manual pre-population.
 - **CODEOWNERS:** S-009's existing rule on `db/migration/` covers V2. No new entry.
@@ -238,7 +238,7 @@ ShedLock writes are intentionally non-audited. Capture as explicit exclusion in 
 **S-018 owns:**
 - V2 migration applies; `shedlock` table exists with the canonical 4-column shape + PK on `name`.
 - ShedLock deps on classpath (Class.forName succeeds for both).
-- **No `@EnableSchedulerLock` anywhere in `ch.fls.*`.**
+- **No `@EnableSchedulerLock` anywhere in `ch.alpenflight.*`.**
 - `shedlock` table is empty post-boot.
 - `next/database/tenant-rules.yaml` carries the SYSTEM_GLOBAL entry.
 
@@ -250,7 +250,7 @@ Integration-only per stack convention. 6 new test methods across 3 existing/new 
 
 ### Specific test cases
 
-**Extend `MigrationFolderConventionsTest`** (`next/server/src/test/java/ch/fls/server/migration/`):
+**Extend `MigrationFolderConventionsTest`** (`next/server/src/test/java/ch/alpenflight/server/migration/`):
 
 - `v2_shedlock_migration_present` — `db/migration/V2__shedlock.sql` exists; matches `^V2__[a-z0-9_]+\.sql$`.
 - `v2_shedlock_matches_canonical_provider_ddl` — file contains `CREATE TABLE shedlock`, the 4 column names, and `PRIMARY KEY (name)`. Drift between this file and ShedLock 7.7.0's contract → fail at PR time.
@@ -263,7 +263,7 @@ Integration-only per stack convention. 6 new test methods across 3 existing/new 
 
 **New `ShedLockNotActivatedTest`** (no Spring context, pure classpath reflection):
 
-- `no_enable_scheduler_lock_in_main` — uses Reflections (or `ClassPathScanningCandidateComponentProvider` with a custom `isCandidateComponent` override) to scan `ch.fls.*` for `@EnableSchedulerLock`; asserts empty. Also scans methods for `@SchedulerLock`; asserts empty.
+- `no_enable_scheduler_lock_in_main` — uses Reflections (or `ClassPathScanningCandidateComponentProvider` with a custom `isCandidateComponent` override) to scan `ch.alpenflight.*` for `@EnableSchedulerLock`; asserts empty. Also scans methods for `@SchedulerLock`; asserts empty.
 
 ### Parity strategy
 
@@ -284,7 +284,7 @@ Re-uses S-009's `PostgresTestContainerLifecycle`. No new fixtures. No per-test c
 
 - **V2 checksum drift** — Flyway catches; integration test's column-shape assertion adds a second layer.
 - **ShedLock version drift** — no BOM management; pin `7.7.0` explicit; Dependabot watchlist.
-- **Reflection scan false negatives** — prefer `Reflections("ch.fls").getTypesAnnotatedWith(EnableSchedulerLock.class)` over `ClassPathScanningCandidateComponentProvider` (the latter only scans `@Component`-stereotyped classes by default).
+- **Reflection scan false negatives** — prefer `Reflections("ch.alpenflight").getTypesAnnotatedWith(EnableSchedulerLock.class)` over `ClassPathScanningCandidateComponentProvider` (the latter only scans `@Component`-stereotyped classes by default).
 - **Postgres case sensitivity** — assertion predicates use lowercase `'shedlock'`, `'name'`, etc. Document.
 
 ## Performance plan
