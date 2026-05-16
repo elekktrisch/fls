@@ -450,6 +450,35 @@ Before flipping `status: done` and pushing the final commit, run a single read-o
 - **Skip the gate only if the diff is bookkeeping-only** — e.g. a story that only flips frontmatter or only touches docs. Note the skip + reason in the done report.
 - **Specialist consult logged in done report.** Step 7's report lists this consult alongside any other Step 4.5 consults — operator can see the full advisory trail.
 
+### Step 6.8 — Story-body sweep (post-implementation cleanup)
+
+Before flipping `status: done`, sweep the story file body for stale state that accumulated during implementation. The refinement sections (Design notes / Test plan / Security plan / Performance plan / Open design questions) are the *contract* and stay verbatim; this sweep targets the *non-contract* body content that decayed during the implement phase.
+
+**Why this exists:** the implement phase flips frontmatter to `status: done` at Step 7, but the story body remains whatever the refine phase + any paused-implementation notes left behind. Common drift the next contributor will trip on:
+
+- An `## Implementation status (paused …)` sub-section from a prior pause that listed un-started work which has since shipped.
+- `## Tasks` checkboxes that are all `- [ ]` despite the work being complete.
+- `## Notes` or design-notes paragraphs that predicted the migration filename / version (`V<n+1>` / "likely V4") with reasoning that no longer holds.
+- Embedded `#N: <subject>` commit-subject identifiers from in-progress commits — these rot after squash-merge (the commit graph is rewritten).
+- Legacy SHA refs (`commit 99a69c4 in legacy`) — per the no-SHAs rule, citations must be by file path / PR# / story ID, not by commit hash.
+
+**Sweep checklist:**
+
+1. **Implementation-status / pause sections.** If the body has a sub-section like `## Implementation status (paused …)`, `## Pickup notes`, or similar — and the work shipped — delete it or replace with a brief `## Implementation notes` stamp summarising what landed (no SHAs, no commit subjects).
+2. **Tasks list.** If `## Tasks` has unchecked boxes for work that shipped: either check the boxes (`- [x]`) or replace with `Tasks superseded by acceptance criteria — see frontmatter`.
+3. **Migration-version predictions.** If design notes predict a migration filename (`V4`, `V<n+1>`, etc.) and the actual filename is different, update both the prediction *and* any related text ("tests assert >= 4" → "tests assert >= 3") to record the shipped state.
+4. **Commit-subject identifiers.** Grep the body for `#\d+:` patterns inside paragraphs (NOT inside the frontmatter's `github_issue:` / `github_pr:` fields). Where found, describe what landed without embedding the commit-subject string.
+5. **SHA citations.** Grep the body for 7+ hex-char tokens (`[0-9a-f]{7,40}`) that look like git commit hashes. Replace with file-path or PR-number citations.
+6. **Design-notes ↔ implementation drift.** Where a per-column-inventory row or row count in design notes differs from what shipped (e.g. column added during implementation that's not in the inventory; row count predicted as 17 but only 6 shipped with rationale), amend the inventory to record the actual shape + a one-line deviation note. Don't drop the inventory — extend it.
+
+**Rules:**
+
+- **Don't touch refinement-section contracts.** The five `<!-- modernize-refine: start … end -->` delimited sections are the spec the implementation was held to. Drift between them and the diff is a *review-phase* concern, not implement-phase. The sweep handles non-contract body content only.
+- **Don't auto-edit the body recklessly.** When in doubt, leave a paragraph in place. The sweep targets *unambiguous* staleness (paused sections asserting work is unstarted when it shipped; commit subjects; SHAs); judgment calls about design-notes content are for `/modernize-review`.
+- **Sweep is a single commit.** Commit message `#N: post-implementation body sweep` (or `S-NNN: post-implementation body sweep` in fallback mode). Lands before the Step 7 status-flip commit.
+
+**Skip the sweep if the diff is bookkeeping-only** (e.g. story that only updates frontmatter). Note the skip in the done report.
+
 ### Step 7 — Update status, final commit + push, close issue, report
 
 Update the story's frontmatter:
@@ -511,6 +540,7 @@ Print to the user:
 - **Parallel sub-agents on disjoint paths only.** Same-file conflicts between sub-agents are silent failures.
 - **Specialist consults are read-only and one-shot.** No code-writing specialists; no chained consults.
 - **Self-review gate before push.** Step 6.7's `maintainability-reviewer` consult runs blockers-only against the diff before the status-flip push. Either zero blockers (proceed), small fix commit (proceed), or escalate (stop). Skip only for bookkeeping-only diffs; note the skip in the report.
+- **Story-body sweep before status flip.** Step 6.8 sweeps the non-contract story-file body for stale state (paused sections, unchecked Tasks lists, predicted-vs-actual migration version, commit-subject `#N:` identifiers, SHA citations, design-notes ↔ implementation drift on column inventory / row counts). Refinement sections stay verbatim (those are the spec). Skip only for bookkeeping-only diffs.
 - **One feature branch per story.** `story/S-NNN-<slug>`, branched off `main`. Draft PR opens at first push, flips to ready-for-review at status:done. Trunk-direct commits only in the GitHub-unavailable fallback.
 - **The skill does not merge.** The PR sits ready-for-review for `/modernize-review` and then the operator. Auto-merge is not a feature of this skill.
 - **Code is self-explanatory.** Default to zero comments. Lean on naming, modularization, and structure to communicate intent. Add a comment only when the WHY is non-obvious — a hidden invariant, a workaround for a specific bug, a surprising constraint. Never write comments that restate the WHAT (the code does that), reference the current task / issue ("added for #42"), or paraphrase function names in docstrings. If you feel the urge to comment, first try renaming a variable, extracting a function, or splitting a module.
