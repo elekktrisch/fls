@@ -1,6 +1,6 @@
 ---
 name: modernize-refine
-description: Phase 5 — refine one story by spawning 5 specialist subagents in parallel (requirements/solution/security/qa/performance-engineer); synthesize into the story file. Trigger: /modernize-refine S-NNN.
+description: Phase 5 — refine one story via specialist subagents. Conditional dispatch by story shape — requirements/solution/qa always run; security + performance spawn only when the story has the signal. Synthesizes into the story file. Trigger: /modernize-refine S-NNN.
 ---
 
 # Phase 5 — Story Refinement (just-in-time)
@@ -33,35 +33,65 @@ Read in parallel:
 
 You should *not* read every story or every ADR — only the ones this story depends on or references. Keep context focused.
 
-### Step 1.5 — Context7 freshness pass
+**Story-shape detection (primary efficiency lever).** While loading, compute these flags from the story's title + acceptance criteria + body + cited legacy code + `adr_refs`. They determine which specialists Step 2 spawns — specialists whose dimension doesn't apply to the story are skipped entirely rather than spawned-then-returning-N/A. Cuts ~20-40% of refine tokens on typical stories.
 
-For every library / framework / SDK / API the story is likely to touch (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, etc. — derive from `adr_refs` + acceptance criteria + the legacy code being replaced), fetch the **current** API surface and version status via Context7 **before** spawning specialists.
+- `has_security_signal` — story mentions any of: `auth`, `authz`, `Keycloak`, `OIDC`, `@TenantId`, `@PreAuthorize`, `PII`, `OWASP`, `tenant`, `audit`, `RBAC`, `permission`, `role`, `password`, `keycloak_sub`, `principal`. Or cited legacy code is under `flsserver/.../UserService` / `Auth*` / `Identity*` / `Login*`.
+- `has_performance_signal` — story mentions any of: `index`, `query`, `latency`, `cache`, `caching`, `@BatchSize`, `fetch`, `N+1`, `p95`, `p99`, `JOIN`, `hot path`, `throughput`, `pagination`, `bulk`, `streaming`. Or estimate is `L`. Or epic is performance-flagged (e.g. `E-09` perf-baseline).
+- `has_library_signal` — story's `adr_refs` lists ADRs about runtime stacks (0001 Spring Boot, 0002 Postgres, 0003 Flyway, 0004 Angular, 0005 API shape, 0006 NgRx, 0007 Keycloak, etc.), OR the story body references a specific library / framework / SDK by name, OR the body cites version pins.
+
+The specialist dispatch table (applied in Step 2):
+
+| Specialist | Spawn when | Section name |
+|---|---|---|
+| `requirements-engineer` | **always** | `## Edge cases & hidden requirements` |
+| `solution-architect` | **always** | `## Design notes` |
+| `qa-engineer` | **always** | `## Test plan` |
+| `security-engineer` | `has_security_signal` | `## Security plan` |
+| `performance-engineer` | `has_performance_signal` | `## Performance plan` |
+
+For each not-spawned specialist, pre-fill its section in Step 4's template with `(N/A — <reason from story-shape>)` instead of spawning the agent. Examples:
+- Security skipped: `## Security plan` → `(N/A — no security signal in story scope; no authz, tenant, PII, or audit surface. Re-spec if S-NNN later acquires one.)`
+- Performance skipped: `## Performance plan` → `(N/A — no performance signal in story scope; no queries, indexes, caching, or hot-path concerns. Re-spec if S-NNN later acquires one.)`
+
+**Frontmatter override.** A story may pre-set `refine_specialists:` in its frontmatter to force a specialist set (e.g. `refine_specialists: [requirements, architect, qa, security]` to force security even when the auto-detect misses). When the frontmatter is present, it wins — auto-detect is the default fallback, the operator is the override.
+
+### Step 1.5 — Context7 freshness pass (conditional)
+
+**Skip this step entirely if `has_library_signal` is false** (the flag from Step 1). Stories with no library / framework / SDK reference don't benefit from a Context7 pass — examples: pure-doc stories, decompose / inventory work, story-rename refactors.
+
+**Optional caching.** A story may carry `context7_last_checked: <ISO date>` in frontmatter (stamped by a prior pass — refine, implement, or review). If within the last 7 days AND the story's referenced library surface hasn't expanded since then, skip and trust the prior pass. Otherwise run + restamp.
+
+**When the pass DOES run:** for every library / framework / SDK / API the story is likely to touch (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, etc. — derive from `adr_refs` + acceptance criteria + the legacy code being replaced), fetch the **current** API surface and version status via Context7 **before** spawning specialists.
 
 Workflow per library: `mcp__context7__resolve-library-id` → pick best match → `mcp__context7__query-docs` for the specific question (latest stable version, peer-dep matrix, whether an API is still recommended or has been superseded).
 
 Pass the synthesized facts (1-3 lines per library — current major, key API names, deprecations) into each specialist's prompt as a "Library facts" block. Specialists run in subagents that **do not have Context7 access** — front-loading the lookup is the only way to keep their recommendations current.
 
+After running, stamp `context7_last_checked: <today's ISO date>` on the story frontmatter so future invocations (implement, review) can skip when nothing changed.
+
 Skip libraries the story doesn't touch. Don't fetch generic programming docs.
 
-### Step 2 — Spawn the five specialists in parallel
+### Step 2 — Spawn the applicable specialists in parallel
 
-Launch all five subagents in a single message with five Agent tool calls:
+The specialist set is determined by Step 1's dispatch table — typically 3-5 of these run, depending on story shape:
 
-- `requirements-engineer` — surfaces edge cases, hidden requirements, NFR call-outs.
-- `solution-architect` — module layout, domain model, API surface, alternatives considered.
-- `security-engineer` — threat model, authorization, validation, PII, audit events, tenancy.
-- `qa-engineer` — test pyramid, specific test cases, parity-test design, fixtures, coverage gaps.
-- `performance-engineer` — hot paths, required indexes, N+1 risks, caching, latency budget.
+- `requirements-engineer` — **always**. Surfaces edge cases, hidden requirements, NFR call-outs.
+- `solution-architect` — **always**. Module layout, domain model, API surface, alternatives considered.
+- `qa-engineer` — **always**. Test pyramid, specific test cases, parity-test design, fixtures, coverage gaps.
+- `security-engineer` — when `has_security_signal`. Threat model, authorization, validation, PII, audit events, tenancy.
+- `performance-engineer` — when `has_performance_signal`. Hot paths, required indexes, N+1 risks, caching, latency budget.
+
+**Skipped specialists pre-fill their section** with `(N/A — <reason>)`. The synthesis step (Step 3) preserves the N/A verbatim — the operator gets visibility into what was deliberately not refined.
 
 Each subagent's prompt **must include**:
 - The absolute path to the story file.
 - The absolute paths to the ADRs referenced by `adr_refs`.
 - The story's `depends_on` IDs (so the agent can read those stories' refinements if they exist).
 - A brief reminder of the project context (the 122-story FLS modernization, sacred cows, multi-tenancy by `@TenantId`).
-- **The Library facts block from Step 1.5** — the specialist must pin versions and APIs against these facts, not against training-data assumptions.
+- **The Library facts block from Step 1.5** — the specialist must pin versions and APIs against these facts, not against training-data assumptions. If Step 1.5 was skipped (no library signal), pass an empty / omitted block.
 - The agent's output format (already in their system prompt, but call it out so they emit it cleanly).
 
-Send the five Agent calls in **one message** so they run concurrently. Each returns a single markdown blob in their agent-defined format.
+Send the applicable Agent calls in **one message** so they run concurrently. Each returns a single markdown blob in their agent-defined format.
 
 ### Step 3 — Synthesize, don't re-decide
 
@@ -105,10 +135,13 @@ Add or update in the story's YAML frontmatter:
 ```yaml
 refined: true
 refined_at: <today's date, ISO>
-refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+refined_specialists: [requirements, solution, qa, security, performance]   # only the ones that actually ran
+context7_last_checked: <today's ISO date>   # only when Step 1.5 ran; omit when skipped
 ```
 
-If any specialist was skipped (e.g. performance-engineer on a pure-doc story), reflect that in `refined_specialists`. Do not pretend an agent ran when it didn't.
+`refined_specialists` reflects what **actually ran** per Step 1's dispatch — do not list a specialist whose section is pre-filled with `(N/A — ...)`. The story-shape dispatch is the authoritative source of truth for which dimensions got real refinement.
+
+If the operator pre-set `refine_specialists:` in the story frontmatter (override), preserve their list verbatim in `refined_specialists` — the override won.
 
 ### Step 6 — Report back
 
@@ -124,10 +157,13 @@ Print to the user:
 
 - **One story per invocation.** Batching is forbidden — refinement is JIT by design.
 - **Context7 freshness pass before specialists.** Every library / framework / SDK / API the story touches gets its current docs fetched via Context7 (Step 1.5) and the facts handed to each specialist. Subagents have no Context7 access — front-loading is the only way to keep version pins and API recommendations current.
-- **Five specialists, one parallel batch.** Sequential spawning wastes wall-clock.
+- **Conditional specialist dispatch.** Step 1's story-shape flags determine which specialists spawn (see the dispatch table). Specialists whose dimension doesn't apply to the story are skipped entirely rather than spawned-then-returning-N/A — biggest single token saving. `requirements-engineer`, `solution-architect`, `qa-engineer` always run; `security-engineer` + `performance-engineer` are conditional.
+- **Frontmatter `refine_specialists:` overrides auto-detect.** When set, the operator's list wins (used to force a specialist the auto-detect missed, or to suppress one for a known-N/A case).
+- **Context7 freshness pass is conditional.** Step 1.5 runs only when `has_library_signal` is true (story references libraries / frameworks / SDKs / version pins) AND `context7_last_checked` is stale (> 7 days) or absent. When skipped, specialist prompts carry an empty "Library facts" block.
+- **Specialists run in parallel.** Sequential spawning wastes wall-clock; send all applicable Agent calls in one message.
 - **Synthesis is mechanical, not editorial.** The specialists own the analysis; you own the layout. Don't paraphrase their findings into something weaker.
 - **Replace, don't append, on re-run.** Refining twice should not double the file.
-- **Frontmatter must reflect reality** — `refined_specialists` lists who actually ran.
+- **Frontmatter must reflect reality** — `refined_specialists` lists who actually ran. Skipped specialists' sections show `(N/A — <reason>)`; do NOT list them in `refined_specialists`.
 - **Open design questions surface conflicts** — they are not "things I think the operator should know about." If a conflict exists, list it. If not, omit the section.
 
 ## What this skill does *not* do
@@ -140,6 +176,6 @@ Print to the user:
 
 ## When done
 
-The story file has five (or six, if conflicts) new sections and refined-status frontmatter. The user has the next-action prompt. No other artifacts are touched.
+The story file has the applicable refinement sections (3-5 depending on story shape, plus `## Open design questions` if conflicts surfaced) and refined-status frontmatter. Skipped specialists' sections carry `(N/A — <reason>)`. The user has the next-action prompt. No other artifacts are touched.
 
 If the user wants to refine the next story in `_ORDER.md`, they invoke `/modernize-refine <next-S-id>`. The skill has no batch mode.
