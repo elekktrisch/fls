@@ -1,0 +1,319 @@
+# Tenant-scope classification — committed human-curated overrides + the public-flow allowlist seed.
+# See `tenant-catalog.md` for the narrative + sacred-cow reasoning.
+# See `next/database/extract/src/main/java/ch/fls/legacyextract/tenant/TenantClassifier.java`
+# for the assignment algorithm (first-match-wins; YAML overrides beat column-presence heuristics).
+
+version: 1
+hibernate_pin: "6.x"  # tested against. Resolver fail-closed behavior must be re-verified on bump.
+tenant_id_type: "Long"  # 8-byte index entries; matches legacy bigint ClubId. Pinned per S-022.
+
+# Per-entity overrides. Keyed by legacy SQL Server table name (matches S-010 extractor output).
+# Each override either pins a `kind` (drives classification) and/or carries metadata downstream
+# stories consume (target_entity, pii_blob, ride_through_targets, preconditions).
+overrides:
+
+  # ---- Cross-tenant entities — the sacred-cow cluster ----
+
+  Persons:
+    kind: cross-tenant
+    target_entity: Person
+    rationale_ref: tenant-catalog.md#persons
+    # Cross-club crew, multi-club membership via PersonClub. Cross-tenant by design.
+
+  PersonClub:
+    kind: cross-tenant
+    target_entity: PersonClub
+    rationale_ref: tenant-catalog.md#personclub
+    # The cross-tenant join table itself. A Person can belong to many Clubs.
+
+  # ---- Principal subject ----
+
+  Users:
+    kind: principal
+    target_entity: User
+    rationale_ref: tenant-catalog.md#users
+    # Has a ClubId column (login principal's primary club) but tenancy resolves
+    # FROM this row, not OVER it. Cannot carry @TenantId or the resolver
+    # would chicken-and-egg the user load.
+
+  # ---- Reference data — no tenant filter ever ----
+
+  Countries:
+    kind: reference
+    target_entity: Country
+    rationale_ref: tenant-catalog.md#reference-data
+  LanguageTranslations:
+    kind: reference
+    target_entity: LanguageTranslation
+    rationale_ref: tenant-catalog.md#reference-data
+  Languages:
+    kind: reference
+    target_entity: Language
+    rationale_ref: tenant-catalog.md#reference-data
+  AircraftTypes:
+    kind: reference
+    target_entity: AircraftType
+    rationale_ref: tenant-catalog.md#reference-data
+  AircraftStates:
+    kind: reference
+    target_entity: AircraftState
+    rationale_ref: tenant-catalog.md#reference-data
+  StartTypes:
+    kind: reference
+    target_entity: StartType
+    rationale_ref: tenant-catalog.md#reference-data
+  MemberStates:
+    kind: reference
+    target_entity: MemberState
+    rationale_ref: tenant-catalog.md#reference-data
+  ClubStates:
+    kind: reference
+    target_entity: ClubState
+    rationale_ref: tenant-catalog.md#reference-data
+  CounterUnitTypes:
+    kind: reference
+    target_entity: CounterUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  LengthUnitTypes:
+    kind: reference
+    target_entity: LengthUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  ElevationUnitTypes:
+    kind: reference
+    target_entity: ElevationUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  AccountingUnitTypes:
+    kind: reference
+    target_entity: AccountingUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  AccountingRuleFilterTypes:
+    kind: reference
+    target_entity: AccountingRuleFilterType
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightAirStates:
+    kind: reference
+    target_entity: FlightAirState
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightProcessStates:
+    kind: reference
+    target_entity: FlightProcessState
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightCrewTypes:
+    kind: reference
+    target_entity: FlightCrewType
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightCostBalanceTypes:
+    kind: reference
+    target_entity: FlightCostBalanceType
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightTypes:
+    kind: reference
+    target_entity: FlightType
+    rationale_ref: tenant-catalog.md#reference-data
+  AircraftReservationTypes:
+    kind: reference
+    target_entity: AircraftReservationType
+    rationale_ref: tenant-catalog.md#reference-data
+  LocationTypes:
+    kind: reference
+    target_entity: LocationType
+    rationale_ref: tenant-catalog.md#reference-data
+  PersonCategories:
+    kind: reference
+    target_entity: PersonCategory
+    rationale_ref: tenant-catalog.md#reference-data
+  PlanningDayAssignmentTypes:
+    kind: reference
+    target_entity: PlanningDayAssignmentType
+    rationale_ref: tenant-catalog.md#reference-data
+  ExtensionTypes:
+    kind: reference
+    target_entity: ExtensionType
+    rationale_ref: tenant-catalog.md#reference-data
+  AuditLogEventTypes:
+    kind: reference
+    target_entity: AuditLogEventType
+    rationale_ref: tenant-catalog.md#reference-data
+  UserAccountStates:
+    kind: reference
+    target_entity: UserAccountState
+    rationale_ref: tenant-catalog.md#reference-data
+  Extensions:
+    kind: reference
+    target_entity: Extension
+    rationale_ref: tenant-catalog.md#reference-data
+    # Extension TYPE definitions — shared across all tenants. ExtensionValues
+    # is the per-club payload (auto-classified as tenant-scoped if it carries
+    # a ClubId column).
+  Locations:
+    kind: reference
+    target_entity: Location
+    rationale_ref: tenant-catalog.md#reference-data
+    # Sacred-cow: shared airports (LSZH used by multiple clubs). Reference data,
+    # not tenant-scoped. Note: if a future schema adds club-private waypoints,
+    # split into Location (reference) + ClubLocation (tenant-scoped).
+  InOutboundPoints:
+    kind: reference
+    target_entity: InOutboundPoint
+    rationale_ref: tenant-catalog.md#reference-data
+    # Airport routing waypoints — shared like Locations.
+  PersonFlightTimeCredits:
+    kind: cross-tenant
+    target_entity: PersonFlightTimeCredit
+    rationale_ref: tenant-catalog.md#persons
+    # Credits attached to a Person — cross-tenant by construction (the same
+    # Person can hold credits across multiple Clubs via PersonClub). The
+    # row carries the per-club association via Person's relationships, not
+    # via a ClubId column.
+
+  # ---- System-global ----
+
+  Settings:
+    kind: system
+    target_entity: Setting
+    rationale_ref: tenant-catalog.md#system-global
+  SystemData:
+    kind: system
+    target_entity: SystemData
+    rationale_ref: tenant-catalog.md#system-global
+  SystemVersion:
+    kind: system
+    target_entity: SystemVersion
+    rationale_ref: tenant-catalog.md#system-global
+  SystemLogs:
+    kind: system
+    target_entity: SystemLog
+    rationale_ref: tenant-catalog.md#system-global
+  Roles:
+    kind: system
+    target_entity: Role
+    rationale_ref: tenant-catalog.md#system-global
+  UserRoles:
+    kind: system
+    target_entity: UserRole
+    rationale_ref: tenant-catalog.md#system-global
+
+  # ---- Tenant-scoped — most of the domain ----
+  # No override needed when the column-presence rule fires (ClubId present).
+  # Listed here when downstream metadata matters (pii_blob, ride_through_targets,
+  # preconditions, target_entity rename).
+
+  Clubs:
+    kind: tenant-scoped
+    target_entity: Club
+    rationale_ref: tenant-catalog.md#clubs
+    # The tenant identity row itself. Each Club row IS a tenant.
+
+  Aircrafts:
+    kind: tenant-scoped
+    target_entity: Aircraft
+    rationale_ref: tenant-catalog.md#aircraft
+    tenant_column_legacy: OwnerClubId  # not literally ClubId; the override pins the mapping
+    emits_audit: true
+    # Ownership identifies tenant. Charter / loan to a different club is a sacred-cow
+    # use-case but not a tenancy mutation — the Aircraft row keeps its OwnerClubId.
+
+  AuditLogs:
+    kind: tenant-scoped
+    target_entity: AuditLog
+    rationale_ref: tenant-catalog.md#audit-logs
+    pii_blob: true
+    emits_audit: false  # audit logs are not themselves audited (no infinite recursion)
+    # The row is tenant-scoped; payload may reference cross-cluster Persons.
+
+  AuditLogDetails:
+    kind: tenant-scoped
+    target_entity: AuditLogDetail
+    rationale_ref: tenant-catalog.md#audit-logs
+    pii_blob: true
+    emits_audit: false
+    # OriginalValue / NewValue blobs are the system's largest PII container.
+    # DSAR scope cascades cross-tenant (Person erasure → scrub audit blobs in every club).
+
+  Flights:
+    target_entity: Flight
+    rationale_ref: tenant-catalog.md#flights
+    emits_audit: true
+    ride_through_targets: [Persons, Aircrafts]
+    # No `kind` override — the classifier detects the missing ClubId + FK chain
+    # and assigns INDIRECT_TENANT for legacy. Target_scope is upgraded to
+    # TENANT_SCOPED here (the implementer must add the precondition).
+    target_scope: TENANT_SCOPED
+    preconditions:
+      - "S-013 must denormalize club_id from aircraft.owner_club_id into the new flight table"
+      - "S-016 maintains the invariant `flight.club_id == aircraft.owner_club_id` during cutover"
+
+  Deliveries:
+    kind: tenant-scoped
+    target_entity: Delivery
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: true
+    ride_through_targets: [Persons]  # RecipientPersonId may be cross-club
+
+  DeliveryItems:
+    kind: tenant-scoped
+    target_entity: DeliveryItem
+    rationale_ref: tenant-catalog.md#deliveries
+
+  AccountingRuleFilters:
+    kind: tenant-scoped
+    target_entity: AccountingRuleFilter
+    rationale_ref: tenant-catalog.md#accounting-rule-filter
+    emits_audit: true
+
+  AircraftReservations:
+    kind: tenant-scoped
+    target_entity: AircraftReservation
+    rationale_ref: tenant-catalog.md#aircraft-reservation
+    emits_audit: true
+    ride_through_targets: [Persons]
+
+  PlanningDays:
+    kind: tenant-scoped
+    target_entity: PlanningDay
+    rationale_ref: tenant-catalog.md#planning-day
+
+  PlanningDayAssignments:
+    kind: tenant-scoped
+    target_entity: PlanningDayAssignment
+    rationale_ref: tenant-catalog.md#planning-day
+    ride_through_targets: [Persons]
+
+  FlightCrew:
+    kind: tenant-scoped
+    target_entity: FlightCrew
+    rationale_ref: tenant-catalog.md#flight-crew
+    ride_through_targets: [Persons]
+    # Composite UNIQUE (Flight, Person, CrewType). The Person ride-through is
+    # the canonical sacred-cow case (cross-club crew member).
+
+# ---- Public-flow allowlist contract ----
+# DB-table-driven (NOT application property): operators enable/disable per-club
+# from the admin UI without redeploy. S-013 designs the table; S-025 implements
+# the URL-slug resolver; S-011 declares the contract.
+public_flow_allowlist:
+  table: public_flow_club
+  columns: [club_id, url_slug, flow_kind, enabled]
+  flow_kinds: [TRIAL_FLIGHT, PASSENGER_FLIGHT]
+  slug_pattern: "^[a-z0-9-]{3,40}$"
+  resolution_response_on_unknown_slug: 404  # not 403, not "club not found"; constant-time
+
+# ---- Unscoped call-site matrix (for S-023) ----
+# Named call sites that legitimately bypass @TenantId. Each gets an entry in
+# UnscopedTenantContext's whitelist + an explicit role/principal gate.
+unscoped_call_sites:
+  - name: system-admin-reports
+    description: "Cross-club rollup reports for system administrators"
+    principal: SYSTEM_ADMIN
+  - name: ogn-ingest
+    description: "OGN flight ingestion writes flights for many clubs from a service principal"
+    principal: OGN_INGEST
+  - name: daily-scheduled-jobs
+    description: "Scheduled aggregations across all tenants (statistics, license-expiry checks)"
+    principal: SCHEDULED_JOB
+  - name: public-slug-resolution
+    description: "Anonymous URL-slug → club_id resolution before tenant context is established"
+    principal: ANONYMOUS
+  - name: fadp-dsar-cross-club-search
+    description: "Person erasure cascades cross-club; audit-blob redaction needs unscoped read"
+    principal: DPO
