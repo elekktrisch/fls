@@ -45,6 +45,34 @@ class MigrationFolderConventionsTest {
     }
 
     @Test
+    void identity_and_reference_migration_present() throws IOException {
+        List<Path> migrations = listMigrations();
+        assertThat(migrations)
+                .as("S-012 ships a V<n>__identity_and_reference.sql migration (n >= 2)")
+                .anyMatch(p -> {
+                    String name = p.getFileName().toString();
+                    return name.endsWith("__identity_and_reference.sql")
+                            && name.matches("^V\\d+__identity_and_reference\\.sql$")
+                            && !name.startsWith("V1__");
+                });
+    }
+
+    @Test
+    void identity_and_reference_migration_is_non_empty() throws IOException {
+        List<Path> migrations = listMigrations();
+        Path file = migrations.stream()
+                .filter(p -> p.getFileName().toString().endsWith("__identity_and_reference.sql"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError(
+                        "identity_and_reference migration not found — see identity_and_reference_migration_present"));
+        String content = Files.readString(file, StandardCharsets.UTF_8);
+        String stripped = content.replaceAll("(?m)^--.*$", "").replaceAll("\\s+", "");
+        assertThat(stripped)
+                .as("identity_and_reference migration must contain at least one non-comment statement")
+                .isNotEmpty();
+    }
+
+    @Test
     void every_file_matches_naming_convention() throws IOException {
         List<Path> migrations = listMigrations();
         for (Path m : migrations) {

@@ -231,4 +231,31 @@ class FlywayBootstrapIntegrationTest {
                 .as("current schema version must be 1 (or higher if S-012+ have shipped)")
                 .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("1"));
     }
+
+    /**
+     * S-012 ships V<n>__identity_and_reference.sql with n >= 2. Relaxed comparator
+     * tolerates S-018 (shedlock) landing as V2 ahead of identity, in which case
+     * S-012's migration takes V3.
+     */
+    @Test
+    void current_version_at_least_2_after_s012() {
+        assertThat(flyway.info().current().getVersion())
+                .as("after S-012, current schema version must be >= 2")
+                .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("2"));
+    }
+
+    @Test
+    void flyway_history_contains_identity_row() throws Exception {
+        try (var conn = dataSource.getConnection();
+                var stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT count(*) FROM flyway_schema_history "
+                                + "WHERE success = true "
+                                + "AND script LIKE 'V%__identity_and_reference.sql'")) {
+            rs.next();
+            assertThat(rs.getInt(1))
+                    .as("Flyway must have applied the identity_and_reference migration")
+                    .isEqualTo(1);
+        }
+    }
 }
