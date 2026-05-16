@@ -7,16 +7,18 @@ depends_on: [S-012]
 acceptance:
   - Tables defined: `flight`, `flight_crew`, `flight_crew_type`, `flight_type`, `flight_cost_balance_type`, `flight_process_state`, `flight_air_state`, `aircraft`, `aircraft_type`, `aircraft_state`, `aircraft_aircraft_state`, `aircraft_operating_counter`, `article`, `location`, `location_type`, `inoutbound_point` (16 tables — `flight_process_state` + `flight_air_state` promoted from "modelled as enum or lookup" into explicit lookup tables per ADR 0019 uniformity).
   - **Every PK is `UUID NOT NULL PRIMARY KEY`** (Postgres native `uuid`); every FK column is `uuid`. App-generated via Hibernate 7 + `f4b6a3:uuid-creator` `UuidCreator.getTimeOrderedEpoch()` at S-022; the migration MUST NOT use `DEFAULT gen_random_uuid()`. (Hibernate's built-in `@UuidGenerator(style = TIME)` is **UUID v1**, not v7 — Context7-confirmed.)
-  - **Aggregate roots** per ADR 0018 (5): `Flight`, `Aircraft`, `Location`, `FlightType`, `Article`. Each carries an SQL `COMMENT ON COLUMN` on `id` referencing ADR 0019 + the prefix (`flt_` / `acf_` / `loc_` / `fty_` / `art_`).
+  - **Aggregate roots** per ADR 0018 (5): `Flight`, `Aircraft` (cross-tenant per amendment), `Location` (cross-tenant), `FlightType` (tenant-scoped), `Article` (tenant-scoped). Each carries an SQL `COMMENT ON COLUMN` on `id` referencing ADR 0019 + the prefix (`flt_` / `acf_` / `loc_` / `fty_` / `art_`).
   - **Aggregate-internal entities** (no prefix; raw UUID at every layer): `flight_crew` (under Flight), `aircraft_aircraft_state` + `aircraft_operating_counter` (under Aircraft), `inoutbound_point` (under Location).
   - **Reference data — not aggregates** (UUID PKs + `legacy_int_id SMALLINT UNIQUE` for S-016 cutover): `aircraft_type`, `aircraft_state`, `location_type`, `flight_crew_type`, `flight_process_state`, `flight_air_state`, `flight_cost_balance_type`. Seeded with fixed canonical UUID v7 literals (extends S-012's `reference-seeds-canonical-uuids.json` + the committed generator script).
   - `flight.flight_aircraft_type_id` is **`SMALLINT NOT NULL CHECK (flight_aircraft_type_id IN (1, 2, 4))`** — NOT a FK to a lookup. Sparse-enum sacred cow per legacy `FlightAircraftTypeValue.cs:5-7` (1=Glider, 2=Tow, 4=Motor — value 3 is deliberately skipped; GliderWithMotor lives on `Aircraft.AircraftType`, NOT on Flight).
   - `flight.tow_flight_id uuid NULL → flight.id ON DELETE SET NULL` self-FK + `CHECK (tow_flight_id IS NULL OR tow_flight_id <> id)` (no self-pairing) + `CHECK (tow_flight_id IS NULL OR flight_aircraft_type_id = 1)` (only glider flights link a tow).
-  - `flight.operating_club_id uuid NOT NULL → club(id) ON DELETE RESTRICT`, denormalized from `aircraft.operating_club_id` at write time; invariant `flight.operating_club_id == aircraft.operating_club_id` enforced at S-022 service layer (DB CHECK cannot reach cross-row; parity test pins). Indexed.
+  - `flight.operating_club_id uuid NOT NULL → club(id) ON DELETE RESTRICT` — set per-flight by the operator (the club whose operations are responsible for this flight). **NOT denormalized from aircraft** (per the 2026-05-16 amendment making Aircraft cross-tenant); charter case: Club B operates Club A's aircraft → `flight.operating_club_id = Club B`, `aircraft.owner_club_id = Club A`. Indexed.
   - `flight_crew.person_id uuid NOT NULL → person(id) ON DELETE RESTRICT` — **cross-tenant ride-through sacred cow** (preserved per ADR 0008 + S-011); RESTRICT preserves flight-history attribution (DSAR scrubs PII on Person, doesn't row-delete).
-  - `aircraft.aircraft_owner_person_id uuid NULL → person(id) ON DELETE SET NULL` — cross-tenant ride-through.
+  - **Aircraft is CROSS_TENANT** (per the 2026-05-16 amendment): no `@TenantId`; `aircraft.owner_club_id uuid NULL → club(id) ON DELETE SET NULL` (renamed from legacy `OwnerClubId`; nullable so aircraft may be Person-owned, charter-shared, or rental-fleet). Sacred-cow parallel to Person + Location. Service layer (S-026) enforces "may this club use this aircraft for this Flight?" via owner / charter / public-rental checks.
+  - `aircraft.aircraft_owner_person_id uuid NULL → person(id) ON DELETE SET NULL` — private-owner case; cross-tenant ride-through.
+  - `aircraft_aircraft_state` + `aircraft_operating_counter` inherit Aircraft's cross-tenancy (state/counter records belong to the aircraft, not to a club's operations). No `operating_club_id` denormalization on either.
   - `aircraft_aircraft_state.noticed_by_person_id uuid NULL → person(id) ON DELETE SET NULL` — cross-tenant ride-through.
-  - `aircraft.immatriculation VARCHAR(15) NOT NULL` + composite `UNIQUE (operating_club_id, immatriculation) WHERE deleted_on IS NULL` (cross-club registration overlap legitimate via charter/transfer).
+  - `aircraft.immatriculation VARCHAR(15) NOT NULL` + **global `UNIQUE (immatriculation) WHERE deleted_on IS NULL`** (was composite `(operating_club_id, immatriculation)` in prior refinement; with Aircraft cross-tenant the per-club uniqueness is no longer expressible — immatriculation is globally unique by aviation regulator convention).
   - `aircraft_aircraft_state` reshapes legacy composite PK `(AircraftId, AircraftStateId, ValidFrom)` to surrogate `id uuid PRIMARY KEY` + `UNIQUE (aircraft_id, valid_from)` + partial `UNIQUE (aircraft_id) WHERE valid_to IS NULL AND deleted_on IS NULL` (at most one current state per aircraft).
   - `aircraft_operating_counter`: cumulative time-series (NOT delta), one snapshot per `(aircraft_id, at_date_time)`; covered index `(aircraft_id, at_date_time DESC) INCLUDE (flight_operating_counter_in_seconds, engine_operating_counter_in_seconds)` for latest-counter Index Only Scan.
   - `location` has NO `operating_club_id` (sacred cow — shared cross-tenant; LSZH used by multiple clubs). `inoutbound_point.location_id → location.id ON DELETE CASCADE` (Location-aggregate internal).
@@ -82,25 +84,33 @@ Reference tables (`aircraft_type` etc.) skip audit columns (operator-only via mi
 
 ### Aggregate composition (per ADR 0018)
 
-| Layer | Tables in S-013 | Notes |
-|---|---|---|
-| **Aggregate roots** (5) | `flight`, `aircraft`, `location`, `flight_type`, `article` | Prefix scheme `flt`/`acf`/`loc`/`fty`/`art` at JSON/URL/log boundary. SQL `COMMENT ON COLUMN` on `id` references ADR 0019. |
-| **Internal entities under `Flight`** | `flight_crew` | CASCADE on Flight delete. Cross-tenant Person FK preserved as sacred cow (the M:N junction is Flight-internal, but the Person target is cross-aggregate + cross-tenant). |
-| **Internal entities under `Aircraft`** | `aircraft_aircraft_state`, `aircraft_operating_counter` | CASCADE on Aircraft delete. Both are time-series children of the Aircraft aggregate. |
-| **Internal entities under `Location`** | `inoutbound_point` | CASCADE on Location delete. |
-| **System-global reference / lookup tables — not aggregates** | `aircraft_type`, `aircraft_state`, `location_type`, `flight_crew_type`, `flight_process_state`, `flight_air_state`, `flight_cost_balance_type` | Anemic JPA shape acceptable per ADR 0018 escape hatch. UUID PKs + `legacy_int_id SMALLINT UNIQUE` for S-016 cutover. |
+| Layer | Tables in S-013 | Tenant scope | Notes |
+|---|---|---|---|
+| **Aggregate roots** (5) | `flight`, `aircraft`, `location`, `flight_type`, `article` | mixed (see right column) | Prefix scheme `flt`/`acf`/`loc`/`fty`/`art` at JSON/URL/log boundary. SQL `COMMENT ON COLUMN` on `id` references ADR 0019. |
+| → `flight` | | TENANT_SCOPED via `operating_club_id` (set per-flight by operator; NOT denormalized from aircraft) | |
+| → `aircraft` | | **CROSS_TENANT** (amendment 2026-05-16) — optional `owner_club_id`; service layer enforces use-rights | |
+| → `location` | | CROSS_TENANT (sacred cow; shared airports) | |
+| → `flight_type` | | TENANT_SCOPED via `operating_club_id` (reclassified from S-011 `reference`) | |
+| → `article` | | TENANT_SCOPED via `operating_club_id` | |
+| **Internal entities under `Flight`** | `flight_crew` | inherits TENANT_SCOPED (via `flight.operating_club_id`; optionally denormalized) | CASCADE on Flight delete. Cross-tenant Person FK preserved as sacred cow. |
+| **Internal entities under `Aircraft`** | `aircraft_aircraft_state`, `aircraft_operating_counter` | inherit **CROSS_TENANT** (state/counter records belong to the aircraft) | CASCADE on Aircraft delete. NO `operating_club_id` denormalization. |
+| **Internal entities under `Location`** | `inoutbound_point` | inherits CROSS_TENANT | CASCADE on Location delete. |
+| **System-global reference / lookup tables — not aggregates** | `aircraft_type`, `aircraft_state`, `location_type`, `flight_crew_type`, `flight_process_state`, `flight_air_state`, `flight_cost_balance_type` | SYSTEM_GLOBAL | Anemic JPA shape acceptable per ADR 0018 escape hatch. UUID PKs + `legacy_int_id SMALLINT UNIQUE` for S-016 cutover. |
 
 Cross-aggregate FKs (UUIDs at the boundary; raw UUID at the DB):
-- `flight.aircraft_id → aircraft.id ON DELETE RESTRICT`.
-- `flight.start_location_id / ldg_location_id → location.id ON DELETE SET NULL`.
-- `flight.flight_type_id → flight_type.id ON DELETE RESTRICT`.
-- `flight.tow_flight_id → flight.id ON DELETE SET NULL` (self-FK).
+- `flight.aircraft_id → aircraft.id ON DELETE RESTRICT` — **cross-tenant FK** (Aircraft is cross-tenant per amendment); FK loads not @TenantId-filtered, same shape as `flight_crew.person_id`. Service layer enforces use-rights.
+- `flight.start_location_id / ldg_location_id → location.id ON DELETE SET NULL` (cross-tenant FK; Location is shared).
+- `flight.flight_type_id → flight_type.id ON DELETE RESTRICT` (same-tenant; FlightType is per-club).
+- `flight.tow_flight_id → flight.id ON DELETE SET NULL` (self-FK; same-tenant by inference — both flights have the same `operating_club_id`).
 - `aircraft.homebase_id → location.id ON DELETE SET NULL`.
+- `aircraft.owner_club_id uuid NULL → club.id ON DELETE SET NULL` — **optional**; aircraft may be Person-owned (private) or cross-club shared.
 
 Cross-tenant ride-through FKs (Hibernate `@TenantId` does NOT filter FK-by-id loads; sacred-cow preserved per ADR 0008):
 - `flight_crew.person_id → person.id ON DELETE RESTRICT`.
-- `aircraft.aircraft_owner_person_id → person.id ON DELETE SET NULL`.
+- `flight.aircraft_id → aircraft.id ON DELETE RESTRICT` (Aircraft cross-tenant per amendment).
+- `aircraft.aircraft_owner_person_id → person.id ON DELETE SET NULL` (private-owner case).
 - `aircraft_aircraft_state.noticed_by_person_id → person.id ON DELETE SET NULL`.
+- `aircraft.owner_club_id → club.id ON DELETE SET NULL` (Aircraft cross-tenant; FK to Club).
 
 ### Per-table column inventory (load-bearing columns; lengths re-pinned from legacy)
 
@@ -134,16 +144,16 @@ Cross-tenant ride-through FKs (Hibernate `@TenantId` does NOT filter FK-by-id lo
 - Audit columns; soft-delete columns (`deleted_on`, `deleted_by_user_id`)
 - **No denormalized `*_pilot_person_id` columns on flight** — legacy `Flight.cs:23-92` has no such columns; crew is M:N via `flight_crew` only (pilot/instructor/copilot accessors are computed properties over the collection). The story prompt's AC line listing `glider_pilot_person_id`/`flight_instructor_person_id`/`tow_pilot_person_id` is a misread — crew lives in `flight_crew`.
 
-**`aircraft`** (`Aircraft.cs:13-87`):
-- `id uuid PRIMARY KEY`, `operating_club_id uuid NOT NULL → club(id) RESTRICT` (renamed from legacy `AircraftOwnerClubId` for catalog uniformity; SQL comment documents legacy name)
+**`aircraft`** (`Aircraft.cs:13-87`) — **CROSS_TENANT per 2026-05-16 amendment** (no `@TenantId`):
+- `id uuid PRIMARY KEY`, `owner_club_id uuid NULL → club(id) ON DELETE SET NULL` (renamed from legacy `AircraftOwnerClubId`; **nullable** to allow Person-owned + charter-shared + rental-fleet aircraft; SQL comment documents the cross-tenant model)
 - `aircraft_type_id uuid NOT NULL → aircraft_type(id) RESTRICT`
 - `manufacturer_name VARCHAR(100)`, `aircraft_model VARCHAR(50)`
-- `immatriculation VARCHAR(15) NOT NULL` + composite UNIQUE `(operating_club_id, immatriculation) WHERE deleted_on IS NULL`
+- `immatriculation VARCHAR(15) NOT NULL` + **global UNIQUE `(immatriculation) WHERE deleted_on IS NULL`** (aircraft immatriculation is globally unique by aviation regulator convention; the per-club composite UNIQUE from the prior refinement is incompatible with cross-tenant Aircraft)
 - `competition_sign VARCHAR(5)`, `flarm_id VARCHAR(50)` (sensitive_columns), `aircraft_serial_number VARCHAR(20)`
 - `year_of_manufacture DATE` (reshape from legacy `datetime2`; month-precision meaningful)
 - `noise_class CHAR(1)`, `noise_level NUMERIC(6,2)`, `mtom INTEGER`
 - `nr_of_seats INTEGER` + `CHECK (>= 1)`
-- `aircraft_owner_person_id uuid NULL → person(id) SET NULL` (cross-tenant ride-through)
+- `aircraft_owner_person_id uuid NULL → person(id) SET NULL` (private-owner case; cross-tenant ride-through). Aircraft owners: either `owner_club_id` set OR `aircraft_owner_person_id` set OR both NULL (charter pool); enforced at service layer (S-022), not DB (cheap-CHECK with-OR is brittle).
 - `flight_operating_counter_unit_type_id uuid → counter_unit_type(id)`, `engine_operating_counter_unit_type_id uuid → counter_unit_type(id)` (S-012 reference tables)
 - `homebase_id uuid NULL → location(id) SET NULL`
 - `spot_link VARCHAR(250)` + `CHECK (~* '^https://')` (A10 SSRF mitigation; column comment "never fetched server-side")
@@ -237,7 +247,11 @@ COMMENT ON COLUMN article.id IS
   'UUID v7. Aggregate root (ADR 0018). External form: art_<crockford-base32>. See ADR 0019.';
 
 COMMENT ON COLUMN flight.operating_club_id IS
-  'Denormalized from aircraft.operating_club_id (S-011 § Flights INDIRECT→TENANT_SCOPED); invariant enforced at S-022 service-layer write path; parity test pins.';
+  'Set per-flight by the operator (the club whose operations are responsible for this flight). NOT denormalized from aircraft (per 2026-05-16 Aircraft-cross-tenant amendment); charter case: Club B operates Club A''s aircraft → flight.operating_club_id = Club B, aircraft.owner_club_id = Club A.';
+COMMENT ON COLUMN aircraft.owner_club_id IS
+  'Optional Club owner of the aircraft. NULL = privately owned (see aircraft_owner_person_id) or charter-pool aircraft. SET NULL on Club delete preserves the aircraft row. Aircraft itself is CROSS_TENANT — no @TenantId.';
+COMMENT ON COLUMN flight.aircraft_id IS
+  'Cross-tenant FK (Aircraft is cross-tenant per 2026-05-16 amendment). FK loads not @TenantId-filtered; service layer (S-026) verifies the flight''s operating_club is authorized to use this aircraft (owner / charter / public-rental check).';
 COMMENT ON COLUMN flight.flight_aircraft_type_id IS
   'Sparse-enum sacred cow: 1=Glider, 2=Tow, 4=Motor (per FlightAircraftTypeValue.cs:5-7); value 3 is deliberately skipped; GliderWithMotor lives on aircraft.aircraft_type_id, NOT here. SMALLINT + CHECK enforced; NOT a lookup table.';
 COMMENT ON COLUMN flight.tow_flight_id IS
@@ -284,9 +298,9 @@ CREATE UNIQUE INDEX ux_flight_crew_unique ON flight_crew (flight_id, person_id, 
 CREATE INDEX ix_flight_crew_flight        ON flight_crew (flight_id);
 CREATE INDEX ix_flight_crew_person_type   ON flight_crew (person_id, flight_crew_type_id) INCLUDE (flight_id);
 
--- aircraft
-CREATE UNIQUE INDEX ux_aircraft_immatriculation ON aircraft (operating_club_id, immatriculation) WHERE deleted_on IS NULL;
-CREATE INDEX ix_aircraft_club             ON aircraft (operating_club_id) WHERE deleted_on IS NULL;
+-- aircraft (CROSS_TENANT per 2026-05-16 amendment; no per-club composite indexes)
+CREATE UNIQUE INDEX ux_aircraft_immatriculation ON aircraft (immatriculation) WHERE deleted_on IS NULL;  -- GLOBAL unique
+CREATE INDEX ix_aircraft_owner_club       ON aircraft (owner_club_id) WHERE owner_club_id IS NOT NULL AND deleted_on IS NULL;
 CREATE INDEX ix_aircraft_type             ON aircraft (aircraft_type_id);
 CREATE INDEX ix_aircraft_homebase         ON aircraft (homebase_id) WHERE homebase_id IS NOT NULL;
 CREATE INDEX ix_aircraft_owner_person     ON aircraft (aircraft_owner_person_id) WHERE aircraft_owner_person_id IS NOT NULL;
@@ -332,16 +346,16 @@ CREATE INDEX ix_iop_location              ON inoutbound_point (location_id);
 | `flight_crew.flight_id → flight.id` | CASCADE | Crew dies with flight |
 | `flight_crew.person_id → person.id` | RESTRICT | **Sacred-cow cross-tenant**; preserve flight history; DSAR scrubs PII, not row |
 | `flight_crew.flight_crew_type_id → flight_crew_type.id` | RESTRICT | |
-| `aircraft.operating_club_id → club.id` | RESTRICT | |
+| `aircraft.owner_club_id → club.id` | SET NULL | **Cross-tenant FK** (per 2026-05-16 amendment); club delete preserves aircraft row |
 | `aircraft.aircraft_type_id → aircraft_type.id` | RESTRICT | |
 | `aircraft.aircraft_owner_person_id → person.id` | SET NULL | Cross-tenant ride-through |
 | `aircraft.homebase_id → location.id` | SET NULL | |
 | `aircraft.flight_operating_counter_unit_type_id → counter_unit_type.id` | RESTRICT | |
 | `aircraft.engine_operating_counter_unit_type_id → counter_unit_type.id` | RESTRICT | |
-| `aircraft_aircraft_state.aircraft_id → aircraft.id` | CASCADE | State history dies with aircraft |
+| `aircraft_aircraft_state.aircraft_id → aircraft.id` | CASCADE | State history dies with aircraft (inherits CROSS_TENANT) |
 | `aircraft_aircraft_state.aircraft_state_id → aircraft_state.id` | RESTRICT | |
 | `aircraft_aircraft_state.noticed_by_person_id → person.id` | SET NULL | Cross-tenant ride-through |
-| `aircraft_operating_counter.aircraft_id → aircraft.id` | CASCADE | Counter series dies with aircraft |
+| `aircraft_operating_counter.aircraft_id → aircraft.id` | CASCADE | Counter series dies with aircraft (inherits CROSS_TENANT) |
 | `flight_type.operating_club_id → club.id` | RESTRICT | |
 | `article.operating_club_id → club.id` | RESTRICT | |
 | `location.country_id → country.id` | RESTRICT | |
@@ -358,14 +372,14 @@ CREATE INDEX ix_iop_location              ON inoutbound_point (location_id);
 # Reclassify (legacy carries ClubId):
 FlightTypes: { kind: tenant-scoped, target_entity: FlightType, tenant_column: operating_club_id, emits_audit: true }
 
-# Aircraft column rename note (legacy AircraftOwnerClubId → operating_club_id):
+# Aircraft RECLASSIFIED to cross-tenant per 2026-05-16 amendment (charter / loan / private ownership):
 Aircrafts:
-  kind: tenant-scoped
+  kind: cross-tenant   # no @TenantId
   target_entity: Aircraft
-  tenant_column: operating_club_id
   tenant_column_legacy: OwnerClubId
+  owner_column: owner_club_id   # uuid NULL → club(id) ON DELETE SET NULL
   emits_audit: true
-  ride_through_targets: [person, location]
+  ride_through_targets: [person, location, club]   # FK to Club is now ride-through, not tenant
   pii_columns: [comment]
   sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
   pii_ride_through: [aircraft_owner_person_id]
@@ -376,10 +390,11 @@ flight:
   target_entity: Flight
   tenant_column: operating_club_id
   emits_audit: true
-  ride_through_targets: [person, aircraft, location]
+  ride_through_targets: [person, aircraft, location]   # aircraft now cross-tenant per amendment
   pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route, coupon_number]
   preconditions:
-    - "Denormalize operating_club_id from aircraft.operating_club_id at write time (S-022 @PrePersist or DB trigger)"
+    - "flight.operating_club_id set per-flight by operator (NOT denormalized from aircraft per 2026-05-16 Aircraft-cross-tenant amendment)"
+    - "S-022 service layer enforces 'may this club use this aircraft?' via owner_club_id / charter agreement / public-rental checks"
 
 flight_crew:
   kind: tenant-scoped  # indirect (via flight); operating_club_id denormalized at S-022 if needed
@@ -389,14 +404,14 @@ flight_crew:
   emits_audit: true
 
 aircraft_aircraft_state:
-  kind: tenant-scoped  # indirect (via aircraft); denormalized
+  kind: cross-tenant   # inherits from Aircraft per 2026-05-16 amendment
   target_entity: AircraftAircraftState
   ride_through_targets: [person]
   pii_columns: [remarks]
   pii_ride_through: [noticed_by_person_id]
 
 aircraft_operating_counter:
-  kind: tenant-scoped  # indirect (via aircraft)
+  kind: cross-tenant   # inherits from Aircraft per 2026-05-16 amendment
   target_entity: AircraftOperatingCounter
 
 article:
@@ -522,7 +537,7 @@ Same approach as S-012:
 | (k) | UUID v7 timestamp leak in error messages | Low | UUID v7's leading 48 bits expose record creation time; for FLS Flight/Aircraft this is operationally-known anyway; document in CONVENTIONS.md |
 | (l) | Aggregate-prefix reveals entity type | Very Low | By design; humans + audit-log search benefit |
 | (m) | Forbidden-pattern regression on new reference seeds | Low | Extend allowlist + deny INSERTs into app tables |
-| (n) | `flight.operating_club_id` denormalization drift | High | Schema CHECK cannot reach cross-row; write-path enforcement at S-022 + parity test |
+| (n) | Charter/cross-club aircraft use authorization gap (replaces former "denormalization drift" threat per 2026-05-16 amendment) | High | Aircraft is cross-tenant; service layer must verify the Flight's `operating_club_id` is authorized to use the aircraft (owner / charter / public-rental check) BEFORE accepting the Flight insert. Schema cannot enforce; S-022 + S-026 + audit log on every Flight insert with cross-club aircraft (`flight.operating_club_id != aircraft.owner_club_id`) for forensic trail. |
 | (o) | `location.description` cross-tenant spillover (shared resource) | Low | SYSTEM_ADMIN-only mutation at S-026; audit on every Location mutation; column comment |
 
 ### Authorization
@@ -839,11 +854,11 @@ At 10M+ flights, declarative range partitioning on `flight_date` (per year). Has
 
 1. **`flight.tow_flight_id` 1:1 vs 1:N cardinality.** Legacy `Flight.TowedFlights = HashSet<Flight>` allows 1:N (touring-tow pattern). Recommend 1:N at row level (no partial-UNIQUE on tow_flight_id); confirm with operator.
 2. **`club.default_glider_with_motor_flight_type_id`** — not in legacy `Club.cs:77-81`. Recommend include (forward-looking); operator can drop for strict parity.
-3. **`flight.operating_club_id` denormalization mechanism.** Options: (a) DB trigger BEFORE INSERT/UPDATE copies from `aircraft.operating_club_id`; (b) S-022 `@PrePersist` hook; (c) caller provides (no enforcement). Recommend (b); operator picks because (a) is more defense-in-depth.
+3. **~~`flight.operating_club_id` denormalization mechanism.~~ RESOLVED 2026-05-16:** Aircraft is now cross-tenant; `flight.operating_club_id` is set per-flight by the operator (NOT denormalized). Default at API layer is `user.club_id`; S-022 service layer enforces "may this club use this aircraft?" before accepting the Flight insert.
 4. **Soft-delete columns preservation** (`deleted_on`, `deleted_by_user_id`) on every TENANT_SCOPED table. Recommend preserve here (legacy parity); S-027 audit story reshapes if needed.
 5. **`location.latitude/longitude` PostGIS reshape** — file as a backlog story; preserve `VARCHAR(10)` for S-013 cutover-parity.
 6. **`aircraft.year_of_manufacture` type.** Legacy `datetime2` is structurally wrong (year value, not moment). Recommend reshape to `DATE` here; S-022 may further refine.
-7. **`aircraft.aircraft_owner_club_id` rename to `operating_club_id`.** Recommend rename + tenant-rules.yaml `tenant_column_legacy: OwnerClubId` mapping + SQL column comment for forensic mapping.
+7. **~~`aircraft.aircraft_owner_club_id` rename to `operating_club_id`.~~ RESOLVED 2026-05-16:** Aircraft is cross-tenant; column is `owner_club_id uuid NULL` (renamed from legacy `OwnerClubId`; nullable). NOT `operating_club_id` — that name applies only to per-Flight scope.
 8. **`flight_crew.operating_club_id` denormalization** — having it enables `(operating_club_id, person_id)` tenant-scoped indexing without a join. Cost: trigger or `@PrePersist`. Recommend denormalize for hot-path read win.
 9. **Reference-table `legacy_int_id` column retention.** Recommend keep forever (forensic traceability + future legacy-data inspection).
 10. **`flight_aircraft_type_id` SMALLINT + CHECK confirmed sacred cow** — pin formally with operator.
