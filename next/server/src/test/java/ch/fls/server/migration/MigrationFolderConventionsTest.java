@@ -3,6 +3,7 @@ package ch.fls.server.migration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -93,7 +94,7 @@ class MigrationFolderConventionsTest {
         if (folderUrl == null) {
             return List.of();
         }
-        Path folder = Paths.get(folderUrl.getPath());
+        Path folder = urlToPath(folderUrl);
         try (Stream<Path> walk = Files.walk(folder, 1)) {
             return walk
                     .filter(Files::isRegularFile)
@@ -108,7 +109,7 @@ class MigrationFolderConventionsTest {
         if (folderUrl == null) {
             throw new IOException("db/migration resource folder not found");
         }
-        return Paths.get(folderUrl.getPath()).resolve(filename);
+        return urlToPath(folderUrl).resolve(filename);
     }
 
     private List<Pattern> loadForbiddenPatterns() throws IOException {
@@ -117,7 +118,7 @@ class MigrationFolderConventionsTest {
                 .as("forbidden-patterns fixture must exist at src/test/resources/security/")
                 .isNotNull();
         List<Pattern> patterns = new ArrayList<>();
-        try (var lines = Files.lines(Paths.get(url.getPath()), StandardCharsets.UTF_8)) {
+        try (var lines = Files.lines(urlToPath(url), StandardCharsets.UTF_8)) {
             lines.forEach(raw -> {
                 String line = raw.strip();
                 if (line.isEmpty() || line.startsWith("#")) return;
@@ -125,5 +126,18 @@ class MigrationFolderConventionsTest {
             });
         }
         return patterns;
+    }
+
+    /**
+     * URL → URI → Path handles Windows correctly. {@code Paths.get(url.getPath())}
+     * chokes on the leading slash in {@code /C:/Users/...} because {@code Paths.get}
+     * parses string-side and sees the {@code :} at index 3 as illegal.
+     */
+    private static Path urlToPath(URL url) throws IOException {
+        try {
+            return Paths.get(url.toURI());
+        } catch (URISyntaxException e) {
+            throw new IOException("invalid resource URL: " + url, e);
+        }
     }
 }

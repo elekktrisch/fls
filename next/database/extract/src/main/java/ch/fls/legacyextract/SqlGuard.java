@@ -261,7 +261,15 @@ public final class SqlGuard {
         if (!"file".equals(rootUrl.getProtocol())) {
             return List.of();
         }
-        Path root = Paths.get(rootUrl.getPath());
+        // URL → URI → Path handles Windows correctly. `Paths.get(url.getPath())`
+        // chokes on the leading slash in `/C:/Users/...` because `Paths.get`
+        // parses string-side and sees the `:` at index 3 as illegal.
+        Path root;
+        try {
+            root = Paths.get(rootUrl.toURI());
+        } catch (java.net.URISyntaxException e) {
+            throw new IOException("invalid sql/ resource URL: " + rootUrl, e);
+        }
         try (Stream<Path> walk = Files.walk(root)) {
             return walk
                     .filter(Files::isRegularFile)
