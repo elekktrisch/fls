@@ -157,7 +157,7 @@ for the rationale; see [CONVENTIONS.md](CONVENTIONS.md) for the rules.
 4. For ad-hoc local validation without booting Spring:
    ```bash
    docker run -d --name alpenflight-pg \
-     -e POSTGRES_PASSWORD=fls -e POSTGRES_USER=fls -e POSTGRES_DB=fls \
+     -e POSTGRES_PASSWORD=alpenflight -e POSTGRES_USER=alpenflight -e POSTGRES_DB=alpenflight \
      -p 5432:5432 postgres:17.4-alpine
    ./gradlew flywayMigrate flywayValidate flywayInfo
    docker rm -f alpenflight-pg
@@ -188,11 +188,11 @@ only in dev.
 
 | Env var | Purpose |
 |---|---|
-| `DATASOURCE_URL` | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/fls`) |
+| `DATASOURCE_URL` | JDBC URL (e.g. `jdbc:postgresql://localhost:5432/alpenflight`) |
 | `DATASOURCE_USER` | Postgres username |
 | `DATASOURCE_PASSWORD` | Postgres password |
 
-The `dev` profile provides loopback defaults (`fls`/`fls` at
+The `dev` profile provides loopback defaults (`alpenflight`/`alpenflight` at
 `localhost:5432`); `prod` requires all three to be set explicitly. The
 `test` profile uses an in-memory H2 (MODE=PostgreSQL) DataSource for
 non-Flyway tests; the Flyway integration test overrides via a real Postgres

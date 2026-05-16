@@ -20,14 +20,11 @@ next/web/src/app/features/landing/landing.component.spec.ts                     
 # contributor's running containers; deferred per ODQ to cutover band.
 next/ops/dev-up-full.sh                                                              # PROJECT="fls-e2e" line
 
-# Runtime infra (Postgres dev DB name + credentials). Not brand-bearing;
-# rename would ripple to every dev env + CI + Flyway plugin defaults. Treat
-# as separate cutover-band concern.
-next/server/build.gradle.kts                                                          # flyway plugin URL/user/password defaults: jdbc:postgresql://localhost:5432/fls
-next/server/src/main/resources/application-dev.yml                                    # ${DATASOURCE_*:...} defaults: fls/fls/fls
-next/server/README.md                                                                  # docs for the above
-next/ops/dev-up-full.sh                                                                # banner "Target Postgres (fls / fls)"
-next/ops/pgadmin/servers.json                                                          # MaintenanceDB + Username: "fls"
+# Postgres dev DB name + credentials were renamed fls → alpenflight on
+# 2026-05-16 per operator boyscout-rule directive (feedback-boyscout-rule-
+# over-clean-prs memory). Every contributor needs `docker compose -p
+# fls-e2e --profile next down -v && docker rmi fls-pgadmin:local` once after
+# pulling this PR. CI is fine (creates fresh).
 
 # Reference sentences naming the legacy product or repo. The rebrand is
 # semantic: legacy stays "FLS", rewrite is "AlpenFlight".

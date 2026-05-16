@@ -2,9 +2,9 @@ spring:
   datasource:
     # Loopback defaults so `./gradlew bootRun` works against a compose-up
     # Postgres without setting env vars. CI + prod must set the real env.
-    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/fls}
-    username: ${DATASOURCE_USER:fls}
-    password: ${DATASOURCE_PASSWORD:fls}
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}
+    username: ${DATASOURCE_USER:alpenflight}
+    password: ${DATASOURCE_PASSWORD:alpenflight}
 
 server:
   error:

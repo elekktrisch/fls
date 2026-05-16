@@ -78,9 +78,9 @@ log "Applying Flyway migrations against target Postgres"
     cd next/server
     # Use the wrapper; sdkman PATH is sourced via login shell where needed.
     # DATASOURCE_* env vars are consumed by the flyway block in build.gradle.kts.
-    DATASOURCE_URL="jdbc:postgresql://localhost:5432/fls" \
-    DATASOURCE_USER="fls" \
-    DATASOURCE_PASSWORD="fls" \
+    DATASOURCE_URL="jdbc:postgresql://localhost:5432/alpenflight" \
+    DATASOURCE_USER="alpenflight" \
+    DATASOURCE_PASSWORD="alpenflight" \
         ./gradlew flywayMigrate flywayInfo --no-daemon --console=plain --quiet
 )
 
@@ -92,7 +92,7 @@ cat <<INFO
   Mailpit SMTP                localhost:1025
   Mailpit Web UI              http://localhost:8025
 
-  Target Postgres            localhost:5432  (fls / fls)
+  Target Postgres            localhost:5432  (alpenflight / alpenflight)
   pgAdmin                    http://localhost:8080  (dev@example.com / dev)
 
 The 'AlpenFlight Target Postgres' connection appears pre-wired in pgAdmin on first

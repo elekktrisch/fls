@@ -5,8 +5,8 @@
       "Group": "Servers",
       "Host": "postgres",
       "Port": 5432,
-      "MaintenanceDB": "fls",
-      "Username": "fls",
+      "MaintenanceDB": "alpenflight",
+      "Username": "alpenflight",
       "SSLMode": "prefer",
       "Comment": "Target stack used by next/server/ Flyway migrations. Connect through the Docker network — 'postgres' resolves via compose service discovery."
     }
