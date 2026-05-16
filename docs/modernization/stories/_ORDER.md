@@ -63,6 +63,7 @@ The foundation feature stories need before they can touch real data.
 - S-018 — S — ShedLock stub table (deps S-009)
 - S-012 — M — V1__baseline part 1: identity + reference data (deps S-009, S-010, S-011)
 - S-013 — L — V1__baseline part 2: flights / aircraft / persons / clubs / locations (deps S-012)
+  - S-129 — M — Migrate BOOLEAN columns to string-serialized enums across V2 + V3 (tri-state ready; rework follow-up from S-013; deps S-012, S-013)
 - S-014 — M — V1__baseline part 3: reservations / planning / accounting (deps S-013)
 
 **Auth (Spring Security 7 + Angular OIDC):**

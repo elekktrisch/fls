@@ -2,8 +2,9 @@
 id: S-013
 title: V1__baseline part 2 — flights / aircraft / persons / clubs / locations
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-16
+done_at: 2026-05-16
 depends_on: [S-012]
 acceptance:
   - Tables defined: `flight`, `flight_crew`, `flight_crew_type`, `flight_type`, `flight_cost_balance_type`, `flight_process_state`, `flight_air_state`, `aircraft`, `aircraft_type`, `aircraft_state`, `aircraft_aircraft_state`, `aircraft_operating_counter`, `article`, `location`, `location_type`, `inoutbound_point` (16 tables — `flight_process_state` + `flight_air_state` promoted from "modelled as enum or lookup" into explicit lookup tables per ADR 0019 uniformity).
