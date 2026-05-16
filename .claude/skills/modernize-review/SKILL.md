@@ -1,6 +1,6 @@
 ---
 name: modernize-review
-description: Phase 7 — review one implemented story across 4 streams: maintainability, security, usability, parity via specialist subagents. Synthesizes into a ## Review section; files issues for blockers. Trigger: /modernize-review S-NNN.
+description: Phase 7 — review one implemented story via specialist subagents. Conditional dispatch by diff scope — maintainability always runs; security, parity, and either usability (frontend) or tech-writer (backend) spawn based on what the diff touches. Synthesizes into a ## Review section; files issues for blockers. Trigger: /modernize-review S-NNN.
 ---
 
 # Phase 7 — Story Review (post-implement)
@@ -37,6 +37,29 @@ Find the artifact under review:
 
 Capture the diff as a workable artifact: `git diff <range> --stat` for the file map; `git diff <range> -- 'next/server/**'` and `git diff <range> -- 'next/web/**'` for the slices a specialist will want.
 
+**Diff-scope detection (primary efficiency lever).** Compute these flags from the file list — reviewers whose dimension doesn't apply to the diff are skipped entirely rather than spawned-then-returning-N/A. This cuts ~25-50% of review tokens on typical stories.
+
+- `has_frontend` — any path starts with `next/web/`.
+- `has_backend` — any path starts with `next/server/`.
+- `has_legacy_ref` — any path starts with `flsserver/` or `flsweb/`.
+- `has_dep_change` — any path matches `**/package.json | **/build.gradle* | **/pom.xml | **/yarn.lock | **/package-lock.json`.
+- `is_docs_only` — every path matches `docs/**`, `*.md`, `CONVENTIONS.md`, or `next/ops/*.sh` / `next/ops/**/*.json`.
+
+The reviewer dispatch table (applied in Step 2):
+
+| Reviewer | Spawn when | Section name |
+|---|---|---|
+| `maintainability-reviewer` | **always** | `### Maintainability` |
+| `security-reviewer` | not `is_docs_only` | `### Security` |
+| `parity-reviewer` | story's `parity_test` is non-empty **or** `has_legacy_ref` | `### Parity` |
+| `usability-reviewer` | `has_frontend` | `### Usability` |
+| `tech-writer-reviewer` | **not** `has_frontend` (replaces usability for backend-only diffs) | `### Code quality` |
+
+For each not-spawned reviewer, pre-fill its section in Step 4's template with `(N/A — <reason from diff scope>)` instead of spawning the agent. Examples:
+- Parity skipped: `### Parity` → `**Oracle:** N/A — parity_test: none and no flsserver/flsweb references in diff.`
+- Security skipped (docs-only): `### Security` → `(N/A — pure-docs diff; no code surface to assess.)`
+- Usability skipped (backend-only): `### Code quality` is populated by tech-writer-reviewer instead; usability section omitted entirely.
+
 Then read in parallel:
 - The story file in full (frontmatter, body, all five refinement sections).
 - Every ADR listed in `adr_refs`.
@@ -45,9 +68,13 @@ Then read in parallel:
 
 The refinement sections are the **contract**. The review's first question is always: did the implementation honor the contract?
 
-### Step 1.5 — Context7 freshness pass
+### Step 1.5 — Context7 freshness pass (conditional)
 
-Identify every library / framework / SDK / API touched by the diff (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, JPA/Hibernate, springdoc-openapi, etc. — `git diff <range> -- '**/package.json' '**/pom.xml' '**/build.gradle*'` for dependency changes; scan the diff for new imports). For each, fetch current docs via Context7 to verify:
+**Skip this step entirely if `has_dep_change` is false** (the diff-scope flag from Step 1). Most stories don't touch `package.json` / `build.gradle*` / `pom.xml` / lockfiles; running Context7 unconditionally wastes tokens. When skipped, pass an empty "Library facts" block to the reviewers (or omit the block) and proceed.
+
+**Optional caching.** A story may carry `context7_last_checked: <ISO date>` in frontmatter (stamped by a prior pass). If `has_dep_change` is true but `context7_last_checked` is within the last 7 days **and** no dep-file path in the diff changed since that date (`git log --since=<date> -- <dep-files>`), skip and trust the prior pass. Otherwise run + restamp.
+
+**When the pass DOES run:** identify every library / framework / SDK / API touched by the dep-file changes and any new imports in the diff (Angular, Spring Boot, Tailwind, NgRx Signals, @angular-eslint, Flyway, Testcontainers, Playwright, Keycloak, JPA/Hibernate, springdoc-openapi, etc.). For each, fetch current docs via Context7 to verify:
 
 - **Version pins are still alive** (the story may have been refined months ago — check the package version against current major).
 - **APIs used in the diff are still recommended** (not deprecated, not superseded by a newer pattern).
@@ -57,29 +84,35 @@ Workflow per library: `mcp__context7__resolve-library-id` → pick best match �
 
 Pass the synthesized facts (1-3 lines per library — current major, key API names, deprecations) into each reviewer's prompt as a "Library facts" block. Reviewers run in subagents that **do not have Context7 access** — front-loading is the only way to keep reviewer findings anchored to current docs rather than training-data assumptions.
 
+After running, stamp `context7_last_checked: <today's ISO date>` on the story frontmatter so future invocations can skip when nothing changed.
+
 A version pin that has since been deprecated or a deprecated API used in the diff is a **maintainability finding** (not a security one) — improvement at minimum, blocker if the deprecation has a hard cut-off date that lands before the project ships.
 
 Skip libraries the diff doesn't touch. Don't fetch generic programming docs.
 
-### Step 2 — Spawn the four reviewers in parallel
+### Step 2 — Spawn the applicable reviewers in parallel
 
-Launch all four subagents in a single message with four Agent tool calls:
+The reviewer set is determined by Step 1's dispatch table — typically 3-4 of these run, occasionally only 2 for pure-docs diffs:
 
-- `maintainability-reviewer` — primary focus. Code clarity, layering adherence, naming, duplication, test depth, dead code, dependency hygiene, ADR conformance, migration safety, comment / doc quality.
-- `parity-reviewer` — does the new-stack behavior match the legacy oracle for the parity-relevant flows? Tests anchored on behavior (not legacy URL shape)? Fixtures derived from legacy (not invented)? Deliberate drift documented? Degrades gracefully (returns `(N/A — <reason>)`) when no oracle exists (greenfield stories, pre-harness phase).
-- `security-reviewer` — did the security plan land? `@PreAuthorize` annotations, tenant gates, input validation, audit events, PII handling, secrets, OWASP applicability gaps.
-- `usability-reviewer` — UI consistency, i18n key coverage (no hardcoded strings), loading / empty / error states, accessibility basics (labels, ARIA, keyboard), responsive behavior, error-message clarity, parity-of-feel with surrounding components.
+- `maintainability-reviewer` — **always**. Code clarity, layering adherence, naming, duplication, test depth, dead code, dependency hygiene, ADR conformance, migration safety, comment / doc quality.
+- `security-reviewer` — when not `is_docs_only`. Did the security plan land? `@PreAuthorize` annotations, tenant gates, input validation, audit events, PII handling, secrets, OWASP applicability gaps.
+- `parity-reviewer` — when story's `parity_test` is non-empty **or** the diff touches legacy reference (`flsserver/` / `flsweb/`). Does the new-stack behavior match the legacy oracle? Tests anchored on behavior (not legacy URL shape)? Deliberate drift documented? Returns `(N/A — <reason>)` when no oracle exists.
+- `usability-reviewer` — when `has_frontend`. UI consistency, i18n key coverage, loading / empty / error states, a11y basics, responsive behavior, error-message clarity, parity-of-feel with surrounding components.
+- `tech-writer-reviewer` — when **not** `has_frontend` (replaces usability for backend-only diffs). Comment quality (redundant / over-explanatory / paraphrasing names), doc consistency across files (CONVENTIONS.md ↔ ADRs ↔ design notes ↔ migration headers), clean-code structure (magic numbers, deep nesting, dead branches, commented-out code).
+
+**Important — usability and tech-writer never both run.** They occupy the same "fourth reviewer" slot; the diff-scope flag `has_frontend` picks which one. This keeps the token budget per review pass stable while giving backend-only stories the writing-quality lens they wouldn't otherwise get.
 
 Each subagent's prompt **must include**:
 - The absolute path to the story file.
 - The absolute paths to ADRs in `adr_refs`.
 - The diff range (commit SHAs) + a short list of changed file paths. In PR mode also include the PR number + URL so reviewers can cite line-anchored findings the operator can click through to.
-- The absolute path to the relevant refinement section the reviewer should treat as the contract (Design notes for maintainability, Test plan + `parity_test` frontmatter for parity, Security plan for security, Design notes + Test plan for usability since there's no dedicated UX section).
+- The absolute path to the relevant refinement section the reviewer should treat as the contract (Design notes for maintainability, Test plan + `parity_test` frontmatter for parity, Security plan for security, Design notes + Test plan for usability, Design notes + the cross-doc set for tech-writer).
 - The value of `parity_test` frontmatter (for the parity-reviewer specifically — names the behavior oracle the diff was built against, if any).
 - A reminder of project context — multi-tenancy by `@TenantId`, sacred cows in `00-seed.md`, the `next/server/` + `next/web/` layout, German default locale.
+- The "Library facts" block from Step 1.5 (or empty / omitted if Step 1.5 was skipped).
 - The agent's output format (specified in each agent's system prompt; call it out so the synthesis step is mechanical).
 
-Send the four Agent calls in **one message** so they run concurrently. Each returns a markdown blob with findings categorized blocker / improvement / nudge.
+Send the applicable Agent calls in **one message** so they run concurrently. Each returns a markdown blob with findings categorized blocker / improvement / nudge.
 
 ### Step 3 — Synthesize, don't re-decide
 
@@ -124,7 +157,12 @@ Append (or replace, if already present) a single `## Review` section **after the
 - **[blocker]** ...
 - **[improvement]** ...
 
-### Usability
+### Usability  (when has_frontend; omitted for backend-only)
+- **[improvement]** ...
+- **[nudge]** ...
+
+### Code quality  (when NOT has_frontend; populated by tech-writer-reviewer)
+- **[blocker]** ...
 - **[improvement]** ...
 - **[nudge]** ...
 
@@ -146,11 +184,15 @@ Add or update:
 reviewed: true
 reviewed_at: <today's date, ISO>
 review_outcome: <pass | blockers | improvements-only>
-review_blockers: <count>                # total across all four dimensions
+review_blockers: <count>                # total across all spawned reviewers
 review_improvements: <count>
 review_nudges: <count>
 review_parity_oracle: <one-line name of oracle used, or `N/A — <reason>`>
+review_reviewers: [<list of reviewer names that ran>]   # e.g. [maintainability, security, tech-writer]
+context7_last_checked: <ISO date>       # only when Step 1.5 ran; omit when skipped
 ```
+
+The `review_reviewers` list makes auditable which reviewers were skipped (via diff-scope dispatch) vs which actually ran — important for tracing "no findings" outcomes back to "wasn't reviewed" vs "was reviewed and clean."
 
 `review_outcome`:
 - `pass` — zero findings of any severity. Rare; surface it as worth celebrating in the report.
@@ -181,7 +223,8 @@ Print to the user:
 - Story ID + title.
 - **PR / diff reviewed:** PR number + URL (or SHA range in commit-only mode), commit count, file count, line-delta (+/-).
 - **Outcome:** `pass` / `blockers` / `improvements-only` — bold.
-- **Findings counts** by dimension × severity (compact form: `maintainability: 1B/3I/2N · parity: 0B/1I/0N (oracle: e2e/parity/flight-create) · security: 0B/1I/0N · usability: 0B/2I/1N`). For parity, include the oracle name (or `N/A — <reason>`) inline.
+- **Reviewers run / skipped:** compact list — `ran: [maintainability, security, tech-writer] · skipped: [parity (parity_test=none, no legacy ref), usability (no next/web/ changes)]`. Operators should know which dimensions were assessed vs which were short-circuited by diff scope.
+- **Findings counts** by dimension × severity (compact form: `maintainability: 1B/3I/2N · parity: (N/A — skipped) · security: 0B/1I/0N · code-quality: 0B/2I/1N (tech-writer)`). For parity, include the oracle name (or `N/A — <reason>`) inline.
 - **Blockers** (full list, one line each with path + which reviewer flagged it) — these need resolution before the story merges.
 - **GitHub issues filed** for blockers: numbers + URLs. In fallback mode: "no GitHub — file these manually: <list>".
 - **Top 3 improvements** worth surfacing in conversation even though they live in the story file.
@@ -194,8 +237,10 @@ Print to the user:
 ## Quality bar
 
 - **One story per invocation.** Batching is forbidden.
-- **Context7 freshness pass before reviewers.** Every library / framework / SDK / API the diff touches gets its current docs fetched via Context7 (Step 1.5) and the facts handed to each reviewer. Subagents have no Context7 access — front-loading is the only way to catch deprecated APIs and dead version pins.
-- **Four reviewers, one parallel batch.** Sequential spawning wastes wall-clock.
+- **Conditional reviewer dispatch.** Step 1's diff-scope flags determine which reviewers spawn (see the dispatch table). Reviewers whose dimension doesn't apply to the diff are skipped entirely rather than spawned-then-returning-N/A — biggest single token saving. `maintainability-reviewer` is the only one that always runs.
+- **Usability and tech-writer share a slot.** Backend-only diffs (no `next/web/` changes) get `tech-writer-reviewer` (comment quality + doc consistency + clean-code structure). Frontend-touching diffs get `usability-reviewer`. Never both — same token budget per pass.
+- **Context7 freshness pass is conditional.** Step 1.5 runs only when the diff touches dep files (`package.json` / `build.gradle*` / `pom.xml` / lockfiles), and only when `context7_last_checked` is stale (> 7 days) or absent. When skipped, reviewer prompts carry an empty "Library facts" block.
+- **Reviewers run in parallel.** Sequential spawning wastes wall-clock; send all applicable Agent calls in one message.
 - **Anchor on the PR when available.** PR mode gives line-anchored cite-by-link in findings + a clean merge gate. Commit-only mode is the documented fallback when no PR exists.
 - **Review against the contract, not against taste.** A reviewer who flags "I'd have named this differently" is wasting the operator's time. Flag what the refinement promised vs. what the code shipped.
 - **Severity discipline.** Blocker = contract / ADR / invariant break, not "smells off." If you can't name what was broken, it's not a blocker.
@@ -204,7 +249,7 @@ Print to the user:
 - **Maintainability and parity are the headlines.** When the four dimensions disagree about which finding leads, choose maintainability when the finding is about *long-term cost of ownership*, parity when the finding is about *whether the rewrite delivered the legacy behavior*. The vision (`02-vision-and-constraints.md`) treats long-term maintainability + behavior preservation as the rewrite's twin reasons-for-being; review reflects that priority.
 - **Parity-N/A is a finding shape, not a free pass.** If the parity-reviewer returns `(N/A — <reason>)`, preserve the reason in the section and in the `review_parity_oracle` frontmatter. A parity claim a reviewer couldn't verify is still an unverified claim — the operator should know.
 - **Blockers get issues; lesser findings don't.** Resist the urge to file an issue per finding — the story file is the right home for non-blocking work.
-- **Don't review what wasn't built.** If the diff is empty for the usability dimension (pure backend story), say "(N/A — no UI changes)" and move on. Don't invent findings to fill the section.
+- **Don't review what wasn't built.** Conditional dispatch (above) handles this structurally — the skill skips the reviewer rather than spawning it just to return N/A. The story file's `## Review` section pre-fills the corresponding section with `(N/A — <reason>)` so the operator can see what was skipped.
 
 ## What this skill does *not* do
 
