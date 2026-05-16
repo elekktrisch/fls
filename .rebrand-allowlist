@@ -47,6 +47,15 @@ e2e/                                                                            
 .github/workflows/ci.yml                                                                # legacy build paths
 .github/workflows/extract.yml                                                            # legacy SQL Server input description
 
+# Finalized stories (frozen historical record per docs/modernization/README.md
+# §"File layout": "stories/implemented/ … finalized stories, moved here by
+# phase 9; reference-only"). Modifying these would rewrite shipped-state
+# narrative; the FQCN / identifier references they contain (e.g. ch.fls.* in
+# S-001's file layout, FlsApplication in S-012's tests) are historical
+# snapshots, not living-code citations. Future readers cross-reference via
+# git log if a path doesn't resolve.
+docs/modernization/stories/implemented/
+
 # Generated / cached / vendored artifacts (excluded from verification grep
 # via --exclude-dir; listed for documentation only).
 # next/server/build/  next/database/extract/build/  .gradle/  node_modules/
