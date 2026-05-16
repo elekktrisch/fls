@@ -45,7 +45,7 @@ Chosen: **Option A — Hibernate `@TenantId` discriminator multi-tenancy + Sprin
   - Forgetting a tenant filter is structurally impossible from JPA queries (closes [R1](../01-current-state.md#r1--multi-tenancy-enforced-by-convention) at the ORM layer).
   - Resolver integrates with Spring Security's authenticated principal — the JWT subject's `clubId` claim becomes the tenant identifier.
   - Audit-log + tenancy ride together — every mutating operation runs inside a tenant-scoped session.
-  - The `@TenantId` column is just a normal indexed `bigint` (or UUID) column; query plans look like normal multi-tenant queries, easy to reason about.
+  - The `@TenantId` column is just a normal indexed UUID column ([ADR 0019](0019-entity-id-strategy.md) pinned UUID v7 as the system-wide ID type); query plans look like normal multi-tenant queries, easy to reason about.
 
 - **Negative:**
   - Native SQL queries (when used) bypass the filter — discipline + code review required, or restrict native SQL to repository methods that explicitly handle tenancy.
