@@ -63,6 +63,36 @@ See frontmatter.
 ## Notes
 This story is L because it touches ~16 tables. Tasks split it into the verifiable sub-pieces. Don't try to do it all in one PR — land tables in groups (Flight + crew; Aircraft cluster; Location cluster) so review is tractable.
 
+## Implementation status (paused 2026-05-16)
+
+PR #33 (draft). Branch: `story/S-013-schema-flights-aircraft-locations`. Operator paused after the boyscout slice; primary S-013 work not yet begun.
+
+**Landed on the branch (4 boyscout commits + branch bootstrap):**
+
+- `#32: start` — frontmatter status flip + refinement-adjustment carry (3 surgical brand flips from `/modernize-refine S-013 adjust for the rebranding`)
+- `#32: boyscout — S-128 post-merge bookkeeping` — added `reviewed: true / merged: true / review_outcome: pass` frontmatter stamps + `## Review` section to `implemented/S-128-*.md`. Closes pending-followups item #1.
+- `#32: boyscout — SKILL.md amendments (no-SHAs + git-mv ordering)` — amended `.claude/skills/modernize-implement/SKILL.md` + `.claude/skills/modernize-finalize/SKILL.md` with the no-SHAs-in-committed-docs Quality bar bullet, and added a "Pre-merge bookkeeping ordering" section to finalize Step 2.5 guarding against the rename-eats-content trap. Closes pending-followups items #2 + #3.
+- `#32: boyscout — pgAdmin :8080 → :5050 (resolve AlpenFlight server conflict)` — rebound pgAdmin from `127.0.0.1:8080:80` to `127.0.0.1:5050:80` in `docker-compose.yml`, updated `next/ops/dev-up-full.sh` banner. Server stays on conventional 8080. Closes pending-followups item #4.
+- `#32: stamp github_pr: 33 on frontmatter` — bookkeeping.
+
+`pending-boyscout-followups.md` now empty.
+
+**Pending (primary S-013 work — NOT yet started):**
+
+1. Step 1 (full): read 870-line refinement in full, ADRs 0001/0002/0003/0007/0008/0018/0019, implemented S-012, key legacy entities (`flsserver/src/FLS.Server.Data/DbEntities/Flight.cs`, `Aircraft.cs`, `Location.cs`, `FlightType.cs`, `FlightCrew.cs`, etc.), the V1/V2 migrations on main for the baseline-pattern shape.
+2. Step 1.5: Context7 freshness pass — Spring Boot 4.x, Flyway 11.x, Hibernate 7.x (UUID v7 + @TenantId), Testcontainers, Postgres 17.
+3. Step 2.5: write `FlightBaselineIntegrationTest` (~70-80 assertions) + extend `TenantCatalogConsistencyTest` + `TenantCatalogYamlTest` with the 12 new entries + flight_type reclassification + PII catalog. Watch RED.
+4. Write `V3__flights_aircraft_locations.sql` (~700-850 lines). **Note:** main currently has V1 + V2; the design notes anticipated V4 but S-018 (ShedLock) hasn't shipped — actual filename is V3, not V4. Re-numbering trivial; tests assert `>= 3`.
+5. Extend `next/database/tenant-rules.yaml` per the refinement (12 new entries + reclassifications + PII catalog + sensitive_columns).
+6. Iterate to green: `./gradlew clean check` in `next/server/`.
+7. Step 6.7: `maintainability-reviewer` self-review (blockers-only).
+8. Step 7: status: done, push, `gh pr ready 33`, post done comment on #32.
+
+**Notes for pickup:**
+- One-time contributor cleanup after pulling this branch: `docker compose -p fls-e2e --profile next down && docker compose -p fls-e2e --profile next up -d pgadmin` (port flip).
+- The refinement-adjustment ALREADY shipped on the branch — no further rebrand sweep needed.
+- 4 boyscout commits + branch bootstrap give a clean baseline; the next implement session should pick up at Step 1 above.
+
 <!-- modernize-refine: start -->
 
 ## Design notes
