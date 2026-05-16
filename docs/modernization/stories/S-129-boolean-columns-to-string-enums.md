@@ -98,3 +98,14 @@ strings rather than booleans, and remove the "NULL-is-meaningful" trap.
 - **Operator confirmation 2026-05-16:** Approach A chosen — "New story,
   propose ADR amendment". S-013 shipped with booleans; this story
   handles the cross-cutting V<n> ALTER in one go.
+
+## Absorbed from S-013 rework triage 2026-05-16
+
+- **aircraft_operating_counter.at_date_time CHECK uses non-IMMUTABLE `now()`** —
+  `next/server/src/main/resources/db/migration/V3__flights_aircraft_locations.sql:623-624`.
+  Postgres permits `now()` in CHECK at table-create but only evaluates at row
+  INSERT/UPDATE — the constraint is not query-plan-time enforced, and future
+  Postgres majors may warn or treat the expression as non-deterministic.
+  Address by replacing with a trigger-based enforcement OR moving the bound
+  check to the service layer (S-022) and removing the CHECK. Bundle with this
+  story's V<n> migration since it's already touching schema.
