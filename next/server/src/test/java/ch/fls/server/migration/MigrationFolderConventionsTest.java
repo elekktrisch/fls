@@ -100,8 +100,13 @@ class MigrationFolderConventionsTest {
         var violations = new ArrayList<String>();
         for (Path m : migrations) {
             String content = Files.readString(m, StandardCharsets.UTF_8);
+            // Strip SQL `-- single-line` comments before pattern matching.
+            // Comments are documentation, not executed code; a forbidden literal
+            // discussed in a comment ("never use `DEFAULT gen_random_uuid()`")
+            // is exactly the kind of guidance we want, not a violation.
+            String stripped = content.replaceAll("(?m)--[^\\n]*", "");
             for (Pattern p : forbidden) {
-                if (p.matcher(content).find()) {
+                if (p.matcher(stripped).find()) {
                     violations.add(m.getFileName() + " matches forbidden pattern: " + p.pattern());
                 }
             }

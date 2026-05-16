@@ -80,6 +80,7 @@ class IdentityBaselineIntegrationTest {
         r.add("spring.datasource.username", POSTGRES::username);
         r.add("spring.datasource.password", POSTGRES::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        r.add("spring.flyway.enabled", () -> "true");
         r.add("spring.flyway.url", POSTGRES::jdbcUrl);
         r.add("spring.flyway.user", POSTGRES::username);
         r.add("spring.flyway.password", POSTGRES::password);
@@ -340,6 +341,53 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
+    /**
+     * ADR 0020 rule 4 — the legacy is_for_glider / is_for_tow / is_for_motor
+     * boolean trio collapses to applicable_categories TEXT[]. Java enum +
+     * service layer are the only value-set enforcer; no DB CHECK.
+     */
+    @Test
+    void start_type_has_applicable_categories_text_array_no_check() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            try (ResultSet rs = conn.createStatement().executeQuery(
+                    "SELECT data_type, is_nullable FROM information_schema.columns "
+                            + "WHERE table_schema='public' AND table_name='start_type' "
+                            + "AND column_name='applicable_categories'")) {
+                assertThat(rs.next()).as("applicable_categories column must exist").isTrue();
+                assertThat(rs.getString("data_type"))
+                        .as("Postgres reports TEXT[] columns as 'ARRAY'")
+                        .isEqualTo("ARRAY");
+                assertThat(rs.getString("is_nullable")).isEqualTo("NO");
+            }
+            try (ResultSet rs = conn.createStatement().executeQuery(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                            + "WHERE conrelid = 'start_type'::regclass AND contype = 'c'")) {
+                List<String> defs = new ArrayList<>();
+                while (rs.next()) defs.add(rs.getString(1));
+                assertThat(defs)
+                        .as("ADR 0020 — no DB CHECK on enum-value-set / SET-membership; Java enforces")
+                        .noneMatch(d -> d.contains("applicable_categories"));
+            }
+        }
+    }
+
+    @Test
+    void start_type_seeds_have_expected_applicable_categories() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT code, applicable_categories::text FROM start_type ORDER BY code")) {
+            java.util.Map<String, String> got = new java.util.LinkedHashMap<>();
+            while (rs.next()) got.put(rs.getString(1), rs.getString(2));
+            // Postgres TEXT[] -> '{X,Y}' literal. Order preserved by INSERT.
+            assertThat(got).contains(
+                    java.util.Map.entry("WINCH_LAUNCH",   "{GLIDER}"),
+                    java.util.Map.entry("AEROTOW",        "{GLIDER,TOW}"),
+                    java.util.Map.entry("SELF_START",     "{GLIDER}"),
+                    java.util.Map.entry("EXTERNAL_START", "{GLIDER}"),
+                    java.util.Map.entry("MOTOR",          "{MOTOR}"));
+        }
+    }
+
     @Test
     void club_state_seeded_3_canonical_values() throws Exception {
         try (Connection conn = dataSource.getConnection();
@@ -432,11 +480,14 @@ class IdentityBaselineIntegrationTest {
                         "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='user'")) {
             List<String> defs = new ArrayList<>();
             while (rs.next()) defs.add(rs.getString(1));
+            // Postgres pretty-prints functional indexes as `lower((username)::text)` —
+            // double paren + explicit cast on VARCHAR. Match by tokens, not exact substring.
             assertThat(defs)
                     .as("functional UNIQUE on LOWER(username)")
-                    .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("unique")
-                            && d.toLowerCase(Locale.ROOT).contains("lower(username")
-                            && d.toLowerCase(Locale.ROOT).contains("text)"));
+                    .anyMatch(d -> {
+                        String lc = d.toLowerCase(Locale.ROOT);
+                        return lc.contains("unique") && lc.contains("lower") && lc.contains("username");
+                    });
         }
     }
 
@@ -494,8 +545,10 @@ class IdentityBaselineIntegrationTest {
 
     @Test
     void audit_columns_present_on_mutable_tables() throws Exception {
-        // Sample of mutable tables that must carry the audit quad.
-        List<String> mutables = List.of("person", "club", "user", "person_club", "user_role");
+        // Aggregate roots + the internal collection that's mutated outside its
+        // root — user_role + reference tables intentionally skip the quad per
+        // design notes (audit goes via S-027's audit_event table).
+        List<String> mutables = List.of("person", "club", "user", "person_club");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : mutables) {
                 for (String col : List.of("created_on", "created_by_user_id", "modified_on", "modified_by_user_id")) {

@@ -1818,45 +1818,35 @@
     {
       "code": "WINCH_LAUNCH",
       "name": "Winch Launch",
-      "for_glider": true,
-      "for_tow": false,
-      "for_motor": false,
+      "applicable_categories": ["GLIDER"],
       "uuid": "019e2e15-2c00-7fa0-8000-000000000fa0",
       "natural_key": "WINCH_LAUNCH"
     },
     {
       "code": "AEROTOW",
       "name": "Aerotow",
-      "for_glider": true,
-      "for_tow": true,
-      "for_motor": false,
+      "applicable_categories": ["GLIDER", "TOW"],
       "uuid": "019e2e15-2c00-7fa1-8000-000000000fa1",
       "natural_key": "AEROTOW"
     },
     {
       "code": "SELF_START",
       "name": "Self Start",
-      "for_glider": true,
-      "for_tow": false,
-      "for_motor": false,
+      "applicable_categories": ["GLIDER"],
       "uuid": "019e2e15-2c00-7fa2-8000-000000000fa2",
       "natural_key": "SELF_START"
     },
     {
       "code": "EXTERNAL_START",
       "name": "External Start",
-      "for_glider": true,
-      "for_tow": false,
-      "for_motor": false,
+      "applicable_categories": ["GLIDER"],
       "uuid": "019e2e15-2c00-7fa3-8000-000000000fa3",
       "natural_key": "EXTERNAL_START"
     },
     {
       "code": "MOTOR",
       "name": "Motor",
-      "for_glider": false,
-      "for_tow": false,
-      "for_motor": true,
+      "applicable_categories": ["MOTOR"],
       "uuid": "019e2e15-2c00-7fa4-8000-000000000fa4",
       "natural_key": "MOTOR"
     }

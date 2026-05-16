@@ -71,6 +71,9 @@ class FlywayBootstrapIntegrationTest {
         r.add("spring.datasource.username", POSTGRES::username);
         r.add("spring.datasource.password", POSTGRES::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        // Re-enable Flyway for the Postgres integration path; application-test.yml
+        // disables it for the H2-backed context-load smoke tests.
+        r.add("spring.flyway.enabled", () -> "true");
         r.add("spring.flyway.url", POSTGRES::jdbcUrl);
         r.add("spring.flyway.user", POSTGRES::username);
         r.add("spring.flyway.password", POSTGRES::password);
@@ -127,9 +130,14 @@ class FlywayBootstrapIntegrationTest {
                 ResultSet rs = stmt.executeQuery(
                         "SELECT meta_value FROM app_meta WHERE meta_key = 'schema_baseline_version'")) {
             assertThat(rs.next())
-                    .as("V1 inserts the schema_baseline_version sentinel row")
+                    .as("V1 inserts the schema_baseline_version sentinel row; V2 updates it")
                     .isTrue();
-            assertThat(rs.getString("meta_value")).isEqualTo("S-009");
+            // V1 sets 'S-009'; V2 updates to 'S-012'; subsequent migrations update further.
+            // Assert the row exists with a non-empty S-NNN sentinel rather than freezing
+            // the value at the first migration's generation.
+            assertThat(rs.getString("meta_value"))
+                    .as("schema_baseline_version must reflect the current generation")
+                    .matches("^S-\\d{3}$");
         }
     }
 

@@ -12,6 +12,11 @@ spring:
     password: ""
     driver-class-name: org.h2.Driver
   flyway:
+    # Disabled by default in the test profile (H2 in-memory). Migrations are
+    # Postgres-specific (uuid type, TEXT[], partial indexes); H2 even in
+    # PostgreSQL mode can't parse all of it. Postgres-backed integration tests
+    # re-enable via @DynamicPropertySource — see FlywayBootstrapIntegrationTest.
+    enabled: false
     # Eliminates container-readiness flake in integration tests without
     # touching prod startup. Per S-009 performance plan.
     connect-retries: 5

@@ -76,6 +76,7 @@ class TenantCatalogConsistencyTest {
         r.add("spring.datasource.username", POSTGRES::username);
         r.add("spring.datasource.password", POSTGRES::password);
         r.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        r.add("spring.flyway.enabled", () -> "true");
         r.add("spring.flyway.url", POSTGRES::jdbcUrl);
         r.add("spring.flyway.user", POSTGRES::username);
         r.add("spring.flyway.password", POSTGRES::password);

@@ -122,11 +122,23 @@ public class GenerateCanonicalUuids {
             out.printf("  %s = %s%n", clubStates[i], uuidV7(TABLE_OFFSETS.get("club_state") + i));
         }
 
-        String[] startTypes = {"WINCH_LAUNCH", "AEROTOW", "SELF_START", "EXTERNAL_START", "MOTOR"};
+        // start_type carries applicable_categories TEXT[] per ADR 0020 (collapse
+        // of the legacy is_for_glider/tow/motor boolean trio into a SET-MEMBERSHIP
+        // column). The {code -> [categories]} mapping is committed in the
+        // migration; this script emits only the UUID-per-code mapping.
+        String[][] startTypes = {
+                {"WINCH_LAUNCH",   "[GLIDER]"},
+                {"AEROTOW",        "[GLIDER, TOW]"},
+                {"SELF_START",     "[GLIDER]"},
+                {"EXTERNAL_START", "[GLIDER]"},
+                {"MOTOR",          "[MOTOR]"},
+        };
         out.println();
         out.println("# start_type:");
         for (int i = 0; i < startTypes.length; i++) {
-            out.printf("  %s = %s%n", startTypes[i], uuidV7(TABLE_OFFSETS.get("start_type") + i));
+            out.printf("  %s applicable_categories=%s uuid=%s%n",
+                    startTypes[i][0], startTypes[i][1],
+                    uuidV7(TABLE_OFFSETS.get("start_type") + i));
         }
 
         String[] lengthUnits = {"METER", "FEET"};

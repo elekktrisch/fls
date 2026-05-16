@@ -4,8 +4,8 @@
 # for the assignment algorithm (first-match-wins; YAML overrides beat column-presence heuristics).
 
 version: 1
-hibernate_pin: "6.x"  # tested against. Resolver fail-closed behavior must be re-verified on bump.
-tenant_id_type: "Long"  # 8-byte index entries; matches legacy bigint ClubId. Pinned per S-022.
+hibernate_pin: "7.x"  # ADR 0001 + 0019 — needed for application-side UUID v7 generation (uuid-creator).
+tenant_id_type: "UUID"  # ADR 0019 — Postgres native `uuid` column on every tenant-scoped table. 16-byte entries.
 
 # Per-entity overrides. Keyed by legacy SQL Server table name (matches S-010 extractor output).
 # Each override either pins a `kind` (drives classification) and/or carries metadata downstream
@@ -18,13 +18,37 @@ overrides:
     kind: cross-tenant
     target_entity: Person
     rationale_ref: tenant-catalog.md#persons
+    pii_columns:
+      - firstname
+      - lastname
+      - midname
+      - company_name
+      - address_line1
+      - address_line2
+      - zip
+      - city
+      - region
+      - private_phone
+      - mobile_phone
+      - business_phone
+      - fax_number
+      - email_private
+      - email_business
+      - birthday
+      - licence_number
+      - spot_link
     # Cross-club crew, multi-club membership via PersonClub. Cross-tenant by design.
+    # PII catalog drives S-027 audit-blob redaction + FADP DSAR scope.
 
   PersonClub:
     kind: cross-tenant
     target_entity: PersonClub
     rationale_ref: tenant-catalog.md#personclub
+    pii_columns:
+      - member_number  # quasi-PII — combined with name reveals membership
     # The cross-tenant join table itself. A Person can belong to many Clubs.
+    # PersonClub is internal to the Person aggregate (ADR 0018) — no own
+    # repository at S-022; mutation via Person.addMembership() / removeMembership().
 
   # ---- Principal subject ----
 
@@ -32,6 +56,11 @@ overrides:
     kind: principal
     target_entity: User
     rationale_ref: tenant-catalog.md#users
+    pii_columns:
+      - username
+      - notification_email
+      - phone_number
+      - remarks
     # Has a ClubId column (login principal's primary club) but tenancy resolves
     # FROM this row, not OVER it. Cannot carry @TenantId or the resolver
     # would chicken-and-egg the user load.
@@ -63,9 +92,11 @@ overrides:
     target_entity: StartType
     rationale_ref: tenant-catalog.md#reference-data
   MemberStates:
-    kind: reference
+    kind: tenant-scoped  # reclassified S-012 — legacy ClubId NOT NULL; per-club seeds at S-016
     target_entity: MemberState
+    tenant_column: club_id
     rationale_ref: tenant-catalog.md#reference-data
+    # Per ADR 0018 internal to the Club aggregate; CASCADE on Club delete.
   ClubStates:
     kind: reference
     target_entity: ClubState
@@ -119,9 +150,12 @@ overrides:
     target_entity: LocationType
     rationale_ref: tenant-catalog.md#reference-data
   PersonCategories:
-    kind: reference
+    kind: tenant-scoped  # reclassified S-012 — legacy ClubId NOT NULL; per-club seeds at S-016
     target_entity: PersonCategory
+    tenant_column: club_id
     rationale_ref: tenant-catalog.md#reference-data
+    # Per ADR 0018 internal to the Club aggregate; CASCADE on Club delete.
+    # Self-FK parent_person_category_id ON DELETE RESTRICT preserves hierarchy.
   PlanningDayAssignmentTypes:
     kind: reference
     target_entity: PlanningDayAssignmentType
