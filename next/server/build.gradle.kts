@@ -10,6 +10,10 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("net.ltgt.errorprone") version "5.1.0"
     id("net.ltgt.nullaway") version "3.0.0"
+    // S-009: Flyway Gradle plugin for `flywayInfo` / `flywayValidate` /
+    // `flywayMigrate` invokable from CI + ad-hoc local runs. Plugin version
+    // is independent of the BOM-managed flyway-core version.
+    id("org.flywaydb.flyway") version "11.14.1"
 }
 
 group = "ch.fls"
@@ -43,6 +47,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    // Boot 4 modularized: FlywayAutoConfiguration moved out of
+    // spring-boot-autoconfigure into spring-boot-flyway. flyway-core alone
+    // does NOT bring it in — explicit declaration needed.
+    implementation("org.springframework.boot:spring-boot-flyway")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
+    runtimeOnly("org.postgresql:postgresql")
     // On the classpath so S-003 can switch springdoc on without a dep change.
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
     implementation("org.jspecify:jspecify:1.0.0")
@@ -52,6 +64,11 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    // H2 as the in-memory test DataSource for tests that don't need real
+    // Postgres (ApplicationContextTest, ActuatorHealthIT, HelloControllerIT).
+    // FlywayBootstrapIntegrationTest overrides via @DynamicPropertySource to a
+    // real Docker-CLI Postgres container.
+    testRuntimeOnly("com.h2database:h2")
     // Boot 4.0 split: TestRestTemplate (in spring-boot-resttestclient) depends
     // on RestTemplateBuilder which lives in spring-boot-restclient.
     testImplementation("org.springframework.boot:spring-boot-starter-restclient-test")
@@ -134,6 +151,21 @@ configurations.matching {
     it.name == "runtimeClasspath" || it.name == "compileClasspath"
 }.configureEach {
     resolutionStrategy.failOnVersionConflict()
+}
+
+// S-009: Flyway Gradle plugin connection details. Reads env vars so CI can
+// inject Postgres credentials without committing them. Defaults to loopback
+// dev defaults so an operator with a compose-up Postgres can invoke
+// `./gradlew flywayInfo` / `flywayValidate` locally.
+flyway {
+    url = System.getenv("DATASOURCE_URL") ?: "jdbc:postgresql://localhost:5432/fls"
+    user = System.getenv("DATASOURCE_USER") ?: "fls"
+    password = System.getenv("DATASOURCE_PASSWORD") ?: "fls"
+    locations = arrayOf("filesystem:src/main/resources/db/migration")
+    outOfOrder = false
+    cleanDisabled = true
+    baselineOnMigrate = false
+    validateMigrationNaming = true
 }
 
 tasks.withType<Test> {

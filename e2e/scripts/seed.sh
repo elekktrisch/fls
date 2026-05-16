@@ -17,12 +17,28 @@
 # Usage:
 #   bash e2e/scripts/seed.sh
 #   FLS_SEED_FORCE=1 bash e2e/scripts/seed.sh   # bypass .bak cache
+#   FLS_MSSQL_CONTAINER=fls-mssql bash e2e/scripts/seed.sh  # legacy manual container
 #
-# Requires: docker daemon, a running container named "fls-mssql" with sa/Demo#FLS#2026.
+# Requires: a running SQL Server container with sa/Demo#FLS#2026. The default
+# target is "fls-e2e-mssql-1" — i.e. the container that e2e/scripts/dev-up.sh
+# creates under the fls-e2e compose project, so the two scripts work together
+# with no env overrides. Override FLS_MSSQL_CONTAINER if you keep a manually
+# named container (e.g. "fls-mssql") around for non-e2e dev work.
+#
+# Windows / git-bash notes:
+#   - Container-internal absolute paths passed as their own argv element
+#     (e.g. /opt/mssql-tools18/bin/sqlcmd, /tmp/seed_current.sql) are written
+#     here as //opt/... and //tmp/... so MSYS's path-conversion in git-bash
+#     does not rewrite them to "C:/Program Files/Git/opt/..." before docker.exe
+#     sees them. On Linux/WSL, leading "//" collapses to "/" per POSIX, so the
+#     same string is portable across both shells.
+#   - For the "test -f $BAK_PATH" check we hand the whole command to bash -c
+#     inside the container; the outer argv element no longer starts with "/",
+#     so MSYS leaves it alone and the container's bash sees the real path.
 
 set -euo pipefail
 
-CONTAINER="${FLS_MSSQL_CONTAINER:-fls-mssql}"
+CONTAINER="${FLS_MSSQL_CONTAINER:-fls-e2e-mssql-1}"
 SA_PASS="${FLS_MSSQL_SA_PASSWORD:-Demo#FLS#2026}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -42,9 +58,9 @@ FATAL_REGEX='Msg [0-9]+, Level (1[6-9]|2[0-5])'
 #     subsequent ALTERs in the same script unrun. We deliberately tolerate
 #     those (TESTING.md sec. 1.2 documents the baseline noise) and still log
 #     anything fatal so regressions stand out.
-SQLCMD_STRICT=(docker exec -i "$CONTAINER" /opt/mssql-tools18/bin/sqlcmd
+SQLCMD_STRICT=(docker exec -i "$CONTAINER" //opt/mssql-tools18/bin/sqlcmd
                -S localhost -U sa -P "$SA_PASS" -C -b)
-SQLCMD_LOOSE=(docker exec -i "$CONTAINER" /opt/mssql-tools18/bin/sqlcmd
+SQLCMD_LOOSE=(docker exec -i "$CONTAINER" //opt/mssql-tools18/bin/sqlcmd
               -S localhost -U sa -P "$SA_PASS" -C)
 
 log() { printf '[seed] %s\n' "$*" >&2; }
@@ -61,12 +77,12 @@ run_sql_file() {
     if [[ "$tolerant" == "1" ]]; then
         # Use loose sqlcmd: keep running across GO batches; surface complaints
         # but do not fail the script on them.
-        out="$("${SQLCMD_LOOSE[@]}" -d "$db" -i /tmp/seed_current.sql 2>&1 || true)"
+        out="$("${SQLCMD_LOOSE[@]}" -d "$db" -i //tmp/seed_current.sql 2>&1 || true)"
         printf '%s\n' "$out" | grep -E "$FATAL_REGEX" >&2 || true
         return 0
     fi
 
-    if ! out="$("${SQLCMD_STRICT[@]}" -d "$db" -i /tmp/seed_current.sql 2>&1)"; then
+    if ! out="$("${SQLCMD_STRICT[@]}" -d "$db" -i //tmp/seed_current.sql 2>&1)"; then
         printf '%s\n' "$out" >&2
         log "FAILED: $label"
         exit 1
@@ -100,6 +116,10 @@ run_sql_query() {
 # ---------------------------------------------------------------------------
 if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
     log "container '$CONTAINER' not found; expected a running SQL Server container"
+    log "running containers:"
+    docker ps --format '  {{.Names}}  ({{.Status}})' >&2 || true
+    log "start the stack with: bash e2e/scripts/dev-up.sh"
+    log "or override the target with: FLS_MSSQL_CONTAINER=<name> $0"
     exit 1
 fi
 
@@ -122,7 +142,7 @@ SEED_HASH="$(compute_seed_hash)"
 BAK_PATH="/var/opt/mssql/seed_${SEED_HASH}.bak"
 
 if [[ "${FLS_SEED_FORCE:-0}" != "1" ]] \
-        && docker exec "$CONTAINER" test -f "$BAK_PATH" 2>/dev/null; then
+        && docker exec "$CONTAINER" bash -c "test -f $BAK_PATH" 2>/dev/null; then
     log "cache hit ($SEED_HASH); RESTORE FROM DISK = $BAK_PATH"
     run_sql_query "
 IF DB_ID('FLSTest') IS NOT NULL

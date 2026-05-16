@@ -1,0 +1,30 @@
+# Security-engineer-owned regex list. Consumed by
+# ch.fls.server.migration.MigrationFolderConventionsTest. Each non-empty,
+# non-comment line is a Java regex applied (case-insensitive, multi-line) to
+# every *.sql file under db/migration/.
+#
+# Adding a pattern here means "no migration may contain this." Removing one
+# means relaxing a security gate — requires CODEOWNERS sign-off.
+
+# Plain-text credential literal (e.g. `CREATE USER foo WITH PASSWORD 'secret'`).
+PASSWORD\s*'
+
+# Privilege-escalation surface. Block role / user creation + grants outright;
+# legitimate role provisioning is operator-only and runs outside Flyway.
+\bGRANT\s
+\bREVOKE\s
+\bALTER\s+ROLE\b
+\bCREATE\s+USER\b
+\bCREATE\s+ROLE\b
+
+# PII data committed to source control. Schema-only migrations are mandatory;
+# data backfill into PII tables is S-016 / S-018 territory.
+INSERT\s+INTO\s+(person|person_club|audit_logs|audit_log_details)
+
+# Destructive schema ops — allowlist exceptions via PR review.
+DROP\s+SCHEMA\b
+TRUNCATE\b
+
+# Flyway placeholders — avoid until S-011 tenant-aware tooling lands so they
+# don't accidentally inject runtime config into committed SQL.
+\$\{[^}]+\}

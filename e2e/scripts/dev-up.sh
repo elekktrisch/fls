@@ -7,8 +7,10 @@
 #
 # Assumed environment (see TESTING.md for the full playbook):
 #
-#   - Linux x86_64 with Docker Engine 27+ and the compose-v2 plugin
-#     (`docker compose`, NOT the old `docker-compose` binary).
+#   - Linux x86_64 with Docker Engine 27+, OR Windows 10/11 with Docker
+#     Desktop running under git-bash / MSYS2. Either way the compose-v2
+#     plugin must be available (`docker compose`, NOT the old
+#     `docker-compose` binary).
 #   - Mono 6.12 (`mono-complete`) installed if you also want to start the
 #     FLS Web API locally. Build artifacts expected at
 #     flsserver/src/FLS.Server.Console/bin/Debug/FLS.Server.Console.exe
@@ -17,6 +19,18 @@
 #     for a from-scratch server build).
 #   - Node 8 available via nvm, only needed for the flsweb webpack-1
 #     bundle / dev-server build (see TESTING.md Milestone 5).
+#
+# Windows / git-bash notes:
+#
+#   - MSYS auto-translates the unix-style path passed to `docker compose
+#     -f` (e.g. /c/Users/...) into a native Windows path before it reaches
+#     docker.exe, so no manual conversion is needed here.
+#   - Output captured from docker.exe is stripped of any stray carriage
+#     returns below (some older Docker Desktop builds emit CRLF on stdout
+#     even when the pipe is not a TTY).
+#   - Shell scripts in this directory are pinned to LF line endings via
+#     e2e/.gitattributes so a default Windows clone (core.autocrlf=true)
+#     does not break the shebang.
 #
 # This script ONLY brings up the database + email sink. The FLS Web API
 # and webpack-dev-server are still started manually per TESTING.md
@@ -43,7 +57,9 @@ wait_for_health() {
   local service="$1"
   local timeout="${2:-180}"
   local container
-  container="$(docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps -q "${service}")"
+  # tr -d '\r': defensive CRLF strip for git-bash on Windows, where some
+  # older Docker Desktop builds emit CR-terminated lines on non-TTY stdout.
+  container="$(docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps -q "${service}" | tr -d '\r')"
   if [[ -z "${container}" ]]; then
     echo "error: container for service '${service}' not found" >&2
     return 1
@@ -53,7 +69,7 @@ wait_for_health() {
   local elapsed=0
   while (( elapsed < timeout )); do
     local status
-    status="$(docker inspect -f '{{.State.Health.Status}}' "${container}" 2>/dev/null || echo 'unknown')"
+    status="$(docker inspect -f '{{.State.Health.Status}}' "${container}" 2>/dev/null | tr -d '\r' || echo 'unknown')"
     case "${status}" in
       healthy)
         echo "    ${service}: healthy"
@@ -88,7 +104,10 @@ cat <<'INFO'
   Mailpit HTTP API + Web UI          http://localhost:8025
 
 Next steps:
-  1. Apply schema + seed to the FLSTest DB - see TESTING.md Milestone 1.
+  1. Apply schema + seed to the FLSTest DB:
+       bash e2e/scripts/seed.sh
+     (defaults to the fls-e2e-mssql-1 container started above; see
+      TESTING.md Milestone 1 for the manual walk-through.)
   2. Start the FLS Web API - see TESTING.md Milestone 3:
        cd flsserver/src/FLS.Server.Console/bin/Debug
        FLS_LISTEN_URL="http://*:25567/" mono FLS.Server.Console.exe

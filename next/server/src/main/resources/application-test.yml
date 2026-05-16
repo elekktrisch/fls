@@ -1,2 +1,18 @@
 server:
   port: 0
+
+spring:
+  datasource:
+    # H2 in-memory by default for tests. FlywayBootstrapIntegrationTest
+    # overrides via @DynamicPropertySource for the real Postgres path.
+    # MODE=PostgreSQL keeps SQL surface compatible with V1__baseline.sql's
+    # Postgres-flavored DDL.
+    url: jdbc:h2:mem:fls_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  flyway:
+    # Eliminates container-readiness flake in integration tests without
+    # touching prod startup. Per S-009 performance plan.
+    connect-retries: 5
+    connect-retries-interval: 2s
