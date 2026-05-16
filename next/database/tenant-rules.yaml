@@ -220,13 +220,20 @@ overrides:
     # The tenant identity row itself. Each Club row IS a tenant.
 
   Aircrafts:
-    kind: tenant-scoped
+    kind: cross-tenant   # reclassified 2026-05-16 per operator: aircraft has no @TenantId
     target_entity: Aircraft
     rationale_ref: tenant-catalog.md#aircraft
-    tenant_column_legacy: OwnerClubId  # not literally ClubId; the override pins the mapping
+    tenant_column_legacy: OwnerClubId  # legacy column; in new schema renamed `owner_club_id` and made NULLABLE
+    owner_column: owner_club_id        # uuid NULL → club(id) ON DELETE SET NULL; aircraft may be Person-owned (private) or cross-club shared (charter / rental)
     emits_audit: true
-    # Ownership identifies tenant. Charter / loan to a different club is a sacred-cow
-    # use-case but not a tenancy mutation — the Aircraft row keeps its OwnerClubId.
+    pii_columns: [comment]
+    sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
+    pii_ride_through: [aircraft_owner_person_id]
+    # Reclassification rationale (2026-05-16): Charter / loan / private ownership cases mean
+    # the aircraft has no inherent tenant scope. Each Flight on the aircraft carries its own
+    # `operating_club_id` (set per-flight by the operator, NOT denormalized from aircraft).
+    # Service layer (S-026) enforces "may this club use this aircraft?" via owner_club_id +
+    # charter agreement + public-rental checks. Sacred-cow parallel to Person + Location.
 
   AuditLogs:
     kind: tenant-scoped
@@ -249,14 +256,17 @@ overrides:
     target_entity: Flight
     rationale_ref: tenant-catalog.md#flights
     emits_audit: true
-    ride_through_targets: [Persons, Aircrafts]
-    # No `kind` override — the classifier detects the missing ClubId + FK chain
-    # and assigns INDIRECT_TENANT for legacy. Target_scope is upgraded to
-    # TENANT_SCOPED here (the implementer must add the precondition).
-    target_scope: TENANT_SCOPED
+    ride_through_targets: [Persons, Aircrafts, Locations]
+    # Per the 2026-05-16 Aircrafts → cross-tenant amendment: Flight.operating_club_id is NO
+    # LONGER denormalized from aircraft.owner_club_id (the latter is now optional + cross-
+    # tenant). Each Flight carries its own operating_club_id, set per-flight by the operator
+    # (typically defaults to user.club_id at the API layer). Charter case: Club B operates
+    # Club A's aircraft → flight.operating_club_id = Club B, aircraft.owner_club_id = Club A.
+    kind: tenant-scoped
+    tenant_column: operating_club_id
     preconditions:
-      - "S-013 must denormalize club_id from aircraft.owner_club_id into the new flight table"
-      - "S-016 maintains the invariant `flight.club_id == aircraft.owner_club_id` during cutover"
+      - "S-013 ships flight.operating_club_id as required column set per-flight by operator (no denormalization invariant from aircraft)"
+      - "S-022 service layer enforces 'may this club use this aircraft?' (owner / charter / public-rental checks) via Aircraft aggregate"
 
   Deliveries:
     kind: tenant-scoped
