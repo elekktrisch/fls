@@ -2,8 +2,9 @@
 id: S-012
 title: V1__baseline part 1 — identity + reference data
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-16
+done_at: 2026-05-16
 depends_on: [S-009, S-010, S-011]
 acceptance:
   - Tables defined: `club`, `club_extension`, `club_state`, `user`, `role`, `user_role`, `person`, `person_club`, `country`, `language`, `member_state`, `person_category`, `length_unit_type`, `elevation_unit_type`, `counter_unit_type`, `start_type`, `email_template`, `extension_type`, `extension_value` (19 tables).
@@ -26,6 +27,7 @@ refined_speculative: false
 refined_speculative_at: 2026-05-16
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 github_issue: 24
+github_pr: 25
 ---
 
 ## Context
