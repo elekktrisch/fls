@@ -35,18 +35,18 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # `every`: a file must match ALL patterns in a filter to count.
+          # With the default `some`, `!**/*.md` is read as a positive predicate
+          # ("any non-md file matches"), so a touch under next/ would also trip
+          # legacy. With `every`, we express the OR-of-directories as one brace
+          # pattern and let `!**/*.md` actually exclude md-only changes.
+          predicate-quantifier: 'every'
           filters: |
             legacy:
-              - 'flsserver/**'
-              - 'flsweb/**'
-              - 'e2e/**'
-              - 'docker-compose.yml'
-              - '.github/workflows/ci.yml'
-              - '.github/pages/**'
+              - '{flsserver/**,flsweb/**,e2e/**,docker-compose.yml,.github/workflows/ci.yml,.github/pages/**}'
               - '!**/*.md'
             next:
-              - '.github/workflows/ci.yml'
-              - 'next/**'
+              - '{.github/workflows/ci.yml,next/**}'
               - '!**/*.md'
 
   # ---------------------------------------------------------------------------
