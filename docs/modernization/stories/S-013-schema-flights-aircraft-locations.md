@@ -2,7 +2,8 @@
 id: S-013
 title: V1__baseline part 2 — flights / aircraft / persons / clubs / locations
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-16
 depends_on: [S-012]
 acceptance:
   - Tables defined: `flight`, `flight_crew`, `flight_crew_type`, `flight_type`, `flight_cost_balance_type`, `flight_process_state`, `flight_air_state`, `aircraft`, `aircraft_type`, `aircraft_state`, `aircraft_aircraft_state`, `aircraft_operating_counter`, `article`, `location`, `location_type`, `inoutbound_point` (16 tables — `flight_process_state` + `flight_air_state` promoted from "modelled as enum or lookup" into explicit lookup tables per ADR 0019 uniformity).
@@ -39,6 +40,7 @@ refined: true
 refined_at: 2026-05-16
 refined_speculative: false
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+github_issue: 32
 ---
 
 ## Context
@@ -444,7 +446,7 @@ Same approach as S-012:
 
 - New: `next/server/src/main/resources/db/migration/V<n+1>__flights_aircraft_locations.sql` (~700-850 lines).
 - Edit: `next/database/tenant-rules.yaml` (12 new entries + flight_type reclassification + PII catalog extensions).
-- New: `next/server/src/test/java/ch/fls/server/migration/FlightBaselineIntegrationTest.java` (~70-80 tests).
+- New: `next/server/src/test/java/ch/alpenflight/server/migration/FlightBaselineIntegrationTest.java` (~70-80 tests).
 - Extend: `MigrationFolderConventionsTest`, `FlywayBootstrapIntegrationTest`, `TenantCatalogConsistencyTest` (from S-012).
 - Extend: `next/server/src/test/resources/reference-seeds-canonical-uuids.json` (canonical UUIDs for the 7 new reference tables).
 - Edit: `next/server/src/test/resources/forbidden-migration-patterns.txt` — allowlist new reference-seed INSERTs; deny `INSERT INTO flight|flight_crew|aircraft|aircraft_aircraft_state|aircraft_operating_counter|article|location|inoutbound_point`.
@@ -534,7 +536,7 @@ Same approach as S-012:
 | (h) | Aircraft state spoofing | Med | Append-only via `Aircraft.recordState()` aggregate method; audit captures actor; CHECK valid_to >= valid_from |
 | (i) | AircraftOperatingCounter monotonic invariant violation | Med | CHECK >= 0 per column; service-layer monotonic guard (schema cannot enforce cross-row) |
 | (j) | DSAR cascade — Person erasure blanks pilot attribution | Med | `flight_crew.person_id ON DELETE RESTRICT` preserves attribution; `aircraft.aircraft_owner_person_id` + `aircraft_aircraft_state.noticed_by_person_id` SET NULL; column comments document |
-| (k) | UUID v7 timestamp leak in error messages | Low | UUID v7's leading 48 bits expose record creation time; for FLS Flight/Aircraft this is operationally-known anyway; document in CONVENTIONS.md |
+| (k) | UUID v7 timestamp leak in error messages | Low | UUID v7's leading 48 bits expose record creation time; for AlpenFlight Flight/Aircraft this is operationally-known anyway; document in CONVENTIONS.md |
 | (l) | Aggregate-prefix reveals entity type | Very Low | By design; humans + audit-log search benefit |
 | (m) | Forbidden-pattern regression on new reference seeds | Low | Extend allowlist + deny INSERTs into app tables |
 | (n) | Charter/cross-club aircraft use authorization gap (replaces former "denormalization drift" threat per 2026-05-16 amendment) | High | Aircraft is cross-tenant; service layer must verify the Flight's `operating_club_id` is authorized to use the aircraft (owner / charter / public-rental check) BEFORE accepting the Flight insert. Schema cannot enforce; S-022 + S-026 + audit log on every Flight insert with cross-club aircraft (`flight.operating_club_id != aircraft.owner_club_id`) for forensic trail. |
@@ -822,7 +824,7 @@ Full per-table grid in Design notes. Load-bearing:
 
 - Index footprint at 5-year scale (~5M flights, ~25M flight_crew): ~+900 MB delta on flight + ~+900 MB on flight_crew + trivial elsewhere. **Aggregate S-013 delta ~2 GB.** Combined with S-012's ~300 MB and forward S-014 + S-027: inside ADR 0019's 3-5 GB envelope.
 - Postgres `shared_buffers`: **4 GB recommended** (was 1 GB after S-012). Document for S-019.
-- UUID v7 generator cost: ~30ns/ID at FLS write volume = invisible.
+- UUID v7 generator cost: ~30ns/ID at AlpenFlight write volume = invisible.
 
 ### Performance test plan
 
