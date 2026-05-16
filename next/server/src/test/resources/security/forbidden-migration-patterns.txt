@@ -17,9 +17,11 @@ PASSWORD\s*'
 \bCREATE\s+USER\b
 \bCREATE\s+ROLE\b
 
-# PII data committed to source control. Schema-only migrations are mandatory;
-# data backfill into PII tables is S-016 / S-018 territory.
-INSERT\s+INTO\s+(person|person_club|audit_logs|audit_log_details)
+# PII data + app-table data committed to source control. Schema-only migrations
+# are mandatory; data backfill is S-016 / S-018 territory. Reference tables
+# (aircraft_type, location_type, ...) are explicitly NOT in this deny list —
+# their canonical UUID seeds ship via V<n>__*.sql by design.
+INSERT\s+INTO\s+(person|person_club|audit_logs|audit_log_details|flight|flight_crew|aircraft|aircraft_aircraft_state|aircraft_operating_counter|article|location|inoutbound_point)\b
 
 # Destructive schema ops — allowlist exceptions via PR review.
 DROP\s+SCHEMA\b

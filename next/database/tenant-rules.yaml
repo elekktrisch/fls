@@ -138,9 +138,15 @@ overrides:
     target_entity: FlightCostBalanceType
     rationale_ref: tenant-catalog.md#reference-data
   FlightTypes:
-    kind: reference
+    kind: tenant-scoped  # reclassified S-013 — legacy FlightType.cs:25 carries ClubId NOT NULL
     target_entity: FlightType
+    tenant_column: operating_club_id
+    emits_audit: true
     rationale_ref: tenant-catalog.md#reference-data
+    # S-013 design notes promote this from "reference" to TENANT_SCOPED + aggregate-root
+    # per ADR 0018 (5 aggregate roots in S-013: flight, aircraft, location, flight_type, article).
+    # FlightType carries per-club booleans (is_for_glider_flights / is_for_tow_flights /
+    # is_for_motor_flights / is_check_flight / ...) — not shared across tenants.
   AircraftReservationTypes:
     kind: reference
     target_entity: AircraftReservationType
@@ -183,9 +189,12 @@ overrides:
     kind: reference
     target_entity: Location
     rationale_ref: tenant-catalog.md#reference-data
+    pii_columns: [description]
     # Sacred-cow: shared airports (LSZH used by multiple clubs). Reference data,
     # not tenant-scoped. Note: if a future schema adds club-private waypoints,
     # split into Location (reference) + ClubLocation (tenant-scoped).
+    # SYSTEM_ADMIN-only mutation (cross-tenant impact); S-013 column comment on
+    # location.id pins the contract.
   InOutboundPoints:
     kind: reference
     target_entity: InOutboundPoint
@@ -274,6 +283,9 @@ overrides:
     target_entity: AircraftAircraftState
     rationale_ref: tenant-catalog.md#aircraft
     emits_audit: true
+    pii_columns: [remarks]
+    pii_ride_through: [noticed_by_person_id]
+    ride_through_targets: [person]
     # Per-aircraft state history (FK: AircraftId; ValidFrom / ValidTo / NoticedByPersonId).
     # Inherits Aircrafts' cross-tenant classification (2026-05-16 amendment): airworthiness
     # state is a property of the physical aircraft, not of any one operating club. A grounded
@@ -312,6 +324,7 @@ overrides:
     rationale_ref: tenant-catalog.md#flights
     emits_audit: true
     ride_through_targets: [Persons, Aircrafts, Locations]
+    pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route, coupon_number]
     # Per the 2026-05-16 Aircrafts → cross-tenant amendment: Flight.operating_club_id is NO
     # LONGER denormalized from aircraft.owner_club_id (the latter is now optional + cross-
     # tenant). Each Flight carries its own operating_club_id, set per-flight by the operator
@@ -327,6 +340,16 @@ overrides:
     preconditions:
       - "S-013 ships flight.operating_club_id as required column set per-flight by operator (do not denormalize from aircraft.owner_club_id)"
       - "S-022 service layer enforces 'may this club use this aircraft?' (owner / charter / public-rental checks) via Aircraft aggregate"
+
+  Articles:
+    kind: tenant-scoped  # S-013 — aggregate root per ADR 0018; legacy Article carries ClubId NOT NULL
+    target_entity: Article
+    tenant_column: operating_club_id
+    emits_audit: true
+    rationale_ref: tenant-catalog.md#articles
+    # Per-club catalog of billable articles (article_number unique within club).
+    # Price + accounting-rule mutations are ACCOUNTANT / ADMIN-gated at the service
+    # layer; audit captured on every mutation.
 
   Deliveries:
     kind: tenant-scoped
