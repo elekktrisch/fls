@@ -21,6 +21,7 @@ Skeletons + inventory work that informs everything downstream. These have no dep
 - S-093 — S — Inventory every Excel export
 - S-108 — S — Production performance baseline (top 5 routes p95)
 - S-120 — S — Product slug + folder rename (can fire any time)
+- S-128 — M — Technical rebrand FLS → AlpenFlight (packages, configs, docs; sibling of S-120, can fire any time)
 
 **External-coordination slots (start early — calendar-bound, not engineering-bound):**
 
