@@ -2,7 +2,9 @@
 id: S-012
 title: V1__baseline part 1 — identity + reference data
 epic: E-02
-status: todo
+status: done
+started_at: 2026-05-16
+done_at: 2026-05-16
 depends_on: [S-009, S-010, S-011]
 acceptance:
   - Tables defined: `club`, `club_extension`, `club_state`, `user`, `role`, `user_role`, `person`, `person_club`, `country`, `language`, `member_state`, `person_category`, `length_unit_type`, `elevation_unit_type`, `counter_unit_type`, `start_type`, `email_template`, `extension_type`, `extension_value` (19 tables).
@@ -24,6 +26,24 @@ refined_at: 2026-05-16
 refined_speculative: false
 refined_speculative_at: 2026-05-16
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+github_issue: 24
+github_pr: 25
+reviewed: true
+reviewed_at: 2026-05-16
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 10
+review_nudges: 5
+review_parity_oracle: N/A — schema reshape per ADR 0008 + 0018 + 0019; S-016 owns the legacy-MSSQL → new-Postgres cutover parity oracle
+review_pass: 2
+reworked: true
+reworked_at: 2026-05-16
+rework_mode: bold
+rework_address_now: 11
+rework_deferred: 0
+rework_accepted: 9
+rework_auto_decisions: 17
+rework_followups: []
 ---
 
 ## Context
@@ -45,6 +65,14 @@ See frontmatter.
 The `User` ↔ `Person` distinction is sacred. Resist any urge to collapse them. See current-state §5 and seed.
 
 The Keycloak user ID also needs a home — likely a `user.keycloak_sub` column (UUID) for the OIDC subject claim mapping. Decided in S-052 but reserve the column now.
+
+**Mid-implementation carry-alongs (rode this PR, not part of the identity baseline scope):**
+- **`modernize/aircraft-cross-tenant-amendment`** carry-forward: 2 commits that never reached `main` via their own PR (`65b3b13` CI paths-filter fix + `f474527` S-014 JIT refine). Operator chose to bundle into S-012's PR rather than spin a separate one.
+- **ADR 0020** (categorical column shape) — drafted mid-story after operator interrupt; retroactively reshaped `start_type.is_for_glider/tow/motor` boolean trio to `applicable_categories TEXT[]`.
+- **`next/ops/dev-up-full.sh`** + `docker-compose.yml` `next` profile + custom pgAdmin image — operator-convenience for inspecting the migrated DB via pgAdmin alongside the legacy MSSQL stack.
+- **`e2e/playwright.config.ts` `maxFailures: 10`** — added after a CI Playwright flake during the status:done push burned 20+ runner-minutes. Cap fails-fast on mass regressions; local runs override with `--max-failures=0`.
+- **Drop H2 testcontainer fallback** — every `@SpringBootTest` now boots against `SharedPostgresContainer`; `@EnabledIf("ch.fls.server.testsupport.SharedPostgresContainer#available")` with CI fail-loud guard.
+- **ADR 0021** (integration-test data isolation strategy) — pinned before S-022 lands JPA + INSERTs.
 
 <!-- modernize-refine: start -->
 
@@ -595,3 +623,62 @@ N/A — schema reshape per ADR 0008 + 0018 + 0019. Legacy `dbo.*` shape is refer
 6. **Migration version (V2 vs V3).** Depends on whether S-018 has merged. Implementer reads `db/migration/` listing.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-16 (re-review after rework) · **PR:** [#25](https://github.com/elekktrisch/fls/pull/25) · **Diff size:** 14 commits, 28 files changed, +6073/-131 · **Outcome:** improvements-only
+
+> **Re-review note:** this is the second review pass after the rework batch addressed all 11 prior improvements + 4 carry-along changes (H2 retirement, SharedPostgresContainer with CI fail-loud guard, ADR 0021, OWASP A02 header guard). All prior findings verified resolved except where noted below. New findings reflect the post-rework state.
+
+### Maintainability
+
+- **[improvement]** CONVENTIONS.md V2 line citation is **still wrong** — the rework moved the number but didn't correct it. `next/server/CONVENTIONS.md:81` says `V2__identity_and_reference.sql:93-102 — column on line 97`, but the actual `start_type` table is at **V2 lines 108-117 with `applicable_categories` on line 112** (after the OWASP A02 guard block inserted in the rework shifted everything down). Lines 93-102 are inside `language` / `club_state`. **Fix:** retarget to `V2__identity_and_reference.sql:108-117 — column on line 112`.
+- **[improvement]** SnakeYAML is an undeclared transitive dependency — `TenantCatalogYamlTest.java:12` imports `org.yaml.snakeyaml.Yaml`, but `next/server/build.gradle.kts` declares no `snakeyaml` (test or otherwise). It resolves today only because Spring Boot bundles it via `spring-boot-starter`; any future starter slim-down silently breaks this test. **Fix:** add `testImplementation("org.yaml:snakeyaml")` (let Boot's BOM pin the version), or document the transitive expectation in a comment.
+- **[improvement]** OWASP A02 header guard is **documentation-only — no automated enforcement** — `V2__identity_and_reference.sql:60-77` says "DO NOT add columns named `password_hash`, `password_salt`, `mfa_secret`, …" and the Security plan promises "Migration header MUST flag." But `src/test/resources/security/forbidden-migration-patterns.txt` only blocks the literal `PASSWORD '`, not those column names. A future migration `ALTER TABLE "user" ADD COLUMN password_hash bytea` passes every gate. **Fix:** extend the patterns file with `\b(password_hash|password_salt|mfa_secret|totp_seed|security_stamp|refresh_token|access_token|credential|reset_token|verification_token)\b`. (Cross-reviewer agreement with Security.)
+- **[improvement]** Shadow auth-state columns kept on `user` — `V2__identity_and_reference.sql:280-283` retains `two_factor_enabled`, `lockout_enabled`, `lockout_end_date_utc`, `access_failed_count`. ADR 0007 explicitly hands "account lockout, MFA" to Keycloak; once S-052 wires the IdP these become stale shadow state that may drift out of sync with the source of truth. The V2 A02 header guard at line 68-69 names password/token/MFA-secret patterns but not these state flags. **Fix:** either drop them now (matching the `last_password_change_on` precedent) with the same rationale comment, or extend the A02 block to list them explicitly as "tolerated legacy columns, will be removed at S-052 cutover when Keycloak attributes are wired." (Cross-reviewer agreement with Security.)
+- **[improvement]** `SharedPostgresContainer.AVAILABLE` static-init order is fragile — `SharedPostgresContainer.java:32-33` declares `INSTANCE` then `AVAILABLE = tryStart()` which calls `INSTANCE.start()`. Field-init order works today (declaration order), but a future refactor that flips the lines, or a `static {}` block inserted above, silently NPEs. **Fix:** collapse both into a single `static {}` block with explicit ordering, or lazy-init `AVAILABLE` inside `available()` behind a once-flag.
+- **[improvement]** `TenantCatalogYamlTest.locateTenantRules` walk is needlessly clever — `TenantCatalogYamlTest.java:103-116` walks `getParent()` ancestors with two candidate paths. `tenant-rules.yaml` lives one fixed sibling away from `next/server/`; a one-line `Path.of("../database/tenant-rules.yaml")` (Gradle always runs tests with `cwd = module dir`) suffices. **Fix:** drop the loop; use `Path.of("../database/tenant-rules.yaml")` with one assert-exists. Or stuff a copy under `src/test/resources/` at build time via a Gradle copy task.
+- **[improvement]** `IdentityBaselineIntegrationTest.all_19_tables_present` framework-tables whitelist drifts from production — `IdentityBaselineIntegrationTest.java:95` hardcodes `Set.of("flyway_schema_history", "app_meta")`. When S-018's shedlock migration lands, it'll add a `shedlock` table and this test will break for the wrong reason. **Fix:** assert `actual` is a superset of the 19 domain tables AND a subset of `expected + knownFramework`, where `knownFramework` lives next to the test as a documented allowlist with one entry per ADR-acknowledged framework concern.
+- **[nudge]** `PostgresTestContainerLifecycle.DB_NAME = "fls_test"` collision risk if `maxParallelForks > 1` lands later. Only one container per JVM today; future parallel-Gradle scenarios could share the DB name across forks. **Fix:** include the random suffix in `DB_NAME` so the container's DB name is unique by construction.
+- **[nudge]** ADR 0021 §"escape hatch" is vague — `docs/modernization/adrs/0021-integration-test-data-isolation.md:43` says "a test that genuinely cannot be tenant-scoped … opts out and uses TRUNCATE for the duration of its own setUp." No marker / annotation / package prescribed. When S-024 leakage CI looks for `@AfterEach`-TRUNCATE violations, it'll need to distinguish allowed escapes from forbidden ones. **Fix:** document the marker (`@TenantScopedExempt` annotation? `truncate.allowlist` file?) before the first exception lands.
+- **[nudge]** `IdentityBaselineIntegrationTest.all_fk_columns_are_uuid` lacks the same silent-zero-row guard as M-I-5 fixed for PK — `IdentityBaselineIntegrationTest.java:161-186` iterates the FK rows and asserts each is uuid, but if the FK join returns zero rows the test passes silently. M-I-5 added the guard for PKs only. **Fix:** mirror the same `collect-then-assert-non-empty` pattern.
+
+### Parity
+
+**Oracle:** N/A — schema reshape per ADR 0008 + 0018 + 0019 (+ ADR 0020 for `start_type`). Legacy `dbo.*` is reference-only; S-016 owns the legacy-MSSQL → new-Postgres cutover parity oracle.
+
+Re-review verification: (a) the rework's drop of `last_password_change_on` + `force_password_change_next` is parity-safe — grepped both columns across `flsserver/src` and `flsweb/src`; all references are auth-only (UserService password-change, IdentityUserStoreService, UserDetails DTO, password-change test). Zero non-auth consumers; Keycloak fully supersedes. (b) `V2__identity_and_reference.sql:62-75` OWASP A02 guard matches the Security plan verbatim. (c) Drop justification at `V2:286-288` cross-references the header + ADR 0007.
+
+- **[nudge]** When S-016 is refined, add a one-line "skip `User.LastPasswordChangeOn` + `User.ForcePasswordChangeNextLogon` — Keycloak owns; no target column" to its legacy-User mapping section. Not a blocker on S-012; forward-pointer so the cutover author doesn't re-derive this finding.
+
+### Security
+
+Rework verification (all 4 prior items landed correctly):
+- S-I-1: V2 drops `last_password_change_on` / `force_password_change_next` with rationale at `V2__identity_and_reference.sql:286-288`.
+- S-I-2: OWASP A02 guard block present at `V2__identity_and_reference.sql:62-75`.
+- S-I-3: All four service ports (mssql 1433, mailpit 1025/8025, postgres 5432, pgadmin 8080) bound to `127.0.0.1`; rationale at `docker-compose.yml:36-40`.
+- S-I-4: "DEV ONLY" block above pgadmin at `docker-compose.yml:110-116`.
+
+- **[improvement]** Shadow auth-state columns kept on `user` contradict ADR 0007 — `V2__identity_and_reference.sql:280-283` keeps `two_factor_enabled`, `lockout_enabled`, `lockout_end_date_utc`, `access_failed_count`. ADR 0007 explicitly hands "account lockout, MFA" to Keycloak; once S-052 wires the IdP these become stale shadow state. The A02 header guard at line 68-69 names password/token/MFA-secret patterns but not these state flags. **Fix:** either drop them now (matching the `last_password_change_on` precedent), or extend the A02 block to list them as "tolerated legacy columns, will be removed at S-052 when Keycloak attributes are wired." (Cross-reviewer agreement with Maintainability.)
+- **[improvement]** A02 forbidden-column enumeration is not exhaustive — `V2__identity_and_reference.sql:68-69` lists 8 patterns plus "or any equivalent." Common future-PR risks not literally named: `credential`, `client_secret`, `api_key`, `reset_token`, `verification_token`, `session_token`, `recovery_code`. The catch-all phrase covers them in spirit, but a reviewer scanning for literal matches may miss `verification_token`. **Fix:** extend `forbidden-migration-patterns.txt` with a regex covering the broader pattern; the test catches what the comment relies on humans to catch. (Cross-reviewer agreement with Maintainability.)
+- **[improvement]** `MigrationFolderConventionsTest` strips only line comments — `MigrationFolderConventionsTest.java:107` uses `--[^\n]*`. V2 today has no `/* ... */` block comments, but a future `R__` or `V3__` migration could introduce them; a forbidden literal inside a block comment would trigger a false-positive (or, more dangerously, hide a real violation in a `/* */` block). **Fix:** extend the strip to also consume `/\*.*?\*/` (DOTALL).
+- **[improvement]** `SharedPostgresContainer.available()` keys CI fail-loud on `CI` env-var presence only — `SharedPostgresContainer.java:52`. A workflow step that explicitly does `unset CI` (or runs tests in a sub-shell with a sanitised environment) would bypass the guard and silently skip every DB test. **Fix:** also check `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`, or accept any of `{CI, GITHUB_ACTIONS}` as the fail-loud trigger.
+- **[nudge]** `MssqlTestContainerLifecycle.SA_PASSWORD = "TestPa$$w0rd_2026"` at `next/database/extract/src/test/java/ch/fls/legacyextract/MssqlTestContainerLifecycle.java:40` is a test-only literal — fine, but worth a single-line comment "test-only; never reused in prod" so a future pre-commit gate that greps for "password =" doesn't false-positive.
+
+### Usability
+
+(N/A — no UI changes; backend-schema-only story.)
+
+Four operator-facing artifacts re-verified post-rework: V2 migration header (OWASP A02 guard reads cleanly), `next/server/CONVENTIONS.md` column-shape + ID-strategy sections, `docker-compose.yml` `--- DEV ONLY ---` block (names the consequence rather than just labeling it), pgAdmin setup. All read cleanly for a future contributor.
+
+No new usability findings. The three `dev-up-full.sh` nudges from the first review (ANSI escapes, tear-down drift, fall-back hint) were auto-accepted in the rework triage and remain open as accepted.
+
+### Cross-reviewer agreements
+
+- **OWASP A02 column-name guard is documentation-only — no automated enforcement.** Maintainability + Security both flagged the same gap. The V2 header at `V2:60-77` enumerates forbidden column names beautifully, the Security plan promised enforcement, yet nothing in CI fails when a future migration adds `password_hash bytea`. One regex line in `forbidden-migration-patterns.txt` closes the gap and is the **strongest signal** of the re-review.
+- **Shadow auth-state columns on `user`** — Maintainability + Security both flagged the residual `two_factor_enabled`, `lockout_enabled`, `lockout_end_date_utc`, `access_failed_count` columns. ADR 0007 hands these to Keycloak; the V2 A02 header guard scrupulously lists password/token/MFA-secret patterns but leaves these state flags in. Pick a side before S-052 wires Keycloak.
+- **`SharedPostgresContainer.available()` gate strength** — Maintainability flagged static-init order fragility; Security flagged the CI env-var being a single point of bypass. Same file (`SharedPostgresContainer.java:32-52`), overlapping concerns.
+
+<!-- modernize-review: end -->

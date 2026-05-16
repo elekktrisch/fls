@@ -33,6 +33,12 @@
 # already pass the -p flag.
 # ----------------------------------------------------------------------------
 
+# All ports bound to 127.0.0.1 so the dev stack is reachable only from the
+# host machine, not from the LAN. Credentials here are weak-by-design ("dev"
+# / "fls/fls" / "Demo#FLS#2026") for operator convenience — restricting the
+# bind ensures a laptop on an untrusted network doesn't expose the DBs to
+# a one-word-guess attack.
+
 services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -41,7 +47,7 @@ services:
       MSSQL_SA_PASSWORD: "Demo#FLS#2026"
       MSSQL_PID: Developer
     ports:
-      - "1433:1433"
+      - "127.0.0.1:1433:1433"
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -53,8 +59,8 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports:
-      - "1025:1025"   # SMTP listener (FLS server -> here)
-      - "8025:8025"   # HTTP API + Web UI (tests -> here)
+      - "127.0.0.1:1025:1025"   # SMTP listener (FLS server -> here)
+      - "127.0.0.1:8025:8025"   # HTTP API + Web UI (tests -> here)
     environment:
       MP_MAX_MESSAGES: "5000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
@@ -69,3 +75,65 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # ---------------------------------------------------------------------------
+  # next/ — target stack (Postgres + pgAdmin). Activated by passing the
+  # 'next' compose profile so the default `docker compose up` (used by
+  # e2e/scripts/dev-up.sh) still starts only mssql + mailpit.
+  #
+  #   docker compose -p fls-e2e --profile next up -d postgres pgadmin
+  #
+  # next/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
+  # in one command. pgAdmin loads next/ops/pgadmin-servers.json so the
+  # target connection appears pre-wired on first login.
+  # ---------------------------------------------------------------------------
+
+  postgres:
+    profiles: ["next"]
+    image: postgres:17.4-alpine
+    environment:
+      POSTGRES_DB: fls
+      POSTGRES_USER: fls
+      POSTGRES_PASSWORD: fls
+    ports:
+      - "127.0.0.1:5432:5432"
+    # No volume — data is ephemeral. `docker compose down` wipes it; the
+    # dev-up-full.sh script re-applies Flyway migrations after restart, so
+    # the baseline state is reproducible without persistence. Add a named
+    # volume here if you want survival across `down`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fls -d fls"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # --- DEV ONLY -------------------------------------------------------------
+  # The pgadmin service ships placeholder credentials (dev@example.com / dev)
+  # for unattended first-login on a developer laptop. Never copy this block
+  # into a staging / production compose — the credentials are weak by design.
+  # Production pgAdmin (if ever) must run behind an IdP-fronted reverse proxy
+  # with no embedded defaults.
+  # --------------------------------------------------------------------------
+  pgadmin:
+    profiles: ["next"]
+    # Custom image baked with next/ops/pgadmin/servers.json so the FLS Target
+    # connection appears pre-wired on first login. Bind-mounting servers.json
+    # is unreliable on Docker Desktop without file-sharing for the repo path;
+    # baking it in is the portable route.
+    build:
+      context: ./next/ops/pgadmin
+      dockerfile: Dockerfile
+    image: fls-pgadmin:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # `.local` is rejected by pgadmin's email validator (reserved TLD).
+      # Use example.com for the placeholder dev login.
+      PGADMIN_DEFAULT_EMAIL: dev@example.com
+      PGADMIN_DEFAULT_PASSWORD: dev
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+    ports:
+      - "127.0.0.1:8080:80"

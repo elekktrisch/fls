@@ -37,22 +37,57 @@ for a new contributor.
   Ship SQL by default; reach for Java only when SQL genuinely won't fit.
 - **Canonical example:** `src/main/resources/db/migration/V1__baseline.sql`.
 
-## Test infrastructure for DB-touching tests — S-009
+## Test infrastructure for DB-touching tests — S-009 / S-012
 
-- **Real DB only, no mocking.** Integration tests run against a real
-  Postgres container driven by the docker CLI directly (Testcontainers
-  1.21.x can't negotiate Docker API ≥1.44 in our sandbox).
-- **Helper:** `src/test/java/ch/fls/server/testsupport/PostgresTestContainerLifecycle.java`.
-  Static-once per JVM run; image `postgres:17.4-alpine` pinned; readiness
-  probe via JDBC `SELECT 1`; JVM shutdown hook tears the container down.
-- **Guard:** every Docker-driven integration test class is annotated
-  `@EnabledIf("dockerAvailable")` so contributors without Docker still pass
-  `./gradlew check` cleanly (tests skip rather than fail).
+- **Real DB only, no mocking.** Every `@SpringBootTest` shares a single
+  Postgres 17 container; H2 was retired in S-012 once migrations started
+  using `uuid` / `TEXT[]` / partial indexes / `COMMENT ON COLUMN` (H2 even
+  in `MODE=PostgreSQL` can't parse all of that).
+- **Shared container:** `src/test/java/ch/fls/server/testsupport/SharedPostgresContainer.java`
+  is a JVM-singleton that wraps `PostgresTestContainerLifecycle` — one
+  container per JVM, lazily started on first reference, torn down by the
+  shutdown hook. Tests reuse it via `SharedPostgresContainer.INSTANCE`
+  in `@DynamicPropertySource`. Flyway migrate is idempotent across class
+  boots (V1+V2 apply once; subsequent boots no-op via
+  `flyway_schema_history`).
+- **Container helper:** `src/test/java/ch/fls/server/testsupport/PostgresTestContainerLifecycle.java`
+  drives the container via the `docker` CLI (Testcontainers 1.21.x can't
+  negotiate Docker API ≥1.44 in our sandbox). Image `postgres:17.4-alpine`
+  pinned; readiness probe via JDBC `SELECT 1`.
+- **Guard:** every `@SpringBootTest` class is annotated
+  `@EnabledIf("ch.fls.server.testsupport.SharedPostgresContainer#available")`,
+  so contributors without Docker still pass `./gradlew check` cleanly
+  (tests skip rather than fail).
+- **CI fail-loud guard.** `SharedPostgresContainer.available()` throws
+  (instead of returning false) when Docker is unreachable AND `CI=true` is
+  set (GitHub Actions / GitLab / CircleCI all set it). Otherwise a CI run
+  on a hiccuping Docker daemon would silently skip every DB-touching test
+  and report green — exactly the false-pass this gate exists to prevent.
 - **Static-asset tests** that only walk the classpath (no DB) live alongside
   the integration test in the same package, plain JUnit (no
-  `@SpringBootTest`).
-- **H2 fallback for non-Flyway `@SpringBootTest`** classes. Add
-  `@ActiveProfiles("test")` so the in-memory H2 DataSource from
-  `application-test.yml` is wired; otherwise the `dev` profile's
-  loopback-Postgres defaults will cause a connection refusal at boot.
+  `@SpringBootTest`). Example: `MigrationFolderConventionsTest`.
+- **Slice tests** (`@WebMvcTest`, `@DataJpaTest`, etc.) don't auto-configure
+  a DataSource and don't need the shared container. Example:
+  `HelloControllerIT`.
 - **Canonical example:** `src/test/java/ch/fls/server/migration/FlywayBootstrapIntegrationTest.java`.
+
+## Column shape (categorical / state / discriminator) — S-012, ADR 0020
+
+Per [ADR 0020](../../docs/modernization/adrs/0020-categorical-column-shape.md), decision rule for picking the SQL column shape. The Java enum is the **only** value-set authority; no DB-side `CHECK IN (...)` mirrors it. Adding / removing an enum value is a Java-only change with no migration burden.
+
+1. **Categorical / state / discriminator** → enum-as-string. `VARCHAR(32) NOT NULL` (no CHECK). Java `@Enumerated(EnumType.STRING)`. Code values UPPER_SNAKE_CASE.
+2. **Independent, orthogonal flags** → `BOOLEAN`. Canonical examples: `person_club.is_active`, `user.email_confirmed`. Each flag varies without affecting others' validity.
+3. **Multiple booleans where some combinations are illegal** → collapse to one enum-as-string column. Java enum enforces legal states.
+4. **Multiple booleans encoding SET-MEMBERSHIP** → Postgres `TEXT[] NOT NULL` (no CHECK on subset / non-empty). Canonical example: `start_type.applicable_categories` (`src/main/resources/db/migration/V2__identity_and_reference.sql:93-102` — column on line 97). Replaced the legacy `is_for_glider / is_for_tow / is_for_motor` boolean trio. Java side enforces subset of `{GLIDER, TOW, MOTOR}` and non-emptiness.
+5. **Categorical with rich metadata** (per-language display names, sort order, soft-deprecation, club-scoped variants) → FK to lookup table. Examples: `country`, `language`, `member_state`, `person_category`, `role`.
+
+**Natural-invariant CHECKs survive:** the rule only drops CHECKs that mirror enum value sets. Permanent business invariants that don't drift with code stay useful — examples: `CHECK (birthday <= CURRENT_DATE)`, `CHECK (upper(iso2_code) = iso2_code)`, the coarse `email LIKE '%_@_%._%'` shape.
+
+When in doubt: lead with the enum-as-string default. If you find yourself naming `is_X` and `is_Y` flags on the same row, check rule 3 — invalid combinations are the signal to collapse.
+
+## ID strategy — S-012, ADR 0019
+
+- Every PK is `uuid NOT NULL PRIMARY KEY`. **Never** `DEFAULT gen_random_uuid()` on a column (enforced by `forbidden-migration-patterns.txt`).
+- Application generates IDs via `com.github.f4b6a3:uuid-creator` + a custom Hibernate `BeforeExecutionGenerator` (wired at S-022).
+- Reference-data seeds use fixed canonical UUID v7 literals captured by `src/test/resources/scripts/GenerateCanonicalUuids.java` and embedded as literals in the migration. Re-running the script produces bit-identical output forever.
+- Aggregate-root rows (per [ADR 0018](../../docs/modernization/adrs/0018-domain-model-ddd-aggregates.md)) carry a 3-letter external prefix — `psn_` / `clb_` / `usr_` for the identity triad. Internal entities keep raw UUIDs. The prefix is a presentation concern; DB column comments document the mapping (`V2__identity_and_reference.sql` aggregate-root `COMMENT ON COLUMN` blocks).

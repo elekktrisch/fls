@@ -28,3 +28,8 @@ TRUNCATE\b
 # Flyway placeholders — avoid until S-011 tenant-aware tooling lands so they
 # don't accidentally inject runtime config into committed SQL.
 \$\{[^}]+\}
+
+# ADR 0019 — application owns UUID v7 generation via Hibernate. Migrations
+# must not use Postgres-side default ID generation; that would bypass the
+# app-generation contract and shift IDs to non-time-ordered v4 quietly.
+DEFAULT\s+gen_random_uuid\s*\(

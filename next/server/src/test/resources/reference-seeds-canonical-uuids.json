@@ -1,0 +1,1988 @@
+{
+  "_meta": {
+    "generated_for_story": "S-012",
+    "generation_timestamp_ms": 1778889600000,
+    "generation_timestamp_iso": "2026-05-16T00:00:00Z",
+    "algorithm": "RFC 9562 UUID v7; 48-bit timestamp prefix fixed; per-table counter encodes the row's ordinal in the rand_a + rand_b fields. Deterministic by construction — re-running this script produces bit-identical output.",
+    "note": "DO NOT regenerate after the migration has been applied to any environment. Flyway checksum-locks the migration; a UUID change requires a follow-up migration with cascading FK updates."
+  },
+  "country": [
+    {
+      "iso2": "AF",
+      "iso3": "AFG",
+      "name": "Afghanistan",
+      "uuid": "019e2e15-2c00-73e8-8000-0000000003e8",
+      "natural_key": "AF"
+    },
+    {
+      "iso2": "AL",
+      "iso3": "ALB",
+      "name": "Albania",
+      "uuid": "019e2e15-2c00-73e9-8000-0000000003e9",
+      "natural_key": "AL"
+    },
+    {
+      "iso2": "DZ",
+      "iso3": "DZA",
+      "name": "Algeria",
+      "uuid": "019e2e15-2c00-73ea-8000-0000000003ea",
+      "natural_key": "DZ"
+    },
+    {
+      "iso2": "AS",
+      "iso3": "ASM",
+      "name": "American Samoa",
+      "uuid": "019e2e15-2c00-73eb-8000-0000000003eb",
+      "natural_key": "AS"
+    },
+    {
+      "iso2": "AD",
+      "iso3": "AND",
+      "name": "Andorra",
+      "uuid": "019e2e15-2c00-73ec-8000-0000000003ec",
+      "natural_key": "AD"
+    },
+    {
+      "iso2": "AO",
+      "iso3": "AGO",
+      "name": "Angola",
+      "uuid": "019e2e15-2c00-73ed-8000-0000000003ed",
+      "natural_key": "AO"
+    },
+    {
+      "iso2": "AI",
+      "iso3": "AIA",
+      "name": "Anguilla",
+      "uuid": "019e2e15-2c00-73ee-8000-0000000003ee",
+      "natural_key": "AI"
+    },
+    {
+      "iso2": "AQ",
+      "iso3": "ATA",
+      "name": "Antarctica",
+      "uuid": "019e2e15-2c00-73ef-8000-0000000003ef",
+      "natural_key": "AQ"
+    },
+    {
+      "iso2": "AG",
+      "iso3": "ATG",
+      "name": "Antigua and Barbuda",
+      "uuid": "019e2e15-2c00-73f0-8000-0000000003f0",
+      "natural_key": "AG"
+    },
+    {
+      "iso2": "AR",
+      "iso3": "ARG",
+      "name": "Argentina",
+      "uuid": "019e2e15-2c00-73f1-8000-0000000003f1",
+      "natural_key": "AR"
+    },
+    {
+      "iso2": "AM",
+      "iso3": "ARM",
+      "name": "Armenia",
+      "uuid": "019e2e15-2c00-73f2-8000-0000000003f2",
+      "natural_key": "AM"
+    },
+    {
+      "iso2": "AW",
+      "iso3": "ABW",
+      "name": "Aruba",
+      "uuid": "019e2e15-2c00-73f3-8000-0000000003f3",
+      "natural_key": "AW"
+    },
+    {
+      "iso2": "AU",
+      "iso3": "AUS",
+      "name": "Australia",
+      "uuid": "019e2e15-2c00-73f4-8000-0000000003f4",
+      "natural_key": "AU"
+    },
+    {
+      "iso2": "AT",
+      "iso3": "AUT",
+      "name": "Austria",
+      "uuid": "019e2e15-2c00-73f5-8000-0000000003f5",
+      "natural_key": "AT"
+    },
+    {
+      "iso2": "AZ",
+      "iso3": "AZE",
+      "name": "Azerbaijan",
+      "uuid": "019e2e15-2c00-73f6-8000-0000000003f6",
+      "natural_key": "AZ"
+    },
+    {
+      "iso2": "BS",
+      "iso3": "BHS",
+      "name": "Bahamas",
+      "uuid": "019e2e15-2c00-73f7-8000-0000000003f7",
+      "natural_key": "BS"
+    },
+    {
+      "iso2": "BH",
+      "iso3": "BHR",
+      "name": "Bahrain",
+      "uuid": "019e2e15-2c00-73f8-8000-0000000003f8",
+      "natural_key": "BH"
+    },
+    {
+      "iso2": "BD",
+      "iso3": "BGD",
+      "name": "Bangladesh",
+      "uuid": "019e2e15-2c00-73f9-8000-0000000003f9",
+      "natural_key": "BD"
+    },
+    {
+      "iso2": "BB",
+      "iso3": "BRB",
+      "name": "Barbados",
+      "uuid": "019e2e15-2c00-73fa-8000-0000000003fa",
+      "natural_key": "BB"
+    },
+    {
+      "iso2": "BY",
+      "iso3": "BLR",
+      "name": "Belarus",
+      "uuid": "019e2e15-2c00-73fb-8000-0000000003fb",
+      "natural_key": "BY"
+    },
+    {
+      "iso2": "BE",
+      "iso3": "BEL",
+      "name": "Belgium",
+      "uuid": "019e2e15-2c00-73fc-8000-0000000003fc",
+      "natural_key": "BE"
+    },
+    {
+      "iso2": "BZ",
+      "iso3": "BLZ",
+      "name": "Belize",
+      "uuid": "019e2e15-2c00-73fd-8000-0000000003fd",
+      "natural_key": "BZ"
+    },
+    {
+      "iso2": "BJ",
+      "iso3": "BEN",
+      "name": "Benin",
+      "uuid": "019e2e15-2c00-73fe-8000-0000000003fe",
+      "natural_key": "BJ"
+    },
+    {
+      "iso2": "BM",
+      "iso3": "BMU",
+      "name": "Bermuda",
+      "uuid": "019e2e15-2c00-73ff-8000-0000000003ff",
+      "natural_key": "BM"
+    },
+    {
+      "iso2": "BT",
+      "iso3": "BTN",
+      "name": "Bhutan",
+      "uuid": "019e2e15-2c00-7400-8000-000000000400",
+      "natural_key": "BT"
+    },
+    {
+      "iso2": "BO",
+      "iso3": "BOL",
+      "name": "Bolivia",
+      "uuid": "019e2e15-2c00-7401-8000-000000000401",
+      "natural_key": "BO"
+    },
+    {
+      "iso2": "BQ",
+      "iso3": "BES",
+      "name": "Bonaire, Sint Eustatius and Saba",
+      "uuid": "019e2e15-2c00-7402-8000-000000000402",
+      "natural_key": "BQ"
+    },
+    {
+      "iso2": "BA",
+      "iso3": "BIH",
+      "name": "Bosnia and Herzegovina",
+      "uuid": "019e2e15-2c00-7403-8000-000000000403",
+      "natural_key": "BA"
+    },
+    {
+      "iso2": "BW",
+      "iso3": "BWA",
+      "name": "Botswana",
+      "uuid": "019e2e15-2c00-7404-8000-000000000404",
+      "natural_key": "BW"
+    },
+    {
+      "iso2": "BV",
+      "iso3": "BVT",
+      "name": "Bouvet Island",
+      "uuid": "019e2e15-2c00-7405-8000-000000000405",
+      "natural_key": "BV"
+    },
+    {
+      "iso2": "BR",
+      "iso3": "BRA",
+      "name": "Brazil",
+      "uuid": "019e2e15-2c00-7406-8000-000000000406",
+      "natural_key": "BR"
+    },
+    {
+      "iso2": "IO",
+      "iso3": "IOT",
+      "name": "British Indian Ocean Territory",
+      "uuid": "019e2e15-2c00-7407-8000-000000000407",
+      "natural_key": "IO"
+    },
+    {
+      "iso2": "BN",
+      "iso3": "BRN",
+      "name": "Brunei Darussalam",
+      "uuid": "019e2e15-2c00-7408-8000-000000000408",
+      "natural_key": "BN"
+    },
+    {
+      "iso2": "BG",
+      "iso3": "BGR",
+      "name": "Bulgaria",
+      "uuid": "019e2e15-2c00-7409-8000-000000000409",
+      "natural_key": "BG"
+    },
+    {
+      "iso2": "BF",
+      "iso3": "BFA",
+      "name": "Burkina Faso",
+      "uuid": "019e2e15-2c00-740a-8000-00000000040a",
+      "natural_key": "BF"
+    },
+    {
+      "iso2": "BI",
+      "iso3": "BDI",
+      "name": "Burundi",
+      "uuid": "019e2e15-2c00-740b-8000-00000000040b",
+      "natural_key": "BI"
+    },
+    {
+      "iso2": "CV",
+      "iso3": "CPV",
+      "name": "Cabo Verde",
+      "uuid": "019e2e15-2c00-740c-8000-00000000040c",
+      "natural_key": "CV"
+    },
+    {
+      "iso2": "KH",
+      "iso3": "KHM",
+      "name": "Cambodia",
+      "uuid": "019e2e15-2c00-740d-8000-00000000040d",
+      "natural_key": "KH"
+    },
+    {
+      "iso2": "CM",
+      "iso3": "CMR",
+      "name": "Cameroon",
+      "uuid": "019e2e15-2c00-740e-8000-00000000040e",
+      "natural_key": "CM"
+    },
+    {
+      "iso2": "CA",
+      "iso3": "CAN",
+      "name": "Canada",
+      "uuid": "019e2e15-2c00-740f-8000-00000000040f",
+      "natural_key": "CA"
+    },
+    {
+      "iso2": "KY",
+      "iso3": "CYM",
+      "name": "Cayman Islands",
+      "uuid": "019e2e15-2c00-7410-8000-000000000410",
+      "natural_key": "KY"
+    },
+    {
+      "iso2": "CF",
+      "iso3": "CAF",
+      "name": "Central African Republic",
+      "uuid": "019e2e15-2c00-7411-8000-000000000411",
+      "natural_key": "CF"
+    },
+    {
+      "iso2": "TD",
+      "iso3": "TCD",
+      "name": "Chad",
+      "uuid": "019e2e15-2c00-7412-8000-000000000412",
+      "natural_key": "TD"
+    },
+    {
+      "iso2": "CL",
+      "iso3": "CHL",
+      "name": "Chile",
+      "uuid": "019e2e15-2c00-7413-8000-000000000413",
+      "natural_key": "CL"
+    },
+    {
+      "iso2": "CN",
+      "iso3": "CHN",
+      "name": "China",
+      "uuid": "019e2e15-2c00-7414-8000-000000000414",
+      "natural_key": "CN"
+    },
+    {
+      "iso2": "CX",
+      "iso3": "CXR",
+      "name": "Christmas Island",
+      "uuid": "019e2e15-2c00-7415-8000-000000000415",
+      "natural_key": "CX"
+    },
+    {
+      "iso2": "CC",
+      "iso3": "CCK",
+      "name": "Cocos (Keeling) Islands",
+      "uuid": "019e2e15-2c00-7416-8000-000000000416",
+      "natural_key": "CC"
+    },
+    {
+      "iso2": "CO",
+      "iso3": "COL",
+      "name": "Colombia",
+      "uuid": "019e2e15-2c00-7417-8000-000000000417",
+      "natural_key": "CO"
+    },
+    {
+      "iso2": "KM",
+      "iso3": "COM",
+      "name": "Comoros",
+      "uuid": "019e2e15-2c00-7418-8000-000000000418",
+      "natural_key": "KM"
+    },
+    {
+      "iso2": "CD",
+      "iso3": "COD",
+      "name": "Congo, Democratic Republic of the",
+      "uuid": "019e2e15-2c00-7419-8000-000000000419",
+      "natural_key": "CD"
+    },
+    {
+      "iso2": "CG",
+      "iso3": "COG",
+      "name": "Congo",
+      "uuid": "019e2e15-2c00-741a-8000-00000000041a",
+      "natural_key": "CG"
+    },
+    {
+      "iso2": "CK",
+      "iso3": "COK",
+      "name": "Cook Islands",
+      "uuid": "019e2e15-2c00-741b-8000-00000000041b",
+      "natural_key": "CK"
+    },
+    {
+      "iso2": "CR",
+      "iso3": "CRI",
+      "name": "Costa Rica",
+      "uuid": "019e2e15-2c00-741c-8000-00000000041c",
+      "natural_key": "CR"
+    },
+    {
+      "iso2": "CI",
+      "iso3": "CIV",
+      "name": "Côte d'Ivoire",
+      "uuid": "019e2e15-2c00-741d-8000-00000000041d",
+      "natural_key": "CI"
+    },
+    {
+      "iso2": "HR",
+      "iso3": "HRV",
+      "name": "Croatia",
+      "uuid": "019e2e15-2c00-741e-8000-00000000041e",
+      "natural_key": "HR"
+    },
+    {
+      "iso2": "CU",
+      "iso3": "CUB",
+      "name": "Cuba",
+      "uuid": "019e2e15-2c00-741f-8000-00000000041f",
+      "natural_key": "CU"
+    },
+    {
+      "iso2": "CW",
+      "iso3": "CUW",
+      "name": "Curaçao",
+      "uuid": "019e2e15-2c00-7420-8000-000000000420",
+      "natural_key": "CW"
+    },
+    {
+      "iso2": "CY",
+      "iso3": "CYP",
+      "name": "Cyprus",
+      "uuid": "019e2e15-2c00-7421-8000-000000000421",
+      "natural_key": "CY"
+    },
+    {
+      "iso2": "CZ",
+      "iso3": "CZE",
+      "name": "Czechia",
+      "uuid": "019e2e15-2c00-7422-8000-000000000422",
+      "natural_key": "CZ"
+    },
+    {
+      "iso2": "DK",
+      "iso3": "DNK",
+      "name": "Denmark",
+      "uuid": "019e2e15-2c00-7423-8000-000000000423",
+      "natural_key": "DK"
+    },
+    {
+      "iso2": "DJ",
+      "iso3": "DJI",
+      "name": "Djibouti",
+      "uuid": "019e2e15-2c00-7424-8000-000000000424",
+      "natural_key": "DJ"
+    },
+    {
+      "iso2": "DM",
+      "iso3": "DMA",
+      "name": "Dominica",
+      "uuid": "019e2e15-2c00-7425-8000-000000000425",
+      "natural_key": "DM"
+    },
+    {
+      "iso2": "DO",
+      "iso3": "DOM",
+      "name": "Dominican Republic",
+      "uuid": "019e2e15-2c00-7426-8000-000000000426",
+      "natural_key": "DO"
+    },
+    {
+      "iso2": "EC",
+      "iso3": "ECU",
+      "name": "Ecuador",
+      "uuid": "019e2e15-2c00-7427-8000-000000000427",
+      "natural_key": "EC"
+    },
+    {
+      "iso2": "EG",
+      "iso3": "EGY",
+      "name": "Egypt",
+      "uuid": "019e2e15-2c00-7428-8000-000000000428",
+      "natural_key": "EG"
+    },
+    {
+      "iso2": "SV",
+      "iso3": "SLV",
+      "name": "El Salvador",
+      "uuid": "019e2e15-2c00-7429-8000-000000000429",
+      "natural_key": "SV"
+    },
+    {
+      "iso2": "GQ",
+      "iso3": "GNQ",
+      "name": "Equatorial Guinea",
+      "uuid": "019e2e15-2c00-742a-8000-00000000042a",
+      "natural_key": "GQ"
+    },
+    {
+      "iso2": "ER",
+      "iso3": "ERI",
+      "name": "Eritrea",
+      "uuid": "019e2e15-2c00-742b-8000-00000000042b",
+      "natural_key": "ER"
+    },
+    {
+      "iso2": "EE",
+      "iso3": "EST",
+      "name": "Estonia",
+      "uuid": "019e2e15-2c00-742c-8000-00000000042c",
+      "natural_key": "EE"
+    },
+    {
+      "iso2": "SZ",
+      "iso3": "SWZ",
+      "name": "Eswatini",
+      "uuid": "019e2e15-2c00-742d-8000-00000000042d",
+      "natural_key": "SZ"
+    },
+    {
+      "iso2": "ET",
+      "iso3": "ETH",
+      "name": "Ethiopia",
+      "uuid": "019e2e15-2c00-742e-8000-00000000042e",
+      "natural_key": "ET"
+    },
+    {
+      "iso2": "FK",
+      "iso3": "FLK",
+      "name": "Falkland Islands",
+      "uuid": "019e2e15-2c00-742f-8000-00000000042f",
+      "natural_key": "FK"
+    },
+    {
+      "iso2": "FO",
+      "iso3": "FRO",
+      "name": "Faroe Islands",
+      "uuid": "019e2e15-2c00-7430-8000-000000000430",
+      "natural_key": "FO"
+    },
+    {
+      "iso2": "FJ",
+      "iso3": "FJI",
+      "name": "Fiji",
+      "uuid": "019e2e15-2c00-7431-8000-000000000431",
+      "natural_key": "FJ"
+    },
+    {
+      "iso2": "FI",
+      "iso3": "FIN",
+      "name": "Finland",
+      "uuid": "019e2e15-2c00-7432-8000-000000000432",
+      "natural_key": "FI"
+    },
+    {
+      "iso2": "FR",
+      "iso3": "FRA",
+      "name": "France",
+      "uuid": "019e2e15-2c00-7433-8000-000000000433",
+      "natural_key": "FR"
+    },
+    {
+      "iso2": "GF",
+      "iso3": "GUF",
+      "name": "French Guiana",
+      "uuid": "019e2e15-2c00-7434-8000-000000000434",
+      "natural_key": "GF"
+    },
+    {
+      "iso2": "PF",
+      "iso3": "PYF",
+      "name": "French Polynesia",
+      "uuid": "019e2e15-2c00-7435-8000-000000000435",
+      "natural_key": "PF"
+    },
+    {
+      "iso2": "TF",
+      "iso3": "ATF",
+      "name": "French Southern Territories",
+      "uuid": "019e2e15-2c00-7436-8000-000000000436",
+      "natural_key": "TF"
+    },
+    {
+      "iso2": "GA",
+      "iso3": "GAB",
+      "name": "Gabon",
+      "uuid": "019e2e15-2c00-7437-8000-000000000437",
+      "natural_key": "GA"
+    },
+    {
+      "iso2": "GM",
+      "iso3": "GMB",
+      "name": "Gambia",
+      "uuid": "019e2e15-2c00-7438-8000-000000000438",
+      "natural_key": "GM"
+    },
+    {
+      "iso2": "GE",
+      "iso3": "GEO",
+      "name": "Georgia",
+      "uuid": "019e2e15-2c00-7439-8000-000000000439",
+      "natural_key": "GE"
+    },
+    {
+      "iso2": "DE",
+      "iso3": "DEU",
+      "name": "Germany",
+      "uuid": "019e2e15-2c00-743a-8000-00000000043a",
+      "natural_key": "DE"
+    },
+    {
+      "iso2": "GH",
+      "iso3": "GHA",
+      "name": "Ghana",
+      "uuid": "019e2e15-2c00-743b-8000-00000000043b",
+      "natural_key": "GH"
+    },
+    {
+      "iso2": "GI",
+      "iso3": "GIB",
+      "name": "Gibraltar",
+      "uuid": "019e2e15-2c00-743c-8000-00000000043c",
+      "natural_key": "GI"
+    },
+    {
+      "iso2": "GR",
+      "iso3": "GRC",
+      "name": "Greece",
+      "uuid": "019e2e15-2c00-743d-8000-00000000043d",
+      "natural_key": "GR"
+    },
+    {
+      "iso2": "GL",
+      "iso3": "GRL",
+      "name": "Greenland",
+      "uuid": "019e2e15-2c00-743e-8000-00000000043e",
+      "natural_key": "GL"
+    },
+    {
+      "iso2": "GD",
+      "iso3": "GRD",
+      "name": "Grenada",
+      "uuid": "019e2e15-2c00-743f-8000-00000000043f",
+      "natural_key": "GD"
+    },
+    {
+      "iso2": "GP",
+      "iso3": "GLP",
+      "name": "Guadeloupe",
+      "uuid": "019e2e15-2c00-7440-8000-000000000440",
+      "natural_key": "GP"
+    },
+    {
+      "iso2": "GU",
+      "iso3": "GUM",
+      "name": "Guam",
+      "uuid": "019e2e15-2c00-7441-8000-000000000441",
+      "natural_key": "GU"
+    },
+    {
+      "iso2": "GT",
+      "iso3": "GTM",
+      "name": "Guatemala",
+      "uuid": "019e2e15-2c00-7442-8000-000000000442",
+      "natural_key": "GT"
+    },
+    {
+      "iso2": "GG",
+      "iso3": "GGY",
+      "name": "Guernsey",
+      "uuid": "019e2e15-2c00-7443-8000-000000000443",
+      "natural_key": "GG"
+    },
+    {
+      "iso2": "GN",
+      "iso3": "GIN",
+      "name": "Guinea",
+      "uuid": "019e2e15-2c00-7444-8000-000000000444",
+      "natural_key": "GN"
+    },
+    {
+      "iso2": "GW",
+      "iso3": "GNB",
+      "name": "Guinea-Bissau",
+      "uuid": "019e2e15-2c00-7445-8000-000000000445",
+      "natural_key": "GW"
+    },
+    {
+      "iso2": "GY",
+      "iso3": "GUY",
+      "name": "Guyana",
+      "uuid": "019e2e15-2c00-7446-8000-000000000446",
+      "natural_key": "GY"
+    },
+    {
+      "iso2": "HT",
+      "iso3": "HTI",
+      "name": "Haiti",
+      "uuid": "019e2e15-2c00-7447-8000-000000000447",
+      "natural_key": "HT"
+    },
+    {
+      "iso2": "HM",
+      "iso3": "HMD",
+      "name": "Heard Island and McDonald Islands",
+      "uuid": "019e2e15-2c00-7448-8000-000000000448",
+      "natural_key": "HM"
+    },
+    {
+      "iso2": "VA",
+      "iso3": "VAT",
+      "name": "Holy See",
+      "uuid": "019e2e15-2c00-7449-8000-000000000449",
+      "natural_key": "VA"
+    },
+    {
+      "iso2": "HN",
+      "iso3": "HND",
+      "name": "Honduras",
+      "uuid": "019e2e15-2c00-744a-8000-00000000044a",
+      "natural_key": "HN"
+    },
+    {
+      "iso2": "HK",
+      "iso3": "HKG",
+      "name": "Hong Kong",
+      "uuid": "019e2e15-2c00-744b-8000-00000000044b",
+      "natural_key": "HK"
+    },
+    {
+      "iso2": "HU",
+      "iso3": "HUN",
+      "name": "Hungary",
+      "uuid": "019e2e15-2c00-744c-8000-00000000044c",
+      "natural_key": "HU"
+    },
+    {
+      "iso2": "IS",
+      "iso3": "ISL",
+      "name": "Iceland",
+      "uuid": "019e2e15-2c00-744d-8000-00000000044d",
+      "natural_key": "IS"
+    },
+    {
+      "iso2": "IN",
+      "iso3": "IND",
+      "name": "India",
+      "uuid": "019e2e15-2c00-744e-8000-00000000044e",
+      "natural_key": "IN"
+    },
+    {
+      "iso2": "ID",
+      "iso3": "IDN",
+      "name": "Indonesia",
+      "uuid": "019e2e15-2c00-744f-8000-00000000044f",
+      "natural_key": "ID"
+    },
+    {
+      "iso2": "IR",
+      "iso3": "IRN",
+      "name": "Iran",
+      "uuid": "019e2e15-2c00-7450-8000-000000000450",
+      "natural_key": "IR"
+    },
+    {
+      "iso2": "IQ",
+      "iso3": "IRQ",
+      "name": "Iraq",
+      "uuid": "019e2e15-2c00-7451-8000-000000000451",
+      "natural_key": "IQ"
+    },
+    {
+      "iso2": "IE",
+      "iso3": "IRL",
+      "name": "Ireland",
+      "uuid": "019e2e15-2c00-7452-8000-000000000452",
+      "natural_key": "IE"
+    },
+    {
+      "iso2": "IM",
+      "iso3": "IMN",
+      "name": "Isle of Man",
+      "uuid": "019e2e15-2c00-7453-8000-000000000453",
+      "natural_key": "IM"
+    },
+    {
+      "iso2": "IL",
+      "iso3": "ISR",
+      "name": "Israel",
+      "uuid": "019e2e15-2c00-7454-8000-000000000454",
+      "natural_key": "IL"
+    },
+    {
+      "iso2": "IT",
+      "iso3": "ITA",
+      "name": "Italy",
+      "uuid": "019e2e15-2c00-7455-8000-000000000455",
+      "natural_key": "IT"
+    },
+    {
+      "iso2": "JM",
+      "iso3": "JAM",
+      "name": "Jamaica",
+      "uuid": "019e2e15-2c00-7456-8000-000000000456",
+      "natural_key": "JM"
+    },
+    {
+      "iso2": "JP",
+      "iso3": "JPN",
+      "name": "Japan",
+      "uuid": "019e2e15-2c00-7457-8000-000000000457",
+      "natural_key": "JP"
+    },
+    {
+      "iso2": "JE",
+      "iso3": "JEY",
+      "name": "Jersey",
+      "uuid": "019e2e15-2c00-7458-8000-000000000458",
+      "natural_key": "JE"
+    },
+    {
+      "iso2": "JO",
+      "iso3": "JOR",
+      "name": "Jordan",
+      "uuid": "019e2e15-2c00-7459-8000-000000000459",
+      "natural_key": "JO"
+    },
+    {
+      "iso2": "KZ",
+      "iso3": "KAZ",
+      "name": "Kazakhstan",
+      "uuid": "019e2e15-2c00-745a-8000-00000000045a",
+      "natural_key": "KZ"
+    },
+    {
+      "iso2": "KE",
+      "iso3": "KEN",
+      "name": "Kenya",
+      "uuid": "019e2e15-2c00-745b-8000-00000000045b",
+      "natural_key": "KE"
+    },
+    {
+      "iso2": "KI",
+      "iso3": "KIR",
+      "name": "Kiribati",
+      "uuid": "019e2e15-2c00-745c-8000-00000000045c",
+      "natural_key": "KI"
+    },
+    {
+      "iso2": "KP",
+      "iso3": "PRK",
+      "name": "Korea, Democratic People's Republic of",
+      "uuid": "019e2e15-2c00-745d-8000-00000000045d",
+      "natural_key": "KP"
+    },
+    {
+      "iso2": "KR",
+      "iso3": "KOR",
+      "name": "Korea, Republic of",
+      "uuid": "019e2e15-2c00-745e-8000-00000000045e",
+      "natural_key": "KR"
+    },
+    {
+      "iso2": "KW",
+      "iso3": "KWT",
+      "name": "Kuwait",
+      "uuid": "019e2e15-2c00-745f-8000-00000000045f",
+      "natural_key": "KW"
+    },
+    {
+      "iso2": "KG",
+      "iso3": "KGZ",
+      "name": "Kyrgyzstan",
+      "uuid": "019e2e15-2c00-7460-8000-000000000460",
+      "natural_key": "KG"
+    },
+    {
+      "iso2": "LA",
+      "iso3": "LAO",
+      "name": "Lao People's Democratic Republic",
+      "uuid": "019e2e15-2c00-7461-8000-000000000461",
+      "natural_key": "LA"
+    },
+    {
+      "iso2": "LV",
+      "iso3": "LVA",
+      "name": "Latvia",
+      "uuid": "019e2e15-2c00-7462-8000-000000000462",
+      "natural_key": "LV"
+    },
+    {
+      "iso2": "LB",
+      "iso3": "LBN",
+      "name": "Lebanon",
+      "uuid": "019e2e15-2c00-7463-8000-000000000463",
+      "natural_key": "LB"
+    },
+    {
+      "iso2": "LS",
+      "iso3": "LSO",
+      "name": "Lesotho",
+      "uuid": "019e2e15-2c00-7464-8000-000000000464",
+      "natural_key": "LS"
+    },
+    {
+      "iso2": "LR",
+      "iso3": "LBR",
+      "name": "Liberia",
+      "uuid": "019e2e15-2c00-7465-8000-000000000465",
+      "natural_key": "LR"
+    },
+    {
+      "iso2": "LY",
+      "iso3": "LBY",
+      "name": "Libya",
+      "uuid": "019e2e15-2c00-7466-8000-000000000466",
+      "natural_key": "LY"
+    },
+    {
+      "iso2": "LI",
+      "iso3": "LIE",
+      "name": "Liechtenstein",
+      "uuid": "019e2e15-2c00-7467-8000-000000000467",
+      "natural_key": "LI"
+    },
+    {
+      "iso2": "LT",
+      "iso3": "LTU",
+      "name": "Lithuania",
+      "uuid": "019e2e15-2c00-7468-8000-000000000468",
+      "natural_key": "LT"
+    },
+    {
+      "iso2": "LU",
+      "iso3": "LUX",
+      "name": "Luxembourg",
+      "uuid": "019e2e15-2c00-7469-8000-000000000469",
+      "natural_key": "LU"
+    },
+    {
+      "iso2": "MO",
+      "iso3": "MAC",
+      "name": "Macao",
+      "uuid": "019e2e15-2c00-746a-8000-00000000046a",
+      "natural_key": "MO"
+    },
+    {
+      "iso2": "MG",
+      "iso3": "MDG",
+      "name": "Madagascar",
+      "uuid": "019e2e15-2c00-746b-8000-00000000046b",
+      "natural_key": "MG"
+    },
+    {
+      "iso2": "MW",
+      "iso3": "MWI",
+      "name": "Malawi",
+      "uuid": "019e2e15-2c00-746c-8000-00000000046c",
+      "natural_key": "MW"
+    },
+    {
+      "iso2": "MY",
+      "iso3": "MYS",
+      "name": "Malaysia",
+      "uuid": "019e2e15-2c00-746d-8000-00000000046d",
+      "natural_key": "MY"
+    },
+    {
+      "iso2": "MV",
+      "iso3": "MDV",
+      "name": "Maldives",
+      "uuid": "019e2e15-2c00-746e-8000-00000000046e",
+      "natural_key": "MV"
+    },
+    {
+      "iso2": "ML",
+      "iso3": "MLI",
+      "name": "Mali",
+      "uuid": "019e2e15-2c00-746f-8000-00000000046f",
+      "natural_key": "ML"
+    },
+    {
+      "iso2": "MT",
+      "iso3": "MLT",
+      "name": "Malta",
+      "uuid": "019e2e15-2c00-7470-8000-000000000470",
+      "natural_key": "MT"
+    },
+    {
+      "iso2": "MH",
+      "iso3": "MHL",
+      "name": "Marshall Islands",
+      "uuid": "019e2e15-2c00-7471-8000-000000000471",
+      "natural_key": "MH"
+    },
+    {
+      "iso2": "MQ",
+      "iso3": "MTQ",
+      "name": "Martinique",
+      "uuid": "019e2e15-2c00-7472-8000-000000000472",
+      "natural_key": "MQ"
+    },
+    {
+      "iso2": "MR",
+      "iso3": "MRT",
+      "name": "Mauritania",
+      "uuid": "019e2e15-2c00-7473-8000-000000000473",
+      "natural_key": "MR"
+    },
+    {
+      "iso2": "MU",
+      "iso3": "MUS",
+      "name": "Mauritius",
+      "uuid": "019e2e15-2c00-7474-8000-000000000474",
+      "natural_key": "MU"
+    },
+    {
+      "iso2": "YT",
+      "iso3": "MYT",
+      "name": "Mayotte",
+      "uuid": "019e2e15-2c00-7475-8000-000000000475",
+      "natural_key": "YT"
+    },
+    {
+      "iso2": "MX",
+      "iso3": "MEX",
+      "name": "Mexico",
+      "uuid": "019e2e15-2c00-7476-8000-000000000476",
+      "natural_key": "MX"
+    },
+    {
+      "iso2": "FM",
+      "iso3": "FSM",
+      "name": "Micronesia",
+      "uuid": "019e2e15-2c00-7477-8000-000000000477",
+      "natural_key": "FM"
+    },
+    {
+      "iso2": "MD",
+      "iso3": "MDA",
+      "name": "Moldova",
+      "uuid": "019e2e15-2c00-7478-8000-000000000478",
+      "natural_key": "MD"
+    },
+    {
+      "iso2": "MC",
+      "iso3": "MCO",
+      "name": "Monaco",
+      "uuid": "019e2e15-2c00-7479-8000-000000000479",
+      "natural_key": "MC"
+    },
+    {
+      "iso2": "MN",
+      "iso3": "MNG",
+      "name": "Mongolia",
+      "uuid": "019e2e15-2c00-747a-8000-00000000047a",
+      "natural_key": "MN"
+    },
+    {
+      "iso2": "ME",
+      "iso3": "MNE",
+      "name": "Montenegro",
+      "uuid": "019e2e15-2c00-747b-8000-00000000047b",
+      "natural_key": "ME"
+    },
+    {
+      "iso2": "MS",
+      "iso3": "MSR",
+      "name": "Montserrat",
+      "uuid": "019e2e15-2c00-747c-8000-00000000047c",
+      "natural_key": "MS"
+    },
+    {
+      "iso2": "MA",
+      "iso3": "MAR",
+      "name": "Morocco",
+      "uuid": "019e2e15-2c00-747d-8000-00000000047d",
+      "natural_key": "MA"
+    },
+    {
+      "iso2": "MZ",
+      "iso3": "MOZ",
+      "name": "Mozambique",
+      "uuid": "019e2e15-2c00-747e-8000-00000000047e",
+      "natural_key": "MZ"
+    },
+    {
+      "iso2": "MM",
+      "iso3": "MMR",
+      "name": "Myanmar",
+      "uuid": "019e2e15-2c00-747f-8000-00000000047f",
+      "natural_key": "MM"
+    },
+    {
+      "iso2": "NA",
+      "iso3": "NAM",
+      "name": "Namibia",
+      "uuid": "019e2e15-2c00-7480-8000-000000000480",
+      "natural_key": "NA"
+    },
+    {
+      "iso2": "NR",
+      "iso3": "NRU",
+      "name": "Nauru",
+      "uuid": "019e2e15-2c00-7481-8000-000000000481",
+      "natural_key": "NR"
+    },
+    {
+      "iso2": "NP",
+      "iso3": "NPL",
+      "name": "Nepal",
+      "uuid": "019e2e15-2c00-7482-8000-000000000482",
+      "natural_key": "NP"
+    },
+    {
+      "iso2": "NL",
+      "iso3": "NLD",
+      "name": "Netherlands",
+      "uuid": "019e2e15-2c00-7483-8000-000000000483",
+      "natural_key": "NL"
+    },
+    {
+      "iso2": "NC",
+      "iso3": "NCL",
+      "name": "New Caledonia",
+      "uuid": "019e2e15-2c00-7484-8000-000000000484",
+      "natural_key": "NC"
+    },
+    {
+      "iso2": "NZ",
+      "iso3": "NZL",
+      "name": "New Zealand",
+      "uuid": "019e2e15-2c00-7485-8000-000000000485",
+      "natural_key": "NZ"
+    },
+    {
+      "iso2": "NI",
+      "iso3": "NIC",
+      "name": "Nicaragua",
+      "uuid": "019e2e15-2c00-7486-8000-000000000486",
+      "natural_key": "NI"
+    },
+    {
+      "iso2": "NE",
+      "iso3": "NER",
+      "name": "Niger",
+      "uuid": "019e2e15-2c00-7487-8000-000000000487",
+      "natural_key": "NE"
+    },
+    {
+      "iso2": "NG",
+      "iso3": "NGA",
+      "name": "Nigeria",
+      "uuid": "019e2e15-2c00-7488-8000-000000000488",
+      "natural_key": "NG"
+    },
+    {
+      "iso2": "NU",
+      "iso3": "NIU",
+      "name": "Niue",
+      "uuid": "019e2e15-2c00-7489-8000-000000000489",
+      "natural_key": "NU"
+    },
+    {
+      "iso2": "NF",
+      "iso3": "NFK",
+      "name": "Norfolk Island",
+      "uuid": "019e2e15-2c00-748a-8000-00000000048a",
+      "natural_key": "NF"
+    },
+    {
+      "iso2": "MK",
+      "iso3": "MKD",
+      "name": "North Macedonia",
+      "uuid": "019e2e15-2c00-748b-8000-00000000048b",
+      "natural_key": "MK"
+    },
+    {
+      "iso2": "MP",
+      "iso3": "MNP",
+      "name": "Northern Mariana Islands",
+      "uuid": "019e2e15-2c00-748c-8000-00000000048c",
+      "natural_key": "MP"
+    },
+    {
+      "iso2": "NO",
+      "iso3": "NOR",
+      "name": "Norway",
+      "uuid": "019e2e15-2c00-748d-8000-00000000048d",
+      "natural_key": "NO"
+    },
+    {
+      "iso2": "OM",
+      "iso3": "OMN",
+      "name": "Oman",
+      "uuid": "019e2e15-2c00-748e-8000-00000000048e",
+      "natural_key": "OM"
+    },
+    {
+      "iso2": "PK",
+      "iso3": "PAK",
+      "name": "Pakistan",
+      "uuid": "019e2e15-2c00-748f-8000-00000000048f",
+      "natural_key": "PK"
+    },
+    {
+      "iso2": "PW",
+      "iso3": "PLW",
+      "name": "Palau",
+      "uuid": "019e2e15-2c00-7490-8000-000000000490",
+      "natural_key": "PW"
+    },
+    {
+      "iso2": "PS",
+      "iso3": "PSE",
+      "name": "Palestine, State of",
+      "uuid": "019e2e15-2c00-7491-8000-000000000491",
+      "natural_key": "PS"
+    },
+    {
+      "iso2": "PA",
+      "iso3": "PAN",
+      "name": "Panama",
+      "uuid": "019e2e15-2c00-7492-8000-000000000492",
+      "natural_key": "PA"
+    },
+    {
+      "iso2": "PG",
+      "iso3": "PNG",
+      "name": "Papua New Guinea",
+      "uuid": "019e2e15-2c00-7493-8000-000000000493",
+      "natural_key": "PG"
+    },
+    {
+      "iso2": "PY",
+      "iso3": "PRY",
+      "name": "Paraguay",
+      "uuid": "019e2e15-2c00-7494-8000-000000000494",
+      "natural_key": "PY"
+    },
+    {
+      "iso2": "PE",
+      "iso3": "PER",
+      "name": "Peru",
+      "uuid": "019e2e15-2c00-7495-8000-000000000495",
+      "natural_key": "PE"
+    },
+    {
+      "iso2": "PH",
+      "iso3": "PHL",
+      "name": "Philippines",
+      "uuid": "019e2e15-2c00-7496-8000-000000000496",
+      "natural_key": "PH"
+    },
+    {
+      "iso2": "PN",
+      "iso3": "PCN",
+      "name": "Pitcairn",
+      "uuid": "019e2e15-2c00-7497-8000-000000000497",
+      "natural_key": "PN"
+    },
+    {
+      "iso2": "PL",
+      "iso3": "POL",
+      "name": "Poland",
+      "uuid": "019e2e15-2c00-7498-8000-000000000498",
+      "natural_key": "PL"
+    },
+    {
+      "iso2": "PT",
+      "iso3": "PRT",
+      "name": "Portugal",
+      "uuid": "019e2e15-2c00-7499-8000-000000000499",
+      "natural_key": "PT"
+    },
+    {
+      "iso2": "PR",
+      "iso3": "PRI",
+      "name": "Puerto Rico",
+      "uuid": "019e2e15-2c00-749a-8000-00000000049a",
+      "natural_key": "PR"
+    },
+    {
+      "iso2": "QA",
+      "iso3": "QAT",
+      "name": "Qatar",
+      "uuid": "019e2e15-2c00-749b-8000-00000000049b",
+      "natural_key": "QA"
+    },
+    {
+      "iso2": "RE",
+      "iso3": "REU",
+      "name": "Réunion",
+      "uuid": "019e2e15-2c00-749c-8000-00000000049c",
+      "natural_key": "RE"
+    },
+    {
+      "iso2": "RO",
+      "iso3": "ROU",
+      "name": "Romania",
+      "uuid": "019e2e15-2c00-749d-8000-00000000049d",
+      "natural_key": "RO"
+    },
+    {
+      "iso2": "RU",
+      "iso3": "RUS",
+      "name": "Russian Federation",
+      "uuid": "019e2e15-2c00-749e-8000-00000000049e",
+      "natural_key": "RU"
+    },
+    {
+      "iso2": "RW",
+      "iso3": "RWA",
+      "name": "Rwanda",
+      "uuid": "019e2e15-2c00-749f-8000-00000000049f",
+      "natural_key": "RW"
+    },
+    {
+      "iso2": "BL",
+      "iso3": "BLM",
+      "name": "Saint Barthélemy",
+      "uuid": "019e2e15-2c00-74a0-8000-0000000004a0",
+      "natural_key": "BL"
+    },
+    {
+      "iso2": "SH",
+      "iso3": "SHN",
+      "name": "Saint Helena, Ascension and Tristan da Cunha",
+      "uuid": "019e2e15-2c00-74a1-8000-0000000004a1",
+      "natural_key": "SH"
+    },
+    {
+      "iso2": "KN",
+      "iso3": "KNA",
+      "name": "Saint Kitts and Nevis",
+      "uuid": "019e2e15-2c00-74a2-8000-0000000004a2",
+      "natural_key": "KN"
+    },
+    {
+      "iso2": "LC",
+      "iso3": "LCA",
+      "name": "Saint Lucia",
+      "uuid": "019e2e15-2c00-74a3-8000-0000000004a3",
+      "natural_key": "LC"
+    },
+    {
+      "iso2": "MF",
+      "iso3": "MAF",
+      "name": "Saint Martin (French part)",
+      "uuid": "019e2e15-2c00-74a4-8000-0000000004a4",
+      "natural_key": "MF"
+    },
+    {
+      "iso2": "PM",
+      "iso3": "SPM",
+      "name": "Saint Pierre and Miquelon",
+      "uuid": "019e2e15-2c00-74a5-8000-0000000004a5",
+      "natural_key": "PM"
+    },
+    {
+      "iso2": "VC",
+      "iso3": "VCT",
+      "name": "Saint Vincent and the Grenadines",
+      "uuid": "019e2e15-2c00-74a6-8000-0000000004a6",
+      "natural_key": "VC"
+    },
+    {
+      "iso2": "WS",
+      "iso3": "WSM",
+      "name": "Samoa",
+      "uuid": "019e2e15-2c00-74a7-8000-0000000004a7",
+      "natural_key": "WS"
+    },
+    {
+      "iso2": "SM",
+      "iso3": "SMR",
+      "name": "San Marino",
+      "uuid": "019e2e15-2c00-74a8-8000-0000000004a8",
+      "natural_key": "SM"
+    },
+    {
+      "iso2": "ST",
+      "iso3": "STP",
+      "name": "Sao Tome and Principe",
+      "uuid": "019e2e15-2c00-74a9-8000-0000000004a9",
+      "natural_key": "ST"
+    },
+    {
+      "iso2": "SA",
+      "iso3": "SAU",
+      "name": "Saudi Arabia",
+      "uuid": "019e2e15-2c00-74aa-8000-0000000004aa",
+      "natural_key": "SA"
+    },
+    {
+      "iso2": "SN",
+      "iso3": "SEN",
+      "name": "Senegal",
+      "uuid": "019e2e15-2c00-74ab-8000-0000000004ab",
+      "natural_key": "SN"
+    },
+    {
+      "iso2": "RS",
+      "iso3": "SRB",
+      "name": "Serbia",
+      "uuid": "019e2e15-2c00-74ac-8000-0000000004ac",
+      "natural_key": "RS"
+    },
+    {
+      "iso2": "SC",
+      "iso3": "SYC",
+      "name": "Seychelles",
+      "uuid": "019e2e15-2c00-74ad-8000-0000000004ad",
+      "natural_key": "SC"
+    },
+    {
+      "iso2": "SL",
+      "iso3": "SLE",
+      "name": "Sierra Leone",
+      "uuid": "019e2e15-2c00-74ae-8000-0000000004ae",
+      "natural_key": "SL"
+    },
+    {
+      "iso2": "SG",
+      "iso3": "SGP",
+      "name": "Singapore",
+      "uuid": "019e2e15-2c00-74af-8000-0000000004af",
+      "natural_key": "SG"
+    },
+    {
+      "iso2": "SX",
+      "iso3": "SXM",
+      "name": "Sint Maarten (Dutch part)",
+      "uuid": "019e2e15-2c00-74b0-8000-0000000004b0",
+      "natural_key": "SX"
+    },
+    {
+      "iso2": "SK",
+      "iso3": "SVK",
+      "name": "Slovakia",
+      "uuid": "019e2e15-2c00-74b1-8000-0000000004b1",
+      "natural_key": "SK"
+    },
+    {
+      "iso2": "SI",
+      "iso3": "SVN",
+      "name": "Slovenia",
+      "uuid": "019e2e15-2c00-74b2-8000-0000000004b2",
+      "natural_key": "SI"
+    },
+    {
+      "iso2": "SB",
+      "iso3": "SLB",
+      "name": "Solomon Islands",
+      "uuid": "019e2e15-2c00-74b3-8000-0000000004b3",
+      "natural_key": "SB"
+    },
+    {
+      "iso2": "SO",
+      "iso3": "SOM",
+      "name": "Somalia",
+      "uuid": "019e2e15-2c00-74b4-8000-0000000004b4",
+      "natural_key": "SO"
+    },
+    {
+      "iso2": "ZA",
+      "iso3": "ZAF",
+      "name": "South Africa",
+      "uuid": "019e2e15-2c00-74b5-8000-0000000004b5",
+      "natural_key": "ZA"
+    },
+    {
+      "iso2": "GS",
+      "iso3": "SGS",
+      "name": "South Georgia and the South Sandwich Islands",
+      "uuid": "019e2e15-2c00-74b6-8000-0000000004b6",
+      "natural_key": "GS"
+    },
+    {
+      "iso2": "SS",
+      "iso3": "SSD",
+      "name": "South Sudan",
+      "uuid": "019e2e15-2c00-74b7-8000-0000000004b7",
+      "natural_key": "SS"
+    },
+    {
+      "iso2": "ES",
+      "iso3": "ESP",
+      "name": "Spain",
+      "uuid": "019e2e15-2c00-74b8-8000-0000000004b8",
+      "natural_key": "ES"
+    },
+    {
+      "iso2": "LK",
+      "iso3": "LKA",
+      "name": "Sri Lanka",
+      "uuid": "019e2e15-2c00-74b9-8000-0000000004b9",
+      "natural_key": "LK"
+    },
+    {
+      "iso2": "SD",
+      "iso3": "SDN",
+      "name": "Sudan",
+      "uuid": "019e2e15-2c00-74ba-8000-0000000004ba",
+      "natural_key": "SD"
+    },
+    {
+      "iso2": "SR",
+      "iso3": "SUR",
+      "name": "Suriname",
+      "uuid": "019e2e15-2c00-74bb-8000-0000000004bb",
+      "natural_key": "SR"
+    },
+    {
+      "iso2": "SJ",
+      "iso3": "SJM",
+      "name": "Svalbard and Jan Mayen",
+      "uuid": "019e2e15-2c00-74bc-8000-0000000004bc",
+      "natural_key": "SJ"
+    },
+    {
+      "iso2": "SE",
+      "iso3": "SWE",
+      "name": "Sweden",
+      "uuid": "019e2e15-2c00-74bd-8000-0000000004bd",
+      "natural_key": "SE"
+    },
+    {
+      "iso2": "CH",
+      "iso3": "CHE",
+      "name": "Switzerland",
+      "uuid": "019e2e15-2c00-74be-8000-0000000004be",
+      "natural_key": "CH"
+    },
+    {
+      "iso2": "SY",
+      "iso3": "SYR",
+      "name": "Syrian Arab Republic",
+      "uuid": "019e2e15-2c00-74bf-8000-0000000004bf",
+      "natural_key": "SY"
+    },
+    {
+      "iso2": "TW",
+      "iso3": "TWN",
+      "name": "Taiwan",
+      "uuid": "019e2e15-2c00-74c0-8000-0000000004c0",
+      "natural_key": "TW"
+    },
+    {
+      "iso2": "TJ",
+      "iso3": "TJK",
+      "name": "Tajikistan",
+      "uuid": "019e2e15-2c00-74c1-8000-0000000004c1",
+      "natural_key": "TJ"
+    },
+    {
+      "iso2": "TZ",
+      "iso3": "TZA",
+      "name": "Tanzania",
+      "uuid": "019e2e15-2c00-74c2-8000-0000000004c2",
+      "natural_key": "TZ"
+    },
+    {
+      "iso2": "TH",
+      "iso3": "THA",
+      "name": "Thailand",
+      "uuid": "019e2e15-2c00-74c3-8000-0000000004c3",
+      "natural_key": "TH"
+    },
+    {
+      "iso2": "TL",
+      "iso3": "TLS",
+      "name": "Timor-Leste",
+      "uuid": "019e2e15-2c00-74c4-8000-0000000004c4",
+      "natural_key": "TL"
+    },
+    {
+      "iso2": "TG",
+      "iso3": "TGO",
+      "name": "Togo",
+      "uuid": "019e2e15-2c00-74c5-8000-0000000004c5",
+      "natural_key": "TG"
+    },
+    {
+      "iso2": "TK",
+      "iso3": "TKL",
+      "name": "Tokelau",
+      "uuid": "019e2e15-2c00-74c6-8000-0000000004c6",
+      "natural_key": "TK"
+    },
+    {
+      "iso2": "TO",
+      "iso3": "TON",
+      "name": "Tonga",
+      "uuid": "019e2e15-2c00-74c7-8000-0000000004c7",
+      "natural_key": "TO"
+    },
+    {
+      "iso2": "TT",
+      "iso3": "TTO",
+      "name": "Trinidad and Tobago",
+      "uuid": "019e2e15-2c00-74c8-8000-0000000004c8",
+      "natural_key": "TT"
+    },
+    {
+      "iso2": "TN",
+      "iso3": "TUN",
+      "name": "Tunisia",
+      "uuid": "019e2e15-2c00-74c9-8000-0000000004c9",
+      "natural_key": "TN"
+    },
+    {
+      "iso2": "TR",
+      "iso3": "TUR",
+      "name": "Turkey",
+      "uuid": "019e2e15-2c00-74ca-8000-0000000004ca",
+      "natural_key": "TR"
+    },
+    {
+      "iso2": "TM",
+      "iso3": "TKM",
+      "name": "Turkmenistan",
+      "uuid": "019e2e15-2c00-74cb-8000-0000000004cb",
+      "natural_key": "TM"
+    },
+    {
+      "iso2": "TC",
+      "iso3": "TCA",
+      "name": "Turks and Caicos Islands",
+      "uuid": "019e2e15-2c00-74cc-8000-0000000004cc",
+      "natural_key": "TC"
+    },
+    {
+      "iso2": "TV",
+      "iso3": "TUV",
+      "name": "Tuvalu",
+      "uuid": "019e2e15-2c00-74cd-8000-0000000004cd",
+      "natural_key": "TV"
+    },
+    {
+      "iso2": "UG",
+      "iso3": "UGA",
+      "name": "Uganda",
+      "uuid": "019e2e15-2c00-74ce-8000-0000000004ce",
+      "natural_key": "UG"
+    },
+    {
+      "iso2": "UA",
+      "iso3": "UKR",
+      "name": "Ukraine",
+      "uuid": "019e2e15-2c00-74cf-8000-0000000004cf",
+      "natural_key": "UA"
+    },
+    {
+      "iso2": "AE",
+      "iso3": "ARE",
+      "name": "United Arab Emirates",
+      "uuid": "019e2e15-2c00-74d0-8000-0000000004d0",
+      "natural_key": "AE"
+    },
+    {
+      "iso2": "GB",
+      "iso3": "GBR",
+      "name": "United Kingdom",
+      "uuid": "019e2e15-2c00-74d1-8000-0000000004d1",
+      "natural_key": "GB"
+    },
+    {
+      "iso2": "US",
+      "iso3": "USA",
+      "name": "United States",
+      "uuid": "019e2e15-2c00-74d2-8000-0000000004d2",
+      "natural_key": "US"
+    },
+    {
+      "iso2": "UM",
+      "iso3": "UMI",
+      "name": "United States Minor Outlying Islands",
+      "uuid": "019e2e15-2c00-74d3-8000-0000000004d3",
+      "natural_key": "UM"
+    },
+    {
+      "iso2": "UY",
+      "iso3": "URY",
+      "name": "Uruguay",
+      "uuid": "019e2e15-2c00-74d4-8000-0000000004d4",
+      "natural_key": "UY"
+    },
+    {
+      "iso2": "UZ",
+      "iso3": "UZB",
+      "name": "Uzbekistan",
+      "uuid": "019e2e15-2c00-74d5-8000-0000000004d5",
+      "natural_key": "UZ"
+    },
+    {
+      "iso2": "VU",
+      "iso3": "VUT",
+      "name": "Vanuatu",
+      "uuid": "019e2e15-2c00-74d6-8000-0000000004d6",
+      "natural_key": "VU"
+    },
+    {
+      "iso2": "VE",
+      "iso3": "VEN",
+      "name": "Venezuela",
+      "uuid": "019e2e15-2c00-74d7-8000-0000000004d7",
+      "natural_key": "VE"
+    },
+    {
+      "iso2": "VN",
+      "iso3": "VNM",
+      "name": "Viet Nam",
+      "uuid": "019e2e15-2c00-74d8-8000-0000000004d8",
+      "natural_key": "VN"
+    },
+    {
+      "iso2": "VG",
+      "iso3": "VGB",
+      "name": "Virgin Islands (British)",
+      "uuid": "019e2e15-2c00-74d9-8000-0000000004d9",
+      "natural_key": "VG"
+    },
+    {
+      "iso2": "VI",
+      "iso3": "VIR",
+      "name": "Virgin Islands (U.S.)",
+      "uuid": "019e2e15-2c00-74da-8000-0000000004da",
+      "natural_key": "VI"
+    },
+    {
+      "iso2": "WF",
+      "iso3": "WLF",
+      "name": "Wallis and Futuna",
+      "uuid": "019e2e15-2c00-74db-8000-0000000004db",
+      "natural_key": "WF"
+    },
+    {
+      "iso2": "EH",
+      "iso3": "ESH",
+      "name": "Western Sahara",
+      "uuid": "019e2e15-2c00-74dc-8000-0000000004dc",
+      "natural_key": "EH"
+    },
+    {
+      "iso2": "YE",
+      "iso3": "YEM",
+      "name": "Yemen",
+      "uuid": "019e2e15-2c00-74dd-8000-0000000004dd",
+      "natural_key": "YE"
+    },
+    {
+      "iso2": "ZM",
+      "iso3": "ZMB",
+      "name": "Zambia",
+      "uuid": "019e2e15-2c00-74de-8000-0000000004de",
+      "natural_key": "ZM"
+    },
+    {
+      "iso2": "ZW",
+      "iso3": "ZWE",
+      "name": "Zimbabwe",
+      "uuid": "019e2e15-2c00-74df-8000-0000000004df",
+      "natural_key": "ZW"
+    }
+  ],
+  "language": [
+    {
+      "code": "de",
+      "name": "Deutsch",
+      "uuid": "019e2e15-2c00-77d0-8000-0000000007d0",
+      "natural_key": "de"
+    },
+    {
+      "code": "fr",
+      "name": "Français",
+      "uuid": "019e2e15-2c00-77d1-8000-0000000007d1",
+      "natural_key": "fr"
+    },
+    {
+      "code": "it",
+      "name": "Italiano",
+      "uuid": "019e2e15-2c00-77d2-8000-0000000007d2",
+      "natural_key": "it"
+    },
+    {
+      "code": "en",
+      "name": "English",
+      "uuid": "019e2e15-2c00-77d3-8000-0000000007d3",
+      "natural_key": "en"
+    },
+    {
+      "code": "rm",
+      "name": "Rumantsch",
+      "uuid": "019e2e15-2c00-77d4-8000-0000000007d4",
+      "natural_key": "rm"
+    },
+    {
+      "code": "de-CH",
+      "name": "Schweizer Hochdeutsch",
+      "uuid": "019e2e15-2c00-77d5-8000-0000000007d5",
+      "natural_key": "de-CH"
+    },
+    {
+      "code": "fr-CH",
+      "name": "Français suisse",
+      "uuid": "019e2e15-2c00-77d6-8000-0000000007d6",
+      "natural_key": "fr-CH"
+    },
+    {
+      "code": "it-CH",
+      "name": "Italiano svizzero",
+      "uuid": "019e2e15-2c00-77d7-8000-0000000007d7",
+      "natural_key": "it-CH"
+    }
+  ],
+  "club_state": [
+    {
+      "code": "ACTIVE",
+      "name": "Active",
+      "uuid": "019e2e15-2c00-7bb8-8000-000000000bb8",
+      "natural_key": "ACTIVE"
+    },
+    {
+      "code": "SUSPENDED",
+      "name": "Suspended",
+      "uuid": "019e2e15-2c00-7bb9-8000-000000000bb9",
+      "natural_key": "SUSPENDED"
+    },
+    {
+      "code": "CLOSED",
+      "name": "Closed",
+      "uuid": "019e2e15-2c00-7bba-8000-000000000bba",
+      "natural_key": "CLOSED"
+    }
+  ],
+  "start_type": [
+    {
+      "code": "WINCH_LAUNCH",
+      "name": "Winch Launch",
+      "applicable_categories": ["GLIDER"],
+      "uuid": "019e2e15-2c00-7fa0-8000-000000000fa0",
+      "natural_key": "WINCH_LAUNCH"
+    },
+    {
+      "code": "AEROTOW",
+      "name": "Aerotow",
+      "applicable_categories": ["GLIDER", "TOW"],
+      "uuid": "019e2e15-2c00-7fa1-8000-000000000fa1",
+      "natural_key": "AEROTOW"
+    },
+    {
+      "code": "SELF_START",
+      "name": "Self Start",
+      "applicable_categories": ["GLIDER"],
+      "uuid": "019e2e15-2c00-7fa2-8000-000000000fa2",
+      "natural_key": "SELF_START"
+    },
+    {
+      "code": "EXTERNAL_START",
+      "name": "External Start",
+      "applicable_categories": ["GLIDER"],
+      "uuid": "019e2e15-2c00-7fa3-8000-000000000fa3",
+      "natural_key": "EXTERNAL_START"
+    },
+    {
+      "code": "MOTOR",
+      "name": "Motor",
+      "applicable_categories": ["MOTOR"],
+      "uuid": "019e2e15-2c00-7fa4-8000-000000000fa4",
+      "natural_key": "MOTOR"
+    }
+  ],
+  "length_unit_type": [
+    {
+      "code": "METER",
+      "name": "Meter",
+      "short_name": "m",
+      "comment": "Metric",
+      "uuid": "019e2e15-2c00-7388-8000-000000001388",
+      "natural_key": "METER"
+    },
+    {
+      "code": "FEET",
+      "name": "Feet",
+      "short_name": "ft",
+      "comment": "Imperial",
+      "uuid": "019e2e15-2c00-7389-8000-000000001389",
+      "natural_key": "FEET"
+    }
+  ],
+  "elevation_unit_type": [
+    {
+      "code": "METER",
+      "name": "Meter",
+      "short_name": "m",
+      "comment": "Metric",
+      "uuid": "019e2e15-2c00-7770-8000-000000001770",
+      "natural_key": "METER"
+    },
+    {
+      "code": "FEET",
+      "name": "Feet",
+      "short_name": "ft",
+      "comment": "Imperial",
+      "uuid": "019e2e15-2c00-7771-8000-000000001771",
+      "natural_key": "FEET"
+    }
+  ],
+  "counter_unit_type": [
+    {
+      "code": "HOURS_DECIMAL",
+      "name": "Hours (decimal)",
+      "short_name": "h",
+      "comment": "Engine / flight time",
+      "uuid": "019e2e15-2c00-7b58-8000-000000001b58",
+      "natural_key": "HOURS_DECIMAL"
+    },
+    {
+      "code": "HOURS_MINUTES",
+      "name": "Hours (HH:MM)",
+      "short_name": "h",
+      "comment": "Engine / flight time",
+      "uuid": "019e2e15-2c00-7b59-8000-000000001b59",
+      "natural_key": "HOURS_MINUTES"
+    },
+    {
+      "code": "LANDINGS",
+      "name": "Landings",
+      "short_name": "ldg",
+      "comment": "Landing counter",
+      "uuid": "019e2e15-2c00-7b5a-8000-000000001b5a",
+      "natural_key": "LANDINGS"
+    },
+    {
+      "code": "STARTS",
+      "name": "Starts",
+      "short_name": "st",
+      "comment": "Start counter",
+      "uuid": "019e2e15-2c00-7b5b-8000-000000001b5b",
+      "natural_key": "STARTS"
+    }
+  ],
+  "extension_type": [
+    {
+      "code": "STRING",
+      "name": "String value",
+      "uuid": "019e2e15-2c00-7f40-8000-000000001f40",
+      "natural_key": "STRING"
+    },
+    {
+      "code": "INTEGER",
+      "name": "Integer value",
+      "uuid": "019e2e15-2c00-7f41-8000-000000001f41",
+      "natural_key": "INTEGER"
+    },
+    {
+      "code": "BOOLEAN",
+      "name": "Boolean flag",
+      "uuid": "019e2e15-2c00-7f42-8000-000000001f42",
+      "natural_key": "BOOLEAN"
+    },
+    {
+      "code": "DATE",
+      "name": "Date value",
+      "uuid": "019e2e15-2c00-7f43-8000-000000001f43",
+      "natural_key": "DATE"
+    },
+    {
+      "code": "LIST",
+      "name": "Single-select list",
+      "uuid": "019e2e15-2c00-7f44-8000-000000001f44",
+      "natural_key": "LIST"
+    }
+  ],
+  "role": [
+    {
+      "code": "ADMIN",
+      "description": "Administrator — full club control",
+      "uuid": "019e2e15-2c00-7328-8000-000000002328",
+      "natural_key": "ADMIN"
+    },
+    {
+      "code": "FLIGHT_OPS",
+      "description": "Flight operations — daily flight + planning ops",
+      "uuid": "019e2e15-2c00-7329-8000-000000002329",
+      "natural_key": "FLIGHT_OPS"
+    },
+    {
+      "code": "INSTRUCTOR",
+      "description": "Flight instructor — training records + sign-offs",
+      "uuid": "019e2e15-2c00-732a-8000-00000000232a",
+      "natural_key": "INSTRUCTOR"
+    },
+    {
+      "code": "PILOT",
+      "description": "Active pilot — read own flights, file own records",
+      "uuid": "019e2e15-2c00-732b-8000-00000000232b",
+      "natural_key": "PILOT"
+    },
+    {
+      "code": "READER",
+      "description": "Read-only — admin views, no mutation",
+      "uuid": "019e2e15-2c00-732c-8000-00000000232c",
+      "natural_key": "READER"
+    }
+  ]
+}

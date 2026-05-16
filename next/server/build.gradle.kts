@@ -16,6 +16,19 @@ plugins {
     id("org.flywaydb.flyway") version "11.14.1"
 }
 
+// Add the Postgres database module to the Flyway Gradle plugin's classpath
+// (separate from `implementation` which is Spring Boot's runtime). Without
+// this, `./gradlew flywayMigrate` reports "No Flyway database plugin found
+// to handle jdbc:postgresql://...".
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath("org.flywaydb:flyway-database-postgresql:11.14.1")
+    }
+}
+
 group = "ch.fls"
 version = "0.0.1-SNAPSHOT"
 description = "FLS server"
@@ -64,11 +77,11 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
-    // H2 as the in-memory test DataSource for tests that don't need real
-    // Postgres (ApplicationContextTest, ActuatorHealthIT, HelloControllerIT).
-    // FlywayBootstrapIntegrationTest overrides via @DynamicPropertySource to a
-    // real Docker-CLI Postgres container.
-    testRuntimeOnly("com.h2database:h2")
+    // No H2 — every @SpringBootTest shares a single Postgres testcontainer
+    // via SharedPostgresContainer. The Docker daemon is a hard requirement
+    // for the DB-touching tests; @EnabledIf("dockerAvailable") on each class
+    // skips them cleanly when Docker is absent (`./gradlew check` still
+    // passes). HelloControllerIT uses @WebMvcTest (slice; no DataSource).
     // Boot 4.0 split: TestRestTemplate (in spring-boot-resttestclient) depends
     // on RestTemplateBuilder which lives in spring-boot-restclient.
     testImplementation("org.springframework.boot:spring-boot-starter-restclient-test")

@@ -2,15 +2,12 @@ server:
   port: 0
 
 spring:
-  datasource:
-    # H2 in-memory by default for tests. FlywayBootstrapIntegrationTest
-    # overrides via @DynamicPropertySource for the real Postgres path.
-    # MODE=PostgreSQL keeps SQL surface compatible with V1__baseline.sql's
-    # Postgres-flavored DDL.
-    url: jdbc:h2:mem:fls_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    username: sa
-    password: ""
-    driver-class-name: org.h2.Driver
+  # No datasource pinned at the profile level. Every @SpringBootTest wires
+  # to SharedPostgresContainer via @DynamicPropertySource — one JVM-wide
+  # Postgres testcontainer is shared across all DB-touching classes. The
+  # prior H2-with-MODE=PostgreSQL fallback was retired because V2+
+  # migrations use uuid, TEXT[], partial indexes, and COMMENT ON COLUMN
+  # which H2 can't parse even in PG-compat mode.
   flyway:
     # Eliminates container-readiness flake in integration tests without
     # touching prod startup. Per S-009 performance plan.

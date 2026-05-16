@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.fls.server.testsupport.PostgresTestContainerLifecycle;
+import ch.fls.server.testsupport.SharedPostgresContainer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +14,6 @@ import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.flywaydb.core.api.exception.FlywayValidateException;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,35 +35,11 @@ import org.springframework.test.context.DynamicPropertySource;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@EnabledIf(value = "dockerAvailable",
+@EnabledIf(value = "ch.fls.server.testsupport.SharedPostgresContainer#available",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
 class FlywayBootstrapIntegrationTest {
 
-    private static final PostgresTestContainerLifecycle POSTGRES = new PostgresTestContainerLifecycle();
-    private static final boolean DOCKER_AVAILABLE = tryStartContainer();
-
-    private static boolean tryStartContainer() {
-        try {
-            POSTGRES.start();
-            return true;
-        } catch (Throwable t) {
-            System.err.println("""
-                    [fls-server] Skipping FlywayBootstrapIntegrationTest — Docker unreachable.
-                      Root cause: %s
-                      Start Docker Desktop / Docker Engine and re-run.
-                    """.formatted(t.getMessage()));
-            return false;
-        }
-    }
-
-    static boolean dockerAvailable() {
-        return DOCKER_AVAILABLE;
-    }
-
-    @AfterAll
-    static void stopContainer() {
-        POSTGRES.stop();
-    }
+    private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
 
     @DynamicPropertySource
     static void datasourceProps(DynamicPropertyRegistry r) {
@@ -127,9 +103,14 @@ class FlywayBootstrapIntegrationTest {
                 ResultSet rs = stmt.executeQuery(
                         "SELECT meta_value FROM app_meta WHERE meta_key = 'schema_baseline_version'")) {
             assertThat(rs.next())
-                    .as("V1 inserts the schema_baseline_version sentinel row")
+                    .as("V1 inserts the schema_baseline_version sentinel row; V2 updates it")
                     .isTrue();
-            assertThat(rs.getString("meta_value")).isEqualTo("S-009");
+            // V1 sets 'S-009'; V2 updates to 'S-012'; subsequent migrations update further.
+            // Assert the row exists with a non-empty S-NNN sentinel rather than freezing
+            // the value at the first migration's generation.
+            assertThat(rs.getString("meta_value"))
+                    .as("schema_baseline_version must reflect the current generation")
+                    .matches("^S-\\d{3}$");
         }
     }
 
@@ -230,5 +211,32 @@ class FlywayBootstrapIntegrationTest {
         assertThat(flyway.info().current().getVersion())
                 .as("current schema version must be 1 (or higher if S-012+ have shipped)")
                 .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("1"));
+    }
+
+    /**
+     * S-012 ships V<n>__identity_and_reference.sql with n >= 2. Relaxed comparator
+     * tolerates S-018 (shedlock) landing as V2 ahead of identity, in which case
+     * S-012's migration takes V3.
+     */
+    @Test
+    void current_version_at_least_2_after_s012() {
+        assertThat(flyway.info().current().getVersion())
+                .as("after S-012, current schema version must be >= 2")
+                .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("2"));
+    }
+
+    @Test
+    void flyway_history_contains_identity_row() throws Exception {
+        try (var conn = dataSource.getConnection();
+                var stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT count(*) FROM flyway_schema_history "
+                                + "WHERE success = true "
+                                + "AND script LIKE 'V%__identity_and_reference.sql'")) {
+            rs.next();
+            assertThat(rs.getInt(1))
+                    .as("Flyway must have applied the identity_and_reference migration")
+                    .isEqualTo(1);
+        }
     }
 }

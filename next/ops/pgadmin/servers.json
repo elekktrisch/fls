@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "FLS Target Postgres",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "fls",
+      "Username": "fls",
+      "SSLMode": "prefer",
+      "Comment": "Target stack used by next/server/ Flyway migrations. Connect through the Docker network — 'postgres' resolves via compose service discovery."
+    }
+  }
+}
