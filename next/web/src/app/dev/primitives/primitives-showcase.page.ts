@@ -84,8 +84,19 @@ const COUNTRIES: readonly AfSelectOption<string>[] = [
 
       <section>
         <h2>Molecules</h2>
-        <af-form-field label="Email" [errors]="emailControl.errors" [required]="true">
-          <input class="af-input" [formControl]="emailControl" type="email" autocomplete="email" />
+        <af-form-field
+          label="Email"
+          for="emailField"
+          [errors]="emailControl.errors"
+          [required]="true"
+        >
+          <input
+            id="emailField"
+            class="af-input"
+            [formControl]="emailControl"
+            type="email"
+            autocomplete="email"
+          />
         </af-form-field>
         <af-field-errors [errors]="emailControl.errors" />
       </section>

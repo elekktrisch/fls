@@ -2,21 +2,14 @@ import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
-  TemplateRef,
   contentChild,
   input,
   output,
+  type TemplateRef,
 } from '@angular/core';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzPaginationModule } from 'ng-zorro-antd/pagination';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
-
-export type SortDirection = 'asc' | 'desc' | null;
-
-export interface SortChange<T> {
-  readonly key: keyof T & string;
-  readonly direction: SortDirection;
-}
 
 export interface PageChange {
   readonly page: number;
@@ -53,7 +46,7 @@ export interface PageChange {
       <nz-empty />
     } @else {
       <ul role="list" class="af-list">
-        @for (item of items(); track trackBy()(0, item)) {
+        @for (item of items(); track item) {
           <li class="af-list-item">
             <div class="af-list-primary">
               @if (primary(); as tpl) {
@@ -149,13 +142,11 @@ export class AfDataTableComponent<T> {
   readonly loading = input<boolean>(false);
   readonly virtualScroll = input<boolean>(false);
   readonly showPagination = input<boolean>(false);
-  readonly trackBy = input<(_: number, item: T) => unknown>((_, item) => item);
 
   readonly primary = contentChild<TemplateRef<{ $implicit: T }>>('primary');
   readonly secondary = contentChild<TemplateRef<{ $implicit: T }>>('secondary');
   readonly meta = contentChild<TemplateRef<{ $implicit: T }>>('meta');
 
-  readonly sortChange = output<SortChange<T>>();
   readonly pageChange = output<PageChange>();
 
   protected onPageIndexChange(page: number): void {

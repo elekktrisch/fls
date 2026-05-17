@@ -5,6 +5,7 @@ epic: E-01
 status: in_progress
 started_at: 2026-05-17
 github_issue: 54
+github_pr: 55
 depends_on: [S-002]
 acceptance:
   - Component primitives are sourced from **ng-zorro-antd** (chosen 2026-05-17) paired with **Tailwind v4 design tokens**; thin `af-*` wrappers live under `next/web/src/app/shared/ui/`.

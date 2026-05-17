@@ -127,14 +127,20 @@ export class AfAutocompleteComponent<
 
   protected filterOption = (
     input: string,
-    option: { nzLabel: string | number | null },
+    option: { nzValue: unknown; nzLabel: string | number | null },
   ): boolean => {
     const q = input.trim().toLowerCase();
     if (!q) return true;
-    if (typeof option.nzLabel === 'string' && option.nzLabel.toLowerCase().includes(q)) {
-      return true;
+    const item = this.items().find((it) => String(it.id) === String(option.nzValue));
+    if (item) {
+      for (const field of this.searchFields()) {
+        const value = item[field];
+        if (typeof value === 'string' && value.toLowerCase().includes(q)) {
+          return true;
+        }
+      }
     }
-    return false;
+    return typeof option.nzLabel === 'string' && option.nzLabel.toLowerCase().includes(q);
   };
 
   protected onOpenChange(open: boolean): void {
@@ -146,11 +152,13 @@ export class AfAutocompleteComponent<
     if (id === null) {
       this.value.set(null);
       this.onChange(null);
+      this.onTouched();
       return;
     }
     const picked = this.items().find((item) => String(item.id) === id) ?? null;
     this.value.set(picked);
     this.onChange(picked);
+    this.onTouched();
     if (picked && this.recent()) {
       this.#recency.record(this.primitiveKey(), String(picked.id));
     }
