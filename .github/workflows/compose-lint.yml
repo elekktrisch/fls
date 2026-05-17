@@ -1,0 +1,32 @@
+name: compose-lint
+
+on:
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+      - 'next/ops/**'
+      - '.github/workflows/compose-lint.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docker-compose.yml'
+      - 'next/ops/**'
+      - '.github/workflows/compose-lint.yml'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker compose version
+        run: docker compose version
+
+      - name: compose config parses (default profile)
+        run: docker compose -f docker-compose.yml config -q
+
+      - name: compose config parses (--profile next)
+        run: docker compose -f docker-compose.yml --profile next config -q
+
+      - name: every new-stack service declares a healthcheck
+        run: bash next/ops/lint-compose.sh
