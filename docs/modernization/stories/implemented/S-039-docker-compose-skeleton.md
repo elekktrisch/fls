@@ -5,6 +5,8 @@ epic: E-05
 status: done
 started_at: 2026-05-17
 done_at: 2026-05-17
+merged: true
+merged_at: 2026-05-17
 depends_on: []
 acceptance:
   - `docker compose -p fls-e2e -f docker-compose.yml --profile next up -d --wait` brings Postgres 17 + pgAdmin + Keycloak (no realm yet, see S-019) + the shared mailpit healthy on a dev laptop in ≤ 90s cold / ≤ 30s warm.
@@ -25,6 +27,14 @@ refined_speculative: true
 refined_speculative_at: 2026-05-15
 github_issue: 46
 github_pr: 47
+reviewed: true
+reviewed_at: 2026-05-17
+review_outcome: pass
+review_blockers: 0
+review_improvements: 0
+review_nudges: 0
+review_parity_oracle: "N/A — parity_test: none"
+review_reviewers: [maintainability]
 ---
 
 ## Context
@@ -572,6 +582,22 @@ N/A — no ORM in this story.
    - Compose doesn't restart on health regression; K8s does when S-046 lands. If SLO bites before, add `willfarrell/autoheal` sidecar. Flag, don't fix.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+Operator directive 2026-05-17: skipped the formal `/modernize-review` phase. Rationale — infrastructure-only story, `parity_test: none`, no frontend surface, no app code changed; the implement-step self-review covered the remaining (maintainability) dimension.
+
+**Self-review at implement Step 7** (`maintainability-reviewer`, blockers-only, scoped to commits `c215fbb..d1f9a3e`):
+
+- Verdict: `(none verified)`.
+- One conditional concern: Keycloak `/dev/tcp` healthcheck portability — **resolved** by green `compose-smoke` CI run on the same diff.
+
+Reviewers skipped (with reason):
+
+- `parity-reviewer` — N/A (`parity_test: none`; legacy is .NET/IIS, no oracle).
+- `security-reviewer` — N/A for new app code; dev-stack creds are weak-by-design with loopback-only binds, documented in `next/ops/README.md`.
+- `usability-reviewer` — N/A (no frontend diff).
+- `tech-writer-reviewer` — covered by the implement self-review (the diff is mostly README + workflow YAML).
 
 ## Notes
 This story may precede S-001 in calendar time if a contributor wants to bring up the DB + IdP before writing app code — the dependency arrow in the graph is "no hard dep." But in _ORDER.md it sequences after foundational stories.
