@@ -433,30 +433,30 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
+    /**
+     * Positive assertion of the email-shape CHECK retentions (ADR 0022
+     * directive 2 input-shape defense-in-depth carve-out). Each retained
+     * constraint carries a `ADR 0022 retained: …` COMMENT marker — the
+     * marker-based denylist allowlist in MigrationFolderConventionsTest
+     * pairs the CHECK literal with the COMMENT.
+     */
     @Test
-    void person_email_check_constraint_present() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                                + "WHERE conrelid = 'person'::regclass AND contype = 'c'")) {
-            List<String> defs = new ArrayList<>();
-            while (rs.next()) defs.add(rs.getString(1));
-            assertThat(defs)
-                    .as("person.email_private/business must carry a LIKE/regex sanity check")
-                    .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("email"));
-        }
-    }
-
-    @Test
-    void person_birthday_check_not_in_future() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                                + "WHERE conrelid = 'person'::regclass AND contype = 'c'")) {
-            List<String> defs = new ArrayList<>();
-            while (rs.next()) defs.add(rs.getString(1));
-            assertThat(defs).anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("birthday")
-                    && d.toLowerCase(Locale.ROOT).contains("current_date"));
+    void person_email_shape_checks_retained_with_adr_0022_marker() throws Exception {
+        for (String name : List.of("ck_person_email_private_shape", "ck_person_email_business_shape")) {
+            try (Connection conn = dataSource.getConnection();
+                    var s = conn.prepareStatement(
+                            "SELECT pg_get_constraintdef(c.oid), obj_description(c.oid, 'pg_constraint') "
+                                    + "FROM pg_constraint c WHERE c.conname = ?")) {
+                s.setString(1, name);
+                try (ResultSet rs = s.executeQuery()) {
+                    assertThat(rs.next()).as("retained CHECK %s must exist", name).isTrue();
+                    assertThat(rs.getString(1)).containsIgnoringCase("email");
+                    assertThat(rs.getString(2))
+                            .as("%s must carry `ADR 0022 retained: …` COMMENT marker", name)
+                            .isNotNull()
+                            .containsIgnoringCase("ADR 0022 retained");
+                }
+            }
         }
     }
 

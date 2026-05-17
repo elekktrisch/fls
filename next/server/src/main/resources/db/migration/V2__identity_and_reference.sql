@@ -83,9 +83,10 @@ CREATE TABLE country (
     iso2_code   CHAR(2)      NOT NULL,
     iso3_code   CHAR(3)      NOT NULL,
     name        VARCHAR(100) NOT NULL,
-    full_name   VARCHAR(250),
-    CONSTRAINT ck_country_iso2_upper CHECK (upper(iso2_code) = iso2_code),
-    CONSTRAINT ck_country_iso3_upper CHECK (upper(iso3_code) = iso3_code)
+    full_name   VARCHAR(250)
+    -- ck_country_iso2_upper / ck_country_iso3_upper removed per ADR 0022
+    -- directive 2: case enforcement is a value-object invariant
+    -- (Country.iso2Code() / iso3Code() constructor).
 );
 CREATE UNIQUE INDEX ux_country_iso2 ON country (iso2_code);
 CREATE UNIQUE INDEX ux_country_iso3 ON country (iso3_code);
@@ -93,8 +94,9 @@ CREATE UNIQUE INDEX ux_country_iso3 ON country (iso3_code);
 CREATE TABLE language (
     id          UUID         NOT NULL PRIMARY KEY,
     code        VARCHAR(10)  NOT NULL,
-    name        VARCHAR(50)  NOT NULL,
-    CONSTRAINT ck_language_bcp47 CHECK (code ~ '^[a-z]{2,3}(-[A-Z]{2})?$')
+    name        VARCHAR(50)  NOT NULL
+    -- ck_language_bcp47 removed per ADR 0022 directive 2: BCP-47 format
+    -- enforcement is a value-object invariant (Language.code()) at S-022.
 );
 CREATE UNIQUE INDEX ux_language_code ON language (code);
 
@@ -254,13 +256,19 @@ CREATE TABLE person (
     deleted_on                          TIMESTAMPTZ,
     deleted_by_user_id                  UUID,
     CONSTRAINT fk_person_country_id FOREIGN KEY (country_id) REFERENCES country (id) ON DELETE SET NULL,
-    CONSTRAINT ck_person_birthday_not_future
-        CHECK (birthday IS NULL OR birthday <= CURRENT_DATE),
+    -- ck_person_birthday_not_future removed per ADR 0022 directive 2:
+    -- date-bound sanity check is a value-object invariant (Birthday VO at S-022).
     CONSTRAINT ck_person_email_private_shape
         CHECK (email_private IS NULL OR email_private LIKE '%_@_%._%'),
     CONSTRAINT ck_person_email_business_shape
         CHECK (email_business IS NULL OR email_business LIKE '%_@_%._%')
 );
+COMMENT ON CONSTRAINT ck_person_email_private_shape ON person IS
+    'ADR 0022 retained: input-shape defense-in-depth (a malformed e-mail bypasses '
+    'the Email value-object only via direct SQL; cheap belt-and-braces guard).';
+COMMENT ON CONSTRAINT ck_person_email_business_shape ON person IS
+    'ADR 0022 retained: input-shape defense-in-depth — pairs with the private '
+    'e-mail shape check; same rationale.';
 CREATE INDEX ix_person_name ON person (lastname, firstname);
 CREATE INDEX ix_person_email_priv_lower
     ON person (lower(email_private))

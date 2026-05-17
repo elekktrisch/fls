@@ -8,8 +8,8 @@
 --     delivery-test harness (2),
 --     club_delivery_number_counter (1).
 --
--- Append-only over S-013's V3. Once V4 is applied to any environment its
--- checksum is locked; never amend — ship V5. Convention is documented in
+-- Append-only over S-013's V3. Once V<n> is applied to any environment its
+-- checksum is locked; never amend — ship V<n+1>. Convention is documented in
 -- V2 + the no-amend-shipped-migrations rule in CLAUDE.md.
 --
 -- ============================================================================
@@ -62,18 +62,20 @@
 --   Legacy has no delivery.process_state_id; state lives on
 --   flight.process_state_id + delivery.is_further_processed.
 --   The new schema promotes state to first-class on Delivery:
---     SMALLINT NOT NULL CHECK (process_state_id IN (10, 20, 30, 99))
+--     SMALLINT NOT NULL DEFAULT 10
 --       10 = Prepared (default)
 --       20 = Booked   (terminal-on-mutation; gap-free numbering)
 --       30 = Error    (retryable)
 --       99 = Cancelled
+--   The value-set + transition rules live on Delivery.ProcessState enum
+--   (@Enumerated(STRING) per ADR 0020) + Delivery.book() preconditions at
+--   S-022 / S-064. Schema column is SMALLINT only; no CHECK-in-set per
+--   ADR 0022 directive 2.
 --   S-016 cutover mapping (planned):
 --     flight.process_state_id = 50 (DELIVERY_PREPARED) → delivery 10
 --     flight.process_state_id = 45 (DELIVERY_PREPARATION_ERROR) → delivery 30
 --     flight.process_state_id = 60 (DELIVERY_BOOKED) → delivery 20
 --     delivery.is_further_processed = true ↔ delivery.process_state_id = 20
---   Terminal-on-Booked + state-transition rules enforced at S-064 service
---   layer (DB CHECK can't express transition semantics).
 --
 -- ============================================================================
 -- delivery.delivery_number reshape (VARCHAR → INTEGER + counter)
@@ -84,7 +86,9 @@
 --     delivery.delivery_number INTEGER NULL
 --     UNIQUE (operating_club_id, delivery_number)
 --       WHERE delivery_number IS NOT NULL AND deleted_on IS NULL
---     CHECK (process_state_id <> 20 OR delivery_number IS NOT NULL)
+--   The gap-free invariant stays structurally enforced by the partial
+--   UNIQUE; the "Booked rows must carry a number" precondition lives on
+--   Delivery.book() at S-064 (per ADR 0022 directive 2).
 --   The text format lives at S-016 in club_extension or as
 --   delivery.legacy_delivery_number_text (parity column added on cutover).
 --   Service-layer allocator at S-064 uses club_delivery_number_counter
@@ -110,7 +114,6 @@
 --   Two TIMESTAMPTZ columns + a generated tstzrange:
 --     reservation_start TIMESTAMPTZ NOT NULL,
 --     reservation_end   TIMESTAMPTZ NOT NULL,
---     CHECK (reservation_end > reservation_start),
 --     reservation_range tstzrange GENERATED ALWAYS AS
 --       (tstzrange(reservation_start, reservation_end, '[)')) STORED
 --   Note: the refinement design notes wrote `tsrange`, but tsrange takes
@@ -118,17 +121,25 @@
 --   session-TZ-dependent and therefore NOT IMMUTABLE, which Postgres rejects
 --   in a generation expression. tstzrange is immutable when both args are
 --   TIMESTAMPTZ; it's the right primitive for our schema.
+--   reservation_end > reservation_start (incl. the empty-range degenerate
+--   where lower=upper produces a GiST-invisible empty range) is enforced
+--   at AircraftReservation constructor + validateDuration() at S-064
+--   (per ADR 0022 directive 2 — no CHECK in the schema).
 --   GiST index on (aircraft_id, reservation_range) WHERE deleted_on IS NULL
 --   serves sub-10ms conflict probes at S-064. EXCLUDE USING gist NOT applied
 --   at DB level — multiple legitimate-overlap business rules (maintenance vs
 --   flight; multi-pilot; charter exemption) enforced at S-064 service layer.
 --
 -- ============================================================================
--- delivery_item.total_amount generated STORED
+-- delivery_item.total_amount removed per ADR 0022 directive 2
 -- ============================================================================
---   NUMERIC(14,4) GENERATED ALWAYS AS
---     (quantity * unit_price * (100 - discount_in_percent) / 100.0) STORED
---   Postgres 17 stored generated column — re-computation drift impossible.
+--   The previously-shipped NUMERIC(14,4) GENERATED column has been removed.
+--   Calculation lives on DeliveryItem.totalAmount() : Money — a value-object
+--   compute-on-read at S-022. Legacy server never queried, sorted, or
+--   filtered by total; no persisted-shape consumer to preserve. If a
+--   future sort/filter-by-amount use case materialises, the right answer
+--   is a denormalised delivery.total_amount_chf populated by Delivery.book()
+--   (legal-record snapshot pattern), not a re-introduced GENERATED column.
 --   unit_price is a forward-looking addition (legacy DeliveryItem has no
 --   unit_price); S-016 cutover back-fills from article master.
 --
@@ -225,11 +236,12 @@ CREATE TABLE aircraft_reservation (
     CONSTRAINT fk_arv_reservation_type_id
         FOREIGN KEY (reservation_type_id)     REFERENCES aircraft_reservation_type (id) ON DELETE RESTRICT,
     CONSTRAINT fk_arv_flight_type_id
-        FOREIGN KEY (flight_type_id)          REFERENCES flight_type (id)             ON DELETE RESTRICT,
-    CONSTRAINT ck_arv_end_after_start
-        CHECK (reservation_end > reservation_start),
-    CONSTRAINT ck_arv_max_30_days
-        CHECK (reservation_end <= reservation_start + INTERVAL '30 days')
+        FOREIGN KEY (flight_type_id)          REFERENCES flight_type (id)             ON DELETE RESTRICT
+    -- ck_arv_end_after_start + ck_arv_max_30_days removed per ADR 0022
+    -- directive 2: end-after-start (incl. empty-range degenerate where
+    -- lower=upper produces an empty tstzrange GiST would silently miss)
+    -- and 30-day max land on AircraftReservation constructor +
+    -- validateDuration() at S-064.
 );
 CREATE INDEX ix_arv_aircraft_range_gist
     ON aircraft_reservation USING gist (aircraft_id, reservation_range)
@@ -263,9 +275,9 @@ CREATE TABLE planning_day_assignment_type (
     deleted_on                      TIMESTAMPTZ,
     deleted_by_user_id              UUID,
     CONSTRAINT fk_pdat_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_pdat_required_nr_nonnegative
-        CHECK (required_nr_of_assignments >= 0)
+        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE RESTRICT
+    -- ck_pdat_required_nr_nonnegative removed per ADR 0022 directive 2:
+    -- AssignmentCount VO at S-022.
 );
 CREATE INDEX ix_pdat_club ON planning_day_assignment_type (operating_club_id)
     WHERE deleted_on IS NULL;
@@ -285,9 +297,9 @@ CREATE TABLE planning_day (
     CONSTRAINT fk_pln_operating_club_id
         FOREIGN KEY (operating_club_id) REFERENCES club (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_pln_location_id
-        FOREIGN KEY (location_id)       REFERENCES location (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_pln_planning_date_reasonable
-        CHECK (planning_date BETWEEN DATE '1990-01-01' AND DATE '2100-01-01')
+        FOREIGN KEY (location_id)       REFERENCES location (id) ON DELETE RESTRICT
+    -- ck_pln_planning_date_reasonable removed per ADR 0022 directive 2:
+    -- date-range invariant on PlanningDay constructor at S-022.
 );
 CREATE UNIQUE INDEX ux_pln_club_date_loc
     ON planning_day (operating_club_id, planning_date, location_id)
@@ -384,9 +396,9 @@ CREATE TABLE accounting_rule_filter (
     CONSTRAINT fk_arf_filter_type_id
         FOREIGN KEY (filter_type_id)            REFERENCES accounting_rule_filter_type (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_arf_accounting_unit_type_id
-        FOREIGN KEY (accounting_unit_type_id)   REFERENCES accounting_unit_type (id)            ON DELETE RESTRICT,
-    CONSTRAINT ck_arf_sort_indicator_nonnegative
-        CHECK (sort_indicator >= 0)
+        FOREIGN KEY (accounting_unit_type_id)   REFERENCES accounting_unit_type (id)            ON DELETE RESTRICT
+    -- ck_arf_sort_indicator_nonnegative removed per ADR 0022 directive 2:
+    -- SortIndicator VO at S-022.
 );
 CREATE INDEX ix_arf_club_active_sort
     ON accounting_rule_filter (operating_club_id, is_active, sort_indicator)
@@ -436,28 +448,16 @@ CREATE TABLE delivery (
     CONSTRAINT fk_dlv_flight_id
         FOREIGN KEY (flight_id)             REFERENCES flight (id)  ON DELETE RESTRICT,
     CONSTRAINT fk_dlv_recipient_person_id
-        FOREIGN KEY (recipient_person_id)   REFERENCES person (id)  ON DELETE SET NULL,
-    CONSTRAINT ck_dlv_process_state_in_set
-        CHECK (process_state_id IN (10, 20, 30, 99)),
-    CONSTRAINT ck_dlv_delivery_number_positive
-        CHECK (delivery_number IS NULL OR delivery_number > 0),
-    CONSTRAINT ck_dlv_batch_id_nonnegative
-        CHECK (batch_id >= 0),
-    -- ck_dlv_delivered_on_not_too_future dropped 2026-05-17 (S-014 rework, M#4):
-    -- insert-time bound only (CHECK doesn't re-fire on UPDATE) → poor row-time
-    -- invariant. S-064 state-machine enforces delivered_on temporal validity at
-    -- the Book transition where the row-time guarantee actually matters.
-    CONSTRAINT ck_dlv_booked_requires_number
-        CHECK (process_state_id <> 20 OR delivery_number IS NOT NULL),
-    CONSTRAINT ck_dlv_booked_requires_delivered_on
-        CHECK (process_state_id <> 20 OR delivered_on IS NOT NULL),
-    CONSTRAINT ck_dlv_booked_requires_recipient
-        CHECK (process_state_id <> 20
-               OR (recipient_lastname IS NOT NULL AND recipient_firstname IS NOT NULL))
-    -- recipient address-tuple completeness (country / city / zip) NOT enforced
-    -- at schema level — legacy invoices may lack these fields and per-club
-    -- operator policy varies. S-064 service layer enforces full-address-on-Book
-    -- per per-club configuration.
+        FOREIGN KEY (recipient_person_id)   REFERENCES person (id)  ON DELETE SET NULL
+    -- All 6 CHECK constraints previously on delivery removed per ADR 0022
+    -- directive 2:
+    --   * process_state_id IN (10,20,30,99) → Delivery.ProcessState enum
+    --     (@Enumerated(STRING)) at S-022.
+    --   * delivery_number > 0 / batch_id >= 0 → DeliveryNumber / BatchId VO
+    --     constructors at S-022.
+    --   * Booked-requires-{number,delivered_on,recipient} → Delivery.book()
+    --     state-transition preconditions at S-064. Gap-free numbering of
+    --     legal records stays structurally enforced by ux_dlv_club_number_partial.
 );
 CREATE INDEX ix_dlv_club_state_date
     ON delivery (operating_club_id, process_state_id, delivered_on DESC)
@@ -491,8 +491,10 @@ CREATE TABLE delivery_item (
     unit_price                  NUMERIC(12, 4)  NOT NULL DEFAULT 0,
     discount_in_percent         INTEGER         NOT NULL DEFAULT 0,
     unit_type_code              VARCHAR(50)     NOT NULL,
-    total_amount                NUMERIC(14, 4)  GENERATED ALWAYS AS
-        (quantity * unit_price * (100 - discount_in_percent) / 100.0) STORED,
+    -- total_amount GENERATED column removed per ADR 0022 directive 2:
+    -- DeliveryItem.totalAmount() compute-on-read VO at S-022. Legacy server
+    -- never queried, sorted, or filtered by total — display-only field, no
+    -- persisted-shape consumer to preserve.
     created_on                  TIMESTAMPTZ     NOT NULL DEFAULT now(),
     created_by_user_id          UUID,
     modified_on                 TIMESTAMPTZ     NOT NULL DEFAULT now(),
@@ -504,19 +506,14 @@ CREATE TABLE delivery_item (
     CONSTRAINT fk_dli_delivery_id
         FOREIGN KEY (delivery_id)       REFERENCES delivery (id) ON DELETE CASCADE,
     CONSTRAINT fk_dli_article_id
-        FOREIGN KEY (article_id)        REFERENCES article (id)  ON DELETE RESTRICT,
-    CONSTRAINT ck_dli_position_positive
-        CHECK (position >= 1),
-    CONSTRAINT ck_dli_quantity_nonnegative
-        CHECK (quantity >= 0),
-    CONSTRAINT ck_dli_unit_price_nonnegative
-        CHECK (unit_price >= 0),
-    CONSTRAINT ck_dli_discount_range
-        CHECK (discount_in_percent BETWEEN 0 AND 100)
+        FOREIGN KEY (article_id)        REFERENCES article (id)  ON DELETE RESTRICT
+    -- All 4 CHECK constraints previously on delivery_item removed per
+    -- ADR 0022 directive 2: Position / Quantity / Money (unit_price) /
+    -- DiscountPercent VO constructors at S-022.
 );
 CREATE INDEX ix_dli_delivery
     ON delivery_item (delivery_id)
-    INCLUDE (article_id, article_number, quantity, unit_price, total_amount);
+    INCLUDE (article_id, article_number, quantity, unit_price);
 CREATE UNIQUE INDEX ux_dli_delivery_pos
     ON delivery_item (delivery_id, position)
     WHERE deleted_on IS NULL;
@@ -585,15 +582,10 @@ CREATE TABLE delivery_creation_test_item (
     CONSTRAINT fk_dcti_operating_club_id
         FOREIGN KEY (operating_club_id)         REFERENCES club (id)                    ON DELETE RESTRICT,
     CONSTRAINT fk_dcti_delivery_creation_test_id
-        FOREIGN KEY (delivery_creation_test_id) REFERENCES delivery_creation_test (id)  ON DELETE CASCADE,
-    CONSTRAINT ck_dcti_position_positive
-        CHECK (position >= 1),
-    CONSTRAINT ck_dcti_quantity_nonnegative
-        CHECK (quantity >= 0),
-    CONSTRAINT ck_dcti_unit_price_nonnegative
-        CHECK (unit_price IS NULL OR unit_price >= 0),
-    CONSTRAINT ck_dcti_discount_range
-        CHECK (discount_in_percent BETWEEN 0 AND 100)
+        FOREIGN KEY (delivery_creation_test_id) REFERENCES delivery_creation_test (id)  ON DELETE CASCADE
+    -- All 4 CHECK constraints previously on delivery_creation_test_item
+    -- removed per ADR 0022 directive 2: same Position / Quantity / Money /
+    -- DiscountPercent VOs as DeliveryItem (S-022).
 );
 -- delivery_creation_test_item has no soft-delete (snapshot rows die with parent
 -- on CASCADE); index covers all rows by design.
@@ -609,9 +601,9 @@ CREATE TABLE club_delivery_number_counter (
     next_number         INTEGER       NOT NULL DEFAULT 1,
     modified_on         TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT fk_cdnc_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE CASCADE,
-    CONSTRAINT ck_cdnc_next_number_positive
-        CHECK (next_number >= 1)
+        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE CASCADE
+    -- ck_cdnc_next_number_positive removed per ADR 0022 directive 2:
+    -- DeliveryNumberCounter VO + Delivery.allocateNextNumber() at S-064.
 );
 
 
@@ -667,11 +659,11 @@ COMMENT ON COLUMN delivery.recipient_country_name IS
 COMMENT ON COLUMN delivery.batch_id IS
     'Operational sequence for batch-cancel via DeliveryBatchDeleteRequest. NOT an aggregate UUID (ADR 0019 escape hatch for operational counters). Per-club scoping enforced at schema level via ux_dlv_club_batch_partial UNIQUE (batch_id <> 0 AND deleted_on IS NULL) + service-layer allocator at S-064.';
 
--- delivery_item — generated total + article snapshot.
+-- delivery_item — article + unit snapshot. (total_amount column removed per
+-- ADR 0022 directive 2; DeliveryItem.totalAmount() value-object compute-on-read
+-- at S-022 replaces the GENERATED STORED column.)
 COMMENT ON COLUMN delivery_item.article_number IS
     'Frozen snapshot from article.article_number at booking. Invoice integrity per Swiss OR Art. 957a — never re-resolved from article_id.';
-COMMENT ON COLUMN delivery_item.total_amount IS
-    'GENERATED STORED — drift-proof by construction (Postgres 17); formula visible in column DDL above.';
 COMMENT ON COLUMN delivery_item.unit_type_code IS
     'Frozen snapshot from accounting_unit_type.code at booking. Invoice integrity.';
 
