@@ -1008,6 +1008,93 @@ class ReservationsBaselineIntegrationTest {
     }
 
     // ============================================================================
+    // ADR 0022 directive 2 — schema-wide post-conditions across V1-V4 baseline.
+    // Business-logic CHECKs dropped in place (no V5 needed); only the explicitly
+    // retained set survives (named + paired with COMMENT ON CONSTRAINT marker).
+    // delivery_item.total_amount GENERATED column dropped; ix_dli_delivery
+    // re-created without total_amount in INCLUDE.
+    // ============================================================================
+
+    /** The 3 CHECK constraints explicitly retained as ADR 0022 deviations. */
+    private static final Set<String> RETAINED_BUSINESS_LOGIC_CHECKS = Set.of(
+            "ck_person_email_private",
+            "ck_person_email_business",
+            "ck_aircraft_spot_link_https");
+
+    @Test
+    void no_business_logic_check_constraints_in_baseline_schema() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT conrelid::regclass::text AS tbl, conname "
+                                + "FROM pg_constraint "
+                                + "WHERE contype = 'c' "
+                                + "  AND connamespace = 'public'::regnamespace "
+                                + "ORDER BY tbl, conname")) {
+            List<String> unexpected = new ArrayList<>();
+            while (rs.next()) {
+                String name = rs.getString("conname");
+                if (RETAINED_BUSINESS_LOGIC_CHECKS.contains(name)) continue;
+                unexpected.add(rs.getString("tbl") + "." + name);
+            }
+            assertThat(unexpected)
+                    .as("Schema must carry only the 3 retained CHECKs (email_private, email_business,"
+                            + " spot_link_https); business-logic CHECKs migrated to aggregates per"
+                            + " ADR 0022 directive 2")
+                    .isEmpty();
+        }
+    }
+
+    @Test
+    void retained_checks_carry_adr_0022_retention_comment() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            for (String name : RETAINED_BUSINESS_LOGIC_CHECKS) {
+                try (var s = conn.prepareStatement(
+                        "SELECT obj_description(c.oid, 'pg_constraint') "
+                                + "FROM pg_constraint c WHERE c.conname = ?")) {
+                    s.setString(1, name);
+                    try (ResultSet rs = s.executeQuery()) {
+                        assertThat(rs.next()).as("retained constraint %s must exist", name).isTrue();
+                        String comment = rs.getString(1);
+                        assertThat(comment)
+                                .as("constraint %s must carry an `ADR 0022 retained: …` COMMENT marker", name)
+                                .isNotNull()
+                                .containsIgnoringCase("ADR 0022 retained");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void delivery_item_total_amount_column_absent_after_baseline() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT 1 FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name='delivery_item' "
+                                + "AND column_name='total_amount'")) {
+            assertThat(rs.next())
+                    .as("delivery_item.total_amount must not exist — calculation moves to"
+                            + " DeliveryItem.totalAmount() at S-022")
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void ix_dli_delivery_does_not_include_total_amount_after_baseline() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT indexdef FROM pg_indexes "
+                                + "WHERE schemaname='public' AND tablename='delivery_item' "
+                                + "AND indexname='ix_dli_delivery'")) {
+            assertThat(rs.next()).as("ix_dli_delivery must still exist").isTrue();
+            String def = rs.getString(1);
+            assertThat(def.toLowerCase(Locale.ROOT))
+                    .as("ix_dli_delivery INCLUDE clause must not reference total_amount")
+                    .doesNotContain("total_amount");
+        }
+    }
+
+    // ============================================================================
     // Helpers
     // ============================================================================
 

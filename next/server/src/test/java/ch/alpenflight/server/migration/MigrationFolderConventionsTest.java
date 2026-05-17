@@ -10,7 +10,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -151,6 +154,81 @@ class MigrationFolderConventionsTest {
         assertThat(stripped)
                 .as("V1__baseline.sql must contain at least one non-comment, non-whitespace token")
                 .isNotEmpty();
+    }
+
+    /**
+     * ADR 0022 directive 2 — business logic lives on aggregates, not the schema.
+     * CHECK constraints encoding state-machine values, numeric ranges,
+     * required-when-state-X guards, and operational sanity caps belong in the
+     * domain layer (value-object constructors + aggregate methods).
+     *
+     * <p>This test scans every migration's SQL for {@code CHECK (...)} clauses
+     * and fails on any that aren't paired with an explicit retain marker:
+     * a {@code COMMENT ON CONSTRAINT ck_name ON table IS '%ADR 0022 retained%'}
+     * statement somewhere in the same file. Anonymous CHECK clauses are
+     * always violations — retention requires a name to allow-list.
+     *
+     * <p>No filename grandfather; V1+ all play by the same rule.
+     */
+    @Test
+    void no_business_logic_check_constraints_in_migrations() throws IOException {
+        Pattern checkClause = Pattern.compile("\\bCHECK\\s*\\(", Pattern.CASE_INSENSITIVE);
+        Pattern namedCheck = Pattern.compile(
+                "CONSTRAINT\\s+(ck_\\w+)\\s+CHECK\\s*\\(",
+                Pattern.CASE_INSENSITIVE);
+        Pattern retainMarker = Pattern.compile(
+                "COMMENT\\s+ON\\s+CONSTRAINT\\s+(ck_\\w+)\\s+ON\\s+\\w+\\s+IS\\s+'[^']*ADR\\s+0022\\s+retained[^']*'",
+                Pattern.CASE_INSENSITIVE);
+
+        var violations = new ArrayList<String>();
+        for (Path m : listMigrations()) {
+            String stripped = Files.readString(m, StandardCharsets.UTF_8)
+                    .replaceAll("(?m)--[^\\n]*", "");
+
+            Set<String> retained = new HashSet<>();
+            Matcher rm = retainMarker.matcher(stripped);
+            while (rm.find()) retained.add(rm.group(1).toLowerCase(java.util.Locale.ROOT));
+
+            Set<Integer> allowedCheckStarts = new HashSet<>();
+            Matcher nc = namedCheck.matcher(stripped);
+            while (nc.find()) {
+                if (retained.contains(nc.group(1).toLowerCase(java.util.Locale.ROOT))) {
+                    int checkStart = stripped.indexOf("CHECK", nc.start());
+                    if (checkStart < 0) {
+                        // Case-insensitive scan — fall back to lowercase index.
+                        checkStart = stripped.toLowerCase(java.util.Locale.ROOT).indexOf("check", nc.start());
+                    }
+                    allowedCheckStarts.add(checkStart);
+                }
+            }
+
+            Matcher any = checkClause.matcher(stripped);
+            while (any.find()) {
+                if (allowedCheckStarts.contains(any.start())) continue;
+                int line = (int) stripped.substring(0, any.start()).chars().filter(c -> c == '\n').count() + 1;
+                violations.add(m.getFileName() + ":" + line);
+            }
+        }
+
+        assertThat(violations)
+                .as("CHECK constraints in migrations must drop (ADR 0022 directive 2) or carry a"
+                        + " named CONSTRAINT + a co-located COMMENT ON CONSTRAINT ck_name ON table IS"
+                        + " '%ADR 0022 retained: ...%' rationale. Anonymous CHECK clauses are always"
+                        + " violations.")
+                .isEmpty();
+    }
+
+    @Test
+    void no_business_logic_check_constraints_test_catches_synthetic_violation() throws IOException {
+        // Sanity gate against regex bitrot: a fabricated migration containing
+        // an unguarded CHECK literal must be flagged. Inlines the assertion
+        // because the sibling test scans the real migration tree.
+        Pattern checkClause = Pattern.compile("\\bCHECK\\s*\\(", Pattern.CASE_INSENSITIVE);
+        String synthetic = "ALTER TABLE foo ADD CONSTRAINT ck_bar CHECK (x > 0);";
+        String stripped = synthetic.replaceAll("(?m)--[^\\n]*", "");
+        assertThat(checkClause.matcher(stripped).find())
+                .as("CHECK scanner must catch a synthetic violation")
+                .isTrue();
     }
 
     @Test
