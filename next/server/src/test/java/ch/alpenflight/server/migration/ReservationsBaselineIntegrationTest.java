@@ -240,7 +240,7 @@ class ReservationsBaselineIntegrationTest {
     // ============================================================================
 
     @Test
-    void delivery_process_state_id_smallint_check_in_10_20_30_99() throws Exception {
+    void delivery_process_state_id_is_smallint() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type FROM information_schema.columns "
@@ -248,43 +248,9 @@ class ReservationsBaselineIntegrationTest {
                                 + "AND column_name='process_state_id'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1))
-                    .as("delivery.process_state_id must be SMALLINT (new column reshaped from legacy)")
+                    .as("delivery.process_state_id must be SMALLINT (column reshaped from legacy);"
+                            + " allowed-value set moves to Delivery.ProcessState enum at S-022 per ADR 0022")
                     .isEqualTo("smallint");
-        }
-        List<String> checks = checkConstraintDefs("delivery");
-        assertThat(checks)
-                .as("delivery must CHECK process_state_id IN (10, 20, 30, 99)")
-                .anyMatch(d -> {
-                    String lc = d.toLowerCase(Locale.ROOT);
-                    return lc.contains("process_state_id")
-                            && lc.contains("10") && lc.contains("20") && lc.contains("30") && lc.contains("99");
-                });
-    }
-
-    /** Live provocation: process_state_id=999 must be rejected by CHECK (SQLSTATE 23514). */
-    @Test
-    void delivery_process_state_id_999_rejected_by_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String clubId = seedMinimalClub(conn, "TST_DLV1");
-                String deliveryId = newDeterministicUuid("delivery", "state_999_provoke");
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO delivery (id, operating_club_id, process_state_id) "
-                                    + "VALUES (?::uuid, ?::uuid, 999)")) {
-                        s.setString(1, deliveryId);
-                        s.setString(2, clubId);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE 23514 (check_violation) on process_state_id=999")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
         }
     }
 
@@ -363,111 +329,9 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    /** Booked deliveries (state 20) MUST carry delivery_number — CHECK enforced. */
-    @Test
-    void delivery_booked_requires_delivery_number_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String clubId = seedMinimalClub(conn, "TST_BKD");
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO delivery (id, operating_club_id, process_state_id, "
-                                    + "  recipient_lastname, recipient_firstname) "
-                                    + "VALUES (?::uuid, ?::uuid, 20, 'X', 'Y')")) {
-                        s.setString(1, newDeterministicUuid("delivery", "booked_no_number"));
-                        s.setString(2, clubId);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE 23514 — Booked requires delivery_number")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
-
-    /** Booked deliveries MUST carry recipient_lastname + recipient_firstname snapshot. */
-    @Test
-    void delivery_booked_requires_recipient_snapshot_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String clubId = seedMinimalClub(conn, "TST_RCP");
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO delivery (id, operating_club_id, process_state_id, delivery_number) "
-                                    + "VALUES (?::uuid, ?::uuid, 20, 1)")) {
-                        s.setString(1, newDeterministicUuid("delivery", "booked_no_recipient"));
-                        s.setString(2, clubId);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE 23514 — Booked requires recipient snapshot")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
-
-    /** Booked deliveries (state 20) MUST carry delivered_on per Swiss OR Art. 957a — CHECK enforced. */
-    @Test
-    void delivery_booked_requires_delivered_on_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String clubId = seedMinimalClub(conn, "TST_DON");
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO delivery (id, operating_club_id, process_state_id, "
-                                    + "  delivery_number, recipient_lastname, recipient_firstname) "
-                                    + "VALUES (?::uuid, ?::uuid, 20, 1, 'X', 'Y')")) {
-                        s.setString(1, newDeterministicUuid("delivery", "booked_no_delivered_on"));
-                        s.setString(2, clubId);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE 23514 — Booked requires delivered_on")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
-
-    /** delivery.batch_id < 0 must be rejected by CHECK. */
-    @Test
-    void delivery_batch_id_negative_rejected_by_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String clubId = seedMinimalClub(conn, "TST_BID");
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO delivery (id, operating_club_id, process_state_id, batch_id) "
-                                    + "VALUES (?::uuid, ?::uuid, 10, -1)")) {
-                        s.setString(1, newDeterministicUuid("delivery", "batch_id_negative"));
-                        s.setString(2, clubId);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE 23514 — batch_id must be >= 0")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
+    // Booked-state preconditions (delivery_number, delivered_on, recipient
+    // snapshot) + batch_id range guard moved to Delivery.book() + BatchId VO
+    // at S-064 / S-022 per ADR 0022 directive 2.
 
     /** delivery.batch_id partial UNIQUE per club: same non-zero batch_id collides; cross-club ok. */
     @Test
@@ -496,52 +360,10 @@ class ReservationsBaselineIntegrationTest {
     }
 
     // ============================================================================
-    // delivery_item money math + generated total_amount
+    // delivery_item FKs + partial UNIQUE
+    // (money-math CHECKs + generated total_amount column dropped per ADR 0022
+    // directive 2; DeliveryItem.totalAmount() compute-on-read at S-022)
     // ============================================================================
-
-    @Test
-    void delivery_item_total_amount_is_generated_always_stored() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT a.attgenerated FROM pg_attribute a "
-                                + "WHERE a.attrelid = 'delivery_item'::regclass "
-                                + "AND a.attname = 'total_amount'")) {
-            assertThat(rs.next()).as("delivery_item.total_amount must exist").isTrue();
-            assertThat(rs.getString(1))
-                    .as("delivery_item.total_amount must be GENERATED STORED ('s')")
-                    .isEqualTo("s");
-        }
-    }
-
-    @Test
-    void delivery_item_quantity_nonnegative_check() throws Exception {
-        List<String> checks = checkConstraintDefs("delivery_item");
-        assertThat(checks)
-                .as("delivery_item must CHECK quantity >= 0")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("quantity")
-                        && d.contains(">="));
-    }
-
-    @Test
-    void delivery_item_unit_price_nonnegative_check() throws Exception {
-        List<String> checks = checkConstraintDefs("delivery_item");
-        assertThat(checks)
-                .as("delivery_item must CHECK unit_price >= 0")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("unit_price")
-                        && d.contains(">="));
-    }
-
-    @Test
-    void delivery_item_discount_in_percent_range_check() throws Exception {
-        List<String> checks = checkConstraintDefs("delivery_item");
-        assertThat(checks)
-                .as("delivery_item must CHECK discount_in_percent BETWEEN 0 AND 100")
-                .anyMatch(d -> {
-                    String lc = d.toLowerCase(Locale.ROOT);
-                    return lc.contains("discount_in_percent")
-                            && lc.contains("0") && lc.contains("100");
-                });
-    }
 
     @Test
     void delivery_item_article_fk_restrict() throws Exception {
@@ -569,15 +391,9 @@ class ReservationsBaselineIntegrationTest {
     // aircraft_reservation (cross-tenant aircraft FK per amendment)
     // ============================================================================
 
-    @Test
-    void aircraft_reservation_end_after_start_check() throws Exception {
-        List<String> checks = checkConstraintDefs("aircraft_reservation");
-        assertThat(checks)
-                .as("aircraft_reservation must CHECK reservation_end > reservation_start")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("reservation_end")
-                        && d.toLowerCase(Locale.ROOT).contains("reservation_start")
-                        && d.contains(">"));
-    }
+    // end > start (incl. the empty-range degenerate where lower=upper produces
+    // a GiST-invisible empty range) lives on AircraftReservation constructor
+    // + validateDuration() at S-064 per ADR 0022 directive 2.
 
     @Test
     void aircraft_reservation_has_generated_tstzrange_column() throws Exception {
@@ -1017,8 +833,8 @@ class ReservationsBaselineIntegrationTest {
 
     /** The 3 CHECK constraints explicitly retained as ADR 0022 deviations. */
     private static final Set<String> RETAINED_BUSINESS_LOGIC_CHECKS = Set.of(
-            "ck_person_email_private",
-            "ck_person_email_business",
+            "ck_person_email_private_shape",
+            "ck_person_email_business_shape",
             "ck_aircraft_spot_link_https");
 
     @Test
@@ -1101,10 +917,6 @@ class ReservationsBaselineIntegrationTest {
     // Schema-introspection helpers live in MigrationAssertions; thin local wrappers
     // delegate so existing call sites stay compact. Future migration stories should
     // call the static helpers directly.
-
-    private List<String> checkConstraintDefs(String table) throws SQLException {
-        return MigrationAssertions.checkConstraintDefs(dataSource, table);
-    }
 
     private List<String> indexDefs(String table) throws SQLException {
         return MigrationAssertions.indexDefs(dataSource, table);

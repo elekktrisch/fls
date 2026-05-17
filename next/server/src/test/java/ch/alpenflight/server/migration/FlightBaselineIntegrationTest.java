@@ -154,9 +154,9 @@ class FlightBaselineIntegrationTest {
     /**
      * AC2 — every FK column across S-013's tables points at a `uuid` column —
      * with one deliberate exception: {@code flight.flight_aircraft_type_id}
-     * is {@code SMALLINT + CHECK} per the sparse-enum sacred cow (see
-     * {@link #flight_aircraft_type_discriminator_check_constraint_pins_sparse_enum()}),
-     * NOT a FK to a lookup table.
+     * is {@code SMALLINT} per the sparse-enum sacred cow (see
+     * {@link #flight_aircraft_type_discriminator_is_smallint()}); allowed-value
+     * set lives on the Flight aggregate enum at S-058 per ADR 0022 directive 2.
      */
     @Test
     void all_fk_columns_are_uuid() throws Exception {
@@ -196,35 +196,15 @@ class FlightBaselineIntegrationTest {
         assertFkDeleteRule("flight", "tow_flight_id", "SET NULL");
     }
 
-    /** Sacred-cow CHECK: tow_flight_id cannot equal own id (no self-pair). */
-    @Test
-    void flight_tow_flight_not_self_check_constraint_present() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .as("flight must carry a no-self-pair CHECK on tow_flight_id")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("tow_flight_id")
-                        && d.contains("<>") && d.contains("id"));
-    }
-
-    /** Sacred-cow CHECK: tow only for glider (flight_aircraft_type_id = 1). */
-    @Test
-    void flight_tow_flight_only_for_glider_check_constraint_present() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .as("flight must restrict tow_flight_id to glider flights (sparse-enum 1)")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("tow_flight_id")
-                        && d.contains("flight_aircraft_type_id")
-                        && (d.contains("= 1") || d.contains("=1")));
-    }
-
     /**
-     * Sparse-enum sacred cow: {@code flight.flight_aircraft_type_id} is
-     * {@code SMALLINT NOT NULL CHECK (IN (1, 2, 4))} per
-     * {@code FlightAircraftTypeValue.cs:5-7}. Value 3 deliberately skipped.
+     * Sparse-enum sacred cow column shape: {@code flight.flight_aircraft_type_id}
+     * stays SMALLINT (NOT a uuid FK to a lookup). Value-set + transition rules
+     * (tow ≠ self, tow only for glider, IN (1,2,4) per FlightAircraftTypeValue.cs)
+     * land on the Flight aggregate enum + Flight.linkTow() at S-058 per ADR 0022
+     * directive 2.
      */
     @Test
-    void flight_aircraft_type_discriminator_check_constraint_pins_sparse_enum() throws Exception {
-        // Pin SMALLINT.
+    void flight_aircraft_type_discriminator_is_smallint() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type FROM information_schema.columns "
@@ -235,15 +215,6 @@ class FlightBaselineIntegrationTest {
                     .as("flight_aircraft_type_id must be SMALLINT (NOT a uuid FK to a lookup)")
                     .isEqualTo("smallint");
         }
-        // Pin CHECK.
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .as("flight must CHECK flight_aircraft_type_id IN (1, 2, 4)")
-                .anyMatch(d -> {
-                    String lc = d.toLowerCase(Locale.ROOT);
-                    return lc.contains("flight_aircraft_type_id")
-                            && lc.contains("1") && lc.contains("2") && lc.contains("4");
-                });
     }
 
     @Test
@@ -350,15 +321,9 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    @Test
-    void flight_cost_balance_type_at_least_one_flag_check() throws Exception {
-        List<String> checks = checkConstraintDefs("flight_cost_balance_type");
-        assertThat(checks)
-                .as("at-least-one CHECK on {is_for_glider, is_for_tow, is_for_motor}")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("is_for_glider")
-                        && d.toLowerCase(Locale.ROOT).contains("is_for_tow")
-                        && d.toLowerCase(Locale.ROOT).contains("is_for_motor"));
-    }
+    // at-least-one-flag invariant on flight_cost_balance_type (is_for_glider /
+    // is_for_tow / is_for_motor) lives on FlightCostBalanceType aggregate
+    // constructor at S-058 per ADR 0022 directive 2.
 
     // ============================================================================
     // Aircraft cluster
@@ -465,32 +430,32 @@ class FlightBaselineIntegrationTest {
                 });
     }
 
-    @Test
-    void aircraft_check_year_of_manufacture_sane() throws Exception {
-        assertCheckPresent("aircraft", "year_of_manufacture");
-    }
+    // aircraft year_of_manufacture / mtom / nr_of_seats / flarm_id range
+    // and shape invariants live on Year / Mtom / SeatsCount / FlarmId VOs
+    // at S-058 per ADR 0022 directive 2.
 
+    /**
+     * Positive assertion of the spot_link https-only CHECK retention
+     * (ADR 0022 directive 2 A10 SSRF defense-in-depth carve-out). The
+     * named constraint carries an `ADR 0022 retained: …` COMMENT marker
+     * paired with the CHECK literal in V3.
+     */
     @Test
-    void aircraft_check_mtom_sane() throws Exception {
-        assertCheckPresent("aircraft", "mtom");
-    }
-
-    @Test
-    void aircraft_check_flarm_id_regex() throws Exception {
-        List<String> checks = checkConstraintDefs("aircraft");
-        assertThat(checks)
-                .as("aircraft.flarm_id must carry a 6-hex regex CHECK")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("flarm_id")
-                        && d.contains("~"));
-    }
-
-    @Test
-    void aircraft_check_spot_link_https_only() throws Exception {
-        List<String> checks = checkConstraintDefs("aircraft");
-        assertThat(checks)
-                .as("aircraft.spot_link must be https-only (A10 SSRF mitigation)")
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("spot_link")
-                        && d.toLowerCase(Locale.ROOT).contains("https"));
+    void aircraft_spot_link_https_check_retained_with_adr_0022_marker() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                var s = conn.prepareStatement(
+                        "SELECT pg_get_constraintdef(c.oid), obj_description(c.oid, 'pg_constraint') "
+                                + "FROM pg_constraint c WHERE c.conname = 'ck_aircraft_spot_link_https'")) {
+            try (ResultSet rs = s.executeQuery()) {
+                assertThat(rs.next()).as("ck_aircraft_spot_link_https must exist").isTrue();
+                assertThat(rs.getString(1).toLowerCase(Locale.ROOT))
+                        .contains("spot_link").contains("https");
+                assertThat(rs.getString(2))
+                        .as("ck_aircraft_spot_link_https must carry `ADR 0022 retained: …` COMMENT marker")
+                        .isNotNull()
+                        .containsIgnoringCase("ADR 0022 retained");
+            }
+        }
     }
 
     // ============================================================================
@@ -565,238 +530,13 @@ class FlightBaselineIntegrationTest {
         assertColumnNullable("club", "default_glider_with_motor_flight_type_id", "uuid");
     }
 
-    // ============================================================================
-    // Flight CHECK constraints (range / monotonic / regex)
-    // ============================================================================
-
-    @Test
-    void flight_check_ldg_on_or_after_start_present() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("ldg_date_time")
-                        && d.contains("start_date_time")
-                        && d.contains(">="));
-    }
-
-    @Test
-    void flight_check_date_within_reasonable_range() throws Exception {
-        assertCheckPresent("flight", "flight_date");
-    }
-
-    @Test
-    void flight_check_nr_of_ldgs_nonnegative() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("nr_of_ldgs")
-                        && d.contains(">="));
-    }
-
-    @Test
-    void flight_check_engine_counters_monotonic() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("engine_start_operating_counter_in_seconds")
-                        && d.toLowerCase(Locale.ROOT).contains("engine_end_operating_counter_in_seconds")
-                        && d.contains(">="));
-    }
-
-    @Test
-    void flight_check_runway_regex() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("start_runway")
-                        && d.contains("~"));
-        assertThat(checks)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("ldg_runway")
-                        && d.contains("~"));
-    }
-
-    @Test
-    void flight_check_coupon_number_regex() throws Exception {
-        List<String> checks = checkConstraintDefs("flight");
-        assertThat(checks)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains("coupon_number")
-                        && d.contains("~"));
-    }
-
-    // ============================================================================
-    // Sparse-enum provocation: SMALLINT discriminator rejects out-of-set values
-    // ============================================================================
-
-    /**
-     * Live provocation of the sparse-enum CHECK: inserting flight_aircraft_type_id=3
-     * (the deliberately-skipped value between Tow=2 and Motor=4) must fail with
-     * SQLSTATE 23514 (check_violation). Locale-independent.
-     */
-    @Test
-    void flight_aircraft_type_id_value_3_rejected_by_check_constraint() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // Seed minimal graph: club + aircraft (cross-tenant; no @TenantId at DB).
-                // Reuse Switzerland country UUID from S-012 canonical seed; aircraft_type
-                // UUID from S-013 canonical seed.
-                String chId = canonicalSeedUuid("country", "iso2", "CH");
-                String clubStateActive = canonicalSeedUuid("club_state", "code", "ACTIVE");
-                String acTypeGlider = canonicalSeedUuid("aircraft_type", "code", "GLIDER");
-                String airStateNew = canonicalSeedUuid("flight_air_state", "code", "NEW");
-                String procStateNotProcessed = canonicalSeedUuid(
-                        "flight_process_state", "code", "NOT_PROCESSED");
-
-                String clubId = "00000000-0000-7001-8000-000000000001";
-                String aircraftId = "00000000-0000-7001-8000-000000000002";
-
-                try (var s = conn.prepareStatement(
-                        "INSERT INTO club (id, clubname, club_key, country_id, club_state_id) "
-                                + "VALUES (?::uuid, 'Test Club', 'TEST_CHK', ?::uuid, ?::uuid)")) {
-                    s.setString(1, clubId);
-                    s.setString(2, chId);
-                    s.setString(3, clubStateActive);
-                    s.executeUpdate();
-                }
-                try (var s = conn.prepareStatement(
-                        "INSERT INTO aircraft (id, aircraft_type_id, immatriculation) "
-                                + "VALUES (?::uuid, ?::uuid, 'HB-CHK01')")) {
-                    s.setString(1, aircraftId);
-                    s.setString(2, acTypeGlider);
-                    s.executeUpdate();
-                }
-
-                String flightId = "00000000-0000-7001-8000-000000000003";
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO flight (id, operating_club_id, aircraft_id, "
-                                    + "  air_state_id, process_state_id, flight_aircraft_type_id) "
-                                    + "VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?::uuid, 3)")) {
-                        s.setString(1, flightId);
-                        s.setString(2, clubId);
-                        s.setString(3, aircraftId);
-                        s.setString(4, airStateNew);
-                        s.setString(5, procStateNotProcessed);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown)
-                        .as("flight_aircraft_type_id = 3 must be rejected by CHECK (sparse-enum {1,2,4})")
-                        .isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE must be 23514 (check_violation)")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
-
-    /** Live provocation: aircraft_aircraft_state.valid_to < valid_from must be rejected. */
-    @Test
-    void aircraft_aircraft_state_valid_to_before_valid_from_rejected_by_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String acTypeGlider = canonicalSeedUuid("aircraft_type", "code", "GLIDER");
-                String acStateOk    = canonicalSeedUuid("aircraft_state", "code", "OK");
-                String aircraftId   = "00000000-0000-7002-8000-000000000001";
-                String stateId      = "00000000-0000-7002-8000-000000000002";
-
-                try (var s = conn.prepareStatement(
-                        "INSERT INTO aircraft (id, aircraft_type_id, immatriculation) "
-                                + "VALUES (?::uuid, ?::uuid, 'HB-VTV01')")) {
-                    s.setString(1, aircraftId);
-                    s.setString(2, acTypeGlider);
-                    s.executeUpdate();
-                }
-
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO aircraft_aircraft_state "
-                                    + "(id, aircraft_id, aircraft_state_id, valid_from, valid_to) "
-                                    + "VALUES (?::uuid, ?::uuid, ?::uuid, "
-                                    + "        TIMESTAMPTZ '2026-05-16 12:00+00', "
-                                    + "        TIMESTAMPTZ '2026-05-16 10:00+00')")) {
-                        s.setString(1, stateId);
-                        s.setString(2, aircraftId);
-                        s.setString(3, acStateOk);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE must be 23514 (check_violation) — valid_to < valid_from")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
-
-    /** Live provocation: aircraft_operating_counter.at_date_time too far in future must be rejected. */
-    @Test
-    void aircraft_operating_counter_at_date_time_future_bound_rejected_by_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String acTypeGlider = canonicalSeedUuid("aircraft_type", "code", "GLIDER");
-                String aircraftId   = "00000000-0000-7003-8000-000000000001";
-                String counterId    = "00000000-0000-7003-8000-000000000002";
-
-                try (var s = conn.prepareStatement(
-                        "INSERT INTO aircraft (id, aircraft_type_id, immatriculation) "
-                                + "VALUES (?::uuid, ?::uuid, 'HB-AOC01')")) {
-                    s.setString(1, aircraftId);
-                    s.setString(2, acTypeGlider);
-                    s.executeUpdate();
-                }
-
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO aircraft_operating_counter "
-                                    + "(id, aircraft_id, at_date_time) "
-                                    + "VALUES (?::uuid, ?::uuid, now() + INTERVAL '30 days')")) {
-                        s.setString(1, counterId);
-                        s.setString(2, aircraftId);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE must be 23514 (check_violation) — at_date_time > now()+1d")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
-
-    /** Live provocation: location.icao_code lowercase must be rejected. */
-    @Test
-    void location_icao_code_lowercase_rejected_by_check() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                String chId         = canonicalSeedUuid("country", "iso2", "CH");
-                String locTypeGlider = canonicalSeedUuid("location_type", "code", "GLIDER_AIRFIELD");
-                String locationId   = "00000000-0000-7004-8000-000000000001";
-
-                Throwable thrown = catchThrowable(() -> {
-                    try (var s = conn.prepareStatement(
-                            "INSERT INTO location (id, location_name, country_id, location_type_id, icao_code) "
-                                    + "VALUES (?::uuid, 'Lower Speck', ?::uuid, ?::uuid, 'lszk')")) {
-                        s.setString(1, locationId);
-                        s.setString(2, chId);
-                        s.setString(3, locTypeGlider);
-                        s.executeUpdate();
-                    }
-                });
-                assertThat(thrown).isInstanceOf(SQLException.class);
-                assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE must be 23514 (check_violation) — icao_code must be uppercase")
-                        .isEqualTo("23514");
-            } finally {
-                conn.rollback();
-            }
-        }
-    }
+    // Flight invariants (ldg ≥ start ordering, flight_date sanity, nr_of_ldgs
+    // / engine-counter monotonic, runway / coupon shape regex), aircraft
+    // state ordering, operating-counter future-bound, location icao
+    // uppercase — all moved to value-objects + aggregate constructors at
+    // S-058 / S-068 per ADR 0022 directive 2. Schema-side defense-in-depth
+    // dropped without grandfather; aggregate tests at the downstream
+    // stories cover the equivalent domain behaviour.
 
     // ============================================================================
     // Aggregate-root column comments cite ADR 0019 + the aggregate-prefix
@@ -1076,20 +816,6 @@ class FlightBaselineIntegrationTest {
     // Helpers
     // ============================================================================
 
-    private List<String> checkConstraintDefs(String table) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-                var stmt = conn.prepareStatement(
-                        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                                + "WHERE conrelid = (quote_ident(?))::regclass AND contype = 'c'")) {
-            stmt.setString(1, table);
-            try (ResultSet rs = stmt.executeQuery()) {
-                List<String> defs = new ArrayList<>();
-                while (rs.next()) defs.add(rs.getString(1));
-                return defs;
-            }
-        }
-    }
-
     private List<String> indexDefs(String table) throws SQLException {
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement(
@@ -1171,13 +897,6 @@ class FlightBaselineIntegrationTest {
                         .isEqualTo(expectedRule);
             }
         }
-    }
-
-    private void assertCheckPresent(String table, String columnHint) throws SQLException {
-        List<String> checks = checkConstraintDefs(table);
-        assertThat(checks)
-                .as("%s must carry a CHECK referencing %s", table, columnHint)
-                .anyMatch(d -> d.toLowerCase(Locale.ROOT).contains(columnHint.toLowerCase(Locale.ROOT)));
     }
 
     private void assertSeededCodes(String table, List<String> expectedCodes) throws SQLException {

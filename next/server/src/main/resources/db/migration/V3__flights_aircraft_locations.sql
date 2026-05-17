@@ -187,9 +187,10 @@ CREATE TABLE flight_cost_balance_type (
     person_for_invoice_required BOOLEAN      NOT NULL DEFAULT false,
     is_for_glider               BOOLEAN      NOT NULL DEFAULT false,
     is_for_tow                  BOOLEAN      NOT NULL DEFAULT false,
-    is_for_motor                BOOLEAN      NOT NULL DEFAULT false,
-    CONSTRAINT ck_fcbt_at_least_one_flag
-        CHECK (is_for_glider OR is_for_tow OR is_for_motor)
+    is_for_motor                BOOLEAN      NOT NULL DEFAULT false
+    -- ck_fcbt_at_least_one_flag removed per ADR 0022 directive 2: the
+    -- at-least-one-flag invariant lives on FlightCostBalanceType aggregate
+    -- (constructor + flag mutators) at S-058.
 );
 CREATE UNIQUE INDEX ux_fcbt_code           ON flight_cost_balance_type (code);
 CREATE UNIQUE INDEX ux_fcbt_legacy_int_id  ON flight_cost_balance_type (legacy_int_id);
@@ -232,13 +233,11 @@ CREATE TABLE location (
     CONSTRAINT fk_location_elevation_unit_type_id
         FOREIGN KEY (elevation_unit_type_id)  REFERENCES elevation_unit_type (id) ON DELETE RESTRICT,
     CONSTRAINT fk_location_runway_length_unit_type_id
-        FOREIGN KEY (runway_length_unit_type_id) REFERENCES length_unit_type (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_location_icao_uppercase
-        CHECK (icao_code IS NULL OR icao_code = upper(icao_code)),
-    CONSTRAINT ck_location_latitude_shape
-        CHECK (latitude IS NULL OR latitude ~ '^[-+]?[0-9.]+$'),
-    CONSTRAINT ck_location_longitude_shape
-        CHECK (longitude IS NULL OR longitude ~ '^[-+]?[0-9.]+$')
+        FOREIGN KEY (runway_length_unit_type_id) REFERENCES length_unit_type (id) ON DELETE RESTRICT
+    -- ck_location_icao_uppercase, ck_location_latitude_shape,
+    -- ck_location_longitude_shape removed per ADR 0022 directive 2:
+    -- format invariants live on IcaoCode / Latitude / Longitude value
+    -- objects at S-068 (Location aggregate).
 );
 CREATE UNIQUE INDEX ux_location_icao        ON location (icao_code) WHERE icao_code IS NOT NULL;
 CREATE        INDEX ix_location_country_type ON location (country_id, location_type_id);
@@ -273,10 +272,9 @@ CREATE TABLE flight_type (
     deleted_on                               TIMESTAMPTZ,
     deleted_by_user_id                       UUID,
     CONSTRAINT fk_flight_type_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_flight_type_min_seats_positive
-        CHECK (min_nr_of_aircraft_seats_required IS NULL
-               OR min_nr_of_aircraft_seats_required >= 1)
+        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE RESTRICT
+    -- ck_flight_type_min_seats_positive removed per ADR 0022 directive 2:
+    -- AircraftSeatsCount VO at S-022.
 );
 CREATE        INDEX ix_flight_type_club        ON flight_type (operating_club_id) WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_flight_type_club_code
@@ -333,19 +331,17 @@ CREATE TABLE aircraft (
         FOREIGN KEY (engine_operating_counter_unit_type_id) REFERENCES counter_unit_type (id) ON DELETE RESTRICT,
     CONSTRAINT fk_aircraft_homebase_id
         FOREIGN KEY (homebase_id)              REFERENCES location (id)        ON DELETE SET NULL,
-    CONSTRAINT ck_aircraft_year_of_manufacture_sane
-        CHECK (year_of_manufacture IS NULL
-               OR (year_of_manufacture >= DATE '1900-01-01'
-                   AND year_of_manufacture <= CURRENT_DATE + INTERVAL '5 years')),
-    CONSTRAINT ck_aircraft_mtom_sane
-        CHECK (mtom IS NULL OR (mtom >= 0 AND mtom <= 1000000)),
-    CONSTRAINT ck_aircraft_nr_of_seats_positive
-        CHECK (nr_of_seats IS NULL OR nr_of_seats >= 1),
-    CONSTRAINT ck_aircraft_flarm_id_regex
-        CHECK (flarm_id IS NULL OR flarm_id ~ '^[A-Fa-f0-9]{6}$'),
-    CONSTRAINT ck_aircraft_spot_link_https_only
+    -- ck_aircraft_year_of_manufacture_sane / ck_aircraft_mtom_sane /
+    -- ck_aircraft_nr_of_seats_positive / ck_aircraft_flarm_id_regex
+    -- removed per ADR 0022 directive 2: range + shape invariants live on
+    -- Year / Mtom / SeatsCount / FlarmId value objects at S-058.
+    CONSTRAINT ck_aircraft_spot_link_https
         CHECK (spot_link IS NULL OR spot_link ~* '^https://')
 );
+COMMENT ON CONSTRAINT ck_aircraft_spot_link_https ON aircraft IS
+    'ADR 0022 retained: A10 SSRF defense-in-depth — a non-https spot_link '
+    'sneaking past the SpotLink value-object via direct SQL must not silently '
+    'persist; the URL is later rendered as a clickable link in the UI.';
 -- GLOBAL UNIQUE — aircraft immatriculation is unique by aviation regulator
 -- convention; the per-club composite UNIQUE from the prior refinement is
 -- incompatible with Aircraft as CROSS_TENANT (no operating_club_id column).
@@ -425,45 +421,18 @@ CREATE TABLE flight (
     CONSTRAINT fk_flight_process_state_id
         FOREIGN KEY (process_state_id)            REFERENCES flight_process_state (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_flight_flight_cost_balance_type_id
-        FOREIGN KEY (flight_cost_balance_type_id) REFERENCES flight_cost_balance_type (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_flight_aircraft_type_discriminator
-        CHECK (flight_aircraft_type_id IN (1, 2, 4)),
-    CONSTRAINT ck_flight_tow_not_self
-        CHECK (tow_flight_id IS NULL OR tow_flight_id <> id),
-    CONSTRAINT ck_flight_tow_only_for_glider
-        CHECK (tow_flight_id IS NULL OR flight_aircraft_type_id = 1),
-    CONSTRAINT ck_flight_ldg_at_or_after_start
-        CHECK (ldg_date_time IS NULL OR start_date_time IS NULL
-               OR ldg_date_time >= start_date_time),
-    CONSTRAINT ck_flight_block_end_at_or_after_start
-        CHECK (block_end_date_time IS NULL OR block_start_date_time IS NULL
-               OR block_end_date_time >= block_start_date_time),
-    -- Range CHECKs.
-    CONSTRAINT ck_flight_date_reasonable
-        CHECK (flight_date IS NULL
-               OR (flight_date >= DATE '1990-01-01'
-                   AND flight_date <= CURRENT_DATE + INTERVAL '5 years')),
-    CONSTRAINT ck_flight_nr_of_ldgs_nonnegative
-        CHECK (nr_of_ldgs IS NULL OR nr_of_ldgs >= 0),
-    CONSTRAINT ck_flight_nr_of_ldgs_on_start_le_total
-        CHECK (nr_of_ldgs_on_start_location IS NULL
-               OR (nr_of_ldgs_on_start_location >= 0
-                   AND (nr_of_ldgs IS NULL OR nr_of_ldgs_on_start_location <= nr_of_ldgs))),
-    CONSTRAINT ck_flight_engine_counters_monotonic
-        CHECK (engine_start_operating_counter_in_seconds IS NULL
-               OR engine_end_operating_counter_in_seconds IS NULL
-               OR engine_end_operating_counter_in_seconds >= engine_start_operating_counter_in_seconds),
-    CONSTRAINT ck_flight_nr_of_passengers_nonnegative
-        CHECK (nr_of_passengers IS NULL OR nr_of_passengers >= 0),
-    CONSTRAINT ck_flight_start_position_range
-        CHECK (start_position IS NULL OR (start_position BETWEEN 1 AND 999)),
-    -- Runway / coupon shape CHECKs (loose regex; legacy strings).
-    CONSTRAINT ck_flight_start_runway_shape
-        CHECK (start_runway IS NULL OR start_runway ~ '^[0-9A-Z]{1,5}$'),
-    CONSTRAINT ck_flight_ldg_runway_shape
-        CHECK (ldg_runway IS NULL OR ldg_runway ~ '^[0-9A-Z]{1,5}$'),
-    CONSTRAINT ck_flight_coupon_number_shape
-        CHECK (coupon_number IS NULL OR coupon_number ~ '^[A-Za-z0-9_-]{1,20}$')
+        FOREIGN KEY (flight_cost_balance_type_id) REFERENCES flight_cost_balance_type (id) ON DELETE RESTRICT
+    -- All 14 CHECK constraints previously on flight removed per ADR 0022
+    -- directive 2. Sacred-cow invariants migrate to the Flight aggregate at
+    -- S-058 (port of FlightValidator):
+    --   * flight_aircraft_type_id IN (1,2,4) — FlightAircraftType enum
+    --     (@Enumerated(STRING) or sparse SMALLINT in the Hibernate mapping).
+    --   * tow_flight_id ≠ id + tow_flight requires glider — Flight.linkTow().
+    --   * ldg_date_time ≥ start_date_time + block ordering — TimeWindow VO +
+    --     Flight constructor guards.
+    --   * date / counter / passenger / position / runway / coupon range +
+    --     format invariants — FlightDate / RunwayCode / CouponNumber /
+    --     EngineCounterSeconds / LandingCount / PassengerCount VOs.
 );
 
 -- Hot-path indexes per design notes' load-bearing inventory.
@@ -545,11 +514,9 @@ CREATE TABLE flight_crew (
     CONSTRAINT fk_flight_crew_person_id
         FOREIGN KEY (person_id)            REFERENCES person (id)           ON DELETE RESTRICT,
     CONSTRAINT fk_flight_crew_flight_crew_type_id
-        FOREIGN KEY (flight_crew_type_id)  REFERENCES flight_crew_type (id) ON DELETE RESTRICT,
-    CONSTRAINT ck_flight_crew_nr_of_ldgs_nonnegative
-        CHECK (nr_of_ldgs IS NULL OR nr_of_ldgs >= 0),
-    CONSTRAINT ck_flight_crew_nr_of_starts_nonnegative
-        CHECK (nr_of_starts IS NULL OR nr_of_starts >= 0)
+        FOREIGN KEY (flight_crew_type_id)  REFERENCES flight_crew_type (id) ON DELETE RESTRICT
+    -- ck_flight_crew_nr_of_ldgs_nonnegative + ck_flight_crew_nr_of_starts_nonnegative
+    -- removed per ADR 0022 directive 2: LandingCount / StartCount VOs at S-058.
 );
 CREATE UNIQUE INDEX ux_flight_crew_unique
     ON flight_crew (flight_id, person_id, flight_crew_type_id)
@@ -581,9 +548,9 @@ CREATE TABLE aircraft_aircraft_state (
     CONSTRAINT fk_aas_aircraft_state_id
         FOREIGN KEY (aircraft_state_id)   REFERENCES aircraft_state (id)   ON DELETE RESTRICT,
     CONSTRAINT fk_aas_noticed_by_person_id
-        FOREIGN KEY (noticed_by_person_id) REFERENCES person (id)          ON DELETE SET NULL,
-    CONSTRAINT ck_aas_valid_to_at_or_after_valid_from
-        CHECK (valid_to IS NULL OR valid_to >= valid_from)
+        FOREIGN KEY (noticed_by_person_id) REFERENCES person (id)          ON DELETE SET NULL
+    -- ck_aas_valid_to_at_or_after_valid_from removed per ADR 0022 directive 2:
+    -- valid_to ≥ valid_from is an AircraftStatePeriod VO invariant at S-058.
 );
 CREATE UNIQUE INDEX ux_aas_aircraft_valid_from
     ON aircraft_aircraft_state (aircraft_id, valid_from);
@@ -616,25 +583,11 @@ CREATE TABLE aircraft_operating_counter (
     deleted_on                                                  TIMESTAMPTZ,
     deleted_by_user_id                                          UUID,
     CONSTRAINT fk_aoc_aircraft_id
-        FOREIGN KEY (aircraft_id) REFERENCES aircraft (id) ON DELETE CASCADE,
-    CONSTRAINT ck_aoc_at_date_time_not_too_future
-        CHECK (at_date_time <= now() + INTERVAL '1 day'),
-    CONSTRAINT ck_aoc_total_towed_glider_starts_nonnegative
-        CHECK (total_towed_glider_starts IS NULL OR total_towed_glider_starts >= 0),
-    CONSTRAINT ck_aoc_total_winch_launch_starts_nonnegative
-        CHECK (total_winch_launch_starts IS NULL OR total_winch_launch_starts >= 0),
-    CONSTRAINT ck_aoc_total_self_starts_nonnegative
-        CHECK (total_self_starts IS NULL OR total_self_starts >= 0),
-    CONSTRAINT ck_aoc_flight_counter_nonnegative
-        CHECK (flight_operating_counter_in_seconds IS NULL OR flight_operating_counter_in_seconds >= 0),
-    CONSTRAINT ck_aoc_engine_counter_nonnegative
-        CHECK (engine_operating_counter_in_seconds IS NULL OR engine_operating_counter_in_seconds >= 0),
-    CONSTRAINT ck_aoc_next_maint_flight_nonnegative
-        CHECK (next_maintenance_at_flight_operating_counter_in_seconds IS NULL
-               OR next_maintenance_at_flight_operating_counter_in_seconds >= 0),
-    CONSTRAINT ck_aoc_next_maint_engine_nonnegative
-        CHECK (next_maintenance_at_engine_operating_counter_in_seconds IS NULL
-               OR next_maintenance_at_engine_operating_counter_in_seconds >= 0)
+        FOREIGN KEY (aircraft_id) REFERENCES aircraft (id) ON DELETE CASCADE
+    -- All 8 CHECK constraints previously on aircraft_operating_counter
+    -- removed per ADR 0022 directive 2: at_date_time future-bound sanity +
+    -- per-counter range guards live on AircraftOperatingCounter VOs +
+    -- constructor at S-058.
 );
 CREATE UNIQUE INDEX ux_aoc_aircraft_at_date_time
     ON aircraft_operating_counter (aircraft_id, at_date_time);
