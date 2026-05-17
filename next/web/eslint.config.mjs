@@ -103,7 +103,7 @@ export default tseslint.config(
                 'Atoms must not import molecules or organisms. See next/web/CLAUDE.md §1.',
             },
             {
-              group: ['ng-zorro-antd'],
+              regex: '^ng-zorro-antd$',
               message:
                 'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module.',
             },
@@ -125,7 +125,7 @@ export default tseslint.config(
                 'Molecules must not import organisms. See next/web/CLAUDE.md §1.',
             },
             {
-              group: ['ng-zorro-antd'],
+              regex: '^ng-zorro-antd$',
               message:
                 'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module.',
             },
@@ -142,7 +142,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['ng-zorro-antd'],
+              regex: '^ng-zorro-antd$',
               message:
                 'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module.',
             },
