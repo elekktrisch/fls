@@ -68,8 +68,11 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
-    // On the classpath so S-003 can switch springdoc on without a dep change.
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    // springdoc 3.x is the Boot-4-compatible line (parent POM = spring-boot-starter-parent
+    // 4.0.x). 2.8.x referenced the pre-modular `org.springframework.boot.autoconfigure
+    // .web.servlet.WebMvcProperties` path that Boot 4 moved to `.webmvc.autoconfigure`,
+    // which broke springdoc context startup on this stack.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
     implementation("org.jspecify:jspecify:1.0.0")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     errorprone("com.google.errorprone:error_prone_core:2.49.0")
