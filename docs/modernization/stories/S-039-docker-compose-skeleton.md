@@ -2,7 +2,8 @@
 id: S-039
 title: docker-compose.yml skeleton (backend + Postgres + Keycloak + mailpit)
 epic: E-05
-status: todo
+status: in_progress
+started_at: 2026-05-17
 depends_on: []
 acceptance:
   - `docker compose -f next/ops/docker-compose.yml --profile dev up -d --wait` brings Postgres 17, Keycloak (per S-019 contract), and mailpit healthy on a dev laptop in ≤ 30s warm / ≤ 90s cold.
@@ -24,6 +25,7 @@ refined_at: 2026-05-15
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 refined_speculative: true
 refined_speculative_at: 2026-05-15
+github_issue: 46
 ---
 
 ## Context
