@@ -2,8 +2,9 @@
 id: S-132
 title: V5 — drop business-logic CHECKs + generated total_amount from V4 per ADR 0022
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-17
+done_at: 2026-05-17
 depends_on: [S-014]
 acceptance:
   - V5 migration drops business-logic CHECK constraints from V4 that encode domain rules (state machine values, range guards, required-when-state-X, sanity caps, calculated values). Aggregate-method enforcement lands at S-022/S-064. Schema retains only structural invariants (PKs, FKs, structural NOT NULL, identity-bearing partial UNIQUE, performance indexes) per [ADR 0022 directive 2](../adrs/0022-modernization-primary-directives.md).
@@ -21,6 +22,7 @@ refined: true
 refined_at: 2026-05-17
 refined_specialists: [requirements, solution, qa, performance]
 github_issue: 44
+github_pr: 45
 origin: rework-meta
 origin_story: S-014
 origin_pattern: V4 ships ~15 business-logic CHECK constraints + 1 generated calculation column that under ADR 0022 directive 2 belong on aggregates. Filed pre-emptively so V4 stays directive-compliant before any production deployment.
@@ -40,15 +42,7 @@ See frontmatter.
 
 ## Tasks
 
-- [ ] Read [ADR 0022](../adrs/0022-modernization-primary-directives.md) end-to-end. Confirm the "stays in schema" list (PKs, FKs, structural NOT NULL, identity-bearing partial UNIQUE, indexes) covers what V5 must preserve.
-- [ ] List every CHECK in V4 (`grep '^\s*CONSTRAINT ck_' next/server/src/main/resources/db/migration/V4__reservations_planning_accounting.sql`). Per-CHECK decision: drop (default) / retain with rationale (rare).
-- [ ] Decide on `ck_arv_end_after_start` — structurally needed for generated tstzrange? Or drop + let the generated column blow up at INSERT?
-- [ ] Decide on Booked-requires-* CHECKs — are they OR Art. 957a defense-in-depth (retain) or domain rules (drop)? Refine at story-refinement time; default to drop unless legal-record argument lands.
-- [ ] Write V5 migration: `ALTER TABLE … DROP CONSTRAINT …` for each dropped CHECK + `DROP INDEX ix_dli_delivery; CREATE INDEX ix_dli_delivery ON delivery_item(delivery_id) INCLUDE (article_id, article_number, quantity, unit_price);` (required BEFORE the next step — `total_amount` is used by the index) + `ALTER TABLE delivery_item DROP COLUMN total_amount` + (if `total_amount` is needed for query/reporting) a different storage strategy (read-side computed, materialised view, or stored-on-DeliveryItem.book() via aggregate method).
-- [ ] Update `next/server/src/test/resources/security/forbidden-migration-patterns.txt` — add CHECK-pattern denylist with documented exceptions block.
-- [ ] Strip the now-removed CHECK assertions from `ReservationsBaselineIntegrationTest.java` + `TenantCatalogConsistencyTest.java`. Replace with `// Moved to aggregate at S-022 — see <reference>` comments.
-- [ ] Run full server test suite green.
-- [ ] Story `## Implementation notes` documents the schema-shape shift, the rationale, and the test deletions.
+Superseded by `## Implementation notes` below — story scope pivoted mid-implementation from a corrective V5 migration to in-place editing of V1-V4 ("no grandfather exceptions" operator directive). Frontmatter ACs are preserved as the contract that was filed; the Implementation notes section maps how each was satisfied (or superseded by the pivot).
 
 ## Notes
 
@@ -474,3 +468,98 @@ The three CHECKs (`ck_dlv_booked_requires_number`, `_delivered_on`, `_recipient`
 **Operator decision needed:** confirm (a) compute-on-read as default (per story body, design notes, and legacy evidence) or commit to (b) persist on `delivery` header. Trivially reversible in a later V<n> migration if (a) proves insufficient; choosing (a) now is the cheapest path.
 
 <!-- modernize-refine: end -->
+
+## Implementation notes
+
+### Scope pivot — in-place V1-V4 cleanup, no V5
+
+The frontmatter ACs describe a corrective V5 migration. Mid-implementation the operator widened the scope to **clean up every business-logic CHECK in V1-V4 in place — no grandfather exceptions** (rather than a forward-only V5 that leaves V1-V3 CHECKs in source but absent at migration time). The change:
+
+- Editing V1-V4 in place breaks the Flyway-checksum-locked-after-shipping convention, but only Testcontainers consume the baseline today — no populated environment pays a cost.
+- The denylist applies globally (no `^V[1-4]__.*\.sql$` filename skip in `MigrationFolderConventionsTest.no_business_logic_check_constraints_in_migrations`).
+- V5 is not shipped. The story title "V5 — drop business-logic CHECKs" is retained for the audit trail but the actual change is in V2/V3/V4.
+
+### Operator decisions on refinement Open design questions
+
+| # | Question | Operator pick | Refinement default |
+|---|---|---|---|
+| Q1 | Retain or drop `ck_arv_end_after_start`? | **Drop** | Retain (deviation) |
+| Q2 | Retain or drop the Booked-requires-* trio? | **Drop all three** | Drop all three |
+| Q3 | `total_amount` re-home: compute-on-read vs persist? | **Compute-on-read** | Compute-on-read |
+
+Net: zero retained CHECKs from V4. The empty-tstzrange degenerate (lower=upper produces a GiST-invisible empty range) catches at `AircraftReservation` constructor + `validateDuration()` at S-064.
+
+### Retentions across V1-V4 (3 explicitly carved out)
+
+Three CHECKs survive — all input-shape / security defense-in-depth that ADR 0022 didn't explicitly enumerate under the OR Art. 957a exception. Each is paired with a co-located `COMMENT ON CONSTRAINT … 'ADR 0022 retained: …'` marker; the denylist test allow-lists by name iff the marker is present.
+
+| Constraint | Table | Migration | Rationale |
+|---|---|---|---|
+| `ck_person_email_private_shape` | `person` | V2 | Input-shape defense-in-depth — direct-SQL writes bypassing the `Email` VO must not silently persist malformed e-mail. |
+| `ck_person_email_business_shape` | `person` | V2 | Same rationale; pairs with `ck_person_email_private_shape`. |
+| `ck_aircraft_spot_link_https` | `aircraft` | V3 | A10 SSRF defense-in-depth — a non-`https://` URL slipping past the `SpotLink` VO via direct SQL must not persist; the URL is later rendered as a clickable link in the UI. |
+
+### Dropped-rules catalogue
+
+Where each dropped invariant re-homes. Aggregate methods + value-object constructors land at the indicated downstream story.
+
+| Migration | Dropped (constraint or column) | Re-homes at |
+|---|---|---|
+| V2 | `ck_country_iso2_upper` / `ck_country_iso3_upper` | `Iso2Code` / `Iso3Code` VOs (S-022) |
+| V2 | `ck_language_bcp47` | `LanguageCode` VO (S-022) |
+| V2 | `ck_person_birthday_not_future` | `Birthday` VO (S-022) |
+| V3 | `ck_fcbt_at_least_one_flag` | `FlightCostBalanceType` constructor (S-058) |
+| V3 | `ck_location_icao_uppercase` | `IcaoCode` VO (S-068) |
+| V3 | `ck_location_latitude_shape` / `ck_location_longitude_shape` | `Latitude` / `Longitude` VOs (S-068) |
+| V3 | `ck_flight_type_min_seats_positive` | `AircraftSeatsCount` VO (S-022) |
+| V3 | `ck_aircraft_year_of_manufacture_sane` | `Year` VO (S-058) |
+| V3 | `ck_aircraft_mtom_sane` | `Mtom` VO (S-058) |
+| V3 | `ck_aircraft_nr_of_seats_positive` | `SeatsCount` VO (S-058) |
+| V3 | `ck_aircraft_flarm_id_regex` | `FlarmId` VO (S-058) |
+| V3 | `ck_flight_aircraft_type_discriminator` | `FlightAircraftType` enum (`@Enumerated(STRING)`) + `Flight.linkTow()` (S-058) |
+| V3 | `ck_flight_tow_not_self` / `ck_flight_tow_only_for_glider` | `Flight.linkTow()` precondition (S-058) |
+| V3 | `ck_flight_ldg_at_or_after_start` / `ck_flight_block_end_at_or_after_start` | `TimeWindow` VO + `Flight` constructor (S-058) |
+| V3 | `ck_flight_date_reasonable` | `FlightDate` VO (S-058) |
+| V3 | `ck_flight_nr_of_ldgs_nonnegative` / `_on_start_le_total` | `LandingCount` VO + `Flight.recordLanding()` (S-058) |
+| V3 | `ck_flight_engine_counters_monotonic` | `EngineCounterSeconds` VO (S-058) |
+| V3 | `ck_flight_nr_of_passengers_nonnegative` | `PassengerCount` VO (S-058) |
+| V3 | `ck_flight_start_position_range` | `StartPosition` VO (S-058) |
+| V3 | `ck_flight_start_runway_shape` / `_ldg_runway_shape` | `RunwayCode` VO (S-058) |
+| V3 | `ck_flight_coupon_number_shape` | `CouponNumber` VO (S-058) |
+| V3 | `ck_flight_crew_nr_of_ldgs_nonnegative` / `_nr_of_starts_nonnegative` | `LandingCount` / `StartCount` VOs (S-058) |
+| V3 | `ck_aas_valid_to_at_or_after_valid_from` | `AircraftStatePeriod` VO (S-058) |
+| V3 | `ck_aoc_at_date_time_not_too_future` + 7 `*_nonnegative` | `AircraftOperatingCounter` VOs + constructor (S-058) |
+| V4 | `ck_dlv_process_state_in_set` | `Delivery.ProcessState` enum (`@Enumerated(STRING)`) (S-022) |
+| V4 | `ck_dlv_delivery_number_positive` | `DeliveryNumber` VO (S-022) |
+| V4 | `ck_dlv_batch_id_nonnegative` | `BatchId` VO (S-022) |
+| V4 | `ck_dlv_booked_requires_number` / `_delivered_on` / `_recipient` | `Delivery.book()` preconditions (S-064) |
+| V4 | `ck_dli_position_positive` / `_quantity_nonnegative` / `_unit_price_nonnegative` / `_discount_range` | `Position` / `Quantity` / `Money` / `DiscountPercent` VOs (S-022) |
+| V4 | `ck_dcti_*` (4) | same VOs on `delivery_creation_test_item` (S-022) |
+| V4 | `ck_arv_end_after_start` | `AircraftReservation` constructor (S-064) — pins the empty-range degenerate (`lower=upper`) the GiST conflict probe silently misses |
+| V4 | `ck_arv_max_30_days` | `AircraftReservation.validateDuration()` (S-064) |
+| V4 | `ck_pln_planning_date_reasonable` | `PlanningDay` constructor (S-022) |
+| V4 | `ck_pdat_required_nr_nonnegative` | `AssignmentCount` VO (S-022) |
+| V4 | `ck_arf_sort_indicator_nonnegative` | `SortIndicator` VO (S-022) |
+| V4 | `ck_cdnc_next_number_positive` | `DeliveryNumberCounter` VO (S-064) |
+| V4 | `delivery_item.total_amount` (GENERATED column) | `DeliveryItem.totalAmount() : Money` compute-on-read (S-022); `ix_dli_delivery` INCLUDE clause re-shaped without `total_amount` |
+
+### AC mapping
+
+The frontmatter ACs were written assuming a forward-only V5 migration. Mapping how each was satisfied by the in-place pivot:
+
+- **AC1 / AC2** (V5 drops business-logic CHECKs incl. enumerated list) — satisfied in spirit: every named CHECK enumerated in the AC drops in V4 in place. Plus the pivot added V2 (4 drops) and V3 (~33 drops) to the same change set.
+- **AC3** (retentions) — pivoted: zero retentions in V4 (Q1/Q2 dropped per operator). Retentions exist at V2 (`ck_person_email_*_shape`) and V3 (`ck_aircraft_spot_link_https`) for non-V4 input-shape concerns the original AC didn't anticipate.
+- **AC4** (`total_amount` drop + `DeliveryItem.totalAmount()` re-home) — satisfied: column dropped, re-home contracted at S-022 per Q3.
+- **AC5** (`ix_dli_delivery` INCLUDE without `total_amount`) — satisfied: index recreated in V4 directly (no V5 intermediary).
+- **AC6** (forbidden-migration-patterns entry with allow-list for retentions) — re-shaped: the CHECK pattern lives in a dedicated Java test (`no_business_logic_check_constraints_in_migrations`) with a `COMMENT ON CONSTRAINT … 'ADR 0022 retained: …'` allow-list mechanism. The flat-pattern denylist file gets a documentation block but not a regex line (pattern moved into the dedicated test).
+- **AC7** (test deletions in `ReservationsBaselineIntegrationTest` + `TenantCatalogConsistencyTest`) — satisfied for `ReservationsBaselineIntegrationTest`; `TenantCatalogConsistencyTest` had **no** CHECK assertions to begin with (false positive in the original task list — confirmed by direct read).
+- **AC8** (`MigrationFolderConventionsTest extends with forbidden_check_patterns_caught`) — satisfied semantically by `no_business_logic_check_constraints_test_catches_synthetic_violation`, which guards the same regex-bitrot concern.
+- **AC9** (tenant-rules.yaml unchanged) — confirmed: `git diff main...HEAD -- next/database/tenant-rules.yaml` is empty.
+
+### Test impact
+
+Deleted ~20 CHECK-assertion test methods + 4 live SQLSTATE-23514 provocations across `IdentityBaselineIntegrationTest`, `FlightBaselineIntegrationTest`, `ReservationsBaselineIntegrationTest`. Added 5 post-baseline introspection tests (3 retentions present, schema CHECK-free otherwise, `total_amount` column absent, `ix_dli_delivery` INCLUDE clean) + 1 source-file CHECK denylist scan + 1 sanity gate. Net coverage delta: neutral. Domain coverage of the moved invariants lands at S-022 / S-058 / S-064 / S-068 when the aggregate methods + value objects ship.
+
+### ADR 0022 follow-up self-close
+
+Worth marking S-132 as done in ADR 0022's `## Follow-ups` list during the next docs sweep (not in this PR — boyscout for a future touch). Cited by story-ID, not SHA.
