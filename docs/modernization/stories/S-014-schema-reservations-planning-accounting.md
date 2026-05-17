@@ -34,6 +34,14 @@ refined: true
 refined_at: 2026-05-16
 refined_speculative: false
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+reviewed: true
+reviewed_at: 2026-05-17
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 16
+review_nudges: 5
+review_parity_oracle: "N/A — parity_test: none; no flsserver/flsweb references in diff (schema reshape; reference seeds pinned via legacy-DB seed file)"
+review_reviewers: [maintainability, security, tech-writer]
 ---
 
 ## Context
@@ -1357,6 +1365,49 @@ Pass thresholds: each canary < 20ms on 10K fixture; rule-filter list < 5ms; GiST
 10. **DSAR retention exemption documentation** — `Deliveries.fadp_dsar_retention_exempt_when: "process_state_id >= 20"` in tenant-rules.yaml. Documented in column comments + DPO runbook (S-051). Operator confirms phrasing.
 
 <!-- modernize-refine: end -->
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-17 · **PR:** #43 · **Diff size:** 5 commits, 11 files (+2382 / -39) · **Outcome:** improvements-only
+
+### Maintainability
+- **[improvement]** Seven indexes silently drop the `WHERE deleted_on IS NULL` partial predicate without rationale; the rest of S-014 is partial throughout — `next/server/src/main/resources/db/migration/V4__reservations_planning_accounting.sql:240` (`ix_arv_location`), `:312` (`ix_pda_planning_day`), `:317` (`ix_pda_club_person_type`), `:443` (`ix_dlv_club_state_date`), `:451` (`ix_dlv_club_batch`), `:543` (`ix_dct_club_created`), `:573` (`ix_dcti_test`). The dashboard hot path (`ix_dlv_club_state_date`) in particular will bloat with tombstoned invoices over 5 years of retention. **Fix:** add `WHERE deleted_on IS NULL` (or annotate the few cases where unfiltered is deliberate, e.g. the CASCADE join target on `ix_pda_planning_day`).
+- **[improvement]** `delivery.batch_id` per-club uniqueness silently deferred to service layer with no DB safety net — `V4__reservations_planning_accounting.sql:418`. Security plan threat (p) listed two options ("UNIQUE … OR per-club service-layer scope"); schema chose service-layer (`NOT NULL DEFAULT 0`, no partial UNIQUE, no `>= 0` CHECK), but column comment at L650 + the gap-free numbering invariant suggest a DB safety net would harden the batch-cancel flow. **Fix:** add `CHECK (batch_id >= 0)` immediately + a `WHERE batch_id <> 0 AND deleted_on IS NULL` partial UNIQUE if S-064 design confirms per-club allocation; otherwise add an explicit S-064 test-plan item ensuring the allocator never re-uses a per-club batch_id.
+- **[improvement]** `ck_arv_max_30_days` (30-day reservation length cap) is undisclosed scope creep — `V4__reservations_planning_accounting.sql:228-229`. Neither the per-column inventory (lines 601-614 of story) nor the Performance plan (the 30-day window query is a *calendar query*, not a per-row cap) declares this constraint. **Fix:** either remove (deferring sanity caps to S-064) or add it to `## Implementation notes` deviation list with rationale citing legacy `AircraftReservation.cs`.
+- **[improvement]** `ck_dlv_delivered_on_not_too_future` is semantically a one-shot insert-time guard, not a row-time invariant — `V4__reservations_planning_accounting.sql:435-436`. A row inserted today with `delivered_on = now() + 1 day` stays valid forever; constraint won't catch stale data on UPDATE. **Fix:** add a one-line `-- note: insert-time bound only; stable across UPDATEs by design` beside the CHECK, or remove and move to S-064 service-layer where state-machine rules live.
+- **[improvement]** Test class re-implements `columnComment` / `assertFkDeleteRule` / `assertColumnNotNull` / `indexDefs` / `checkConstraintDefs` inline instead of using `MigrationAssertions` — `next/server/src/test/java/ch/alpenflight/server/migration/ReservationsBaselineIntegrationTest.java:986-1048`. S-022 / S-064 migration tests will copy-paste these. **Fix:** promote to `MigrationAssertions` (or a sibling `SchemaIntrospection` helper); one extra file, payoff is consistency across all future migration tests.
+- **[improvement]** Test class uses raw hard-coded UUID literals (`"00000000-0000-7d10-8000-000000000001"`) at 8+ sites while a `newDeterministicUuid(table, key)` helper exists but isn't used for delivery IDs — `ReservationsBaselineIntegrationTest.java:271, 348-354, 377, 403, 428`. **Fix:** route all test UUID literals through `newDeterministicUuid`.
+- **[improvement]** `ix_arv_location` carries no `deleted_on` predicate AND drops the `DESC` ordering present on `ix_arv_pilot` — `V4__reservations_planning_accounting.sql:240-241`. Calendar-style location queries would presumably want the same shape. **Fix:** align with the pilot-index pattern, or comment why location queries don't benefit from `DESC`.
+- **[improvement]** Migration `Migration ordering` header §11 lists 8 steps; SQL body actually has 11 numbered sections — `V4__reservations_planning_accounting.sql:144-156`. A reader using the header as a navigation map lands on the wrong section for §§6-11. **Fix:** expand the ordering list to enumerate all 11 sections.
+- **[improvement]** No CHECK that Booked delivery carries `delivered_on` — `V4__reservations_planning_accounting.sql:431-442`. OR Art. 957a 10-year retention anchors on the invoice date; CHECKs cover number + lastname + firstname but NULL `delivered_on` on a Booked row slips the retention clock. **Fix:** add `CHECK (process_state_id <> 20 OR delivered_on IS NOT NULL)` (and consider broadening recipient-snapshot CHECK to require full address tuple — country/city/zip currently nullable on Booked).
+
+### Parity
+**Oracle:** (N/A — `parity_test: none` and no `flsserver/` / `flsweb/` references in diff. Schema reshape with reference-seed enum values pinned via legacy-code citations in `database/FLSTest/3 insert/3 Insert Static Data.sql`; oracle is the legacy-DB seed file + the canonical-UUID JSON, asserted in `accounting_rule_filter_type_legacy_int_ids_match_legacy` + `accounting_unit_type_legacy_int_ids_match_legacy`.)
+
+### Security
+- **[improvement]** `delivery.batch_id BIGINT NOT NULL DEFAULT 0` admits arbitrary negative values — no `CHECK >= 0` — `V4__reservations_planning_accounting.sql:418`. Defense-in-depth gap (overlaps maintainability `batch_id` finding). **Fix:** add `CHECK (batch_id >= 0)`.
+- **[improvement]** `recipient_country_name` / `recipient_city` / `recipient_zip_code` may be NULL on a Booked invoice — `V4__reservations_planning_accounting.sql:412, 439-441`. OR Art. 957a expects a complete postal address; current CHECK only requires `recipient_firstname + recipient_lastname`. **Fix:** broaden `ck_dlv_booked_requires_recipient` to require the full address tuple, or document the omission with operator sign-off in column comments.
+- **[improvement]** `delivery_item.unit_type_code VARCHAR(50)` has no domain check against `accounting_unit_type.code` — `V4__reservations_planning_accounting.sql:469`. Schema CHECK / FK would catch typos at boundary; current frozen-snapshot rationale documented for `article_number` (line 654) is sound here too but undocumented. **Fix:** document the snapshot-rationale in `unit_type_code`'s column comment to match `article_number`, or add a text-FK if S-064 favours runtime validation.
+- **[nudge]** `tenant-rules.yaml` `AircraftReservations.pii_ride_through` includes `aircraft_id`, but Aircraft carries no direct PII (only `comment`); the `pii_ride_through` key now mixes PII-cross-tenant + non-PII-cross-tenant FK markers — `next/database/tenant-rules.yaml:415`. **Fix:** reclassify under a dedicated `cross_tenant_fks` key, or document that `pii_ride_through` is overloaded.
+
+### Code quality
+- **[improvement]** Stale `tsrange` test-method name cited in two story design-note blocks (`aircraft_reservation_has_generated_tsrange_column`); the shipped test is `aircraft_reservation_has_generated_tstzrange_column` — `docs/modernization/stories/S-014-schema-reservations-planning-accounting.md:429`, `:1161`. A contributor following the spec to find the pinning test lands on a name that doesn't exist. **Fix:** update both story occurrences to the shipped name (or rely on the `## Implementation notes` deviation block as the authoritative pointer and add a "see Implementation notes" stamp).
+- **[improvement]** Multiple raw `tsrange` references remain in the design-notes body — story `:105, :289, :528, :606, :1332, :1340`. The `## Implementation notes` documents the `tstzrange` deviation but the spec record still contains old type at six locations. **Fix:** annotate each occurrence inline (e.g. append `(shipped as tstzrange — see Implementation notes)`) so the spec is readable without cross-jumping sections.
+- **[improvement]** `S014_TENANT_SCOPED_TABLES` Javadoc arithmetic is wrong: comment says "9 = 5 roots + 3 internals + 1 per-club ref pair" but list contains 10 entries — `ReservationsBaselineIntegrationTest.java:61`. **Fix:** change to "10 = 5 roots + 3 internals + 2 per-club ref tables."
+- **[improvement]** Nine `recipient_*` `COMMENT ON COLUMN` clauses are bit-for-bit identical except `recipient_country_name`'s NOT-FK note — `V4__reservations_planning_accounting.sql:632-649`. Eight identical 150-char sentences; future OR Art. 957a phrasing edits require 8 identical changes. **Fix:** at minimum add a `-- frozen-recipient comment template (9 columns; edit in lockstep)` banner; or drop redundant clones to one representative comment + a single distinct one for `recipient_country_name`.
+- **[improvement]** `COMMENT ON COLUMN delivery_item.total_amount` restates the formula instead of the invariant — `V4__reservations_planning_accounting.sql:657`. The DDL two lines up already shows the formula; only "drift-proof; Postgres 17 stored generated — cannot diverge" earns its keep. **Fix:** drop the formula repetition.
+- **[nudge]** `aircraft_reservation` cross-tenant comments inconsistently cite "S-026/S-064" (line 609) vs only "S-064" (line 619) for the same table's FK semantics — `V4__reservations_planning_accounting.sql`. **Fix:** harmonize to whichever story actually owns the cross-tenant Aircraft check.
+- **[nudge]** `seedMinimalClub` Javadoc says "savepoint-free path" without explaining the silent-correctness assumption that a future test adding savepoints would silently break — `ReservationsBaselineIntegrationTest.java:1099-1103`. **Fix:** strengthen the comment to call out the savepoint assumption explicitly.
+- **[nudge]** `ck_arv_max_30_days`, `planning_date BETWEEN '1990-01-01' AND '2100-01-01'`, `delivered_on <= now() + INTERVAL '1 day'` are magic numbers with no `COMMENT ON CONSTRAINT` exposing the intent — `V4__reservations_planning_accounting.sql:229, 284, 436`. **Fix:** consider `COMMENT ON CONSTRAINT` so DBA tooling surfaces operational-sanity-cap intent.
+- **[nudge]** `GenerateCanonicalUuids.java` table-offset list grows per-story; next free offset (20_000) not annotated — `next/server/src/test/resources/scripts/GenerateCanonicalUuids.java:64-67`. **Fix:** add a `// next free offset: 20_000` marker at the bottom of the static init.
+
+### Cross-reviewer agreements
+- **`delivery.batch_id` schema gap** — maintainability + security both flagged: no DB-level safety net (`CHECK >= 0`, partial UNIQUE per club), promised by Security plan threat (p) but silently service-layer-deferred. **Highest signal — fix in S-064 design or amend the schema in a follow-up V<n+1>.**
+- **Redundant 9× identical `recipient_*` COMMENT ON COLUMN clauses** — maintainability + tech-writer both flagged: future edits need 8 lockstep changes; current style buries the one genuinely-different comment (`recipient_country_name`'s NOT-FK note). **Operator may keep as-is for `pg_description` introspection symmetry; at minimum add a lockstep-edit banner.**
+
+<!-- modernize-review: end -->
 
 ## Implementation notes
 
