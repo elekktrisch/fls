@@ -5,6 +5,8 @@ epic: E-01
 status: done
 started_at: 2026-05-17
 done_at: 2026-05-17
+merged: true
+merged_at: 2026-05-17
 github_issue: 52
 github_pr: 53
 depends_on: [S-002, S-004]
