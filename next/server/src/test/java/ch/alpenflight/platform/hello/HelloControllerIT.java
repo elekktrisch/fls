@@ -19,7 +19,7 @@ class HelloControllerIT {
     void helloEndpointReturns200WithExpectedBody() throws Exception {
         mockMvc.perform(get("/api/v1/hello"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Hello FLS"))
+                .andExpect(jsonPath("$.message").value("Hello AlpenFlight"))
                 .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 }

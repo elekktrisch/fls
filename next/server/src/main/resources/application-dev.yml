@@ -21,3 +21,9 @@ logging:
   level:
     root: INFO
     ch.alpenflight: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
