@@ -266,4 +266,31 @@ class FlywayBootstrapIntegrationTest {
                     .isEqualTo(1);
         }
     }
+
+    /**
+     * S-014 ships V<n>__reservations_planning_accounting.sql with n >= 4 (chain
+     * on main is V1/V2/V3 before this story; S-018 ShedLock landing in between
+     * could push to V5).
+     */
+    @Test
+    void current_version_at_least_4_after_s014() {
+        assertThat(flyway.info().current().getVersion())
+                .as("after S-014, current schema version must be >= 4")
+                .isGreaterThanOrEqualTo(MigrationVersion.fromVersion("4"));
+    }
+
+    @Test
+    void flyway_history_contains_reservations_planning_accounting_row() throws Exception {
+        try (var conn = dataSource.getConnection();
+                var stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(
+                        "SELECT count(*) FROM flyway_schema_history "
+                                + "WHERE success = true "
+                                + "AND script LIKE 'V%__reservations_planning_accounting.sql'")) {
+            rs.next();
+            assertThat(rs.getInt(1))
+                    .as("Flyway must have applied the reservations_planning_accounting migration")
+                    .isEqualTo(1);
+        }
+    }
 }

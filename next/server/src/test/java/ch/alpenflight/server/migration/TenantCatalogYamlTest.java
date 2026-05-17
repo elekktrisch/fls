@@ -179,6 +179,111 @@ class TenantCatalogYamlTest {
         assertThat(articles.get("tenant_column")).isEqualTo("operating_club_id");
     }
 
+    /** S-014 reclassification: AircraftReservationTypes (legacy ClubId NOT NULL → per-club). */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_aircraft_reservation_types_reclassified_to_tenant_scoped() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> arvTypes = (Map<String, Object>) overrides.get("AircraftReservationTypes");
+        assertThat(arvTypes.get("kind"))
+                .as("S-014 reclassifies AircraftReservationTypes from reference to tenant-scoped")
+                .isEqualTo("tenant-scoped");
+        assertThat(arvTypes.get("tenant_column")).isEqualTo("operating_club_id");
+    }
+
+    /** S-014 reclassification: PlanningDayAssignmentTypes (legacy ClubId NOT NULL → per-club). */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_planning_day_assignment_types_reclassified_to_tenant_scoped() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> pdaTypes = (Map<String, Object>) overrides.get("PlanningDayAssignmentTypes");
+        assertThat(pdaTypes.get("kind"))
+                .as("S-014 reclassifies PlanningDayAssignmentTypes from reference to tenant-scoped")
+                .isEqualTo("tenant-scoped");
+        assertThat(pdaTypes.get("tenant_column")).isEqualTo("operating_club_id");
+    }
+
+    /**
+     * 2026-05-16 Aircraft-cross-tenant amendment hand-off to S-014:
+     * AircraftReservations.ride_through_targets must list both Persons and
+     * Aircrafts. S-024 leakage CI reads this to parameterize the cross-tenant
+     * FK roster.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_aircraft_reservations_ride_through_includes_aircrafts() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> arv = (Map<String, Object>) overrides.get("AircraftReservations");
+        List<String> rideThrough = (List<String>) arv.get("ride_through_targets");
+        assertThat(rideThrough)
+                .as("AircraftReservations.ride_through_targets must include both Persons and Aircrafts (2026-05-16 amendment)")
+                .containsExactlyInAnyOrder("Persons", "Aircrafts");
+    }
+
+    /** S-014 PII catalog extension: 9 frozen recipient snapshot cols + 2 free-text quasi-PII. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_deliveries_pii_columns_include_9_recipient_snapshot_columns() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> deliveries = (Map<String, Object>) overrides.get("Deliveries");
+        List<String> piiCols = (List<String>) deliveries.get("pii_columns");
+        assertThat(piiCols)
+                .as("Deliveries.pii_columns must enumerate the 9 frozen recipient snapshot columns")
+                .contains("recipient_name", "recipient_firstname", "recipient_lastname",
+                        "recipient_address_line1", "recipient_address_line2",
+                        "recipient_zip_code", "recipient_city", "recipient_country_name",
+                        "recipient_person_club_member_number");
+    }
+
+    /** S-014 DSAR exemption: Booked deliveries are FADP-DSAR-exempt per Swiss OR Art. 957a. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_deliveries_fadp_dsar_exempt_when_booked() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> deliveries = (Map<String, Object>) overrides.get("Deliveries");
+        assertThat(deliveries.get("fadp_dsar_retention_exempt_when"))
+                .as("Deliveries must carry the DSAR retention exemption clause (OR Art. 957a)")
+                .isNotNull()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+                .contains("process_state_id");
+    }
+
+    /** S-014 AccountingRuleFilters pii_blob (filter_config jsonb may carry member_number lists). */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_accounting_rule_filters_marked_pii_blob() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> arf = (Map<String, Object>) overrides.get("AccountingRuleFilters");
+        assertThat(arf.get("pii_blob"))
+                .as("AccountingRuleFilters.filter_config jsonb may carry matched_club_member_numbers — pii_blob: true")
+                .isEqualTo(true);
+    }
+
+    /** S-014 new tenant-scoped entries: DeliveryCreationTest + DeliveryCreationTestItem + ClubDeliveryNumberCounter. */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_new_tenant_scoped_entries_present() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        for (String entry : List.of("DeliveryCreationTest", "DeliveryCreationTestItem", "ClubDeliveryNumberCounter")) {
+            Map<String, Object> e = (Map<String, Object>) overrides.get(entry);
+            assertThat(e).as("%s tenant-rules override must exist", entry).isNotNull();
+            assertThat(e.get("kind")).isEqualTo("tenant-scoped");
+        }
+    }
+
+    /** S-014 SYSTEM_GLOBAL reference tables stay reference (no ClubId in legacy). */
+    @Test
+    @SuppressWarnings("unchecked")
+    void s014_system_global_reference_tables_stay_reference() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        for (String entry : List.of("AccountingRuleFilterTypes", "AccountingUnitTypes")) {
+            Map<String, Object> e = (Map<String, Object>) overrides.get(entry);
+            assertThat(e.get("kind"))
+                    .as("%s must stay kind: reference (no legacy ClubId)", entry)
+                    .isEqualTo("reference");
+        }
+    }
+
     /**
      * tenant-rules.yaml lives in a sibling Gradle module (next/database/).
      * Resolution strategy: walk up from the working dir until we find a

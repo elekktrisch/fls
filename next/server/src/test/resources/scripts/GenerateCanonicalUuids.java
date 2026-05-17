@@ -1,10 +1,11 @@
-// Canonical seed-UUID generator for S-012 + S-013 (and any future story that
-// extends reference-data seeds against a clean baseline).
+// Canonical seed-UUID generator for S-012 + S-013 + S-014 (and any future
+// story that extends reference-data seeds against a clean baseline).
 //
 // THIS SCRIPT IS DOCUMENTATION, NOT BUILD INPUT.
-// The baseline migrations V2__identity_and_reference.sql and
-// V3__flights_aircraft_locations.sql embed the UUID literals produced by this
-// script; reference-seeds-canonical-uuids.json captures the same output as a
+// The baseline migrations V2__identity_and_reference.sql,
+// V3__flights_aircraft_locations.sql, and V4__reservations_planning_accounting.sql
+// embed the UUID literals produced by this script;
+// reference-seeds-canonical-uuids.json captures the same output as a
 // test-time oracle. Do not regenerate after a migration has shipped to any
 // environment — Flyway checksum-locks every shipped V<n>__*.sql; a UUID
 // change would require a follow-up migration with cascading FK updates.
@@ -60,6 +61,12 @@ public class GenerateCanonicalUuids {
         TABLE_OFFSETS.put("flight_process_state",    15_000L);
         TABLE_OFFSETS.put("flight_air_state",        16_000L);
         TABLE_OFFSETS.put("flight_cost_balance_type",17_000L);
+
+        // S-014 reference tables (system-global; per-club AircraftReservationType /
+        // PlanningDayAssignmentType are NOT seeded by migration — operator creates
+        // via API per club).
+        TABLE_OFFSETS.put("accounting_rule_filter_type", 18_000L);
+        TABLE_OFFSETS.put("accounting_unit_type",        19_000L);
     }
 
     static String uuidV7(long counter) {
@@ -263,6 +270,40 @@ public class GenerateCanonicalUuids {
         for (int i = 0; i < flightCostBalanceTypes.length; i++) {
             out.printf("  %s = %s%n",
                     flightCostBalanceTypes[i], uuidV7(TABLE_OFFSETS.get("flight_cost_balance_type") + i));
+        }
+
+        // S-014 reference tables.
+
+        // accounting_rule_filter_type — 8 rows per legacy
+        // database/FLSTest/3 insert/3 Insert Static Data.sql (AccountingRuleFilterTypeId
+        // values: 10, 20, 30, 40, 50, 60, 70, 80; one filter type per per-line-item /
+        // recipient-routing concern). The code rule strategies in
+        // FLS.Server.Service/Accounting/Rules/*.cs (DoNotInvoiceFlightRule,
+        // StartTaxRule, FlightCostPaidByPilotRule, etc.) are CODE strategies that
+        // execute when a filter matches — they are NOT seeded as filter types.
+        String[] accountingRuleFilterTypes = {
+                "RECIPIENT", "NO_LANDING_TAX", "FLIGHT_TIME", "INSTRUCTOR_FEE",
+                "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME"};
+        out.println();
+        out.println("# accounting_rule_filter_type:");
+        for (int i = 0; i < accountingRuleFilterTypes.length; i++) {
+            out.printf("  %s = %s%n",
+                    accountingRuleFilterTypes[i],
+                    uuidV7(TABLE_OFFSETS.get("accounting_rule_filter_type") + i));
+        }
+
+        // accounting_unit_type — 4 rows per legacy
+        // database/FLSTest/3 insert/3 Insert Static Data.sql (AccountingUnitTypeId
+        // values: 10, 20, 30, 40). Used by AccountingRuleFilter.accounting_unit_type_id
+        // discriminator to drive DeliveryItem.unit_type_code snapshot.
+        String[] accountingUnitTypes = {
+                "MINUTES", "SECONDS", "LANDINGS", "START_OR_FLIGHT"};
+        out.println();
+        out.println("# accounting_unit_type:");
+        for (int i = 0; i < accountingUnitTypes.length; i++) {
+            out.printf("  %s = %s%n",
+                    accountingUnitTypes[i],
+                    uuidV7(TABLE_OFFSETS.get("accounting_unit_type") + i));
         }
     }
 }

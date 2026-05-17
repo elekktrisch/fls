@@ -190,4 +190,98 @@ class TenantCatalogConsistencyTest {
             }
         }
     }
+
+    /**
+     * S-014 tenant-scoped tables — the 5 aggregate roots, 3 internal entities
+     * (denormalized operating_club_id), and 2 per-club reclassified ref tables
+     * (aircraft_reservation_type + planning_day_assignment_type). All carry
+     * operating_club_id uuid NOT NULL.
+     */
+    @Test
+    void every_s014_tenant_scoped_table_has_operating_club_id_uuid_not_null() throws Exception {
+        List<String> tables = List.of(
+                "aircraft_reservation", "aircraft_reservation_type",
+                "planning_day", "planning_day_assignment", "planning_day_assignment_type",
+                "accounting_rule_filter",
+                "delivery", "delivery_item",
+                "delivery_creation_test", "delivery_creation_test_item");
+        try (Connection conn = dataSource.getConnection()) {
+            for (String t : tables) {
+                try (var stmt = conn.prepareStatement(
+                        "SELECT data_type, is_nullable FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name=? AND column_name='operating_club_id'")) {
+                    stmt.setString(1, t);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        assertThat(rs.next()).as("%s must have operating_club_id", t).isTrue();
+                        assertThat(rs.getString("data_type")).isEqualTo("uuid");
+                        assertThat(rs.getString("is_nullable"))
+                                .as("%s.operating_club_id must be NOT NULL", t)
+                                .isEqualTo("NO");
+                    }
+                }
+            }
+        }
+    }
+
+    /** S-014 system-global reference tables — accounting_rule_filter_type + accounting_unit_type. */
+    @Test
+    void every_s014_system_global_reference_table_has_no_operating_club_id() throws Exception {
+        List<String> refs = List.of("accounting_rule_filter_type", "accounting_unit_type");
+        try (Connection conn = dataSource.getConnection()) {
+            for (String t : refs) {
+                assertTableExists(conn, t);
+                try (var stmt = conn.prepareStatement(
+                        "SELECT 1 FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name=? "
+                                + "AND column_name IN ('operating_club_id', 'club_id')")) {
+                    stmt.setString(1, t);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        assertThat(rs.next())
+                                .as("system-global reference table %s must NOT carry operating_club_id / club_id", t)
+                                .isFalse();
+                    }
+                }
+            }
+        }
+    }
+
+    /** Reclassification: AircraftReservationTypes was reference at S-011; S-014 promotes to per-club. */
+    @Test
+    void aircraft_reservation_type_reclassified_to_tenant_scoped() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            assertTableExists(conn, "aircraft_reservation_type");
+            try (var stmt = conn.prepareStatement(
+                    "SELECT data_type, is_nullable FROM information_schema.columns "
+                            + "WHERE table_schema='public' AND table_name='aircraft_reservation_type' "
+                            + "AND column_name='operating_club_id'")) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertThat(rs.next())
+                            .as("aircraft_reservation_type must carry operating_club_id per legacy AircraftReservationType.cs:33 ClubId NOT NULL")
+                            .isTrue();
+                    assertThat(rs.getString("data_type")).isEqualTo("uuid");
+                    assertThat(rs.getString("is_nullable")).isEqualTo("NO");
+                }
+            }
+        }
+    }
+
+    /** Reclassification: PlanningDayAssignmentTypes was reference at S-011; S-014 promotes to per-club. */
+    @Test
+    void planning_day_assignment_type_reclassified_to_tenant_scoped() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            assertTableExists(conn, "planning_day_assignment_type");
+            try (var stmt = conn.prepareStatement(
+                    "SELECT data_type, is_nullable FROM information_schema.columns "
+                            + "WHERE table_schema='public' AND table_name='planning_day_assignment_type' "
+                            + "AND column_name='operating_club_id'")) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertThat(rs.next())
+                            .as("planning_day_assignment_type must carry operating_club_id per legacy PlanningDayAssignmentType.cs:21 ClubId NOT NULL")
+                            .isTrue();
+                    assertThat(rs.getString("data_type")).isEqualTo("uuid");
+                    assertThat(rs.getString("is_nullable")).isEqualTo("NO");
+                }
+            }
+        }
+    }
 }

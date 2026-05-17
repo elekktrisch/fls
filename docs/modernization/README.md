@@ -2,6 +2,13 @@
 
 A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite of this codebase. Driven by Claude Code skills under `.claude/skills/` plus specialist subagents under `.claude/agents/`; emits markdown artifacts to this folder and (in phase 6) code to `next/`.
 
+> **Primary directives** — [ADR 0022](adrs/0022-modernization-primary-directives.md). Read this before any skill file.
+>
+> 1. **Working software over comprehensive documentation.** Procedure files exist to enable shipping behavior — they're not deliverables.
+> 2. **Business logic in the DDD domain, not the database.** Schema is structural; aggregates own the rules.
+>
+> Skill + agent files target ≤ 200 / ≤ 100 lines. When a procedure here disagrees with the directives, the directives win.
+
 **Skill set:** the nine numbered phases (discover → vision → adrs → decompose → refine → implement → review → rework → finalize) plus three orchestration extensions for throughput (`/modernize-refine-ahead`, `/modernize-sweep-finalize`, `/modernize-fleet`) — see [Orchestration extensions](#orchestration-extensions) below.
 
 ## Strategic anchors (fixed for this project)

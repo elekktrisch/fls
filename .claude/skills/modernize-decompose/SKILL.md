@@ -5,119 +5,113 @@ description: Phase 4 — decompose the rewrite into epics + stories with depende
 
 # Phase 4 — Epic & Story Decomposition
 
-You are running phase 4 of a four-phase modernization workflow. Your job is to convert the feature inventory + ADRs into an actionable backlog: epics, stories, and tasks, with explicit dependencies and a recommended execution order.
+Convert the feature inventory + ADRs into an actionable backlog: epics, stories, `_ORDER.md`.
+
+Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md). Per directive 1: a story body is "just enough to ship behavior" — ACs grounded in legacy code beat long context paragraphs.
 
 ## Preconditions
 
-1. `01-current-state.md`, `02-vision-and-constraints.md`, and `adrs/*.md` all exist. Read them.
-2. If `epics/` or `stories/` already contain files, ask the user whether to (a) refresh from inputs (regenerate from scratch), (b) merge (preserve existing files, add new ones to fill gaps), or (c) abort.
+1. `01-current-state.md`, `02-vision-and-constraints.md`, `adrs/*.md` exist.
+2. If `epics/` or `stories/` already populated, ask: **refresh** (regenerate) / **merge** (preserve existing, fill gaps) / **abort**.
 
 ## Core principle — maximum autonomy
 
-This skill produces a backlog. Write it. **`AskUserQuestion` is a last resort, not a default.** Story writing should be fully autonomous: legacy code is the primary source of story content, the current-state doc and ADRs provide the framing, and any uncertainty becomes an explicit assumption recorded in the story — not a blocking question to the user.
+Per [[feedback-derive-before-asking]]: `AskUserQuestion` is a last resort. Story writing is autonomous; legacy code is the primary source; the current-state doc + ADRs frame; uncertainty becomes an `## Assumptions made` line, not a blocking question.
 
-**The user reviews and adjusts after the artifacts exist**, not during their construction. A backlog with assumptions the user can override beats a half-written backlog blocked on a question.
+**Operator reviews after artifacts exist**, not during construction. A backlog with assumptions the user can override beats a half-written backlog blocked on a question.
 
-### What "autonomous" means in practice
+### What autonomous means
 
-- **Read the legacy code** for each epic's feature area — controllers, services, jobs, templates, schema, tests. Skim is not enough; you need depth to write acceptance criteria that reference *specific* legacy behaviors (state transitions, time gates, validation rules, edge cases), not paraphrased summaries.
-- **Decide and document.** When two reasonable decompositions exist (bundle vs. split, story order, parity-test placement), pick one, note the alternative in the story's `## Notes` section as "Assumption: chose X over Y because Z; revisit if Y matters more", and move on.
-- **Default to inclusion.** If a feature is in the inventory and the seed doesn't explicitly defer or drop it, write a story for it. Do not ask "should we port X?" — write the story; let the user delete it if they want to drop it.
-- **Default to ADR conformance.** If an ADR's follow-ups call out a story, write it. Do not ask "should we do this follow-up?" — the ADR already said yes.
-- **Default to parity tests for sacred-cow code paths.** Write the parity test as task 1; if the user wants to skip it for a given story they will say so.
+- **Read legacy code** for each epic — controllers, services, jobs, templates, schema, tests. Skim isn't enough; ACs reference *specific* legacy behaviors (state transitions, time gates, validation rules, edges), not paraphrased summaries.
+- **Decide + document.** When two reasonable decompositions exist (bundle/split, order, parity-test placement), pick one, record alternative in `## Notes` as "Assumption: chose X over Y because Z; revisit if Y matters more."
+- **Default to inclusion.** Feature in inventory + seed doesn't defer/drop = write the story.
+- **Default to ADR conformance.** ADR follow-ups = write the story.
+- **Default to parity tests for sacred-cow paths.** Task 1 of the story; operator says so if they want to skip.
 
-### When `AskUserQuestion` is justified (rare)
+### `AskUserQuestion` justified ONLY when
 
-Reserve for cases where the answer **fundamentally changes the artifact structure** and is **not derivable from any combination of seed + vision + ADRs + current-state + legacy code**:
+Answer fundamentally changes artifact structure AND isn't derivable from seed + vision + ADRs + current-state + legacy code:
 
-- A pre-existing `epics/` or `stories/` folder must be resolved (refresh / merge / abort) — this is genuinely blocking because it changes whether you write at all.
-- A feature in the inventory is in tension with a vision constraint and the resolution would change the story shape significantly.
-- A required input file is missing or corrupt.
+- Pre-existing `epics/` or `stories/` — refresh / merge / abort.
+- Feature in inventory contradicts a vision constraint such that resolution changes story shape.
+- Required input file missing / corrupt.
 
-That's the list. Anything else — pick an answer, record the assumption, write the artifact, surface assumptions in the final summary.
+That's the list. Anything else: pick, record, write.
 
-### What never to ask
+### Never ask
 
 - "Should we have a story for X?" — write it.
-- "What should the acceptance criteria for X be?" — read the code, write them.
-- "How big is this story?" — measure (entities, endpoints, templates touched), pick S/M/L.
-- "Which ADRs apply?" — derivable from the story's domain.
-- "What order should the epics go in?" — write `_ORDER.md` from dependency + risk + sacred-cow weight; the user re-orders if they disagree.
-- "Should we bundle X and Y into one story or split them?" — pick one and note the alternative.
-- "Should we write a parity test for X?" — yes if it touches a sacred cow; no otherwise. Don't ask.
+- "What should AC for X be?" — read the code, write them.
+- "How big is this story?" — measure (entities / endpoints / templates touched), pick S/M/L.
+- "Which ADRs apply?" — derivable.
+- "What order should epics go in?" — write `_ORDER.md` from dependency + risk + sacred-cow weight.
+- "Bundle X+Y or split?" — pick + note.
+- "Parity test for X?" — yes if it touches a sacred cow; no otherwise.
 
-### Reporting back
+## Procedure
 
-When done, the summary must include:
-- A `## Assumptions made` section listing the decisions the skill resolved autonomously and could be revisited. The user reads this and pushes back on the ones that matter.
-- The `AskUserQuestion` count — should be zero or one (the "existing artifacts?" precondition check) in a typical run.
+### Step 0 — Pre-read discovery §8 "Findings pre-answered"
 
-## How to decompose
+That section is the discovery skill's contract with this phase. Most AC content + ADR cross-refs are there. Pull forward; don't re-derive.
 
-Top-down, three levels.
+### Step 1 — Write epics (5-15)
 
-### Step 0 — Pre-read the discovery doc's §8 "Findings pre-answered"
-That section is the discovery skill's contract with this phase. Most of the feed for story acceptance criteria and ADR cross-references is there. Pull it forward; do not re-derive.
+Each epic = a feature-area cluster from inventory OR a cross-cutting concern from ADRs.
 
-### Epics
-A handful (5–15) of large workstreams. Each epic corresponds to either:
-- A feature-area cluster from the inventory (e.g., "Flights & state machine", "Accounting rules engine", "Identity & multi-tenancy"), or
-- A cross-cutting concern surfaced by ADRs (e.g., "Migration tooling & parity validation", "Observability foundation", "CI/CD pipeline").
+Per epic, BEFORE decomposing into stories:
+1. Read legacy code for that area — list paths in epic body as "Legacy code touched."
+2. List ADRs that constrain (from `adrs/*.md` follow-ups).
+3. Measure: controller count / service count / entity count / e2e test count / rough lines. Feeds story estimates.
 
-For each epic, **before decomposing into stories**:
-1. Read the legacy code for that feature area — controllers, services, scheduled jobs, templates, schema, tests. List the file paths in the epic's body as "Legacy code touched."
-2. List the ADRs that constrain this epic (from `adrs/*.md` follow-ups).
-3. Measure: count the controllers, services, entities, e2e tests, lines (rough order of magnitude). These numbers feed story estimates.
+### Step 2 — Decompose into stories
 
-### Stories
-Each epic decomposes into stories. A story is **independently shippable** — it has clear acceptance criteria, can be merged on its own, and either lands user-visible value or unblocks the next story.
+A story is **independently shippable** — clear ACs, mergeable on its own, lands user-visible value or unblocks the next story.
 
-**Each story's acceptance criteria must be grounded in code, not paraphrase.** Examples:
-- ❌ "Flight state transitions work like in the old system."
-- ✅ "POST /api/v1/flights with `processStateId = Locked` and `lockedOn` set to 1 day in the past returns 400 (mirrors `FlightService.cs:1380-1440` time-gate check)."
+**ACs grounded in code, not paraphrase:**
+- ❌ "Flight state transitions work like the old system."
+- ✅ "POST /api/v1/flights with `processStateId = Locked` + `lockedOn` 1 day in past returns 400 (mirrors `FlightService.cs:1380-1440` time-gate)."
 
-**Estimates are calibrated against code measurements:**
-- S (≤1 day): single endpoint or small entity, no integration, < 200 lines of legacy code touched.
-- M (2–5 days): cluster of endpoints, one entity + DTOs, modest integration, 200–1000 lines touched.
-- L (>5 days): cross-entity feature, integration with external system, or rules-engine-shaped logic. Split if possible.
+**Per [ADR 0022 directive 2]: ACs avoid prescribing schema-level business logic.** Don't write "delivery.process_state CHECK IN (10, 20, 30, 99)" as an AC. Write "Delivery rejects out-of-set state transitions" — leave the implementation (aggregate method) to refine/implement.
 
-**Parity-sensitive stories** (anything touching sacred cows per seed) must name a concrete `parity_test` — the e2e file + the specific test name, or "write parity test as task 1." Bare "parity test exists" is not acceptable.
+**Estimates calibrated against measurements:**
+- S (≤1 day): single endpoint or small entity, no integration, < 200 lines legacy touched.
+- M (2-5 days): cluster of endpoints, one entity + DTOs, modest integration, 200-1000 lines.
+- L (>5 days): cross-entity, external integration, or rules-engine-shaped. Split if possible.
 
-For each story, frontmatter must include:
+**Parity-sensitive stories** (sacred cows) name a concrete `parity_test` — e2e file + test name, or "write parity test as task 1." Bare "parity test exists" rejected.
+
+Story frontmatter:
 
 ```yaml
 ---
 id: S-NNN
 title: <short title>
 epic: E-NN
-status: todo  # todo | in_progress | done | blocked
-depends_on: [S-NNN, S-NNN]
+status: todo
+depends_on: [S-NNN, ...]
 acceptance:
-  - <one-line condition>
-  - <one-line condition>
-estimate: S | M | L         # S = ≤1 day, M = 2-5 days, L = >5 days; split L if you can
-adr_refs: [0001, 0002]
-parity_test: <name of the e2e or unit test that proves equivalence with the old system, or "none">
+  - <one-line testable condition>
+  - ...
+estimate: S | M | L
+adr_refs: [0001, 0002, ...]
+parity_test: <e2e file + test name, or "none">
 ---
 ```
 
-### Tasks
-Stories large enough to have multiple sub-deliverables get a `## Tasks` section in the story body — a checklist, not separate files.
+Stories with multiple sub-deliverables get a `## Tasks` checklist (not separate files).
 
-## Story ordering
+### Step 3 — Story ordering (`_ORDER.md`)
 
-The output must include an explicit execution order, surfaced as a `docs/modernization/stories/_ORDER.md` file:
+1. **Foundational** stories first: bootstrap repos, CI, baseline auth, baseline DB, baseline frontend shell. Everything depends on these.
+2. **Vertical slices** that prove the architecture end-to-end on a low-risk domain.
+3. **Feature parity**, ordered by (a) external-integration risk, (b) user-visible criticality. Rules engine + accounting pipeline last (subtlest behavior).
+4. **Cutover prep**: data migration, parity-validation harness, runbooks.
 
-1. Start with **foundational** stories: bootstrap repos, CI, baseline auth, baseline DB connectivity, baseline frontend shell. Anything that everything else depends on.
-2. Then **vertical slices** that prove the architecture end-to-end on a low-risk domain.
-3. Then **feature parity**, working through the inventory in order of (a) external-integration risk, (b) user-visible criticality. Save the rules engine and accounting pipeline for last unless the user says otherwise — they have the most subtle behavior to preserve.
-4. Finally **cutover prep**: data migration, parity-validation harness, runbooks.
+Topological sort by `depends_on`. Tie-break: stories with more downstream dependents win (do unblockers first).
 
-Sort by `depends_on` topologically. Where ties exist, prefer stories with more downstream dependents (do the unblockers first).
+## File formats
 
-## Epic file format
-
-`docs/modernization/epics/E-NN-<slug>.md`:
+### Epic: `docs/modernization/epics/E-NN-<slug>.md`
 
 ```markdown
 ---
@@ -136,15 +130,12 @@ One paragraph.
 
 ## Stories
 - [ ] S-NNN — title
-- [ ] S-NNN — title
 
 ## Done when
-Concrete criteria that distinguish "this epic is finished" from "we're still on it".
+Concrete criteria.
 ```
 
-## Story file format
-
-`docs/modernization/stories/S-NNN-<slug>.md`:
+### Story: `docs/modernization/stories/S-NNN-<slug>.md`
 
 ```markdown
 ---
@@ -159,31 +150,31 @@ Why this story exists. One paragraph.
 
 ## Tasks
 - [ ] ...
-- [ ] ...
 
 ## Notes
-Implementation gotchas, references to seed sacred cows that apply here, parity tests to mirror, etc.
+Implementation gotchas, sacred cows, parity tests, assumptions.
 ```
 
 ## Quality bar
 
-- Every story has acceptance criteria you could write a test against. "Looks right" is not acceptance.
-- Every story names at least one ADR reference or explicitly notes "no ADR — pure parity work".
-- Every parity-sensitive story names a `parity_test`. If no test exists, an early task in the story is "write the parity test" — do not ship parity work blind.
-- No story is L without a Tasks section that splits it. If you can't split it, that's a signal it needs design work, not execution — flag it for the user.
-- Stories don't reference future stories by raw name in prose, only by ID. Renames stay easy.
-- **Acceptance criteria cite legacy code where parity matters** — file paths, function names, line ranges, specific behaviors. Paraphrased "works like the old system" is rejected.
-- **Estimates are calibrated** — a story marked M has measurable evidence (counts of endpoints / entities / tests touched) in its Notes section.
-- **No `AskUserQuestion` calls for content that can be derived from the inventory + ADRs + legacy code.** If the question is "what should the acceptance criteria be?", the answer is in the code — read it. Reserve user questions for scope-cut, prioritization, and judgment calls.
+- Every story has ACs you can write a test against. "Looks right" is not acceptance.
+- Every story names ≥ 1 ADR ref OR explicitly notes "no ADR — pure parity work".
+- Every parity-sensitive story names a `parity_test` OR makes "write parity test" task 1.
+- No L story without a `## Tasks` split. If unsplittable, flag for design work.
+- Stories reference future stories by ID, not raw name (renames stay easy).
+- ACs cite legacy code where parity matters — file paths, function names, line ranges, specific behaviors.
+- Estimates calibrated — M stories have counts in `## Notes` to back them.
+- Per ADR 0022 directive 2: ACs describe behavior, not schema-level business logic implementation.
+- **`AskUserQuestion` count expected = 0 (or 1 for pre-existing artifacts).** > 1 is a flag the autonomy principle wasn't respected.
 
-## When you are done
+## When done
 
-1. Generate `_ORDER.md` and sanity-check the topological sort.
+1. Generate `_ORDER.md`; sanity-check topological sort.
 2. Print:
    - Epic count.
-   - Story count broken down by estimate (S/M/L).
-   - **`AskUserQuestion` count** — expected: 0 (or 1 if a pre-existing `epics/`/`stories/` folder forced a refresh/merge/abort question). >1 is a flag that the autonomy principle was not respected.
-   - **`## Assumptions made`** — the autonomous decisions worth surfacing for user review (decomposition picks, scope inferences, parity-test placement, order ties broken by judgment). The user reads this list and pushes back on what matters.
-   - The first 3 stories of `_ORDER.md` — the user's immediate next moves.
-   - Any L stories that couldn't be split (flagged for design work).
-3. Tell the user: "Stories are ready. Review the assumptions list above; everything else is set. To start implementing, open story S-001 (or whichever you want to begin with). If you want GitHub Issues, write that sync script as its own story."
+   - Story count by estimate (S/M/L).
+   - **`AskUserQuestion` count** — expected 0-1.
+   - **`## Assumptions made`** list — autonomous decisions worth operator review (decomposition picks, scope inferences, parity-test placement, order ties). Operator pushes back on what matters.
+   - First 3 stories of `_ORDER.md`.
+   - Any L stories that couldn't be split.
+3. Tell operator: "Stories ready. Review assumptions. Start with S-001 (or your pick) via `/modernize-refine S-001` → `/modernize-implement S-001`."

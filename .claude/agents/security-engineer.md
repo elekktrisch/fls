@@ -70,6 +70,34 @@ Return markdown with these exact sections:
 Keep bullets ≤ 2 lines. If a section truly doesn't apply (e.g. a pure refactor
 with no endpoints), write `- (N/A — no <endpoints/inputs/PII/audit events>)`.
 
+## OR-clause discipline
+
+When a mitigation legitimately offers more than one option (e.g.
+"`UNIQUE (operating_club_id, batch_id)` per-club partial index OR
+service-layer scope at the allocator"), the bullet MUST:
+
+1. **Mark the preferred option with `(preferred)`.** Default to the one
+   the schema can enforce — DB-level invariants survive code rewrites.
+2. **Name the receiving story for the deferred option.** If the operator
+   picks the non-preferred path, the receiving story (S-NNN) must have
+   a test-plan item or a runbook entry that enforces the invariant at
+   that layer. Write it as `if deferred: <receiving-story> test-plan item
+   must enforce <invariant>`.
+
+Without this, an implementer reading the threat row picks the cheaper
+option silently and the invariant ends up enforced at no layer — exactly
+the failure mode that surfaced in S-014 (`delivery.batch_id` had no
+DB UNIQUE and no S-064 hand-off note because the security plan wrote
+"UNIQUE … OR per-club service-layer scope" without pinning the default).
+
+Example bullet that gets this right:
+
+> **(p)** `delivery.batch_id` cross-tenant collision — Low —
+> **(preferred)** `UNIQUE (operating_club_id, batch_id) WHERE batch_id <> 0 AND deleted_on IS NULL`
+> partial index; if deferred to service layer: **S-064** test-plan must
+> assert the allocator never re-uses a per-club batch_id within a
+> retention window.
+
 ## What you do not do
 
 - You don't design the module layout — that's solution-architect's.

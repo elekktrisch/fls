@@ -148,9 +148,12 @@ overrides:
     # FlightType carries per-club booleans (is_for_glider_flights / is_for_tow_flights /
     # is_for_motor_flights / is_check_flight / ...) — not shared across tenants.
   AircraftReservationTypes:
-    kind: reference
+    kind: tenant-scoped  # reclassified S-014 — legacy AircraftReservationType.cs:33 ClubId NOT NULL
     target_entity: AircraftReservationType
+    tenant_column: operating_club_id
     rationale_ref: tenant-catalog.md#reference-data
+    # Per-club lookup; not an aggregate root (Club-aggregate-internal lookup,
+    # parallel to S-012 MemberStates / PersonCategories). S-064 owns mutation.
   LocationTypes:
     kind: reference
     target_entity: LocationType
@@ -163,9 +166,11 @@ overrides:
     # Per ADR 0018 internal to the Club aggregate; CASCADE on Club delete.
     # Self-FK parent_person_category_id ON DELETE RESTRICT preserves hierarchy.
   PlanningDayAssignmentTypes:
-    kind: reference
+    kind: tenant-scoped  # reclassified S-014 — legacy PlanningDayAssignmentType.cs:21 ClubId NOT NULL
     target_entity: PlanningDayAssignmentType
+    tenant_column: operating_club_id
     rationale_ref: tenant-catalog.md#reference-data
+    # Per-club lookup; not an aggregate root. Mutation gated to FLIGHT_OPS / CLUB_ADMIN at S-064.
   ExtensionTypes:
     kind: reference
     target_entity: ExtensionType
@@ -361,36 +366,113 @@ overrides:
     target_entity: Delivery
     rationale_ref: tenant-catalog.md#deliveries
     emits_audit: true
-    ride_through_targets: [Persons]  # RecipientPersonId may be cross-club
+    ride_through_targets: [Persons, Flights]  # RecipientPersonId may be cross-club; Flight is same-tenant
+    pii_columns:
+      # 9 frozen recipient snapshot columns (Swiss OR Art. 957a 10-year retention).
+      - recipient_name
+      - recipient_firstname
+      - recipient_lastname
+      - recipient_address_line1
+      - recipient_address_line2
+      - recipient_zip_code
+      - recipient_city
+      - recipient_country_name
+      - recipient_person_club_member_number
+      # Free-text quasi-PII.
+      - delivery_information
+      - additional_information
+    pii_ride_through: [recipient_person_id]
+    fadp_dsar_retention_exempt_when: "process_state_id >= 20"  # OR Art. 957a override
 
   DeliveryItems:
-    kind: tenant-scoped
+    kind: tenant-scoped   # denormalized operating_club_id from delivery
     target_entity: DeliveryItem
     rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: true
+    pii_columns: [item_text, additional_information]
+    preconditions:
+      - "Denormalize operating_club_id from delivery.operating_club_id; @TenantId at S-022"
 
   AccountingRuleFilters:
     kind: tenant-scoped
     target_entity: AccountingRuleFilter
     rationale_ref: tenant-catalog.md#accounting-rule-filter
     emits_audit: true
+    pii_columns: [filter_config]   # whole-jsonb redaction (matched_club_member_numbers etc.)
+    pii_blob: true
+    # filter_config jsonb is the canonical A03 polymorphic-deserialization
+    # vector. Jackson default-typing DISABLED globally; ArchUnit rule bans
+    # @JsonTypeInfo(use=Id.CLASS). S-064 enforces per-discriminator typed
+    # shape allow-list. CLUB_ADMIN-only mutation; HIGHEST audit priority.
 
   AircraftReservations:
     kind: tenant-scoped
     target_entity: AircraftReservation
     rationale_ref: tenant-catalog.md#aircraft-reservation
     emits_audit: true
-    ride_through_targets: [Persons]
+    ride_through_targets: [Persons, Aircrafts]  # Aircrafts added per 2026-05-16 amendment
+    pii_columns: [info]
+    pii_ride_through: [pilot_person_id, second_crew_person_id]
+    # `pii_ride_through` lists ONLY cross-tenant FKs to entities that carry direct PII
+    # (Persons). Consumers (S-027 audit-blob redaction, S-051 DSAR scope) iterate this
+    # list assuming "data here is PII to redact / scrub on subject erasure" — including
+    # a non-PII FK (Aircraft) here would either over-redact a non-PII identifier in
+    # audit blobs OR follow the FK to scrub Aircraft data on a Person DSAR (wrong
+    # subject). Cross-tenant FKs that are authz-relevant but NOT PII go in
+    # `cross_tenant_fks` below.
+    cross_tenant_fks: [aircraft_id]
+    preconditions:
+      - "S-022 / S-064 service layer enforces Aircraft.canBeReservedBy(operating_club_id) at create/update"
+      - "Audit event carries cross_tenant: true when aircraft.owner_club_id != aircraft_reservation.operating_club_id"
+      - "S-024 leakage CI roster MUST include aircraft_reservation.aircraft_id as cross-tenant FK"
+      - "S-027 audit-blob redaction iterates pii_ride_through (NOT cross_tenant_fks); aircraft_id is logged as a cross-tenant marker, not redacted as PII"
+      - "S-051 DSAR scope iterates pii_ride_through (NOT cross_tenant_fks); Person erasure scrubs pilot_person_id / second_crew_person_id, not aircraft_id"
 
   PlanningDays:
     kind: tenant-scoped
     target_entity: PlanningDay
     rationale_ref: tenant-catalog.md#planning-day
+    emits_audit: true
+    pii_columns: [info]
 
   PlanningDayAssignments:
-    kind: tenant-scoped
+    kind: tenant-scoped   # denormalized operating_club_id from planning_day
     target_entity: PlanningDayAssignment
     rationale_ref: tenant-catalog.md#planning-day
+    emits_audit: true
     ride_through_targets: [Persons]
+    pii_columns: [info]
+    pii_ride_through: [assigned_person_id]
+
+  # S-014 new entries.
+
+  DeliveryCreationTest:
+    kind: tenant-scoped
+    target_entity: DeliveryCreationTest
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: true
+    ride_through_targets: [Flights]
+    pii_columns:
+      - description
+      - last_test_result_message
+      - expected_delivery
+      - last_test_created_delivery
+    pii_blob: true   # jsonb columns may carry recipient + member-number snapshots
+
+  DeliveryCreationTestItem:
+    kind: tenant-scoped   # denormalized
+    target_entity: DeliveryCreationTestItem
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: false   # snapshot rows; mutation captured at parent
+
+  ClubDeliveryNumberCounter:
+    kind: tenant-scoped   # PK is operating_club_id itself
+    target_entity: ClubDeliveryNumberCounter
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: false   # service-layer allocator at S-064 emits the audit event on delivery.book
 
   FlightCrew:
     kind: tenant-scoped

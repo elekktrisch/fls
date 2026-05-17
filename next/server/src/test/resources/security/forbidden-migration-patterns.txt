@@ -27,7 +27,7 @@ PASSWORD\s*'
 # is a `\B` boundary character vs. a word character — DO NOT "tighten" the
 # regex into one that drops the `\b`; reference-seed INSERTs would silently
 # trip the deny list.
-INSERT\s+INTO\s+(person|person_club|audit_logs|audit_log_details|flight|flight_crew|aircraft|aircraft_aircraft_state|aircraft_operating_counter|article|location|inoutbound_point)\b
+INSERT\s+INTO\s+(person|person_club|audit_logs|audit_log_details|flight|flight_crew|aircraft|aircraft_aircraft_state|aircraft_operating_counter|article|location|inoutbound_point|delivery|delivery_item|aircraft_reservation|planning_day|planning_day_assignment|accounting_rule_filter|delivery_creation_test|delivery_creation_test_item)\b
 
 # Destructive schema ops — allowlist exceptions via PR review.
 DROP\s+SCHEMA\b

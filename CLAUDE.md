@@ -1,5 +1,12 @@
 # CLAUDE.md
 
+## Primary directives
+
+[ADR 0022](docs/modernization/adrs/0022-modernization-primary-directives.md). Trumps every other rule in this file or any skill / agent file when they conflict.
+
+1. **Working software over comprehensive documentation.** Skills, agent prompts, story bodies, and review prose exist to enable shipping behavior — not as deliverables. Doc drift is a nudge unless it actively misleads. Skill files target ≤ 200 lines, agent files ≤ 100.
+2. **Business logic in the DDD domain, not the database.** The schema enforces only structural invariants (PKs, FKs, structural NOT NULL, identity-bearing partial UNIQUE, performance indexes). State machines, ranges, calculations, and business rules go on aggregates as Java methods.
+
 ## First action — triage
 
 Before reading anything else, decide which lane you're in:

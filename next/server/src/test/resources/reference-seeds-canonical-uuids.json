@@ -7,7 +7,8 @@
     "note": "DO NOT regenerate after the migration has been applied to any environment. Flyway checksum-locks the migration; a UUID change requires a follow-up migration with cascading FK updates.",
     "updated_for_stories": [
       "S-012",
-      "S-013"
+      "S-013",
+      "S-014"
     ],
     "updated_at_iso": "2026-05-16T00:00:00Z"
   },
@@ -2406,6 +2407,106 @@
       "is_for_motor": true,
       "uuid": "019e2e15-2c00-726c-8000-00000000426c",
       "natural_key": "INVOICE_TO_PERSON"
+    }
+  ],
+  "accounting_rule_filter_type": [
+    {
+      "code": "RECIPIENT",
+      "legacy_int_id": 10,
+      "name": "Recipient accounting rule filter",
+      "description": "Routes the recipient/invoice target for matching flights",
+      "uuid": "019e2e15-2c00-7650-8000-000000004650",
+      "natural_key": "RECIPIENT"
+    },
+    {
+      "code": "NO_LANDING_TAX",
+      "legacy_int_id": 20,
+      "name": "No landing tax accounting rule filter",
+      "description": "Suppresses landing-tax line items for matching flights",
+      "uuid": "019e2e15-2c00-7651-8000-000000004651",
+      "natural_key": "NO_LANDING_TAX"
+    },
+    {
+      "code": "FLIGHT_TIME",
+      "legacy_int_id": 30,
+      "name": "Flight time accounting rule filter",
+      "description": "Emits flight-time-based line item for matching flights",
+      "uuid": "019e2e15-2c00-7652-8000-000000004652",
+      "natural_key": "FLIGHT_TIME"
+    },
+    {
+      "code": "INSTRUCTOR_FEE",
+      "legacy_int_id": 40,
+      "name": "Instructor fee accounting rule filter",
+      "description": "Emits instructor-fee line item for matching flights",
+      "uuid": "019e2e15-2c00-7653-8000-000000004653",
+      "natural_key": "INSTRUCTOR_FEE"
+    },
+    {
+      "code": "ADDITIONAL_FUEL_FEE",
+      "legacy_int_id": 50,
+      "name": "Additional fuel fee accounting rule filter",
+      "description": "Emits additional-fuel surcharge line item",
+      "uuid": "019e2e15-2c00-7654-8000-000000004654",
+      "natural_key": "ADDITIONAL_FUEL_FEE"
+    },
+    {
+      "code": "LANDING_TAX",
+      "legacy_int_id": 60,
+      "name": "Landing tax accounting rule filter",
+      "description": "Emits landing-tax line item for matching flights",
+      "uuid": "019e2e15-2c00-7655-8000-000000004655",
+      "natural_key": "LANDING_TAX"
+    },
+    {
+      "code": "VSF_FEE",
+      "legacy_int_id": 70,
+      "name": "VSF fee accounting rule filter",
+      "description": "Emits Swiss VSF association fee line item",
+      "uuid": "019e2e15-2c00-7656-8000-000000004656",
+      "natural_key": "VSF_FEE"
+    },
+    {
+      "code": "ENGINE_TIME",
+      "legacy_int_id": 80,
+      "name": "Engine time accounting rule filter",
+      "description": "Emits engine-time-based line item for matching flights",
+      "uuid": "019e2e15-2c00-7657-8000-000000004657",
+      "natural_key": "ENGINE_TIME"
+    }
+  ],
+  "accounting_unit_type": [
+    {
+      "code": "MINUTES",
+      "legacy_int_id": 10,
+      "name": "Minuten",
+      "short_name": "Min",
+      "uuid": "019e2e15-2c00-7a38-8000-000000004a38",
+      "natural_key": "MINUTES"
+    },
+    {
+      "code": "SECONDS",
+      "legacy_int_id": 20,
+      "name": "Sekunden",
+      "short_name": "Sec",
+      "uuid": "019e2e15-2c00-7a39-8000-000000004a39",
+      "natural_key": "SECONDS"
+    },
+    {
+      "code": "LANDINGS",
+      "legacy_int_id": 30,
+      "name": "Landungen",
+      "short_name": "Ldgs",
+      "uuid": "019e2e15-2c00-7a3a-8000-000000004a3a",
+      "natural_key": "LANDINGS"
+    },
+    {
+      "code": "START_OR_FLIGHT",
+      "legacy_int_id": 40,
+      "name": "Start oder Flug",
+      "short_name": "StartOrFlight",
+      "uuid": "019e2e15-2c00-7a3b-8000-000000004a3b",
+      "natural_key": "START_OR_FLIGHT"
     }
   ]
 }
