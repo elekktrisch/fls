@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -62,18 +61,13 @@ class OpenApiSnapshotIT {
                 .as("Committed snapshot at %s — run ./gradlew generateOpenApiSnapshot to create / refresh.", snapshot)
                 .exists();
 
-        JsonNode live = stripVolatile(json.readTree(restTemplate.getForObject("/v3/api-docs", String.class)));
-        JsonNode committed = stripVolatile(json.readTree(Files.readAllBytes(snapshot)));
+        JsonNode live = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
+        OpenApiSnapshotNormalize.stripVolatile(live);
+        JsonNode committed = json.readTree(Files.readAllBytes(snapshot));
+        OpenApiSnapshotNormalize.stripVolatile(committed);
 
         assertThat(live)
                 .as("Committed OpenAPI snapshot is stale vs. live spec. Run ./gradlew generateOpenApiSnapshot and commit the refreshed file.")
                 .isEqualTo(committed);
-    }
-
-    private JsonNode stripVolatile(JsonNode root) {
-        if (root instanceof ObjectNode obj && obj.has("info") && obj.get("info") instanceof ObjectNode info) {
-            info.remove("version");
-        }
-        return root;
     }
 }

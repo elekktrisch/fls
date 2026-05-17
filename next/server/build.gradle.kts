@@ -188,3 +188,34 @@ flyway {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+// ---------------------------------------------------------------------------
+// S-003: OpenAPI snapshot maintenance.
+//
+//   generateOpenApiSnapshot   refresh next/web/openapi/openapi.json
+//   compareOpenApiSnapshot    fail with non-zero exit if the committed snapshot
+//                             diverges from the live spec (run by CI)
+//
+// The drift gate is enforced by OpenApiSnapshotIT (regular @SpringBootTest)
+// rather than wiring compareOpenApiSnapshot into `check` — the IT reuses the
+// shared Postgres testcontainer and is skipped cleanly when Docker is absent,
+// keeping `./gradlew check` runnable on machines without Docker.
+// ---------------------------------------------------------------------------
+
+val openApiSnapshotFile = rootProject.projectDir.resolve("../web/openapi/openapi.json")
+
+val generateOpenApiSnapshot by tasks.registering(JavaExec::class) {
+    group = "documentation"
+    description = "Refresh next/web/openapi/openapi.json from the live springdoc spec."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "ch.alpenflight.platform.openapi.OpenApiSnapshotMain"
+    args = listOf("--write", openApiSnapshotFile.absolutePath)
+}
+
+val compareOpenApiSnapshot by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Fail if the committed OpenAPI snapshot diverges from the live spec."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "ch.alpenflight.platform.openapi.OpenApiSnapshotMain"
+    args = listOf("--compare", openApiSnapshotFile.absolutePath)
+}
