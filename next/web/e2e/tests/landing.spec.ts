@@ -3,11 +3,11 @@ import { test, expect } from '@playwright/test';
 test('landing page renders + carries tailwind class + computed style', async ({ page }) => {
   await page.goto('/');
 
-  await expect(page).toHaveTitle(/FLS/i);
+  await expect(page).toHaveTitle(/AlpenFlight/i);
 
   const heading = page.locator('h1');
   await expect(heading).toBeVisible();
-  await expect(heading).toHaveText(/Hello FLS/i);
+  await expect(heading).toHaveText(/Hello AlpenFlight/i);
   await expect(heading).toHaveClass(/text-blue-600/);
 
   // Tailwind v4 emits the OKLCH form of blue-600; modern browsers report

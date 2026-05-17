@@ -135,10 +135,13 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 
 ## 8. Testing posture
 
-- **Unit:** Vitest via `@analogjs/vitest-angular` (Karma+Jasmine fallback if AnalogJS lags Angular major). Test names + assertions stay portable across runners.
-- **E2E:** Playwright under `next/web/e2e/`. Smoke + happy-path per feature; legacy parity port lands later (S-109).
-- Atomic-design components (atoms/molecules) get unit tests. Organisms get unit + a Playwright integration when they have non-trivial keyboard/ARIA behavior.
-- Coverage targets are not enforced by CI in S-002 — they accumulate per feature story.
+**One rule, two layers:** unit tests for logic, Playwright for DOM.
+
+- **Unit (Vitest, `pnpm test`).** Test logic classes only — services, signal stores, pure utilities, type guards, mappers. **Never `TestBed.createComponent` + DOM assertions** (`nativeElement.textContent`, `querySelector`, `toHaveText`, etc.). Component shapes are a Playwright concern; turning vitest into a fake browser duplicates surface area and adds zoneless + signal flakiness for no signal that an e2e wouldn't catch sooner.
+- **E2E (Playwright, `pnpm e2e`).** Every feature ships at least one happy-path spec in `next/web/e2e/tests/<feature>.spec.ts`. UI rendering, routing, ARIA, keyboard flows, and "the generated client actually wires to the network" assertions all live here. Mock the backend via `page.route('**/api/v1/<path>', route => route.fulfill({...}))` when the spec doesn't need a live server. Real-backend e2e lands later (S-109/S-110 territory).
+- **Legacy parity port:** later (S-109).
+- **Coverage targets:** not enforced by CI; coverage accumulates per feature story.
+- **Acceptable vitest specs today:** anything that asserts behavior without rendering a template — e.g. a `FlightStore` reducer / selector test, a `dateRange.spec.ts` for a pure helper, a guard's URL-building. **Not acceptable today:** `*.component.spec.ts` files that assert on rendered output. (Files predating this convention stay until their next touch; new specs follow the rule.)
 
 ## 9. Local-environment quirks (sandbox)
 
