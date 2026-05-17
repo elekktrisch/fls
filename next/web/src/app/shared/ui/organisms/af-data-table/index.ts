@@ -1,6 +1,5 @@
 export {
   AfDataTableComponent,
-  type DataTableColumn,
   type SortChange,
   type SortDirection,
   type PageChange,
