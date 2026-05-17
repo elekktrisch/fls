@@ -4,6 +4,7 @@ import angular from 'angular-eslint';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
+  { ignores: ['src/app/api/generated/**'] },
   {
     files: ['**/*.ts'],
     extends: [
