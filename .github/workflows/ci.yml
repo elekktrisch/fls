@@ -437,13 +437,17 @@ jobs:
             exit 1
           fi
 
-      - name: Lint + format + test + build next/web
+      # `pnpm test` is intentionally not run yet — the new posture (per
+      # next/web/CLAUDE.md §8) is vitest = logic-only specs, Playwright =
+      # DOM. The repo currently has zero logic specs, and `ng test` exits
+      # 1 on "no tests found." Re-enable this step in the first PR that
+      # lands a logic spec (a service / signal store / pure utility).
+      - name: Lint + format + build next/web
         if: steps.detect.outputs.web == 'true'
         working-directory: next/web
         run: |
           pnpm lint
           pnpm format
-          pnpm test
           pnpm build:prod
 
   # ---------------------------------------------------------------------------
