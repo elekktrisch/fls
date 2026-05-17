@@ -23,6 +23,25 @@ refined_at: 2026-05-17
 refined_specialists: [requirements, solution, qa, performance]
 github_issue: 44
 github_pr: 45
+reviewed: true
+reviewed_at: 2026-05-17
+review_outcome: blockers
+review_blockers: 1
+review_improvements: 11
+review_nudges: 4
+review_parity_oracle: "N/A — parity_test: none; no flsserver/flsweb refs in diff"
+review_reviewers: [maintainability, security, tech-writer]
+reworked: true
+reworked_at: 2026-05-17
+rework_mode: interactive
+rework_address_now: 9
+rework_deferred: 0
+rework_accepted: 7
+rework_auto_decisions: 0
+rework_followups: []
+rework_meta_improvements: 0
+rework_meta_followups: []
+rework_meta_changes: []
 origin: rework-meta
 origin_story: S-014
 origin_pattern: V4 ships ~15 business-logic CHECK constraints + 1 generated calculation column that under ADR 0022 directive 2 belong on aggregates. Filed pre-emptively so V4 stays directive-compliant before any production deployment.
@@ -563,3 +582,46 @@ Deleted ~20 CHECK-assertion test methods + 4 live SQLSTATE-23514 provocations ac
 ### ADR 0022 follow-up self-close
 
 Worth marking S-132 as done in ADR 0022's `## Follow-ups` list during the next docs sweep (not in this PR — boyscout for a future touch). Cited by story-ID, not SHA.
+
+## Review
+
+<!-- modernize-review: start -->
+
+**Reviewed:** 2026-05-17 · **PR:** #45 · **Diff size:** 3 commits, 8 files (−516 net lines) · **Outcome:** blockers
+
+### Maintainability
+
+- **[in-rework] [blocker]** V3 header still describes the removed `flight_aircraft_type_id IN (1,2,4)` CHECK as current — `next/server/src/main/resources/db/migration/V3__flights_aircraft_locations.sql:67-71`. The "Sparse-enum sacred cow" block reads `Modelled as SMALLINT NOT NULL CHECK (flight_aircraft_type_id IN (1, 2, 4))` and cites byte savings of "SMALLINT + CHECK"; this story removed that CHECK. Per ADR 0022 directive 1 this is the blocker-tier of doc drift — actively misleads a future implementer who'd copy the pattern (and re-introduce a directive-2 violation) or "fix" the schema by re-adding the CHECK. **Fix:** rewrite to past-tense + cite the re-home: `Modelled as SMALLINT NOT NULL; allowed-set (1, 2, 4) lives on FlightAircraftType enum at S-058 per ADR 0022 directive 2 (S-132 dropped the CHECK)`. Drop the `+ CHECK` from the byte-savings line.
+- **[accepted: gate is fragile but covers today's case; trust code review for future migrations] [improvement]** Retention allow-list keyed by constraint name only — cross-table mismatch slips through — `next/server/src/test/java/ch/alpenflight/server/migration/MigrationFolderConventionsTest.java:179-203`. A future migration with `COMMENT ON CONSTRAINT ck_foo ON wrong_table IS 'ADR 0022 retained: …'` would allow-list the real `ck_foo` regardless of where it lives. **Fix:** capture `(name, table)` pair via the surrounding `CREATE TABLE` / `ALTER TABLE` context; match the pair when allow-listing.
+- **[accepted: same — gate covers today's case; revisit if a future migration exercises the bypass] [improvement]** `indexOf("CHECK", nc.start())` positionally fragile + no block-comment stripping — `MigrationFolderConventionsTest.java:185-201`. The fallback picks the *next* `CHECK` after the matched `CONSTRAINT ck_x`, not necessarily the one belonging to that clause; an intervening `/* note */ CHECK (...)` (block comments are not stripped) misaligns the offset and shifts the allow-list onto the wrong literal. **Fix:** strip `/* … */` block comments alongside `--`; compute the allowed-start from `Matcher.end()` of the named match instead of a re-scan.
+- **[in-rework] [improvement]** Orphan `catchThrowable` import in `FlightBaselineIntegrationTest` — `next/server/src/test/java/ch/alpenflight/server/migration/FlightBaselineIntegrationTest.java:5`. All `*_rejected_by_check` provocations were deleted; no remaining usage. Compiles, but a reader wastes time looking for the throwing test. **Fix:** drop the import.
+- **[in-rework] [nudge]** `throws IOException` on `no_business_logic_check_constraints_test_catches_synthetic_violation` — `MigrationFolderConventionsTest.java:222`. The method performs no I/O after the rework. **Fix:** drop the throws clause.
+- **[in-rework] [nudge]** V4 header §11-13 still advises "never amend — ship V5" — `next/server/src/main/resources/db/migration/V4__reservations_planning_accounting.sql:11-13`. The advice is correct in spirit, but this PR amended V4 in place (operator-driven, no production env yet). Generalise to "ship V&lt;n+1&gt;" so the rule survives the documented exception.
+
+### Parity
+
+**Oracle:** N/A — `parity_test: none` and no `flsserver/` / `flsweb/` references in the diff. Schema-shape change; equivalent domain behaviour lands at S-022 / S-058 / S-064 / S-068 when the aggregate methods + value objects ship.
+
+### Security
+
+- **[accepted: structural presence + marker test is enough; trust code review for predicate semantics] [improvement]** Retained shape CHECKs lost their live SQLSTATE-23514 provocation coverage — `next/server/src/test/java/ch/alpenflight/server/migration/IdentityBaselineIntegrationTest.java` (deleted `person_email_check_constraint_present`). The retentions exist + carry markers, but no test now proves the CHECK actually rejects malformed input at the persistence boundary. Since the whole rationale is "direct-SQL writes that bypass the VO must be blocked," losing the round-trip test is a defense-in-depth coverage regression. **Fix:** add three small INSERT-asserts SQLSTATE 23514 tests: `person_email_private_shape_rejects_malformed`, `person_email_business_shape_rejects_malformed`, `aircraft_spot_link_rejects_http_url`.
+- **[accepted: keep the marker-only mechanism; trust documented review discipline] [improvement]** Retention allow-list is name-scoped, not semantics-scoped — `MigrationFolderConventionsTest.java:174-219`. A future implementer can launder a brand-new business-logic CHECK by naming it (`ck_dlv_state_machine`) + pasting a `COMMENT ON CONSTRAINT … 'ADR 0022 retained: <bogus rationale>'`; the gate accepts any name with the marker text. **Fix:** freeze the retained set as an explicit `Set.of("ck_person_email_private_shape", "ck_person_email_business_shape", "ck_aircraft_spot_link_https")` constant in the test — net-new retentions must edit Java (visible in code review) rather than appending a COMMENT. Or CODEOWNERS-gate the file for security sign-off.
+- **[accepted: cosmetic side-effect of dropping multi-CHECK trailing lists; out of scope] [nudge]** Trailing-comma diff churn in V3/V4 obscures the security-relevant lines — `V3__flights_aircraft_locations.sql`, `V4__reservations_planning_accounting.sql`. Most hunks are pure `,` removals on the column above a dropped CHECK list. Not a finding per se; just a marker that the diff is harder to security-review at a glance than the line counts imply.
+
+### Code quality
+
+- **[in-rework] [improvement]** `ck_cdnc_next_number_positive` re-home story disagreement between Design notes and Implementation notes catalogues — `docs/modernization/stories/S-132-v5-drop-business-logic-checks.md:207` (Design notes says S-022) vs the Implementation notes catalogue (says S-064) + the V4 inline comment (`V4:606`, S-064). Two-of-three say S-064. **Fix:** correct the Design notes catalogue entry to S-064.
+- **[accepted: refinement-section drift; Implementation notes records actual landing] [improvement]** Design notes § ADR conformance claims "V5 file targets ≤ 200 lines" after the pivot eliminated V5 — `docs/modernization/stories/S-132-v5-drop-business-logic-checks.md:218`. Stale assertion about a non-existent artifact. **Fix:** rewrite as "no V5 needed; in-place edits to V2/V3/V4 each under their respective net-change budgets."
+- **[accepted: refinement-section drift; Implementation notes AC6 records actual landing] [improvement]** Design notes § Denylist mechanics describes the V[1-4] filename-skip approach that was NOT shipped — `S-132-…md:138-180`. The actual gate is the COMMENT-marker mechanism (per Implementation notes AC6 mapping); a reader who opens Design notes first learns a mechanism that doesn't exist. **Fix:** lead the section with one line: "Option A below was superseded — see Implementation notes AC6 for the COMMENT-marker mechanism that shipped."
+- **[in-rework] [improvement]** Design notes cite stale line range "157-177" in `MigrationFolderConventionsTest.no_forbidden_patterns_in_migrations` — `S-132-…md:142`. The new `no_business_logic_check_constraints_in_migrations` now occupies that line range; the cited test moved. **Fix:** cite the method by name only (line numbers rot under squash-merge).
+- **[in-rework] [improvement]** Floating re-home comment blocks between test methods lack a structural anchor — `FlightBaselineIntegrationTest.java:324-326, 433-435`. Comments like "// at-least-one-flag invariant ... lives on ... S-058" sit between unrelated `@Test` methods; the attachment point is ambiguous. **Fix:** attach to the nearest `// === <section> ===` header or fold into a single section preamble.
+- **[in-rework] [nudge]** Story line ~557 embeds ephemeral `git diff` command as AC9 verification evidence. Run-once verification text doesn't belong in a committed doc. **Fix:** replace with "confirmed by inspection: no changes to `next/database/tenant-rules.yaml` in this PR."
+- **[in-rework] [nudge]** V2 `ck_language_bcp47` removal comment omits re-home story — `V2__identity_and_reference.sql:98`. Other dropped-constraint comments uniformly cite a story (V3/V4). **Fix:** append "at S-022".
+
+### Cross-reviewer agreements
+
+- **COMMENT-marker allow-list is the load-bearing directive-2 gate, and three independent angles surface it as fragile** — maintainability (cross-table name-mismatch + positional `indexOf` + missing block-comment strip), security (name-only scoping enables laundering). Highest signal in the review: hardening this test should land at `/modernize-rework` time before any future migration relies on it.
+- **V3 header staleness** flagged by maintainability + tech-writer (different severities). Elevated to blocker per directive 1's "actively misleads" criterion — a future implementer would copy the wrong shape.
+- **`indexOf` positional fragility** flagged by maintainability + security from different angles; both point to the same Java line — fix bundles cheaply.
+
+<!-- modernize-review: end -->
