@@ -6,17 +6,14 @@ status: in_progress
 started_at: 2026-05-17
 depends_on: []
 acceptance:
-  - `docker compose -f next/ops/docker-compose.yml --profile dev up -d --wait` brings Postgres 17, Keycloak (per S-019 contract), and mailpit healthy on a dev laptop in ≤ 30s warm / ≤ 90s cold.
-  - `docker compose -f next/ops/docker-compose.yml --profile dev --profile full up -d --wait` additionally brings the backend container (placeholder until S-040 produces the real image) healthy.
-  - Compose file location is `next/ops/docker-compose.yml` (NOT repo root — repo-root `docker-compose.yml` is the legacy e2e stack and stays untouched).
-  - Prod overlay `next/ops/docker-compose.prod.yml` exists; `docker compose -f next/ops/docker-compose.yml -f next/ops/docker-compose.prod.yml config -q` parses cleanly.
-  - `next/ops/.env.example` committed with every `${VAR}` referenced in either compose file documented; `next/ops/.env` is gitignored.
-  - Every service declares `healthcheck` with bounded `interval`/`retries`/`start_period`; downstream `depends_on` uses `condition: service_healthy`.
-  - All published host ports for data services (Postgres, mailpit SMTP + UI) bind to `127.0.0.1:` in the dev compose (not `0.0.0.0`). Keycloak's `8080` follows the S-019 contract.
-  - Postgres uses a named volume `fls-pgdata`; `compose down` preserves; `compose down -v` wipes.
-  - Prod overlay pins every image by digest (ADR 0010 rule 9); strips dev-only env (e.g. `KC_BOOTSTRAP_ADMIN_*`), strips mailpit, removes host-port mappings on Postgres + backend (reverse-proxy only — S-041 follow-up).
-  - `next/ops/README.md` documents: first-time bring-up, profile matrix (`dev` / `full`), `compose down` vs. `down -v` semantics, port-collision recovery via `.env`, dev SMTP inspection at `http://localhost:8025`, and disambiguation from the legacy root compose.
-  - CI guards: `compose config` exits 0 on both files; no `:latest` tags; no literal secrets in prod overlay env; every service has a healthcheck.
+  - `docker compose -p fls-e2e -f docker-compose.yml --profile next up -d --wait` brings Postgres 17 + pgAdmin + Keycloak (no realm yet, see S-019) + the shared mailpit healthy on a dev laptop in ≤ 90s cold / ≤ 30s warm.
+  - The repo-root `docker-compose.yml` hosts both stacks: default profile = legacy (`mssql` + `mailpit`); `--profile next` adds the new-stack services. There is no second compose file (the originally-planned `next/ops/docker-compose.yml` was dropped during implement — see context).
+  - `next/ops/.env.example` committed with every override knob documented; `next/ops/.env` is gitignored.
+  - Every service declares a `healthcheck` with bounded `interval` / `retries` / `start_period`.
+  - All host ports for new-stack services bind to `127.0.0.1:` (loopback only).
+  - `next/ops/README.md` documents: first-time bring-up, profile matrix, `compose down` vs. `down -v` semantics, dev SMTP inspection at `http://localhost:8025`, Keycloak-on-8090 footgun, legacy-vs-new disambiguation.
+  - CI guards (`compose-lint.yml` + `compose-smoke.yml`): `compose config` exits 0; every service has a healthcheck; no `:latest` on new-stack services; `compose --profile next up --wait` + functional probes succeed on GitHub-hosted runners.
+  - Prod overlay + digest pins + resource limits = **deferred to S-041 / S-046** per operator directive 2026-05-17.
 estimate: M
 adr_refs: [0010]
 parity_test: none
@@ -30,21 +27,26 @@ github_issue: 46
 
 ## Context
 
-First deployment artifact. Required by basically every other story that touches integration testing. Implements ADR 0010's 10 K8s-ready hygiene rules from day one (env config, stateless, stdout logs, healthchecks, graceful shutdown, idempotent migrations, no host paths, one process per container, digest pins for prod, secrets injected).
+First deployment artifact. Required by basically every other story that touches integration testing. Implements ADR 0010's K8s-ready hygiene rules in dev form: env config, stateless, stdout logs, healthchecks, graceful shutdown, idempotent migrations.
 
-**Critical contextual note:** the repo-root `/docker-compose.yml` is the **legacy e2e** stack (mssql + mailpit for the AngularJS Playwright suite); it must not be clobbered. The new-stack compose lives at `next/ops/docker-compose.yml`. Operator ergonomics handled via documented invocation + optional shell aliases (`fls-up`, etc.) in `next/ops/README.md`.
+**Scope amendment (operator directive 2026-05-17, during implement):**
+1. **Prod overlay deferred.** Get it working locally + green in CI; the `docker-compose.prod.yml` overlay + digest pins + resource limits + `!reset` / `!override` tags described in this story's *original* design notes (before this amendment) move to S-041 / S-046.
+2. **Extend root compose, don't relocate.** When this story was speculatively refined on 2026-05-15 the repo-root `docker-compose.yml` was assumed to be legacy-only, with the new stack moving to a new `next/ops/docker-compose.yml`. By implement time it had already grown a `--profile next` block holding the new-stack Postgres + pgAdmin (from S-013), driving Flyway migrations through `dev-up-full.sh`. The operator chose to extend that file in place — add `keycloak` under the same `--profile next` — rather than relocate working infra for design-document fidelity (per ADR 0022 directive 1).
+
+Result: there is exactly **one** `docker-compose.yml` in the repo. The default profile runs the legacy e2e stack (`mssql` + `mailpit`). `--profile next` adds the new-stack services. Mailpit is shared.
 
 ## Acceptance criteria
 See frontmatter.
 
 ## Tasks
-- [ ] Create `next/ops/` directory; seed `next/ops/README.md`, `next/ops/.gitignore` (ignores `.env`, `.env.local`, `.env.*.local`).
-- [ ] Author `next/ops/docker-compose.yml` (dev base) per Design notes §"Service shape".
-- [ ] Author `next/ops/docker-compose.prod.yml` (prod overlay) per Design notes §"Prod overlay".
-- [ ] Author `next/ops/.env.example` with every `${VAR}` documented; ship with `POSTGRES_PASSWORD=` empty (no default) so misconfig fails fast.
-- [ ] Hand S-019's Compose contract verbatim into the `keycloak` service block (image, command, env, volumes, ports, healthcheck) — but adjust the realm-export bind-mount path from S-019's `./next/auth/realm-export.json` to `../auth/realm-export.json` (relative to `next/ops/`). **Update S-019 in lockstep** (small amendment to its Compose contract block).
-- [ ] Wire CI guards in `.github/workflows/`: `compose-lint.yml` (no `:latest`, no literal secrets in prod, every service has healthcheck) and `compose-smoke.yml` (parse + `compose up --wait` per profile + functional probes).
-- [ ] Document the profile matrix + the `dev`+`full` two-profile-union footgun in `next/ops/README.md`.
+- [x] Extend repo-root `docker-compose.yml` with a `keycloak` service under `--profile next` (dev mode, no realm import yet — S-019 lands the realm).
+- [x] Tighten existing new-stack services: pin mailpit to a concrete tag, add pgAdmin healthcheck.
+- [x] Create `next/ops/.env.example`, `next/ops/.gitignore`, `next/ops/README.md`.
+- [x] Author `next/ops/lint-compose.sh` + `.github/workflows/compose-lint.yml` (every service has healthcheck, no `:latest` on new-stack services, new-stack ports loopback-only).
+- [x] Author `.github/workflows/compose-smoke.yml` (`compose --profile next up --wait` + functional probes: psql, keycloak `/realms/master` + `/health/ready`, mailpit `/api/v1/info`, pgadmin `/misc/ping`).
+- [x] Update `next/ops/dev-up-full.sh` to bring up the full `--profile next` set (not just postgres + pgadmin).
+- [x] Document profile matrix + Keycloak-on-8090 footgun + legacy-vs-new disambiguation in `next/ops/README.md`.
+- [ ] Prod overlay (`docker-compose.prod.yml`) — **deferred to S-041 / S-046**.
 
 <!-- modernize-refine: start -->
 
