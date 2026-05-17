@@ -4,6 +4,7 @@ import static ch.alpenflight.server.testsupport.MigrationAssertions.assertTableE
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import ch.alpenflight.server.testsupport.MigrationAssertions;
 import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -58,7 +59,7 @@ class ReservationsBaselineIntegrationTest {
     private static final List<String> S014_INTERNAL_ENTITIES = List.of(
             "delivery_item", "planning_day_assignment", "delivery_creation_test_item");
 
-    /** TENANT_SCOPED tables in S-014 (9 = 5 roots + 3 internals + 1 per-club ref pair).
+    /** TENANT_SCOPED tables in S-014 (10 = 5 roots + 3 internals + 2 per-club ref tables).
      * Each must carry operating_club_id uuid NOT NULL → club(id). */
     private static final List<String> S014_TENANT_SCOPED_TABLES = List.of(
             "aircraft_reservation", "aircraft_reservation_type",
@@ -267,7 +268,7 @@ class ReservationsBaselineIntegrationTest {
             conn.setAutoCommit(false);
             try {
                 String clubId = seedMinimalClub(conn, "TST_DLV1");
-                String deliveryId = "00000000-0000-7d10-8000-000000000001";
+                String deliveryId = newDeterministicUuid("delivery", "state_999_provoke");
                 Throwable thrown = catchThrowable(() -> {
                     try (var s = conn.prepareStatement(
                             "INSERT INTO delivery (id, operating_club_id, process_state_id) "
@@ -346,12 +347,12 @@ class ReservationsBaselineIntegrationTest {
                 String clubA = seedMinimalClub(conn, "TST_DLV_A");
                 String clubB = seedMinimalClub(conn, "TST_DLV_B");
                 insertDeliveryWithNumber(conn,
-                        "00000000-0000-7d20-8000-000000000001", clubA, 1, 10);
+                        newDeterministicUuid("delivery", "uniq_A_1"), clubA, 1, 10);
                 insertDeliveryWithNumber(conn,
-                        "00000000-0000-7d20-8000-000000000002", clubB, 1, 10);
+                        newDeterministicUuid("delivery", "uniq_B_1"), clubB, 1, 10);
 
                 Throwable dup = catchThrowable(() -> insertDeliveryWithNumber(
-                        conn, "00000000-0000-7d20-8000-000000000003", clubA, 1, 10));
+                        conn, newDeterministicUuid("delivery", "uniq_A_1_dup"), clubA, 1, 10));
                 assertThat(dup).isInstanceOf(SQLException.class);
                 assertThat(((SQLException) dup).getSQLState())
                         .as("SQLSTATE 23505 (unique_violation) — same delivery_number within same club")
@@ -374,7 +375,7 @@ class ReservationsBaselineIntegrationTest {
                             "INSERT INTO delivery (id, operating_club_id, process_state_id, "
                                     + "  recipient_lastname, recipient_firstname) "
                                     + "VALUES (?::uuid, ?::uuid, 20, 'X', 'Y')")) {
-                        s.setString(1, "00000000-0000-7d30-8000-000000000001");
+                        s.setString(1, newDeterministicUuid("delivery", "booked_no_number"));
                         s.setString(2, clubId);
                         s.executeUpdate();
                     }
@@ -400,7 +401,7 @@ class ReservationsBaselineIntegrationTest {
                     try (var s = conn.prepareStatement(
                             "INSERT INTO delivery (id, operating_club_id, process_state_id, delivery_number) "
                                     + "VALUES (?::uuid, ?::uuid, 20, 1)")) {
-                        s.setString(1, "00000000-0000-7d40-8000-000000000001");
+                        s.setString(1, newDeterministicUuid("delivery", "booked_no_recipient"));
                         s.setString(2, clubId);
                         s.executeUpdate();
                     }
@@ -415,25 +416,79 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
+    /** Booked deliveries (state 20) MUST carry delivered_on per Swiss OR Art. 957a — CHECK enforced. */
     @Test
-    void delivery_delivered_on_future_bound_check() throws Exception {
+    void delivery_booked_requires_delivered_on_check() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             conn.setAutoCommit(false);
             try {
-                String clubId = seedMinimalClub(conn, "TST_FUT");
+                String clubId = seedMinimalClub(conn, "TST_DON");
                 Throwable thrown = catchThrowable(() -> {
                     try (var s = conn.prepareStatement(
-                            "INSERT INTO delivery (id, operating_club_id, process_state_id, delivered_on) "
-                                    + "VALUES (?::uuid, ?::uuid, 10, now() + INTERVAL '30 days')")) {
-                        s.setString(1, "00000000-0000-7d50-8000-000000000001");
+                            "INSERT INTO delivery (id, operating_club_id, process_state_id, "
+                                    + "  delivery_number, recipient_lastname, recipient_firstname) "
+                                    + "VALUES (?::uuid, ?::uuid, 20, 1, 'X', 'Y')")) {
+                        s.setString(1, newDeterministicUuid("delivery", "booked_no_delivered_on"));
                         s.setString(2, clubId);
                         s.executeUpdate();
                     }
                 });
                 assertThat(thrown).isInstanceOf(SQLException.class);
                 assertThat(((SQLException) thrown).getSQLState())
-                        .as("SQLSTATE 23514 — delivered_on must be within now()+1 day")
+                        .as("SQLSTATE 23514 — Booked requires delivered_on")
                         .isEqualTo("23514");
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    /** delivery.batch_id < 0 must be rejected by CHECK. */
+    @Test
+    void delivery_batch_id_negative_rejected_by_check() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String clubId = seedMinimalClub(conn, "TST_BID");
+                Throwable thrown = catchThrowable(() -> {
+                    try (var s = conn.prepareStatement(
+                            "INSERT INTO delivery (id, operating_club_id, process_state_id, batch_id) "
+                                    + "VALUES (?::uuid, ?::uuid, 10, -1)")) {
+                        s.setString(1, newDeterministicUuid("delivery", "batch_id_negative"));
+                        s.setString(2, clubId);
+                        s.executeUpdate();
+                    }
+                });
+                assertThat(thrown).isInstanceOf(SQLException.class);
+                assertThat(((SQLException) thrown).getSQLState())
+                        .as("SQLSTATE 23514 — batch_id must be >= 0")
+                        .isEqualTo("23514");
+            } finally {
+                conn.rollback();
+            }
+        }
+    }
+
+    /** delivery.batch_id partial UNIQUE per club: same non-zero batch_id collides; cross-club ok. */
+    @Test
+    void delivery_batch_id_partial_unique_per_club() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                String clubA = seedMinimalClub(conn, "TST_BUA");
+                String clubB = seedMinimalClub(conn, "TST_BUB");
+                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_A_42"), clubA, 42);
+                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_B_42"), clubB, 42);
+                // Default batch_id=0 must NOT collide (predicate excludes it).
+                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_A_0_first"), clubA, 0);
+                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_A_0_second"), clubA, 0);
+
+                Throwable dup = catchThrowable(() -> insertDeliveryWithBatch(
+                        conn, newDeterministicUuid("delivery", "batch_A_42_dup"), clubA, 42));
+                assertThat(dup).isInstanceOf(SQLException.class);
+                assertThat(((SQLException) dup).getSQLState())
+                        .as("SQLSTATE 23505 — same non-zero batch_id within same club")
+                        .isEqualTo("23505");
             } finally {
                 conn.rollback();
             }
@@ -956,95 +1011,29 @@ class ReservationsBaselineIntegrationTest {
     // Helpers
     // ============================================================================
 
+    // Schema-introspection helpers live in MigrationAssertions; thin local wrappers
+    // delegate so existing call sites stay compact. Future migration stories should
+    // call the static helpers directly.
+
     private List<String> checkConstraintDefs(String table) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-                var stmt = conn.prepareStatement(
-                        "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                                + "WHERE conrelid = (quote_ident(?))::regclass AND contype = 'c'")) {
-            stmt.setString(1, table);
-            try (ResultSet rs = stmt.executeQuery()) {
-                List<String> defs = new ArrayList<>();
-                while (rs.next()) defs.add(rs.getString(1));
-                return defs;
-            }
-        }
+        return MigrationAssertions.checkConstraintDefs(dataSource, table);
     }
 
     private List<String> indexDefs(String table) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-                var stmt = conn.prepareStatement(
-                        "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename=?")) {
-            stmt.setString(1, table);
-            try (ResultSet rs = stmt.executeQuery()) {
-                List<String> defs = new ArrayList<>();
-                while (rs.next()) defs.add(rs.getString(1));
-                return defs;
-            }
-        }
+        return MigrationAssertions.indexDefs(dataSource, table);
     }
 
     private String columnComment(String table, String column) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-                var stmt = conn.prepareStatement(
-                        "SELECT col_description((quote_ident(?))::regclass, "
-                                + "(SELECT attnum FROM pg_attribute "
-                                + " WHERE attrelid = (quote_ident(?))::regclass AND attname = ?))")) {
-            stmt.setString(1, table);
-            stmt.setString(2, table);
-            stmt.setString(3, column);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() ? rs.getString(1) : null;
-            }
-        }
+        return MigrationAssertions.columnComment(dataSource, table, column);
     }
 
     private void assertColumnNotNull(Connection conn, String table, String column, String dataType)
             throws SQLException {
-        try (var stmt = conn.prepareStatement(
-                "SELECT data_type, is_nullable FROM information_schema.columns "
-                        + "WHERE table_schema='public' AND table_name=? AND column_name=?")) {
-            stmt.setString(1, table);
-            stmt.setString(2, column);
-            try (ResultSet rs = stmt.executeQuery()) {
-                assertThat(rs.next()).as("%s.%s must exist", table, column).isTrue();
-                assertThat(rs.getString("data_type"))
-                        .as("%s.%s type", table, column).isEqualTo(dataType);
-                assertThat(rs.getString("is_nullable"))
-                        .as("%s.%s NULL?", table, column).isEqualTo("NO");
-            }
-        }
+        MigrationAssertions.assertColumnNotNull(conn, table, column, dataType);
     }
 
     private void assertFkDeleteRule(String table, String column, String expectedRule) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-                var stmt = conn.prepareStatement("""
-                        SELECT
-                            CASE c.confdeltype
-                                WHEN 'a' THEN 'NO ACTION'
-                                WHEN 'r' THEN 'RESTRICT'
-                                WHEN 'c' THEN 'CASCADE'
-                                WHEN 'n' THEN 'SET NULL'
-                                WHEN 'd' THEN 'SET DEFAULT'
-                            END AS delete_rule
-                        FROM pg_constraint c
-                        JOIN pg_class t       ON t.oid = c.conrelid
-                        JOIN pg_namespace ns  ON ns.oid = t.relnamespace
-                        JOIN pg_attribute a   ON a.attrelid = c.conrelid AND a.attnum = ANY(c.conkey)
-                        WHERE c.contype = 'f'
-                          AND ns.nspname = 'public'
-                          AND t.relname = ?
-                          AND a.attname = ?
-                        """)) {
-            stmt.setString(1, table);
-            stmt.setString(2, column);
-            try (ResultSet rs = stmt.executeQuery()) {
-                assertThat(rs.next())
-                        .as("FK on %s.%s must exist", table, column).isTrue();
-                assertThat(rs.getString(1))
-                        .as("FK %s.%s ON DELETE rule", table, column)
-                        .isEqualTo(expectedRule);
-            }
-        }
+        MigrationAssertions.assertFkDeleteRule(dataSource, table, column, expectedRule);
     }
 
     private void assertSeededCodes(String table, List<String> expectedCodes) throws SQLException {
@@ -1123,12 +1112,24 @@ class ReservationsBaselineIntegrationTest {
             int deliveryNumber, int processStateId) throws SQLException {
         try (var s = conn.prepareStatement(
                 "INSERT INTO delivery (id, operating_club_id, process_state_id, "
-                        + "  delivery_number, recipient_lastname, recipient_firstname) "
-                        + "VALUES (?::uuid, ?::uuid, ?, ?, 'X', 'Y')")) {
+                        + "  delivery_number, delivered_on, recipient_lastname, recipient_firstname) "
+                        + "VALUES (?::uuid, ?::uuid, ?, ?, now(), 'X', 'Y')")) {
             s.setString(1, id);
             s.setString(2, clubId);
             s.setInt(3, processStateId);
             s.setInt(4, deliveryNumber);
+            s.executeUpdate();
+        }
+    }
+
+    private void insertDeliveryWithBatch(Connection conn, String id, String clubId, int batchId)
+            throws SQLException {
+        try (var s = conn.prepareStatement(
+                "INSERT INTO delivery (id, operating_club_id, process_state_id, batch_id) "
+                        + "VALUES (?::uuid, ?::uuid, 10, ?)")) {
+            s.setString(1, id);
+            s.setString(2, clubId);
+            s.setInt(3, batchId);
             s.executeUpdate();
         }
     }

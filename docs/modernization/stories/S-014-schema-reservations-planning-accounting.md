@@ -124,7 +124,7 @@ Cross-tenant ride-through Person FKs (sacred cow per ADR 0008):
 - `id uuid PK` (aggregate root, `arv` prefix); `operating_club_id uuid NOT NULL → club(id) RESTRICT`
 - `aircraft_id uuid NOT NULL → aircraft(id) RESTRICT` — **cross-tenant FK** per amendment
 - `reservation_start TIMESTAMPTZ NOT NULL`, `reservation_end TIMESTAMPTZ NOT NULL` + `CHECK (reservation_end > reservation_start)` + `CHECK (reservation_end <= reservation_start + INTERVAL '30 days')` (sanity cap)
-- `reservation_range tsrange GENERATED ALWAYS AS (tsrange(reservation_start, reservation_end, '[)')) STORED`
+- `reservation_range tsrange GENERATED ALWAYS AS (tsrange(reservation_start, reservation_end, '[)')) STORED` (shipped as tstzrange — see Implementation notes)
 - `is_all_day BOOLEAN NOT NULL DEFAULT false`
 - `pilot_person_id uuid NOT NULL → person(id) RESTRICT` (cross-tenant ride-through)
 - `second_crew_person_id uuid NULL → person(id) SET NULL` (cross-tenant)
@@ -308,7 +308,7 @@ CREATE UNIQUE INDEX ux_dct_club_flight_partial ON delivery_creation_test (operat
 
 ### Alternatives considered
 
-- **Chosen — single V4 migration; UUID v7 PKs; `filter_config jsonb` + `filter_type_id` discriminator; SMALLINT process_state_id with CHECK; two TIMESTAMPTZ + generated tsrange (NOT EXCLUDE constraint); counter table for per-club delivery numbering; generated `total_amount` STORED.**
+- **Chosen — single V4 migration; UUID v7 PKs; `filter_config jsonb` + `filter_type_id` discriminator; SMALLINT process_state_id with CHECK; two TIMESTAMPTZ + generated tsrange (NOT EXCLUDE constraint) (shipped as tstzrange — see Implementation notes); counter table for per-club delivery numbering; generated `total_amount` STORED.**
 - Rejected — per-type tables for AccountingRuleFilter (fragments rules engine).
 - Rejected — EXCLUDE USING gist on aircraft_reservation (multiple legitimate-overlap rules).
 - Rejected — Postgres ENUM for process_state_id (SMALLINT + CHECK + lookup table at S-064 is operator-friendlier).
@@ -448,7 +448,7 @@ Swiss tax law (OR 957a/958f, MWSTG 70) — invoice gap-free per fiscal year per 
 - `delivery_item_total_amount_is_generated_always_stored` (pg_attribute.attgenerated='s').
 - `delivery_item_quantity_nonnegative_check`, `unit_price_nonnegative_check`, `discount_in_range_check`.
 - `aircraft_reservation_end_after_start_check`.
-- `aircraft_reservation_has_generated_tsrange_column`.
+- `aircraft_reservation_has_generated_tstzrange_column` (shipped name; refinement section originally said `_tsrange_column` — see `## Implementation notes`).
 - `aircraft_reservation_gist_index_on_aircraft_range_present`.
 - **`aircraft_reservation_aircraft_id_cross_tenant_column_comment`** (NEW per amendment — `pg_description` contains "cross-tenant").
 - `planning_day_unique_per_club_date_location_partial`.
@@ -547,7 +547,7 @@ EXPLAIN canaries (6 hot queries) at 10K-row fixture; force `enable_seqscan = off
 ### Configuration choices
 
 - `uuid NOT NULL PRIMARY KEY` per ADR 0019.
-- Two TIMESTAMPTZ + generated `reservation_range tsrange ... STORED` (chosen over functional GiST).
+- Two TIMESTAMPTZ + generated `reservation_range tsrange ... STORED` (chosen over functional GiST) (shipped as tstzrange — see Implementation notes).
 - `filter_config jsonb` evaluated in Java; GIN admin-search-only.
 - `delivery_item.total_amount NUMERIC(14,4) GENERATED ALWAYS AS ... STORED`.
 - `delivery.process_state_id SMALLINT` + CHECK enum.
@@ -625,7 +625,7 @@ Cross-tenant ride-through Person FKs (Hibernate `@TenantId` does NOT filter; sac
 - `operating_club_id uuid NOT NULL → club(id) RESTRICT` (the booking club)
 - `aircraft_id uuid NOT NULL → aircraft(id) RESTRICT` — **cross-tenant FK** per 2026-05-16 amendment
 - `reservation_start TIMESTAMPTZ NOT NULL`, `reservation_end TIMESTAMPTZ NOT NULL` + `CHECK (reservation_end > reservation_start)`
-- `reservation_range tsrange GENERATED ALWAYS AS (tsrange(reservation_start, reservation_end, '[)')) STORED`
+- `reservation_range tsrange GENERATED ALWAYS AS (tsrange(reservation_start, reservation_end, '[)')) STORED` (shipped as tstzrange — see Implementation notes)
 - `is_all_day BOOLEAN NOT NULL DEFAULT false`
 - `pilot_person_id uuid NOT NULL → person(id) RESTRICT` (cross-tenant)
 - `second_crew_person_id uuid NULL → person(id) SET NULL` (cross-tenant)
@@ -1180,7 +1180,7 @@ Delivery item money math:
 Aircraft reservation (cross-tenant per amendment):
 - `aircraft_reservation_end_after_start_check`.
 - `aircraft_reservation_two_person_fks_pilot_required_second_crew_nullable`.
-- `aircraft_reservation_has_generated_tsrange_column`.
+- `aircraft_reservation_has_generated_tstzrange_column` (shipped name; refinement section originally said `_tsrange_column` — see `## Implementation notes`).
 - `aircraft_reservation_gist_index_on_aircraft_range_present` (`pg_indexes` regex `USING gist`).
 - `aircraft_reservation_pilot_fk_restrict`; `aircraft_reservation_second_crew_fk_set_null`.
 - **`aircraft_reservation_aircraft_id_cross_tenant_column_comment`** (NEW per amendment — `pg_description` contains "cross-tenant").
@@ -1351,7 +1351,7 @@ Pass thresholds: each canary < 20ms on 10K fixture; rule-filter list < 5ms; GiST
 ### Configuration choices
 
 - `uuid NOT NULL PRIMARY KEY` per ADR 0019.
-- Two TIMESTAMPTZ + generated `reservation_range tsrange ... STORED` (chosen over functional GiST).
+- Two TIMESTAMPTZ + generated `reservation_range tsrange ... STORED` (chosen over functional GiST) (shipped as tstzrange — see Implementation notes).
 - `filter_config jsonb` evaluated in Java (NOT predicate-pushed); GIN admin-search-only.
 - `delivery_item.total_amount NUMERIC(14,4) GENERATED ALWAYS AS ... STORED`.
 - `delivery.process_state_id SMALLINT` + CHECK enum.
@@ -1359,7 +1359,7 @@ Pass thresholds: each canary < 20ms on 10K fixture; rule-filter list < 5ms; GiST
 
 ### Open performance questions
 
-- GiST functional vs stored tsrange — chosen stored generated column.
+- GiST functional vs stored tsrange — chosen stored generated column (shipped as tstzrange — see Implementation notes).
 - EXCLUDE constraint for no-overlap — deferred to S-064 (legitimate business overlap rules).
 - Delivery numbering counter table vs advisory lock — chosen counter table.
 - DeliveryItem.total GENERATED STORED — chosen.
@@ -1437,5 +1437,32 @@ Specialist consults: Step 6.7 `maintainability-reviewer` blockers-only — `(non
 Hand-offs forward:
 - **S-024 leakage CI roster** must include `aircraft_reservation.aircraft_id` cross-tenant FK (column comment carries the marker; `tenant-rules.yaml` precondition records the hand-off).
 - **S-022** wires JPA entities + `@TenantId` + `@UuidV7` over this schema.
-- **S-064** owns rules engine, delivery state-machine transitions, per-club delivery-number allocator (via `club_delivery_number_counter`), filter_config jsonb shape allow-list.
+- **S-064** owns rules engine, delivery state-machine transitions, per-club delivery-number allocator (via `club_delivery_number_counter`), filter_config jsonb shape allow-list. **NEW per rework (2026-05-17):** S-064 state-machine must enforce `delivered_on` temporal validity at the Book transition (the V4 `ck_dlv_delivered_on_not_too_future` insert-time CHECK was dropped during rework — row-time invariant belongs at the service layer). S-064 must also document the `unit_type_code` validation contract (frozen-snapshot from `accounting_unit_type.code` at write); and the per-club address-tuple completeness rule on Booked deliveries (whether `recipient_country_name` / `_city` / `_zip_code` are required varies by per-club policy — schema only enforces firstname + lastname + delivered_on).
 - **S-016** legacy cutover maps `flight.process_state_id + delivery.is_further_processed` → first-class `delivery.process_state_id`; per-club ref tables (`aircraft_reservation_type` + `planning_day_assignment_type`) seeded from legacy data; back-fills `unit_price` on delivery_item rows.
+
+## Rework notes (2026-05-17, post-review S-014)
+
+Edits to V4 + tests folded into this PR (V4 not yet merged to main → checksum amendable):
+
+- **M#1** Partial-predicate consistency: added `WHERE deleted_on IS NULL` to `ix_pda_club_person_type`, `ix_dlv_club_state_date`, `ix_dlv_club_batch`, `ix_dct_club_created`. Skipped 3 indexes per their own context: `ix_arv_location` (accepted — deferred to S-108 perf tuning), `ix_pda_planning_day` (CASCADE join target must find tombstones; inline comment added), `ix_dcti_test` (parent `delivery_creation_test_item` has no `deleted_on` column; inline comment added).
+- **M#2 + S#1** Added `CHECK (batch_id >= 0)` + `ux_dlv_club_batch_partial UNIQUE (operating_club_id, batch_id) WHERE batch_id <> 0 AND deleted_on IS NULL`. Closes Security plan threat (p) at DB level.
+- **M#4** Dropped `ck_dlv_delivered_on_not_too_future` (insert-time-only CHECK — row-time invariant moved to S-064 service layer; documented inline + in S-064 hand-off above).
+- **M#5** Promoted schema-introspection helpers (`checkConstraintDefs` / `indexDefs` / `columnComment` / `assertColumnNotNull` / `assertColumnNullable` / `assertFkDeleteRule`) to `MigrationAssertions`; test class keeps thin wrappers. Future migration tests use the static helpers directly.
+- **M#6** Replaced hard-coded test UUID literals with `newDeterministicUuid(table, key)` calls at 8 sites.
+- **M#8** Expanded migration-header §"Migration ordering" list from 8 to 11 sections matching the SQL body.
+- **M#9** Added `CHECK (process_state_id <> 20 OR delivered_on IS NOT NULL)` — Booked deliveries must carry an invoice date (OR Art. 957a). Address-tuple completeness deferred to S-064.
+- **C#1 + C#2** Updated 2 stale `aircraft_reservation_has_generated_tsrange_column` test-name refs in story body to `tstzrange`; annotated 5 other `tsrange` mentions in design notes with "(shipped as tstzrange — see Implementation notes)" so the spec record reads coherently.
+- **C#3** Fixed `S014_TENANT_SCOPED_TABLES` Javadoc arithmetic (9 → 10).
+- **C#4** Dropped 7 redundant `recipient_*` `COMMENT ON COLUMN` clauses; kept canonical comment on `recipient_lastname` (with column-family enumeration in the text) + distinct comment on `recipient_country_name`.
+- **C#5** Replaced `delivery_item.total_amount` comment's formula repetition with the invariant: "GENERATED STORED — drift-proof by construction".
+
+Meta-improvements (Step 3.5 — folded into this PR per [[feedback-meta-improvements-are-boyscout]]):
+- **META-1**: `next/server/CONVENTIONS.md` — new partial-predicate-on-soft-delete convention.
+- **META-2**: `.claude/skills/modernize-implement/SKILL.md` Step 6.8 sweep checklist — test-method-name-drift detection.
+- **META-3**: `.claude/agents/security-engineer.md` — explicit prefer-X / deferred-to clause on every OR-option in threat-mitigation matrix.
+
+Accept decisions (recorded in `## Review` annotations; no code work):
+- M#3 `ck_arv_max_30_days` — defensible operational guardrail.
+- M#7 `ix_arv_location` shape — deferred to S-108 perf phase.
+- S#3 `unit_type_code` domain check — S-064 service-layer validates.
+- 5 nudges auto-accepted.

@@ -147,13 +147,16 @@
 --   2. Reservations cluster: aircraft_reservation_type → aircraft_reservation.
 --   3. Planning cluster: planning_day_assignment_type → planning_day →
 --      planning_day_assignment.
---   4. Accounting cluster: accounting_rule_filter_type + accounting_unit_type
---      → accounting_rule_filter → delivery → delivery_item →
---      delivery_creation_test → delivery_creation_test_item.
---   5. Operational: club_delivery_number_counter.
---   6. SQL COMMENT ON COLUMN block.
---   7. Reference-data seeds (fixed canonical UUID v7 literals).
---   8. Update app_meta sentinel to S-014.
+--   4. Accounting cluster — reference tables: accounting_rule_filter_type +
+--      accounting_unit_type.
+--   5. Accounting cluster — rule filter aggregate root: accounting_rule_filter.
+--   6. Delivery aggregate root + DeliveryItem internal entity.
+--   7. Delivery-creation-test harness: delivery_creation_test +
+--      delivery_creation_test_item.
+--   8. Operational: club_delivery_number_counter.
+--   9. SQL COMMENT ON COLUMN block (forensic clarity).
+--  10. Reference-data seeds (fixed canonical UUID v7 literals).
+--  11. Update app_meta sentinel to S-014.
 -- ============================================================================
 
 
@@ -309,13 +312,16 @@ CREATE TABLE planning_day_assignment (
     CONSTRAINT fk_pda_assignment_type_id
         FOREIGN KEY (assignment_type_id) REFERENCES planning_day_assignment_type (id)  ON DELETE RESTRICT
 );
+-- covers tombstones: CASCADE join target on planning_day deletion needs to find
+-- soft-deleted child rows too so the parent's ON DELETE CASCADE cleans them.
 CREATE INDEX ix_pda_planning_day
     ON planning_day_assignment (planning_day_id);
 CREATE INDEX ix_pda_person
     ON planning_day_assignment (assigned_person_id, planning_day_id)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_pda_club_person_type
-    ON planning_day_assignment (operating_club_id, assigned_person_id, assignment_type_id);
+    ON planning_day_assignment (operating_club_id, assigned_person_id, assignment_type_id)
+    WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_pda_composite
     ON planning_day_assignment (planning_day_id, assigned_person_id, assignment_type_id)
     WHERE deleted_on IS NULL;
@@ -432,16 +438,27 @@ CREATE TABLE delivery (
         CHECK (process_state_id IN (10, 20, 30, 99)),
     CONSTRAINT ck_dlv_delivery_number_positive
         CHECK (delivery_number IS NULL OR delivery_number > 0),
-    CONSTRAINT ck_dlv_delivered_on_not_too_future
-        CHECK (delivered_on IS NULL OR delivered_on <= now() + INTERVAL '1 day'),
+    CONSTRAINT ck_dlv_batch_id_nonnegative
+        CHECK (batch_id >= 0),
+    -- ck_dlv_delivered_on_not_too_future dropped 2026-05-17 (S-014 rework, M#4):
+    -- insert-time bound only (CHECK doesn't re-fire on UPDATE) → poor row-time
+    -- invariant. S-064 state-machine enforces delivered_on temporal validity at
+    -- the Book transition where the row-time guarantee actually matters.
     CONSTRAINT ck_dlv_booked_requires_number
         CHECK (process_state_id <> 20 OR delivery_number IS NOT NULL),
+    CONSTRAINT ck_dlv_booked_requires_delivered_on
+        CHECK (process_state_id <> 20 OR delivered_on IS NOT NULL),
     CONSTRAINT ck_dlv_booked_requires_recipient
         CHECK (process_state_id <> 20
                OR (recipient_lastname IS NOT NULL AND recipient_firstname IS NOT NULL))
+    -- recipient address-tuple completeness (country / city / zip) NOT enforced
+    -- at schema level — legacy invoices may lack these fields and per-club
+    -- operator policy varies. S-064 service layer enforces full-address-on-Book
+    -- per per-club configuration.
 );
 CREATE INDEX ix_dlv_club_state_date
-    ON delivery (operating_club_id, process_state_id, delivered_on DESC);
+    ON delivery (operating_club_id, process_state_id, delivered_on DESC)
+    WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_dlv_club_number_partial
     ON delivery (operating_club_id, delivery_number)
     WHERE delivery_number IS NOT NULL AND deleted_on IS NULL;
@@ -449,7 +466,11 @@ CREATE INDEX ix_dlv_flight
     ON delivery (flight_id)
     WHERE flight_id IS NOT NULL AND deleted_on IS NULL;
 CREATE INDEX ix_dlv_club_batch
-    ON delivery (operating_club_id, batch_id);
+    ON delivery (operating_club_id, batch_id)
+    WHERE deleted_on IS NULL;
+CREATE UNIQUE INDEX ux_dlv_club_batch_partial
+    ON delivery (operating_club_id, batch_id)
+    WHERE batch_id <> 0 AND deleted_on IS NULL;
 CREATE INDEX ix_dlv_recipient_person
     ON delivery (operating_club_id, recipient_person_id)
     WHERE recipient_person_id IS NOT NULL;
@@ -541,7 +562,8 @@ CREATE UNIQUE INDEX ux_dct_club_flight_partial
     ON delivery_creation_test (operating_club_id, flight_id)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_dct_club_created
-    ON delivery_creation_test (operating_club_id, created_on DESC);
+    ON delivery_creation_test (operating_club_id, created_on DESC)
+    WHERE deleted_on IS NULL;
 
 CREATE TABLE delivery_creation_test_item (
     id                              UUID            NOT NULL PRIMARY KEY,
@@ -570,6 +592,8 @@ CREATE TABLE delivery_creation_test_item (
     CONSTRAINT ck_dcti_discount_range
         CHECK (discount_in_percent BETWEEN 0 AND 100)
 );
+-- delivery_creation_test_item has no soft-delete (snapshot rows die with parent
+-- on CASCADE); index covers all rows by design.
 CREATE INDEX ix_dcti_test ON delivery_creation_test_item (delivery_creation_test_id);
 
 
@@ -629,32 +653,22 @@ COMMENT ON COLUMN delivery.flight_id IS
     'Same-tenant FK (Flight is TENANT_SCOPED). Service layer (S-022) asserts flight.operating_club_id == delivery.operating_club_id on write. RESTRICT preserves invoice trail integrity.';
 COMMENT ON COLUMN delivery.recipient_person_id IS
     'Cross-tenant ride-through; SET NULL on delete. Frozen recipient_* snapshot survives Person deletion per Swiss OR Art. 957a.';
+-- Canonical comment for the recipient_* snapshot column family (9 cols total).
+-- All other recipient_* columns share this invariant — comment lives on
+-- recipient_lastname rather than 9 lockstep copies. recipient_country_name
+-- carries its own distinct comment (NOT FK to country).
 COMMENT ON COLUMN delivery.recipient_lastname IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_firstname IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_name IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_address_line1 IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_address_line2 IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_zip_code IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_city IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
+    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). Same invariant applies to recipient_firstname / recipient_name / recipient_address_line1 / recipient_address_line2 / recipient_zip_code / recipient_city / recipient_person_club_member_number. NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
 COMMENT ON COLUMN delivery.recipient_country_name IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NOT FK to country — text is preserved verbatim from the booking-time resolution.';
-COMMENT ON COLUMN delivery.recipient_person_club_member_number IS
-    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
+    'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NOT FK to country — text is preserved verbatim from the booking-time resolution. Same OR Art. 957a invariant as recipient_lastname (see column comment there).';
 COMMENT ON COLUMN delivery.batch_id IS
-    'Operational sequence for batch-cancel via DeliveryBatchDeleteRequest. NOT an aggregate UUID (ADR 0019 escape hatch for operational counters). Per-club scoping enforced at service layer (S-064).';
+    'Operational sequence for batch-cancel via DeliveryBatchDeleteRequest. NOT an aggregate UUID (ADR 0019 escape hatch for operational counters). Per-club scoping enforced at schema level via ux_dlv_club_batch_partial UNIQUE (batch_id <> 0 AND deleted_on IS NULL) + service-layer allocator at S-064.';
 
 -- delivery_item — generated total + article snapshot.
 COMMENT ON COLUMN delivery_item.article_number IS
     'Frozen snapshot from article.article_number at booking. Invoice integrity per Swiss OR Art. 957a — never re-resolved from article_id.';
 COMMENT ON COLUMN delivery_item.total_amount IS
-    'GENERATED ALWAYS AS (quantity * unit_price * (100 - discount_in_percent) / 100.0) STORED. Re-computation drift impossible.';
+    'GENERATED STORED — drift-proof by construction (Postgres 17); formula visible in column DDL above.';
 COMMENT ON COLUMN delivery_item.unit_type_code IS
     'Frozen snapshot from accounting_unit_type.code at booking. Invoice integrity.';
 
