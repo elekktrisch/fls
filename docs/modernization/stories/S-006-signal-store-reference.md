@@ -5,6 +5,7 @@ epic: E-01
 status: in_progress
 started_at: 2026-05-17
 github_issue: 52
+github_pr: 53
 depends_on: [S-002, S-004]
 acceptance:
   - A reference `SignalStore` (e.g. `HelloStore`) is committed under `next/web/src/app/hello/` demonstrating: `withState`, `withComputed`, `withMethods`, `rxMethod`, `withEntities` (if list-shaped), pagination, error/loading signals.
@@ -27,11 +28,8 @@ ADR 0006 chose NgRx Signal Store. Every domain follows the per-domain-store patt
 See frontmatter.
 
 ## Tasks
-- [ ] Install `@ngrx/signals`.
-- [ ] Build `HelloStore` against the hello endpoint from S-003 — list view, single-record view, mutation, invalidation, optimistic update.
-- [ ] Build `SessionStore` returning placeholder values (real auth wiring in S-021).
-- [ ] Document the per-domain refetch policy convention: master data cache-long; flights refetch-on-visibility; deliveries refetch-on-mutation.
-- [ ] Write a lint rule (custom ESLint or eslint-plugin pattern) that flags `HttpClient` injection in components.
+
+Superseded by acceptance criteria.
 
 ## Notes
 S-021 replaces the placeholder `SessionStore` body with real OIDC. The store shape stays.
@@ -60,7 +58,7 @@ The 2026-05-15b vision amendment (§F11/§F15/§F12 mobile-first directives) is 
 | `next/web/src/app/app.config.ts` | touch | Provide `MUTATION_BUS` token (Subject instance) explicitly. |
 | `next/web/CLAUDE.md` | touch | §4 (signals-first) — "components consume stores, not HttpClient"; "templates always invoke signal: `@if (store.showX())`, never `@if (store.showX)`"; new §5b "Refetch policy & prefetch contract"; §10 (don't list) — HttpClient injection in components. |
 | `next/web/eslint.config.mjs` | touch | `no-restricted-imports`: ban `@angular/common/http` from `features/**/*.component.ts`; ban deep cross-feature `../*.store` imports from sibling feature stores. |
-| `.github/workflows/ci.yml` | touch | Re-enable `pnpm test --run` in the `next-build` job (the first logic spec ships in this story). |
+| `.github/workflows/ci.yml` | touch | Re-enable `pnpm test` in the `next-build` job (the first logic spec ships in this story). The `@angular/build:unit-test` builder rejects vitest's `--run` flag; in non-TTY CI watch defaults to `false`, so plain `pnpm test` is the correct invocation. |
 
 No backend, no Flyway. Per ADR 0022 directive 2 — zero schema touch.
 
@@ -413,7 +411,7 @@ Zero schema/migration touch. Frontend-only story.
 - **Public-route prefetch skip:** `data: { skipPrefetch: true }` on the route definition. `AppComponent` reads from the active route snapshot before invoking `bootstrapPrefetch`.
 - **`auth/README.md` scope:** SessionStore shape + placeholder note + functional guard pattern + loading-state handling + `bootstrapPrefetch` lifecycle + `data.publicAccess` / `data.skipPrefetch` route conventions + logout-cleanup. "How to add a guarded route" guide, not an exhaustive spec.
 - **Vitest testing convention** (per `[FE tests: unit for logic, Playwright for DOM]` saved memory): all S-006 specs are logic-only — store state transitions, computed selectors, `rxMethod` happy/error/offline paths, guard URL-tree logic, MutationBus invalidation subscriber. No `TestBed.createComponent` with DOM assertions.
-- **Re-enable `pnpm test` in CI:** S-006's first logic spec lands the trigger to flip the disabled step in `.github/workflows/ci.yml` back on (`pnpm test --run`).
+- **Re-enable `pnpm test` in CI:** S-006's first logic spec lands the trigger to flip the disabled step in `.github/workflows/ci.yml` back on. The `--run` flag from upstream vitest doesn't pass through the `@angular/build:unit-test` builder; plain `pnpm test` is the right invocation under CI's non-TTY environment.
 
 ## Security plan
 
@@ -533,7 +531,7 @@ All specs live alongside the subject file. All use `TestBed` + `provideZonelessC
 
 ### CI wire-up
 
-S-006 re-enables `pnpm test --run` in `.github/workflows/ci.yml` (currently disabled per `df5d1a0` since there were no logic specs). One-line addition before the existing `Lint + format + build next/web` step.
+S-006 re-enables `pnpm test` in `.github/workflows/ci.yml` (S-002 disabled it because the repo had no logic specs at the time and `ng test` exits 1 on "no tests found"). One-line addition before the existing `Lint + format + build next/web` step. Plain `pnpm test`, not `pnpm test --run` — the `@angular/build:unit-test` builder rejects the upstream-vitest `--run` flag; in CI's non-TTY environment, watch defaults to `false`.
 
 ### Coverage gaps (deferred)
 
