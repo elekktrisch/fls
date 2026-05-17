@@ -2,8 +2,9 @@
 id: S-039
 title: docker-compose.yml skeleton (backend + Postgres + Keycloak + mailpit)
 epic: E-05
-status: in_progress
+status: done
 started_at: 2026-05-17
+done_at: 2026-05-17
 depends_on: []
 acceptance:
   - `docker compose -p fls-e2e -f docker-compose.yml --profile next up -d --wait` brings Postgres 17 + pgAdmin + Keycloak (no realm yet, see S-019) + the shared mailpit healthy on a dev laptop in ≤ 90s cold / ≤ 30s warm.
@@ -23,6 +24,7 @@ refined_specialists: [requirements-engineer, solution-architect, security-engine
 refined_speculative: true
 refined_speculative_at: 2026-05-15
 github_issue: 46
+github_pr: 47
 ---
 
 ## Context
