@@ -5,40 +5,37 @@ epic: E-03
 status: todo
 depends_on: []
 acceptance:
-  - `docker compose up` brings Keycloak online at `localhost:8080/realms/fls`.
-  - A pre-seeded realm `fls` is committed under `next/auth/realm-export.json` and imported on first boot.
-  - Pre-seeded entities: an `fls-web` SPA client (public, PKCE-S256, no direct-access-grants), an `fls-backend` resource-server client (bearer-only), an `fls-proffix` machine client (client-credentials, service-accounts-only), one system-admin user, one club-admin user, one pilot user — for dev/test.
+  - `docker compose --profile next up keycloak` brings Keycloak online at `http://localhost:8090/realms/alpenflight` (host HTTP 8090 → container 8080; management 9090 → 9000).
+  - A pre-seeded realm `alpenflight` is committed under `next/auth/realm-export.json` and imported on first boot via the existing compose `keycloak` service amended with `--import-realm` + a read-only bind-mount of the export file.
+  - Pre-seeded entities: an `alpenflight-web` SPA client (public, PKCE-S256, no direct-access-grants), an `alpenflight-backend` resource-server client (bearer-only), an `alpenflight-proffix` machine client (client-credentials, service-accounts-only), one system-admin user, one club-admin user, one pilot user — for dev/test.
   - The export round-trips: export from a running Keycloak, normalize, diff against committed JSON exits 0 (modulo timestamps and pinned-elsewhere IDs).
   - Realm carries a User Attribute `clubId` and a Protocol Mapper that projects it as a `clubId` claim (string) on both ID and access tokens — the load-bearing hook for S-022's `@TenantId` resolver.
   - Realm pins ADR 0007 token policy: `accessTokenLifespan=900s`, `ssoSessionIdleTimeout=30d`, `ssoSessionMaxLifespan=90d`, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`.
   - Realm pins security hygiene: `registrationAllowed=false`, `bruteForceProtected=true`, `eventsEnabled=true`, `adminEventsEnabled=true` with `adminEventsDetailsEnabled=true`.
   - Committed export contains no private signing key (`keys[].privateKey` absent) — verified by CI guard.
-  - `next/auth/README.md` enumerates the dev-only surface (bootstrap admin creds, embedded H2, plain HTTP, dev passwords) and what must be replaced for production.
+  - `next/auth/README.md` enumerates the dev-only surface (bootstrap admin creds, embedded H2, plain HTTP, dev passwords) AND documents the dual-port reality (host `8090` ↔ container `8080` HTTP; host `9090` ↔ container `9000` management) with the host-side issuer URL contract `http://localhost:8090/realms/alpenflight`.
 estimate: M
 adr_refs: [0007]
 parity_test: none
 refined: true
-refined_at: 2026-05-15
+refined_at: 2026-05-17
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
-refined_speculative: true
-refined_speculative_at: 2026-05-15
 ---
 
 ## Context
-ADR 0007 chose Keycloak for local dev. This story builds the dev-loop foundation: a one-command `docker compose up` produces a real OIDC issuer at `localhost:8080/realms/fls` with a realm shape that downstream stories (S-020 resource server, S-021 Angular OIDC client, S-022 `@TenantId` resolver, S-028 bulk-provision users endpoint, S-029 Proffix machine client, S-134 self-service signup, S-151 production Keycloak deployment) can pin against.
+ADR 0007 chose Keycloak for local dev. This story builds the dev-loop foundation: a one-command `docker compose --profile next up` produces a real OIDC issuer at `http://localhost:8090/realms/alpenflight` (host port 8090 because the AlpenFlight backend already owns 8080 — see `docker-compose.yml` lines ~152-194, shipped by S-039) with a realm shape that downstream stories (S-020 resource server, S-021 Angular OIDC client, S-022 `@TenantId` resolver, S-028 bulk-provision users endpoint, S-029 Proffix machine client, S-134 self-service signup, S-151 production Keycloak deployment) can pin against.
 
 ## Acceptance criteria
 See frontmatter.
 
 ## Tasks
-- [ ] Build the seed realm interactively in the Keycloak admin UI (run `quay.io/keycloak/keycloak:26.5` in `start-dev` mode), then export with `kc.sh export --realm fls --file /tmp/realm-export.json --users realm_file`.
+- [ ] Build the seed realm interactively in the Keycloak admin UI (run `quay.io/keycloak/keycloak:26.5` in `start-dev` mode against the existing compose), then export with `kc.sh export --realm alpenflight --file /tmp/realm-export.json --users realm_file`.
 - [ ] Commit `next/auth/realm-export.json` (the single-file export — see Design notes for alternative considered).
 - [ ] Write `next/auth/scripts/normalize-realm-export.sh` (jq-based: strip `createdTimestamp`, `notBefore`, regenerated component IDs; `--sort-keys`; pin client + user `id` fields in the source so round-trip diff is genuinely zero).
 - [ ] Write `next/auth/scripts/export-realm.sh` (orchestrates: `compose exec` → `compose cp` → `normalize` → write to committed path).
-- [ ] Pin Keycloak image tag in the Compose contract handed to S-039 (no `:latest`; pin a minor version).
-- [ ] Author `next/auth/README.md` per the Security plan (dev-only callouts, round-trip workflow, what's seeded, claim contract, dev-vs-prod gap).
-- [ ] Hand the Compose service contract verbatim to S-039 (Design notes §"Compose contract handed to S-039").
-- [ ] Wire CI guards: no-private-key check, no-real-PII check, PKCE-S256 enforced, direct-access-grants disabled, round-trip diff is zero.
+- [ ] Amend the existing `keycloak` service in `docker-compose.yml`: append `--import-realm` to `command`; add a read-only bind-mount `./next/auth/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro` (do NOT touch image, ports, env, healthcheck — S-039 already wired them correctly).
+- [ ] Author `next/auth/README.md` per the Security plan (dev-only callouts, dual-port topology, round-trip workflow, what's seeded, claim contract, dev-vs-prod gap, `issuer-uri` vs `jwk-set-uri` split for S-020).
+- [ ] Wire CI guards: no-private-key check, no-real-PII check, PKCE-S256 enforced, direct-access-grants disabled, round-trip diff is zero, `127.0.0.1:` prefix on keycloak `ports:` (loopback-only bind), `KC_HOSTNAME_URL=http://localhost:8090` literal present.
 
 <!-- modernize-refine: start -->
 
@@ -46,16 +43,16 @@ See frontmatter.
 
 ### Module layout
 
-- **`next/auth/realm-export.json`** — committed single-file realm export; source of truth for the `fls` realm (clients, roles, seed users, protocol mappers, realm settings). Mounted read-only into the container at `/opt/keycloak/data/import/realm-export.json`; consumed by `kc.sh start-dev --import-realm`.
-- **`next/auth/README.md`** — operator guide: what's seeded (clients + roles + users table), round-trip export recipe, dev-vs-prod gap (embedded H2 vs. Postgres, `KC_HTTP_ENABLED=true` is dev-only, bootstrap admin creds are dev-only, signing-key generation, hostname mode), issuer URL contract (`http://localhost:8080/realms/fls`), claim contract (`clubId` is load-bearing for tenancy — do not rename without lockstep updates to S-019, S-020, S-022, S-025).
+- **`next/auth/realm-export.json`** — committed single-file realm export; source of truth for the `alpenflight` realm (clients, roles, seed users, protocol mappers, realm settings). Mounted read-only into the container at `/opt/keycloak/data/import/realm-export.json`; consumed by `kc.sh start-dev --import-realm`.
+- **`next/auth/README.md`** — operator guide: what's seeded (clients + roles + users table), round-trip export recipe, dev-vs-prod gap (embedded H2 vs. Postgres, `KC_HTTP_ENABLED=true` is dev-only, bootstrap admin creds are dev-only, signing-key generation, hostname mode), **port topology** (host `8090` ↔ container `8080` HTTP listener; host `9090` ↔ container `9000` management/health; backend reaching Keycloak over the compose network uses `http://keycloak:8080`, host-side issuer / browser flows use `http://localhost:8090`), issuer URL contract (`http://localhost:8090/realms/alpenflight` — the `iss` claim baked into every token), claim contract (`clubId` is load-bearing for tenancy — do not rename without lockstep updates to S-019, S-020, S-022, S-025).
 - **`next/auth/scripts/normalize-realm-export.sh`** — jq-based post-processor invoked after every export. Strips volatile fields (timestamps, regenerated UUIDs for components Keycloak owns), sorts keys deterministically. Documented in the README.
 - **`next/auth/scripts/export-realm.sh`** — three-line wrapper around `compose exec`, `compose cp`, and the normalize script.
 - **No code in `next/server/` or `next/web/` this story.**
-- **No Compose changes this story.** S-039 owns `docker-compose.yml`. This story produces the **Compose contract** (below) that S-039 wires verbatim.
+- **No new Compose service this story.** S-039 already shipped the `keycloak` service in `docker-compose.yml` under the `next` profile. This story **amends** that block — see below.
 
 ### Realm shape (`realm-export.json`)
 
-**Realm `fls`** (top-level settings):
+**Realm `alpenflight`** (top-level settings):
 
 | Field | Value | Rationale |
 |---|---|---|
@@ -83,9 +80,9 @@ See frontmatter.
 
 | Client ID | Type | Auth | Flows | Redirect URIs | Notes |
 |---|---|---|---|---|---|
-| `fls-web` | public | none (PKCE-S256 required) | standardFlow ✓, directAccessGrants ✗, implicit ✗, serviceAccounts ✗ | `http://localhost:4200/*`, `http://localhost:3000/*` | `attributes."pkce.code.challenge.method" = "S256"`; `webOrigins = ["+"]`; `postLogoutRedirectUris = ["+"]`. |
-| `fls-backend` | bearer-only | none | none (token validator) | none | `bearerOnly: true`. Spring resource server validates against JWKS; no client credentials needed. |
-| `fls-proffix` | confidential | client-secret | serviceAccounts ✓, standardFlow ✗, directAccessGrants ✗ | none | Machine client. Dev secret committed (`fls-proffix-dev-secret`) — README marks dev-only; rotated at deploy. Service-account user granted realm role `proffix-sync` (minimal scope); scope catalog firms in S-029. |
+| `alpenflight-web` | public | none (PKCE-S256 required) | standardFlow ✓, directAccessGrants ✗, implicit ✗, serviceAccounts ✗ | `http://localhost:4200/*`, `http://localhost:3000/*` | `attributes."pkce.code.challenge.method" = "S256"`; `webOrigins = ["+"]`; `postLogoutRedirectUris = ["+"]`. |
+| `alpenflight-backend` | bearer-only | none | none (token validator) | none | `bearerOnly: true`. Spring resource server validates against JWKS; no client credentials needed. |
+| `alpenflight-proffix` | confidential | client-secret | serviceAccounts ✓, standardFlow ✗, directAccessGrants ✗ | none | Machine client. Dev secret committed (`alpenflight-proffix-dev-secret`) — README marks dev-only; rotated at deploy. Service-account user granted realm role `proffix-sync` (minimal scope); scope catalog firms in S-029. |
 
 **Realm roles** (mirror the legacy role catalog so S-026 can map `@PreAuthorize`):
 
@@ -101,7 +98,7 @@ Roles are realm roles (not client roles) so they surface on the token as `realm_
 | `clubadmin1` | `clubadmin1` | `CLUB_ADMINISTRATOR`, `OFFICE_USER` | `club-1` | `clubadmin1@example.com` |
 | `pilot1` | `pilot1` | `PILOT` | `club-1` | `pilot1@example.com` |
 
-All three: `emailVerified=true`, `enabled=true`, `requiredActions=[]` (no forced reset in dev), `locale="de"`. **Pin user `id` UUIDs in the export** so downstream test fixtures can hard-reference subject IDs.
+All three: `emailVerified=true`, `enabled=true`, `requiredActions=[]` (no forced reset in dev), `locale="de"`. Emails use the RFC 2606 reserved `example.com` test domain (security-engineer convention; CI grep enforces). **Pin user `id` UUIDs in the export** so downstream test fixtures can hard-reference subject IDs.
 
 **Custom protocol mapper — the structural-multi-tenancy hook for S-022:**
 
@@ -115,49 +112,36 @@ All three: `emailVerified=true`, `enabled=true`, `requiredActions=[]` (no forced
 - Scope: realm-default client scope (applies to all clients without per-client opt-in).
 - The `account` client must NOT whitelist `clubId` as a user-editable attribute (Keycloak account console exposes only whitelisted attrs).
 
-### Compose contract handed to S-039
+### Compose amendment
 
-Pinned verbatim — S-039 wires, does not decide:
+S-039 already shipped the `keycloak` service block (`docker-compose.yml` lines ~169–194, profile `next`, image `quay.io/keycloak/keycloak:26.5`, host port `8090→8080`, management `9090→9000`, env `KC_BOOTSTRAP_ADMIN_*` / `KC_HOSTNAME=localhost` / `KC_HOSTNAME_URL=http://localhost:8090` / `KC_HEALTH_ENABLED=true`, TCP `/health/ready` probe on `9000`). S-019 makes only **additive** changes to that block — image, env, ports, healthcheck stay as-is:
 
 ```yaml
 keycloak:
-  image: quay.io/keycloak/keycloak:26.5@sha256:<pin-at-S-039-time>
-  command: ["start-dev", "--import-realm"]
-  environment:
-    KC_BOOTSTRAP_ADMIN_USERNAME: admin
-    KC_BOOTSTRAP_ADMIN_PASSWORD: admin          # dev-only — see README
-    KC_HOSTNAME: localhost
-    KC_HTTP_ENABLED: "true"                     # dev-only
-    KC_HEALTH_ENABLED: "false"                  # dev-mode has no /health endpoint anyway
-    KC_LOG_LEVEL: INFO
-  volumes:
+  # ... existing fields unchanged ...
+  command: ["start-dev", "--http-port=8080", "--import-realm"]   # ← appended flag
+  volumes:                                                       # ← new block
     - ./next/auth/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-  ports:
-    - "8080:8080"
-  healthcheck:
-    test: ["CMD-SHELL", "curl -fsS http://localhost:8080/realms/fls || exit 1"]
-    interval: 10s
-    timeout: 3s
-    retries: 6
-    start_period: 30s
-  profiles: [dev]
 ```
 
-- `depends_on`: none — embedded H2 in dev-mode.
-- Read-only mount on the import path — round-trip export uses a separate one-shot command (see below) so the container can't accidentally rewrite the source-of-truth file.
-- `profiles: [dev]` gates the bootstrap-admin block and the `start-dev`/`--import-realm` flag — production needs a fundamentally different shape (see "Out of scope").
-- Image digest pin per ADR 0010 hygiene rule 9; S-039 resolves the digest at compose-write time.
+Notes:
+
+- **`--import-realm` flag** — appended to the existing `command` array. Triggers the import-on-boot pass against any JSON file under `/opt/keycloak/data/import/`.
+- **Read-only bind-mount** — pins the committed realm export as the import source. Read-only so the container cannot accidentally rewrite the source of truth; the round-trip export flow uses `docker compose cp` (container → host) instead and bypasses the mount.
+- **Healthcheck unchanged.** S-039's TCP probe on management port `9000` for `/health/ready` already covers post-import readiness — `KC_HEALTH_ENABLED=true` is already set, so the probe doesn't need to switch to a realm-root curl. The probe will stay red until import completes; `compose up --wait` already fails fast on import errors.
+- **Issuer URL** — the `KC_HOSTNAME_URL=http://localhost:8090` already set by S-039 makes Keycloak emit `iss=http://localhost:8090/realms/alpenflight` in every token. S-019 does not touch this; it only ensures the realm exists so the issuer path resolves.
+- **Image digest pin** (ADR 0010 hygiene rule 9) — currently `quay.io/keycloak/keycloak:26.5` (tag-only). Digest pinning is a Renovate/dependabot concern across the whole compose; not blocking S-019.
 
 ### Round-trip export procedure
 
 ```bash
-docker compose exec keycloak \
+docker compose --profile next exec keycloak \
   /opt/keycloak/bin/kc.sh export \
-  --realm fls \
+  --realm alpenflight \
   --file /tmp/realm-export.json \
   --users realm_file
 
-docker compose cp keycloak:/tmp/realm-export.json ./next/auth/realm-export.raw.json
+docker compose --profile next cp keycloak:/tmp/realm-export.json ./next/auth/realm-export.raw.json
 
 ./next/auth/scripts/normalize-realm-export.sh \
   ./next/auth/realm-export.raw.json \
@@ -172,14 +156,14 @@ git diff ./next/auth/realm-export.json
 
 | Downstream | What it consumes from S-019 |
 |---|---|
-| S-020 (Spring Security 7 resource server) | Issuer URL `http://localhost:8080/realms/fls`; JWKS via discovery; realm-role names. |
-| S-021 (Angular OIDC client) | Same issuer; `clientId="fls-web"`; PKCE flow; redirect URIs whitelisted. |
+| S-020 (Spring Security 7 resource server) | Issuer URL `http://localhost:8090/realms/alpenflight`; JWKS via discovery; realm-role names. Backend running inside the compose network reaches Keycloak at `http://keycloak:8080` — issuer claim still resolves to `http://localhost:8090/...` via `KC_HOSTNAME_URL`, so JWKS lookup is env-driven. |
+| S-021 (Angular OIDC client) | Same host-side issuer; `clientId="alpenflight-web"`; PKCE flow; redirect URIs whitelisted. |
 | S-022 (`@TenantId` resolver) | Claim name `clubId` (String); absence-of-claim + `SYSTEM_ADMINISTRATOR` role = cross-tenant principal. |
 | S-025 (tenant-from-URL + authorization) | Same role catalog and claim contract. |
 | S-026 (`@PreAuthorize` mapping) | Realm-role names → `ROLE_*` authorities. |
-| S-028 (bulk-provision tenant users in Keycloak) | Admin REST API at `/admin/realms/fls`; bootstrap admin grant; `requiredActions: ["UPDATE_PASSWORD"]` flag for C14. |
-| S-029 (Proffix machine client) | Client ID `fls-proffix`; client-credentials grant; secret rotation procedure. |
-| S-039 (docker-compose orchestration) | The Compose contract above, verbatim. |
+| S-028 (bulk-provision tenant users in Keycloak) | Admin REST API at `/admin/realms/alpenflight`; bootstrap admin grant; `requiredActions: ["UPDATE_PASSWORD"]` flag for C14. |
+| S-029 (Proffix machine client) | Client ID `alpenflight-proffix`; client-credentials grant; secret rotation procedure. |
+| S-039 (docker-compose orchestration) | Already shipped the service block; S-019 amends it with `--import-realm` + the realm-export bind-mount (see "Compose amendment"). |
 
 ### Alternatives considered
 
@@ -189,26 +173,39 @@ git diff ./next/auth/realm-export.json
 - **Option D (rejected for dev, deferred to prod):** Postgres-backed Keycloak (`KC_DB=postgres`). Adds a container + healthcheck dependency to the dev `compose up`. Embedded H2 matches "one command up"; realm export is the source of truth so DB-loss is recoverable. README flags as the prod switch (ADR 0010 territory).
 - **Option E (rejected):** Spring Authorization Server (ADR 0007 Option A) — already settled.
 
+### Per ADR 0022 directive 2
+
+Zero schema / migration touch in this story. Keycloak owns its own H2 schema (embedded, dev-only) and manages it itself; no Flyway migration, no `next/server/src/main/resources/db/migration/` file. The committed `realm-export.json` is configuration-as-data, not a schema artifact — the only structural invariants it carries (claim names, role names, client IDs) belong in the IdP, not in the Postgres tenancy schema owned by other stories. The `clubId` claim is the **wire contract** S-022 binds to `@TenantId`; the Postgres-side `tenant_id` column is S-008's concern, not S-019's.
+
+### Proposed ADR amendments
+
+- **ADR 0007 — `localhost:8080/realms/fls` → `localhost:8090/realms/alpenflight`.** ADR 0007 still cites the pre-rebrand, pre-S-039 issuer URL (port `8080`, realm `fls`). The live shape is `http://localhost:8090/realms/alpenflight` (host port `8090` because the AlpenFlight backend owns `8080` — see `docker-compose.yml` lines 152–167). Recommendation: amend ADR 0007 in a separate doc-only commit (not folded into S-019, which is software-shipping). Operator decision: amend now or batch with the next ADR-touching story.
+
 ## Edge cases & hidden requirements
 
-- **`data/import/` empty on first boot:** Keycloak comes up with only the master realm; `/realms/fls` 404s. Compose healthcheck (above) catches this — `compose up --wait` fails fast.
+- **`data/import/` empty on first boot:** Keycloak comes up with only the master realm; `/realms/alpenflight` 404s. The TCP-probe healthcheck on port 9000 `/health/ready` catches this — `compose up --wait` fails fast.
+- **`--import-realm` added to existing command:** S-019 amends the existing `command: ["start-dev", "--http-port=8080"]` in `docker-compose.yml` to `["start-dev", "--http-port=8080", "--import-realm"]` and adds the bind-mount `./next/auth/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro`. Both changes must land in the same commit; mismatched compose (flag present, mount absent or vice versa) produces a silent no-op import.
 - **Subsequent boots:** `--import-realm` re-imports on every start. With Keycloak 26.5's default `IGNORE_EXISTING` strategy, dev edits to existing entities are preserved; new entities are still added. **Pick `OVERWRITE_EXISTING` for predictability if the realm export is the source of truth** — flag in README which mode is active and the tradeoff. Recommended: stay on default (`IGNORE_EXISTING`) but document that committed-realm drift is recovered by `docker compose down -v` (wipe H2 volume).
 - **Bootstrap admin idempotency:** `KC_BOOTSTRAP_ADMIN_*` only seeds on a fresh DB. Re-running with a different password silently no-ops — document "delete the H2 volume to re-bootstrap admin."
-- **Persistent volume vs. throwaway DB:** No named volume by default (embedded H2 file lives inside the container layer). `docker compose down` (without `-v` flag) preserves; `docker compose down -v` wipes. Document.
+- **Persistent volume vs. throwaway DB:** No named volume by default (embedded H2 file lives inside the container layer). `docker compose down` (without `-v`) preserves; `docker compose down -v` wipes. Document.
 - **Realm export round-trip drift:** `kc.sh export` emits new timestamps + UUIDs + re-orders arrays. The normalize script + pinned IDs (clients, users, mappers) close this. Without the normalize script, the round-trip AC is unverifiable.
-- **Round-trip export from a running vs. stopped container:** Keycloak 26 supports both. Pin the running-instance path (`docker compose exec`) — it's the dev-flow operators actually use.
-- **Writeable bind-mount on Docker Desktop:** macOS/Windows surface permission quirks on shared paths; the round-trip flow uses `docker compose cp` (container → host) which bypasses bind-mount semantics. Read-only bind-mount on the import side avoids accidental container-side writes.
+- **Round-trip export from a running vs. stopped container:** Keycloak 26 supports both. Pin the running-instance path (`docker compose exec`) — it is the dev-flow operators actually use.
+- **Writeable bind-mount on Docker Desktop:** macOS/Windows surface permission quirks on shared paths; the round-trip flow uses `docker compose cp` (container to host) which bypasses bind-mount semantics. Read-only bind-mount on the import side avoids accidental container-side writes.
+- **Dual-port reality — issuer URL vs. internal network address:** the container listens on port 8080; `KC_HOSTNAME_URL=http://localhost:8090` pins the `iss` claim in every token to `http://localhost:8090/realms/alpenflight`. Backend code running on the compose network must reach Keycloak JWKS and discovery via `http://keycloak:8080`, but Spring Security 7's `spring.security.oauth2.resourceserver.jwt.issuer-uri` performs a discovery call AND validates that the discovered `issuer` matches the configured value exactly. Setting `issuer-uri=http://localhost:8090/realms/alpenflight` works from the host but fails from inside the compose network; setting it to `http://keycloak:8080/realms/alpenflight` succeeds for discovery but mismatches the `iss` claim. Use `jwk-set-uri` + `issuer-uri` split config (or `NimbusJwtDecoder` with explicit JWKS URI and a custom issuer validator) to decouple the fetch address from the claim check. **Flag for S-020 — this is the primary integration gotcha.**
+- **`KC_HOSTNAME_URL` hard-wires issuer to `localhost:8090`:** operators running on a non-localhost dev tunnel (Tailscale, ngrok, Codespaces port-forward) will receive tokens with `iss=http://localhost:8090/realms/alpenflight` that their resource server cannot verify. They must either override `KC_HOSTNAME_URL` in a local `.env` file or accept token-validation breakage. Document in `next/auth/README.md`.
+- **Port 8090 collision:** the compose host port is `127.0.0.1:8090:8080`. Port 8090 conflicts with tools such as SonarQube CE and some Gradle daemon UIs. Compose host-port can be overridden via `${KEYCLOAK_PORT:-8090}:8080` for operators with a conflict.
+- **Management port 9090 collision:** host port 9090 (`127.0.0.1:9090:9000`) conflicts with Prometheus default scrape target and some JVM debug setups. Worth noting alongside the 8090 note.
 - **Redirect URI `localhost` vs. `127.0.0.1` vs. tunnel host:** the whitelist explicitly lists `http://localhost:{4200,3000}/*` only. Devs using `127.0.0.1` or a tunnel must add their URI to the export and re-import (or commit it).
-- **PKCE S256 must be explicit:** `attributes."pkce.code.challenge.method" = "S256"` on the `fls-web` client. Not setting it means PKCE is *allowed* but not *required* — fails the SPA's threat model.
-- **Issuer URL stability dev↔prod:** local issuer is `http://localhost:8080/realms/fls`; production issuer differs. The `iss` claim is baked into every token. Downstream resource-server config must be env-driven (flag for S-020).
+- **PKCE S256 must be explicit:** `attributes."pkce.code.challenge.method"="S256"` on the `alpenflight-web` client. Not setting it means PKCE is allowed but not required — fails the SPA's threat model.
+- **Issuer URL stability dev vs. prod:** local issuer is `http://localhost:8090/realms/alpenflight`; production issuer differs. The `iss` claim is baked into every token. Downstream resource-server config must be env-driven — flag for S-020.
 - **Stable subject (`sub`) IDs:** pin `id` for all three seed users in the export so fixtures referencing them by `sub` remain valid across re-imports.
-- **`emailVerified=true` on seed users:** without this, OIDC login forces a verification screen → breaks every smoke test.
+- **`emailVerified=true` on seed users:** without this, OIDC login forces a verification screen, breaking every smoke test.
 - **Locale on seed users:** `locale="de"` so Keycloak-rendered login/reset/error pages default to German (matches C4 Swiss-first posture); also matters when S-082 renders email templates.
-- **Service-account user for `fls-proffix`:** client-credentials clients have an implicit service-account user. Its realm-role mapping (`proffix-sync`) must be in the export — easy to forget; would break the Proffix smoke later.
-- **Port 8080 collision:** common dev clash. Compose host-port mapping uses `"${KEYCLOAK_PORT:-8080}:8080"` so an operator can override without editing the file.
-- **Keycloak image tag:** pin to `quay.io/keycloak/keycloak:26.5` (not `:latest`). Realm export JSON schema is unstable across majors; a silent bump can break the import.
-- **Healthcheck endpoint:** dev-mode does NOT expose `/health/ready` (production mode does with `KC_HEALTH_ENABLED=true`). The Compose healthcheck above curls the realm root instead.
-- **README contents:** must enumerate what's dev-only (bootstrap admin, dev secrets, signing key generation, hostname mode, DB backend, TLS, brute-force tuning, event log retention) and what gets replaced for production. Production hardening is ADR 0007's open item — S-019 does not deliver it.
+- **Service-account user for `alpenflight-proffix`:** client-credentials clients have an implicit service-account user. Its realm-role mapping (`proffix-sync`) must be in the export — easy to forget; would break the Proffix smoke later.
+- **Dev secret rename:** the committed dev secret is `alpenflight-proffix-dev-secret` (was `fls-proffix-dev-secret`). Any existing documentation, fixture, or env file referencing the old name will silently produce a client-credentials 401 until updated.
+- **Keycloak image tag:** pin to `quay.io/keycloak/keycloak:26.5` (not `:latest`). Realm export JSON schema is unstable across majors; a silent bump can break the import. The existing compose block already pins `26.5` — do not regress this when adding `--import-realm`.
+- **Healthcheck endpoint:** the compose block correctly uses the management port 9000 TCP probe (`/dev/tcp`) because the image ships no curl/wget. The realm root probe from the previous draft (`/realms/fls`) is superseded — update any doc or script that references it and verify that `KC_HEALTH_ENABLED=true` is set (it is, per the live compose block).
+- **README contents:** must enumerate what is dev-only (bootstrap admin, embedded H2, plain HTTP, dev secrets, signing-key generation, hostname/issuer URL pinning, brute-force tuning, event log retention) and what gets replaced for production. Must also document the dual-port setup (`8090` host / `8080` internal / `9090` management) and the `issuer-uri` vs. `jwk-set-uri` config pattern for downstream resource-server stories.
 
 ## Security plan
 
@@ -216,24 +213,26 @@ git diff ./next/auth/realm-export.json
 
 | Risk | Severity | Mitigation in S-019 |
 |---|---|---|
+| Backend mis-validates `iss` claim — uses compose-internal `http://keycloak:8080/realms/alpenflight` instead of host-side `http://localhost:8090/realms/alpenflight` | High | S-039 already commits `KC_HOSTNAME_URL=http://localhost:8090` so Keycloak mints tokens with the host-side issuer regardless of which network reaches it. S-019's `next/auth/README.md` documents the dual-port reality (host `8090` ↔ container `8080`) and instructs S-020 to either **(preferred)** split `spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs` (compose-network) from `issuer-uri=http://localhost:8090/realms/alpenflight` (host-side `iss` validator); if deferred: **S-020** test-plan must assert a Nimbus decoder with explicit JWKS URI + custom `OAuth2TokenValidator` pinning `iss` to the host-side URL exactly. Mirrors the requirements-engineer edge case on dual-port `iss` mismatch. |
+| Compose `127.0.0.1:8090:8080` bind silently changed to `0.0.0.0:8090:8080`, LAN-exposing the dev IdP + its bootstrap-admin | Medium | Current localhost-only bind is intentional security posture (improvement over a naked `8090:8080` form). Mitigations: review-time discipline; README states the bind must stay loopback-pinned in dev; CI grep on `docker-compose.yml` asserts the `127.0.0.1:` prefix on the keycloak `ports:` entry. |
 | Credential leakage via committed `realm-export.json` | High | Commit only client IDs, role catalog, protocol mappers, *placeholder* dev passwords; README flags dev-only + rotation-at-deploy. |
 | RS256 private signing key committed in export | High | Strip `keys[].privateKey` / `keys[].privateKeyPem` before commit; Keycloak generates a fresh key on first `--import-realm`. **CI guard enforces** (see acceptance criteria). |
-| Bootstrap admin reuse across environments | High | Gate `KC_BOOTSTRAP_ADMIN_*` behind `profiles: [dev]`; values explicitly dev (`admin`/`admin`); README forbids reuse in prod. |
+| Bootstrap admin reuse across environments | High | Gate `KC_BOOTSTRAP_ADMIN_*` behind `profiles: [next]`; values explicitly dev (`admin`/`admin`); README forbids reuse in prod. |
 | Dev-mode security relaxations leaking into production narrative | Medium | README explicitly: "dev-only Keycloak"; production hardening is ADR 0007 open item, not promised by S-019. |
-| PKCE bypass on SPA client | High | Realm-export pins `attributes."pkce.code.challenge.method"="S256"`, `implicitFlowEnabled=false`, `standardFlowEnabled=true`, `directAccessGrantsEnabled=false` on `fls-web`. CI smoke verifies. |
+| PKCE bypass on SPA client | High | Realm-export pins `attributes."pkce.code.challenge.method"="S256"`, `implicitFlowEnabled=false`, `standardFlowEnabled=true`, `directAccessGrantsEnabled=false` on `alpenflight-web`. CI smoke verifies. |
 | Forgeable / missing `clubId` claim | High | `clubId` lives as a **User Attribute** (not realm/group/client-scope-from-input); protocol mapper pins type `String`, claim `clubId`, both ID + access tokens; **not** in account-console-editable attribute list. S-022 enforces server-side binding; S-019 only guarantees the claim is present and well-formed. |
 | Permissive redirect URIs / web origins | High | Pin `redirectUris` to explicit `localhost:{4200,3000}/*`; `webOrigins = ["+"]` (valid-redirects match) — **never** `*`. CI grep verifies. |
 | Self-registration | Medium | `registrationAllowed=false`. |
 | Brute force on seed accounts | Medium | `bruteForceProtected=true`. |
 | Long-lived / non-rotating tokens | Medium | Realm pins ADR 0007 values (15min access, 30/90d refresh idle/max, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`). |
-| Proffix machine-client over-scoped | Medium | Minimal role grant (`proffix-sync` only); secret rotation procedure in README; dev secret committed but explicitly dev. |
+| Proffix machine-client over-scoped | Medium | Minimal role grant (`proffix-sync` only); secret rotation procedure in README; dev secret committed (`alpenflight-proffix-dev-secret`) but explicitly dev. |
 | System-administrator seed → shared backdoor | High | One seeded `SYSTEM_ADMINISTRATOR` in dev only; README states this credential must be reset before any non-localhost exposure. |
 | Admin events disabled → no forensic trail | Medium | `eventsEnabled=true`, `adminEventsEnabled=true`, `adminEventsDetailsEnabled=true`, `jboss-logging` listener. |
 
 ### Authorization
 
 - Keycloak admin console gated by built-in `admin` realm role on the `master` realm; not exposed by S-019. No `@PreAuthorize` here (no Spring endpoints).
-- `fls` realm OIDC endpoints public per OIDC; client config (PKCE + redirect URIs + grant types) gates access, not Keycloak roles.
+- `alpenflight` realm OIDC endpoints public per OIDC; client config (PKCE + redirect URIs + grant types) gates access, not Keycloak roles.
 - Role catalog seeded for S-026 to map; S-019 does not annotate any controller.
 
 ### Input validation
@@ -242,14 +241,15 @@ git diff ./next/auth/realm-export.json
 - Redirect URIs in export: strict allow-list (`http://localhost:{4200,3000}/*`); reject `*`, bare hosts, non-`http(s)://` schemes. Enforced by review + CI grep.
 - `clubId` user attribute: string, non-empty; seed values are dev slugs (`club-1`). S-019 does not validate referential integrity (no DB); S-022 owns that.
 - Bootstrap admin env vars: compose uses `${VAR:?must be set}` form so misconfiguration fails fast.
+- `KC_HOSTNAME_URL` env var: must be `http://localhost:8090` in the dev compose (the live value S-039 pins) so the minted `iss` claim is `http://localhost:8090/realms/alpenflight`. README documents the prod-override path (per-env URL + TLS) and warns that drifting this value silently breaks S-020's `iss` validator. CI grep on `docker-compose.yml` asserts the literal `http://localhost:8090` value.
 
 ### PII handling
 
-- Seed user emails: must use RFC 2606 reserved test domains (`@example.com|org|net|test`). CI grep enforces.
+- Seed user emails: must use RFC 2606 reserved test domains (`@example.com|org|net|test`). CI grep enforces — the rebrand does not change this policy.
 - Seed user names: placeholder (`Pilot One`, etc.) — no real Swiss names of identifiable people. CI grep enforces.
 - `clubId` claim: not PII alone; becomes PII when joined to user attributes. Audit-log policy downstream (S-027): include as tenant scope; never redact.
 - Production user data: out of scope. Seed export is wiped + replaced by S-028; README must say so.
-- `account` client (OIDC self-service): enabled so end-users exercise GDPR access / forgotten requests via `/realms/fls/account`.
+- `account` client (OIDC self-service): enabled so end-users exercise GDPR access / forgotten requests via `/realms/alpenflight/account`.
 
 ### Audit-log events
 
@@ -257,11 +257,11 @@ S-019 emits no application audit events. It pins **Keycloak-side** event capture
 
 | Event | Trigger | Payload (Keycloak default) |
 |---|---|---|
-| `LOGIN` / `LOGIN_ERROR` | Authorization Code exchange | `realmId`, `clientId`, `userId`, `ipAddress`, `error` |
+| `LOGIN` / `LOGIN_ERROR` | Authorization Code exchange | `realmId=alpenflight`, `clientId`, `userId`, `ipAddress`, `error` |
 | `LOGOUT` | end-session endpoint | same |
 | `REFRESH_TOKEN` / `REFRESH_TOKEN_ERROR` | token refresh | flags reuse (rejected by `revokeRefreshToken=true`) |
 | `RESET_PASSWORD` / `UPDATE_PASSWORD` / `SEND_RESET_PASSWORD` | C14 audit trail for imported / reset users | per-user, per-realm |
-| `CLIENT_LOGIN` / `CLIENT_LOGIN_ERROR` | client-credentials grant (Proffix) | `clientId=fls-proffix`, no `userId` |
+| `CLIENT_LOGIN` / `CLIENT_LOGIN_ERROR` | client-credentials grant (Proffix) | `clientId=alpenflight-proffix`, no `userId` |
 | admin events (all op types) | every admin-UI / admin-API mutation | actor (`authDetails.userId`), resource type, op, representation diff |
 
 Listener: `jboss-logging` in S-019; S-031 adds an observability-stack forwarder.
@@ -269,18 +269,18 @@ Listener: `jboss-logging` in S-019; S-031 adds an observability-stack forwarder.
 ### Cross-tenant leakage
 
 - S-019 introduces no application queries — `@TenantId` does not apply here.
-- S-019's contribution to multi-tenancy is **emitting the `clubId` claim** trustworthily (User Attribute, not user-editable, protocol-mapper pinned to String, both ID + access tokens).
-- Cross-tenant leakage becomes impossible **only when S-022 binds this claim to `@TenantId` server-side**. S-019 hands S-022 a trustworthy claim; S-019 alone does not prevent leakage.
-- Unscoped legitimate consumer: `fls-proffix` (no `clubId` claim by design — machine client, realm-wide; downstream sync endpoint scopes by deliveries' embedded `clubId`).
+- S-019's contribution to multi-tenancy is **emitting the `clubId` claim** trustworthily (User Attribute, not user-editable, protocol-mapper pinned to String, both ID + access tokens). **The `clubId` claim is the contract; the server-side binding is S-022's** — S-019 hands a trustworthy claim, not a binding. Without S-022 enforcing `@TenantId`, S-019 alone does not prevent leakage.
+- **S-020 MUST validate `iss == "http://localhost:8090/realms/alpenflight"` exactly in dev** (the env-pinned issuer S-039 ships). A missing or wrong `iss` validator — e.g. defaulting to the compose-internal `http://keycloak:8080/...` form — opens a token-substitution risk: a token minted by a wrong-environment Keycloak (or a malicious one reachable via the same internal name) would pass JWKS validation when the resource-server fetches keys over the compose network but still carry a foreign `iss`. The dual-port shape makes this trap easy to fall into; the README + S-020 acceptance criteria call it out.
+- Unscoped legitimate consumer: `alpenflight-proffix` (no `clubId` claim by design — machine client, realm-wide; downstream sync endpoint scopes by deliveries' embedded `clubId`).
 
 ### OWASP applicability
 
-- **A01 Broken Access Control:** strict redirect URIs, no direct-access-grants, no implicit flow, role catalog seeded, `clubId` claim tamper-resistant.
+- **A01 Broken Access Control:** strict redirect URIs, no direct-access-grants, no implicit flow, role catalog seeded, `clubId` claim tamper-resistant, `iss` pinned to host-side URL so token-substitution across environments is detectable downstream.
 - **A02 Cryptographic Failures:** realm-generated RS256 key per environment (no committed private key); `start-dev` is HTTP-dev-only.
 - **A03 Injection:** N/A.
-- **A04 Insecure Design:** PKCE-S256 mandatory, rotating refresh, brute-force, self-registration off, bootstrap-admin profile-gated.
-- **A05 Security Misconfiguration:** primary risk surface of this story. Mitigations: dev-only compose profile, README enumerates dev↔prod deltas, CI guards.
-- **A06 Vulnerable/Outdated Components:** image tag pinned; Renovate/Dependabot bump cadence post-merge.
+- **A04 Insecure Design:** PKCE-S256 mandatory, rotating refresh, brute-force, self-registration off, bootstrap-admin profile-gated (`next`), loopback-only port bind (`127.0.0.1:8090:8080`).
+- **A05 Security Misconfiguration:** primary risk surface of this story — amplified by the host↔container dual-port shape. Mitigations: dev-only compose profile (`next`), `KC_HOSTNAME_URL` pinned, README enumerates dev↔prod deltas + dual-port `iss` contract, CI guards on bind + `KC_HOSTNAME_URL` literal + private-key absence.
+- **A06 Vulnerable/Outdated Components:** image tag pinned to `quay.io/keycloak/keycloak:26.5`; Renovate/Dependabot bump cadence post-merge.
 - **A07 Identification & Authentication Failures:** brute-force on; password policy set; MFA available (not seeded on).
 - **A08 Integrity Failures:** realm export under version control = tamper-evident via git history; CI guard prevents private-key commit.
 - **A09 Logging & Monitoring:** events + admin events on.
@@ -290,7 +290,7 @@ Listener: `jboss-logging` in S-019; S-031 adds an observability-stack forwarder.
 
 ### Pyramid
 - Unit: none — artifact is JSON + Compose service.
-- Integration: realm-shape (jq schema), Compose boot smoke, Testcontainers handshake (optional).
+- Integration: realm-shape (jq schema), Compose boot smoke, Testcontainers handshake (optional), dual-port issuer reality check.
 - E2E: one issuer-roundtrip smoke (`admin-cli` password grant).
 - Parity: none — `parity_test: none`; legacy `IdentityUserManager` is wholly replaced.
 
@@ -299,24 +299,29 @@ Listener: `jboss-logging` in S-019; S-031 adds an observability-stack forwarder.
 **Integration:**
 
 - `realm_export_has_expected_shape` — `jq` on `next/auth/realm-export.json`:
-  - `realm == "fls"`
-  - `fls-web`: `publicClient==true`, `standardFlowEnabled==true`, `directAccessGrantsEnabled==false`, `implicitFlowEnabled==false`, `attributes."pkce.code.challenge.method"=="S256"`
-  - `fls-backend`: `bearerOnly==true`
-  - `fls-proffix`: `serviceAccountsEnabled==true`, `standardFlowEnabled==false`, `directAccessGrantsEnabled==false`
+  - `realm == "alpenflight"`
+  - `alpenflight-web`: `publicClient==true`, `standardFlowEnabled==true`, `directAccessGrantsEnabled==false`, `implicitFlowEnabled==false`, `attributes."pkce.code.challenge.method"=="S256"`
+  - `alpenflight-backend`: `bearerOnly==true`
+  - `alpenflight-proffix`: `serviceAccountsEnabled==true`, `standardFlowEnabled==false`, `directAccessGrantsEnabled==false`
   - Realm roles: `SYSTEM_ADMINISTRATOR`, `CLUB_ADMINISTRATOR`, `FLIGHT_OPERATOR`, `PILOT`, `OFFICE_USER`, `GUEST`, `proffix-sync`
   - Three seed users present with correct roles + `clubId` attribute
   - `keys[]?.privateKey` and `keys[]?.privateKeyPem` both absent (or `.keys` absent entirely)
   - Lives in `scripts/check-realm-shape.sh`, runs in CI + pre-commit.
 
 - `keycloak_compose_boots_and_serves_discovery`:
-  - `docker compose up keycloak --wait --timeout 90` → exit 0 within 30s cold / 15s warm
-  - `GET /realms/fls` → 200
-  - `GET /realms/fls/.well-known/openid-configuration` → 200; `issuer == "http://localhost:8080/realms/fls"`; `authorization_endpoint`, `token_endpoint`, `jwks_uri` present
-  - `GET /realms/fls/protocol/openid-connect/certs` → 200; at least one `RS256` key
+  - `docker compose --profile next up keycloak --wait --timeout 90` → exit 0 within 30s cold / 15s warm
+  - `GET /realms/alpenflight/.well-known/openid-configuration` → 200; `issuer == "http://localhost:8090/realms/alpenflight"`; `authorization_endpoint`, `token_endpoint`, `jwks_uri` present
+  - `GET /realms/alpenflight/protocol/openid-connect/certs` → 200; at least one `RS256` key
+  - Discovery check is the post-`--wait` realm-presence verification — `compose up --wait` proves the management-port healthcheck passed, but `--import-realm` may still be completing; hitting the discovery doc proves the realm itself is live.
   - Bash + curl + jq in a CI job; always-teardown via trap.
 
+- `keycloak_issuer_url_matches_kc_hostname_url`:
+  - After `compose up --wait`, hit `GET http://localhost:8090/realms/alpenflight/.well-known/openid-configuration` and `GET http://localhost:8090/realms/alpenflight` separately.
+  - Assert both endpoints return `issuer == "http://localhost:8090/realms/alpenflight"`.
+  - Proves `KC_HOSTNAME_URL=http://localhost:8090` in the compose env is correctly wiring the emitted issuer; catches any port-mapping regression that would break S-020's `spring.security.oauth2.resourceserver.jwt.issuer-uri` match.
+
 - `realm_export_round_trip_is_stable`:
-  - Boot Keycloak; export; copy out; normalize both source + round-trip; `diff` exits 0.
+  - Boot Keycloak; run `docker compose --profile next exec keycloak /opt/keycloak/bin/kc.sh export --realm alpenflight --file /tmp/realm-export.json --users realm_file`; copy out; normalize both source + round-trip; `diff` exits 0.
   - Pin client + user `id` UUIDs in source so diff is genuinely zero.
 
 - `keycloak_testcontainer_serves_pinned_realm` (optional JUnit5):
@@ -328,72 +333,78 @@ Listener: `jboss-logging` in S-019; S-031 adds an observability-stack forwarder.
 **E2E (one):**
 
 - `keycloak_password_grant_smoke_via_admin_cli` — issues a token end-to-end:
-  - `POST /realms/fls/protocol/openid-connect/token` with `client_id=admin-cli`, `grant_type=password`, `username=pilot1@example.com`, `password=pilot1`
-  - Assert 200; access token parses as JWT with header `alg=RS256`; payload `iss==http://localhost:8080/realms/fls`; payload includes `clubId=="club-1"` claim
+  - `POST http://localhost:8090/realms/alpenflight/protocol/openid-connect/token` with `client_id=admin-cli`, `grant_type=password`, `username=pilot1@example.com`, `password=pilot1`
+  - Assert 200; access token parses as JWT with header `alg=RS256`; payload `iss=="http://localhost:8090/realms/alpenflight"`; payload includes `clubId=="club-1"` claim
   - Validates the **whole** issuer + JWKS + protocol-mapper chain without coupling to S-020/S-021.
 
 **Security-specific CI guards (additions to the test suite):**
 
 - No private key in export (above).
 - No real-domain emails / real PII in seed users.
-- PKCE-S256 enforced: hit `/realms/fls/protocol/openid-connect/auth?...` without `code_challenge` → assert HTTP 400 `invalid_request`.
-- Direct-access-grants disabled on `fls-web`: password grant with `client_id=fls-web` → assert HTTP 400 `unauthorized_client`.
+- PKCE-S256 enforced: hit `/realms/alpenflight/protocol/openid-connect/auth?...` without `code_challenge` → assert HTTP 400 `invalid_request`.
+- Direct-access-grants disabled on `alpenflight-web`: password grant with `client_id=alpenflight-web` → assert HTTP 400 `unauthorized_client`.
 - `clubId` claim present on access token of each seed user (decoded check).
-- `redirectUris` allow-list: `jq` assertion against `^https?://[^*]+$` shape.
+- `redirectUris` allow-list: `jq` assertion against `^https?://[^*]+$` shape; assert entries contain only `localhost:{4200,3000}` origins.
 
 ### Fixtures
 - `next/auth/realm-export.json` — shared, committed, source of truth (above).
-- Compose service `keycloak` — shared per-CI-job; teardown via `docker compose down -v` in always() step.
+- Compose service `keycloak` (profile `next`) — shared per-CI-job; teardown via `docker compose --profile next down -v` in always() step.
 - `scripts/normalize-realm-export.sh`, `scripts/check-realm-shape.sh` — shared utilities; both reused by integration job + pre-commit.
 
 ### Coverage gaps (deferred)
-- Spring Security 7 resource-server JWT validation → S-020.
-- Angular OIDC SPA flow (Authorization Code + PKCE, silent refresh, logout) → S-021.
+- Spring Security 7 resource-server JWT validation against `http://localhost:8090/realms/alpenflight` issuer → S-020.
+- Angular OIDC SPA flow (Authorization Code + PKCE, silent refresh, logout) with `clientId=alpenflight-web` → S-021.
 - `clubId` claim → `@TenantId` binding → S-022.
 - Bulk-provision tenant users in Keycloak (with forced-reset flag, for operator-owned tenants) → S-028.
+- `alpenflight-proffix` client-credentials smoke → S-029.
 - Production hardening (TLS, real issuer, brute-force tuning, SMTP, password policy) → ADR 0007 open item + manual UAT.
 
 ### Risks
 - **Cold-start flake on slow CI runners** (Keycloak 26.5 boot can exceed 60s on cold image pull). Mitigation: cache image layer; `--wait --timeout 90`; retry only the wait, not the import.
 - **Round-trip diff churn** from regenerated IDs / timestamps. Mitigation: pin client + user `id` in source; normalize script + pinned image tag.
 - **Testcontainers `keycloak` module drift vs. Compose image.** Mitigation: pin both to same minor; CI job verifies `kc.sh --version` matches a Gradle property.
-- **`admin-cli` smoke fragility** if Keycloak hardens that client in a future release. Mitigation: keep smoke narrowly scoped; replace with a dedicated `fls-smoke` confidential client carrying direct-access-grants if `admin-cli` ever changes.
+- **`admin-cli` smoke fragility** if Keycloak hardens that client in a future release. Mitigation: keep smoke narrowly scoped; replace with a dedicated `alpenflight-smoke` confidential client carrying direct-access-grants if `admin-cli` ever changes.
 - **Private-key commit risk** if someone hand-edits the export. Mitigation: CI guard + pre-commit hook.
-- **Port 8080 collision.** Mitigation: `${KEYCLOAK_PORT:-8080}:8080` host mapping.
+- **Port 8090 collision** (host-side Keycloak HTTP). Mitigation: `${KEYCLOAK_PORT:-8090}:8080` host mapping; document in `next/auth/README.md`.
+- **Compose health probe (TCP on `:9000/health/ready`) reports green BEFORE realm import completes** — `--import-realm` runs after the management port comes up, so `compose up --wait` can exit 0 while the realm is still being loaded. Mitigation: smoke tests must verify `GET /realms/alpenflight/.well-known/openid-configuration` returns 200 with a valid `issuer` field after `--wait` exits — do not rely on the healthcheck alone as a realm-presence signal.
 
 ## Performance plan
 
 ### Hot paths
-- `POST /realms/fls/protocol/openid-connect/token` (refresh + password grants): every session start + every ~5min refresh. RS256 signing is constant cost; bcrypt only on first password grant.
-- `GET /realms/fls/protocol/openid-connect/certs` (JWKS): once per resource-server startup + every 5min refresh; served from memory.
-- `GET /realms/fls/.well-known/openid-configuration`: once per startup; served from memory.
+- `POST /realms/alpenflight/protocol/openid-connect/token` (refresh + password grants): every session start + every ~5min refresh. RS256 signing is constant cost; bcrypt only on first password grant.
+- `GET /realms/alpenflight/protocol/openid-connect/certs` (JWKS): once per resource-server startup + every 5min refresh; served from memory.
+- `GET /realms/alpenflight/.well-known/openid-configuration`: once per startup; served from memory.
+- `GET :9000/health/ready` (management port, TCP probe from S-039 healthcheck): every 10s while compose is up; tiny constant cost.
 
 ### Required indexes
 N/A — Keycloak owns its schema; dev uses embedded H2.
 
 ### N+1 risks
-N/A in this story. **Flag for S-020/S-021:** tenant-scoped queries MUST read `clubId` from the JWT claim — never round-trip to Keycloak per request.
+N/A in this story. **Flag for S-020/S-021:** tenant-scoped queries MUST read `clubId` from the JWT claim — never round-trip to Keycloak per request. **Network-path note for S-020:** the Spring resource server fetches JWKS via the compose-network address `http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs` (faster, no host DNS, no port-publish hop) while still pinning `iss` validation to the host-side `http://localhost:8090/realms/alpenflight` — token issuer and JWKS URI legitimately diverge in this dev topology.
 
 ### Caching
 - Resource-server side (S-020): Spring Security 7 default JWKS cache (5-min refresh) — **do NOT tighten without measurement.**
 - SPA side (S-021): OIDC library caches discovery for the session; refresh-token rotation drives token refresh.
 - Realm config: not cached by FLS — lives in Keycloak; `clubId` travels in the token.
+- **Cache-key gotcha for S-020:** Spring Security 7's JWKS cache is keyed by the JWKS URI string. Because S-020 uses the compose-network URL (`http://keycloak:8080/...`) for fetching while issuer-validation uses the host URL (`http://localhost:8090/...`), the cache key is the compose-internal URL. Re-runs from another network namespace (e.g. host-side `curl` smoke against `localhost:8090`) repopulate from scratch — harmless duplication, worth knowing when debugging "why did JWKS get fetched twice."
 
 ### Latency budget
-- `compose up keycloak` cold (no image cache, fresh H2): ≤ 30s to healthcheck green. Mitigation if breached: `JAVA_OPTS_APPEND=-Xms512m -Xmx512m`; disable unused feature flags.
-- `compose up keycloak` warm: ≤ 15s. `--import-realm` re-runs every boot but linear in seed size (~5–15 KB).
-- Token endpoint (refresh grant): p95 < 100ms local; < 200ms prod.
+- `docker compose --profile next up keycloak` cold (no image cache, fresh H2): ≤ 30s to healthcheck green. Mitigation if breached: `JAVA_OPTS_APPEND=-Xms512m -Xmx512m`; disable unused feature flags.
+- `docker compose --profile next up keycloak` warm: ≤ 15s. `--import-realm` re-runs every boot but linear in seed size (~5–15 KB).
+- Token endpoint (refresh grant, `http://localhost:8090/realms/alpenflight/protocol/openid-connect/token`): p95 < 100ms local; < 200ms prod.
 - Token endpoint (password grant, first login): p95 < 300ms local — dominated by bcrypt work factor.
-- JWKS / discovery: p95 < 5ms each (memory serve).
+- JWKS (`http://localhost:8090/realms/alpenflight/protocol/openid-connect/certs`) / discovery (`http://localhost:8090/realms/alpenflight/.well-known/openid-configuration`): p95 < 5ms each (memory serve).
+- TCP healthcheck probe (`/dev/tcp/localhost/9000` → `/health/ready` on container-internal `:9000`): p95 < 50ms — local TCP connect + 13-byte `{"status":"UP"}` response. Anchors the S-039 `start_period=30s` budget.
 - Realm import / export at seed shape: < 1s each. Threshold to revisit: > 1 MB → switch to `--dir` export. Out of scope here.
 
 ### Memory
 - Keycloak dev container: ~512 MB heap + ~256 MB native = ~768 MB RSS. Acceptable on 8 GB laptops alongside Spring + Angular + Postgres + observability stack. Flag for operators on smaller hardware.
 
 ### Performance test plan
-- **Smoke benchmark (manual, not gated CI):** 100 sequential token requests via `curl` + `time`; assert p95 < 100ms on dev box.
-- **Cold-start measurement:** `time docker compose up -d keycloak && wait-for-healthcheck`; pass ≤ 30s cold / ≤ 15s warm. If repeatedly breached, escalate to optimized image (`kc.sh build` + `start` mode with static `KC_HOSTNAME`) — defer until pain materializes.
-- **JWKS / discovery latency:** `curl -w '%{time_total}'`; sanity p95 < 5ms.
+- **Smoke benchmark (manual, not gated CI):** 100 sequential token requests against `http://localhost:8090/realms/alpenflight/protocol/openid-connect/token` via `curl` + `time`; assert p95 < 100ms on dev box.
+- **Cold-start measurement:** `time docker compose --profile next up -d keycloak && wait-for-healthcheck`; pass ≤ 30s cold / ≤ 15s warm. If repeatedly breached, escalate to optimized image (`kc.sh build` + `start` mode with static `KC_HOSTNAME`) — defer until pain materializes.
+- **JWKS / discovery latency:** `curl -w '%{time_total}' http://localhost:8090/realms/alpenflight/protocol/openid-connect/certs`; sanity p95 < 5ms.
+- **Healthcheck probe latency:** `time bash -c '</dev/tcp/localhost/9090'` against the published management port; sanity p95 < 50ms.
 - No JMH / k6 / heap dump — this is infra, not app code.
 
 <!-- modernize-refine: end -->
