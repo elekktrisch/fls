@@ -57,10 +57,10 @@ services:
       retries: 30
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:v1.21
     ports:
-      - "127.0.0.1:1025:1025"   # SMTP listener (FLS server -> here)
-      - "127.0.0.1:8025:8025"   # HTTP API + Web UI (tests -> here)
+      - "127.0.0.1:1025:1025"   # SMTP listener (FLS server + AlpenFlight backend -> here)
+      - "127.0.0.1:8025:8025"   # HTTP API + Web UI (tests + dev inbox inspection -> here)
     environment:
       MP_MAX_MESSAGES: "5000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
@@ -77,15 +77,17 @@ services:
       retries: 10
 
   # ---------------------------------------------------------------------------
-  # next/ — target stack (Postgres + pgAdmin). Activated by passing the
-  # 'next' compose profile so the default `docker compose up` (used by
+  # next/ — target stack (Postgres + pgAdmin + Keycloak). Activated by passing
+  # the 'next' compose profile so the default `docker compose up` (used by
   # e2e/scripts/dev-up.sh) still starts only mssql + mailpit.
   #
-  #   docker compose -p fls-e2e --profile next up -d postgres pgadmin
+  #   docker compose -p fls-e2e --profile next up -d
   #
   # next/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
-  # in one command. pgAdmin loads next/ops/pgadmin-servers.json so the
-  # target connection appears pre-wired on first login.
+  # in one command. pgAdmin loads next/ops/pgadmin/servers.json so the target
+  # connection appears pre-wired on first login. Operator manual + footguns
+  # live in next/ops/README.md. Mailpit (legacy default profile) is reused as
+  # the AlpenFlight backend's SMTP sink — point Spring at host:1025.
   # ---------------------------------------------------------------------------
 
   postgres:
@@ -137,3 +139,56 @@ services:
       PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
     ports:
       - "127.0.0.1:5050:80"
+    healthcheck:
+      # pgAdmin's /misc/ping endpoint replies "PING" once the WSGI app is up.
+      # gunicorn boot takes ~7s; pad start_period to 30s so the first probe
+      # never lands before the listener is open.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/misc/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Keycloak — OIDC IdP for the AlpenFlight stack. Runs in dev mode (H2,
+  # bootstrap admin) with no realm imported yet — S-019 lands `next/auth/
+  # realm-export.json` and amends this block to add `--import-realm` plus the
+  # bind-mount. Until then, the AlpenFlight realm is created by hand via the
+  # admin console (http://localhost:8090, admin / admin).
+  #
+  # Host port 8090 (NOT 8080) — the AlpenFlight server runs on 8080 by default,
+  # so Keycloak's HTTP listener is exposed on 8090 to avoid collision. The
+  # container still listens on 8080 internally, so backend code reaching
+  # Keycloak via the compose network DNS (`http://keycloak:8080`) is
+  # unaffected.
+  #
+  # KC_HOSTNAME_URL pins the issuer Keycloak emits in tokens to
+  # http://localhost:8090 so the iss claim matches what the SPA + backend
+  # both observe from the host.
+  # ---------------------------------------------------------------------------
+  keycloak:
+    profiles: ["next"]
+    image: quay.io/keycloak/keycloak:26.5
+    command: ["start-dev", "--http-port=8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_URL: http://localhost:8090
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      KC_LOG_LEVEL: INFO
+    ports:
+      - "127.0.0.1:8090:8080"
+      - "127.0.0.1:9090:9000"   # management interface (/health/ready)
+    healthcheck:
+      # Keycloak 25+ exposes /health/ready on the management port (9000) when
+      # KC_HEALTH_ENABLED=true. The image ships no curl/wget, so probe via the
+      # bundled Java HttpClient one-liner instead.
+      test:
+        - "CMD-SHELL"
+        - "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
