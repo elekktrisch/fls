@@ -21,6 +21,13 @@ context7_last_checked: 2026-05-17
 folds_in: [S-123]
 github_issue: 48
 github_pr: 49
+reviewed: true
+reviewed_at: 2026-05-17
+review_outcome: pass
+review_blockers: 0
+review_reviewers: [operator (manual)]
+merged: true
+merged_at: 2026-05-17
 ---
 
 ## Context
