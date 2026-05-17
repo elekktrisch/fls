@@ -1,0 +1,71 @@
+name: compose-smoke
+
+on:
+  pull_request:
+    paths:
+      - 'docker-compose.yml'
+      - 'next/ops/**'
+      - '.github/workflows/compose-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docker-compose.yml'
+      - 'next/ops/**'
+      - '.github/workflows/compose-smoke.yml'
+
+jobs:
+  smoke:
+    name: compose --profile next up --wait
+    runs-on: ubuntu-22.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: docker + compose version
+        run: |
+          docker --version
+          docker compose version
+
+      - name: build pgAdmin image
+        run: docker compose -f docker-compose.yml --profile next build pgadmin
+
+      - name: compose up --profile next --wait
+        run: |
+          docker compose -p s039 -f docker-compose.yml --profile next \
+            up -d --wait --wait-timeout 240
+
+      - name: probe postgres (SELECT 1)
+        run: |
+          docker exec s039-postgres-1 \
+            psql -U alpenflight -d alpenflight -t -c 'SELECT 1'
+
+      - name: probe keycloak (/realms/master)
+        run: |
+          curl -fsS --retry 6 --retry-delay 3 \
+            -o /dev/null -w 'http=%{http_code}\n' \
+            http://localhost:8090/realms/master
+
+      - name: probe keycloak (/health/ready on management port)
+        run: |
+          curl -fsS --retry 6 --retry-delay 3 http://localhost:9090/health/ready
+
+      - name: probe mailpit (/api/v1/info)
+        run: |
+          curl -fsS --retry 6 --retry-delay 3 http://localhost:8025/api/v1/info \
+            | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'Version' in d, d; print('mailpit:', d['Version'])"
+
+      - name: probe pgadmin (/misc/ping)
+        run: |
+          curl -fsS --retry 6 --retry-delay 3 http://localhost:5050/misc/ping
+
+      - name: collect logs on failure
+        if: failure()
+        run: |
+          docker compose -p s039 -f docker-compose.yml --profile next ps
+          docker compose -p s039 -f docker-compose.yml --profile next logs --tail 200
+
+      - name: tear down
+        if: always()
+        run: |
+          docker compose -p s039 -f docker-compose.yml --profile next \
+            down -v --remove-orphans
