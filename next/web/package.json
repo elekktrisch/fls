@@ -17,7 +17,8 @@
     "format": "prettier --check \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "format:fix": "prettier --write \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "e2e": "playwright test --config=e2e/playwright.config.ts",
-    "e2e:install": "playwright install --with-deps chromium"
+    "e2e:install": "playwright install --with-deps chromium",
+    "generate-api": "orval --config ./orval.config.ts"
   },
   "packageManager": "pnpm@11.1.2",
   "pnpm": {
@@ -55,6 +56,7 @@
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^28.0.0",
+    "orval": "^8.10.0",
     "postcss": "^8.5.14",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.3.0",

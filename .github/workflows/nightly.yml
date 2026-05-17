@@ -1,0 +1,319 @@
+name: nightly
+
+# Legacy e2e (Playwright against flsserver + flsweb) and the two legacy
+# build jobs it depends on run on a nightly schedule + on-demand, NOT on
+# every PR. The PR-CI lane (`ci.yml`) only exercises the rewrite under
+# `next/` — that's the codebase actively developed; legacy is reference-
+# only (see CLAUDE.md "Legacy is reference-only"). The e2e suite still
+# guards parity-relevant legacy behavior; it just doesn't gate every PR.
+#
+# Schedule: 04:00 UTC daily (~05:00–06:00 Europe/Zurich, off-peak). The
+# `workflow_dispatch` trigger is the manual escape hatch for "I want a
+# legacy-coverage run right now" (e.g. after touching e2e/ or shared
+# fixtures).
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+# Don't pile up overlapping nightly runs.
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Legacy server build — Mono + xbuild. Self-contained: produces a
+  # FLS.Server.Console/bin/Debug folder with the EF SqlServer DLL dropped in,
+  # ready for the e2e job to download and run with `mono`.
+  # ---------------------------------------------------------------------------
+  legacy-server-build:
+    name: legacy server build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Mono 6.12
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mono-complete
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: flsserver/src/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('flsserver/src/**/packages.config') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Install NuGet CLI
+        run: sudo curl -sSL -o /usr/local/bin/nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
+
+      - name: Restore packages
+        working-directory: flsserver/src
+        run: |
+          for proj in FLS.Server.Web/FLS.Server.WebApi.csproj \
+                       FLS.Server.Console/FLS.Server.Console.csproj ; do
+            mono /usr/local/bin/nuget.exe restore "$proj" -SolutionDirectory .
+          done
+
+      - name: xbuild projects (Debug)
+        working-directory: flsserver/src
+        run: |
+          for proj in \
+              FLS.Common/FLS.Common.csproj \
+              FLS.Server.Interfaces/FLS.Server.Interfaces.csproj \
+              FLS.Data.WebApi/FLS.Data.WebApi.csproj \
+              Alpinely.TownCrier/Alpinely.TownCrier.csproj \
+              FLS.Server.Data/FLS.Server.Data.csproj \
+              FLS.Server.Service/FLS.Server.Service.csproj \
+              FLS.Server.Web/FLS.Server.WebApi.csproj \
+              FLS.Server.Console/FLS.Server.Console.csproj ; do
+            xbuild "$proj" /p:Configuration=Debug
+          done
+
+      - name: Drop EF SqlServer DLL into bin
+        working-directory: flsserver/src
+        run: |
+          cp packages/EntityFramework.6.2.0/lib/net45/EntityFramework.SqlServer.dll \
+             FLS.Server.Console/bin/Debug/
+
+      - name: Upload FLS.Server.Console bin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flsserver-console-bin
+          path: flsserver/src/FLS.Server.Console/bin/Debug
+          retention-days: 1
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Legacy web build — Node 8 + yarn install. Warms the flsweb-node_modules
+  # cache that the e2e job will then restore.
+  # ---------------------------------------------------------------------------
+  legacy-web-build:
+    name: legacy web build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 8 }
+
+      - name: Cache flsweb node_modules
+        id: flsweb-cache
+        uses: actions/cache@v4
+        with:
+          path: flsweb-node_modules
+          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
+          restore-keys: |
+            flsweb-node-modules-${{ runner.os }}-
+
+      - name: yarn install (if cache miss)
+        if: steps.flsweb-cache.outputs.cache-hit != 'true'
+        run: |
+          rm -rf /tmp/flsweb-build
+          cp -r flsweb /tmp/flsweb-build
+          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
+          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
+          sudo npm install --global yarn@1 -s
+          cd /tmp/flsweb-build
+          yarn install --network-timeout 600000
+          cp -r /tmp/flsweb-build/node_modules ${GITHUB_WORKSPACE}/flsweb-node_modules
+
+  # ---------------------------------------------------------------------------
+  # e2e — boots the legacy stack (docker + Mono runtime + webpack-dev-server)
+  # and runs Playwright. Receives prebuilt artifacts from the two legacy build
+  # jobs above.
+  # ---------------------------------------------------------------------------
+  e2e:
+    name: e2e (Playwright)
+    needs: [legacy-server-build, legacy-web-build]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      FLS_LISTEN_URL: "http://*:25567/"
+      FLS_MSSQL_SA_PASSWORD: "Demo#FLS#2026"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Mono 6.12 (background)
+        run: |
+          (sudo apt-get update -qq && sudo apt-get install -y -qq mono-complete && touch /tmp/.done-mono) > /tmp/mono.log 2>&1 &
+          echo "mono install PID=$!"
+
+      - name: Start docker-compose stack (background)
+        run: |
+          (docker compose -p fls-e2e up -d && touch /tmp/.done-stack) > /tmp/stack.log 2>&1 &
+          echo "compose up PID=$!"
+
+      - name: Download FLS.Server.Console bin
+        uses: actions/download-artifact@v4
+        with:
+          name: flsserver-console-bin
+          path: flsserver/src/FLS.Server.Console/bin/Debug
+
+      - name: Restore flsweb node_modules cache
+        uses: actions/cache@v4
+        with:
+          path: flsweb-node_modules
+          key: flsweb-node-modules-${{ runner.os }}-${{ hashFiles('flsweb/yarn.lock', 'flsweb/package.json') }}
+          restore-keys: |
+            flsweb-node-modules-${{ runner.os }}-
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 8 }
+
+      - name: Prepare flsweb tree
+        run: |
+          rm -rf /tmp/flsweb-build
+          cp -r flsweb /tmp/flsweb-build
+          sed -i "s|'./TryflightController'|'./TryFlightController'|" /tmp/flsweb-build/src/tryflight/TryFlightModule.js
+          sed -i "s|'./PassengerflightController'|'./PassengerFlightController'|" /tmp/flsweb-build/src/passengerflight/PassengerFlightModule.js
+          if [ ! -d flsweb-node_modules ]; then
+            echo "flsweb-node_modules cache restore failed — legacy-web-build did not populate it"
+            exit 1
+          fi
+          mv flsweb-node_modules /tmp/flsweb-build/node_modules
+
+      - name: Wait for Mono install
+        run: |
+          while [ ! -f /tmp/.done-mono ]; do sleep 2; done
+          tail -3 /tmp/mono.log
+
+      - name: Wait for docker stack healthchecks
+        run: |
+          while [ ! -f /tmp/.done-stack ]; do sleep 1; done
+          for i in $(seq 1 60); do
+            healthy=$(docker compose -p fls-e2e ps --format json | grep -c '"Health":"healthy"' || true)
+            if [ "$healthy" -ge 2 ]; then break; fi
+            sleep 2
+          done
+          docker compose -p fls-e2e ps
+
+      - name: Apply FLSTest schema and seed
+        env:
+          FLS_MSSQL_CONTAINER: fls-e2e-mssql-1
+        run: bash e2e/scripts/seed.sh
+
+      - name: Start FLS.Server.Console
+        working-directory: flsserver/src/FLS.Server.Console/bin/Debug
+        run: |
+          setsid nohup mono FLS.Server.Console.exe > /tmp/fls-server.log 2>&1 < /dev/null &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:25567/api/v1/countries || true)
+            if [ "$code" = "200" ]; then echo "API ready"; break; fi
+            sleep 2
+          done
+
+      - name: Start webpack-dev-server in background
+        working-directory: /tmp/flsweb-build
+        run: |
+          setsid nohup ./node_modules/.bin/webpack-dev-server --TARGET=DEV --SERVER_URL=http://localhost:25567/ > /tmp/flsweb.log 2>&1 < /dev/null &
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || true)
+            if [ "$code" = "200" ]; then echo "Dev server ready"; break; fi
+            sleep 2
+          done
+
+      - name: Set up Node 20 for Playwright
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright deps
+        working-directory: e2e
+        run: |
+          npm ci
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            npx playwright install-deps chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+
+      - name: Run Playwright
+        id: pw
+        working-directory: e2e
+        run: npx playwright test
+        continue-on-error: true
+
+      - name: Assemble gh-pages artifact
+        if: always()
+        env:
+          PW_OUTCOME: ${{ steps.pw.outcome }}
+        run: |
+          mkdir -p public
+          if [ -d /tmp/fls-e2e-report ]; then cp -r /tmp/fls-e2e-report public/report; fi
+          if [ -d e2e/screenshots ];    then cp -r e2e/screenshots    public/screenshots; fi
+          mkdir -p public/logs
+          [ -f /tmp/fls-server.log ] && cp /tmp/fls-server.log public/logs/ || true
+          [ -f /tmp/flsweb.log ]     && cp /tmp/flsweb.log     public/logs/ || true
+
+          REPORTS=""
+          add_card() {
+            REPORTS="${REPORTS}<a class=\"card\" href=\"$1\"><h3>$2</h3><p>$3</p></a>"
+          }
+          if [ -d public/report ];              then add_card "report/index.html"     "Playwright report"     "All categories. Failure traces &amp; screenshots inline."; fi
+          if [ -f public/logs/fls-server.log ]; then add_card "logs/fls-server.log"   "FLS server log"        "Mono / ASP.NET Web API output."; fi
+          if [ -f public/logs/flsweb.log ];     then add_card "logs/flsweb.log"       "flsweb dev-server log" "Webpack dev-server stdout."; fi
+
+          SCREENSHOTS=""
+          if [ -d public/screenshots ]; then
+            for catdir in public/screenshots/*/; do
+              [ -d "$catdir" ] || continue
+              compgen -G "${catdir}*.png" > /dev/null || continue
+              cat=$(basename "$catdir")
+              if [ -z "$SCREENSHOTS" ]; then
+                SCREENSHOTS='<section><h2>Full-page screenshots</h2>'
+              fi
+              SCREENSHOTS="${SCREENSHOTS}<h3 class=\"cat\">${cat}</h3><div class=\"gallery\">"
+              for f in "${catdir}"*.png; do
+                name=$(basename "$f")
+                rel="screenshots/${cat}/${name}"
+                SCREENSHOTS="${SCREENSHOTS}<a class=\"shot\" href=\"${rel}\"><img src=\"${rel}\" loading=\"lazy\" alt=\"${cat}/${name}\"><span>${name}</span></a>"
+              done
+              SCREENSHOTS="${SCREENSHOTS}</div>"
+            done
+            [ -n "$SCREENSHOTS" ] && SCREENSHOTS="${SCREENSHOTS}</section>"
+          fi
+
+          export TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          export COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          export REPORTS SCREENSHOTS
+
+          envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${PW_OUTCOME} ${REPORTS} ${SCREENSHOTS}' \
+            < .github/pages/index.html > public/index.html
+
+      - name: Deploy to gh-pages
+        if: github.ref == 'refs/heads/main' && always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          force_orphan: true
+          enable_jekyll: false
+          commit_message: "nightly e2e: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      - name: Tear down docker-compose stack
+        if: always()
+        run: docker compose -p fls-e2e down -v
+
+      - name: Mark job as failed (post-deploy)
+        if: steps.pw.outcome != 'success'
+        run: exit 1

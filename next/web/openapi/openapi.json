@@ -22,7 +22,7 @@
           "200" : {
             "description" : "Greeting payload.",
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/HelloResponse"
                 }

@@ -1,0 +1,4 @@
+# Generated orval client must use LF line endings so CRLF/LF churn on
+# Windows dev hosts never trips the codegen-drift CI gate.
+src/app/api/generated/** text eol=lf
+openapi/openapi.json text eol=lf

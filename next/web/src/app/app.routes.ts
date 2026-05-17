@@ -5,5 +5,9 @@ export const routes: Routes = [
     path: '',
     loadChildren: () => import('@features/landing/landing.routes').then((m) => m.LANDING_ROUTES),
   },
+  {
+    path: 'hello',
+    loadChildren: () => import('@features/hello/hello.routes').then((m) => m.HELLO_ROUTES),
+  },
   { path: '**', redirectTo: '' },
 ];
