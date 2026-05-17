@@ -14,7 +14,7 @@ parity_test: self
 ---
 
 ## Context
-R14 callout — legacy specs are happy-path only. Validation depth is unprobed. Closing this gap pre-cutover is the only way to guarantee parity on rejection behavior.
+R14 callout — legacy specs are happy-path only. Validation depth is unprobed. Closing this gap is the only way to guarantee parity on rejection behavior; runs in CI continuously alongside the legacy + new-stack suites.
 
 ## Acceptance criteria
 See frontmatter.

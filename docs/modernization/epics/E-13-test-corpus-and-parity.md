@@ -6,7 +6,7 @@ adr_refs: []
 ---
 
 ## Goal
-Close the depth-coverage gap (R14): the legacy 34 Playwright specs are happy-path-only and cannot serve as a parity oracle. Expand the suite to cover validation rejection paths, state-machine illegal transitions, time-gate boundaries, permission boundaries, glider↔tow link integrity, multi-tenant isolation per endpoint, and the rules-engine combinations enumerated in R3 — *against the legacy system first* (because they are then re-run against the new system as cutover parity gates). Also: capture production performance baseline (top 5 routes p95).
+Close the depth-coverage gap (R14): the legacy 34 Playwright specs are happy-path-only and cannot serve as a parity oracle. Expand the suite to cover validation rejection paths, state-machine illegal transitions, time-gate boundaries, permission boundaries, glider↔tow link integrity, multi-tenant isolation per endpoint, and the rules-engine combinations enumerated in R3 — *against the legacy system first* (because they are then re-run against the new system in CI as the parity oracle). Also: capture production performance baseline (top 5 routes p95).
 
 This epic has unusual sequencing — its early stories (S-101..S-106) run *against the legacy system* before the new system can pass them. Done autonomously, in parallel with foundational + feature work.
 

@@ -205,17 +205,64 @@ Pulls in the public-flow tenant resolver deferred from old-C.
 - S-099 — M — Passenger-flight registration (deps S-097, S-025)
 - S-100 — S — Lost-password + email-confirmation landing pages (deps S-097, S-019)
 
-## Phase J — Migration tooling + rehearsal #1
+## Phase J — Legacy schema-mapping library
 
-Migration script can fire once V1__baseline parts are landed (Phase C). Doing the first rehearsal here means we have a known-good migration before production-infra build-out.
+The shared mapping library that both the export JAR (S-139) and the server ingest pipeline (S-141) depend on. Lands once V1__baseline parts are in (Phase C).
 
-- S-016 — L — One-shot data-migration script (deps S-012, S-013, S-014)
-- S-017 — M — Data-migration rehearsal #1 (deps S-016)
-- S-028 — L — Cutover user export-and-import script (deps S-019, S-012, S-026)
+- S-016 — L — Legacy schema-mapping library + parity oracle (deps S-012, S-013, S-014)
+- S-028 — M — Bulk-provision tenant users in Keycloak (admin endpoint) (deps S-019, S-026, S-052, S-141)
+
+## Phase O — Self-service migration & freemium SaaS (E-15)
+
+The migration-path feature introduced by vision amendment 2026-05-17c. Reorders late in the sequence because:
+- it depends on master-data CRUD (Phase E) + flight operations (Phase F) — there's nothing to migrate *into* before those tenant-scoped entities exist;
+- it depends on scheduled-jobs infrastructure (S-081 in Phase G) for the trial-expiry + sandbox-reset crons;
+- it consumes the Keycloak realm config (S-019) + the Angular OIDC client (S-021) but extends them with signup-enabled flows;
+- the freemium gate annotation (S-143) shapes how feature epics (E-09 deliveries, E-10 jobs, E-11 Excel) wire their controllers — those epics' stories will be re-checked against the gate list during refine.
+
+**ADRs required before story refinement:** 0018 (lifecycle), 0019 (bundle format + encryption), 0020 (feature-gate mechanism), 0021 (billing provider). Recommended sequence below; ADR 0018 unblocks the most stories.
+
+**Deployment + lifecycle scaffolding (start early; unblocks the rest):**
+
+- S-137 — M — Deployment entity + lifecycle state machine + job filter (deps S-048)
+
+**Sandbox demo (parallel branch — can start once S-137 is in):**
+
+- S-135 — M — Sandbox demo Deployment: seed data + nightly reset (deps S-047, S-048, S-049, S-050, S-051, S-058, S-068, S-081, S-137)
+- S-136 — M — Anonymous demo-session scoping (deps S-022, S-135, S-137)
+
+**Signup + landing CTAs:**
+
+- S-134 — M — Keycloak self-service signup + Google IdP federation (deps S-019, S-021)
+- S-133 — S — Public marketing landing CTAs (deps S-097, S-008)
+
+**Migration transport (the JAR + upload pipeline):**
+
+- S-139 — L — Legacy export JAR (deps S-016)
+- S-140 — M — Per-upload keypair handshake (deps S-134)
+- S-141 — L — Encrypted-bundle upload + decrypt + ingest pipeline (deps S-016, S-138, S-140)
+- S-138 — M — Trial-Deployment provisioning on first successful ingest (deps S-134, S-137, S-141)
+- S-142 — M — Trial countdown + 72 h hard-delete cron (deps S-137, S-138, S-141, S-081)
+
+**Freemium + billing:**
+
+- S-143 — M — Feature-gate annotation + 402 contract (deps S-026, S-137)
+- S-144 — S — Freemium UI upgrade-prompt (deps S-008, S-143)
+- S-145 — L — Subscription billing integration (deps S-137, S-138)
+- S-146 — S — Trial-to-paid promotion (deps S-137, S-142, S-145)
+
+**Cross-cutting:**
+
+- S-147 — S — Funnel telemetry events (deps S-031, S-133, S-134, S-136, S-138, S-140, S-141, S-142, S-145, S-146)
+
+**Per-tenant integration handoffs (run any time after the upstream maintainer is contacted):**
+
+- S-149 — M — OGN ingest endpoint — per-tenant handoff with upstream maintainer (deps S-066)
+- S-150 — M — Proffix integration — verify live consumer call pattern
 
 ## Phase K — Production infrastructure (deployment build-out, deferred until features work)
 
-**All production-side deployment infrastructure lands here**, after features are functional and the migration is rehearsed. Order: production runtime → production hosting → production resilience.
+**All production-side deployment infrastructure lands here**, after features are functional and the schema-mapping library has been exercised end-to-end through CI. Order: production runtime → production hosting → production resilience.
 
 - S-040 — M — Production Dockerfile (deps S-001)
 - S-044 — M — VPS provider selection + provisioning
@@ -226,7 +273,8 @@ Migration script can fire once V1__baseline parts are landed (Phase C). Doing th
 - S-037 — S — External uptime probe (deps S-030, S-044)
 - S-045 — S — K8s-migration trigger criteria (pure documentation, can fire any time once S-044 lands)
 - S-091 — M — Production SMTP relay selection (deps S-082, S-044)
-- S-116 — M — Production IdP selection (deps S-019)
+- S-151 — M — Production Keycloak deployment (deps S-019, S-041, S-044, S-042)
+- S-152 — S — Rename `next/` → `alpenflight/` working subtree (no deps; fires whenever)
 
 ## Phase L — Production observability (production-side telemetry)
 
@@ -240,22 +288,12 @@ Observability stack ships at production-deploy time. Application-side hooks (S-0
 - S-036 — M — Alert rules as code (deps S-035)
 - S-038 — M — Scheduled-job instrumentation pattern (deps S-030, S-081)
 
-## Phase M — Test corpus completion + cutover prep
+## Phase M — Test corpus completion + go-live prep
 
 - S-109 — L — Port full Playwright suite to new stack (deps S-002, S-057, S-097)
 - S-110 — S — T3-equivalent smoke (deps S-020, S-021, S-062c)
 - S-111 — M — Performance verification (deps S-108, S-109, S-046)
-- S-092 — S — Decommission legacy libs (deps S-083..S-090)
-
-## Phase N — Cutover
-
-- S-112 — M — Cutover runbook draft (deps S-017, S-043)
-- S-113 — M — Data-migration rehearsal #2 (deps S-017, S-112)
-- S-117 — S — DNS / reverse-proxy cutover plan (deps S-041, S-044)
-- S-118 — M — Rollback plan + snapshot procedure (deps S-117, S-042)
-- S-119 — M — Force password-reset email queue (deps S-028, S-116)
-- S-121 — L — Cutover-day execution (deps S-112, S-113, S-114, S-115, S-116, S-117, S-118, S-119, S-120, S-107, S-109)
-- S-122 — S — Decommission tracker (deps S-121)
+- S-092 — S — Decommission legacy libs from new-stack codebase (deps S-083..S-090)
 
 ---
 
@@ -269,6 +307,8 @@ Observability stack ships at production-deploy time. Application-side hooks (S-0
 - **S-107 (rules-engine corpus) is the long pole of E-13** — schedule explicitly; can take a full week.
 - **Production infrastructure (Phase K) intentionally deferred.** Features mature against dev-loop compose; production infra build-out happens only when feature work is largely in place.
 - **Phase L observability** can pull forward selectively if a feature epic generates enough debugging pain — S-031 (structured logging) and S-034 (GlitchTip error tracking) are the most likely candidates.
+- **Phase O (E-15 self-service migration) lands after Phases E–G** but its ADRs (0018–0021) should be drafted earlier so the affected stories elsewhere (S-016, S-028, S-081, S-097, plus the seven gated feature surfaces — Excel, Proffix, notifications, scheduled-jobs opt-ins) carry the right amendments when they're refined. Recommended ADR sequence: 0018 → 0019 → 0020 → 0021.
+- **No centralized cutover phase.** Migration is a self-service product feature (E-15). The S-016 mapping library + CI parity oracle is the rehearsal mechanism; each tenant onboards via the JAR + upload UI on its own schedule.
 
 ## What changed in this revision (2026-05-17 — walking-skeleton first)
 

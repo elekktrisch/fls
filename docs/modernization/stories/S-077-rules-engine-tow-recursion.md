@@ -14,7 +14,7 @@ parity_test: tests/accounting/32-rules-engine-per-type.spec.ts; deeper in S-107
 ---
 
 ## Context
-The TowFlight recursion is parity-critical (R3). Easy to get wrong, hard to detect post-cutover.
+The TowFlight recursion is parity-critical (R3). Easy to get wrong, hard to detect once tenants are running on the new stack.
 
 ## Acceptance criteria
 See frontmatter.

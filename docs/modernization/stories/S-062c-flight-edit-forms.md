@@ -264,7 +264,7 @@ This story owns **happy-path parity** for create/edit/copy on glider and tow fli
 
 ### Parity gate
 
-**Cutover gate: zero-delta.** `04` + `05` both green on new stack with byte-identical behavior assertions.
+**Parity gate: zero-delta.** `04` + `05` both green on new stack with byte-identical behavior assertions; runs in CI continuously.
 
 ### Risks
 

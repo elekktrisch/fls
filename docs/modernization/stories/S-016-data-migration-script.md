@@ -1,34 +1,37 @@
 ---
 id: S-016
-title: One-shot data-migration script + verification automation
+title: Legacy schema-mapping library + parity oracle
 epic: E-02
 status: todo
 depends_on: [S-012, S-013, S-014]
 acceptance:
-  - Script `next/database/migrate-from-legacy/` reads production SQL Server (via a snapshot or live read-replica) and writes Postgres conforming to V1__baseline.
-  - Verification automation produces a zero-delta report covering: row counts per table; FK integrity; sampled value diff (1% sample) on Flight, Delivery, PersonClub, AircraftReservation, AccountingRuleFilter.
-  - Migration is **idempotent** — re-running against a already-migrated DB is a no-op or errors loudly with a clear message.
-  - Migration is **bounded** — runs in under 4 hours on production-row-count data (leaves headroom inside the 6-hr cutover budget for verification + DNS + sanity checks).
+  - `next/migration-bundle/` library provides one mapper per legacy entity cluster (~60 entity types): per-entity column lists, type coercions, FK rewrites, enum re-encodings (e.g. legacy `BOOLEAN` → string-serialized enums per S-129), tenant-scoping defaults.
+  - Library is consumed by S-139 (JAR bundle-writer) AND S-141 (server ingest pipeline) — single source of truth for "what's in the bundle".
+  - Mappers cover every legacy table in the S-011 tenant-scoped-entities catalog plus cross-tenant tables (audit, system data).
+  - Parity oracle in CI: row-count diff, FK-integrity check, 1% sampled-value diff on Flight / Delivery / PersonClub / AircraftReservation / AccountingRuleFilter against a seeded legacy SQL Server fixture. Fails loud on regression.
+  - Machine-readable verification output (JSON) alongside a human-readable report — CI asserts on the JSON.
 estimate: L
-adr_refs: [0002, 0003]
-parity_test: none
+adr_refs: [0002, 0003, 0019]
+parity_test: tests/migration/schema-parity.spec.ts (new)
 ---
 
 ## Context
-The cutover gate. Schema reshape (C9) is allowed only with a validated migration; this is the validation.
+The transport for legacy-to-new data is the JAR (S-139) + upload pipeline (S-141). This story owns the *content* both sides depend on: the entity-by-entity mapping rules, and the verification automation that proves a round-trip preserves the data.
+
+Per memory `[[feedback-re-runnable-over-frozen-docs]]`: the parity oracle re-exports from a seeded legacy DB on every CI run, never a committed bundle.
 
 ## Acceptance criteria
 See frontmatter.
 
 ## Tasks
-- [ ] Pick a migration tool: hand-rolled JDBC, Spring Batch, pgloader, or AWS SCT. Recommendation: **hand-rolled JDBC with batching + parallel-per-table where safe** — gives full control over column-by-column reshape rules.
-- [ ] For each cluster in S-012/S-013/S-014, write a per-table migration step.
-- [ ] Write FK-integrity checks (every FK in the new schema resolves).
-- [ ] Write row-count checks (per-tenant + total).
-- [ ] Write sampled-value checks (random 1% sample per table, value-compare key columns).
-- [ ] Build a one-page HTML or markdown report from verification output.
-- [ ] Document the order: tables migrated in topological FK order; constraints disabled during bulk insert then re-enabled.
-- [ ] **Continuous-migration CI harness**: the script must be designed re-runnable from day 1 so a scheduled job (nightly or per-PR-touching-schema) can: spin up a fresh Postgres, replay V1__baseline, run the migration against a legacy snapshot (or anonymized fixture if prod-snapshot access isn't available in CI), and fail loud on schema drift, row-count drift, or FK-integrity regressions. File this as a follow-up story (suggest S-016b) once the script shape is known — the design constraint here is just: keep the script side-effect-clean, parameterize source/target connection strings, and emit machine-readable verification output (JSON alongside the HTML/MD report) so CI can assert on it.
+- [ ] Bootstrap `next/migration-bundle/` Gradle module; published as an internal Maven artifact consumed by `next/server/` and `next/migration-tool/`.
+- [ ] One mapper per entity cluster (S-012 / S-013 / S-014 cover the schema groupings).
+- [ ] FK-integrity check (every FK in the new schema resolves).
+- [ ] Row-count check (per-tenant + total).
+- [ ] Sampled-value check (random 1% per table, value-compare key columns).
+- [ ] Seed a SQL Server fixture in CI (Testcontainers); re-export through S-139's JAR; round-trip through S-141; diff.
+- [ ] Emit JSON + markdown verification reports.
 
 ## Notes
-This story is L. Tasks decompose it but the inherent complexity is real (~60 entity types). Plan for ~10 working days.
+- Complexity is real (~60 entity types). Plan for ~10 working days even with transport out of scope.
+- Tables migrated in topological FK order; FK constraints disabled during bulk insert then re-enabled — handled inside S-141's ingest, not here.

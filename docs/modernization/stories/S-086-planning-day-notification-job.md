@@ -14,7 +14,7 @@ parity_test: tests/email/08-email.spec.ts
 ---
 
 ## Context
-The planning-day comms loop. Required for cutover — instructors expect these reminders.
+The planning-day comms loop. Required before a tenant goes `active` — instructors expect these reminders.
 
 ## Acceptance criteria
 See frontmatter.
