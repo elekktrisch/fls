@@ -64,11 +64,15 @@
 -- ============================================================================
 -- Sparse-enum sacred cow (`flight.flight_aircraft_type_id`)
 -- ============================================================================
---   * Modelled as `SMALLINT NOT NULL CHECK (flight_aircraft_type_id IN
---     (1, 2, 4))` per legacy `FlightAircraftTypeValue.cs:5-7`
+--   * Modelled as `SMALLINT NOT NULL` per legacy `FlightAircraftTypeValue.cs:5-7`
 --     (1=Glider, 2=Tow, 4=Motor; value 3 deliberately skipped).
+--   * The allowed-set (1, 2, 4) lives on the `FlightAircraftType` enum
+--     (`@Enumerated(STRING)`) at S-058 per ADR 0022 directive 2; S-132
+--     dropped the previously-shipped `CHECK (flight_aircraft_type_id IN
+--     (1, 2, 4))` from this table along with the rest of V3's business-logic
+--     CHECKs.
 --   * NOT a FK to a lookup table — the value set never changes without code
---     change, and SMALLINT + CHECK saves ~14 bytes/row × ~5M rows ≈ 70 MB.
+--     change, and SMALLINT saves ~14 bytes/row × ~5M rows ≈ 70 MB vs UUID FK.
 --   * GliderWithMotor lives on aircraft.aircraft_type_id, NOT on flight.
 --
 -- ============================================================================

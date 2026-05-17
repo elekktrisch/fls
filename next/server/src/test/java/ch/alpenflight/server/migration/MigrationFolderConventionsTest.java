@@ -219,7 +219,7 @@ class MigrationFolderConventionsTest {
     }
 
     @Test
-    void no_business_logic_check_constraints_test_catches_synthetic_violation() throws IOException {
+    void no_business_logic_check_constraints_test_catches_synthetic_violation() {
         // Sanity gate against regex bitrot: a fabricated migration containing
         // an unguarded CHECK literal must be flagged. Inlines the assertion
         // because the sibling test scans the real migration tree.

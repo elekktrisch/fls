@@ -96,7 +96,7 @@ CREATE TABLE language (
     code        VARCHAR(10)  NOT NULL,
     name        VARCHAR(50)  NOT NULL
     -- ck_language_bcp47 removed per ADR 0022 directive 2: BCP-47 format
-    -- enforcement is a value-object invariant (Language.code()).
+    -- enforcement is a value-object invariant (Language.code()) at S-022.
 );
 CREATE UNIQUE INDEX ux_language_code ON language (code);
 

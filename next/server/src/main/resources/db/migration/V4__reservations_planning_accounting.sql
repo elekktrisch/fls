@@ -8,8 +8,8 @@
 --     delivery-test harness (2),
 --     club_delivery_number_counter (1).
 --
--- Append-only over S-013's V3. Once V4 is applied to any environment its
--- checksum is locked; never amend — ship V5. Convention is documented in
+-- Append-only over S-013's V3. Once V<n> is applied to any environment its
+-- checksum is locked; never amend — ship V<n+1>. Convention is documented in
 -- V2 + the no-amend-shipped-migrations rule in CLAUDE.md.
 --
 -- ============================================================================

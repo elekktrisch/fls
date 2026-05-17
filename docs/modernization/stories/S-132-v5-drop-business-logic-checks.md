@@ -223,7 +223,7 @@ Rationale for filename scope over per-line allowlist markers: V1-V4 baseline is 
 | `ck_pln_planning_date_reasonable` | `BETWEEN '1990-01-01' AND '2100-01-01'` | S-022 — `PlanningDay` constructor |
 | `ck_pdat_required_nr_nonnegative` | `required_nr_of_assignments >= 0` | S-022 — `AssignmentCount` VO |
 | `ck_arf_sort_indicator_nonnegative` | `sort_indicator >= 0` | S-022 — `SortIndicator` VO |
-| `ck_cdnc_next_number_positive` | `next_number >= 1` | S-022 — `DeliveryNumberCounter` VO |
+| `ck_cdnc_next_number_positive` | `next_number >= 1` | S-064 — `DeliveryNumberCounter` VO + `Delivery.allocateNextNumber()` |
 | `delivery_item.total_amount` (column) | `quantity * unit_price * (100 - discount) / 100.0` | S-022 — `DeliveryItem.totalAmount() : Money` (compute-on-read) |
 
 ### Deviations from ADR 0022
@@ -262,7 +262,7 @@ Flyway wraps each migration in one transaction. CONCURRENTLY can't run inside a 
 
 ### 6. `forbidden-migration-patterns.txt` denylist scope problem (resolved in design notes)
 
-`MigrationFolderConventionsTest.no_forbidden_patterns_in_migrations` (line 157-177) applies every pattern to **every** `.sql` file. A naive `CHECK \(.+\)` addition would immediately fail on V1-V4. Solution: filename-scoped skip for `V[1-4]__*.sql` (Option A in design notes). The forward-deny intent is preserved.
+`MigrationFolderConventionsTest.no_forbidden_patterns_in_migrations` applies every pattern to **every** `.sql` file. A naive `CHECK \(.+\)` addition would immediately fail on V1-V4. Solution: filename-scoped skip for `V[1-4]__*.sql` (Option A in design notes). The forward-deny intent is preserved.
 
 ### 7. `TenantCatalogConsistencyTest` is a false positive in the story's task list
 
@@ -573,7 +573,7 @@ The frontmatter ACs were written assuming a forward-only V5 migration. Mapping h
 - **AC6** (forbidden-migration-patterns entry with allow-list for retentions) — re-shaped: the CHECK pattern lives in a dedicated Java test (`no_business_logic_check_constraints_in_migrations`) with a `COMMENT ON CONSTRAINT … 'ADR 0022 retained: …'` allow-list mechanism. The flat-pattern denylist file gets a documentation block but not a regex line (pattern moved into the dedicated test).
 - **AC7** (test deletions in `ReservationsBaselineIntegrationTest` + `TenantCatalogConsistencyTest`) — satisfied for `ReservationsBaselineIntegrationTest`; `TenantCatalogConsistencyTest` had **no** CHECK assertions to begin with (false positive in the original task list — confirmed by direct read).
 - **AC8** (`MigrationFolderConventionsTest extends with forbidden_check_patterns_caught`) — satisfied semantically by `no_business_logic_check_constraints_test_catches_synthetic_violation`, which guards the same regex-bitrot concern.
-- **AC9** (tenant-rules.yaml unchanged) — confirmed: `git diff main...HEAD -- next/database/tenant-rules.yaml` is empty.
+- **AC9** (tenant-rules.yaml unchanged) — confirmed by inspection: no changes to `next/database/tenant-rules.yaml` in this PR.
 
 ### Test impact
 

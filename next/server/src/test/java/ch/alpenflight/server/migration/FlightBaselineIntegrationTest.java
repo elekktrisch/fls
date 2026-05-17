@@ -2,7 +2,6 @@ package ch.alpenflight.server.migration;
 
 import static ch.alpenflight.server.testsupport.MigrationAssertions.assertTableExists;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
@@ -280,6 +279,11 @@ class FlightBaselineIntegrationTest {
 
     // ============================================================================
     // flight_type + flight_cost_balance_type
+    //
+    // The at-least-one-flag invariant on flight_cost_balance_type
+    // (is_for_glider / is_for_tow / is_for_motor) lives on the
+    // FlightCostBalanceType aggregate constructor at S-058 per ADR 0022
+    // directive 2 — schema CHECK dropped by S-132.
     // ============================================================================
 
     @Test
@@ -321,12 +325,15 @@ class FlightBaselineIntegrationTest {
         }
     }
 
-    // at-least-one-flag invariant on flight_cost_balance_type (is_for_glider /
-    // is_for_tow / is_for_motor) lives on FlightCostBalanceType aggregate
-    // constructor at S-058 per ADR 0022 directive 2.
-
     // ============================================================================
     // Aircraft cluster
+    //
+    // Aircraft year_of_manufacture / mtom / nr_of_seats / flarm_id range and
+    // shape invariants live on Year / Mtom / SeatsCount / FlarmId value
+    // objects at S-058 per ADR 0022 directive 2 — schema CHECKs dropped by
+    // S-132. The spot_link https-only CHECK is retained as an explicit
+    // ADR 0022 deviation (A10 SSRF defense-in-depth); see
+    // `aircraft_spot_link_https_check_retained_with_adr_0022_marker` below.
     // ============================================================================
 
     @Test
@@ -429,10 +436,6 @@ class FlightBaselineIntegrationTest {
                             && lc.contains("engine_operating_counter_in_seconds");
                 });
     }
-
-    // aircraft year_of_manufacture / mtom / nr_of_seats / flarm_id range
-    // and shape invariants live on Year / Mtom / SeatsCount / FlarmId VOs
-    // at S-058 per ADR 0022 directive 2.
 
     /**
      * Positive assertion of the spot_link https-only CHECK retention
