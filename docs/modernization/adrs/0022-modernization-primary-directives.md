@@ -38,7 +38,7 @@ The aggregate is the unit of consistency. Business rules live as methods on aggr
 
 ## Consequences
 
-- Delete docs that are explaining what's already implemented in a maintainable way
+- Delete docs that are explaining what's already implemented in a maintainable way (except for stories -> they should still be moved to "implemented")
 - New stories follow the directives. The 4-phase modernization workflow's checkpoint between phases is "is the working code complete?" rather than "are the docs perfect?".
 - ADRs added when they capture a non-obvious decision; not as a documentation deliverable per phase.
 - CONVENTIONS.md grows when a pattern needs to be discoverable to future implementers; not as a place to dump everything that "should be documented."
