@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { patchState } from '@ngrx/signals';
+import { unprotected } from '@ngrx/signals/testing';
 import { Subject } from 'rxjs';
 
 import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
@@ -22,10 +23,7 @@ describe('SessionStore', () => {
   beforeEach(() => {
     bus = new Subject<MutationEvent>();
     TestBed.configureTestingModule({
-      providers: [
-        provideZonelessChangeDetection(),
-        { provide: MUTATION_BUS, useValue: bus },
-      ],
+      providers: [provideZonelessChangeDetection(), { provide: MUTATION_BUS, useValue: bus }],
     });
   });
 
@@ -78,7 +76,7 @@ describe('SessionStore', () => {
   it('isSystemAdmin is true when SYSTEM_ADMIN is in roles', () => {
     const store = TestBed.inject(SessionStore);
 
-    patchState(store, {
+    patchState(unprotected(store), {
       authenticatedUser: { ...sampleUser, roles: ['SYSTEM_ADMIN'] },
       sessionStatus: 'authenticated',
     });

@@ -12,6 +12,7 @@ import {
   type RouterStateSnapshot,
 } from '@angular/router';
 import { patchState } from '@ngrx/signals';
+import { unprotected } from '@ngrx/signals/testing';
 import { Subject } from 'rxjs';
 
 import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
@@ -31,9 +32,7 @@ const sampleUser: User = {
 function runGuard(data: Record<string, unknown> = {}, url = '/protected') {
   const route = { data } as unknown as ActivatedRouteSnapshot;
   const state = { url } as RouterStateSnapshot;
-  return runInInjectionContext(TestBed.inject(EnvironmentInjector), () =>
-    authGuard(route, state),
-  );
+  return runInInjectionContext(TestBed.inject(EnvironmentInjector), () => authGuard(route, state));
 }
 
 describe('authGuard', () => {
@@ -51,7 +50,7 @@ describe('authGuard', () => {
 
   it('returns true for routes flagged publicAccess regardless of session status', () => {
     const store = TestBed.inject(SessionStore);
-    patchState(store, { sessionStatus: 'unauthenticated' });
+    patchState(unprotected(store), { sessionStatus: 'unauthenticated' });
 
     expect(runGuard({ publicAccess: true })).toBe(true);
   });
@@ -62,7 +61,7 @@ describe('authGuard', () => {
 
   it('returns false (defer) when sessionStatus is loading', () => {
     const store = TestBed.inject(SessionStore);
-    patchState(store, { sessionStatus: 'loading' });
+    patchState(unprotected(store), { sessionStatus: 'loading' });
 
     expect(runGuard({})).toBe(false);
   });
@@ -76,7 +75,7 @@ describe('authGuard', () => {
 
   it('redirects to /login when unauthenticated and route is private', () => {
     const store = TestBed.inject(SessionStore);
-    patchState(store, { sessionStatus: 'unauthenticated' });
+    patchState(unprotected(store), { sessionStatus: 'unauthenticated' });
 
     const result = runGuard({});
 
