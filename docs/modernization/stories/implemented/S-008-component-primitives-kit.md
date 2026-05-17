@@ -2,8 +2,9 @@
 id: S-008
 title: Component primitives kit + Tailwind design tokens
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-17
+done_at: 2026-05-17
 github_issue: 54
 github_pr: 55
 depends_on: [S-002]
