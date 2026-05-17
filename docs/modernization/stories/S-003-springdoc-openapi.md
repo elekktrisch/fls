@@ -2,8 +2,9 @@
 id: S-003
 title: Wire springdoc-openapi + publish OpenAPI spec
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-17
+done_at: 2026-05-17
 depends_on: [S-001]
 acceptance:
   - `GET /v3/api-docs` returns a valid OpenAPI 3.1 spec covering the hello endpoint from S-001.
@@ -19,6 +20,7 @@ refined_specialists: [requirements-engineer, solution-architect, qa-engineer, se
 context7_last_checked: 2026-05-17
 folds_in: [S-123]
 github_issue: 48
+github_pr: 49
 ---
 
 ## Context
@@ -28,10 +30,10 @@ Springdoc is the source of truth for the API contract that the SPA's generated T
 See frontmatter.
 
 ## Tasks
-- [ ] Add `springdoc-openapi-starter-webmvc-ui` dependency.
-- [ ] Document the convention: every controller method gets `@Operation(summary = ..., description = ...)`; every DTO gets `@Schema(description = ...)`.
-- [ ] Add a small `OpenApiConfig` `@Configuration` defining the `bearerAuth` security scheme placeholder.
-- [ ] Write a smoke test that asserts `/v3/api-docs` returns 200 and includes the hello operation.
+- [x] Bumped `springdoc-openapi-starter-webmvc-ui` 2.8.17 → **3.0.3** for Spring Boot 4 compat.
+- [x] Conventions captured in `next/server/CONVENTIONS.md` "API documentation (springdoc) — S-003".
+- [x] `OpenApiConfig.@Bean OpenAPI` declaring info + servers + `bearerAuth` placeholder, guarded by `@ConditionalOnProperty`.
+- [x] 8 integration tests across 3 files (dev shape · prod lockdown · snapshot drift); plus snapshot machinery (`OpenApiSnapshotMain` + Gradle tasks + initial `next/web/openapi/openapi.json`).
 
 ## Notes
 The spec-publication mechanism (live `/v3/api-docs` for dev vs. committed snapshot for CI reproducibility) is decided here: **both** — live for dev, snapshot committed under `next/web/openapi/` for codegen reproducibility, refreshed by a script.
