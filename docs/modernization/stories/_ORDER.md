@@ -67,6 +67,7 @@ The foundation feature stories need before they can touch real data.
   - S-130 — S — /modernize-refine reconciliation pass (rework-meta follow-up from S-013; workflow improvement)
   - S-131 — S — S-013 deferred review findings (test-plan drift + cross-tenant invariant test pins + design-notes residue; rework follow-up from S-013)
 - S-014 — M — V1__baseline part 3: reservations / planning / accounting (deps S-013)
+  - S-132 — S — V5 drop business-logic CHECKs + generated total_amount from V4 per ADR 0022 (rework-meta follow-up from S-014 + ADR 0022 acceptance; deps S-014)
 
 **Auth (Spring Security 7 + Angular OIDC):**
 
