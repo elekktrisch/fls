@@ -73,6 +73,92 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/app/**/*.ts'],
+    ignores: ['src/app/shared/ui/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'ng-zorro-antd',
+              message:
+                'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module. Outside shared/ui/, prefer the af-* wrappers. See S-008 design.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/ui/atoms/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/shared/ui/molecules/**', '**/shared/ui/organisms/**'],
+              message:
+                'Atoms must not import molecules or organisms. See next/web/CLAUDE.md §1.',
+            },
+            {
+              regex: '^ng-zorro-antd$',
+              message:
+                'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/ui/molecules/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/shared/ui/organisms/**'],
+              message:
+                'Molecules must not import organisms. See next/web/CLAUDE.md §1.',
+            },
+            {
+              regex: '^ng-zorro-antd$',
+              message:
+                'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/ui/organisms/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^ng-zorro-antd$',
+              message:
+                'Import per-component entry points (e.g. ng-zorro-antd/button), not the umbrella module.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/shared/ui/recency/**/*.ts'],
+    rules: {
+      'no-restricted-globals': 'off',
+      'no-restricted-syntax': 'off',
+    },
+  },
+  {
     files: ['src/app/features/**/*.store.ts'],
     rules: {
       'no-restricted-imports': [
