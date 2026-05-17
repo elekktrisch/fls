@@ -2,7 +2,9 @@
 id: S-006
 title: Reference NgRx Signal Store + session store skeleton
 epic: E-01
-status: todo
+status: in_progress
+started_at: 2026-05-17
+github_issue: 52
 depends_on: [S-002, S-004]
 acceptance:
   - A reference `SignalStore` (e.g. `HelloStore`) is committed under `next/web/src/app/hello/` demonstrating: `withState`, `withComputed`, `withMethods`, `rxMethod`, `withEntities` (if list-shaped), pagination, error/loading signals.
