@@ -10,7 +10,10 @@ Two directives, in order of precedence:
 
 ### Directive 1 — Working software over comprehensive documentation
 
-Our goal is working software. We want to avoid long documentation because it will quickly be outdated. The code we produce is the truth, not the docs.
+1. Our goal is working software. 
+2. We want to avoid long documentation because it will quickly be outdated. 
+3. The code we produce is the truth, not the docs. 
+4. The implementation will be iterative: We will cut stories vertically so that every layer is ready (just for the small slice needed) for the feature to be implemented rather than implementing layer by layer in full only to find that they don't fit in the end. 
 
 ### Directive 2 — Business logic in the DDD domain, not the database
 
