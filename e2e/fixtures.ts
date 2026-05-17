@@ -300,13 +300,15 @@ export async function gotoRoute(page: Page, hashPath: string): Promise<void> {
 
 async function waitForBusyIndicatorsToClear(page: Page): Promise<void> {
   // ng-show toggles display on the [data-testid="busy-indicator"] wrapper around the spinner.
+  // 30s ceiling (was 15s) matches the burst-tolerant timeout used elsewhere in the suite for
+  // calls that can stall under workers:6 contention on the Mono/MSSQL legacy stack.
   await page.waitForFunction(() => {
     const spinners = Array.from(document.querySelectorAll('[data-testid="busy-indicator"]')) as HTMLElement[];
     return spinners.every(el => {
       const rect = el.getBoundingClientRect();
       return rect.width === 0 && rect.height === 0;
     });
-  }, undefined, { timeout: 15_000 });
+  }, undefined, { timeout: 30_000 });
 }
 
 /**
