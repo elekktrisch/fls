@@ -427,6 +427,16 @@ jobs:
           CI: 'true'
         run: pnpm install --frozen-lockfile
 
+      - name: Regenerate API client and assert no drift
+        if: steps.detect.outputs.web == 'true'
+        working-directory: next/web
+        run: |
+          pnpm run generate-api
+          if ! git diff --exit-code src/app/api/generated/; then
+            echo "::error::Generated API client is stale. Run 'pnpm run generate-api' locally and commit the result."
+            exit 1
+          fi
+
       - name: Lint + format + test + build next/web
         if: steps.detect.outputs.web == 'true'
         working-directory: next/web
