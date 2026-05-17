@@ -43,27 +43,21 @@ Per [[feedback-always-squash-merge]]: squash without asking. Skip the strategy p
 
 If operator wants override: ask explicitly via single `AskUserQuestion` with options: squash (default) / merge commit / rebase / abort.
 
-### Step 2.5 — Pre-merge bookkeeping commit on the PR branch
+### Step 2.5 — Pre-merge merged-stamp commit on the PR branch
 
-Stamps + archive move ride INTO the squash commit, eliminating any post-merge direct-to-main commit.
+The story file already lives at `docs/modernization/stories/implemented/S-NNN-*.md` — `/modernize-implement`'s Step 8 mv'd it there in the same commit as `status: done`. Step 2.5 only adds the `merged:` stamps; no relocation, no second CI cycle for the move.
 
 1. `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. Bail "PR branch diverged" if pull fails.
-2. Update story frontmatter:
+2. Verify the file is already at `implemented/` (it should be — `/modernize-implement` Step 8 moved it). If still at top-level `stories/`, the implementer ran the previous (pre-skill-update) flow; do the mv now per the implement-Step-8 trap-guard ordering as a one-off.
+3. Update story frontmatter (edit in place at the `implemented/` path):
    ```yaml
    merged: true
    merged_at: <ISO date>
    status: done  # confirm
    ```
    Do **not** stamp `merge_commit:` — SHA isn't known yet; merge SHA recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` or `gh pr view M --json mergeCommit`.
-3. `mkdir -p docs/modernization/stories/implemented` (no-op if present).
-4. `git mv docs/modernization/stories/S-NNN-<slug>.md docs/modernization/stories/implemented/S-NNN-<slug>.md`.
-5. **Mandatory ordering (git-mv trap guard):**
-   - Edit at original path FIRST.
-   - `git mv` SECOND.
-   - `git add <new-path>` THIRD to stage post-mv content.
-   - `git diff --cached --stat` to verify staged diff shows BOTH rename AND additions. If "0 insertions, 0 deletions" with rename-detection, the trap fired — re-stage and re-check.
-6. Commit `#N: archive — stamp merged state + move to implemented/`. Push.
-7. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
+4. Commit `#N: pre-merge — stamp merged state`. Push.
+5. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
 
 If repo allows `gh pr merge --auto`: MAY substitute Step 2.5's watch with `gh pr merge --auto --squash` (queues for green CI). Default flow is explicit watch-then-merge.
 

@@ -108,3 +108,36 @@ Tables that carry a `deleted_on TIMESTAMPTZ NULL` column (soft-delete capable) f
 **Canonical positive example:** search for `CREATE INDEX ix_arv_pilot` in `V4__reservations_planning_accounting.sql` — `(pilot_person_id, reservation_start DESC) WHERE pilot_person_id IS NOT NULL AND deleted_on IS NULL`. Hot-path calendar query; partial predicate keeps the index narrow as old reservations get soft-deleted.
 
 **Caught in S-014 review:** 7 indexes were silently non-partial before the rework pass; 4 were corrected, 3 documented as deliberate-tombstone-coverage (CASCADE join, no-soft-delete parent, deferred perf tuning to S-108).
+
+## API documentation (springdoc) — S-003
+
+The OpenAPI spec at `/v3/api-docs` is the source of truth that the SPA's TS codegen ([ADR 0005](../../docs/modernization/adrs/0005-api-shape.md), S-004) consumes. Drift between the spec and the live API is a silent UI bug. These rules keep the spec lossless.
+
+### Annotation discipline
+
+- **Every `@RestController` method** carries `@Operation(summary = "<imperative verb phrase>", description = "<context for the SPA / Proffix consumer>")`.
+- **Every public DTO record / class** carries `@Schema(description = ...)` on the type. Fields whose name isn't self-explanatory carry their own `@Schema(description = ...)`.
+- **Every non-`200` response** declared with `@ApiResponse(responseCode = "...", description = ...)`. Typed error responses use `content = @Content(schema = @Schema(implementation = ProblemDetail.class))`.
+- **Every DTO field** carries the Jakarta validation annotation that captures its real constraint (`@NotNull`, `@Size`, `@Pattern`, `@Min`, `@Max`). These flow into the spec and become client-side constraints — they ARE the input-validation contract.
+- **Canonical worked example:** [`HelloController`](src/main/java/ch/alpenflight/platform/hello/HelloController.java) + [`HelloResponse`](src/main/java/ch/alpenflight/platform/hello/HelloResponse.java).
+
+### Type placement
+
+- **Promote DTOs to top-level classes/records.** Springdoc emits `OuterClass.NestedRecord` schema names for nested records — codegen tools choke on dotted identifiers.
+
+### Security scheme
+
+- **`bearerAuth` is a Components-level placeholder until S-020.** Do NOT attach `@SecurityRequirement(name = "bearerAuth")` to any operation until the corresponding controller has `@PreAuthorize`. A spec that claims auth-required while the controller accepts anonymous is a confused-deputy hazard for the codegen consumer.
+- **No `clubId` / `tenantId` in tenant-scoped request bodies or paths** ([ADR 0008](../../docs/modernization/adrs/0008-multi-tenancy-mechanism.md) — `@TenantId` resolves it from the principal). The spec must reflect this for the codegen client to call endpoints with the right inputs.
+
+### `@Schema(example = ...)` — PII discipline
+
+Synthetic placeholders only. No realistic Swiss names, emails, phones, licence numbers, or club fixtures. The committed `next/web/openapi/openapi.json` is a public artifact in the repo's post-squash history; an example that ships there is forever-public.
+
+Acceptable: `"example@example.test"`, `"+41 00 000 00 00"`, `"CH-XX-LICENCE-PLACEHOLDER"`. Not acceptable: real-looking Swiss surnames, real club names (Lommis, Birrfeld, …), real-format CH-licence numbers.
+
+### Snapshot maintenance
+
+- The committed `next/web/openapi/openapi.json` is the artifact S-004's codegen reads from.
+- After any controller or DTO change: `./gradlew generateOpenApiSnapshot`. Commit the refreshed file alongside the controller/DTO change.
+- `OpenApiSnapshotIT` (and `./gradlew compareOpenApiSnapshot`) fails the build when the committed snapshot drifts from the live spec. Failure message names the fix command.

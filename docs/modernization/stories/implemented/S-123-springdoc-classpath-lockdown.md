@@ -2,7 +2,8 @@
 id: S-123
 title: Lock down springdoc off-state until S-003 wires it
 epic: E-01
-status: todo
+status: done
+done_at: 2026-05-17
 estimate: S
 parity_test: none
 depends_on: []
@@ -11,7 +12,14 @@ refined: false
 origin: rework
 origin_story: S-001
 origin_finding: springdoc-openapi-starter-webmvc-ui is on classpath at S-001 with api-docs/swagger-ui disabled by config; a stray env var (Spring relaxed binding) could flip it on with no code change.
+resolved_by: S-003
 ---
+
+## Resolution
+
+**Folded into S-003** (option 2 from the original two-choice — keep the dep, regression-test the off-state). When S-003 wired springdoc, it shipped `OpenApiOffByDefaultIT` under the `prod` profile asserting both `/v3/api-docs` and `/swagger-ui/index.html` return 404. The off-state is now regression-locked at test-time. No separate work shipped under this story.
+
+See `docs/modernization/stories/implemented/S-003-springdoc-openapi.md` for the implementation.
 
 ## Context
 

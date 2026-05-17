@@ -1,3 +1,14 @@
 spring:
   main:
     banner-mode: off
+
+# Defense-in-depth re-pin: base application.yml already disables both
+# springdoc endpoints, but ops-readers should see the off-state in the prod
+# config without inheriting through. To enable on a prod-like environment
+# (debugging only, never customer-facing), set SPRINGDOC_API_DOCS_ENABLED=true
+# AND fence /v3/api-docs + /swagger-ui/** behind an IP allowlist + bearer auth.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

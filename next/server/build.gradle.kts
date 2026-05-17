@@ -68,8 +68,11 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
-    // On the classpath so S-003 can switch springdoc on without a dep change.
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    // springdoc 3.x is the Boot-4-compatible line (parent POM = spring-boot-starter-parent
+    // 4.0.x). 2.8.x referenced the pre-modular `org.springframework.boot.autoconfigure
+    // .web.servlet.WebMvcProperties` path that Boot 4 moved to `.webmvc.autoconfigure`,
+    // which broke springdoc context startup on this stack.
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
     implementation("org.jspecify:jspecify:1.0.0")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     errorprone("com.google.errorprone:error_prone_core:2.49.0")
@@ -184,4 +187,35 @@ flyway {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// ---------------------------------------------------------------------------
+// S-003: OpenAPI snapshot maintenance.
+//
+//   generateOpenApiSnapshot   refresh next/web/openapi/openapi.json
+//   compareOpenApiSnapshot    fail with non-zero exit if the committed snapshot
+//                             diverges from the live spec (run by CI)
+//
+// The drift gate is enforced by OpenApiSnapshotIT (regular @SpringBootTest)
+// rather than wiring compareOpenApiSnapshot into `check` — the IT reuses the
+// shared Postgres testcontainer and is skipped cleanly when Docker is absent,
+// keeping `./gradlew check` runnable on machines without Docker.
+// ---------------------------------------------------------------------------
+
+val openApiSnapshotFile = rootProject.projectDir.resolve("../web/openapi/openapi.json")
+
+val generateOpenApiSnapshot by tasks.registering(JavaExec::class) {
+    group = "documentation"
+    description = "Refresh next/web/openapi/openapi.json from the live springdoc spec."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "ch.alpenflight.platform.openapi.OpenApiSnapshotMain"
+    args = listOf("--write", openApiSnapshotFile.absolutePath)
+}
+
+val compareOpenApiSnapshot by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Fail if the committed OpenAPI snapshot diverges from the live spec."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "ch.alpenflight.platform.openapi.OpenApiSnapshotMain"
+    args = listOf("--compare", openApiSnapshotFile.absolutePath)
 }

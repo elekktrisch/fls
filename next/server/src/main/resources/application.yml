@@ -80,10 +80,14 @@ management:
         enabled: true
       show-details: when_authorized
 
-# springdoc is on the classpath so S-003 can wire it without a dep change.
-# Endpoints are dormant here.
+# OpenAPI spec publication. Off by default — profiles flip it on (see
+# application-dev.yml + application-test.yml). prod stays off so a stray
+# SPRINGDOC_* env var cannot expose the API shape on a production install;
+# OpenApiOffByDefaultIT regression-locks the prod 404.
 springdoc:
   api-docs:
     enabled: false
+    version: openapi_3_1   # default is openapi_3_0; codegen wants 3.1
   swagger-ui:
     enabled: false
+  show-actuator: false     # keep /actuator/* out of the codegen surface

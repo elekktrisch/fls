@@ -124,7 +124,16 @@ Skip the gate only for bookkeeping-only diffs; note the skip in the done report.
 
 Commit sweep as `#N: post-implementation body sweep`. Skip for bookkeeping-only diffs.
 
-**Status flip:** update frontmatter `status: done` + `done_at: <ISO date>`. Commit `#N: mark done` with body `Closes #N`. Push. Watch CI; resume Step 5 CI-failure-handling if red.
+**Status flip + archive move (one commit, one CI cycle):** update frontmatter `status: done` + `done_at: <ISO date>`. **Then `git mv docs/modernization/stories/S-NNN-<slug>.md docs/modernization/stories/implemented/S-NNN-<slug>.md` in the same commit.** Folding the archive into the mark-done commit means `/modernize-finalize`'s Step 2.5 doesn't need to fire a second CI cycle just to relocate the file. Mandatory ordering (git-mv trap guard):
+
+1. Edit at the ORIGINAL path FIRST (`status: done` + `done_at` stamps).
+2. `git mv` SECOND.
+3. `git add <new-path>` THIRD to stage the post-mv content.
+4. `git diff --cached --name-status` to verify: must show `R<NN>` rename. `git diff --cached --stat` shows BOTH rename AND additions. If "0 insertions, 0 deletions" with rename-detection, the trap fired — re-stage and re-check.
+
+Then bundle any rework follow-ups this story closes (e.g. a fold-in stub like `S-123` for S-003): stamp them `status: done` + `done_at` + `resolved_by: S-NNN`, `git mv` to `implemented/`, include in the same commit.
+
+Commit subject: `#N: mark done`. Body: `Closes #N` (plus `Closes #M` for any fold-ins with their own GitHub issue). Push. Watch CI; resume Step 5 CI-failure-handling if red.
 
 **Ready-for-review:** `gh pr ready <PR>`. Apply `status/done` label if it exists (`gh issue edit N --add-label status/done --remove-label status/in-progress`). Post one final summary comment on the issue (parity layer, commit count, CI outcomes, PR URL).
 
