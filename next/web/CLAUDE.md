@@ -98,9 +98,27 @@ The new code is signal-first. Greenfield, so no legacy RxJS to preserve.
 - **Inputs/outputs:** `input()` / `model()` / `output()` (signal-based APIs). Avoid `@Input()` / `@Output()` decorators in new code.
 - **Templates:** `@if` / `@for` / `@switch` / `@defer`. Never `*ngIf` / `*ngFor` in new code.
 - **Change detection:** zoneless. Components must work without zone.js — verify by avoiding `setTimeout`-driven view updates and untracked async writes outside `effect()`.
-- **HTTP:** `httpResource()` / `rxResource()` for server state. Plain `HttpClient` is the escape hatch for non-resource patterns (commands, uploads).
+- **HTTP in components:** forbidden. Components inject a Signal Store; the store owns the `HttpClient`/`HelloService` (generated client) call inside `rxMethod`/`tapResponse`. ESLint enforces via `no-restricted-imports` on `features/**/*.component.ts`.
+- **HTTP in stores:** generated OpenAPI service (`HelloService` etc.) inside `rxMethod` is the canonical shape — survives the S-021 auth interceptor wiring. `httpResource()` / `rxResource()` are valid for component-local read-only views but should NOT be used inside a Signal Store (component-scoped resource refs aren't DI-injectable).
 - **RxJS:** allowed where it fits (event streams, debouncing, websockets), but bridge to signals at the component boundary via `toSignal()`. Don't expose `Observable<T>` in component public surface.
-- **Subjects:** `Subject` / `BehaviorSubject` are not state. Convert to signals for state; keep as event buses only when truly stream-shaped.
+- **Subjects:** `Subject` / `BehaviorSubject` are not state. Convert to signals for state; keep as event buses only when truly stream-shaped. The `MUTATION_BUS` (`core/mutation-bus/`) is the one application-wide bus — cross-store cache invalidation goes through it, not direct store-to-store injection.
+- **Template signal invocation:** `@if (store.showX())` invokes the signal; `@if (store.showX)` treats the function reference as truthy and always renders. Mind the parens.
+- **Conditional visibility:** when a render condition depends on domain state, expose it as a `computed()` on the store (e.g. `showAdvanced = computed(() => ...)`). Templates bind via `@if (store.showX())`. Avoid component-local signals that re-derive store state — duplicates the source of truth.
+
+## 4b. Refetch policy & prefetch contract
+
+Per-domain conventions for cache/refetch behavior. The reference store is `HelloStore`.
+
+| Domain class | Policy | Trigger | Latency budget |
+|---|---|---|---|
+| Masterdata (aircraft / persons / locations / flight-types / routes) | Cache-long; TTL ≈ 1h | `SessionStore.bootstrapPrefetch()` on auth + tenant switch | < 1.5s all-parallel |
+| Flights | Refetch-on-visibility | `document.visibilitychange` → `store.refresh()` | < 500ms p95 |
+| Deliveries | Refetch-on-mutation | Subscribed to `MUTATION_BUS` `delivery.*` events | < 500ms p95 |
+| Session-derived (current-user prefs) | One-shot | `bootstrapPrefetch` only | < 200ms |
+
+Every domain store MUST subscribe to `session.logout` + `session.tenantSwitch` on the bus and `clear()` its state. The convention is the discipline; no runtime registry.
+
+Public flows skip prefetch via `data: { publicAccess: true }` on the route (or `data: { skipPrefetch: true }` on a private route that needs to bypass). See `src/app/auth/README.md`.
 
 ## 5. Accessibility (WCAG 2.1 AA target)
 
@@ -159,4 +177,7 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 - No `localStorage` / `sessionStorage` writes in app code (auth-owned files in S-021 are the only allowlist).
 - No `bypassSecurityTrust*`.
 - No deep imports into another feature folder. Cross-feature sharing goes through `shared/ui/`, `shared/util/`, or `core/`.
+- No `HttpClient` injection in `features/**/*.component.ts`. Components inject Signal Stores (ESLint enforces via `no-restricted-imports`).
+- No sibling-store injection from `features/**/*.store.ts`. Coordinate cross-domain via `MUTATION_BUS`. See `src/app/core/mutation-bus/README.md`.
+- No raw `access_token` / `refresh_token` / `id_token` in any `signalStore` state. Tokens live in the OIDC library's storage (S-021).
 - No `any` — `tsconfig.json` strict family is the floor.

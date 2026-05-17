@@ -56,6 +56,40 @@ export default tseslint.config(
     },
   },
   {
+    files: ['src/app/features/**/*.component.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@angular/common/http',
+              message:
+                'Components consume Signal Stores, not HttpClient. See next/web/CLAUDE.md §4.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/app/features/**/*.store.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/features/*/!(index)', '../*/*.store', '../../**/*.store'],
+              message:
+                'Domain stores do not import sibling stores. Coordinate via MUTATION_BUS. See next/web/src/app/core/mutation-bus/README.md.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.html'],
     extends: [
       ...angular.configs.templateRecommended,
