@@ -2,18 +2,20 @@
 id: S-008
 title: Component primitives kit + Tailwind design tokens
 epic: E-01
-status: todo
+status: in_progress
+started_at: 2026-05-17
+github_issue: 54
 depends_on: [S-002]
 acceptance:
-  - Component primitives approach is decided: Tailwind + Angular CDK (headless, recommended), Spartan UI, Angular Material, or PrimeNG.
-  - A baseline UI kit exists under `next/web/src/app/shared/ui/` organised by atomic-design taxonomy (atoms / molecules / organisms — see `next/web/CLAUDE.md` §1).
-    - **Atoms:** `<fls-button>`, `<fls-input>`, `<fls-select>`, `<fls-icon>`, `<fls-badge>`.
-    - **Molecules:** `<fls-form-field>` (label + input + error wiring), `<fls-search-input>`, `<fls-field-errors>` (consumed by S-007).
-    - **Organisms:** `<fls-data-table>`, `<fls-dialog>`, `<fls-date-picker>`, `<fls-nav-bar>`.
-  - Tailwind v4 design tokens (colors, spacing scale, type scale) are defined in `src/styles.css` inside the `@theme { ... }` block (CSS custom properties — `--color-brand-500: oklch(...)`); documented in `next/web/src/app/shared/ui/README.md`. No ad-hoc colours / sizes outside the token set. **No `tailwind.config.js`** — v4 is CSS-first.
-  - Layering is enforced by ESLint `no-restricted-imports`: atoms cannot import molecules/organisms; molecules cannot import organisms.
-  - The reference form from S-007 uses kit components only.
-  - A11y baseline per `next/web/CLAUDE.md` §5 holds for every primitive: visible focus ring, keyboard reachable, accessible name, and CDK `FocusTrap`/`Overlay` for dialog + date-picker.
+  - Component primitives are sourced from **ng-zorro-antd** (chosen 2026-05-17) paired with **Tailwind v4 design tokens**; thin `af-*` wrappers live under `next/web/src/app/shared/ui/`.
+  - A baseline walking-skeleton UI kit exists under `next/web/src/app/shared/ui/` organised by atomic-design taxonomy (atoms / molecules / organisms — see `next/web/CLAUDE.md` §1).
+    - **Atoms:** `<af-button>`, `<af-input>`, `<af-select>`. (`<af-icon>`, `<af-badge>` JIT-deferred.)
+    - **Molecules:** `<af-form-field>` (label + input + error wiring), `<af-field-errors>` (consumed by S-007). (`<af-search-input>`, `<af-time-now-button>` JIT-deferred.)
+    - **Organisms:** `<af-data-table>` (row+card mode), `<af-date-picker>` (range+single), `<af-autocomplete>` (recency-bias dropdown), `<af-nav-bar>`. (`<af-dialog>`, `<af-sticky-bar>`, `<af-accordion-section>` JIT-deferred.)
+    - **Services + directives:** `ViewportService`, `DensityService`, `RecentlyUsedService`, `LocaleService`, `<af-density-provider>` directive.
+  - Tailwind v4 design tokens (colors, spacing scale, type scale, breakpoints, density-scoped tokens) live in `src/styles.css` inside the `@theme { ... }` block (CSS custom properties — `--color-brand-500: oklch(...)`, Roboto as `--font-sans` per operator); `--ant-*` ng-zorro variables derive from Tailwind tokens in the same stylesheet. No ad-hoc colours / sizes outside the token set. **No `tailwind.config.js`** — v4 is CSS-first.
+  - Layering is enforced by ESLint `no-restricted-imports`: atoms cannot import molecules/organisms; molecules cannot import organisms; ng-zorro umbrella import (`from 'ng-zorro-antd'`) is banned in favour of per-component entry points.
+  - A11y baseline per `next/web/CLAUDE.md` §5 holds for every primitive: visible focus ring at both densities, keyboard reachable, accessible name; ng-zorro `nz-modal` + `nz-date-picker` use CDK `Overlay` + `FocusTrap` under the hood.
 estimate: M
 adr_refs: [0004]
 parity_test: none
