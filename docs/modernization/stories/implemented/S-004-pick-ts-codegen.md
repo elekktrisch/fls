@@ -2,8 +2,9 @@
 id: S-004
 title: Pick + wire TypeScript API client codegen
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-17
+done_at: 2026-05-17
 depends_on: [S-002, S-003]
 acceptance:
   - Codegen tool is committed: orval, hey-api/openapi-ts, or openapi-typescript-codegen.
@@ -28,11 +29,11 @@ ADR 0005 chose REST + OpenAPI + generated TS client. The library choice was defe
 See frontmatter.
 
 ## Tasks
-- [ ] Generate sample output from each candidate (orval, hey-api, openapi-typescript) against the snapshot spec.
-- [ ] Compare: readability of generated code, discriminated-union handling for `FlightAircraftType`, enum output for `FlightProcessState`, Angular HttpClient idioms.
-- [ ] Pick one; document decision in `next/web/openapi/README.md` (~5 lines).
-- [ ] Wire `generate-api` script into `package.json`; commit generated output.
-- [ ] Smoke test: a component calls the hello endpoint via the generated client.
+- [x] Picked **orval `^8.10.0`** (`client: 'angular'`, `mode: 'tags-split'`, `retrievalClient: 'both'`). Three-candidate spike collapsed per ADR 0022 directive 1 (Context7-verified the angular generator + `httpResource` support).
+- [x] Decision captured in `next/web/openapi/README.md`.
+- [x] `pnpm run generate-api` wired in `package.json` + `orval.config.ts`.
+- [x] Generated output committed at `next/web/src/app/api/generated/`.
+- [x] Smoke: `next/web/e2e/tests/hello.spec.ts` (Playwright + `page.route('**/api/v1/hello', ...)` mock) — proves the generated client wires through `provideHttpClient(withFetch())` and the route renders.
 
 ## Notes
 Soft recommendation: **orval** (best Angular HttpClient idioms + per-endpoint hooks); fallback **hey-api/openapi-ts** (cleanest typescript output, manually integrated with Angular `HttpClient`).
