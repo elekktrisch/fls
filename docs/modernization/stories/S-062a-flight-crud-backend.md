@@ -446,7 +446,7 @@ Story frontmatter for S-013 names only three. The legacy filter set (`DBUpdate_v
 - `flight_crew(person_id)` — reverse lookup for `/flightreports`. Legacy `IX_FlightCrew_PersonId`.
 - `flight(start_location_id)`, `flight(landing_location_id)` — name-substring filters; small.
 - **Composite covering index** `flight(operating_club_id, flight_date DESC, start_datetime DESC) INCLUDE (aircraft_id, flight_process_state_id, flight_type_id)` — **only after measuring**. Start with single-column FK indexes.
-- **Postgres-specific**: legacy `Immatriculation LIKE '%X%'` and `Lastname LIKE '%X%'` need either prefix-match restriction (semantics break) or `pg_trgm` GIN indexes. Flag for post-cutover budget.
+- **Postgres-specific**: legacy `Immatriculation LIKE '%X%'` and `Lastname LIKE '%X%'` need either prefix-match restriction (semantics break) or `pg_trgm` GIN indexes. Defer until first tenant feedback indicates the parity gap matters.
 
 **Action**: open S-013, diff against `DBUpdate_v1.9.30.sql`, add missing FK indexes. Do not ship S-062a until S-013 carries equivalents.
 

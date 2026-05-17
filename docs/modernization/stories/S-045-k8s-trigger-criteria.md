@@ -70,7 +70,7 @@ biting). This doc is the contract with future-self.
 | C1 | Scale                      | >50 clubs onboarded (4x the 12-club day-1 target)                 | Monthly billing / ops review note | Schedule migration story within 2 quarters                        | -      |
 | C2 | Reliability                | SLO (99% monthly) breached in 2 months of any rolling quarter     | Uptime Kuma (S-037)               | Root-cause first; migrate only if cause is replica/multi-instance | -      |
 | C3 | Resource saturation        | CPU >70% sustained 7d OR memory >80% sustained 7d OR disk >75%    | Prometheus + Grafana (ADR 0011)   | Vertical resize first; migrate at largest VPS plan                | -      |
-| C4 | Feature need               | Story requires network-level tenant isolation OR multi-instance   | Explicit story / cutover req      | Migrate when the feature lands in a sprint                        | -      |
+| C4 | Feature need               | Story requires network-level tenant isolation OR multi-instance   | Explicit story / customer requirement | Migrate when the feature lands in a sprint                    | -      |
 | C5 | Operational need           | Zero-downtime deploys mandated OR deploy cadence > weekly         | Deploy-frequency log + user feedback | Migrate                                                          | -      |
 | C6 | Latency regression         | p95 > 750 ms (50% over NFR) sustained 7 days                      | Prometheus histogram on `/api`    | Investigate app first; migrate only if root cause is throughput   | -      |
 | C7 | OOM-kill cascade           | Backend OOM-kill > 1/week OR Postgres OOM-kill > 0 in any window  | cAdvisor / node-exporter          | Vertical scale immediately; migrate if recurring at top plan      | -      |
@@ -85,11 +85,11 @@ Status legend: `not triggered` · `approaching` · `triggered`.
 
 1. Operator opens a "K8s migration evaluation" issue, citing the fired criterion + evidence (Grafana screenshot, alert, contract excerpt, incident report).
 2. Apply the criterion-specific response (detail table below).
-3. If response = migrate, lift the S-046 Helm/Kustomize stub into a real migration epic; schedule cutover.
+3. If response = migrate, lift the S-046 Helm/Kustomize stub into a real migration epic; schedule the rollout.
 4. If response = mitigate (resize, root-cause), document the mitigation; the criterion returns to `not triggered`.
 5. Operator may explicitly decide "trigger fired, decision: stay" with rationale logged — staleness in the doc is acceptable if reasoning is current.
 
-**Defer rule:** migration is NOT initiated while another high-risk operation is in flight (cutover rehearsal S-113, cutover S-117, active incident response).
+**Defer rule:** migration is NOT initiated while another high-risk operation is in flight (active incident response, large-tenant migration in progress).
 
 **Doc-staleness rule:** if `last_reviewed` is > 12 months old when a trigger fires, re-review the doc BEFORE acting (criteria themselves may be obsolete).
 
@@ -126,7 +126,7 @@ Any future K8s migration MUST preserve:
 - **C4** Swiss/EU residency on every path (Exoscale SKS CH; Hetzner CH/DE / OVHcloud EU regions only; NO US-region control plane).
 - **ADR 0010 §10** (Secrets injected, not baked) — implementation switches from `.env` to K8s Secrets / External Secrets Operator, but the invariant holds.
 - **ADR 0008 `@TenantId`** query-layer guard remains authoritative. NetworkPolicy is defense-in-depth, not a replacement.
-- **S-027** audit-log invariants — events reach the same store (or richer) with no gap during cutover.
+- **S-027** audit-log invariants — events reach the same store (or richer) with no gap during the K8s migration window.
 
 ## Alternatives considered
 - **k3s on the current VPS (single-node K8s):** cheap, but adds operational complexity without HA benefit. Consider if C5 fires but managed K8s budget is tight.
@@ -157,7 +157,7 @@ Any future K8s migration MUST preserve:
 ## Edge cases & hidden requirements
 
 - **"Trigger met" but no migration budget approved** — doc requires both: criterion-fired AND budget go-ahead. Pre-record rough cost.
-- **Trigger met during cutover-prep or rehearsal** — explicit defer rule (above): not while another high-risk operation in flight.
+- **Trigger met during active incident or large-tenant migration** — explicit defer rule (above): not while another high-risk operation in flight.
 - **Single transient SLO breach** vs. trend — C2 specifies *2 months in a rolling quarter*, not "ever exceeded".
 - **Provider-side incident attribution** — operator's call: strict (user-perspective, count all) vs. lenient (K8s wouldn't help upstream, exclude). Pin one in the doc — open question for operator review.
 - **"Onboarded" ambiguity** — distinct billed clubs vs. clubs with any active user vs. clubs with ≥1 flight in last 30 days. Pin one — open question.
@@ -169,7 +169,7 @@ Any future K8s migration MUST preserve:
 - **Reverse criterion: trigger met but cost-of-stay-still acceptable** — operator may explicitly decide "trigger fired, decision: stay" with rationale logged.
 - **K8s-readiness violation flag (NOT a migration trigger):** if day-1 hygiene (ADR 0010 rules 1-10) drifts and a story violates "stateless containers" or "logs to stdout", the K8s-readiness assumption breaks. Flag it; don't auto-migrate.
 - **Doc must be referenced from `next/ops/runbooks/host-setup.md`** so future-operator finds it. If S-044 hasn't landed when this story merges, raise a follow-up on S-044's PR to add the link.
-- **Floating-IP / DNS-decoupling assumption:** S-044 notes some providers don't support floating IPs; migration cutover shape depends on this (IP-swap vs. DNS-TTL flip). Note in doc.
+- **Floating-IP / DNS-decoupling assumption:** S-044 notes some providers don't support floating IPs; K8s-migration switchover shape depends on this (IP-swap vs. DNS-TTL flip). Note in doc.
 - **SLO breach measurement window:** C2 specifies *rolling* quarter — pin explicitly in the doc.
 
 ## Security plan
@@ -268,7 +268,7 @@ None — no runtime fixtures. Doc-as-doc dependency: S-044's `next/ops/runbooks/
 ### Coverage gaps (deferred)
 - `verify-referenced-from-runbook`: blocked on S-044. Mark deferred + raise follow-up on S-044's PR.
 - Actually firing a trigger (measuring `clubs_onboarded`): out of scope — future migration-execution story. Manual UAT at trigger time.
-- The migration plan itself (cutover runbook): future story.
+- The K8s-migration plan itself (rollout playbook): future story when a trigger fires.
 - Validating observation sources emit the metric they claim: manual UAT at next ops review.
 
 ### Risks

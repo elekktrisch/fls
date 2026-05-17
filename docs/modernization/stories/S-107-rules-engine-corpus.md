@@ -14,7 +14,7 @@ parity_test: self
 ---
 
 ## Context
-C11 is the contractual cutover gate for the rules engine. Without this corpus, parity is unverifiable.
+C11 is the parity gate for the rules engine. Without this corpus, parity is unverifiable; the corpus runs continuously in CI against both legacy and new stacks.
 
 ## Acceptance criteria
 See frontmatter.

@@ -7,7 +7,7 @@ depends_on: [S-002, S-057, S-097]
 acceptance:
   - The existing 34 specs (plus expansions from S-101..S-106) run against `next/server/` + `next/web/` and pass.
   - A separate Playwright config (`playwright.config.next.ts`) points at the new app's URLs.
-  - CI runs both legacy and new-stack Playwright on relevant branches until cutover; new-stack-only post-cutover.
+  - CI runs both legacy and new-stack Playwright on relevant branches; the legacy suite stays green for as long as any tenant has not migrated.
 estimate: L
 adr_refs: []
 parity_test: self

@@ -28,6 +28,6 @@ See frontmatter.
 - [ ] Spec verification.
 
 ## Notes
-S-028 (cutover user import) writes the initial `user.keycloak_sub` values; this story handles the ongoing case (new users post-cutover).
+S-028 (bulk-provision tenant users in Keycloak) writes the initial `user.keycloak_sub` values when an operator-owned tenant is onboarded; this story handles the ongoing case (admin invites a new user from inside an active tenant).
 
 L because the Keycloak-AlpenFlight-DB sync is non-trivial. Webhook vs. on-login lazy sync vs. periodic full sync — pick one. Lazy on-login is simplest; document the trade-offs.

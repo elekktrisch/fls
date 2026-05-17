@@ -16,8 +16,8 @@ A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite
 These are baked into the skills via [`00-seed.md`](00-seed.md). They are **not** revisited by the workflow — change the seed if you need them to change.
 
 - **Strategy:** greenfield rewrite of both `flsserver` and `flsweb`. Database is in scope only if a viable data-migration path exists.
-- **Coexistence:** parallel build, hard cutover at the end. Old and new do not interoperate at runtime.
-- **Target repo layout:** new code lives under a single top-level subtree `next/` (working slug — renamed to the final product slug at cutover via a phase-4 naming story), with sub-folders `next/server/`, `next/web/`, `next/database/`, `next/auth/`, and `next/ops/`. The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repository.
+- **Coexistence:** AlpenFlight is a multi-tenant SaaS — each legacy FLS deployment onboards independently via the export-JAR + UI-upload flow (epic E-15) on its own schedule. No centralized cutover event; old and new run side-by-side per-tenant until that tenant uploads.
+- **Target repo layout:** new code lives under a single top-level subtree `next/` (working slug — rename to `alpenflight/` tracked by S-152), with sub-folders `next/server/`, `next/web/`, `next/database/`, `next/auth/`, `next/ops/`, `next/migration-bundle/`, and `next/migration-tool/`. The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repository.
 - **Artifact tracking:** markdown-only for now. GitHub-issue sync deferred until there are stories worth tracking.
 
 Everything else — backend language, frontend framework, database, auth, hosting, observability — is **decided by the workflow** via ADRs.

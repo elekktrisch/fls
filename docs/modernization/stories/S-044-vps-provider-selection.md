@@ -30,7 +30,7 @@ refined_speculative_at: 2026-05-15
 ---
 
 ## Context
-ADR 0010 chose "single Swiss/EU VPS + Docker Compose, K8s-ready hygiene from day one" and deferred provider selection here. This story produces the **comparison matrix + decision + the provisioned host**. It also lays the on-host substrate that S-039 (compose), S-041 (reverse proxy), S-042 (backups), S-043 (restore), S-046 (Helm/Kustomize), S-091 (SMTP relay), and S-117 (cutover) all consume.
+ADR 0010 chose "single Swiss/EU VPS + Docker Compose, K8s-ready hygiene from day one" and deferred provider selection here. This story produces the **comparison matrix + decision + the provisioned host**. It also lays the on-host substrate that S-039 (compose), S-041 (reverse proxy), S-042 (backups), S-043 (restore), S-046 (Helm/Kustomize), S-091 (SMTP relay), and S-151 (production Keycloak) all consume.
 
 ## Acceptance criteria
 See frontmatter.
@@ -73,7 +73,7 @@ See frontmatter.
 | Account | Non-root `fls` user, key-only SSH, passwordless sudo gated by SSH key; root SSH disabled |
 | Firewall (UFW) | Default-deny inbound; allow `22/tcp`, `80/tcp`, `443/tcp`; default-allow outbound |
 | Services baked into host (not Docker) | `openssh-server`, `ufw`, `fail2ban` (sshd jail), `unattended-upgrades` (security pocket only, auto-reboot at 04:00), `chrony`, `docker-ce` + `docker-compose-plugin` |
-| Hostname | `af-prod-01.alpenflight.ch` (placeholder — operator picks apex at DNS-cutover time) |
+| Hostname | `af-prod-01.alpenflight.ch` (placeholder — operator confirms apex at DNS-go-live time) |
 | TZ | `Europe/Zurich` |
 | DNS | Cloudflare or DNSimple (decoupled from VPS provider) — A/AAAA/PTR/CAA |
 
@@ -155,8 +155,7 @@ Commit as `next/ops/vps-provider-evaluation.md`. Columns: provider, region(s), s
 | S-043 (restore runbook) | Exercises against a freshly-provisioned twin (re-run `provision-vps.sh` + `compose up` + restore). |
 | S-046 (Helm/Kustomize) | Keeps the VPS shape K8s-ready; no host-local state, no host-baked secrets, no non-containerized application services. |
 | S-091 (production SMTP relay) | PTR record + reverse DNS at provider panel. |
-| S-117 (DNS / reverse-proxy cutover) | This VPS is the cutover target; decoupled DNS is what S-117 flips. |
-| S-118 (rollback plan) | Floating IP support enables IP-swap rollback if the operator picks a provider that supports it (Hetzner, Exoscale yes; Infomaniak/Init7 no). |
+| S-151 (production Keycloak) | Runs as a compose service on this VPS alongside the AlpenFlight backend; relies on the same host's TLS + backup story. |
 
 ### Alternatives considered
 
@@ -186,7 +185,7 @@ Commit as `next/ops/vps-provider-evaluation.md`. Columns: provider, region(s), s
 - **Bootstrap script is the load-bearing DR artifact** — must be idempotent. Test before applying to prod.
 - **IPv4 surcharge:** Hetzner charges per IPv4 (~€0.50/mo). Factor into TCO.
 - **Greenfield host hygiene missing from AC:** chrony, logrotate, journald retention cap, swap config, kernel-update reboot policy — included in `provision-vps.sh` contract.
-- **Provider DPA + customer contracts:** out-of-repo legal artifact but a cutover gate. Confirm operator's tenant-DPA template names the chosen provider as sub-processor.
+- **Provider DPA + customer contracts:** out-of-repo legal artifact required before the first paying tenant. Confirm operator's tenant-DPA template names the chosen provider as sub-processor.
 - **DNS provider final pick:** Cloudflare free tier (DDoS-proxy useful if SLO bites) vs. DNSimple (paid, Swiss-friendly, cleaner API). Operator preference.
 - **Provider locale:** all five offer English console; flag if any feature only in German/French.
 - **VAT / billing currency:** CHF vs. EUR; cross-border B2B VAT-exempt depending on operator's registration status.
@@ -325,7 +324,7 @@ N/A — VPS hosts a single deployment. **Ops note:** when running `psql` directl
 ### Coverage gaps (deferred)
 
 - Full DB + app restore drill → S-043.
-- HTTPS termination + cert provisioning → S-046 + S-117.
+- HTTPS termination + cert provisioning → S-041 + S-046.
 - Real SLO measurement (99% over 30 days) → S-037 + S-108 + S-111.
 - DPA / data-residency contractual audit → manual UAT.
 - Multi-tenant load smoke → S-046+ perf stories.
@@ -385,12 +384,11 @@ N/A — VPS hosts a single deployment. **Ops note:** when running `psql` directl
 
 1. **CH-strict vs. EU-acceptable residency.** Both meet C4. Operator: any club's legal review insisted on CH-borders-only? Default Hetzner DE if no flag.
 2. **DNS provider — Cloudflare vs. DNSimple.** Both decouple from VPS. Cloudflare free + optional DDoS proxy; DNSimple paid + Swiss-friendly + cleaner API. Operator preference.
-3. **Co-locate Keycloak in production on this VPS, or separate-host IdP per S-116?** Affects RAM sizing (8 GB tight if Keycloak + observability + Postgres + backend all co-resident).
+3. **Co-locate Keycloak in production on this VPS, or separate host per S-151?** Affects RAM sizing (8 GB tight if Keycloak + observability + Postgres + backend all co-resident). Default: co-locate.
 4. **Object-storage provider for S-042: pre-decide here** (Exoscale SOS / Infomaniak Swiss Backup / Hetzner Storage Box) so region pairing is clean? Or defer to S-042?
-5. **Staging VPS for S-113 rehearsal-2:** scoped here, or stood up only for rehearsal then destroyed? Affects cost.
-6. **At-rest encryption:** LUKS on data volume OR provider attestation only? Affects ops complexity (LUKS passphrase at boot via console).
+5. **At-rest encryption:** LUKS on data volume OR provider attestation only? Affects ops complexity (LUKS passphrase at boot via console).
 
 <!-- modernize-refine: end -->
 
 ## Notes
-Decision can happen close to cutover — earlier provisioning means paying for an unused VPS. But the provider choice is a story so it doesn't fall between the cracks. C6 (≤6 hr cutover) implies the VPS must be provisioned and warm **before** cutover night, not during — recommend provisioning ~1 week before rehearsal-2 (S-113).
+Provision the VPS before the first paying tenant is onboarded — capacity must be warm, not in-flight. Earlier provisioning is fine; the cost of an unused VPS for a few weeks is small.

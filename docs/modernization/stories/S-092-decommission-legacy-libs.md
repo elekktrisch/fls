@@ -26,4 +26,4 @@ See frontmatter.
 - [ ] Document in `next/server/README.md` that these legacy components are decommissioned in the new stack.
 
 ## Notes
-The legacy app itself still uses these — they're only removed at cutover when the old codebase is retired. This story is about the new code not accidentally re-introducing them.
+The legacy app itself still uses these — they exit the picture when each operator turns off their own legacy FLS deployment. This story is about the new code not accidentally re-introducing them.

@@ -201,7 +201,7 @@ Every query goes through a service that *should* filter by `CurrentAuthenticated
 `FlightProcessState.Locked` requires `≥ 2 days` of age; `DeliveryPrepared` requires `≥ 3 days` past lock. A fresh DB appears broken end-to-end. The e2e fixture works around this with backdated seed data. New system must preserve the gates *and* provide a way to test them without clock manipulation.
 
 ### R3 — Accounting rules engine: parity-critical, customer-configurable
-`DeliveryItemRulesEngine` runs a stateful decrement loop over rule objects instantiated from per-club DB config. Re-implementing this from scratch in a new language is the single highest-risk story in the modernization. `DeliveryCreationTest` is the regression harness; we will need a *much* larger corpus of tests before cutover than is committed today.
+`DeliveryItemRulesEngine` runs a stateful decrement loop over rule objects instantiated from per-club DB config. Re-implementing this from scratch in a new language is the single highest-risk story in the modernization. `DeliveryCreationTest` is the regression harness; we will need a *much* larger corpus of tests in CI than is committed today.
 
 ### R4 — EPPlus license boundary
 EPPlus changed from LGPL to Polyform Noncommercial post v4.5. Current pinned version not verified in this pass — the new Excel exporter ADR must either confirm we are on a free version or pick a different library (OpenXML SDK, ClosedXML). Output format compatibility with Proffix sync is the parity constraint.
@@ -231,18 +231,18 @@ Checked into source instead of NuGet. License and provenance unverified in this 
 Cosmetic but real. New system must hide the nav bar on public routes by an actual mechanism (route flag, layout slot, etc.) instead of the broken expression.
 
 ### R13 — Test coverage breadth gaps in scheduled jobs
-No e2e covers `DeliveryMailExportJob`, `AircraftStatisticReportJob`, or `AircraftDatabaseSyncJob`. These are exactly the jobs that are hardest to verify post-cutover. Pre-cutover, add either e2e or integration tests; otherwise we ship blind.
+No e2e covers `DeliveryMailExportJob`, `AircraftStatisticReportJob`, or `AircraftDatabaseSyncJob`. These are exactly the jobs hardest to verify once a tenant is running on the new stack. Add either e2e or integration tests before they ship to a paying tenant; otherwise we ship blind.
 
 ### R14 — Test coverage depth: existing suite is happy-path only
 The 34 Playwright specs prove that features exist and reach the database — they do not prove behavior. Validation rejection paths, state-machine guards (`FlightService.cs:1380-1440`), time-gate boundaries, permission boundaries, concurrent edits, glider-tow link integrity, and the rules-engine combinations enumerated in R3 are all unprobed. Full callout under §2 → Flight operations. Implication for the rewrite: the e2e suite cannot be used as-is as a parity oracle. Either expand the suite *before* cutting over (preferred — the existing specs are cheap to extend), or accept that parity must be validated some other way (manual UAT, traffic replay, dual-run with diff). The expansion is a story in its own right and should be sequenced early in the backlog.
 
 ## 8. Open questions for phase 2
 
-Drive elicitation in `/modernize-vision` with these. Don't ask the user to confirm anchors already locked by [`00-seed.md`](00-seed.md).
+*(Historical: these drove the `/modernize-vision` elicitation in May 2026 and are now resolved by [`02-vision-and-constraints.md`](02-vision-and-constraints.md) and amendment 2026-05-17c, which repositioned the rewrite as a self-service multi-tenant SaaS with no centralized cutover event. The list is kept here as a record of what the discovery phase surfaced.)*
 
 - **Performance targets.** What page-load and request-latency budgets must the new system hit? (Current system has none recorded.)
 - **Availability target.** What uptime SLO are we committing to? What's the current observed availability?
-- **Acceptable cutover downtime.** Seed locks "hard cutover" — but what window is OK? Minutes? Hours? A weekend?
+- **Migration / onboarding window.** What's the acceptable per-tenant migration time? (Resolved 2026-05-17c: per-tenant self-service, ≤ 30 min for a typical legacy DB; no centralized cutover.)
 - **Hosting target.** Production today is presumably IIS on Windows; is the new system constrained to Windows, allowed on Linux, or required to run in a specific cloud?
 - **Budget / team shape.** Solo developer? Team? What languages does the team know — does that pin the backend ADR?
 - **Compliance.** Any regulatory obligation (GDPR retention, Swiss data residency, FOCA aviation rules) the new system must demonstrably satisfy?
@@ -250,8 +250,8 @@ Drive elicitation in `/modernize-vision` with these. Don't ask the user to confi
 - **Reporting / Excel parity.** Are existing Excel exports byte-for-byte parity-required (e.g., because Proffix sync parses them), or just feature-equivalent?
 - **OGN integration.** Keep direct-DB ingestion, or are we willing to negotiate an ingestion API with the OGNAnalyser maintainer?
 - **DB scope.** Seed makes the DB conditionally in scope. Confirm: is reshape allowed if we have a migration path, or must the new system run against the existing schema unchanged for a parallel period?
-- **Auth migration.** Are existing user sessions / tokens expected to survive cutover, or are users re-prompted to log in on day 1?
-- **Test-corpus expansion for the rules engine.** What's the budget (time / data) for building the `DeliveryCreationTest` corpus before cutover?
+- **Auth migration.** Are existing user sessions / tokens expected to survive the move to the new stack, or are users re-prompted to log in on first visit?
+- **Test-corpus expansion for the rules engine.** What's the budget (time / data) for building the `DeliveryCreationTest` corpus?
 - **Out-of-scope features.** Are there features in §2 that we're explicitly **not** porting (deprecating)?
 
 ---

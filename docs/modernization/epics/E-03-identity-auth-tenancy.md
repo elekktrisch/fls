@@ -9,8 +9,8 @@ adr_refs: [0007, 0008]
 Replace the OAuth2 password grant + 14-day bearer token + convention-based tenant filter with OIDC (Keycloak local; hosted/self-hosted prod TBD) + Hibernate `@TenantId` discriminator + a comprehensive audit log on every mutating endpoint. The end state is: a forgotten WHERE-clause-on-`club_id` is structurally impossible from JPA, and a refresh-token rotation keeps users signed in transparently.
 
 ## Scope
-- In: Keycloak in compose with a committed realm export; Spring Security 7 resource-server wiring; Angular OIDC SPA client; `@TenantId` on every tenant-scoped entity; unscoped-tenant context for cross-tenant ops; cross-tenant leakage test in CI; tenant-from-URL pattern for public flows; authorization mapping (roles → `@PreAuthorize`); audit log infrastructure; cutover user-export-and-import script with reset-password flag; Proffix machine-client setup.
-- Out: per-feature `@PreAuthorize` annotations (live in feature epics); SPA login UI polish (handled inside Angular OIDC library's defaults); production IdP vendor selection (deferred to E-14).
+- In: Keycloak in compose with a committed realm export; Spring Security 7 resource-server wiring; Angular OIDC SPA client; `@TenantId` on every tenant-scoped entity; unscoped-tenant context for cross-tenant ops; cross-tenant leakage test in CI; tenant-from-URL pattern for public flows; authorization mapping (roles → `@PreAuthorize`); audit log infrastructure; bulk-provision-users-in-Keycloak admin endpoint (S-028); Proffix machine-client setup.
+- Out: per-feature `@PreAuthorize` annotations (live in feature epics); SPA login UI polish (handled inside Angular OIDC library's defaults); production Keycloak deployment (lives in E-05 / S-151).
 
 ## Stories
 - [ ] S-019 — Keycloak in docker-compose + realm export committed
@@ -22,7 +22,7 @@ Replace the OAuth2 password grant + 14-day bearer token + convention-based tenan
 - [ ] S-025 — Tenant-from-URL mechanism for public flows
 - [ ] S-026 — Authorization model (roles → `@PreAuthorize` mapping)
 - [ ] S-027 — Audit-log infrastructure (every mutating endpoint emits an audit event)
-- [ ] S-028 — Cutover user export-and-import script + reset-email queue
+- [ ] S-028 — Bulk-provision tenant users in Keycloak (admin endpoint)
 - [ ] S-029 — Proffix machine client (client-credentials grant)
 
 ## Done when

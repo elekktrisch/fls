@@ -15,7 +15,7 @@ parity_test: none
 ---
 
 ## Context
-ADR 0013 deferred this to deployment-time. Needs to happen before cutover.
+ADR 0013 deferred this to deployment-time. Needs to happen before the first paying tenant goes `active` (outbound transactional email won't work without it).
 
 ## Acceptance criteria
 See frontmatter.

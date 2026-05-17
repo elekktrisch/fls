@@ -16,7 +16,7 @@ parity_test: tests/accounting/20-delivery-creation-test.spec.ts
 ---
 
 ## Context
-The regression harness that validates rules-engine parity. *Pre-cutover* expansion of the corpus (S-107) depends on this mechanism existing. **Verify whether legacy `DeliveryCreationTest` is invoked by any job or only on demand** (vision §8 open item) — confirm during implementation.
+The regression harness that validates rules-engine parity. The corpus expansion (S-107) — which closes C11 — depends on this mechanism existing. **Verify whether legacy `DeliveryCreationTest` is invoked by any job or only on demand** (vision §8 open item) — confirm during implementation.
 
 ## Acceptance criteria
 See frontmatter.

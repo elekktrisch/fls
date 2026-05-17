@@ -25,7 +25,7 @@ refined_speculative_at: 2026-05-15
 ---
 
 ## Context
-ADR 0007 chose Keycloak for local dev. This story builds the dev-loop foundation: a one-command `docker compose up` produces a real OIDC issuer at `localhost:8080/realms/fls` with a realm shape that downstream stories (S-020 resource server, S-021 Angular OIDC client, S-022 `@TenantId` resolver, S-028 cutover user import, S-029 Proffix machine client) can pin against.
+ADR 0007 chose Keycloak for local dev. This story builds the dev-loop foundation: a one-command `docker compose up` produces a real OIDC issuer at `localhost:8080/realms/fls` with a realm shape that downstream stories (S-020 resource server, S-021 Angular OIDC client, S-022 `@TenantId` resolver, S-028 bulk-provision users endpoint, S-029 Proffix machine client, S-134 self-service signup, S-151 production Keycloak deployment) can pin against.
 
 ## Acceptance criteria
 See frontmatter.
@@ -62,8 +62,8 @@ See frontmatter.
 | `realm` | `"alpenflight"` | — |
 | `displayName` | `"AlpenFlight"` | — |
 | `enabled` | `true` | — |
-| `registrationAllowed` | `false` | C14 — users land via cutover (S-028) or admin UI; no public signup pre-prod. |
-| `resetPasswordAllowed` | `true` | C14 — forced password reset at cutover. |
+| `registrationAllowed` | `false` | Dev-realm baseline. S-134 flips this to `true` and adds the Google IdP for the self-service signup flow. |
+| `resetPasswordAllowed` | `true` | C14 — imported users get `UPDATE_PASSWORD` required action; everyone resets via email link. |
 | `rememberMe` | `true` | UX. |
 | `verifyEmail` | `true` | Production posture; in dev, seed users carry `emailVerified=true`. |
 | `editUsernameAllowed` | `false` | Stable subject claims. |
@@ -177,7 +177,7 @@ git diff ./next/auth/realm-export.json
 | S-022 (`@TenantId` resolver) | Claim name `clubId` (String); absence-of-claim + `SYSTEM_ADMINISTRATOR` role = cross-tenant principal. |
 | S-025 (tenant-from-URL + authorization) | Same role catalog and claim contract. |
 | S-026 (`@PreAuthorize` mapping) | Realm-role names → `ROLE_*` authorities. |
-| S-028 (cutover user export-and-import) | Admin REST API at `/admin/realms/fls`; bootstrap admin grant; `requiredActions: ["UPDATE_PASSWORD"]` flag for C14. |
+| S-028 (bulk-provision tenant users in Keycloak) | Admin REST API at `/admin/realms/fls`; bootstrap admin grant; `requiredActions: ["UPDATE_PASSWORD"]` flag for C14. |
 | S-029 (Proffix machine client) | Client ID `fls-proffix`; client-credentials grant; secret rotation procedure. |
 | S-039 (docker-compose orchestration) | The Compose contract above, verbatim. |
 
@@ -260,7 +260,7 @@ S-019 emits no application audit events. It pins **Keycloak-side** event capture
 | `LOGIN` / `LOGIN_ERROR` | Authorization Code exchange | `realmId`, `clientId`, `userId`, `ipAddress`, `error` |
 | `LOGOUT` | end-session endpoint | same |
 | `REFRESH_TOKEN` / `REFRESH_TOKEN_ERROR` | token refresh | flags reuse (rejected by `revokeRefreshToken=true`) |
-| `RESET_PASSWORD` / `UPDATE_PASSWORD` / `SEND_RESET_PASSWORD` | C14 cutover audit trail | per-user, per-realm |
+| `RESET_PASSWORD` / `UPDATE_PASSWORD` / `SEND_RESET_PASSWORD` | C14 audit trail for imported / reset users | per-user, per-realm |
 | `CLIENT_LOGIN` / `CLIENT_LOGIN_ERROR` | client-credentials grant (Proffix) | `clientId=fls-proffix`, no `userId` |
 | admin events (all op types) | every admin-UI / admin-API mutation | actor (`authDetails.userId`), resource type, op, representation diff |
 
@@ -350,7 +350,7 @@ Listener: `jboss-logging` in S-019; S-031 adds an observability-stack forwarder.
 - Spring Security 7 resource-server JWT validation → S-020.
 - Angular OIDC SPA flow (Authorization Code + PKCE, silent refresh, logout) → S-021.
 - `clubId` claim → `@TenantId` binding → S-022.
-- User cutover (legacy IdentityUserManager → Keycloak with forced-reset flag) → S-028.
+- Bulk-provision tenant users in Keycloak (with forced-reset flag, for operator-owned tenants) → S-028.
 - Production hardening (TLS, real issuer, brute-force tuning, SMTP, password policy) → ADR 0007 open item + manual UAT.
 
 ### Risks

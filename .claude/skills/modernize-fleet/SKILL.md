@@ -35,7 +35,7 @@ Fleet-eligible when ALL:
 1. File at top-level `stories/`.
 2. `status: todo`.
 3. All `depends_on` have `merged: true`.
-4. NOT foundational — fleet-INELIGIBLE if epic ∈ {E-01, E-02, E-03}, OR `parity_test` references a not-yet-built harness, OR design notes explicitly say "must be sequential."
+4. NOT `parity_test` references a not-yet-built harness, OR design notes explicitly say "must be sequential."
 5. No file-path overlap with any other selected story (scan `## Tasks` + `## Design notes` for `next/server/.../<file>`, `next/web/.../<file>`).
 6. Different epic from every other selected story (cross-epic preferred).
 
