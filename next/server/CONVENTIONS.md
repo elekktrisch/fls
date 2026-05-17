@@ -4,6 +4,8 @@ Patterns established in shipped stories that future implementers should mirror.
 Cite this file (and the canonical example) when answering "how do we do X?"
 for a new contributor.
 
+> **Citation discipline.** When pointing at a canonical example in another file, prefer naming the construct (e.g. `CREATE INDEX ix_arv_pilot`, `class FlightServiceTest`, `method @PreAuthorize on FlightController.locked()`) over a `file:line` range. Line numbers drift the moment the cited section is touched; construct names survive refactors. When a `file:line` is unavoidable, re-verify the citation after the section's first edit. The S-014 second-pass review found 3 of the 4 line citations in the index-shape rule below already wrong before V4 even merged — every citation that points by line is a citation that will go stale.
+
 ## Database migrations (Flyway) — S-009
 
 - **Canonical location:** `src/main/resources/db/migration/`.
@@ -98,10 +100,11 @@ Tables that carry a `deleted_on TIMESTAMPTZ NULL` column (soft-delete capable) f
 
 1. **Default to partial:** every index on a soft-delete table must include `WHERE deleted_on IS NULL` unless the index deliberately needs to cover tombstoned rows. Reason: tombstones accumulate over multi-year retention windows (Swiss OR Art. 957a → 10 years for invoices), and indexes that cover them bloat indefinitely while serving zero hot-path queries.
 2. **Deliberate-tombstone-coverage requires an inline comment:** when an index covers tombstones on purpose, add a `-- covers tombstones: <reason>` comment immediately above the `CREATE INDEX`. Two known reasons:
-    - **CASCADE join target:** an index on a child-side FK whose parent's `ON DELETE CASCADE` runs needs to find soft-deleted children too, so the cascade reaches them. Example: `ix_pda_planning_day` on `planning_day_assignment(planning_day_id)` (`src/main/resources/db/migration/V4__reservations_planning_accounting.sql:312-313`).
-    - **Tables with no soft-delete:** snapshot / append-only / CASCADE-only tables don't carry `deleted_on`; indexes on them cover all rows by construction. Add a comment naming the absence. Example: `ix_dcti_test` on `delivery_creation_test_item` (`V4__reservations_planning_accounting.sql:573-575`).
+    - **CASCADE join target:** an index on a child-side FK whose parent's `ON DELETE CASCADE` runs needs to find soft-deleted children too, so the cascade reaches them. Example: search for `CREATE INDEX ix_pda_planning_day` in `src/main/resources/db/migration/V4__reservations_planning_accounting.sql` (preceded by its `-- covers tombstones:` comment).
+    - **Tables with no soft-delete:** snapshot / append-only / CASCADE-only tables don't carry `deleted_on`; indexes on them cover all rows by construction. Add a comment naming the absence. Example: search for `CREATE INDEX ix_dcti_test` in `V4__reservations_planning_accounting.sql`.
+    - **Deferred perf tuning (case-by-case):** index shape pending production-scale plan analysis. Example: search for `CREATE INDEX ix_arv_location` in `V4__reservations_planning_accounting.sql` (annotated as deferred to S-108).
 3. **Unique partial indexes use the same predicate:** if a UNIQUE constraint is partial on `deleted_on IS NULL`, the partial predicate goes in the index definition (`CREATE UNIQUE INDEX … WHERE deleted_on IS NULL`), not in the table-level `CONSTRAINT … UNIQUE`. Postgres `UNIQUE CONSTRAINT` syntax doesn't accept partial predicates.
 
-**Canonical positive example:** `ix_arv_pilot` (`V4__reservations_planning_accounting.sql:237-239`) — `(pilot_person_id, reservation_start DESC) WHERE pilot_person_id IS NOT NULL AND deleted_on IS NULL`. Hot-path calendar query; partial predicate keeps the index narrow as old reservations get soft-deleted.
+**Canonical positive example:** search for `CREATE INDEX ix_arv_pilot` in `V4__reservations_planning_accounting.sql` — `(pilot_person_id, reservation_start DESC) WHERE pilot_person_id IS NOT NULL AND deleted_on IS NULL`. Hot-path calendar query; partial predicate keeps the index narrow as old reservations get soft-deleted.
 
 **Caught in S-014 review:** 7 indexes were silently non-partial before the rework pass; 4 were corrected, 3 documented as deliberate-tombstone-coverage (CASCADE join, no-soft-delete parent, deferred perf tuning to S-108).

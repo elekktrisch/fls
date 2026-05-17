@@ -240,6 +240,9 @@ CREATE INDEX ix_arv_club_start_end
 CREATE INDEX ix_arv_pilot
     ON aircraft_reservation (pilot_person_id, reservation_start DESC)
     WHERE pilot_person_id IS NOT NULL AND deleted_on IS NULL;
+-- covers tombstones: deferred-perf-tuning S-108 — index shape (DESC ordering +
+-- partial predicate) pending production-scale query-plan analysis. Full-range
+-- scan acceptable at current per-club reservation counts; revisit at S-108.
 CREATE INDEX ix_arv_location
     ON aircraft_reservation (operating_club_id, location_id, reservation_start);
 
@@ -684,7 +687,7 @@ COMMENT ON COLUMN delivery_creation_test.expected_delivery IS
 COMMENT ON COLUMN delivery_creation_test.last_test_created_delivery IS
     'jsonb snapshot of the most recent test run''s actually-created delivery. PII redaction: pii_blob: true.';
 COMMENT ON COLUMN delivery_creation_test.expected_matched_filter_ids IS
-    'BIGINT[] of accounting_rule_filter.id values expected to match. NOT FK-enforced — a deleted filter is a legitimate regression signal (the test fails loudly rather than silently dropping).';
+    'BIGINT[] of accounting_rule_filter.legacy_int_id values (NOT .id; type is BIGINT, not UUID per ADR 0019) — intentional for S-016 legacy-test-data import where harness fixtures reference the legacy integer ID. NOT FK-enforced — a deleted filter is a legitimate regression signal (the test fails loudly rather than silently dropping).';
 COMMENT ON COLUMN delivery_creation_test.flight_id IS
     'Same-tenant FK. CASCADE on flight delete — the harness payload dies with its subject.';
 

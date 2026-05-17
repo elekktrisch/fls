@@ -412,11 +412,21 @@ overrides:
     emits_audit: true
     ride_through_targets: [Persons, Aircrafts]  # Aircrafts added per 2026-05-16 amendment
     pii_columns: [info]
-    pii_ride_through: [pilot_person_id, second_crew_person_id, aircraft_id]
+    pii_ride_through: [pilot_person_id, second_crew_person_id]
+    # `pii_ride_through` lists ONLY cross-tenant FKs to entities that carry direct PII
+    # (Persons). Consumers (S-027 audit-blob redaction, S-051 DSAR scope) iterate this
+    # list assuming "data here is PII to redact / scrub on subject erasure" — including
+    # a non-PII FK (Aircraft) here would either over-redact a non-PII identifier in
+    # audit blobs OR follow the FK to scrub Aircraft data on a Person DSAR (wrong
+    # subject). Cross-tenant FKs that are authz-relevant but NOT PII go in
+    # `cross_tenant_fks` below.
+    cross_tenant_fks: [aircraft_id]
     preconditions:
       - "S-022 / S-064 service layer enforces Aircraft.canBeReservedBy(operating_club_id) at create/update"
       - "Audit event carries cross_tenant: true when aircraft.owner_club_id != aircraft_reservation.operating_club_id"
       - "S-024 leakage CI roster MUST include aircraft_reservation.aircraft_id as cross-tenant FK"
+      - "S-027 audit-blob redaction iterates pii_ride_through (NOT cross_tenant_fks); aircraft_id is logged as a cross-tenant marker, not redacted as PII"
+      - "S-051 DSAR scope iterates pii_ride_through (NOT cross_tenant_fks); Person erasure scrubs pilot_person_id / second_crew_person_id, not aircraft_id"
 
   PlanningDays:
     kind: tenant-scoped
