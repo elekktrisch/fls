@@ -2,7 +2,9 @@
 id: S-019
 title: Keycloak in docker-compose + realm export committed
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-18
+github_issue: 59
 depends_on: []
 acceptance:
   - `docker compose --profile next up keycloak` brings Keycloak online at `http://localhost:8090/realms/alpenflight` (host HTTP 8090 → container 8080; management 9090 → 9000).
