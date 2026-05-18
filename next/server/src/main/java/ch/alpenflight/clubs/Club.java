@@ -135,15 +135,6 @@ public class Club {
         return ClubId.ofNullable(id);
     }
 
-    /**
-     * Persistence-layer raw {@code UUID} accessor, for internal callers that
-     * need the value in its repository-key form (e.g. {@code findActiveById}).
-     * External callers should use {@link #getId()}.
-     */
-    @Nullable UUID getRawId() {
-        return id;
-    }
-
     public String getClubname() {
         return clubname;
     }
