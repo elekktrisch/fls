@@ -15,6 +15,9 @@ review_blockers: 1
 review_improvements: 17
 review_parity_oracle: N/A — parity_test=none + no flsserver/flsweb in diff
 review_reviewers: [maintainability, security, tech-writer]
+reworked: true
+reworked_at: 2026-05-18
+rework_followups: [S-153]
 acceptance:
   - `docker compose -p alpenflight-dev up -d keycloak` brings Keycloak online at `http://localhost:8090/realms/alpenflight` (host HTTP 8090 → container 8080; management 9090 → 9000).
   - A pre-seeded realm `alpenflight` is committed under `next/auth/realm-export.json` and imported on first boot via `--import-realm`. Distribution is via a baked `alpenflight-keycloak:local` image (built from `next/auth/Dockerfile`) because Docker Desktop's bind-mount for single files is unreliable on Windows hosts.
@@ -59,30 +62,30 @@ See `next/auth/README.md` for the operator manual, downstream consumer table, de
 
 ### Maintainability
 
-- **[blocker]** Token-policy CI guard asserts 1 of 5 ADR-0007 values — `next/auth/scripts/check-realm-shape.sh:90-92`. AC + ADR 0007 list `accessTokenLifespan=900`, `ssoSessionIdleTimeout=30d`, `ssoSessionMaxLifespan=90d`, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`; only the first is asserted. Refresh-token rotation is the structural fix for legacy R10 — silent drift re-opens it. **Fix:** add jq asserts for the remaining 4 values. *(Cross-flagged by security + tech-writer.)*
-- **[improvement]** `export-realm.sh` swallows non-2xx REST responses — `next/auth/scripts/export-realm.sh:37-48`. `curl -sS` without `--fail` writes 401/404 body into intermediate files; corrupt export may be committed. **Fix:** `--fail-with-body` on every curl + `jq -e type` on each file before merging.
-- **[improvement]** Per-user role-mapping loop re-fetches user IDs already cached — `next/auth/scripts/export-realm.sh:46-51`. 2N requests for the same data. **Fix:** iterate `jq -r '.[] | "\(.username) \(.id)"'` once over the cached array.
-- **[improvement]** `trap "rm -rf $WORK" EXIT` expands `$WORK` at install time, not at trap-fire — `next/auth/scripts/export-realm.sh:34`. Harmless today; fragile if `WORK` is ever empty (e.g. mktemp fail) → `rm -rf ""` no-ops silently. **Fix:** single-quote the trap body. *(Cross-flagged by tech-writer.)*
-- **[improvement]** Embedded Python in bash heredoc obstructs lint/editor tooling — `next/auth/scripts/normalize-realm-export.sh:24-101`. 77 lines of Python with no `ruff`/`mypy` coverage. **Fix:** lift to `normalize-realm-export.py` + thin bash wrapper (or drop the wrapper, call python directly from export-realm.sh).
-- **[improvement]** README "Round-trip workflow" snippet omits `down -v` before rebuild — `next/auth/README.md:88-91`. With IGNORE_EXISTING the rebuild silently no-ops without a fresh H2; the "Bring up" snippet above has it correctly. **Fix:** prepend `docker compose -p alpenflight-dev down -v keycloak`.
-- **[improvement]** Redirect-URI guard rejects only literal `"*"` — `next/auth/scripts/check-realm-shape.sh:80-82`. `https://*.example.com/*` would slip through; README claims "explicit localhost paths". **Fix:** assert each entry starts with `http://localhost:`.
-- **[improvement]** PII regex misses `.test` TLDs — `next/auth/scripts/check-realm-shape.sh:85`. `@(example\.(com|org|net)|test)$` matches `foo@test` (no dot) but not `foo@something.test`; header claims `.test` is allowed. **Fix:** `@(example\.(com|org|net)|.+\.test)$`.
-- **[improvement]** Healthcheck depends on bash-only `/dev/tcp` in `CMD-SHELL` — `docker-compose.yml:206-208`. Works today (UBI ships bash) but silently breaks on any future base-image swap. **Fix:** one-line comment documenting the bash dependency next to the probe.
+- **[in-rework] [blocker]** Token-policy CI guard asserts 1 of 5 ADR-0007 values — `next/auth/scripts/check-realm-shape.sh:90-92`. AC + ADR 0007 list `accessTokenLifespan=900`, `ssoSessionIdleTimeout=30d`, `ssoSessionMaxLifespan=90d`, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`; only the first is asserted. **Fix:** add jq asserts for the remaining 4 values. *(Cross-flagged by security + tech-writer.)*
+- **[in-rework] [improvement]** `export-realm.sh` swallows non-2xx REST responses — `next/auth/scripts/export-realm.sh:37-48`. `curl -sS` without `--fail` writes 401/404 body into intermediate files. **Fix:** `--fail-with-body` on every curl + `jq -e type` on each file before merging.
+- **[deferred → S-153] [improvement]** Per-user role-mapping loop re-fetches user IDs already cached — `next/auth/scripts/export-realm.sh:46-51`.
+- **[deferred → S-153] [improvement]** `trap "rm -rf $WORK" EXIT` expands `$WORK` at install time — `next/auth/scripts/export-realm.sh:34`.
+- **[deferred → S-153] [improvement]** Embedded Python in bash heredoc obstructs lint/editor tooling — `next/auth/scripts/normalize-realm-export.sh:24-101`.
+- **[in-rework] [improvement]** README "Round-trip workflow" snippet omits `down -v` before rebuild — `next/auth/README.md:88-91`.
+- **[deferred → S-153] [improvement]** Redirect-URI guard rejects only literal `"*"` — `next/auth/scripts/check-realm-shape.sh:80-82`.
+- **[deferred → S-153] [improvement]** PII regex misses `.test` TLDs — `next/auth/scripts/check-realm-shape.sh:85`.
+- **[deferred → S-153] [improvement]** Healthcheck depends on bash-only `/dev/tcp` in `CMD-SHELL` — `docker-compose.yml:206-208`.
 
 ### Security
 
-- **[improvement]** `clubId` user-profile permission not asserted by CI guard — `next/auth/scripts/check-realm-shape.sh:67-72`. The tenant-escalation gate is `kc.user.profile.config.attributes[clubId].permissions.edit == ["admin"]`; if an admin re-enables user-edit in the UI and re-exports, the guard misses it. **Fix:** add the jq assertion.
-- **[improvement]** Proffix dev-secret value not pinned by CI guard — `next/auth/scripts/check-realm-shape.sh:44-48`. Normalizer injects `alpenflight-proffix-dev-secret`; bypassing the normalizer would silently break S-029. **Fix:** assert `alpenflight-proffix.secret == "alpenflight-proffix-dev-secret"`.
-- **[improvement]** `webOrigins: ["+"]` on `alpenflight-web` widens CORS to every registered redirect URI's origin — `next/auth/realm-export.json` (alpenflight-web client). Safe today (localhost-only); adding a tunnel/staging redirect silently widens CORS. **Fix:** assert `webOrigins == ["+"]` AND all redirect URIs are `http://localhost:*`, OR pin explicit origins.
-- **[improvement]** `export-realm.sh` admin token persists in shell env with no explicit revoke — `next/auth/scripts/export-realm.sh:25-30`. Leaks via `/proc/*/environ` on multi-user dev boxes. **Fix:** `unset TOKEN` in cleanup trap (and optionally POST `/realms/master/.../logout`).
+- **[in-rework] [improvement]** `clubId` user-profile permission not asserted by CI guard — `next/auth/scripts/check-realm-shape.sh:67-72`. Tenant-escalation gate; if user-edit re-enabled and re-exported, guard misses it. **Fix:** add jq assertion on `kc.user.profile.config.attributes[clubId].permissions.edit == ["admin"]`.
+- **[deferred → S-153] [improvement]** Proffix dev-secret value not pinned by CI guard — `next/auth/scripts/check-realm-shape.sh:44-48`.
+- **[deferred → S-153] [improvement]** `webOrigins: ["+"]` widens CORS to every registered redirect URI's origin — `next/auth/realm-export.json` (alpenflight-web client).
+- **[deferred → S-153] [improvement]** `export-realm.sh` admin token persists in shell env with no explicit revoke — `next/auth/scripts/export-realm.sh:25-30`.
 
 ### Code quality
 
-- **[improvement]** ADR 0007 still cites `localhost:8080/realms/fls` — `docs/modernization/adrs/0007-auth-scheme.md` Option C "Why chosen". The story's `## Proposed ADR amendment` block already flagged this; surfaced again here so finalize/rework remembers. **Fix:** amend Option C paragraph to `localhost:8090/realms/alpenflight`.
-- **[improvement]** `for u in $(jq -r ...)` word-splits on usernames with spaces — `next/auth/scripts/export-realm.sh:46`. Bypasses `set -euo pipefail`. **Fix:** `while IFS= read -r u; do ... done < <(jq -r '.[].username' ...)`.
-- **[improvement]** Bare `open()` calls in Python heredoc lack context managers — `next/auth/scripts/normalize-realm-export.sh:27-29`. CPython GC closes them; lint flags them. **Fix:** `with open(...) as f: ... = json.load(f)`.
-- **[improvement]** README "Downstream consumers" table omits S-134 — `next/auth/README.md:110-115`. S-134 (Google OIDC federated signup) is called out in body (L69) but not the table. **Fix:** add S-134 row noting the federated IdP config + DB-fallback for `clubId`.
-- **[improvement]** `registrationAllowed=false` guard conflicts with vision C26 (self-service signup) with no in-code comment — `next/auth/scripts/check-realm-shape.sh:95`. Correct for current dev realm; S-134 must add a conditional. **Fix:** comment on L95 explaining the assertion is current-dev-only.
+- **[accepted: applied in this PR as a boyscout meta-improvement] [improvement]** ADR 0007 still cites `localhost:8080/realms/fls` — `docs/modernization/adrs/0007-auth-scheme.md` Option C.
+- **[deferred → S-153] [improvement]** `for u in $(jq -r ...)` word-splits on usernames with spaces — `next/auth/scripts/export-realm.sh:46`.
+- **[deferred → S-153] [improvement]** Bare `open()` calls in Python heredoc lack context managers — `next/auth/scripts/normalize-realm-export.sh:27-29`.
+- **[deferred → S-153] [improvement]** README "Downstream consumers" table omits S-134 — `next/auth/README.md:110-115`.
+- **[deferred → S-153] [improvement]** `registrationAllowed=false` guard conflicts with vision C26 (self-service signup) with no in-code comment — `next/auth/scripts/check-realm-shape.sh:95`.
 
 ### Parity
 **Oracle:** N/A — `parity_test: none` + no `flsserver/`/`flsweb/` paths in diff. S-019 is greenfield IdP setup; replaces the legacy `/Token` password grant entirely.
