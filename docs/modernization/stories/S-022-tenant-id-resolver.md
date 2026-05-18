@@ -2,7 +2,9 @@
 id: S-022
 title: ClubTenantIdentifierResolver + @TenantId plumbing on first entity
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-18
+github_issue: 66
 depends_on: [S-012, S-015, S-020]
 acceptance:
   - `ClubTenantIdentifierResolver` (Hibernate `CurrentTenantIdentifierResolver`) reads the authenticated principal's `clubId` claim.
