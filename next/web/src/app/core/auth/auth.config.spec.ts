@@ -1,8 +1,11 @@
 import { alpenflightOidcConfig } from './auth.config';
 
 describe('alpenflightOidcConfig', () => {
-  it('targets the AlpenFlight Keycloak realm via same-origin reverse proxy', () => {
-    expect(alpenflightOidcConfig.authority).toBe('/realms/alpenflight');
+  it('targets the AlpenFlight Keycloak realm at the dev port', () => {
+    // Absolute URL because the OIDC library validates `authority` against
+    // the `iss` claim Keycloak stamps on tokens (issuer-mismatch check on
+    // wellknown retrieval). S-041 swaps to the prod IdP at cutover.
+    expect(alpenflightOidcConfig.authority).toBe('http://localhost:8090/realms/alpenflight');
   });
 
   it('declares the alpenflight-web public client', () => {

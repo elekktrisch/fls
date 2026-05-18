@@ -1,17 +1,7 @@
 {
-  "//": "DEV-ONLY proxy. /api/* targets the Spring backend on :8080; /realms/* + /resources/* target Keycloak on :8090 so the SPA speaks OIDC same-origin (matches S-021 secureRoutes assumption: relative '/api/v1/' only, never absolute Keycloak URLs in app code). Do NOT add remote targets.",
+  "//": "DEV-ONLY proxy. /api/v1/* targets the Spring backend on :8080. Keycloak is NOT proxied — the OIDC lib needs the absolute issuer URL (see auth.config.ts) and Keycloak's realm grants CORS to http://localhost:4200 via webOrigins=[\"+\"] + the client's redirectUris allowlist.",
   "/api/v1/*": {
     "target": "http://localhost:8080",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/realms/*": {
-    "target": "http://localhost:8090",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/resources/*": {
-    "target": "http://localhost:8090",
     "secure": false,
     "changeOrigin": true
   }
