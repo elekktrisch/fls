@@ -10,6 +10,10 @@ export const routes: Routes = [
     loadChildren: () => import('@features/hello/hello.routes').then((m) => m.HELLO_ROUTES),
   },
   {
+    path: 'clubs',
+    loadChildren: () => import('@features/clubs/clubs.routes').then((m) => m.CLUBS_ROUTES),
+  },
+  {
     path: 'dev/primitives',
     loadChildren: () =>
       import('./dev/primitives/primitives.routes').then((m) => m.PRIMITIVES_ROUTES),

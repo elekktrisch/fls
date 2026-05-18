@@ -14,7 +14,7 @@ const sampleUser: User = {
   firstName: 'Alice',
   lastName: 'Doe',
   clubId: 'club-1',
-  roles: ['CLUB_ADMIN'],
+  roles: ['CLUB_ADMINISTRATOR'],
 };
 
 describe('SessionStore', () => {
@@ -73,11 +73,11 @@ describe('SessionStore', () => {
     expect(received).toEqual([{ kind: 'session.logout' }]);
   });
 
-  it('isSystemAdmin is true when SYSTEM_ADMIN is in roles', () => {
+  it('isSystemAdmin is true when SYSTEM_ADMINISTRATOR is in roles', () => {
     const store = TestBed.inject(SessionStore);
 
     patchState(unprotected(store), {
-      authenticatedUser: { ...sampleUser, roles: ['SYSTEM_ADMIN'] },
+      authenticatedUser: { ...sampleUser, roles: ['SYSTEM_ADMINISTRATOR'] },
       sessionStatus: 'authenticated',
     });
 
