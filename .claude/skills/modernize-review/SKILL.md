@@ -11,9 +11,19 @@ Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-dire
 
 Anchored on the PR when one exists; commit-range mode as fallback.
 
+## Story ID resolution
+
+The story ID can be passed explicitly (`S-NNN`) or inferred from the current branch when it matches `story/S-NNN-*` (check via `git rev-parse --abbrev-ref HEAD`; pattern `^story/S-(\d{3})(-.*)?$`):
+
+- **Arg + branch match** → proceed with the arg.
+- **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail: *"current branch is `story/S-MMM-...` but you passed `S-NNN`; switch branch or correct the arg."*
+- **Arg + branch isn't a story branch** → proceed with the arg.
+- **No arg + branch matches `story/S-NNN-*`** → use the branch's `S-NNN` (the common case after `/modernize-implement` opened the branch).
+- **No arg + branch doesn't match** → prompt the operator for the story ID via `AskUserQuestion` (single question).
+
 ## Preconditions
 
-1. Single `S-NNN` arg. Story file at top-level `stories/` (refuse if in `implemented/`).
+1. Story ID resolved per § Story ID resolution above. Story file at top-level `stories/` OR `stories/implemented/` — `/modernize-implement` Step 8 archives the story into `implemented/` as part of the mark-done commit (folded in to save one CI cycle vs. archiving at finalize). Review runs against either location; finalize only adds merged stamps.
 2. `status: done` (`in_progress` → ask if early-feedback; `todo`/`blocked` → refuse; already `reviewed: true` → ask re-review or abort).
 3. `refined: true` (else "review needs refinement-section contracts; run /modernize-refine first or skip review").
 4. Locatable diff (PR exists or commits ref the story's issue, story-ID prefix, or fall in `started_at`-`done_at` window). Bail if nothing to review.

@@ -9,10 +9,20 @@ Take one reviewed story whose blockers are clear; merge the PR; archive bookkeep
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 
+## Story ID resolution
+
+The story ID can be passed explicitly (`S-NNN`) or inferred from the current branch when it matches `story/S-NNN-*` (check via `git rev-parse --abbrev-ref HEAD`; pattern `^story/S-(\d{3})(-.*)?$`):
+
+- **Arg + branch match** → proceed with the arg.
+- **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail: *"current branch is `story/S-MMM-...` but you passed `S-NNN`; switch branch or correct the arg."*
+- **Arg + branch isn't a story branch** → proceed with the arg.
+- **No arg + branch matches `story/S-NNN-*`** → use the branch's `S-NNN`.
+- **No arg + branch doesn't match** → prompt the operator for the story ID via `AskUserQuestion` (single question).
+
 ## Preconditions
 
-1. Single `S-NNN` arg.
-2. Story file at top-level `stories/` (refuse if in `implemented/` — already finalized).
+1. Story ID resolved per § Story ID resolution above.
+2. Story file at `stories/implemented/S-NNN-*.md` — `/modernize-implement` Step 8 archives the story into `implemented/` as part of the mark-done commit, so it's already there by the time finalize runs. If `merged: true` already → refuse ("already finalized").
 3. `reviewed: true`.
 4. `review_outcome ∈ {pass, improvements-only}`. `blockers` → refuse ("rework first").
 5. `## Review` section has no `[blocker]` bullets lacking an `[accepted: …]` annotation.
