@@ -53,7 +53,7 @@ spring:
           # Split-port topology: JWKS discovery (Spring → Keycloak inside the
           # compose network) and `iss` validation (against the host URL baked
           # into every token) need different URLs. The programmatic JwtDecoder
-          # in SecurityConfig consumes both; auto-config backs off when the
+          # in JwtDecoderConfig consumes both; auto-config backs off when the
           # bean is present. See next/auth/README.md §Gotcha for S-020. Both
           # values env-overridable for the prod hosted-IdP swap.
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}

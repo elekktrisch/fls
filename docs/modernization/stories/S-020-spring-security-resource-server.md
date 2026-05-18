@@ -95,7 +95,7 @@ The `ch.alpenflight.auth` package (`MockSecurityConfig` + `MockAuthenticationFil
 
 ### Scope
 
-**In:** `.oauth2ResourceServer(...)` configurer, programmatic `JwtDecoder` (split-config + timestamp + issuer + audience validators), `application.yml` properties (env-overridable), global `bearerAuth` SecurityRequirement, hello flipped to authenticated, full-chain IT with synthesized JWT, INFO-level rejection logging.
+**In:** `.oauth2ResourceServer(...)` configurer, programmatic `JwtDecoder` (split-config + timestamp + issuer validators), `application.yml` properties (env-overridable), global `bearerAuth` SecurityRequirement, hello flipped to authenticated, full-chain IT with synthesized JWT, INFO-level rejection logging via `LoggingBearerTokenAuthenticationEntryPoint`.
 
 **Out:** role-gate tests (S-026), `@TenantId` resolver (S-022), audit log (S-027), Proffix client-credentials test (S-029), browser OIDC E2E (S-021/S-110), CORS bean (deferred per S-001), live-Keycloak IT (deferred to S-029).
 

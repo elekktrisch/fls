@@ -32,9 +32,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     private final ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter;
+    private final LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint;
 
-    public SecurityConfig(ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter) {
+    public SecurityConfig(ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter,
+            LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
+        this.authenticationEntryPoint = authenticationEntryPoint;
     }
 
     @Bean
@@ -60,8 +63,9 @@ public class SecurityConfig {
                         .permitAll()
                         .anyRequest()
                         .authenticated())
-                .oauth2ResourceServer(o -> o.jwt(j -> j
-                        .jwtAuthenticationConverter(jwtAuthenticationConverter)))
+                .oauth2ResourceServer(o -> o
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .build();
     }
 }
