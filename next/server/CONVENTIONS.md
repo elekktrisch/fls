@@ -37,11 +37,36 @@ The shared cross-cutting kernel `ch.alpenflight.platform` is an OPEN Spring Modu
 
 **Canonical example:** the Clubs module (`src/main/java/ch/alpenflight/clubs/`) — `Club` aggregate + `ClubRepository` port in `domain/`; `ClubsService` + `ClubDtos` + `ClubMapper` in `application/`; `ClubsController` + `ClubsExceptionHandler` in `web/`; `JpaClubRepository` (extends both `JpaRepository<Club, UUID>` and the domain port) in `infra/`. Test packages mirror production.
 
+### `domain/` — allowed / forbidden imports
+
+| Allowed | Forbidden |
+| --- | --- |
+| JDK (`java.*`, `java.util.*`) | `org.springframework.web..` |
+| `jakarta.persistence.*` (JPA on aggregates per ADR 0023) | `org.springframework.stereotype..` |
+| `org.springframework.modulith.events.*` (domain events) | `org.springframework.boot..` |
+| `org.jspecify.annotations.*` (`@NullMarked`, `@Nullable`) | `org.springframework.context..` |
+| `ch.alpenflight.platform.*` (typed IDs, tenancy, …) | `com.fasterxml.jackson..` |
+| | `jakarta.servlet..` |
+
+The forbidden list is deliberately broader than ADR 0023's prose — adding `spring-boot` + `spring-context` also blocks `@ConfigurationProperties` / `ApplicationContext` from sneaking into a value object. Adding to the allowed list is a `LayeringRulesTest` edit + ADR amendment.
+
+### Cross-module publication
+
+Spring Modulith treats each top-level package under `ch.alpenflight` as a module. Sub-packages (`domain`, `application`, `web`, `infra`) are module-internal by default — another module cannot import from them.
+
+Clubs has no cross-module API surface today. When the first cross-module call lands (S-049 reaching into Clubs for a tenant check, or similar), pick one of:
+
+- **Named-interface sub-package** — declare e.g. `ch.alpenflight.clubs.api` with `@org.springframework.modulith.NamedInterface` on its `package-info.java`; expose the minimal cross-module contract there.
+- **Spring Modulith events** — publish a domain event from the source module, consume in the destination via `@ApplicationModuleListener` (ADR 0018 path).
+
+Promote the picked answer to this section + the corresponding canonical example.
+
 ### How violations surface
 
 - **Cross-module imports** that bypass a published API → caught by Spring Modulith's `ApplicationModules.of(AlpenFlightApplication.class).verify()` in `src/test/java/ch/alpenflight/arch/ApplicationModulesTest.java`. Runs as part of `./gradlew test`.
-- **Inner-layer direction violations** (`domain → org.springframework.web`, `web → infra`, `application → web`) → caught by ArchUnit rules in `src/test/java/ch/alpenflight/arch/LayeringRulesTest.java`. Runs as part of `./gradlew test`.
-- **Rule weakening regression** — if someone relaxes a rule in `LayeringRulesTest` so it silently misses violations, `./gradlew verifyArchUnitFailsOnViolation` catches it. The `archDemo` source set (`src/archDemo/java/...`) holds three deliberate violations (`JacksonLeak`, `InfraLeak`, `WebLeak`); `LayeringRulesDemoTest` re-declares the same rules and asserts each one fires. NOT wired into `check` — CI invokes it as a separate step.
+- **Inner-layer direction violations** (`domain` → Spring web/stereotypes/boot/context/Jackson/servlet, `web → infra`, `application → web`, `application → infra`) → caught by the four ArchUnit rules in `src/test/java/ch/alpenflight/arch/LayeringRulesTest.java`. Runs as part of `./gradlew test`.
+- **Tenant seam bypass** — production code calling `TenantTestContextAccess.set` → caught by `src/test/java/ch/alpenflight/arch/TenantBypassGuardTest.java`. Runs as part of `./gradlew test`.
+- **Rule weakening regression** — if someone relaxes a rule in `LayeringRulesTest` so it silently misses violations, `./gradlew verifyArchUnitFailsOnViolation` catches it. The `archDemo` source set (`src/archDemo/java/...`) holds four deliberate violations (`JacksonLeak`, `InfraLeak` in `web/`, `WebLeak`, `InfraLeak` in `application/`); `LayeringRulesDemoTest` re-declares the same rules and asserts each one fires. NOT wired into `check` — CI invokes it as a separate step.
 
 ### Bringing up a new module
 

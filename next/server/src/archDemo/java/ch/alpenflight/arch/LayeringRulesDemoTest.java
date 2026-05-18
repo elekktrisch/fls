@@ -73,4 +73,16 @@ class LayeringRulesDemoTest {
                 .hasMessageContaining("WebLeak")
                 .hasMessageContaining("ClubsController");
     }
+
+    @Test
+    void rule_4_catches_application_to_infra() {
+        ArchRule rule = noClasses()
+                .that().resideInAPackage("..application..")
+                .should().dependOnClassesThat().resideInAPackage("..infra..");
+
+        assertThatThrownBy(() -> rule.check(CLASSES))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("InfraLeak")
+                .hasMessageContaining("JpaClubRepository");
+    }
 }

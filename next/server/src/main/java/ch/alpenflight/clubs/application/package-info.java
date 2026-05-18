@@ -6,8 +6,10 @@
  * the {@link ch.alpenflight.clubs.domain.ClubRepository} port) and on
  * Spring's transaction + DI infrastructure. It must NOT depend on
  * {@code clubs.web} (controllers) or {@code clubs.infra} (Spring Data
- * implementation) — the bidirectional ban is enforced by
- * {@code ch.alpenflight.arch.LayeringRulesTest}.
+ * implementation) — both bans are enforced by
+ * {@code ch.alpenflight.arch.LayeringRulesTest}
+ * ({@code application_does_not_depend_on_web} +
+ * {@code application_depends_on_domain_port_not_infra}).
  *
  * <p>DTOs ship from this package because they're the service's wire
  * contract. The controller in {@code clubs.web} adapts HTTP to the

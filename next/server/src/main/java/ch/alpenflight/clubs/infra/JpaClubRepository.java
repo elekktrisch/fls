@@ -7,19 +7,20 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.stereotype.Repository;
 
 /**
  * Spring Data JPA implementation of the {@link ClubRepository} domain
  * port. Extending both this interface and {@code JpaRepository<Club, UUID>}
  * means Spring Data generates the runtime bean while the application
- * layer still depends on the abstract port (ADR 0023).
+ * layer still depends on the abstract port (ADR 0023). No
+ * {@code @Repository} stereotype — Spring Data's
+ * {@code JpaRepositoriesAutoConfiguration} registers the bean from the
+ * interface declaration alone.
  *
  * <p>Soft-delete is filtered at the query layer (V2's {@code deleted_on}
  * column) rather than via a Hibernate {@code @SQLRestriction} so the
  * contract stays locally visible.
  */
-@Repository
 public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubRepository {
 
     @Override

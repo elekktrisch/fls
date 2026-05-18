@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * Spring-web coupling of the Clubs error vocabulary — the exception types
  * themselves stay in {@code clubs.domain} free of {@code @ResponseStatus}
  * per ADR 0023 (domain depends on the JDK + JPA only).
- *
- * <p>Scoped to {@code ClubsController} via {@code basePackageClasses} so a
- * later module that throws the same exception type by mistake doesn't get
- * an unrelated HTTP mapping.
  */
+// basePackageClasses scopes the advice to the Clubs controller's package —
+// keeps a future module that throws the same exception type by mistake
+// from inheriting Clubs' HTTP status mapping. Module-local error
+// vocabulary, module-local advice.
 @RestControllerAdvice(basePackageClasses = ClubsController.class)
 class ClubsExceptionHandler {
 

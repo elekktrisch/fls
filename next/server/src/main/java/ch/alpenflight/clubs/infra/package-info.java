@@ -6,10 +6,11 @@
  * {@code JpaRepository<Club, UUID>}, so the application layer depends on
  * the abstract port while Spring Data generates the runtime bean.
  *
- * <p>Per ADR 0023 only {@code clubs.domain} and Spring Data may be
- * imported here. {@code clubs.web} and {@code clubs.application} must NOT
- * depend on this package — the application layer goes through the port,
- * not the adapter.
+ * <p>Per ADR 0023 nothing in {@code clubs.web} or {@code clubs.application}
+ * may import from this package — the application layer goes through the
+ * domain port, not the adapter. Outbound dependencies of {@code infra/}
+ * itself are pragmatic (JPA, Spring Data, library SDKs as needed) — the
+ * direction-of-dependency rule is one-way inbound.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.clubs.infra;
