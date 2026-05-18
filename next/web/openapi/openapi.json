@@ -8,10 +8,188 @@
     "url" : "http://localhost:8080"
   } ],
   "tags" : [ {
+    "name" : "Clubs",
+    "description" : "Clubs CRUD (S-048 walking skeleton, mocked authorization)."
+  }, {
     "name" : "Hello",
     "description" : "Liveness-style smoke endpoint; worked example for OpenAPI annotation conventions."
   } ],
   "paths" : {
+    "/api/v1/clubs/{id}" : {
+      "get" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "Read a single club by id.",
+        "operationId" : "getClub",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Club projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active club with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "Update an existing club. `clubKey` is immutable post-create.",
+        "operationId" : "updateClub",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClubUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated; body is the new state.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active club with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Slug already in use by another club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "Soft-delete a club.",
+        "operationId" : "deleteClub",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active club with that id."
+          }
+        }
+      }
+    },
+    "/api/v1/clubs" : {
+      "get" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "List all clubs (active, sorted by name).",
+        "operationId" : "listClubs",
+        "responses" : {
+          "200" : {
+            "description" : "Array of club projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClubResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Clubs" ],
+        "summary" : "Create a new club. Slug must be unique.",
+        "operationId" : "createClub",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClubCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created; body is the new club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Slug already in use.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/hello" : {
       "get" : {
         "tags" : [ "Hello" ],
@@ -35,6 +213,75 @@
   },
   "components" : {
     "schemas" : {
+      "ClubUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update a club. `clubKey` is immutable post-create.",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "slug" : {
+            "type" : "string",
+            "maxLength" : 64,
+            "minLength" : 3,
+            "pattern" : "^[a-z0-9-]+$"
+          },
+          "publicRegistrationEnabled" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "name", "slug" ]
+      },
+      "ClubResponse" : {
+        "type" : "object",
+        "description" : "Club projection returned to API consumers.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "slug" : {
+            "type" : "string"
+          },
+          "clubKey" : {
+            "type" : "string"
+          },
+          "publicRegistrationEnabled" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "ClubCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to create a new club.",
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "slug" : {
+            "type" : "string",
+            "maxLength" : 64,
+            "minLength" : 3,
+            "pattern" : "^[a-z0-9-]+$"
+          },
+          "clubKey" : {
+            "type" : "string",
+            "maxLength" : 10,
+            "minLength" : 0
+          },
+          "publicRegistrationEnabled" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "clubKey", "name", "slug" ]
+      },
       "HelloResponse" : {
         "type" : "object",
         "description" : "Smoke-test payload returned by the hello endpoint.",

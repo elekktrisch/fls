@@ -1,0 +1,14 @@
+# Mock-auth profile (S-048 walking-skeleton).
+#
+# Activates `ch.alpenflight.auth.MockSecurityConfig`, which injects a hard-
+# coded SYSTEM_ADMINISTRATOR principal on every request. Active by setting
+# `SPRING_PROFILES_ACTIVE=mock-auth` on the JVM.
+#
+# DELETE IN S-019/S-020 LAND COMMIT. The exact deletion plan is documented in
+# `MockSecurityConfig.java` Javadoc + S-048's story file. This file exists to
+# make the profile-overlay explicit; the bean wiring is inline so all mock
+# state lives in one ripped-out directory.
+spring:
+  config:
+    activate:
+      on-profile: mock-auth

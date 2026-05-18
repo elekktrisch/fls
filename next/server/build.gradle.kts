@@ -61,6 +61,24 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    // S-048 adds JPA on top of the JDBC starter (the JDBC dep stays so Flyway
+    // keeps working with its lightweight DataSource). Hibernate ships under
+    // the JPA umbrella.
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // S-048 walking-skeleton wires real @PreAuthorize predicates against a
+    // mocked principal (profile `mock-auth`). The starter activates Spring
+    // Security's default chain even without `mock-auth` — see SecurityConfig
+    // for the no-auth-yet baseline that still permits OpenAPI / actuator /
+    // hello so the existing ITs stay green.
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    // S-048: the resource-server + jose modules bring `Jwt`,
+    // `JwtAuthenticationToken`, and `JwtAuthenticationConverter` — the
+    // converter shape ClubAwareJwtAuthenticationConverter wraps so the
+    // S-020 swap is a one-line change. Auto-configuration is dormant unless
+    // `spring.security.oauth2.resourceserver.*` is set, so adding these
+    // jars does NOT enable a real JWT decoder at runtime.
+    implementation("org.springframework.security:spring-security-oauth2-resource-server")
+    implementation("org.springframework.security:spring-security-oauth2-jose")
     // Boot 4 modularized: FlywayAutoConfiguration moved out of
     // spring-boot-autoconfigure into spring-boot-flyway. flyway-core alone
     // does NOT bring it in — explicit declaration needed.
@@ -88,6 +106,10 @@ dependencies {
     // Boot 4.0 split: TestRestTemplate (in spring-boot-resttestclient) depends
     // on RestTemplateBuilder which lives in spring-boot-restclient.
     testImplementation("org.springframework.boot:spring-boot-starter-restclient-test")
+    // S-048: spring-security-test provides @WithMockUser + MockMvc
+    // `.with(jwt())` post-processors so role-gate ITs can downgrade the
+    // principal without booting the mock-auth filter chain.
+    testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
