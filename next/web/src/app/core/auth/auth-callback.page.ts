@@ -10,7 +10,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
   selector: 'af-auth-callback',
   template: `
     <main class="flex min-h-screen items-center justify-center p-8">
-      <p class="text-lg" aria-live="polite">Anmeldung läuft…</p>
+      <h1 class="text-lg font-normal" aria-live="polite">Anmeldung läuft…</h1>
     </main>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -75,6 +75,14 @@ export const SessionStore = signalStore(
       patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
       bus.next({ kind: 'session.logout' });
     },
+    // Boot-finished-with-no-user transition. Distinct from logout(): no
+    // MUTATION_BUS event is fired since no domain store was ever loaded.
+    // Required so authGuard exits its loading-defer branch and triggers
+    // oidcSecurity.authorize() — without this the cold-start path stalls
+    // on sessionStatus = 'idle' indefinitely.
+    markUnauthenticated(): void {
+      patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
+    },
     /**
      * AC-DIR-1 aggressive-prefetch seam. Called by S-021's OIDC success
      * handler after `login()` and by the tenant-switch UI after the active

@@ -45,7 +45,11 @@ const MOCK_USER: User = {
 };
 
 const mockAuthInterceptor: HttpInterceptorFn = (req, next) => {
-  if (!req.url.includes('/api/v1/')) {
+  // Prefix match (same shape as production `authInterceptor()` matching
+  // `secureRoutes`). `includes()` would attach the literal mock Bearer
+  // to any URL containing `/api/v1/` as a substring (e.g. a
+  // proxy-with-redirect URL).
+  if (!req.url.startsWith('/api/v1/')) {
     return next(req);
   }
   return next(req.clone({ setHeaders: { Authorization: 'Bearer mock-sysadmin' } }));

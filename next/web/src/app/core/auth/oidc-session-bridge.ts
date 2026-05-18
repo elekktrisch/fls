@@ -10,13 +10,21 @@ import { mapClaimsToUser } from './oidc-claims';
 export interface SessionPort {
   login(user: User, clubId: string | null): void;
   logout(): void;
+  markUnauthenticated(): void;
   isAuthenticated(): boolean;
+  isLoadingSession(): boolean;
 }
 
 /**
  * Pure handler for OIDC `userData()` signal emissions. Extracted from the
  * service so unit tests can exercise the branching without bootstrapping
  * the OIDC library.
+ *
+ * Three transitions:
+ *   - claims present     → login (sessionStatus = 'authenticated')
+ *   - claims absent + was authenticated → logout (fires bus event)
+ *   - claims absent + still idle/loading → markUnauthenticated (settles
+ *     status without firing the bus; cold-start path so no stores to clear)
  */
 export function applyClaimsToSession(claims: unknown, session: SessionPort): void {
   const user = mapClaimsToUser(claims);
@@ -26,6 +34,10 @@ export function applyClaimsToSession(claims: unknown, session: SessionPort): voi
   }
   if (session.isAuthenticated()) {
     session.logout();
+    return;
+  }
+  if (session.isLoadingSession()) {
+    session.markUnauthenticated();
   }
 }
 

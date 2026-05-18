@@ -23,27 +23,33 @@ const sampleClaims = {
   realm_access: { roles: ['CLUB_ADMINISTRATOR'] },
 };
 
-function fakeSession(authenticated = false): SessionPort & {
+function fakeSession(opts: { authenticated?: boolean; loading?: boolean } = {}): SessionPort & {
   loginCalls: { user: User; clubId: string | null }[];
   logoutCalls: number;
+  markUnauthenticatedCalls: number;
 } {
   const port = {
     loginCalls: [] as { user: User; clubId: string | null }[],
     logoutCalls: 0,
+    markUnauthenticatedCalls: 0,
     login(user: User, clubId: string | null) {
       port.loginCalls.push({ user, clubId });
     },
     logout() {
       port.logoutCalls += 1;
     },
-    isAuthenticated: () => authenticated,
+    markUnauthenticated() {
+      port.markUnauthenticatedCalls += 1;
+    },
+    isAuthenticated: () => opts.authenticated ?? false,
+    isLoadingSession: () => opts.loading ?? false,
   };
   return port;
 }
 
 describe('applyClaimsToSession', () => {
   it('calls session.login with the mapped user when claims are valid', () => {
-    const session = fakeSession(false);
+    const session = fakeSession();
 
     applyClaimsToSession(sampleClaims, session);
 
@@ -52,10 +58,11 @@ describe('applyClaimsToSession', () => {
     expect(call.user.id).toBe(sampleClaims.sub);
     expect(call.clubId).toBe(sampleClaims.clubId);
     expect(session.logoutCalls).toBe(0);
+    expect(session.markUnauthenticatedCalls).toBe(0);
   });
 
   it('passes clubId === null through to login when the claim is absent', () => {
-    const session = fakeSession(false);
+    const session = fakeSession();
     const { clubId: _strip, ...rest } = sampleClaims;
     void _strip;
 
@@ -65,22 +72,37 @@ describe('applyClaimsToSession', () => {
   });
 
   it('calls session.logout when claims are null AND the session is currently authenticated', () => {
-    const session = fakeSession(true);
+    const session = fakeSession({ authenticated: true });
 
     applyClaimsToSession(null, session);
 
     expect(session.logoutCalls).toBe(1);
     expect(session.loginCalls).toHaveLength(0);
+    expect(session.markUnauthenticatedCalls).toBe(0);
   });
 
-  it('does NOT call logout when claims are null and the session is already unauthenticated', () => {
-    // Boot path: userData() initially emits null/empty while checkAuth resolves.
-    // Calling logout() in that window is correct, but the test guards
-    // against accidentally clearing a never-authenticated session twice.
-    const session = fakeSession(false);
+  it('settles to unauthenticated (without firing bus) when claims are null on cold-start (loading)', () => {
+    // Cold-start path: withAppInitializerAuthCheck completes with no
+    // principal; userData() emits null; SessionStore is still 'idle'.
+    // markUnauthenticated lets the route guard fall through to
+    // oidcSecurity.authorize() instead of deferring forever.
+    const session = fakeSession({ authenticated: false, loading: true });
 
     applyClaimsToSession(null, session);
 
+    expect(session.markUnauthenticatedCalls).toBe(1);
+    expect(session.logoutCalls).toBe(0);
+    expect(session.loginCalls).toHaveLength(0);
+  });
+
+  it('no-op when claims are null AND status is already settled-unauthenticated', () => {
+    // Steady state after the cold-start transition above. Subsequent
+    // userData() emissions of null must NOT keep calling markUnauthenticated.
+    const session = fakeSession({ authenticated: false, loading: false });
+
+    applyClaimsToSession(null, session);
+
+    expect(session.markUnauthenticatedCalls).toBe(0);
     expect(session.logoutCalls).toBe(0);
     expect(session.loginCalls).toHaveLength(0);
   });
@@ -92,7 +114,9 @@ describe('handleSilentRenewFailed', () => {
     const session: SessionPort = {
       login: () => undefined,
       logout: () => order.push('session.logout'),
+      markUnauthenticated: () => undefined,
       isAuthenticated: () => true,
+      isLoadingSession: () => false,
     };
     const reauthorize = () => order.push('oidc.authorize');
 

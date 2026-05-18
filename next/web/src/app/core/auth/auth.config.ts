@@ -22,13 +22,16 @@ import { LogLevel, type OpenIdConfiguration } from 'angular-auth-oidc-client';
 export const alpenflightOidcConfig: OpenIdConfiguration = {
   authority: '/realms/alpenflight',
   clientId: 'alpenflight-web',
-  redirectUrl:
-    typeof window !== 'undefined' ? window.location.origin + '/auth/callback' : '/auth/callback',
-  postLogoutRedirectUri: typeof window !== 'undefined' ? window.location.origin : '/',
+  redirectUrl: window.location.origin + '/auth/callback',
+  postLogoutRedirectUri: window.location.origin,
   responseType: 'code',
   scope: 'openid profile email',
   silentRenew: true,
   useRefreshToken: true,
+  // Defense-in-depth: pin in source rather than rely on the library
+  // default. A future major bump that flips the default to `true` would
+  // silently break the realm's rotation-and-revoke contract.
+  allowUnsafeReuseRefreshToken: false,
   renewTimeBeforeTokenExpiresInSeconds: 60,
   ignoreNonceAfterRefresh: true,
   triggerRefreshWhenIdTokenExpired: false,

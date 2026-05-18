@@ -1362,6 +1362,7 @@
           "config": {
             "access.token.claim": "true",
             "claim.name": "realm_access.roles",
+            "id.token.claim": "true",
             "introspection.token.claim": "true",
             "jsonType.label": "String",
             "multivalued": "true",

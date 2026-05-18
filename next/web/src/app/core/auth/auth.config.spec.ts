@@ -28,8 +28,8 @@ describe('alpenflightOidcConfig', () => {
     expect(alpenflightOidcConfig.useRefreshToken).toBe(true);
   });
 
-  it('forbids unsafe refresh-token reuse (Keycloak rotation must succeed)', () => {
-    expect(alpenflightOidcConfig.allowUnsafeReuseRefreshToken ?? false).toBe(false);
+  it('forbids unsafe refresh-token reuse (Keycloak rotation must succeed; pinned, not defaulted)', () => {
+    expect(alpenflightOidcConfig.allowUnsafeReuseRefreshToken).toBe(false);
   });
 
   it('renews tokens at least 60s before expiry', () => {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
 import { SessionStore } from '../session/session.store';
@@ -14,17 +14,24 @@ import { SessionStore } from '../session/session.store';
   selector: 'af-logout',
   template: `
     <main class="flex min-h-screen items-center justify-center p-8">
-      <p class="text-lg" aria-live="polite">Abmeldung läuft…</p>
+      <h1 class="text-lg font-normal" aria-live="polite">Abmeldung läuft…</h1>
     </main>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LogoutPage {
+export class LogoutPage implements OnInit {
   private readonly oidc = inject(OidcSecurityService);
   private readonly session = inject(SessionStore);
 
-  constructor() {
+  ngOnInit(): void {
     this.session.logout();
-    this.oidc.logoff().subscribe();
+    this.oidc.logoff().subscribe({
+      error: () => {
+        // Keycloak end_session_endpoint unreachable / CORS-blocked /
+        // already-logged-out — don't strand the page. The local session
+        // is already cleared above; redirect to the landing route.
+        window.location.assign('/');
+      },
+    });
   }
 }

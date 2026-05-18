@@ -1,10 +1,9 @@
 # Auth + SessionStore + guard
 
-> **Placeholder until S-021.** Today this slice ships a default-deny shape so
-> the rest of the application has a real `SessionStore`, `authGuard`, and
-> `MUTATION_BUS` to depend on. S-021 replaces the placeholder method bodies
-> with real OIDC (Authorization Code + PKCE against Keycloak). The shape
-> stays.
+S-021 wired real OIDC. The SessionStore is now the single read seam for
+app code; OIDC is the source of truth (via `OidcSessionBridge`). The
+deep-dive on the OIDC integration itself lives in
+`src/app/core/auth/README.md`.
 
 ## SessionStore (`core/session/session.store.ts`)
 
@@ -23,10 +22,15 @@ Computed signals (read-only views): `isAuthenticated`, `isLoadingSession`,
 
 Methods:
 
-- `login(user, clubId)` — promotes status to `'authenticated'`. (S-021
-  replaces with the OIDC callback handler.)
-- `logout()` — resets to `'unauthenticated'` and fires `session.logout` on
-  `MUTATION_BUS`. Every domain store clears on this event.
+- `login(user, clubId)` — promotes status to `'authenticated'`. Called by
+  `OidcSessionBridge` when `oidcSecurity.userData()` emits valid claims.
+- `logout()` — resets to `'unauthenticated'` and fires `session.logout`
+  on `MUTATION_BUS`. Every domain store clears on this event. Wired to
+  `PublicEventsService.SilentRenewFailed` and the `/auth/logout` route.
+- `markUnauthenticated()` — cold-start path; settles status to
+  `'unauthenticated'` without firing the bus event (no domain stores to
+  clear). Exits the guard's loading-defer branch so
+  `oidcSecurity.authorize()` can fire.
 - `bootstrapPrefetch()` — AC-DIR-1 seam; only fires when authenticated,
   stamps `bootstrapStartedAt`. Wires real per-domain prefetch at S-047+.
 
@@ -45,13 +49,15 @@ Functional `CanActivateFn`, default-deny. Decision table:
 | Route data | sessionStatus | Result |
 |---|---|---|
 | `publicAccess === true` | any | `true` |
-| any | `idle` / `loading` | `false` (defer; OIDC init re-triggers) |
+| any | `idle` / `loading` | `false` (defer; OIDC init settles via the bridge) |
 | not public | `authenticated` | `true` |
-| not public | `unauthenticated` | `UrlTree('/login')` |
+| not public | `unauthenticated` | `oidcSecurity.authorize()` + `false` (hard redirect to Keycloak) |
 
-The `false` (defer) branch prevents a hard refresh from redirecting to
-`/login` mid-OIDC-init. S-021's init effect will re-trigger navigation
-once the session settles.
+The `false` (defer) branch normally never fires under the cold-start
+path — `withAppInitializerAuthCheck()` blocks bootstrap until `checkAuth()`
+resolves, and the bridge then calls `login()` or `markUnauthenticated()`
+synchronously. It guards against post-init resolves (e.g. browser back
+into an in-flight navigation).
 
 ### Adding a route
 
