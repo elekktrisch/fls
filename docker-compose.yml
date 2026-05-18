@@ -77,17 +77,22 @@ services:
       retries: 10
 
   # ---------------------------------------------------------------------------
-  # next/ — target stack (Postgres + pgAdmin + Keycloak). Activated by passing
-  # the 'next' compose profile so the default `docker compose up` (used by
-  # e2e/scripts/dev-up.sh) still starts only mssql + mailpit.
+  # next/ — target stack (Postgres + pgAdmin + Keycloak). Profile-gated so
+  # the default `docker compose up` (used by e2e/scripts/dev-up.sh under
+  # project `fls-e2e`) still starts only mssql + mailpit.
   #
-  #   docker compose -p fls-e2e --profile next up -d
+  # Bring up the new stack under its OWN compose project name so the two
+  # stacks teardown independently. Name services explicitly rather than
+  # `--profile next` — the latter would also pull mssql + mailpit (default
+  # profile) into the `alpenflight-dev` project and double-bind host ports.
+  #
+  #   docker compose -p alpenflight-dev up -d postgres pgadmin keycloak
   #
   # next/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
   # in one command. pgAdmin loads next/ops/pgadmin/servers.json so the target
   # connection appears pre-wired on first login. Operator manual + footguns
-  # live in next/ops/README.md. Mailpit (legacy default profile) is reused as
-  # the AlpenFlight backend's SMTP sink — point Spring at host:1025.
+  # live in next/ops/README.md. Mailpit (legacy stack) is reused as the
+  # AlpenFlight backend's SMTP sink — point Spring at host:1025.
   # ---------------------------------------------------------------------------
 
   postgres:
