@@ -98,7 +98,6 @@ public class MockSecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/actuator/info",
-                                "/api/v1/hello",
                                 // Spring dispatches 4xx to /error for the
                                 // default JSON error renderer — denying it
                                 // anonymous turns a 400 into a 403 and

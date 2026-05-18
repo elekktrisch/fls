@@ -1710,6 +1710,7 @@
         "basic",
         "clubId",
         "email",
+        "offline_access",
         "profile",
         "roles",
         "web-origins"
@@ -1725,7 +1726,6 @@
       "optionalClientScopes": [
         "address",
         "microprofile-jwt",
-        "offline_access",
         "organization",
         "phone"
       ],

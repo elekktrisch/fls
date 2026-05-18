@@ -65,41 +65,41 @@ class SecurityFilterChainIT {
     @Autowired JwtDecoder jwtDecoder;
     @Autowired ApplicationContext ctx;
 
+    // S-021 ripped out /api/v1/hello as a permitAll smoke endpoint. The
+    // resource-server chain is now exercised against /api/v1/clubs — token
+    // validation (signature / issuer / expiry / alg) happens BEFORE
+    // authority enforcement, so the 401 paths below are independent of
+    // whether the token carries SYSTEM_ADMINISTRATOR. The "valid token →
+    // 200" smoke is covered by clubAware_converter_maps_realm_roles_to_authorities
+    // below, which mints a token with the required role.
     @Test
-    void hello_anonymous_returns_401_with_bearer_challenge() throws Exception {
-        mvc.perform(get("/api/v1/hello"))
+    void protected_endpoint_anonymous_returns_401_with_bearer_challenge() throws Exception {
+        mvc.perform(get("/api/v1/clubs"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate",
                         org.hamcrest.Matchers.startsWith("Bearer")));
     }
 
     @Test
-    void hello_valid_token_returns_200() throws Exception {
-        String token = jwts.mint(c -> { });
-        mvc.perform(get("/api/v1/hello").header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void hello_expired_token_returns_401() throws Exception {
+    void expired_token_returns_401() throws Exception {
         String token = jwts.mint(c -> c
                 .issueTime(Date.from(Instant.now().minusSeconds(120)))
                 .expirationTime(Date.from(Instant.now().minusSeconds(60))));
-        mvc.perform(get("/api/v1/hello").header("Authorization", "Bearer " + token))
+        mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void hello_wrong_issuer_token_returns_401() throws Exception {
+    void wrong_issuer_token_returns_401() throws Exception {
         String token = jwts.mint(c -> c.issuer("http://other-issuer"));
-        mvc.perform(get("/api/v1/hello").header("Authorization", "Bearer " + token))
+        mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void hello_alg_none_token_returns_401() throws Exception {
+    void alg_none_token_returns_401() throws Exception {
         String token = jwts.mintWithoutSignature(c -> { });
-        mvc.perform(get("/api/v1/hello").header("Authorization", "Bearer " + token))
+        mvc.perform(get("/api/v1/clubs").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 

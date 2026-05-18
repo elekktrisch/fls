@@ -99,9 +99,11 @@ from a sibling store (lint enforces).
 
 ## Public flow skip
 
-`/landing`, `/hello`, and `/login` declare `data: { publicAccess: true }`.
-The default-deny guard returns `true` for them and `AppComponent` skips
-the prefetch call.
+`/landing` and `/auth/*` (callback + logout) declare
+`data: { publicAccess: true }`. The default-deny guard returns `true`
+for them and `AppComponent` skips the prefetch call. Unauthenticated
+visits to any other route trigger `oidcSecurity.authorize()` — a hard
+redirect to Keycloak — instead of a local `/login` URL.
 
 ## Cross-tenant safety (forward-looking, S-021/S-047)
 

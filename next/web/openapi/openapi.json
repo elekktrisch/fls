@@ -13,9 +13,6 @@
   "tags" : [ {
     "name" : "Clubs",
     "description" : "Clubs CRUD (S-048 walking skeleton, mocked authorization)."
-  }, {
-    "name" : "Hello",
-    "description" : "Liveness-style smoke endpoint; worked example for OpenAPI annotation conventions."
   } ],
   "paths" : {
     "/api/v1/clubs/{id}" : {
@@ -195,26 +192,6 @@
           }
         }
       }
-    },
-    "/api/v1/hello" : {
-      "get" : {
-        "tags" : [ "Hello" ],
-        "summary" : "Return a static greeting and the server timestamp.",
-        "description" : "Authenticated smoke endpoint; worked example for OpenAPI annotation conventions.",
-        "operationId" : "hello",
-        "responses" : {
-          "200" : {
-            "description" : "Greeting payload.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HelloResponse"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components" : {
@@ -288,21 +265,6 @@
           }
         },
         "required" : [ "clubKey", "name", "slug" ]
-      },
-      "HelloResponse" : {
-        "type" : "object",
-        "description" : "Smoke-test payload returned by the hello endpoint.",
-        "properties" : {
-          "message" : {
-            "type" : "string",
-            "description" : "Static greeting string."
-          },
-          "timestamp" : {
-            "type" : "string",
-            "format" : "date-time",
-            "description" : "Instant the response was constructed (ISO-8601, UTC)."
-          }
-        }
       }
     },
     "securitySchemes" : {

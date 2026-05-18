@@ -22,7 +22,8 @@ import { LogLevel, type OpenIdConfiguration } from 'angular-auth-oidc-client';
 export const alpenflightOidcConfig: OpenIdConfiguration = {
   authority: '/realms/alpenflight',
   clientId: 'alpenflight-web',
-  redirectUrl: typeof window !== 'undefined' ? window.location.origin + '/auth/callback' : '/auth/callback',
+  redirectUrl:
+    typeof window !== 'undefined' ? window.location.origin + '/auth/callback' : '/auth/callback',
   postLogoutRedirectUri: typeof window !== 'undefined' ? window.location.origin : '/',
   responseType: 'code',
   scope: 'openid profile email',

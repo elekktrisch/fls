@@ -98,8 +98,8 @@ The new code is signal-first. Greenfield, so no legacy RxJS to preserve.
 - **Inputs/outputs:** `input()` / `model()` / `output()` (signal-based APIs). Avoid `@Input()` / `@Output()` decorators in new code.
 - **Templates:** `@if` / `@for` / `@switch` / `@defer`. Never `*ngIf` / `*ngFor` in new code.
 - **Change detection:** zoneless. Components must work without zone.js — verify by avoiding `setTimeout`-driven view updates and untracked async writes outside `effect()`.
-- **HTTP in components:** forbidden. Components inject a Signal Store; the store owns the `HttpClient`/`HelloService` (generated client) call inside `rxMethod`/`tapResponse`. ESLint enforces via `no-restricted-imports` on `features/**/*.component.ts`.
-- **HTTP in stores:** generated OpenAPI service (`HelloService` etc.) inside `rxMethod` is the canonical shape — survives the S-021 auth interceptor wiring. `httpResource()` / `rxResource()` are valid for component-local read-only views but should NOT be used inside a Signal Store (component-scoped resource refs aren't DI-injectable).
+- **HTTP in components:** forbidden. Components inject a Signal Store; the store owns the generated-client call (e.g. `ClubsService`) inside `rxMethod`/`tapResponse`. ESLint enforces via `no-restricted-imports` on `features/**/*.component.ts`.
+- **HTTP in stores:** generated OpenAPI service (`ClubsService` etc.) inside `rxMethod` is the canonical shape — the `authInterceptor()` from `angular-auth-oidc-client` attaches the Bearer to every `/api/v1/*` call. `httpResource()` / `rxResource()` are valid for component-local read-only views but should NOT be used inside a Signal Store (component-scoped resource refs aren't DI-injectable).
 - **RxJS:** allowed where it fits (event streams, debouncing, websockets), but bridge to signals at the component boundary via `toSignal()`. Don't expose `Observable<T>` in component public surface.
 - **Subjects:** `Subject` / `BehaviorSubject` are not state. Convert to signals for state; keep as event buses only when truly stream-shaped. The `MUTATION_BUS` (`core/mutation-bus/`) is the one application-wide bus — cross-store cache invalidation goes through it, not direct store-to-store injection.
 - **Template signal invocation:** `@if (store.showX())` invokes the signal; `@if (store.showX)` treats the function reference as truthy and always renders. Mind the parens.
@@ -107,7 +107,7 @@ The new code is signal-first. Greenfield, so no legacy RxJS to preserve.
 
 ## 4b. Refetch policy & prefetch contract
 
-Per-domain conventions for cache/refetch behavior. The reference store is `HelloStore`.
+Per-domain conventions for cache/refetch behavior. The reference store is `ClubsStore` (per S-048).
 
 | Domain class | Policy | Trigger | Latency budget |
 |---|---|---|---|

@@ -9,4 +9,3 @@
 export * from './clubCreateRequest';
 export * from './clubResponse';
 export * from './clubUpdateRequest';
-export * from './helloResponse';

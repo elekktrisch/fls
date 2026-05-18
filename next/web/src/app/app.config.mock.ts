@@ -1,6 +1,12 @@
-import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
+import {
+  provideHttpClient,
+  withFetch,
+  withInterceptors,
+  type HttpInterceptorFn,
+} from '@angular/common/http';
 import {
   ApplicationConfig,
+  inject,
   provideAppInitializer,
   provideZonelessChangeDetection,
 } from '@angular/core';
@@ -10,13 +16,45 @@ import { de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { Subject } from 'rxjs';
 
 import { routes } from './app.routes';
-import { mockAuthBootstrap } from './core/auth/mock-auth.bootstrap';
-import { mockAuthInterceptor } from './core/auth/mock-auth.interceptor';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
+import { SessionStore, type User } from './core/session/session.store';
 
-// Activated only under the `mock-auth` angular.json configuration. Real OIDC
-// is provided by `app.config.ts` under the default + production configs. See
-// `next/web/src/app/core/auth/README.md` for the dev-vs-prod toggle story.
+/*
+ * Mock-auth profile (active only under the `mock-auth` angular.json build
+ * configuration via fileReplacements). Dev convenience for working without
+ * a running Keycloak: every `/api/v1/*` request carries `Bearer
+ * mock-sysadmin`, which the backend's MockAuthenticationFilter
+ * (S-048, profile `mock-auth`) decodes into a SYSTEM_ADMINISTRATOR
+ * principal. Tree-shaken out of prod via the seam in `angular.json`.
+ *
+ * S-021 ripped the `core/auth/mock-auth.{bootstrap,interceptor}.ts`
+ * helper files; the residual mock now lives inline in this config so
+ * `app.config.ts` is the single OIDC entry point.
+ */
+
+const MOCK_CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
+
+const MOCK_USER: User = {
+  id: 'mock-sysadmin',
+  username: 'mock-sysadmin',
+  email: 'mock@local',
+  firstName: 'Mock',
+  lastName: 'Sysadmin',
+  clubId: MOCK_CLUB_ID,
+  roles: ['SYSTEM_ADMINISTRATOR'],
+};
+
+const mockAuthInterceptor: HttpInterceptorFn = (req, next) => {
+  if (!req.url.includes('/api/v1/')) {
+    return next(req);
+  }
+  return next(req.clone({ setHeaders: { Authorization: 'Bearer mock-sysadmin' } }));
+};
+
+function mockAuthBootstrap(): void {
+  inject(SessionStore).login(MOCK_USER, MOCK_CLUB_ID);
+}
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
