@@ -6,6 +6,7 @@ status: in_progress
 started_at: 2026-05-18
 refined: true
 github_issue: 68
+github_pr: 69
 depends_on: [S-001, S-022]
 acceptance:
   - Spring Modulith on the classpath in `next/server/build.gradle.kts`, pinned to a Spring Boot 4.x-compatible version; `./gradlew build` green.
@@ -35,10 +36,10 @@ See frontmatter.
 
 ### Work-package 2 — Clubs reshape into four-package template
 - [ ] Introduce `ch.alpenflight.clubs.domain.ClubRepository` as an interface mirroring the calls `ClubsService` makes today.
-- [ ] Move `Club`, `MemberState`, `MemberStateRepository` into `clubs/domain/`.
-- [ ] Move `ClubsService` into `clubs/application/`.
-- [ ] Move `ClubsController`, `ClubDtos`, `ClubMapper`, `ClubNotFoundException`, `SlugAlreadyExistsException` into `clubs/web/`.
-- [ ] Rename `ClubsRepository` to `JpaClubRepository`, move into `clubs/infra/`, make it extend both `JpaRepository<Club,UUID>` and the new `ClubRepository` interface so all `ClubsService` calls flow through the domain interface.
+- [ ] Move `Club`, `MemberState` into `clubs/domain/`. Move `ClubNotFoundException` and `SlugAlreadyExistsException` to `clubs/domain/` too, stripping their `@ResponseStatus` annotations so the domain stays Spring-web-free.
+- [ ] Move `ClubsService`, `ClubDtos`, and `ClubMapper` into `clubs/application/` — the DTO is the service's wire contract and the mapper is its translator.
+- [ ] Move `ClubsController` into `clubs/web/`. Add a new `ClubsExceptionHandler` (`@RestControllerAdvice` scoped to the controller's package) that translates the domain exceptions to HTTP 404 / 409 — replaces the removed `@ResponseStatus` annotations.
+- [ ] Rename `ClubsRepository` to `JpaClubRepository`, move into `clubs/infra/`, make it extend both `JpaRepository<Club,UUID>` and the new `ClubRepository` interface so all `ClubsService` calls flow through the domain port. Move `MemberStateRepository` to `clubs/infra/` as a plain Spring Data interface (no application-layer consumer today; the port can be extracted when a per-club member-status feature ships).
 - [ ] Write `package-info.java` for each of `clubs/domain`, `clubs/application`, `clubs/web`, `clubs/infra`. Each one names the allowed inbound + outbound packages and re-applies `@NullMarked`.
 - [ ] Mirror the new package layout in `next/server/src/test/java/ch/alpenflight/clubs/` so test packages line up with production.
 - [ ] Verify the existing S-048 test classes still compile + pass; update only the import statements forced by the package moves.
