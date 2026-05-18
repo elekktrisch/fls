@@ -1,6 +1,13 @@
 spring:
   main:
     banner-mode: off
+  # S-048 fail-fast guard. The `mock-auth` profile (walking-skeleton dev
+  # only) must NEVER run in production. `MockSecurityConfig.forbidInProd()`
+  # @PostConstruct throws if both profiles are co-active — the bean only
+  # exists when `mock-auth` is on, so the check fires before any HTTP
+  # listener opens. application-mock-auth.yml is the other half of the gate.
+  application:
+    name: alpenflight-server
 
 # Defense-in-depth re-pin: base application.yml already disables both
 # springdoc endpoints, but ops-readers should see the off-state in the prod

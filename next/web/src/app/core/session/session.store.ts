@@ -10,7 +10,10 @@ export interface User {
   firstName: string;
   lastName: string;
   clubId: string;
-  roles: readonly ('CLUB_ADMIN' | 'SYSTEM_ADMIN' | 'MEMBER')[];
+  // S-048 boyscout: canonical Keycloak realm-role names. Matches the
+  // `realm_access.roles[]` claim shape S-020's JwtAuthenticationConverter
+  // will emit, so the SPA-server role token never needs a mapping layer.
+  roles: readonly ('CLUB_ADMINISTRATOR' | 'SYSTEM_ADMINISTRATOR' | 'MEMBER')[];
 }
 
 // SECURITY: state declares ONLY claims-derived data. NEVER add access_token,
@@ -39,8 +42,10 @@ export const SessionStore = signalStore(
       () => sessionStatus() === 'authenticated' && authenticatedUser() !== null,
     ),
     isLoadingSession: computed(() => sessionStatus() === 'idle' || sessionStatus() === 'loading'),
-    isClubAdmin: computed(() => authenticatedUser()?.roles.includes('CLUB_ADMIN') ?? false),
-    isSystemAdmin: computed(() => authenticatedUser()?.roles.includes('SYSTEM_ADMIN') ?? false),
+    isClubAdmin: computed(() => authenticatedUser()?.roles.includes('CLUB_ADMINISTRATOR') ?? false),
+    isSystemAdmin: computed(
+      () => authenticatedUser()?.roles.includes('SYSTEM_ADMINISTRATOR') ?? false,
+    ),
   })),
   withMethods((store, bus = inject(MUTATION_BUS)) => ({
     // TODO(S-021): replace placeholder body with OIDC callback handler.

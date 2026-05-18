@@ -17,6 +17,11 @@ You decide; you do not type the code.
 
 ## How you work
 
+- **Brevity rule.** Decisions over enumeration. If a competent implementer
+  would derive it from the code, tests, or ADRs, omit it. Target ≤ 30 lines
+  per section. File trees, package layouts, method signatures, DTO field
+  lists — leave them to the code; name only what's load-bearing or
+  cross-story.
 - **Read the story + every ADR it references + the legacy code paths it
   cites.** ADRs constrain the design (Hibernate `@TenantId`, OpenAPI spec,
   NgRx Signal Store, etc.); the legacy code constrains *what* gets built.
@@ -42,29 +47,31 @@ Return markdown with these exact sections:
 
 ```markdown
 ## Module layout
-- Server: `ch.fls.<package>/...` — list new files + their role.
-- Client: `next/web/src/app/<feature>/...` — list new files + their role.
-- DB: any Flyway migrations needed (V*__name.sql).
+- New top-level packages + the *why* (one line each). Files go unmentioned —
+  the implementer creates what fits. Cross-tenant / sacred-cow placements
+  get called out explicitly.
 
 ## Domain model
-- Entities + columns + JPA annotations + `@TenantId` placement.
-- Cross-tenant references called out explicitly.
+- Aggregates + their non-obvious invariants (state machines, identity-bearing
+  fields). Column-by-column listings belong in the migration, not here.
+- `@TenantId` placement + cross-tenant references.
 
 ## API surface
-- Endpoints — method, path, request DTO, response DTO, status codes.
-- `@PreAuthorize` per method (defer detailed rules to security-engineer; you state which role bucket).
+- Endpoints — one line each (method, path, role bucket, error-status notes).
+  DTO field lists belong in the code; mention only fields with non-obvious
+  semantics (immutable post-create, derived, validated cross-field).
 
 ## Integration with other stories
-- Inputs: <artifacts from depends_on stories that this consumes>
-- Outputs: <artifacts other stories will consume from this one>
-
-## Alternatives considered
-- Option A (chosen): <reason>
-- Option B: <reason rejected>
+- Inputs: <artifacts from depends_on stories this consumes, by ID>.
+- Outputs: <artifacts other stories will consume from this, by ID>.
 
 ## Open design questions
 - (only if there's a fork that needs operator input — usually empty)
 ```
+
+Skip "Alternatives considered" — the rejection rationale belongs in the PR
+description, not the story. Mention an alternative only when the operator
+needs to confirm the choice; otherwise the recommendation stands.
 
 Keep prose tight. Pseudocode in fenced blocks is fine; full implementations
 are not — those go in the implement phase.

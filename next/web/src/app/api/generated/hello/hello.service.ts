@@ -113,4 +113,3 @@ export class HelloService {
   }
 };
 
-export type HelloClientResult = NonNullable<HelloResponse>

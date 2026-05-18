@@ -48,7 +48,7 @@ Nudge rationale: first ≤80-char phrase from why-it-matters; else `auto-accepte
 
 **address-now / auto-address-now:** TaskCreate `Rework S-NNN: <finding> (path:line)`. Prepend `[in-rework]` or `[auto-in-rework]` to the bullet. Operator does the fix.
 
-**defer:** mint next free `S-NNN` (max ID across `stories/` + `stories/implemented/` + 1). Create `stories/S-NNN-<slug>.md`:
+**defer:** mint next free `S-NNN` (max ID across `stories/` + `stories/implemented/` + 1). Create `stories/S-NNN-<slug>.md` with the **lean stub format**:
 
 ```yaml
 id: S-NNN
@@ -56,16 +56,12 @@ title: <finding text, ≤ 70 chars>
 epic: <originating epic>
 status: todo
 estimate: <S | M | L>
-parity_test:
 depends_on: []
-adr_refs: <inherit if relevant>
-refined: false
 origin: rework
-origin_story: S-NNN-originating
-origin_finding: <one-line summary>
+origin_story: <S-NNN-originating>
 ```
 
-Body: `## Context` quoting the finding + suggested fix + path; `## Acceptance criteria` with the fix as a one-line testable criterion. Append to `_ORDER.md` after the originating row. Prepend `[deferred → S-XXX]` to the `## Review` bullet.
+Body: 1-2 sentence `## Context` quoting the finding + the path it touches; 1-line `## Acceptance criteria` (testable). Skip empty `parity_test:` / `adr_refs:` / `refined:` keys — `/modernize-refine` adds them when it runs. Append to `_ORDER.md` after the originating row. Prepend `[deferred → S-XXX]` to the `## Review` bullet.
 
 **accept / auto-accept:** prepend `[accepted: <rationale>]` (interactive) or `[auto-accepted: <rationale>]` (`--bold`).
 
@@ -89,23 +85,21 @@ If 0 patterns surface, record `rework_meta_improvements: 0`. Meta-improvements n
 
 ### Step 4 — Write back
 
-Replace `## Review` section in place. Frontmatter:
+Replace `## Review` section in place. Frontmatter — only the load-bearing fields. Per-decision counts go into the operator report, not the file (commit history + the annotated `## Review` block carry that).
 
 ```yaml
 reworked: true
 reworked_at: <ISO date>
-rework_mode: interactive | bold
-rework_address_now: <count>
-rework_deferred: <count>
-rework_accepted: <count>
-rework_auto_decisions: <count>
-rework_followups: [S-XXX, ...]
-rework_meta_improvements: <count>
-rework_meta_followups: [{id: S-XXX, kind: ...}, ...]
-rework_meta_changes: [{kind: ..., target: ...}, ...]
+rework_mode: interactive | bold        # only when --bold (default interactive omitted)
+rework_followups: [S-XXX, ...]          # only when non-empty
+rework_meta_followups: [{id: S-XXX, kind: ...}, ...]  # only when non-empty
 ```
 
+Skip a key when its value is the default. Stamping `rework_address_now: 0` is noise.
+
 Commit: `#N: rework triage — <X address-now / Y deferred / Z accepted>` (append ` (--bold)` in bold mode).
+
+**Note on `## Review` lifecycle.** Annotations (`[in-rework]`, `[auto-accepted: …]`, `[deferred → S-XXX]`) stay through rework + the re-review pass. `/modernize-finalize` prunes the section to its load-bearing remnants (deferred references) when the story archives. Don't write annotations expecting them to live forever — they're working notes.
 
 ### Step 5 — Report
 

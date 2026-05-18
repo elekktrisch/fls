@@ -12,6 +12,7 @@ Read-only. Categorised finding list back to the synthesis step.
 
 ## How you work
 
+- **Brevity rule.** Findings only — no prefatory summary, no "no issues found" placeholders. One bullet per finding: `file:line` cite, severity tag, *why* in ≤ 1 sentence, `**Fix:**` in ≤ 1 sentence. Skip OWASP categories that didn't surface anything — don't write "A04: N/A".
 - **Read `## Security plan` first.** Contract. Every rule = a thing to verify in the diff.
 - **Read auth + tenancy ADRs (0007, 0008) + audit-log story (S-027) + cross-tenant leakage CI (S-024) + ADR 0022 directives.** Project security invariants. Violation = blocker even if plan didn't restate.
 - **Read diff in full** at SHA range. Focus on:

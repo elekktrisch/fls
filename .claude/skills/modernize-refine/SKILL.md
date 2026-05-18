@@ -5,11 +5,31 @@ description: Phase 5 — refine one story via specialist subagents. Conditional 
 
 # Phase 5 — Story Refinement (just-in-time)
 
-Take one story (`S-NNN`); turn its draft ACs into implementation-ready spec by spawning 3-5 specialists in parallel + synthesising back into the story file.
+Take one story (`S-NNN`); surface the load-bearing decisions an implementer can't derive from code alone, and write them into the story file as tightly as possible.
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md). Per directive 1: refinement is *optional* when the story has no design forks. Skip if `## Tasks` + ACs already say enough to implement.
 
 JIT only — never refine more than one story per invocation. Stale refinement is worse than no refinement.
+
+## What "refined" means here
+
+Refinement is a **decision document**, not a design document. It exists because the implementer needs to know things the code can't tell them on its own:
+
+- Cross-story contracts (what S-NNN consumes from S-MMM; what it produces for S-OOO).
+- Rip-out plans, deprecation flags, and other non-obvious lifecycle notes.
+- Parity exclusions + the reason.
+- Non-obvious decisions where a competent implementer would otherwise pick differently.
+- Open questions that didn't get answered.
+
+Things that **do not** belong in the story:
+
+- File trees, package layouts, method signatures, DTO field lists — `ls`, `grep`, and the code itself document these.
+- Test method names — the test files document these.
+- Threat-model rows whose mitigations land in the code anyway.
+- Latency budgets that aren't separately measured.
+- Alternatives-considered enumerations — those belong in the PR description.
+
+Soft target: design + edge cases + test plan + security + performance combined ≈ 150 lines. If you blow past it, ask whether a competent implementer would actually re-derive what you wrote — and cut.
 
 ## Preconditions
 
@@ -62,10 +82,27 @@ ONE message, multiple `Agent` calls. Each prompt must include:
 - Project context (FLS modernization, sacred cows, `@TenantId` multi-tenancy, [ADR 0022 directives](../../../docs/modernization/adrs/0022-modernization-primary-directives.md)).
 - Library facts from Step 1.5 (or empty).
 - Output format (each agent specifies; call it out).
+- **Brevity rule:** "Decisions over enumeration. If a competent implementer would derive it from the code, tests, or ADRs, omit it. Target ≤ 30 lines per section." Restate this in every spawn prompt — it overrides the agent's default output template when they conflict.
 
-### Step 3 — Synthesise
+### Step 3 — Synthesise (editorial)
 
-Specialists produce outputs; you compose into the story. Don't re-decide.
+Specialists produce outputs; you cut what the code will document anyway, then compose into the story. **The job is editorial: trim to decisions.** A specialist who returns a 60-line section gets cut to the 10-15 lines that carry weight; the rest is restated in code when the implementer touches it.
+
+**Heuristic for what to keep:**
+
+- Cross-story contracts (consumes / produces by ID).
+- Non-obvious decisions + the why.
+- Rip-out / deprecation / sunset markers.
+- Parity exclusions (and why excluded).
+- Open questions / forks (`## Open design questions`).
+
+**Heuristic for what to cut:**
+
+- Anything that reads like a file tree, package layout, or method-signature list.
+- "Alternatives considered" — PR description.
+- Test method names — the test files name themselves.
+- Threat-model rows with already-pinned mitigations (the mitigation lands in code; the row is noise).
+- "What stays / what's mocked" inventories longer than 5 lines — collapse to one sentence and let the rip-out checklist in code carry the rest.
 
 **Conflict resolution:**
 - Two specialists disagree → capture both in `## Open design questions` for operator input.
@@ -132,7 +169,8 @@ If frontmatter pre-set `refine_specialists:` (override), preserve it verbatim.
 - Conditional specialist dispatch (skip rather than spawn-then-return-N/A).
 - Frontmatter `refine_specialists:` overrides auto-detect.
 - Specialists run in parallel (single message, multiple `Agent` calls).
-- Synthesis is mechanical, not editorial.
+- **Synthesis is editorial: trim to decisions.** If the code will document it, cut it from the story.
+- Soft body target: design + edge + test + security + perf ≈ 150 lines combined. Blow past it only when the story is genuinely that thorny — and say why in the report.
 - Replace, don't append, on re-run.
 - Frontmatter reflects reality (`refined_specialists` = who ran).
 - Open design questions surface real conflicts, not "things to think about."

@@ -43,21 +43,28 @@ Per [[feedback-always-squash-merge]]: squash without asking. Skip the strategy p
 
 If operator wants override: ask explicitly via single `AskUserQuestion` with options: squash (default) / merge commit / rebase / abort.
 
-### Step 2.5 — Pre-merge merged-stamp commit on the PR branch
+### Step 2.5 — Pre-merge merged-stamp + review-prune commit on the PR branch
 
-The story file already lives at `docs/modernization/stories/implemented/S-NNN-*.md` — `/modernize-implement`'s Step 8 mv'd it there in the same commit as `status: done`. Step 2.5 only adds the `merged:` stamps; no relocation, no second CI cycle for the move.
+The story file already lives at `docs/modernization/stories/implemented/S-NNN-*.md` — `/modernize-implement`'s Step 8 mv'd it there in the same commit as `status: done`. Step 2.5 adds the `merged:` stamps **and prunes `## Review` to its load-bearing remnants** in one commit, before the squash-merge fires.
 
 1. `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. Bail "PR branch diverged" if pull fails.
 2. Verify the file is already at `implemented/` (it should be — `/modernize-implement` Step 8 moved it). If still at top-level `stories/`, the implementer ran the previous (pre-skill-update) flow; do the mv now per the implement-Step-8 trap-guard ordering as a one-off.
-3. Update story frontmatter (edit in place at the `implemented/` path):
+3. **Prune `## Review`** (walk the `<!-- modernize-review: start --> / end -->` block):
+   - Drop the `**Reviewed:** … **PR:** … **Outcome:** …` metadata line — `gh pr view` + commit history carry it.
+   - Drop bullets annotated `[in-rework]` / `[auto-in-rework]` — the fix landed in the diff; code is the evidence.
+   - Drop bullets annotated `[accepted: …]` / `[auto-accepted: …]` UNLESS the rationale is load-bearing (rare — e.g. cites a sacred-cow trade-off that future readers must understand). When in doubt, drop.
+   - Drop the entire `### Maintainability` / `### Security` / `### Usability` / `### Code quality` heading once it has zero bullets left.
+   - **Keep:** `[deferred → S-XXX]` bullets — they're the lineage explanation for the follow-up stories. Keep the `### Parity` `**Oracle:**` line if a parity oracle exists or was explicitly N/A.
+   - If the entire `## Review` block collapses to nothing, delete the section + its delimiters too.
+4. Update story frontmatter (edit in place at the `implemented/` path):
    ```yaml
    merged: true
    merged_at: <ISO date>
    status: done  # confirm
    ```
    Do **not** stamp `merge_commit:` — SHA isn't known yet; merge SHA recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` or `gh pr view M --json mergeCommit`.
-4. Commit `#N: pre-merge — stamp merged state`. Push.
-5. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
+5. Commit `#N: pre-merge — stamp merged + prune review`. Push.
+6. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
 
 If repo allows `gh pr merge --auto`: MAY substitute Step 2.5's watch with `gh pr merge --auto --squash` (queues for green CI). Default flow is explicit watch-then-merge.
 
@@ -123,6 +130,7 @@ ADR amendments commit to `main` directly — recognised exception to story-per-b
 - Finalized stories archive to `stories/implemented/`. Mandatory.
 - Bookkeeping rides the PR, not a post-merge main commit. Step 2.5 commits + the squash gives ONE commit on main per story (plus optionally one for ADR amendments).
 - `merge_commit:` is NOT stamped on frontmatter (recoverable from git log; can't be known pre-merge).
+- **Step 2.5 prunes `## Review` to load-bearing remnants** — deferred-to references, parity-oracle line, anything else is working-notes noise once the PR is about to land.
 - Per [[feedback-no-shas-in-committed-docs]]: never embed git SHAs in committed docs. Cite by subject / file:line / PR# / story-ID. SHAs OK in ephemera (issue comments, operator report).
 
 ## Not in scope

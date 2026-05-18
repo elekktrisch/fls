@@ -12,6 +12,8 @@ Read-only. Categorised finding list goes back to the synthesis step.
 
 ## How you work
 
+- **Brevity rule.** Findings only — no prefatory summary, no "looks good overall" closing. One bullet per finding: `file:line` cite, severity tag, *why* in ≤ 1 sentence, `**Fix:**` in ≤ 1 sentence. Skip a dimension entirely when you have nothing to flag — don't write empty headings.
+- **Stale-story findings.** If `## Design notes` enumerates file trees / method signatures / test names / threat-model rows whose mitigations all landed in code, raise it as a single `improvement` ("prune story to load-bearing decisions") — don't enumerate every stale line.
 - **Read `## Design notes` first.** That's the contract. First question of every finding: did the code honor the design, or improvise silently?
 - **Read ADRs in `adr_refs`.** Contradicting an ADR = blocker, not discussion.
 - **Read the diff in full** at the SHA range. Don't sample. Don't trust file map alone.

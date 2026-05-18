@@ -111,18 +111,37 @@ Before the final status-flip commit, one `maintainability-reviewer` consult agai
 
 Skip the gate only for bookkeeping-only diffs; note the skip in the done report.
 
-### Step 8 — Story-body sweep + status:done
+### Step 8 — Prune the story + status:done
 
-**Body sweep** (non-contract content; refinement sections stay verbatim):
+The story body was a plan. The code is now the source of truth for everything the plan covered. **Cut the story down to what the code can't carry.** This is not bookkeeping — it's the discipline that keeps planning docs from rotting and misleading future readers.
 
-1. Delete stale `## Implementation status (paused …)` / `## Pickup notes` sections.
-2. Check off `## Tasks` boxes or replace with "superseded by acceptance criteria".
-3. Predicted-vs-actual migration version: update if wrong.
-4. Strip `#N:` commit-subject identifiers + 7+ hex-char SHA tokens from body text (cite by file:line / PR# / story-ID instead).
-5. Test-method-name drift: grep `_test_` / `_check_` / `_pinning_` / `_seeded_` patterns in backticks; verify each cited test actually exists; update or annotate.
-6. Design-notes ↔ implementation drift on column inventory / row counts: amend the inventory + add one-line deviation note.
+**Prune pass** (walk every section between `<!-- modernize-refine: start --> / end -->` and outside it; delete liberally):
 
-Commit sweep as `#N: post-implementation body sweep`. Skip for bookkeeping-only diffs.
+Keep, but only when load-bearing:
+
+- AC frontmatter (always).
+- 1-paragraph `## Context` if the *why* is non-obvious from the PR title.
+- Cross-story contracts (consumes / produces by ID) where the contract isn't visible at a call site.
+- Rip-out plans, deprecation flags, sunset markers.
+- Parity exclusions + the reason.
+- `## Open design questions` answers that the operator needs to see surfaced.
+
+Delete:
+
+- File trees, package layouts, method signatures, DTO field lists — `ls`, `grep`, the code itself.
+- Test method names, test-method tables — the test files name themselves.
+- Threat-model rows whose mitigations landed in code (the code carries it; the row is noise).
+- Latency budgets that aren't separately measured.
+- "Alternatives considered" — the PR description holds the rejection rationale.
+- "Implementation deviations from refined design" sections — drift-tracking is not value; the code is the answer.
+- `## Tasks` lists — superseded by the AC checklist.
+- Stale `## Implementation status (paused …)` / `## Pickup notes`.
+
+Also strip `#N:` commit-subject tokens + 7+ hex-char SHA tokens from body text (cite by file:line / PR# / story-ID).
+
+**Soft target after prune:** the implemented story file fits comfortably in one screen of context. If it doesn't, ask which paragraphs a future reader would actually act on; cut the rest.
+
+Commit prune as `#N: prune story to load-bearing decisions`. Skip for bookkeeping-only diffs.
 
 **Status flip + archive move (one commit, one CI cycle):** update frontmatter `status: done` + `done_at: <ISO date>`. **Then `git mv docs/modernization/stories/S-NNN-<slug>.md docs/modernization/stories/implemented/S-NNN-<slug>.md` in the same commit.** Folding the archive into the mark-done commit means `/modernize-finalize`'s Step 2.5 doesn't need to fire a second CI cycle just to relocate the file. Mandatory ordering (git-mv trap guard):
 
@@ -169,6 +188,7 @@ Print to operator:
 - One GitHub issue per story. Milestone comments only, no per-commit chatter.
 - Code is self-explanatory. Default to no comments. Add only when *why* is non-obvious. Never reference current task / fix / issue in code comments.
 - Never embed git SHAs in committed docs. Cite by subject / file:line / PR# / story-ID.
+- **Prune the story body before marking done.** Planning docs that the code now documents should be deleted, not preserved as drift-tracking. See Step 8.
 - The skill does not merge PRs. Does not auto-edit ADRs. Does not delete GitHub issues.
 
 ## Not in scope
