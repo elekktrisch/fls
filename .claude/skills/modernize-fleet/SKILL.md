@@ -1,11 +1,11 @@
 ---
 name: modernize-fleet
-description: Parallel-fleet orchestrator — dispatches N independent unblocked stories to isolated git worktrees and runs refine→implement→review concurrently. Trigger: /modernize-fleet [N] (default 3).
+description: Parallel-fleet orchestrator — dispatches N independent unblocked stories to isolated git worktrees and runs refine→implement concurrently (implement Step 7 runs the reviewer panel per worktree). Trigger: /modernize-fleet [N] (default 3).
 ---
 
 # Modernize — Fleet
 
-Pick N independent unblocked stories; dispatch each to its own git worktree via a `general-purpose` subagent (`isolation: "worktree"`); run refine→implement→review concurrently. Batch the operator checkpoint.
+Pick N independent unblocked stories; dispatch each to its own git worktree via a `general-purpose` subagent (`isolation: "worktree"`); run refine→implement concurrently (implement Step 7's reviewer panel + auto-fix loop runs inside each worktree). Batch the operator checkpoint.
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md). Fleet is the highest-throughput path; the directives shape what subagents prioritise.
 
@@ -82,14 +82,13 @@ Your worktree is isolated; you have your own checkout off `main`.
 
 ## Task
 
-Execute refine → implement → review for this ONE story end-to-end in your worktree.
+Execute refine → implement for this ONE story end-to-end in your worktree.
 You do NOT have the Skill tool. READ each SKILL.md, then perform its work:
 
 1. /c/Users/roman/IdeaProjects/fls/.claude/skills/modernize-refine/SKILL.md
 2. /c/Users/roman/IdeaProjects/fls/.claude/skills/modernize-implement/SKILL.md
-3. /c/Users/roman/IdeaProjects/fls/.claude/skills/modernize-review/SKILL.md
 
-Skip modernize-refine if `refined: true` and not stale.
+Skip modernize-refine if `refined: true` and not stale. Implement Step 7's reviewer panel auto-fixes inline — that's the only review pass.
 
 Primary directives (trump everything): /c/Users/roman/IdeaProjects/fls/docs/modernization/adrs/0022-modernization-primary-directives.md
 
@@ -112,8 +111,8 @@ Project conventions: CLAUDE.md + 00-seed.md + 02-vision-and-constraints.md
     - Set `status: in_progress` + `fleet_escalation: <reason>` on frontmatter.
     - Commit + push current progress.
     - Return result blob with `escalated: true` + verbatim question.
-- **Self-review gate (implement Step 6.7):** RUN IT.
-- **Don't finalize.** Stop after `/modernize-review` writes findings.
+- **Implement Step 7 reviewer panel + auto-fix loop:** RUN IT in full. Findings get fixed inline; the loop converges within the 2-round cap or escalates.
+- **Don't finalize.** Stop after implement marks done (PR ready-for-review).
 
 ## Result blob
 
