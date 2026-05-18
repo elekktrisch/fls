@@ -1,7 +1,5 @@
 package ch.alpenflight.platform.id;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -13,10 +11,12 @@ import org.jspecify.annotations.Nullable;
  * the codebase wants to make impossible at the type system level.
  *
  * <p>External form is {@code clb_<26-char Crockford Base32>} (ADR 0019).
- * Jackson uses {@link #toExternal()} for serialisation and
- * {@link #parse(String)} for deserialisation; springdoc emits
- * {@code type: string} in the OpenAPI spec via the {@link Schema} hint so
- * the TS codegen consumes a plain string alias.
+ * JSON wire format is the external string, configured centrally in
+ * {@link TypedIdJacksonModule} (registered with the application
+ * {@code ObjectMapper}); this record carries no Jackson annotations on
+ * purpose. The {@link Schema} hint tells springdoc to emit
+ * {@code type: string} in the OpenAPI spec so the TS codegen consumes a
+ * plain string alias.
  *
  * <p>Persistence: the {@code Club} entity field stays {@code UUID} (JPA-
  * friendly); only the getter wraps. Internal entities of the {@code Club}
@@ -43,7 +43,6 @@ public record ClubId(UUID value) {
         return value == null ? null : new ClubId(value);
     }
 
-    @JsonCreator
     public static ClubId parse(String external) {
         if (external == null) {
             throw new IllegalArgumentException("ClubId external form must not be null");
@@ -55,7 +54,6 @@ public record ClubId(UUID value) {
         return new ClubId(IdEncoding.decode(external.substring(PREFIX.length())));
     }
 
-    @JsonValue
     public String toExternal() {
         return PREFIX + IdEncoding.encode(value);
     }
