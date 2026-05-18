@@ -9,10 +9,10 @@ github_issue: 59
 github_pr: 60
 depends_on: []
 reviewed: true
-reviewed_at: 2026-05-18
+reviewed_at: 2026-05-18T05:45
 review_outcome: blockers
-review_blockers: 1
-review_improvements: 17
+review_blockers: 2
+review_improvements: 4
 review_parity_oracle: N/A — parity_test=none + no flsserver/flsweb in diff
 review_reviewers: [maintainability, security, tech-writer]
 reworked: true
@@ -58,41 +58,27 @@ See `next/auth/README.md` for the operator manual, downstream consumer table, de
 
 <!-- modernize-review: start -->
 
-**Reviewed:** 2026-05-18 · **PR:** #60 · **Outcome:** blockers
-
-### Maintainability
-
-- **[done] [blocker]** Token-policy CI guard asserts 1 of 5 ADR-0007 values — `next/auth/scripts/check-realm-shape.sh:90-92`. AC + ADR 0007 list `accessTokenLifespan=900`, `ssoSessionIdleTimeout=30d`, `ssoSessionMaxLifespan=90d`, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`; only the first is asserted. **Fix:** add jq asserts for the remaining 4 values. *(Cross-flagged by security + tech-writer.)*
-- **[done] [improvement]** `export-realm.sh` swallows non-2xx REST responses — `next/auth/scripts/export-realm.sh:37-48`. `curl -sS` without `--fail` writes 401/404 body into intermediate files. **Fix:** `--fail-with-body` on every curl + `jq -e type` on each file before merging.
-- **[deferred → S-153] [improvement]** Per-user role-mapping loop re-fetches user IDs already cached — `next/auth/scripts/export-realm.sh:46-51`.
-- **[deferred → S-153] [improvement]** `trap "rm -rf $WORK" EXIT` expands `$WORK` at install time — `next/auth/scripts/export-realm.sh:34`.
-- **[deferred → S-153] [improvement]** Embedded Python in bash heredoc obstructs lint/editor tooling — `next/auth/scripts/normalize-realm-export.sh:24-101`.
-- **[done] [improvement]** README "Round-trip workflow" snippet omits `down -v` before rebuild — `next/auth/README.md:88-91`.
-- **[deferred → S-153] [improvement]** Redirect-URI guard rejects only literal `"*"` — `next/auth/scripts/check-realm-shape.sh:80-82`.
-- **[deferred → S-153] [improvement]** PII regex misses `.test` TLDs — `next/auth/scripts/check-realm-shape.sh:85`.
-- **[deferred → S-153] [improvement]** Healthcheck depends on bash-only `/dev/tcp` in `CMD-SHELL` — `docker-compose.yml:206-208`.
-
-### Security
-
-- **[done] [improvement]** `clubId` user-profile permission not asserted by CI guard — `next/auth/scripts/check-realm-shape.sh:67-72`. Tenant-escalation gate; if user-edit re-enabled and re-exported, guard misses it. **Fix:** add jq assertion on `kc.user.profile.config.attributes[clubId].permissions.edit == ["admin"]`.
-- **[deferred → S-153] [improvement]** Proffix dev-secret value not pinned by CI guard — `next/auth/scripts/check-realm-shape.sh:44-48`.
-- **[deferred → S-153] [improvement]** `webOrigins: ["+"]` widens CORS to every registered redirect URI's origin — `next/auth/realm-export.json` (alpenflight-web client).
-- **[deferred → S-153] [improvement]** `export-realm.sh` admin token persists in shell env with no explicit revoke — `next/auth/scripts/export-realm.sh:25-30`.
+**Reviewed:** 2026-05-18 (re-review after fix-blocker pass) · **PR:** #60 · **Outcome:** blockers
 
 ### Code quality
 
-- **[accepted: applied in this PR as a boyscout meta-improvement] [improvement]** ADR 0007 still cites `localhost:8080/realms/fls` — `docs/modernization/adrs/0007-auth-scheme.md` Option C.
-- **[deferred → S-153] [improvement]** `for u in $(jq -r ...)` word-splits on usernames with spaces — `next/auth/scripts/export-realm.sh:46`.
-- **[deferred → S-153] [improvement]** Bare `open()` calls in Python heredoc lack context managers — `next/auth/scripts/normalize-realm-export.sh:27-29`.
-- **[deferred → S-153] [improvement]** README "Downstream consumers" table omits S-134 — `next/auth/README.md:110-115`.
-- **[deferred → S-153] [improvement]** `registrationAllowed=false` guard conflicts with vision C26 (self-service signup) with no in-code comment — `next/auth/scripts/check-realm-shape.sh:95`.
+- **[blocker]** S-021 task line still cites the pre-rebrand issuer URL — `docs/modernization/stories/S-021-angular-oidc-client.md:26`. The line `configure against localhost:8080/realms/fls` contradicts both the ADR 0007 amendment in this PR and `next/auth/README.md`. An implementer picking up S-021 will configure the wrong host port + realm. **Fix:** update to `http://localhost:8090/realms/alpenflight`.
+- **[blocker]** S-019 body "Proposed ADR amendment" section not retracted after the amendment was applied — `docs/modernization/stories/implemented/S-019-keycloak-compose.md:51-53`. Section still reads "Operator's call: amend now or…" but the ADR was amended in this very PR. Future reader sees an open proposal the file's review block already resolved. **Fix:** strike the section (or one-line note: "Applied in PR #60").
+- **[improvement]** S-039 (implemented) carries the pre-rebrand realm name + port throughout — `docs/modernization/stories/implemented/S-039-docker-compose-skeleton.md:141,191,214,330,490`. Cites `localhost:8080/realms/fls`. Snippets would mislead anyone reconstructing topology from the story. **Fix (per Directive 1):** annotate the story header with a one-line "topology superseded by S-019 — see `next/auth/README.md`".
+- **[improvement]** `check-realm-shape.sh:97-102` clubId-block trailing clause restates the `fail` message — already expressed in the assertion. **Fix:** trim the trailing clause; keep the first sentence (why we parse the nested JSON-string).
+- **[improvement]** `check-realm-shape.sh:89` token-policy block comment says nothing the section header doesn't. **Fix:** drop the comment line.
+- **[improvement]** README round-trip code-block comment is 3 lines of explanation at shell indent — `next/auth/README.md:89-91`. Mix of usage + rationale. **Fix:** condense to one line, e.g. `# down -v: wipe H2 volume so IGNORE_EXISTING doesn't hide the change.`
 
 ### Parity
 **Oracle:** N/A — `parity_test: none` + no `flsserver/`/`flsweb/` paths in diff. S-019 is greenfield IdP setup; replaces the legacy `/Token` password grant entirely.
 
+### Carried over from prior review (lineage)
+
+- **13 improvements deferred → [S-153](../S-153-s019-rework-followups.md)** — `check-realm-shape.sh` coverage gaps, `export-realm.sh` hardening, Python-heredoc extraction, misc README/docker-compose touches. Full bullet list in S-153 AC checklist.
+- **1 improvement accepted** — ADR 0007 issuer URL amendment was applied in PR #60 as a boyscout meta-improvement. Propagation completeness is one of the new blockers above.
+
 ### Cross-reviewer agreements
 
-- **Token-policy CI guard incomplete** — maintainability + security + tech-writer all flagged. Promoted to blocker. **Highest signal.**
-- **`trap "$WORK"` unquoted variable expansion** — maintainability + tech-writer.
+- Maintainability + security re-review both returned `(none)` — confirms the fix-blocker pass landed cleanly. New blockers are ADR-amendment-propagation gaps surfaced by tech-writer alone.
 
 <!-- modernize-review: end -->
