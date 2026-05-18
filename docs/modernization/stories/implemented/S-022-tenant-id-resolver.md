@@ -21,6 +21,16 @@ refined: true
 refined_at: 2026-05-18
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 context7_last_checked: 2026-05-18
+reviewed: true
+reviewed_at: 2026-05-18
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 5
+review_nudges: 5
+review_parity_oracle: N/A — greenfield resolver replacing legacy `CurrentAuthenticatedFLSUserClubId` convention wholesale; no legacy oracle exists
+review_reviewers: [maintainability, security, tech-writer]
+merged: true
+merged_at: 2026-05-18
 ---
 
 ## Context
@@ -49,3 +59,13 @@ Kept load-bearing: the resolver itself; `UserTenantLookup` (claim-absent DB fall
 - **Mock-auth chain (`ch.alpenflight.auth.*`)** stays through S-026 per the refine. `MockSecurityConfig` Javadoc rip-out target updated S-019/S-020/S-022 → S-026.
 - **`TenantTestContextAccess.set` is `public` on production classpath.** Test-support package boundary (S-015's `TestSupportPackageBoundaryTest`) prevents `src/main` from importing `ch.alpenflight.server.testsupport`, but does NOT prevent a same-package main class from calling `TenantTestContextAccess.set(uuid)` and bypassing the JWT path. No current production caller; a future story may add an ArchUnit rule scoping callers to `ch.alpenflight.server.testsupport`.
 - **No DB-result memoization on `UserTenantLookup`.** The refinement's perf plan proposed per-`Authentication` request-scoped memoization. Dropped during simplification — claim path is `Map.get` and the DB-fallback path is the rare federated case. Revisit if metrics show repeated lookups in the hot path once federated users exist.
+
+## Review
+
+<!-- modernize-review: start -->
+
+### Parity
+
+**Oracle:** N/A — greenfield resolver replacing legacy `BaseService.CurrentAuthenticatedFLSUserClubId` convention wholesale; no legacy oracle exists.
+
+<!-- modernize-review: end -->
