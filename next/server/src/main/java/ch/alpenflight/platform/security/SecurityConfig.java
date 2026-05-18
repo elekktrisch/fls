@@ -5,30 +5,40 @@ import static org.springframework.security.config.http.SessionCreationPolicy.STA
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 
 /**
- * Default {@link SecurityFilterChain} — active whenever the
- * {@code mock-auth} profile is NOT on. The real OAuth2 resource server
- * (S-020) replaces this with a {@code jwtAuthenticationConverter}-equipped
- * chain; until then, this baseline permits the unauthenticated public
- * surface (OpenAPI / actuator / hello smoke endpoint) and refuses everything
- * under {@code /api/v1/**} — Spring Security's default response is 401, so
- * any new authenticated endpoint added before S-020 is safe-by-default.
+ * Production {@link SecurityFilterChain} — active whenever the
+ * {@code mock-auth} profile is NOT on. Wires Spring Security 7 as an OAuth2
+ * resource server validating JWT bearer tokens against the issuer's JWKS
+ * (per ADR 0007). CSRF is disabled because the chain is stateless and
+ * Bearer-bound; re-enable only if a future cookie-bound flow is introduced.
  *
- * <p>{@link EnableMethodSecurity} turns on {@code @PreAuthorize} processing,
- * which is what the {@code mock-auth} profile relies on to exercise role
- * predicates against the mocked principal.
+ * <p>{@link JwtDecoderConfig} owns the decoder bean and is profile-agnostic
+ * so its presence suppresses Spring Boot's resource-server auto-config under
+ * every profile — the {@code mock-auth} chain doesn't consume the decoder
+ * but its declaration prevents auto-config from firing an OIDC discovery
+ * call against an unreachable issuer.
+ *
+ * <p>{@link EnableMethodSecurity} turns on {@code @PreAuthorize}, which the
+ * {@code mock-auth} chain also relies on against a hand-crafted principal.
  */
 @Configuration
 @EnableMethodSecurity
 @Profile("!mock-auth")
 public class SecurityConfig {
+
+    private final ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter;
+    private final LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint;
+
+    public SecurityConfig(ClubAwareJwtAuthenticationConverter jwtAuthenticationConverter,
+            LoggingBearerTokenAuthenticationEntryPoint authenticationEntryPoint) {
+        this.jwtAuthenticationConverter = jwtAuthenticationConverter;
+        this.authenticationEntryPoint = authenticationEntryPoint;
+    }
 
     @Bean
     SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
@@ -49,16 +59,13 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/actuator/info",
-                                "/api/v1/hello",
                                 "/error")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
-                // Anonymous requests get 401, not the Spring-Security-7
-                // default 403. Aligns with REST conventions + matches what
-                // S-020's BearerTokenAuthenticationEntryPoint will produce.
-                .exceptionHandling(e -> e.authenticationEntryPoint(
-                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .oauth2ResourceServer(o -> o
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .build();
     }
 }

@@ -78,7 +78,7 @@ type HttpClientObserveOptions = HttpClientOptions & {
 export class HelloService {
   private readonly http = inject(HttpClient);
 /**
- * Anonymous smoke endpoint; worked example for OpenAPI annotation conventions.
+ * Authenticated smoke endpoint; worked example for OpenAPI annotation conventions.
  * @summary Return a static greeting and the server timestamp.
  */
  hello<TData = HelloResponse>( options?: HttpClientBodyOptions): Observable<TData>;

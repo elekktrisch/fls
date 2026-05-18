@@ -5,6 +5,15 @@ spring:
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}
     username: ${DATASOURCE_USER:alpenflight}
     password: ${DATASOURCE_PASSWORD:alpenflight}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # `./gradlew bootRun` runs on the host, not inside compose — the
+          # network-side `http://keycloak:8080` resolves only between
+          # containers. Override JWKS to the host-published port; the issuer
+          # URL stays at the same `localhost:8090` value tokens carry.
+          jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://localhost:8090/realms/alpenflight/protocol/openid-connect/certs}
 
 server:
   error:

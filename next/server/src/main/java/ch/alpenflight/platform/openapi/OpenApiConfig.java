@@ -3,6 +3,7 @@ package ch.alpenflight.platform.openapi;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,11 @@ class OpenApiConfig {
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("Placeholder; S-020 wires the real principal flow.")));
+                                .description("OIDC bearer token (Keycloak in dev, hosted IdP TBD in prod).")))
+                // Global requirement so every operation inherits bearerAuth in
+                // the generated spec; permit-listed paths (actuator, springdoc
+                // itself) ignore it because the filter chain admits them
+                // anonymously. Per-operation overrides not used yet.
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"));
     }
 }

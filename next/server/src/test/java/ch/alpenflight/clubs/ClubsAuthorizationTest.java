@@ -65,4 +65,13 @@ class ClubsAuthorizationTest {
         mvc.perform(get("/api/v1/clubs"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void list_anonymous_returns_bearer_challenge_header() throws Exception {
+        mvc.perform(get("/api/v1/clubs"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("WWW-Authenticate",
+                                org.hamcrest.Matchers.startsWith("Bearer")));
+    }
 }

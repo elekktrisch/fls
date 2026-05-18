@@ -9,16 +9,26 @@ Take one refined story (`S-NNN`) and ship it: code per the design notes, tests p
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md) before starting. The two directives govern every decision below.
 
+## Story ID resolution
+
+The story ID can be passed explicitly (`S-NNN`) or inferred from the current branch when it matches `story/S-NNN-*` (check via `git rev-parse --abbrev-ref HEAD`; pattern `^story/S-(\d{3})(-.*)?$`):
+
+- **Arg + branch match** → proceed with the arg.
+- **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail: *"current branch is `story/S-MMM-...` but you passed `S-NNN`; switch branch or correct the arg."*
+- **Arg + branch isn't a story branch** → proceed with the arg (this is the normal case for implement — branch is `main` until Step 2 creates it).
+- **No arg + branch matches `story/S-NNN-*`** → use the branch's `S-NNN` (lets you resume an in-flight story without retyping the ID).
+- **No arg + branch doesn't match** → prompt the operator for the story ID via `AskUserQuestion` (single question).
+
 ## Preconditions
 
 Bail if any fail:
 
-1. Single `S-NNN` arg. Story file at `docs/modernization/stories/S-NNN-*.md` (top-level; refuse if in `implemented/`).
+1. Story ID resolved per § Story ID resolution above. Story file at `docs/modernization/stories/S-NNN-*.md` (top-level; refuse if in `implemented/`).
 2. Frontmatter has `refined: true` (else "run /modernize-refine first").
 3. `status: todo` (in_progress → ask to resume; done/blocked → refuse).
 4. Every `depends_on` story is `done` AND its `github_pr` is `MERGED` (or no PR exists).
 5. Working tree clean.
-6. On `main` (or configured default).
+6. On `main` (or configured default) — unless resuming an `in_progress` story on its own branch.
 
 ## Procedure
 
@@ -76,6 +86,7 @@ Order:
   ```
 - **CI failure:** stop foreground work. Comment on issue `CI failed on push <sha>: <run url> — <one-line cause>`. `gh run view --log-failed`. Fix in a new commit `#N: fix CI — <cause>`. Re-watch. Resume only when green.
 - **Don't push past red.** Don't `--no-verify` / `--no-gpg-sign`. Don't force-push.
+- **`ScheduleWakeup` hygiene.** If you schedule a long-fallback wakeup (`delaySeconds ≥ 1200`, `prompt: "/modernize-implement S-NNN"`) while a CI watch runs in the background, the harness's task-notification path will normally re-invoke you faster — the wakeup is just insurance against a hang. Don't schedule a fresh fallback after every CI watch completes; one outstanding fallback is enough. After the **final** push (Step 8 mark-done) returns green, you have no more work to babysit — do NOT schedule a fresh fallback there. A stale wakeup firing 30 min later will re-enter `/modernize-implement` on a `status: done` story and bounce off the precondition; cheap, but noisy.
 
 ### Step 6 — Escalation triggers
 

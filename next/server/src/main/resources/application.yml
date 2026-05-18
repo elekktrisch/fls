@@ -46,6 +46,18 @@ spring:
       # JEP 491 (Java 25) eliminated `synchronized` pinning. Re-audit when
       # S-018 ShedLock + S-022 @TenantId ThreadLocal propagation land.
       enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Split-port topology: JWKS discovery (Spring → Keycloak inside the
+          # compose network) and `iss` validation (against the host URL baked
+          # into every token) need different URLs. The programmatic JwtDecoder
+          # in JwtDecoderConfig consumes both; auto-config backs off when the
+          # bean is present. See next/auth/README.md §Gotcha for S-020. Both
+          # values env-overridable for the prod hosted-IdP swap.
+          issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
+          jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
 server:
   port: 8080

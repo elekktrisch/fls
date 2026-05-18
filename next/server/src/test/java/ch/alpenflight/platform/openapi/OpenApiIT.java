@@ -77,6 +77,19 @@ class OpenApiIT {
     }
 
     @Test
+    void specDeclaresBearerAuthAsGlobalSecurityRequirement() throws Exception {
+        // OpenAPI 3 semantics: a top-level `security` block applies to every
+        // operation unless an operation overrides it with its own `security:
+        // []`. Per-operation duplication is unnecessary noise — springdoc
+        // emits the requirement once globally. The generated TS client +
+        // Swagger UI propagate the bearer challenge automatically.
+        JsonNode spec = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
+        JsonNode security = spec.path("security");
+        assertThat(security.isArray()).as("top-level security requirement must be present").isTrue();
+        assertThat(security.toString()).contains("bearerAuth");
+    }
+
+    @Test
     void swaggerUiReturns200() {
         ResponseEntity<String> response = restTemplate.getForEntity("/swagger-ui/index.html", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

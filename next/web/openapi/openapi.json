@@ -7,6 +7,9 @@
   "servers" : [ {
     "url" : "http://localhost:8080"
   } ],
+  "security" : [ {
+    "bearerAuth" : [ ]
+  } ],
   "tags" : [ {
     "name" : "Clubs",
     "description" : "Clubs CRUD (S-048 walking skeleton, mocked authorization)."
@@ -194,7 +197,7 @@
       "get" : {
         "tags" : [ "Hello" ],
         "summary" : "Return a static greeting and the server timestamp.",
-        "description" : "Anonymous smoke endpoint; worked example for OpenAPI annotation conventions.",
+        "description" : "Authenticated smoke endpoint; worked example for OpenAPI annotation conventions.",
         "operationId" : "hello",
         "responses" : {
           "200" : {
@@ -301,7 +304,7 @@
     "securitySchemes" : {
       "bearerAuth" : {
         "type" : "http",
-        "description" : "Placeholder; S-020 wires the real principal flow.",
+        "description" : "OIDC bearer token (Keycloak in dev, hosted IdP TBD in prod).",
         "scheme" : "bearer",
         "bearerFormat" : "JWT"
       }

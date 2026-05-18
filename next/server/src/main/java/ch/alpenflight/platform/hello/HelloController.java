@@ -8,14 +8,13 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-// TODO(S-020): remove or auth-gate before cutover.
 @RestController
 @Tag(name = "Hello", description = "Liveness-style smoke endpoint; worked example for OpenAPI annotation conventions.")
 public class HelloController {
 
     @Operation(
             summary = "Return a static greeting and the server timestamp.",
-            description = "Anonymous smoke endpoint; worked example for OpenAPI annotation conventions.")
+            description = "Authenticated smoke endpoint; worked example for OpenAPI annotation conventions.")
     @ApiResponse(responseCode = "200", description = "Greeting payload.")
     @GetMapping(value = "/api/v1/hello", produces = MediaType.APPLICATION_JSON_VALUE)
     public HelloResponse hello() {
