@@ -1,11 +1,13 @@
 import { DestroyRef, Injectable, effect, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { EventTypes, OidcSecurityService, PublicEventsService } from 'angular-auth-oidc-client';
 import { filter } from 'rxjs';
 
 import { SessionStore, type User } from '../session/session.store';
 
 import { mapClaimsToUser } from './oidc-claims';
+import { DEFAULT_POST_LOGIN_ROUTE, consumePostLoginRedirect } from './post-login-redirect';
 
 export interface SessionPort {
   login(user: User, clubId: string | null): void;
@@ -61,6 +63,7 @@ export class OidcSessionBridge {
   private readonly oidc = inject(OidcSecurityService);
   private readonly events = inject(PublicEventsService);
   private readonly session = inject(SessionStore);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
@@ -68,6 +71,22 @@ export class OidcSessionBridge {
       const userDataResult = this.oidc.userData();
       applyClaimsToSession(userDataResult?.userData ?? null, this.session);
     });
+
+    // After Keycloak callback the lib processes ?code= and emits
+    // NewAuthenticationResult before userData() settles. The remembered
+    // URL is consumed once per redirect; fallback to the post-auth
+    // default landing route. `triggerAuthorizationResultEvent: true`
+    // suppresses the lib's own navigateByUrl(postLoginRoute).
+    this.events
+      .registerForEvents()
+      .pipe(
+        filter((e) => e.type === EventTypes.NewAuthenticationResult),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        const target = consumePostLoginRedirect() ?? DEFAULT_POST_LOGIN_ROUTE;
+        this.router.navigateByUrl(target);
+      });
 
     this.events
       .registerForEvents()

@@ -42,6 +42,11 @@ export const alpenflightOidcConfig: OpenIdConfiguration = {
   ignoreNonceAfterRefresh: true,
   triggerRefreshWhenIdTokenExpired: false,
   autoUserInfo: false,
+  // Suppress the lib's auto-navigate to `postLoginRoute` after callback.
+  // `OidcSessionBridge` reads the originally-requested URL from session
+  // storage (set by `authGuard` before `authorize()`) and navigates to
+  // it explicitly — preserves deep links across the Keycloak round trip.
+  triggerAuthorizationResultEvent: true,
   secureRoutes: ['/api/v1/'],
   customParamsAuthRequest: { ui_locales: 'de' },
   logLevel: LogLevel.Warn,

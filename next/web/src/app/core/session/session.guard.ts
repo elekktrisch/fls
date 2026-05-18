@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { type CanActivateFn } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
+import { rememberPostLoginRedirect } from '../auth/post-login-redirect';
 import { SessionStore } from './session.store';
 
 /**
@@ -17,7 +18,7 @@ import { SessionStore } from './session.store';
  * until the status settles, so this branch only fires on rare
  * post-init resolves.
  */
-export const authGuard: CanActivateFn = (route) => {
+export const authGuard: CanActivateFn = (route, state) => {
   const session = inject(SessionStore);
   const oidc = inject(OidcSecurityService);
 
@@ -30,6 +31,7 @@ export const authGuard: CanActivateFn = (route) => {
   if (session.isAuthenticated()) {
     return true;
   }
+  rememberPostLoginRedirect(state.url);
   oidc.authorize();
   return false;
 };
