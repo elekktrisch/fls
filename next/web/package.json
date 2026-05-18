@@ -8,8 +8,10 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:mock-auth": "ng serve --configuration mock-auth",
     "build": "ng build",
     "build:prod": "ng build --configuration production",
+    "build:mock-auth": "ng build --configuration mock-auth",
     "build:sandbox": "bash scripts/build-via-local-fs.sh production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
