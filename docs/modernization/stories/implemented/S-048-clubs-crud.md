@@ -2,8 +2,9 @@
 id: S-048
 title: Clubs CRUD walking-skeleton (mocked auth)
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-05-17
+done_at: 2026-05-18
 depends_on: [S-008]
 acceptance:
   - End-to-end vertical slice: Angular SPA → Spring REST → Postgres `club` table. `docker compose --profile next up` + `pnpm start` produces a working Clubs list + edit form at `/clubs` in a browser.
@@ -54,9 +55,20 @@ See frontmatter.
 Superseded by acceptance criteria.
 
 ## Notes
-Walking-skeleton, not production-ready. The mock-auth profile is dev-only and explicitly forbidden in `next/server/src/main/resources/application-prod.properties` (or whichever prod profile lands at S-040).
+Walking-skeleton, not production-ready. The mock-auth profile is dev-only; `MockSecurityConfig.forbidInProd()` (a `@PostConstruct` hook on the profile-gated bean) refuses to boot when `prod` is co-active. A real `application-prod.yml` ships when S-040 lands.
 
-This story validates the S-008 component primitives kit against a real domain. The Playwright e2e suite deferred from S-008 (touch-target physical-size, axe-core a11y) MAY land here against the Clubs CRUD UI instead of a synthetic showcase — operator's call during implement.
+This story validates the S-008 component primitives kit against a real domain. The deferred axe-core / touch-target a11y Playwright suite from S-008 is *not* layered onto Clubs in this story — left for a dedicated a11y story.
+
+## Implementation deviations from refined design
+
+- **`ClubAwareJwtAuthenticationConverter` does not override `JwtAuthenticationConverter.convert(Jwt)`** (the method is `final` in Spring Security 7). Customization is via `setJwtGrantedAuthoritiesConverter(...)` in the constructor, which is the only seam Spring exposes. Behavior is identical to the design intent.
+- **`ClubsStore` mutations are write-then-patch, not pre-emptive optimistic.** The store waits for the server response and then applies `addEntity` / `updateEntity` / `removeEntity`. Acceptable for the walking-skeleton; the "snapshot prev → optimistic patch → revert on error" template lives in `hello.store.ts` as a TODO for the first hot-write story.
+- **`ClubsControllerIT` test-method names** use `_returns_` underscores rather than the `mockSysadmin` / `validPayload` prefixes the design plan listed. Coverage is equivalent — 8 ITs covering the 8 happy/edge/error rows in the test plan (list+seeded, create+valid, create+blank, create+409, update+ok, update+404, delete+204+then-404, list-excludes-soft-deleted).
+- **`ClubsAuthorizationTest` uses full `@SpringBootTest` rather than `@WebMvcTest`** (the slice doesn't include Spring Security autoconfig under Boot 4 without extra plumbing). Same intent — proves the predicate gates a downgraded principal at 403.
+- **No `MockPrincipalClaims.java` standalone record** — the Jwt is built inline in `MockAuthenticationFilter` (cleaner; fewer files in the rip-out directory). Rip-out checklist updated to reflect the actual 3-file directory.
+- **`af-data-table` tracks by item identity** (S-008 default); the refinement notes acknowledged this as a known-trivial inefficiency. No change.
+- **Hikari pool capped to 4 in `application-test.yml`** — added to keep the shared Postgres testcontainer from exhausting connections now that mock-auth + default-profile contexts both cache. Not in the original design but required to keep `./gradlew check` green.
+- **Mock-auth `clubId` claim seeded with the V5 seed-row UUID** rather than the design's literal `"club-1"` — keeps `principal.claims['clubId']` a valid UUID string the way the real JWT will emit, even though the disjunctive predicate clause is never reached today (mock principal is sysadmin).
 
 <!-- modernize-refine: start -->
 

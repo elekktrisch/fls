@@ -1,11 +1,11 @@
 spring:
   main:
     banner-mode: off
-  # S-048 fail-fast guard. The `mock-auth` profile (walking-skeleton dev only)
-  # must NEVER run in production. The `MockAuthForbiddenInProdInitializer`
-  # bean (wired via auto-config) throws on context start if both profiles are
-  # co-active. The application-mock-auth.yml profile-config block is the
-  # other half of the gate.
+  # S-048 fail-fast guard. The `mock-auth` profile (walking-skeleton dev
+  # only) must NEVER run in production. `MockSecurityConfig.forbidInProd()`
+  # @PostConstruct throws if both profiles are co-active — the bean only
+  # exists when `mock-auth` is on, so the check fires before any HTTP
+  # listener opens. application-mock-auth.yml is the other half of the gate.
   application:
     name: alpenflight-server
 
