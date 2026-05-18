@@ -8,11 +8,15 @@
 #
 # What it does:
 #   1. Brings up the legacy stack via e2e/scripts/dev-up.sh
-#      (mssql + mailpit under the fls-e2e compose project)
+#      (mssql + mailpit under the `fls-e2e` compose project — the legacy
+#      stack keeps its historical project name since `fls-` is the brand
+#      of the system being modernized AWAY from).
 #   2. Seeds the legacy FLSTest DB via e2e/scripts/seed.sh
 #      (schema + static seed + deterministic test fixture)
 #   3. Brings up the target stack (postgres + pgadmin + keycloak) by
-#      activating the 'next' compose profile on the same fls-e2e project
+#      activating the 'next' compose profile under the `alpenflight-dev`
+#      compose project — separate from `fls-e2e` so the two stacks teardown
+#      independently and don't share project-scoped resources.
 #   4. Applies every Flyway migration in next/server/src/main/resources/db/
 #      migration/ against the target Postgres
 #   5. Prints connection details for both stacks
@@ -20,9 +24,9 @@
 # Idempotent: re-running brings everything to the same end-state without
 # tearing down. Tear down with:
 #
-#   bash e2e/scripts/dev-down.sh                                 # legacy only
-#   docker compose -p fls-e2e --profile next down                # target only
-#   docker compose -p fls-e2e --profile next down -v             # also wipe pg data
+#   bash e2e/scripts/dev-down.sh                            # legacy only
+#   docker compose -p alpenflight-dev down                  # target only (keep volumes)
+#   docker compose -p alpenflight-dev down -v               # target only + wipe pg data
 #
 # Requires: Docker Engine 27+ with compose-v2 plugin, Java 25 (sdkman),
 # Gradle wrapper (next/server/gradlew is committed).
@@ -36,7 +40,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
-PROJECT="fls-e2e"
+PROJECT="alpenflight-dev"
 
 cd "${REPO_ROOT}"
 
@@ -51,8 +55,13 @@ log "Seeding legacy FLSTest database"
 bash e2e/scripts/seed.sh
 
 # 3. Target stack (postgres + pgadmin + keycloak)
-log "Bringing up target stack (Postgres + pgAdmin + Keycloak) via 'next' profile"
-docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" --profile next up -d --wait --wait-timeout 240
+# Services named explicitly rather than `--profile next` — the new stack
+# runs under its own project (`alpenflight-dev`), and `--profile next`
+# would also pull in the default-profile services (mssql, mailpit) under
+# this project name, double-binding ports 1433/1025/8025.
+log "Bringing up target stack (Postgres + pgAdmin + Keycloak) under project ${PROJECT}"
+docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" up -d --wait --wait-timeout 240 \
+    postgres pgadmin keycloak
 
 # 4. Flyway migrate against the target Postgres
 log "Applying Flyway migrations against target Postgres"
@@ -86,7 +95,7 @@ Keycloak has no realm yet — S-019 ships the AlpenFlight realm export. Create
 one by hand via the admin console for now if you need it.
 
 Tear down:
-  bash e2e/scripts/dev-down.sh                              # legacy only
-  docker compose -p fls-e2e --profile next down             # target only
-  docker compose -p fls-e2e --profile next down -v          # also wipe pg
+  bash e2e/scripts/dev-down.sh                            # legacy only
+  docker compose -p alpenflight-dev down                  # target only (keep volumes)
+  docker compose -p alpenflight-dev down -v               # target only + wipe pg
 INFO

@@ -21,9 +21,11 @@ for now.
 ## First-time bring-up
 
 ```bash
-# New-stack infra only (Postgres + pgAdmin + Keycloak) — runs alongside the
-# legacy mssql/mailpit since they share the default profile.
-docker compose -p fls-e2e --profile next up -d --wait
+# New-stack infra only (Postgres + pgAdmin + Keycloak).
+# Services named explicitly — `--profile next` would also pull in the
+# default-profile services (mssql, mailpit) under this project name,
+# colliding with anything the fls-e2e project already has running.
+docker compose -p alpenflight-dev up -d --wait postgres pgadmin keycloak
 
 # Or: everything (legacy + new + migrations + seed) in one shot.
 bash next/ops/dev-up-full.sh
@@ -32,21 +34,37 @@ bash next/ops/dev-up-full.sh
 Tear down:
 
 ```bash
-docker compose -p fls-e2e --profile next down              # keep volumes
-docker compose -p fls-e2e --profile next down -v --remove-orphans   # nuke
+docker compose -p alpenflight-dev down              # keep volumes
+docker compose -p alpenflight-dev down -v --remove-orphans   # nuke
 ```
+
+## Project naming
+
+The legacy and new stacks live under separate compose project names so
+they teardown independently and don't share project-scoped resources:
+
+- **`fls-e2e`** — legacy stack (`mssql`, `mailpit`). The historical name
+  matches the brand (`fls-`) of the system being modernized away from.
+  Managed by `e2e/scripts/dev-up.sh` / `dev-down.sh`.
+- **`alpenflight-dev`** — new stack (`postgres`, `pgadmin`, `keycloak`).
+  Activated by `--profile next` on the same root `docker-compose.yml`.
 
 ## Profile matrix
 
 | Invocation | What starts | Use case |
 |---|---|---|
 | `docker compose -p fls-e2e up -d` | `mssql` + `mailpit` | Legacy e2e Playwright suite (`e2e/`). |
-| `docker compose -p fls-e2e --profile next up -d` | `mssql` + `mailpit` + `postgres` + `pgadmin` + `keycloak` | **Default new-stack dev loop.** Backend + SPA run from the IDE / dev server. |
-| `bash next/ops/dev-up-full.sh` | All of the above + Flyway migrate + legacy DB seed | Comparing legacy vs new side-by-side. |
+| `docker compose -p alpenflight-dev up -d postgres pgadmin keycloak` | `postgres` + `pgadmin` + `keycloak` | **Default new-stack dev loop.** Backend + SPA run from the IDE / dev server. Don't use `--profile next` here — it would also start the default-profile services (mssql, mailpit) under this project and double-bind ports. |
+| `bash next/ops/dev-up-full.sh` | Legacy stack under `fls-e2e` + new stack under `alpenflight-dev` + Flyway migrate + legacy DB seed | Comparing legacy vs new side-by-side. |
 
-**Profile-union note:** Compose treats `--profile X` as a *union*, never an
-*exclusion*. Default-profile services (mssql, mailpit) always run when you
-add `--profile next` — there is no `--profile next-only` shape.
+**Profile-union footgun:** `--profile X` is a *union* with the default
+profile within the same compose project. When the new stack runs under
+`-p alpenflight-dev`, default-profile services declared in the root
+`docker-compose.yml` (`mssql`, `mailpit`) would come up *inside the
+`alpenflight-dev` project* — colliding on host ports with the
+`fls-e2e`-named copies. That's why the new-stack invocations above name
+services explicitly (`up -d postgres pgadmin keycloak`) instead of using
+`--profile next`. `dev-up-full.sh` follows the same pattern.
 
 ## Service endpoints (dev)
 
