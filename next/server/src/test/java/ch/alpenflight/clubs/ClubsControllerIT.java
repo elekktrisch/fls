@@ -2,15 +2,13 @@ package ch.alpenflight.clubs;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
-import ch.alpenflight.server.testsupport.SharedPostgresContainer;
+import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -22,8 +20,6 @@ import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Full-stack HTTP integration test for the Clubs CRUD slice under the
@@ -37,22 +33,9 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @ActiveProfiles({"test", "mock-auth"})
-@EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
-        disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
-class ClubsControllerIT {
+class ClubsControllerIT extends PostgresIntegrationTest {
 
-    private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", POSTGRES::jdbcUrl);
-        r.add("spring.datasource.username", POSTGRES::username);
-        r.add("spring.datasource.password", POSTGRES::password);
-        r.add("spring.flyway.url", POSTGRES::jdbcUrl);
-        r.add("spring.flyway.user", POSTGRES::username);
-        r.add("spring.flyway.password", POSTGRES::password);
-    }
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;

@@ -20,14 +20,6 @@ spring:
     # touching prod startup. Per S-009 performance plan.
     connect-retries: 5
     connect-retries-interval: 2s
-  jpa:
-    properties:
-      hibernate:
-        # Forward-looking: turning on session statistics now lets S-022+
-        # tests assert query counts (e.g. resolver hot-path memoization,
-        # N+1 detection on `@TenantId`-filtered repositories) without a
-        # later opt-in. Negligible test runtime cost; off in prod.
-        generate_statistics: true
   security:
     oauth2:
       resourceserver:
