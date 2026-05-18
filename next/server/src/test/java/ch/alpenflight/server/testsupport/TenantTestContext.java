@@ -1,24 +1,24 @@
 package ch.alpenflight.server.testsupport;
 
+import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
+import ch.alpenflight.platform.tenancy.TenantTestContextAccess;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Test-side carrier for the currently-active tenant identifier. A
- * {@code ThreadLocal} holds the UUID so JUnit Jupiter's per-test lifecycle
- * (via {@link TenantContextExtension}) can push a value at the start of a
- * test and clear it at the end without coupling production code to the test
- * surface.
+ * Test-side carrier for the currently-active tenant identifier. Delegates
+ * to {@link TenantTestContextAccess} (the production-classpath shim the
+ * {@link ClubTenantIdentifierResolver} consults as the first step of its
+ * precedence chain) — Maven test-scope hides this class from {@code src/main},
+ * so the shim is the resolver's reachable hook.
  *
- * <p>S-022 swaps in the real Hibernate {@code CurrentTenantIdentifierResolver}:
- * the resolver consults this carrier first (test seam), then
- * {@code SecurityContextHolder}, then DB fallback, then the {@link #NO_TENANT}
- * sentinel. Until then this class only stores the value; nothing wires it
- * into Hibernate.
+ * <p>S-022 wired the resolver to actually read this carrier: a test that
+ * sets a value here also drives the {@code @TenantId} filter Hibernate
+ * appends to every tenant-scoped query.
  *
- * <p>The {@link #NO_TENANT} sentinel is the nil UUID. S-022's
- * {@code PreInsertEventListener} guards against writes whose
- * {@code @TenantId} column resolves to nil.
+ * <p>The {@link #NO_TENANT} sentinel is the nil UUID. The
+ * {@link ch.alpenflight.platform.tenancy.TenantInsertGuard} guards against
+ * writes whose {@code @TenantId} column resolves to nil.
  *
  * <p>Parallel test execution is incompatible with the {@code ThreadLocal}
  * carrier — {@link JunitPlatformConfigTest} pins
@@ -32,40 +32,38 @@ public final class TenantTestContext {
      * via {@link #runUnscoped(Runnable)}. Distinct from {@link #current()}'s
      * empty result, which signals "no test has set a tenant at all."
      */
-    public static final UUID NO_TENANT = new UUID(0L, 0L);
-
-    private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();
+    public static final UUID NO_TENANT = ClubTenantIdentifierResolver.NO_TENANT;
 
     private TenantTestContext() {}
 
-    public static void set(UUID clubId) {
-        CURRENT.set(clubId);
+    public static void set(UUID tenantId) {
+        TenantTestContextAccess.set(tenantId);
     }
 
     public static Optional<UUID> current() {
-        return Optional.ofNullable(CURRENT.get());
+        return TenantTestContextAccess.current();
     }
 
     public static void clear() {
-        CURRENT.remove();
+        TenantTestContextAccess.clear();
     }
 
     /**
-     * Run {@code body} with {@code clubId} active, restoring the prior value
+     * Run {@code body} with {@code tenantId} active, restoring the prior value
      * (or absence) after the block. Used by tests that need to assert
      * cross-tenant behaviour mid-method — create-as-A, switch-to-B, read,
      * switch-back.
      */
-    public static void runAs(UUID clubId, Runnable body) {
-        UUID prior = CURRENT.get();
-        CURRENT.set(clubId);
+    public static void runAs(UUID tenantId, Runnable body) {
+        Optional<UUID> prior = TenantTestContextAccess.current();
+        TenantTestContextAccess.set(tenantId);
         try {
             body.run();
         } finally {
-            if (prior == null) {
-                CURRENT.remove();
+            if (prior.isPresent()) {
+                TenantTestContextAccess.set(prior.get());
             } else {
-                CURRENT.set(prior);
+                TenantTestContextAccess.clear();
             }
         }
     }

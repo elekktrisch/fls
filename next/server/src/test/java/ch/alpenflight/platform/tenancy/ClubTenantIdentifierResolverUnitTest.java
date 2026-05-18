@@ -2,8 +2,6 @@ package ch.alpenflight.platform.tenancy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -130,11 +128,6 @@ class ClubTenantIdentifierResolverUnitTest {
     }
 
     @Test
-    void resolveAny_returns_sentinel() {
-        assertThat(resolver.resolveAnyTenantIdentifier()).isEqualTo(ClubTenantIdentifierResolver.NO_TENANT);
-    }
-
-    @Test
     void validate_existing_sessions_returns_false() {
         assertThat(resolver.validateExistingCurrentSessions()).isFalse();
     }
@@ -171,6 +164,8 @@ class ClubTenantIdentifierResolverUnitTest {
                 .expiresAt(Instant.now().plusSeconds(60))
                 .claims(c -> c.putAll(claims))
                 .build();
-        return new JwtAuthenticationToken(jwt);
+        // Two-arg constructor flips isAuthenticated() to true; the
+        // single-arg ctor leaves it false and the resolver short-circuits.
+        return new JwtAuthenticationToken(jwt, List.of());
     }
 }

@@ -25,7 +25,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * {@code @PreAuthorize} predicates downstream are real — only the principal
  * source is mocked.
  *
- * <h2>RIP-OUT PLAN (S-019 / S-020 / S-022 land in one commit)</h2>
+ * <h2>RIP-OUT PLAN (deferred to S-026 — role enforcement)</h2>
+ *
+ * S-020 originally targeted S-022 as the rip-out point; S-022's refine
+ * (PR #63) deferred the rip-out to S-026 so the walking-skeleton operator-
+ * demo + dev auth-free path stays usable until real role gates land. When
+ * S-026 ships:
  *
  * <ol>
  *   <li>Delete the whole {@code ch.alpenflight.auth} package (3 files).</li>
