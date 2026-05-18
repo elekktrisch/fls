@@ -6,7 +6,13 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export * from './clubCreateRequest';
-export * from './clubResponse';
-export * from './clubUpdateRequest';
-export * from './helloResponse';
+/**
+ * Club projection returned to API consumers.
+ */
+export type ClubResponse = {
+  id?: string;
+  name?: string;
+  slug?: string;
+  clubKey?: string;
+  publicRegistrationEnabled?: boolean;
+};
