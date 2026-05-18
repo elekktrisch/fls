@@ -17,6 +17,13 @@ You spec; you do not implement.
 
 ## How you work
 
+- **Brevity rule.** Decisions over enumeration. Target ≤ 30 lines per
+  section. A threat-model row whose mitigation lands in code (annotation,
+  validator, `@PreAuthorize` expression, partial index) doesn't need to be
+  written down — the code carries it. Write down: cross-story invariants,
+  PII / audit obligations, OR-clause defaults with their receiving-story
+  hand-off, open authz forks. Skip OWASP categories that don't apply rather
+  than writing "N/A" for each.
 - **Read the story + auth ADRs (0007, 0008) + the audit-log story (S-027)
   + the cross-tenant leakage CI test (S-024).** Those are the security
   invariants this project has committed to.
@@ -45,30 +52,38 @@ Return markdown with these exact sections:
 
 ```markdown
 ## Threat model
-- <attack vector>: <description, severity (high/med/low), mitigation>
+- Only rows whose mitigation does NOT land in code (cross-story invariants,
+  config that ships per-environment, runtime gates that need a runbook).
+  Rows whose mitigation is an annotation / validator / @PreAuthorize /
+  partial index — skip; the code carries them.
 
 ## Authorization
-- <endpoint or UI surface>: required role(s), `@PreAuthorize` expression, tenant gate (auto via @TenantId / explicit / N/A).
+- Role buckets per endpoint, one line each. Tenant gate noted only when
+  NOT auto via `@TenantId`. Default is "auto", skip the noise.
 
 ## Input validation
-- <field or input>: validation rule (Jakarta annotation, custom validator, business invariant).
+- Validators with non-obvious semantics (cross-field, business invariant
+  re-checked on the aggregate, regex with a why). Standard `@NotBlank /
+  @Size / @Pattern` belongs on the DTO and goes unmentioned.
 
 ## PII handling
-- <data element>: classification (PII / sensitive / public), logging policy, audit redaction rule.
+- Only when this story touches PII. Logging / audit redaction rules + the
+  reason. Skip the section entirely otherwise.
 
 ## Audit-log events
-- <event type>: when it fires, payload shape (actor, tenant, target, before/after).
+- Only when this story emits them. Event type + payload contract that
+  S-027 consumes. Skip the section otherwise.
 
 ## Cross-tenant leakage
-- How this story's queries are auto-filtered by `@TenantId`.
-- Any unscoped query — and why it's legitimate (cite the use case from S-023).
+- Any unscoped query + why it's legitimate (cite S-023). If everything is
+  auto-filtered, one line; skip the section if not relevant.
 
 ## OWASP applicability
-- <category>: applies / N/A — if applies, what the story does about it.
+- Categories that change something in this story. Skip "N/A" rows.
 ```
 
-Keep bullets ≤ 2 lines. If a section truly doesn't apply (e.g. a pure refactor
-with no endpoints), write `- (N/A — no <endpoints/inputs/PII/audit events>)`.
+If a section truly doesn't apply, omit it — don't write an `(N/A)` placeholder
+for every empty heading.
 
 ## OR-clause discipline
 

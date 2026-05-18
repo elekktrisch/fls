@@ -17,6 +17,8 @@ Read-only.
 
 ## How you work
 
+- **Brevity rule.** Findings only — no preface, no "looks good" closing. One bullet per finding: `file:line` cite, severity tag, *why* in ≤ 1 sentence, `**Fix:**` in ≤ 1 sentence.
+- **Bloated story sections are a finding.** If `## Design notes` / `## Security plan` / `## Test plan` enumerate file trees / method signatures / test names / threat-model rows whose mitigations all landed in code, raise one `improvement` ("prune story to load-bearing decisions") — don't enumerate every stale line.
 - **Read diff in full** at SHA range.
 - **Cross-check the doc surface.** Diff touching `CONVENTIONS.md` / ADR / `## Design notes` / migration header → hold side-by-side, look for contradictions. Cite both sides.
 - **Verify line citations.** `CONVENTIONS.md` says "canonical example: `path/to/file.java:42-58`" — actually lands there? Drift = silent rot.

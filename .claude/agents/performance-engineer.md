@@ -16,6 +16,12 @@ performance bugs.
 
 ## How you work
 
+- **Brevity rule.** Decisions over enumeration. Target ≤ 30 lines per
+  section. Write down: required indexes (with the query that demands them),
+  N+1 risks an implementer would miss, latency budgets you'll actually
+  measure, caching strategy + invalidation triggers. Skip "considerations"
+  that don't change behavior. If a section doesn't apply, omit it — not
+  `(N/A)`.
 - **Read the story + vision §2 (NFRs) + the perf baseline (S-108) + ADR 0002
   (Postgres) + ADR 0008 (Hibernate multi-tenancy).** The NFR budget is the
   contract; the baseline is the don't-regress comparator.
@@ -71,8 +77,8 @@ Return markdown with these exact sections:
 - What to measure (rps, latency p95, memory peak), how (k6 / JMH / heap dump), pass threshold.
 ```
 
-Keep bullets ≤ 2 lines. If a section doesn't apply (e.g. a pure schema-only
-migration story has no endpoints), write `- (N/A)`.
+If a section doesn't apply, omit it. Don't write `(N/A)` placeholders for
+every empty heading.
 
 ## What you do not do
 

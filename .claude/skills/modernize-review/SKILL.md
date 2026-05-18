@@ -43,9 +43,9 @@ Reviewer dispatch:
 | `usability-reviewer` | `has_frontend` | `### Usability` |
 | `tech-writer-reviewer` | NOT `has_frontend` (replaces usability for backend-only) | `### Code quality` |
 
-For each not-spawned reviewer, pre-fill its section with `(N/A — <reason from diff scope>)`. Examples:
-- parity skipped: `**Oracle:** N/A — parity_test: none and no flsserver/flsweb references in diff.`
-- security skipped (docs-only): `(N/A — pure-docs diff; no code surface.)`
+For each not-spawned reviewer: **omit the section entirely.** Two exceptions:
+- **Parity skipped** → keep `### Parity` heading + `**Oracle:** N/A — <reason>` line. The explicit "no oracle exists" claim is itself useful at finalize.
+- **All reviewers skipped (pure-docs diff)** → write a single-line `## Review` block: `**Outcome:** pass (docs-only diff).`
 
 Load: full story file, ADRs in `adr_refs`, legacy code at cited file:line (open, don't paraphrase), `00-seed.md`, `02-vision-and-constraints.md`.
 
@@ -69,10 +69,11 @@ Send all applicable `Agent` calls in ONE message. Each subagent prompt must incl
 - Project context: `@TenantId` multi-tenancy, sacred cows in `00-seed.md`, `next/server/` + `next/web/` layout, German default locale, [ADR 0022 directives](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 - Library facts from Step 1.5 (or empty/omitted).
 - Output format (each agent's system prompt specifies; call it out).
+- **Brevity rule:** "Findings only — one bullet each, `file:line` cite, blocker/improvement/nudge tag. No prefatory summary, no per-dimension overview, no padding. If you have nothing in a dimension, emit nothing." Restate this in every spawn prompt — it overrides the agent's default output template when they conflict.
 
-### Step 3 — Synthesise
+### Step 3 — Synthesise (editorial)
 
-Reviewers produce findings; you compose into `## Review`. Don't re-decide.
+Reviewers produce findings; you compose into `## Review`. **The job is editorial: cut padding, drop empty sections, never paraphrase a blocker into an improvement.** Don't re-decide severity, but do drop a reviewer's "Looks good overall" preamble — findings only.
 
 **Severity rubric:**
 
@@ -82,9 +83,11 @@ Reviewers produce findings; you compose into `## Review`. Don't re-decide.
 
 **Per ADR 0022 directive 1**: doc-drift findings (header lists 8 vs body has 11; stale test-method-name in story) default to improvement/nudge — blocker only when the drift actively misleads a future implementer to write incorrect code.
 
+**Stale story content from over-eager refinement is itself a finding.** If `## Design notes` enumerates file trees / method signatures / test method names / threat-model rows whose mitigations all landed in code, raise it as an `improvement` ("prune story to load-bearing decisions") with a pointer to the implement-skill prune step. Don't merge the prune yourself — that's the implementer's job.
+
 **Conflict resolution:**
 - Two reviewers same finding → merge at higher severity, cross-reference. Highest signal.
-- Reviewer empty for genuinely-N/A dimension → preserve their "(N/A — …)" note.
+- Reviewer empty for genuinely-N/A dimension → **omit the section** rather than writing `(N/A — …)` placeholder. Skipped-by-dispatch sections are different (handled at write-back, see Step 4).
 - Reviewer output clearly broken (no structure, hallucinated paths) → re-run that one with clarifying prompt.
 
 **Parity N/A:** preserve verbatim in section + `review_parity_oracle` frontmatter. An unverified parity claim is itself useful information.
@@ -98,12 +101,11 @@ Append (or replace, if `reviewed: true`) inside the delimiters:
 
 <!-- modernize-review: start -->
 
-**Reviewed:** <ISO> · **PR:** #M (or `Diff: <sha>..<sha>`) · **Diff size:** N commits, M files · **Outcome:** <pass | blockers | improvements-only>
+**Reviewed:** <ISO> · **PR:** #M (or `Diff: <sha>..<sha>`) · **Outcome:** <pass | blockers | improvements-only>
 
 ### Maintainability
-- **[blocker]** <finding> — `<path>:<line>`. <why>. **Fix:** <action>.
+- **[blocker]** <finding> — `<path>:<line>`. **Fix:** <action>.
 - **[improvement]** ...
-- **[nudge]** ...
 
 ### Parity
 **Oracle:** <name of fixture / harness / oracle, or `(N/A — <reason>)`>
@@ -112,19 +114,23 @@ Append (or replace, if `reviewed: true`) inside the delimiters:
 ### Security
 - ...
 
-### Usability  (when has_frontend; omitted for backend-only)
-- ...
-
-### Code quality  (when NOT has_frontend; populated by tech-writer-reviewer)
-- ...
-
 ### Cross-reviewer agreements
 - <when ≥2 reviewers reinforced the same finding — highest signal>
 
 <!-- modernize-review: end -->
 ```
 
-Re-run replaces the delimited block atomically. Refinement sections + everything else preserved verbatim.
+**Omit any section with zero findings.** Don't write empty `### Security` /
+`### Usability` / `### Code quality` headings. Parity is the one exception
+— preserve the `(N/A — …)` line because an explicit "no oracle exists"
+statement is itself useful information for finalize.
+
+Findings format: one bullet, `file:line` cite, severity tag, then *why* in
+≤ 1 sentence, then `**Fix:**` in ≤ 1 sentence. Drop "diff size" /
+"N commits, M files" — `gh pr view` carries that.
+
+Re-run replaces the delimited block atomically. Refinement sections +
+everything else preserved verbatim.
 
 ### Step 5 — Frontmatter
 
@@ -162,10 +168,10 @@ context7_last_checked: <ISO date>  # only when Step 1.5 ran
 - Context7 conditional (only when dep-files changed + cache stale).
 - Reviewers run in parallel (single message, multiple `Agent` calls).
 - Severity discipline. Blocker = contract / ADR / invariant / Directive-2 break, not "smells off."
-- Synthesis is mechanical. Don't paraphrase blockers into improvements.
+- **Synthesis is editorial: findings only, no padding, omit empty sections.** Don't paraphrase blockers into improvements.
 - Replace, don't append, on re-run.
 - Maintainability + parity are the headlines.
-- Per ADR 0022 directive 1: doc-drift defaults to improvement/nudge.
+- Per ADR 0022 directive 1: doc-drift defaults to improvement/nudge. **Bloated refinement sections are doc-drift** — flag for prune.
 
 ## Not in scope
 

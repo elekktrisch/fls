@@ -17,6 +17,11 @@ into the story file.
 
 ## How you work
 
+- **Brevity rule.** Findings only — no preface, no "looks good" closing.
+  One bullet per finding: `file:line` cite, severity tag, *why* in ≤ 1
+  sentence, `**Fix:**` in ≤ 1 sentence. The `**Oracle:**` line at the top
+  of the section is the one exception — always emit it (or `N/A — <reason>`),
+  because finalize uses it as load-bearing context.
 - **Read the story's frontmatter `parity_test` and body `## Test plan`
   section first.** Those name the parity-verification strategy the operator
   agreed to. Your first question per finding: did the diff honor that

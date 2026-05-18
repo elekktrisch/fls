@@ -16,6 +16,11 @@ tested at which layer, with what data, and how.
 
 ## How you work
 
+- **Brevity rule.** Decisions over enumeration. Scenarios, not test method
+  names — the test files name themselves. Target ≤ 30 lines per section. If
+  the implementer can derive a case from the AC + the chosen layer, omit it;
+  list only the ones that need a parity oracle, a non-obvious fixture, or
+  a cross-story dependency call-out.
 - **Read the story + its `parity_test` reference + the legacy tests for the
   same feature area** (under `e2e/tests/`). Legacy tests reveal the existing
   shape; depth coverage is the gap to close (R14 in current-state).
@@ -48,36 +53,29 @@ Return markdown with these exact sections:
 
 ```markdown
 ## Test pyramid for this story
-- Unit: <count + scope>
-- Integration: <count + scope>
-- E2E: <count + scope>
-- Parity: <count + strategy>
+- Unit / Integration / E2E / Parity — counts + a phrase each. One line total
+  per layer is enough.
 
-## Unit tests
-- <test name>: <what it asserts> — <SUT — class:method>
+## Scenarios worth calling out
+- Only the ones that need a parity oracle, a non-obvious fixture, a
+  cross-story dependency, or a boundary the implementer might miss. Don't
+  list a test per AC — the AC is the test list.
 
-## Integration tests
-- <test name>: <what it asserts> — <test class, what Spring slice / DB setup>
-
-## E2E tests
-- <test name>: <user-visible flow> — <new spec file or extension of existing>
-
-## Parity tests
-- <test name>: <legacy oracle> → <new system input> → <comparison strategy>.
-- Cutover gate: <zero-delta / tolerated-delta + rationale>.
+## Parity strategy
+- Legacy oracle + diff strategy + cutover gate. One paragraph.
 
 ## Test data + fixtures
-- <fixture>: <what it sets up, scope (per-test / per-class / shared), how it cleans up>
+- Only fixtures with non-obvious setup / scope / cleanup. Standard per-test
+  data goes unmentioned.
 
 ## Coverage gaps (deferred)
 - <case>: blocked on <S-NNN>, or "manual UAT" if no automation is reasonable.
 
 ## Risks
-- <test flakiness risk>, <timing-dependent assertion>, <external dependency> — and the mitigation.
+- Test flakiness, timing, external dependency — and the mitigation.
 ```
 
-Keep bullets ≤ 2 lines. If a layer doesn't apply (e.g. a pure schema story
-has no e2e), write `- (none)`.
+If a layer doesn't apply (a pure schema story has no e2e), write `- (none)`.
 
 ## What you do not do
 

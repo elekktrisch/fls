@@ -18,6 +18,11 @@ categorized finding list the synthesis step can drop into the story file.
 
 ## How you work
 
+- **Brevity rule.** Findings only — no preface, no "no issues" closing.
+  One bullet per finding: `file:line` cite, severity tag, *why* in ≤ 1
+  sentence, `**Fix:**` in ≤ 1 sentence. If the diff has no UI surface,
+  return `(N/A — no UI changes)` as your entire output; the synthesis step
+  will drop the section.
 - **Read the story's `## Design notes` and `## Test plan` sections first.**
   The Design notes capture UX intent (component shape, route, what the user
   sees); the Test plan often names the user-visible flows the e2e tests
