@@ -1,18 +1,25 @@
 import { inject } from '@angular/core';
-import { Router, type CanActivateFn } from '@angular/router';
+import { type CanActivateFn } from '@angular/router';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
 
 import { SessionStore } from './session.store';
 
 /**
  * Default-deny route guard. Public routes opt-in via `data.publicAccess === true`.
  *
- * Returns `false` (defer) while the session is still resolving (`idle` /
- * `loading`) so a hard refresh does not redirect to /login mid-init. S-021
- * inverts the body when real OIDC lands; the default-deny shape stays.
+ * Reads SessionStore (the only seam app code touches) and falls back to
+ * the OIDC library when an unauthenticated principal hits a private route
+ * — a hard redirect to Keycloak per [ADR 0007] §"Hard-401 redirect."
+ *
+ * Returns `false` (defer) while the session is still resolving so a hard
+ * refresh does not race the OIDC `checkAuth()` resolution. Under the
+ * normal boot path, `withAppInitializerAuthCheck()` blocks bootstrap
+ * until the status settles, so this branch only fires on rare
+ * post-init resolves.
  */
 export const authGuard: CanActivateFn = (route) => {
   const session = inject(SessionStore);
-  const router = inject(Router);
+  const oidc = inject(OidcSecurityService);
 
   if (route.data['publicAccess'] === true) {
     return true;
@@ -20,5 +27,9 @@ export const authGuard: CanActivateFn = (route) => {
   if (session.isLoadingSession()) {
     return false;
   }
-  return session.isAuthenticated() ? true : router.createUrlTree(['/login']);
+  if (session.isAuthenticated()) {
+    return true;
+  }
+  oidc.authorize();
+  return false;
 };

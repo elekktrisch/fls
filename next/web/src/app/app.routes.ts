@@ -6,8 +6,8 @@ export const routes: Routes = [
     loadChildren: () => import('@features/landing/landing.routes').then((m) => m.LANDING_ROUTES),
   },
   {
-    path: 'hello',
-    loadChildren: () => import('@features/hello/hello.routes').then((m) => m.HELLO_ROUTES),
+    path: 'auth',
+    loadChildren: () => import('./core/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
     path: 'clubs',

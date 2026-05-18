@@ -53,6 +53,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "mock-auth": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/app/app.config.ts",
+                  "with": "src/app/app.config.mock.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -68,6 +79,9 @@
             },
             "development": {
               "buildTarget": "web:build:development"
+            },
+            "mock-auth": {
+              "buildTarget": "web:build:mock-auth"
             }
           },
           "defaultConfiguration": "development"

@@ -6,11 +6,10 @@ import {
 import { TestBed } from '@angular/core/testing';
 import {
   provideRouter,
-  Router,
-  UrlTree,
   type ActivatedRouteSnapshot,
   type RouterStateSnapshot,
 } from '@angular/router';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { patchState } from '@ngrx/signals';
 import { unprotected } from '@ngrx/signals/testing';
 import { Subject } from 'rxjs';
@@ -36,12 +35,23 @@ function runGuard(data: Record<string, unknown> = {}, url = '/protected') {
 }
 
 describe('authGuard', () => {
+  let authorizeCalls: number;
+  let oidcStub: Pick<OidcSecurityService, 'authorize'>;
+
   beforeEach(() => {
+    authorizeCalls = 0;
+    oidcStub = {
+      authorize: () => {
+        authorizeCalls += 1;
+      },
+    } as Pick<OidcSecurityService, 'authorize'>;
+
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
+        { provide: OidcSecurityService, useValue: oidcStub },
       ],
     });
   });
@@ -73,13 +83,13 @@ describe('authGuard', () => {
     expect(runGuard({})).toBe(true);
   });
 
-  it('redirects to /login when unauthenticated and route is private', () => {
+  it('triggers oidc.authorize() and returns false when unauthenticated on a private route', () => {
     const store = TestBed.inject(SessionStore);
     patchState(unprotected(store), { sessionStatus: 'unauthenticated' });
 
     const result = runGuard({});
 
-    expect(result).toBeInstanceOf(UrlTree);
-    expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toBe('/login');
+    expect(result).toBe(false);
+    expect(authorizeCalls).toBe(1);
   });
 });

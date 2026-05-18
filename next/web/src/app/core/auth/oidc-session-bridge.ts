@@ -1,6 +1,11 @@
-import { Injectable } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { EventTypes, OidcSecurityService, PublicEventsService } from 'angular-auth-oidc-client';
+import { filter } from 'rxjs';
 
-import type { User } from '../session/session.store';
+import { SessionStore, type User } from '../session/session.store';
+
+import { mapClaimsToUser } from './oidc-claims';
 
 export interface SessionPort {
   login(user: User, clubId: string | null): void;
@@ -8,20 +13,58 @@ export interface SessionPort {
   isAuthenticated(): boolean;
 }
 
-export function applyClaimsToSession(_claims: unknown, _session: SessionPort): void {
-  throw new Error('S-021 stub: applyClaimsToSession');
+/**
+ * Pure handler for OIDC `userData()` signal emissions. Extracted from the
+ * service so unit tests can exercise the branching without bootstrapping
+ * the OIDC library.
+ */
+export function applyClaimsToSession(claims: unknown, session: SessionPort): void {
+  const user = mapClaimsToUser(claims);
+  if (user) {
+    session.login(user, user.clubId);
+    return;
+  }
+  if (session.isAuthenticated()) {
+    session.logout();
+  }
 }
 
-export function handleSilentRenewFailed(
-  _session: SessionPort,
-  _reauthorize: () => void,
-): void {
-  throw new Error('S-021 stub: handleSilentRenewFailed');
+/**
+ * Pure handler for `EventTypes.SilentRenewFailed`. Order matters: the
+ * session is cleared FIRST so a concurrent route activation does not see
+ * a stale authenticated user before the redirect lands.
+ */
+export function handleSilentRenewFailed(session: SessionPort, reauthorize: () => void): void {
+  session.logout();
+  reauthorize();
 }
 
+/**
+ * Wires the angular-auth-oidc-client signals + events into SessionStore.
+ * No other code should inject {@link OidcSecurityService}: SessionStore is
+ * the single read seam for application code.
+ */
 @Injectable({ providedIn: 'root' })
 export class OidcSessionBridge {
+  private readonly oidc = inject(OidcSecurityService);
+  private readonly events = inject(PublicEventsService);
+  private readonly session = inject(SessionStore);
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor() {
-    throw new Error('S-021 stub: OidcSessionBridge constructor');
+    effect(() => {
+      const userDataResult = this.oidc.userData();
+      applyClaimsToSession(userDataResult?.userData ?? null, this.session);
+    });
+
+    this.events
+      .registerForEvents()
+      .pipe(
+        filter((e) => e.type === EventTypes.SilentRenewFailed),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        handleSilentRenewFailed(this.session, () => this.oidc.authorize());
+      });
   }
 }
