@@ -3,27 +3,43 @@ import { patchState, signalStore, withComputed, withMethods, withState } from '@
 
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
 
+// Realm roles from `next/auth/realm-export.json`. Mirrored from the
+// `realm_access.roles[]` claim Keycloak stamps onto access + id tokens.
+// The mapper at `core/auth/oidc-claims.ts` filters unknown realm roles
+// (e.g. Keycloak built-ins `uma_authorization`, `offline_access`) so the
+// store's role list is always the AlpenFlight catalog.
+export type AppRole =
+  | 'SYSTEM_ADMINISTRATOR'
+  | 'CLUB_ADMINISTRATOR'
+  | 'FLIGHT_OPERATOR'
+  | 'PILOT'
+  | 'OFFICE_USER'
+  | 'GUEST';
+
 export interface User {
   id: string;
   username: string;
   email: string;
   firstName: string;
   lastName: string;
-  clubId: string;
-  // S-048 boyscout: canonical Keycloak realm-role names. Matches the
-  // `realm_access.roles[]` claim shape S-020's JwtAuthenticationConverter
-  // will emit, so the SPA-server role token never needs a mapping layer.
-  roles: readonly ('CLUB_ADMINISTRATOR' | 'SYSTEM_ADMINISTRATOR' | 'MEMBER')[];
+  // Nullable: federated / not-yet-imported users carry no `clubId` claim.
+  // S-022's `ClubTenantIdentifierResolver` falls back to a DB lookup by
+  // `keycloak_sub` / email; the SPA shows "no club selected" while that
+  // resolves.
+  clubId: string | null;
+  roles: readonly AppRole[];
 }
 
 // SECURITY: state declares ONLY claims-derived data. NEVER add access_token,
 // refresh_token, or id_token here — those live in the OIDC library's storage
 // layer (S-021 selects iframe vs cookie). Signals are trivially readable from
 // dev tools.
+type SessionStatus = 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
+
 interface SessionState {
   authenticatedUser: User | null;
   currentClubId: string | null;
-  sessionStatus: 'idle' | 'loading' | 'authenticated' | 'unauthenticated';
+  sessionStatus: SessionStatus;
   bootstrapStartedAt: number | null;
 }
 
@@ -48,15 +64,13 @@ export const SessionStore = signalStore(
     ),
   })),
   withMethods((store, bus = inject(MUTATION_BUS)) => ({
-    // TODO(S-021): replace placeholder body with OIDC callback handler.
-    login(user: User, clubId: string): void {
+    login(user: User, clubId: string | null): void {
       patchState(store, {
         authenticatedUser: user,
         currentClubId: clubId,
         sessionStatus: 'authenticated',
       });
     },
-    // TODO(S-021): wire to OIDC logout endpoint + token revocation.
     logout(): void {
       patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
       bus.next({ kind: 'session.logout' });
@@ -81,6 +95,6 @@ export const SessionStore = signalStore(
   })),
 );
 
-function sessionStatusIsLoading(status: SessionState['sessionStatus']): boolean {
+function sessionStatusIsLoading(status: SessionStatus): boolean {
   return status === 'idle' || status === 'loading';
 }

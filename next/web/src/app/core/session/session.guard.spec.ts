@@ -26,7 +26,7 @@ const sampleUser: User = {
   firstName: 'Alice',
   lastName: 'Doe',
   clubId: 'club-1',
-  roles: ['MEMBER'],
+  roles: ['PILOT'],
 };
 
 function runGuard(data: Record<string, unknown> = {}, url = '/protected') {
