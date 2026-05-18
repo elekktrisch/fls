@@ -39,7 +39,7 @@ for a new contributor.
   Ship SQL by default; reach for Java only when SQL genuinely won't fit.
 - **Canonical example:** `src/main/resources/db/migration/V1__baseline.sql`.
 
-## Test infrastructure for DB-touching tests — S-009 / S-012
+## Test infrastructure for DB-touching tests — S-009 / S-012 / S-015
 
 - **Real DB only, no mocking.** Every `@SpringBootTest` shares a single
   Postgres 17 container; H2 was retired in S-012 once migrations started
@@ -48,30 +48,69 @@ for a new contributor.
 - **Shared container:** `src/test/java/ch/alpenflight/server/testsupport/SharedPostgresContainer.java`
   is a JVM-singleton that wraps `PostgresTestContainerLifecycle` — one
   container per JVM, lazily started on first reference, torn down by the
-  shutdown hook. Tests reuse it via `SharedPostgresContainer.INSTANCE`
-  in `@DynamicPropertySource`. Flyway migrate is idempotent across class
-  boots (V1+V2 apply once; subsequent boots no-op via
-  `flyway_schema_history`).
+  shutdown hook. Flyway migrate is idempotent across class boots (V1+V2
+  apply once; subsequent boots no-op via `flyway_schema_history`).
 - **Container helper:** `src/test/java/ch/alpenflight/server/testsupport/PostgresTestContainerLifecycle.java`
   drives the container via the `docker` CLI (Testcontainers 1.21.x can't
   negotiate Docker API ≥1.44 in our sandbox). Image `postgres:17.4-alpine`
   pinned; readiness probe via JDBC `SELECT 1`.
-- **Guard:** every `@SpringBootTest` class is annotated
+- **Base class** — `extends PostgresIntegrationTest` (S-015) is the default
+  for any full-stack DB-touching `@SpringBootTest`. It bundles
+  `@SpringBootTest`, `@ActiveProfiles("test")`, the `SharedPostgresContainer`
+  `@EnabledIf` guard, the `@DynamicPropertySource` for datasource + Flyway,
+  and `@ExtendWith(TenantContextExtension.class)`. Subclasses re-declare
+  `@SpringBootTest(webEnvironment = RANDOM_PORT)` only when they need a
+  real port (HTTP integration tests via `TestRestTemplate`); MockMvc-based
+  ITs inherit the default.
+- **`@WithTenant` / `TenantTestContext`** — annotate a test method or class
+  with `@WithTenant("019e30c3-2c00-7001-8000-000000000001")` (UUID string
+  literal — annotations can't carry `UUID`) and the
+  `TenantContextExtension` parses it to `UUID` and pushes it into the
+  `ThreadLocal`-backed `TenantTestContext` before each test. Method-level
+  beats class-level. Mid-test switching uses
+  `TenantTestContext.runAs(uuid, () -> { ... })`; the legitimate unscoped
+  path uses the distinctly-named `TenantTestContext.runUnscoped(...)`,
+  which pushes the `NO_TENANT` (nil UUID) sentinel — "forgot to annotate"
+  is `Optional.empty()` and is NOT the same thing. S-022 retrofits the
+  extension to also push the value into Spring Security's context so the
+  production resolver consumes the same tenant via the production path.
+- **`junit-platform.properties`** pins `junit.jupiter.execution.parallel.enabled=false`.
+  `TenantTestContext` uses a `ThreadLocal`; parallel test execution would
+  alias sibling tests' tenant context. `JunitPlatformConfigTest` ratchets
+  the value. Re-enable only after ADR 0021 is audited across the suite.
+- **Isolation rule (ADR 0021):** tests own their data per-tenant
+  (tenant-scoped) or by stable randomized natural key (cross-tenant) and
+  **pre-clean at start, never teardown**. No `@AfterEach`, no global
+  TRUNCATE, no `@Transactional` auto-rollback (it doesn't survive HTTP
+  boundaries). Failed-test state stays in pgAdmin (`next/ops/dev-up-full.sh`)
+  for inspection; re-running the same test pre-cleans its own data.
+  Canonical example: `ClubsControllerIT` (per-test unique slug / clubKey).
+  The shared `IntegrationTestSupport.createTestClub(...)` helper lands in
+  S-022.
+- **Test-support package boundary** — `ch.alpenflight.server.testsupport`
+  is test-scope only; Maven test-scope isolation is the structural defense,
+  and `TestSupportPackageBoundaryTest` is the belt-and-braces check that
+  fails the build if any `src/main/java` class references the package
+  (i.e. annotations like `@WithTenant` accidentally leak into production).
+- **Docker guard** — every DB-touching class (or its base) carries
   `@EnabledIf("ch.alpenflight.server.testsupport.SharedPostgresContainer#available")`,
   so contributors without Docker still pass `./gradlew check` cleanly
-  (tests skip rather than fail).
-- **CI fail-loud guard.** `SharedPostgresContainer.available()` throws
-  (instead of returning false) when Docker is unreachable AND `CI=true` is
-  set (GitHub Actions / GitLab / CircleCI all set it). Otherwise a CI run
-  on a hiccuping Docker daemon would silently skip every DB-touching test
-  and report green — exactly the false-pass this gate exists to prevent.
-- **Static-asset tests** that only walk the classpath (no DB) live alongside
-  the integration test in the same package, plain JUnit (no
-  `@SpringBootTest`). Example: `MigrationFolderConventionsTest`.
+  (tests skip rather than fail). `SharedPostgresContainer.available()`
+  throws under `CI=true` instead of returning false, so a CI run on a
+  hiccuping Docker daemon fails loudly rather than silently skipping every
+  DB-touching test.
+- **Static-asset tests** that only walk the classpath (no DB) live
+  alongside the integration test in the same package, plain JUnit (no
+  `@SpringBootTest`). Example: `MigrationFolderConventionsTest`,
+  `TestSupportPackageBoundaryTest`.
 - **Slice tests** (`@WebMvcTest`, `@DataJpaTest`, etc.) don't auto-configure
   a DataSource and don't need the shared container. Example:
-  `HelloControllerIT`.
-- **Canonical example:** `src/test/java/ch/alpenflight/server/migration/FlywayBootstrapIntegrationTest.java`.
+  `HelloControllerIT`. The Postgres-backed companion
+  `HelloEndpointPostgresIT` extends `PostgresIntegrationTest` and
+  exercises the same endpoint through the full security chain via
+  `JwtTestFixture` — both shapes coexist.
+- **Canonical example:** `src/test/java/ch/alpenflight/server/migration/FlywayBootstrapIntegrationTest.java` (raw lifecycle pattern, predates the base class) /
+  `src/test/java/ch/alpenflight/platform/hello/HelloEndpointPostgresIT.java` (S-015 base-class pattern).
 
 ## Column shape (categorical / state / discriminator) — S-012, ADR 0020
 
