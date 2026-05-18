@@ -129,9 +129,11 @@ test('clubs: editing the seeded row updates the list', async ({ page }) => {
   await expect(page).toHaveURL('/clubs');
   await expect(page.getByTestId('club-row-seed-club-1')).toHaveText('Mountain Soaring');
 
-  // Round-trip persistence: navigate back to the edit form and confirm the
-  // store re-hydrates from the (mocked) server, not just from optimistic
-  // in-memory state. Parity invariant from legacy clubs-crud.spec.ts:86-89.
+  // Round-trip persistence: full page reload tears down the providedIn:root
+  // ClubsStore, so when the page comes back the store re-bootstraps and
+  // calls listClubs() against the mock — proving the PUT landed server-side
+  // (mock-side here) rather than only patching the in-memory entity map.
+  await page.reload();
   await page.getByTestId('club-row-seed-club-1').click();
   await expect(page).toHaveURL(/\/clubs\/.+\/edit$/);
   await expect(page.locator('#clubName')).toHaveValue('Mountain Soaring');

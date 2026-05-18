@@ -5,6 +5,7 @@ import {
   computed,
   effect,
   inject,
+  signal,
 } from '@angular/core';
 import {
   FormBuilder,
@@ -89,7 +90,7 @@ type ClubForm = FormGroup<{
         <af-button
           type="primary"
           htmlType="submit"
-          [disabled]="form.invalid"
+          [disabled]="form.invalid || saveSubmitted()"
           data-testid="clubs-save-button"
         >
           Save
@@ -146,7 +147,7 @@ export class ClubsEditPage {
     publicRegistrationEnabled: this.fb.nonNullable.control(false),
   });
 
-  private saveSubmitted = false;
+  protected readonly saveSubmitted = signal(false);
 
   constructor() {
     effect(() => {
@@ -168,37 +169,41 @@ export class ClubsEditPage {
       }
     });
 
+    // Any save error (409, 500, network) disarms the bus-driven navigation
+    // and (for 409 specifically) marks the slug field as duplicate so the
+    // user sees the inline error.
     effect(() => {
       const err = this.store.saveError();
-      if (err && err.includes('already in use')) {
+      if (!err) return;
+      this.saveSubmitted.set(false);
+      if (err.includes('already in use')) {
         this.form.controls.slug.setErrors({ duplicate: true });
         this.form.controls.slug.markAsTouched();
-        this.saveSubmitted = false;
       }
     });
 
     // Navigate on confirmed server success — the store emits club.created /
     // club.updated only inside the rxMethod's tapResponse.next callback,
-    // which fires after the HTTP response. Errors leave saveSubmitted false
-    // (cleared by the saveError effect above) so we don't navigate past them.
+    // which fires after the HTTP response. Errors disarm saveSubmitted via
+    // the effect above so we don't navigate past them.
     const destroyRef = inject(DestroyRef);
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
-      if (!this.saveSubmitted) return;
+      if (!this.saveSubmitted()) return;
       if (evt.kind === 'club.created' || evt.kind === 'club.updated') {
-        this.saveSubmitted = false;
+        this.saveSubmitted.set(false);
         this.router.navigateByUrl('/clubs');
       }
     });
   }
 
   protected onSubmit(): void {
-    if (this.form.invalid) {
+    if (this.form.invalid || this.saveSubmitted()) {
       this.form.markAllAsTouched();
       return;
     }
     const value = this.form.getRawValue();
     const id = this.clubId();
-    this.saveSubmitted = true;
+    this.saveSubmitted.set(true);
     if (id) {
       this.store.update({
         id,
