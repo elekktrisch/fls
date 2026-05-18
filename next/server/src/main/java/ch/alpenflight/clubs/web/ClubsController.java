@@ -1,8 +1,9 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.web;
 
-import ch.alpenflight.clubs.ClubDtos.ClubCreateRequest;
-import ch.alpenflight.clubs.ClubDtos.ClubResponse;
-import ch.alpenflight.clubs.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
+import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubsService;
 import ch.alpenflight.platform.id.ClubId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

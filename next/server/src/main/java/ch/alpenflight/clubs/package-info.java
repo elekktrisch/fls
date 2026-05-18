@@ -1,15 +1,20 @@
 /**
- * Clubs aggregate — the tenant root itself. Not @TenantId-annotated.
+ * Clubs module — the tenant root itself. Not {@code @TenantId}-annotated.
  *
- * <p>S-048 lands this as the first end-to-end vertical slice (REST → service
- * → JPA → Postgres) with mocked authorization (profile {@code mock-auth},
- * see {@code ch.alpenflight.auth}). The {@code @PreAuthorize} predicates
- * stay across the S-019/S-020 auth-chain swap; only the principal source
- * flips from {@code MockSecurityConfig} to the real JWT decoder.
+ * <p>Layered per ADR 0023 into four sub-packages:
+ * <ul>
+ *   <li>{@code clubs.domain} — {@link ch.alpenflight.clubs.domain.Club}
+ *       aggregate, {@link ch.alpenflight.clubs.domain.MemberState},
+ *       {@link ch.alpenflight.clubs.domain.ClubRepository} port,
+ *       domain exceptions.</li>
+ *   <li>{@code clubs.application} — {@code ClubsService}, DTOs, mapper.</li>
+ *   <li>{@code clubs.web} — REST controller + exception handler.</li>
+ *   <li>{@code clubs.infra} — Spring Data JPA implementations.</li>
+ * </ul>
  *
  * <p>Authorization is by role, never by tenant filter — Clubs are the
- * tenant boundary. {@code ix_club_country} / {@code ix_club_state} indexes
- * live in V2; this package never queries those columns directly.
+ * tenant boundary. The {@code @PreAuthorize} predicates stay across the
+ * S-019/S-020 auth-chain swap; only the principal source flips.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.clubs;

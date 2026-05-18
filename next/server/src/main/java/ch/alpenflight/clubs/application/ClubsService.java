@@ -1,8 +1,12 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.application;
 
-import ch.alpenflight.clubs.ClubDtos.ClubCreateRequest;
-import ch.alpenflight.clubs.ClubDtos.ClubResponse;
-import ch.alpenflight.clubs.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
+import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.domain.Club;
+import ch.alpenflight.clubs.domain.ClubNotFoundException;
+import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
 import ch.alpenflight.platform.id.ClubId;
 import java.time.Clock;
 import java.util.List;
@@ -28,9 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>External signatures speak {@link ClubId} so service / controller
  * parameter lists can't accidentally swap a {@code Club} id for a
- * {@code Person} / {@code User} id. The repository still keys on raw
+ * {@code Person} / {@code User} id. The repository port still keys on raw
  * {@link UUID} (Spring Data + Hibernate prefer it that way); the service is
  * the seam where the type narrows.
+ *
+ * <p>Depends on {@link ClubRepository} (domain port) per ADR 0023 — the
+ * concrete Spring Data implementation lives in {@code clubs.infra}.
  */
 @Service
 @Transactional
@@ -43,10 +50,10 @@ public class ClubsService {
     private static final UUID DEFAULT_CLUB_STATE_ID =
             UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8"); // ACTIVE
 
-    private final ClubsRepository clubs;
+    private final ClubRepository clubs;
     private final Clock clock;
 
-    public ClubsService(ClubsRepository clubs, Clock clock) {
+    public ClubsService(ClubRepository clubs, Clock clock) {
         this.clubs = clubs;
         this.clock = clock;
     }
