@@ -86,9 +86,12 @@ The published issuer (`KC_HOSTNAME_URL`) is host-side: every token's `iss` claim
 # Re-export. If git diff is non-empty, that's the intended drift.
 bash next/auth/scripts/export-realm.sh
 git diff next/auth/realm-export.json
-# Rebuild the image so the change picks up on next boot:
+# Rebuild the image AND wipe the H2 volume so the import re-runs cleanly.
+# Without `down -v`, Keycloak's default IGNORE_EXISTING strategy silently
+# preserves H2-resident entities and the rebuild appears not to take effect.
+docker compose -p alpenflight-dev down -v keycloak
 docker compose -p alpenflight-dev build keycloak
-docker compose -p alpenflight-dev up -d --force-recreate keycloak
+docker compose -p alpenflight-dev up -d keycloak
 ```
 
 The committed export is bit-stable across round-trips (deep-sorted, no timestamps, no private keys, no auto-generated UUIDs in volatile positions).

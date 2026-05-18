@@ -23,7 +23,7 @@ ADMIN_PASS="${KC_ADMIN_PASS:-admin}"
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 log "Acquiring admin token"
-TOKEN=$(curl -sS -X POST "${KC_HOST}/realms/master/protocol/openid-connect/token" \
+TOKEN=$(curl -sS --fail-with-body -X POST "${KC_HOST}/realms/master/protocol/openid-connect/token" \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d "grant_type=password&client_id=admin-cli&username=${ADMIN_USER}&password=${ADMIN_PASS}" \
   | jq -r .access_token)
@@ -34,18 +34,22 @@ WORK="$(mktemp -d)"
 trap "rm -rf $WORK" EXIT
 
 log "Fetching realm + clients + roles (partial-export)"
-curl -sS -X POST "${KC_ADMIN}/partial-export?exportClients=true&exportGroupsAndRoles=true" \
+curl -sS --fail-with-body -X POST "${KC_ADMIN}/partial-export?exportClients=true&exportGroupsAndRoles=true" \
   -H "Authorization: Bearer $TOKEN" > "${WORK}/realm-partial.json"
+jq -e 'type == "object"' "${WORK}/realm-partial.json" >/dev/null \
+  || { echo "ERROR: partial-export did not return a JSON object: $(head -c 200 "${WORK}/realm-partial.json")"; exit 1; }
 
 log "Fetching users"
-curl -sS "${KC_ADMIN}/users?briefRepresentation=false&max=1000" \
+curl -sS --fail-with-body "${KC_ADMIN}/users?briefRepresentation=false&max=1000" \
   -H "Authorization: Bearer $TOKEN" > "${WORK}/users.json"
+jq -e 'type == "array"' "${WORK}/users.json" >/dev/null \
+  || { echo "ERROR: users endpoint did not return a JSON array: $(head -c 200 "${WORK}/users.json")"; exit 1; }
 
 log "Fetching per-user role mappings"
 echo '{}' > "${WORK}/user-roles.json"
 for u in $(jq -r '.[].username' "${WORK}/users.json"); do
-  USER_ID=$(curl -sS "${KC_ADMIN}/users?username=${u}&exact=true" -H "Authorization: Bearer $TOKEN" | jq -r '.[0].id')
-  ROLES=$(curl -sS "${KC_ADMIN}/users/${USER_ID}/role-mappings/realm" -H "Authorization: Bearer $TOKEN" | jq -r '[.[].name] | sort')
+  USER_ID=$(curl -sS --fail-with-body "${KC_ADMIN}/users?username=${u}&exact=true" -H "Authorization: Bearer $TOKEN" | jq -r '.[0].id')
+  ROLES=$(curl -sS --fail-with-body "${KC_ADMIN}/users/${USER_ID}/role-mappings/realm" -H "Authorization: Bearer $TOKEN" | jq -r '[.[].name] | sort')
   jq --arg u "$u" --argjson r "$ROLES" '. + {($u): $r}' "${WORK}/user-roles.json" > "${WORK}/user-roles.tmp"
   mv "${WORK}/user-roles.tmp" "${WORK}/user-roles.json"
 done

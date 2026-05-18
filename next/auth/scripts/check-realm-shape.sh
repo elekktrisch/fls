@@ -87,9 +87,26 @@ BAD_EMAILS=$(jq -r '[.users[]?.email // empty | select(test("@(example\\.(com|or
 ok "seed user emails use test domains only"
 
 # --- token policy (ADR 0007) ---
-ATL=$(jq -r '.accessTokenLifespan' "$EXPORT")
-[[ "$ATL" == "900" ]] || fail "accessTokenLifespan must be 900 (got $ATL)"
-ok "ADR 0007 token policy: accessTokenLifespan=900"
+[[ $(jq -r '.accessTokenLifespan'        "$EXPORT") == "900"     ]] || fail "accessTokenLifespan must be 900 (got $(jq -r .accessTokenLifespan "$EXPORT"))"
+[[ $(jq -r '.ssoSessionIdleTimeout'      "$EXPORT") == "2592000" ]] || fail "ssoSessionIdleTimeout must be 2592000 (30d)"
+[[ $(jq -r '.ssoSessionMaxLifespan'      "$EXPORT") == "7776000" ]] || fail "ssoSessionMaxLifespan must be 7776000 (90d)"
+[[ $(jq -r '.revokeRefreshToken'         "$EXPORT") == "true"    ]] || fail "revokeRefreshToken must be true (rotation enforcement)"
+[[ $(jq -r '.refreshTokenMaxReuse'       "$EXPORT") == "0"       ]] || fail "refreshTokenMaxReuse must be 0 (no reuse)"
+ok "ADR 0007 token policy: 15min access, 30d/90d refresh, rotation + no reuse"
+
+# --- clubId user-profile permission (tenant-escalation gate) ---
+# The user-profile config is a JSON string nested inside the realm export at
+# .components["org.keycloak.userprofile.UserProfileProvider"][0].config["kc.user.profile.config"][0].
+# We parse it back out and assert clubId is admin-edit-only — if a future
+# admin-UI tweak re-enables user-edit on clubId, a pilot could rewrite their
+# own tenant assignment via the Account console.
+CLUBID_EDIT=$(jq -r '
+  .components["org.keycloak.userprofile.UserProfileProvider"][0].config["kc.user.profile.config"][0]
+  | fromjson
+  | .attributes[] | select(.name == "clubId") | .permissions.edit | sort | join(",")
+' "$EXPORT")
+[[ "$CLUBID_EDIT" == "admin" ]] || fail "clubId user-profile must be admin-edit-only (got: [$CLUBID_EDIT])"
+ok "clubId user-profile: admin-edit-only (tenant-escalation gate)"
 
 # --- realm security hygiene ---
 [[ $(jq -r '.registrationAllowed' "$EXPORT")  == "false" ]] || fail "registrationAllowed must be false"

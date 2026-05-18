@@ -33,7 +33,7 @@ The operator chose to run a self-hosted IdP locally during development and a hos
 - **Migration cost:** medium — seed users/realms/clients via Keycloak's bootstrap; map current users on cutover (C14 forces a reset email).
 - **Ecosystem risk:** low — both projects are widely used.
 - **Escape hatch:** OIDC is standard; swap providers by changing the issuer URL and re-registering clients.
-- **Why chosen for local:** the developer can `docker compose up` and get a real OIDC issuer at `localhost:8080/realms/fls` with no cloud dependency, matching production semantically.
+- **Why chosen for local:** the developer can `docker compose -p alpenflight-dev up -d keycloak` and get a real OIDC issuer at `http://localhost:8090/realms/alpenflight` with no cloud dependency, matching production semantically. (Host port 8090 because the AlpenFlight backend already owns 8080; realm name post-rebrand. See `docker-compose.yml` keycloak service + `next/auth/README.md` dual-port topology.)
 
 ### Option D — Hosted OIDC IdP — chosen for production deployment
 - **Capabilities:** outsource hosting, scaling, patching, MFA, social login, password reset flows.

@@ -62,19 +62,19 @@ See `next/auth/README.md` for the operator manual, downstream consumer table, de
 
 ### Maintainability
 
-- **[in-rework] [blocker]** Token-policy CI guard asserts 1 of 5 ADR-0007 values — `next/auth/scripts/check-realm-shape.sh:90-92`. AC + ADR 0007 list `accessTokenLifespan=900`, `ssoSessionIdleTimeout=30d`, `ssoSessionMaxLifespan=90d`, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`; only the first is asserted. **Fix:** add jq asserts for the remaining 4 values. *(Cross-flagged by security + tech-writer.)*
-- **[in-rework] [improvement]** `export-realm.sh` swallows non-2xx REST responses — `next/auth/scripts/export-realm.sh:37-48`. `curl -sS` without `--fail` writes 401/404 body into intermediate files. **Fix:** `--fail-with-body` on every curl + `jq -e type` on each file before merging.
+- **[done] [blocker]** Token-policy CI guard asserts 1 of 5 ADR-0007 values — `next/auth/scripts/check-realm-shape.sh:90-92`. AC + ADR 0007 list `accessTokenLifespan=900`, `ssoSessionIdleTimeout=30d`, `ssoSessionMaxLifespan=90d`, `revokeRefreshToken=true`, `refreshTokenMaxReuse=0`; only the first is asserted. **Fix:** add jq asserts for the remaining 4 values. *(Cross-flagged by security + tech-writer.)*
+- **[done] [improvement]** `export-realm.sh` swallows non-2xx REST responses — `next/auth/scripts/export-realm.sh:37-48`. `curl -sS` without `--fail` writes 401/404 body into intermediate files. **Fix:** `--fail-with-body` on every curl + `jq -e type` on each file before merging.
 - **[deferred → S-153] [improvement]** Per-user role-mapping loop re-fetches user IDs already cached — `next/auth/scripts/export-realm.sh:46-51`.
 - **[deferred → S-153] [improvement]** `trap "rm -rf $WORK" EXIT` expands `$WORK` at install time — `next/auth/scripts/export-realm.sh:34`.
 - **[deferred → S-153] [improvement]** Embedded Python in bash heredoc obstructs lint/editor tooling — `next/auth/scripts/normalize-realm-export.sh:24-101`.
-- **[in-rework] [improvement]** README "Round-trip workflow" snippet omits `down -v` before rebuild — `next/auth/README.md:88-91`.
+- **[done] [improvement]** README "Round-trip workflow" snippet omits `down -v` before rebuild — `next/auth/README.md:88-91`.
 - **[deferred → S-153] [improvement]** Redirect-URI guard rejects only literal `"*"` — `next/auth/scripts/check-realm-shape.sh:80-82`.
 - **[deferred → S-153] [improvement]** PII regex misses `.test` TLDs — `next/auth/scripts/check-realm-shape.sh:85`.
 - **[deferred → S-153] [improvement]** Healthcheck depends on bash-only `/dev/tcp` in `CMD-SHELL` — `docker-compose.yml:206-208`.
 
 ### Security
 
-- **[in-rework] [improvement]** `clubId` user-profile permission not asserted by CI guard — `next/auth/scripts/check-realm-shape.sh:67-72`. Tenant-escalation gate; if user-edit re-enabled and re-exported, guard misses it. **Fix:** add jq assertion on `kc.user.profile.config.attributes[clubId].permissions.edit == ["admin"]`.
+- **[done] [improvement]** `clubId` user-profile permission not asserted by CI guard — `next/auth/scripts/check-realm-shape.sh:67-72`. Tenant-escalation gate; if user-edit re-enabled and re-exported, guard misses it. **Fix:** add jq assertion on `kc.user.profile.config.attributes[clubId].permissions.edit == ["admin"]`.
 - **[deferred → S-153] [improvement]** Proffix dev-secret value not pinned by CI guard — `next/auth/scripts/check-realm-shape.sh:44-48`.
 - **[deferred → S-153] [improvement]** `webOrigins: ["+"]` widens CORS to every registered redirect URI's origin — `next/auth/realm-export.json` (alpenflight-web client).
 - **[deferred → S-153] [improvement]** `export-realm.sh` admin token persists in shell env with no explicit revoke — `next/auth/scripts/export-realm.sh:25-30`.
