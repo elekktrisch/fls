@@ -16,9 +16,10 @@ import java.util.UUID;
  * sets a value here also drives the {@code @TenantId} filter Hibernate
  * appends to every tenant-scoped query.
  *
- * <p>The {@link #NO_TENANT} sentinel is the nil UUID. The
- * {@link ch.alpenflight.platform.tenancy.TenantInsertGuard} guards against
- * writes whose {@code @TenantId} column resolves to nil.
+ * <p>The {@link #NO_TENANT} sentinel is the nil UUID. Inserts whose
+ * {@code @TenantId} column resolves to the sentinel fail at the
+ * {@code fk_<table>_club_id} foreign-key constraint (the nil UUID is
+ * absent from {@code club}).
  *
  * <p>Parallel test execution is incompatible with the {@code ThreadLocal}
  * carrier — {@link JunitPlatformConfigTest} pins
