@@ -136,6 +136,24 @@ jobs:
           pnpm build:prod
 
   # ---------------------------------------------------------------------------
+  # Keycloak realm shape check (S-019). Cheap jq guard over
+  # next/auth/realm-export.json: PKCE-S256, bearer-only, no private key,
+  # seed users + clubId, ADR 0007 token policy. Reuses `changes.outputs.next`
+  # because the realm-export lives under next/auth/.
+  # ---------------------------------------------------------------------------
+  next-auth-realm-shape:
+    name: next auth realm shape
+    needs: changes
+    if: needs.changes.outputs.next == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Realm-export shape guard
+        if: hashFiles('next/auth/realm-export.json') != ''
+        run: bash next/auth/scripts/check-realm-shape.sh
+
+  # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
   # every upstream job either succeeded or was correctly skipped (e.g.
   # docs-only PRs skip the next lane, that job reports `skipped`, aggregator
@@ -143,7 +161,7 @@ jobs:
   # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build]
+    needs: [changes, next-build, next-auth-realm-shape]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -152,11 +170,13 @@ jobs:
         env:
           R_CHANGES: ${{ needs.changes.result }}
           R_NEXT: ${{ needs.next-build.result }}
+          R_AUTH: ${{ needs.next-auth-realm-shape.result }}
         run: |
           fail=0
           for pair in \
               "changes:$R_CHANGES" \
-              "next-build:$R_NEXT" ; do
+              "next-build:$R_NEXT" \
+              "next-auth-realm-shape:$R_AUTH" ; do
             name="${pair%%:*}"
             result="${pair##*:}"
             case "$result" in

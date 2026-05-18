@@ -1687,7 +1687,7 @@
       "protocol": "openid-connect",
       "publicClient": false,
       "redirectUris": [],
-      "secret": "**********",
+      "secret": "alpenflight-proffix-dev-secret",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "surrogateAuthRequired": false,

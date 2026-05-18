@@ -68,11 +68,19 @@ if 'components' in partial:
 
 # Per-client cleanup: drop notBefore + any auto-generated secret for clients
 # that don't need one (public + bearer-only). Only the proffix machine
-# client legitimately carries a (dev) secret.
+# client legitimately carries a (dev) secret. The REST partial-export masks
+# secrets as "**********" — restore the canonical dev value so first-boot
+# from this committed JSON gives a usable client_credentials grant.
+DEV_CLIENT_SECRETS = {
+    'alpenflight-proffix': 'alpenflight-proffix-dev-secret',
+}
 for c in partial.get('clients', []):
     c.pop('notBefore', None)
     if c.get('publicClient') or c.get('bearerOnly'):
         c.pop('secret', None)
+        continue
+    if c.get('clientId') in DEV_CLIENT_SECRETS:
+        c['secret'] = DEV_CLIENT_SECRETS[c['clientId']]
 
 # Final assembly + deterministic sort.
 partial['users'] = sorted(users, key=lambda u: u['username'])
