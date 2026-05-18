@@ -20,3 +20,15 @@ spring:
     # touching prod startup. Per S-009 performance plan.
     connect-retries: 5
     connect-retries-interval: 2s
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Synthetic issuer matching JwtTestFixture's iss claim. The fixture
+          # registers a @Primary JwtDecoder that overrides the production bean
+          # and validates against an in-process RSA keypair, so the URL itself
+          # never hits the network. A real value still has to be present —
+          # without it the production JwtDecoder @Bean fails to construct
+          # during context startup.
+          issuer-uri: http://test-issuer
+          jwk-set-uri: http://test-issuer/jwks
