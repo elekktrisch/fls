@@ -17,6 +17,7 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "src/main.ts",
+            "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
             "assets": [
               {
@@ -42,12 +43,7 @@
                   "maximumError": "8kB"
                 }
               ],
-              "fileReplacements": [
-                {
-                  "replace": "src/index.html",
-                  "with": "src/index.prod.html"
-                }
-              ],
+              "index": "src/index.prod.html",
               "optimization": true,
               "outputHashing": "all",
               "namedChunks": false,
