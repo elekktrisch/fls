@@ -6,9 +6,16 @@
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Day-1 CSP baseline. S-041 (reverse proxy) replaces this with a
+      response-header CSP at prod cutover. `connect-src` allows the OIDC
+      discovery + token-refresh endpoints against the dev Keycloak
+      (S-021 / ADR 0007); the hosted prod IdP URL gets folded into the
+      S-041 policy.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://localhost:8090; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     />
   </head>
   <body>
