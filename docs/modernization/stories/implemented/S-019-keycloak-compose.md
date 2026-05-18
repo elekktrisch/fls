@@ -48,9 +48,6 @@ The dev-loop foundation for the auth chain. Produces an OIDC issuer at `http://l
 - **Bake instead of bind-mount.** Docker Desktop on Windows refuses to bind-mount the realm-export.json reliably (file-sharing limitation). Same pattern as `next/ops/pgadmin/`. Rebuild required after edits — documented in README.
 - **REST export instead of `kc.sh export`.** Offline export locks the H2 file the running container holds. Online REST (`partial-export` + users + role-mappings) is the only path against a live server; round-trip stays zero-diff thanks to the deep-sort normalizer.
 
-## Proposed ADR amendment (operator decides)
-
-**ADR 0007 still cites `localhost:8080/realms/fls`.** Update to `http://localhost:8090/realms/alpenflight` (host port 8090 because the AlpenFlight backend owns 8080; realm renamed during the rebrand). Operator's call: amend now or batch with the next ADR-touching story.
 
 See `next/auth/README.md` for the operator manual, downstream consumer table, dev-vs-prod surface, and round-trip workflow.
 
