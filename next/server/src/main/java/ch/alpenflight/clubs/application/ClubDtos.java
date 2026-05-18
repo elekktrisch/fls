@@ -1,4 +1,4 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.application;
 
 import ch.alpenflight.platform.id.ClubId;
 import io.swagger.v3.oas.annotations.media.Schema;

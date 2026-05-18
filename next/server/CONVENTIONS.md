@@ -6,6 +6,75 @@ for a new contributor.
 
 > **Citation discipline.** When pointing at a canonical example in another file, prefer naming the construct (e.g. `CREATE INDEX ix_arv_pilot`, `class FlightServiceTest`, `method @PreAuthorize on FlightController.locked()`) over a `file:line` range. Line numbers drift the moment the cited section is touched; construct names survive refactors. When a `file:line` is unavoidable, re-verify the citation after the section's first edit. The S-014 second-pass review found 3 of the 4 line citations in the index-shape rule below already wrong before V4 even merged — every citation that points by line is a citation that will go stale.
 
+## Module layout — S-155, ADR 0023
+
+Every bounded-context module under `ch.alpenflight.<context>` ships four sub-packages with enforced direction-of-dependency. See [ADR 0023](../../docs/modernization/adrs/0023-hexagonal-layering-inside-modulith-modules.md) for the rationale; this section documents the convention.
+
+```
+ch.alpenflight.<context>/
+├── domain/         ← aggregate roots, value objects, repository ports,
+│                     domain events, domain exceptions. JPA annotations
+│                     allowed (deliberate Hibernate-on-aggregate concession);
+│                     Spring web, Spring stereotypes, Jackson, the servlet
+│                     API are all forbidden.
+├── application/    ← @Service / @Transactional use-case orchestration,
+│                     DTOs (the service's wire contract), domain-to-DTO
+│                     mappers. May depend on domain/. May NOT depend on
+│                     web/ or infra/.
+├── web/            ← @RestController, @RestControllerAdvice, request /
+│                     response DTOs (when distinct from application's),
+│                     HTTP-only mappers. May depend on application/ and
+│                     domain/ (for exception types). May NOT depend on
+│                     infra/ — controllers flow through application.
+└── infra/          ← Spring Data JPA implementations of the domain/
+                      ports, adapters to external systems (mail, IdP,
+                      OGN, …). May depend on domain/ and external
+                      libraries. Nothing else in the module depends on
+                      this package.
+```
+
+The shared cross-cutting kernel `ch.alpenflight.platform` is an OPEN Spring Modulith module — every business module may import `platform.id`, `platform.security`, `platform.tenancy`, etc. without a named-interface dance. Business modules stay closed by default; cross-business-module access goes through Spring Modulith's named-interface convention (the module root package).
+
+**Canonical example:** the Clubs module (`src/main/java/ch/alpenflight/clubs/`) — `Club` aggregate + `ClubRepository` port in `domain/`; `ClubsService` + `ClubDtos` + `ClubMapper` in `application/`; `ClubsController` + `ClubsExceptionHandler` in `web/`; `JpaClubRepository` (extends both `JpaRepository<Club, UUID>` and the domain port) in `infra/`. Test packages mirror production.
+
+### `domain/` — allowed / forbidden imports
+
+| Allowed | Forbidden |
+| --- | --- |
+| JDK (`java.*`, `java.util.*`) | `org.springframework.web..` |
+| `jakarta.persistence.*` (JPA on aggregates per ADR 0023) | `org.springframework.stereotype..` |
+| `org.springframework.modulith.events.*` (domain events) | `org.springframework.boot..` |
+| `org.jspecify.annotations.*` (`@NullMarked`, `@Nullable`) | `org.springframework.context..` |
+| `ch.alpenflight.platform.*` (typed IDs, tenancy, …) | `com.fasterxml.jackson..` |
+| | `jakarta.servlet..` |
+
+The forbidden list is deliberately broader than ADR 0023's prose — adding `spring-boot` + `spring-context` also blocks `@ConfigurationProperties` / `ApplicationContext` from sneaking into a value object. Adding to the allowed list is a `LayeringRulesTest` edit + ADR amendment.
+
+### Cross-module publication
+
+Spring Modulith treats each top-level package under `ch.alpenflight` as a module. Sub-packages (`domain`, `application`, `web`, `infra`) are module-internal by default — another module cannot import from them.
+
+Clubs has no cross-module API surface today. When the first cross-module call lands (S-049 reaching into Clubs for a tenant check, or similar), pick one of:
+
+- **Named-interface sub-package** — declare e.g. `ch.alpenflight.clubs.api` with `@org.springframework.modulith.NamedInterface` on its `package-info.java`; expose the minimal cross-module contract there.
+- **Spring Modulith events** — publish a domain event from the source module, consume in the destination via `@ApplicationModuleListener` (ADR 0018 path).
+
+Promote the picked answer to this section + the corresponding canonical example.
+
+### How violations surface
+
+- **Cross-module imports** that bypass a published API → caught by Spring Modulith's `ApplicationModules.of(AlpenFlightApplication.class).verify()` in `src/test/java/ch/alpenflight/arch/ApplicationModulesTest.java`. Runs as part of `./gradlew test`.
+- **Inner-layer direction violations** (`domain` → Spring web/stereotypes/boot/context/Jackson/servlet, `web → infra`, `application → web`, `application → infra`) → caught by the four ArchUnit rules in `src/test/java/ch/alpenflight/arch/LayeringRulesTest.java`. Runs as part of `./gradlew test`.
+- **Tenant seam bypass** — production code calling `TenantTestContextAccess.set` → caught by `src/test/java/ch/alpenflight/arch/TenantBypassGuardTest.java`. Runs as part of `./gradlew test`.
+- **Rule weakening regression** — if someone relaxes a rule in `LayeringRulesTest` so it silently misses violations, `./gradlew verifyArchUnitFailsOnViolation` catches it. The `archDemo` source set (`src/archDemo/java/...`) holds four deliberate violations (`JacksonLeak`, `InfraLeak` in `web/`, `WebLeak`, `InfraLeak` in `application/`); `LayeringRulesDemoTest` re-declares the same rules and asserts each one fires. NOT wired into `check` — CI invokes it as a separate step.
+
+### Bringing up a new module
+
+1. Create the four sub-packages with `package-info.java` files that re-apply `@NullMarked` and document the dependency rule (cite ADR 0023).
+2. Aggregate roots + repository ports land in `domain/`; the Spring Data implementation in `infra/` extends both `JpaRepository<E, ID>` and the domain port so application code depends on the port.
+3. Domain exceptions stay in `domain/` free of `@ResponseStatus` / Spring web imports. A `@RestControllerAdvice` in `web/` (`basePackageClasses = <ModuleController>.class`) translates them to HTTP responses.
+4. `ApplicationModulesTest` and `LayeringRulesTest` cover the new module automatically — both rule sets are pattern-based.
+
 ## Database migrations (Flyway) — S-009
 
 - **Canonical location:** `src/main/resources/db/migration/`.
@@ -125,7 +194,7 @@ Discriminator-based per [ADR 0008](../../docs/modernization/adrs/0008-multi-tena
 - **Virtual threads:** the `SecurityContextHolder` strategy stays at default `MODE_THREADLOCAL`. JEP 491 (Java 25) removed `synchronized` pinning; Spring's `DelegatingSecurityContextRunnable` propagates the principal across `@Async` / `TaskExecutor` boundaries. Anti-pattern: raw `CompletableFuture.runAsync` / `Thread.startVirtualThread` without the delegating wrapper — the child thread sees no principal and the resolver returns `NO_TENANT`, which writes then reject at the FK layer.
 - **UUID v7 generation:** every aggregate-root entity should mark its `id` field with `@UuidV7` (from `ch.alpenflight.platform.id`). The generator runs application-side via `com.github.f4b6a3:uuid-creator` and produces time-ordered keys that keep B-tree inserts monotonic. `gen_random_uuid()` defaults on PK columns are forbidden by `forbidden-migration-patterns.txt`.
 - **Mock-auth profile:** `@Profile("mock-auth")` swaps in a hardcoded SYSTEM_ADMINISTRATOR principal with a `clubId` claim. `UserTenantLookup` is `@Profile("!mock-auth")` so the resolver bypasses DB fallback under mock-auth (no users seeded). Mock chain rip-out is deferred to S-026 (role enforcement).
-- **Canonical example:** `MemberState` (`src/main/java/ch/alpenflight/clubs/MemberState.java`) — minimal mapping (PK + `@TenantId` discriminator + one business column) carrying the convention end-to-end. `MemberStateTenantIsolationIT` proves the filter contract.
+- **Canonical example:** `MemberState` (`src/main/java/ch/alpenflight/clubs/domain/MemberState.java`) — minimal mapping (PK + `@TenantId` discriminator + one business column) carrying the convention end-to-end. `MemberStateTenantIsolationIT` proves the filter contract.
 
 ## Typed entity IDs — S-022, ADR 0019
 
@@ -133,9 +202,9 @@ Aggregate-root identifiers are typed records, **not** raw `UUID`, once they leav
 
 - **Where typing applies:** service-layer parameters, controller path / body, DTOs, mapper outputs, REST URLs, JSON, logs. **Inside** the entity, the field stays raw `UUID` (keeps JPA / Hibernate / Spring Data simple); only the *getter* wraps it into the typed record. The getter is the seam — that's where the value leaves the aggregate.
 - **Shape:** `record AggrId(UUID value)` — the record itself carries **no Jackson annotations**. Wire-format is centralised in `TypedIdJacksonModule` (`ch.alpenflight.platform.id`): one line per new typed-id family member registers a `ValueSerializer` (writes `toExternal()` as a JSON string) and a `ValueDeserializer` (calls `parse(String)`). Springdoc still needs `@Schema(type="string", pattern=…)` on the record so the OpenAPI spec emits a plain-string schema for the TS codegen — that's an OpenAPI hint, not Jackson. A Spring `@Component Converter<String, AggrId>` handles `@PathVariable` / `@RequestParam` binding.
-- **External form (ADR 0019):** `<prefix>_<26-char Crockford Base32>`. The 26-char payload encodes the full 16-byte UUID with no loss; Crockford alphabet (`0-9a-hjkmnp-tv-z`) drops the four ambiguous letters (`i`, `l`, `o`, `u`). Examples: `clb_…` for `Club`, `psn_…` for `Person`, `usr_…` for `User`.
+- **External form (ADR 0019):** `<prefix>-<uuid>`, where `<uuid>` is the JDK's canonical 36-character dashed UUID (`UUID.toString()` / `UUID.fromString()`). Examples: `clb-019e30c3-2c00-7001-8000-000000000001` for `Club`, `psn-…` for `Person`, `usr-…` for `User`. The dashed UUID body keeps parsing trivial; the 4-character `<prefix>-` lets readers spot the aggregate type at a glance without standing in the way of standard UUID tooling.
 - **Internal entities** (per S-012 — `MemberState`, `ClubExtension`, `PersonClub`, …) keep **raw `UUID` at every layer**: no typed wrapper, no prefix. They rarely cross aggregate boundaries; if a future story externalises one (e.g. a per-club controller exposing `MemberState`), that story ships the typed wrapper (`MemberStateId`) **without a prefix** — the prefix scheme is reserved for aggregate roots so external readers can spot aggregate boundaries at a glance.
-- **Canonical example:** `ClubId` (`src/main/java/ch/alpenflight/platform/id/ClubId.java`) + `ClubIdPathConverter` + the round-trip test in `ClubIdTest`. `Club.getId()` returns `ClubId`; `Club.id` (private field) stays `UUID`. `ClubsRepository extends JpaRepository<Club, UUID>` — the persistence layer keeps the raw type; `ClubsService` converts at its public methods (`id.value()` to call into the repo).
+- **Canonical example:** `ClubId` (`src/main/java/ch/alpenflight/platform/id/ClubId.java`) + `ClubIdPathConverter` + the round-trip test in `ClubIdTest`. `Club.getId()` returns `ClubId`; `Club.id` (private field) stays `UUID`. `JpaClubRepository extends JpaRepository<Club, UUID>` (and the `ClubRepository` domain port per ADR 0023) — the persistence layer keeps the raw type; `ClubsService` converts at its public methods (`id.value()` to call into the repo).
 - **`@PreAuthorize` SpEL with typed IDs:** the JWT claim carries a raw UUID string. Compare via `#id.value().toString() == principal.claims['clubId']`, not `#id.toString()` (the latter is the prefixed external form).
 
 ## Column shape (categorical / state / discriminator) — S-012, ADR 0020
@@ -157,7 +226,7 @@ When in doubt: lead with the enum-as-string default. If you find yourself naming
 - Every PK is `uuid NOT NULL PRIMARY KEY`. **Never** `DEFAULT gen_random_uuid()` on a column (enforced by `forbidden-migration-patterns.txt`).
 - Application generates IDs via `com.github.f4b6a3:uuid-creator` + a custom Hibernate `BeforeExecutionGenerator` (wired at S-022).
 - Reference-data seeds use fixed canonical UUID v7 literals captured by `src/test/resources/scripts/GenerateCanonicalUuids.java` and embedded as literals in the migration. Re-running the script produces bit-identical output forever.
-- Aggregate-root rows (per [ADR 0018](../../docs/modernization/adrs/0018-domain-model-ddd-aggregates.md)) carry a 3-letter external prefix — `psn_` / `clb_` / `usr_` for the identity triad. Internal entities keep raw UUIDs. The prefix is a presentation concern; DB column comments document the mapping (`V2__identity_and_reference.sql` aggregate-root `COMMENT ON COLUMN` blocks).
+- Aggregate-root rows (per [ADR 0018](../../docs/modernization/adrs/0018-domain-model-ddd-aggregates.md)) carry a 3-letter external prefix — `psn-` / `clb-` / `usr-` for the identity triad. Internal entities keep raw UUIDs. The prefix is a presentation concern; DB column comments document the mapping (`V2__identity_and_reference.sql` aggregate-root `COMMENT ON COLUMN` blocks, refreshed by `V6__aggregate_id_comments_uuid_form.sql`).
 
 ## Index shape on soft-delete-capable tables — S-014
 

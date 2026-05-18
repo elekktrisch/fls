@@ -1,14 +1,13 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.domain;
 
 import ch.alpenflight.platform.id.ClubId;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
  * Thrown when a Clubs endpoint is asked to read / mutate a non-existent or
- * soft-deleted club. Mapped to HTTP 404.
+ * soft-deleted club. Translated to HTTP 404 by {@code ClubsExceptionHandler}
+ * in {@code clubs.web}; the domain exception stays free of Spring web
+ * imports per ADR 0023.
  */
-@ResponseStatus(HttpStatus.NOT_FOUND)
 public class ClubNotFoundException extends RuntimeException {
 
     public ClubNotFoundException(ClubId id) {

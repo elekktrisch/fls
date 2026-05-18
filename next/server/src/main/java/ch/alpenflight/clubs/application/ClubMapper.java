@@ -1,6 +1,7 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.application;
 
-import ch.alpenflight.clubs.ClubDtos.ClubResponse;
+import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
+import ch.alpenflight.clubs.domain.Club;
 import java.util.Objects;
 
 final class ClubMapper {

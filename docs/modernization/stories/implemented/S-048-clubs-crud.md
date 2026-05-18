@@ -83,6 +83,8 @@ This story validates the S-008 component primitives kit against a real domain. T
 
 ### Module layout
 
+> **Superseded by S-155 for the current shape.** S-155 (ADR 0023) reshaped the flat `clubs/` package into `clubs/{domain,application,web,infra}/`, renamed `ClubsRepository` to `JpaClubRepository` extending a new `ClubRepository` domain port, stripped `@ResponseStatus` from `ClubNotFoundException` + `SlugAlreadyExistsException` (moved to `clubs/domain/`), and added `ClubsExceptionHandler` (`@RestControllerAdvice`) in `clubs/web/` for HTTP translation. See `next/server/CONVENTIONS.md` § "Module layout" for the canonical post-reshape layout. The historical layout below is preserved for context of what S-048 originally landed.
+
 #### Backend — `next/server/src/main/java/ch/alpenflight/`
 
 New package `clubs/` (sits alongside `platform/hello/`; not under `platform/` because Clubs is a domain feature, not infra cross-cutting):

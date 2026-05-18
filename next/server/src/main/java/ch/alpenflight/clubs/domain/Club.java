@@ -1,4 +1,4 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.domain;
 
 import ch.alpenflight.platform.id.ClubId;
 import jakarta.persistence.Column;

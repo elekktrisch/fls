@@ -1,4 +1,4 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

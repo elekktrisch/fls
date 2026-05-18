@@ -112,21 +112,37 @@ Before escalating, consider a **one-shot read-only specialist consult** (Step 4.
 
 One consult per fork, no chaining. Record in the done report.
 
-### Step 7 — Pre-push gate (Step 6.7 self-review)
+### Step 7 — Pre-push reviewer panel + auto-fix loop
 
-Before the final status-flip commit, run a self-review consult against `git diff main...HEAD`. **Scope override: blockers only** ("surface only findings that break a refinement contract, ADR, sacred cow, security invariant, or leave an AC without a passing test"). Return `(none)` if clean.
+Before the final status-flip commit, run the full reviewer panel against `git diff main...HEAD`. Findings come back as `[blocker]` / `[improvement]` / `[nudge]`; **fix all three severities inline** (auto-fix policy — the implement skill owns its review). No `## Review` story-body section is written; the fix lives in code commits + the PR diff.
 
-**Consult dispatch:**
-- `maintainability-reviewer` — **always**.
-- `tech-writer-reviewer` — when the diff touches `docs/**`, `*.md`, `CLAUDE.md`, or any ADR. Catches cross-doc consistency drift the maintainability lens misses (stale cross-refs, originator-story TODO sections left in place after the TODO landed, downstream stories citing pre-rebrand identifiers). Costs one extra subagent call; saves a review/rework loop.
+**Scope flags** (compute once before dispatch):
+- `has_frontend` — any `next/web/` path **that is NOT auto-generated** (skip OpenAPI snapshot + codegen artifacts under `next/web/src/app/api/generated/`).
+- `has_backend` — any `next/server/` path.
+- `has_legacy_ref` — any `flsserver/` or `flsweb/` path.
+- `is_docs_only` — every path matches `docs/**`, `*.md`, `CONVENTIONS.md`, or `next/ops/*.sh|*.json`.
 
-Spawn both (when applicable) in ONE message — parallel, not serial.
+**Reviewer dispatch** (spawn all applicable in ONE message — parallel):
 
-- `(none)` from all consulted reviewers: proceed to Step 8.
-- Blockers fixable in one commit: fix, commit `#N: self-review fixes — <summary>`, push, proceed.
-- Structural blocker (design contradiction, missing AC, ADR conflict): **stop, escalate per Step 6**. Don't fix-and-push past a redesign.
+| Reviewer | Spawn when |
+|---|---|
+| `maintainability-reviewer` | always |
+| `security-reviewer` | not `is_docs_only` |
+| `parity-reviewer` | `parity_test` non-empty OR `has_legacy_ref` |
+| `usability-reviewer` | `has_frontend` (real UI changes, not codegen) |
+| `tech-writer-reviewer` | NOT `has_frontend` (replaces usability for backend / docs-only diffs) |
 
-Skip the gate only for bookkeeping-only diffs; note the skip in the done report.
+Each spawn carries: absolute path to the story file + ADRs in `adr_refs`, diff range SHAs + changed-path list, the refinement section relevant to that reviewer, project context (`@TenantId`, sacred cows, ADR 0022 directives), and library facts from any Context7 lookups. Output format: **findings only, one bullet each, `file:line` cite, severity tag, no padding, omit empty dimensions**.
+
+**Auto-fix loop:**
+1. Collect findings from all reviewers.
+2. Fix every finding inline. One commit per logical batch (e.g. "ADR + CONVENTIONS doc fixes" / "ArchUnit rule additions" / "package-info corrections"). Subject `#N: self-review fixes — <summary>`.
+3. Push. Watch CI in the background per Step 5.
+4. **Re-run the same reviewer panel against the freshened head.** Hard cap: 2 review rounds total. If round 2 still surfaces blockers, **escalate per Step 6** ("auto-fix didn't converge — needs a design pivot or operator call"). Operator can then invoke `/modernize-rework S-NNN` explicitly.
+
+**Escalation triggers** (in addition to Step 6's general triggers): a reviewer-emitted blocker that requires changing the story's ACs, an ADR, or a sacred-cow contract — not a fix-the-code-and-move-on finding. Surface to operator with one question; default action is "invoke `/modernize-rework`".
+
+Skip the panel only for bookkeeping-only diffs (the implement skill's own metadata edits); note the skip in the done report.
 
 ### Step 8 — Prune the story + status:done
 
@@ -192,7 +208,7 @@ Print to operator:
 - CI / push fallback used (if any).
 - Doc updates (`CONVENTIONS.md` lines added) or `(no doc changes)`.
 - ADR amendments **proposed** (operator decides; don't auto-edit ADRs).
-- Suggested next: `/modernize-review S-NNN` → `/modernize-rework` (if findings) → `/modernize-finalize`.
+- Suggested next: `/modernize-finalize S-NNN` (docs-prune pass + squash-merge). Use `/modernize-rework S-NNN` only if you want to revisit scope / design.
 
 ## Quality bar
 
@@ -211,7 +227,7 @@ Print to operator:
 
 ## Not in scope
 
-ADR edits (propose in done report), refinement re-runs (operator's call), code-review (`/modernize-review` is the next phase), merging (`/modernize-finalize` is the operator's tool), production deploys (S-121).
+ADR edits (propose in done report — operator surfaces at finalize), refinement re-runs (operator's call), scope / design pivots (`/modernize-rework` is operator-invoked), merging (`/modernize-finalize` is the operator's tool), production deploys (S-121).
 
 ## When done
 

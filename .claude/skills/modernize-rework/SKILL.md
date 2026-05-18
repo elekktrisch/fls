@@ -1,68 +1,64 @@
 ---
 name: modernize-rework
-description: Phase 8 — triage findings from /modernize-review. Per finding: address-now / defer / accept. Step 3.5 surfaces meta-improvements. Trigger: /modernize-rework S-NNN [--bold].
+description: Operator-invoked scope / design pivot on one story. Surfaces decisions, files follow-up stories. Step 3 meta-pass catches cross-cutting workflow improvements. Trigger: /modernize-rework S-NNN.
 ---
 
-# Phase 8 — Story Rework
+# Modernize — Rework
 
-Take one just-reviewed story and walk every finding in `## Review` to a state: **address-now** / **defer** / **accept**. Does not write code; produces a TaskCreate list for the operator to fix between this skill and the next `/modernize-review`.
+Take one story and pivot its scope or design when the implementer auto-fix loop hit something the operator must adjudicate, or when the operator decides post-hoc that the shipped shape needs to change. Does not write code; produces a TaskCreate list of decisions + optionally new follow-up stories.
 
-Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md). Doc-drift findings should normally be improvements/nudges; only block when the drift actively misleads.
+Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 
-## Modes
+## When to invoke
 
-- `/modernize-rework S-NNN` — interactive. Every open finding gets an `AskUserQuestion`.
-- `/modernize-rework S-NNN --bold` — auto-triage cheap end; only prompt for blockers + ambiguous improvements.
+- The `/modernize-implement` self-review loop escalated (auto-fix couldn't converge in 2 rounds; reviewer flagged a contract / ADR / sacred-cow conflict).
+- Operator decides after merge that a shipped story needs revisiting — boyscout-sized fixes ride the next story per [[feedback-boyscout-rule-over-clean-prs]]; larger pivots get a new story filed here.
+- Operator wants to capture a cross-cutting workflow improvement spotted while reading a recent story's diff (Step 3 below).
+
+**Don't invoke** for:
+- Reviewer-flagged improvements that the implementer can auto-fix (those land inline at implement time — that's the whole point of the new shape).
+- Trivial documentation cleanups (those happen at `/modernize-finalize` Step 2.5).
 
 ## Story ID resolution
 
 The story ID can be passed explicitly (`S-NNN`) or inferred from the current branch when it matches `story/S-NNN-*` (check via `git rev-parse --abbrev-ref HEAD`; pattern `^story/S-(\d{3})(-.*)?$`):
 
 - **Arg + branch match** → proceed with the arg.
-- **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail: *"current branch is `story/S-MMM-...` but you passed `S-NNN`; switch branch or correct the arg."*
-- **Arg + branch isn't a story branch** → proceed with the arg.
-- **No arg + branch matches `story/S-NNN-*`** → use the branch's `S-NNN`.
-- **No arg + branch doesn't match** → prompt the operator for the story ID via `AskUserQuestion` (single question).
+- **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail.
+- **No arg + branch matches** → use the branch's `S-NNN`.
+- **No arg + branch doesn't match** → prompt the operator via `AskUserQuestion`.
 
 ## Preconditions
 
-1. Story ID resolved per § Story ID resolution above. Story file at top-level `stories/` OR `stories/implemented/` — `/modernize-implement` Step 8 archives the story into `implemented/` as part of the mark-done commit. Rework runs against either location.
-2. `reviewed: true` in frontmatter (else "run /modernize-review first").
-3. `review_outcome` ∈ {`blockers`, `improvements-only`}. `pass` → refuse.
-4. `## Review` section parseable between `<!-- modernize-review: start --> / end -->` delimiters.
+1. Story ID resolved per § Story ID resolution above. Story file at top-level `stories/` OR `stories/implemented/`.
+2. Working tree clean.
 
 ## Procedure
 
-### Step 1 — Parse findings
+### Step 1 — Surface the trigger
 
-Read story + each ADR in `adr_refs`. Parse `## Review` into `{dimension, severity, text, path, line, status}`. Skip findings already marked `[accepted: …]` / `[auto-accepted: …]` / `[deferred → S-XXX]`. `[in-rework]` / `[auto-in-rework]` are re-prompted.
+Single `AskUserQuestion` to capture **what's prompting this rework**:
 
-### Step 2 — Triage
+- An implementer-escalation that just happened? → operator paste the escalation context. Skill spawns a one-shot `solution-architect` consult on it.
+- A post-hoc realization on a shipped story? → operator describe the pivot in their own words.
+- A meta / workflow pattern they noticed? → skip to Step 3.
 
-Per finding (interactive: `AskUserQuestion`; `--bold`: auto-rules below, prompt residue).
+The operator's framing drives Step 2's decision set.
 
-`--bold` rules:
+### Step 2 — Walk decisions
 
-| Severity | Heuristic | Auto-decision | Annotation |
-|---|---|---|---|
-| `blocker` | (any) | **never auto-decide — always prompt** | (operator-driven) |
-| `improvement` | single `path:line` + single-sentence `**Fix:**` | `auto-address-now` | `[auto-in-rework]` |
-| `improvement` | multi-cite / ambiguous fix / no path | prompt | (operator-driven) |
-| `nudge` | (any) | `auto-accept` | `[auto-accepted: <derived rationale>]` |
+Each pivot has 1–3 decision points (scope cut, design swap, AC change). Per decision:
 
-Nudge rationale: first ≤80-char phrase from why-it-matters; else `auto-accepted via --bold: <severity> severity, no contract impact`.
+- `AskUserQuestion` with the concrete options + recommendation.
+- Record disposition: **fold-into-current-PR** (boyscout the open PR if one exists) / **file-follow-up-story** (new `S-NNN`) / **accept-as-is** (rework cancelled, captured as a memory or `## Notes` entry).
 
-**Blockers default to address-now; defer/accept requires second confirmation** ("This is a blocker — defer/accept anyway? <yes / re-choose>").
+When operator picks **file-follow-up-story**:
 
-### Step 3 — Process decisions
-
-**address-now / auto-address-now:** TaskCreate `Rework S-NNN: <finding> (path:line)`. Prepend `[in-rework]` or `[auto-in-rework]` to the bullet. Operator does the fix.
-
-**defer:** mint next free `S-NNN` (max ID across `stories/` + `stories/implemented/` + 1). Create `stories/S-NNN-<slug>.md` with the **lean stub format**:
+Mint next free `S-NNN` (max ID across `stories/` + `stories/implemented/` + 1). Create `stories/S-NNN-<slug>.md` with the lean stub format:
 
 ```yaml
 id: S-NNN
-title: <finding text, ≤ 70 chars>
+title: <decision text, ≤ 70 chars>
 epic: <originating epic>
 status: todo
 estimate: <S | M | L>
@@ -71,77 +67,65 @@ origin: rework
 origin_story: <S-NNN-originating>
 ```
 
-Body: 1-2 sentence `## Context` quoting the finding + the path it touches; 1-line `## Acceptance criteria` (testable). Skip empty `parity_test:` / `adr_refs:` / `refined:` keys — `/modernize-refine` adds them when it runs. Append to `_ORDER.md` after the originating row. Prepend `[deferred → S-XXX]` to the `## Review` bullet.
+Body: 1–2 sentence `## Context` quoting the pivot reason; 1-line `## Acceptance criteria` (testable). Skip empty `parity_test:` / `adr_refs:` / `refined:` keys — `/modernize-refine` adds them. Append to `_ORDER.md` after the originating row.
 
-**accept / auto-accept:** prepend `[accepted: <rationale>]` (interactive) or `[auto-accepted: <rationale>]` (`--bold`).
+### Step 3 — Meta-pass
 
-Re-runs replace prior annotations (never stack). A non-bold re-run replaces `auto-*` with operator-chosen; reverse never happens (operator decisions are sticky).
+Scan the operator's framing for patterns that suggest the workflow / governance should change:
 
-### Step 3.5 — Meta-pass
-
-Scan dispositions for patterns that suggest the workflow / governance should change:
-
-1. **Skill / agent / CI improvement** — ≥ 2 findings of the same shape suggest the workflow should catch it at source.
-2. **ADR addition / amendment** — story invented a pattern not covered; or existing ADR silently violated.
+1. **Skill / agent / CI improvement** — a recurring failure mode the auto-fix loop misses.
+2. **ADR addition / amendment** — story invented a pattern not covered, or existing ADR silently violated.
 3. **`CONVENTIONS.md` update** — pattern emerged that other stories should mirror.
 
 Prompt the operator with top candidates (batched ≤ 4). Each gets 3 options:
 
-- **Apply now (boyscout)** — fold into THIS PR. Draft inline; lands in the same rework commit. Per [[feedback-meta-improvements-are-boyscout]] — **never** spin a separate `chore/*` branch.
+- **Apply now (boyscout)** — fold into the originating story's PR if still open, else into the next PR per [[pending-boyscout-followups]]. Per [[feedback-meta-improvements-are-boyscout]] — **never** spin a separate `chore/*` branch.
 - **File a follow-up story** — mint `S-NNN` with `origin: rework-meta` + `kind: workflow-improvement | adr-addition | adr-amendment | conventions-update`.
 - **Skip.**
 
-If 0 patterns surface, record `rework_meta_improvements: 0`. Meta-improvements never auto-decide.
+Operator may invoke `/modernize-rework S-NNN` solely for this step when they spot a meta-pattern (no story-level pivot in mind).
 
 #### Apply-now propagation check (mandatory)
 
-When **Apply now (boyscout)** is chosen for an ADR amendment, conventions update, or any cross-cutting identifier / URL / config-key change, run the propagation check IN THE SAME COMMIT — otherwise the next `/modernize-review` re-surfaces the gap as a new blocker (the rework loop trap that this rule prevents):
+When **Apply now (boyscout)** is chosen for an ADR amendment, conventions update, or any cross-cutting identifier / URL / config-key change, run the propagation check IN THE SAME COMMIT:
 
-1. **Grep for downstream references** to the old value across `docs/`, `next/`, `e2e/`, `CLAUDE.md`. Use the most specific identifier (URL, realm name, key name) — not a substring that catches unrelated text.
-2. **Update load-bearing references** (story task lines that an implementer will read; cross-doc cites; CONVENTIONS.md examples) in the same commit.
-3. **Retract the originator-story TODO section.** When applying an `## Proposed ADR amendment` block from the story body, also delete or update that block to read "Applied in PR #M" — leaving "Operator's call: amend now or batch later" as a contradiction inside the file the re-review WILL flag.
+1. **Grep for downstream references** across `docs/`, `next/`, `e2e/`, `CLAUDE.md` (use the most specific identifier — not a substring catching unrelated text).
+2. **Update load-bearing references** (story task lines, cross-doc cites, CONVENTIONS examples) in the same commit.
+3. **Retract the originator-story TODO section** if applicable — leaving "operator's call: amend now or batch later" as a contradiction inside the file.
 4. **Skip historical refs** (per ADR 0022 directive 1) — implemented stories whose snippets are point-in-time fall under "annotate as superseded" not "rewrite the body."
 
-Record the propagation-grep result one-liner in the commit body so re-review can verify scope.
+Record the propagation-grep result one-liner in the commit body.
 
 ### Step 4 — Write back
 
-Replace `## Review` section in place. Frontmatter — only the load-bearing fields. Per-decision counts go into the operator report, not the file (commit history + the annotated `## Review` block carry that).
+Frontmatter (only load-bearing fields):
 
 ```yaml
 reworked: true
 reworked_at: <ISO date>
-rework_mode: interactive | bold        # only when --bold (default interactive omitted)
-rework_followups: [S-XXX, ...]          # only when non-empty
+rework_followups: [S-XXX, ...]              # only when non-empty
 rework_meta_followups: [{id: S-XXX, kind: ...}, ...]  # only when non-empty
 ```
 
-Skip a key when its value is the default. Stamping `rework_address_now: 0` is noise.
+Skip a key when its value is the default.
 
-Commit: `#N: rework triage — <X address-now / Y deferred / Z accepted>` (append ` (--bold)` in bold mode).
-
-**Note on `## Review` lifecycle.** Annotations (`[in-rework]`, `[auto-accepted: …]`, `[deferred → S-XXX]`) stay through rework + the re-review pass. `/modernize-finalize` prunes the section to its load-bearing remnants (deferred references) when the story archives. Don't write annotations expecting them to live forever — they're working notes.
+Commit: `#N: rework — <one-line summary of the pivot>`.
 
 ### Step 5 — Report
 
-- Story ID + title + mode.
-- Findings triaged + per-decision count.
-- Auto-decisions (if `--bold`): count + severity breakdown. Audit prompt: "re-run without --bold to overrule".
-- Address-now TaskCreate list (mark `[auto]` for auto-decided).
-- Deferred follow-ups (S-NNN + titles).
-- Meta-improvements: apply-now changes + follow-up stories, or "none surfaced".
-- Next: `address-now > 0` → fix, push, `/modernize-review S-NNN` → `/modernize-finalize`. `address-now == 0` → `/modernize-review` to confirm → `/modernize-finalize`.
+- Story ID + title.
+- Trigger (one sentence).
+- Decisions: per-decision disposition + follow-up IDs.
+- Meta-pass: apply-now changes + follow-up stories, or "none surfaced".
+- Next: if follow-up stories filed → `/modernize-refine <next-S-id>` for each. If fold-into-current-PR → operator applies the change to the open PR.
 
 ## Quality bar
 
-- One story per invocation; one decision per finding.
-- Blockers never auto-decide. Defer/accept requires second confirmation.
-- Annotations replace, never stack.
-- Skill writes no code.
+- One story per invocation; one decision per `AskUserQuestion`.
+- Skill writes no code (operator implements the pivot afterwards).
 - Meta-improvements **always boyscout** per [[feedback-meta-improvements-are-boyscout]].
-- `--bold` is opt-in.
-- Doc-drift = improvement/nudge by default per [ADR 0022 directive 1](../../../docs/modernization/adrs/0022-modernization-primary-directives.md); blocker only when drift actively misleads.
+- Doc-drift defaults to improvement / nudge per [ADR 0022 directive 1](../../../docs/modernization/adrs/0022-modernization-primary-directives.md); this skill is for scope / design pivots, not doc cleanups (those land at `/modernize-finalize`).
 
 ## Not in scope
 
-Code edits (operator). PR merging (`/modernize-finalize`). Refinement re-runs. `_ORDER.md` reordering (operator).
+Code edits (operator). PR merging (`/modernize-finalize`). Refinement re-runs. `_ORDER.md` reordering beyond the appended-follow-up rows. Routine review-finding triage — the implementer auto-fixes reviewer findings inline; only escalated scope/design pivots come here.

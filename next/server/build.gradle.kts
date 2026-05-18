@@ -43,6 +43,17 @@ repositories {
     mavenCentral()
 }
 
+// S-155 (ADR 0023): Spring Modulith verifies module-level boundaries between
+// top-level packages under ch.alpenflight (clubs, auth, platform, …); ArchUnit
+// verifies inner-layer direction-of-dependency inside each module
+// (domain/application/web/infra). Both are test-only — runtime classpath is
+// unaffected.
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.modulith:spring-modulith-bom:2.0.5")
+    }
+}
+
 // Dedicated source set used by `verifyNullAwayFailsOnViolation` to prove that
 // null-safety violations fail the build (acceptance criterion 3). Not wired
 // into `check` / `build`; only the verification task invokes its compile.
@@ -54,6 +65,26 @@ val nullawayDemo: SourceSet by sourceSets.creating {
 
 configurations.named("nullawayDemoImplementation").configure {
     extendsFrom(configurations.implementation.get())
+}
+
+// S-155: regression source set for ADR-0023 layering rules. Holds three
+// deliberate violations (one per rule) + a test class that re-declares
+// the same rules and asserts each fires. Wired only into the
+// `verifyArchUnitFailsOnViolation` task — NOT into `test` / `check`, so
+// `./gradlew test` is unaffected.
+val archDemo: SourceSet by sourceSets.creating {
+    java.srcDir("src/archDemo/java")
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += output + compileClasspath
+}
+
+configurations.named("archDemoImplementation").configure {
+    extendsFrom(configurations.implementation.get())
+    extendsFrom(configurations.testImplementation.get())
+}
+
+configurations.named("archDemoRuntimeOnly").configure {
+    extendsFrom(configurations.testRuntimeOnly.get())
 }
 
 dependencies {
@@ -116,6 +147,18 @@ dependencies {
     // `.with(jwt())` post-processors so role-gate ITs can downgrade the
     // principal without booting the mock-auth filter chain.
     testImplementation("org.springframework.security:spring-security-test")
+    // S-155: Spring Modulith annotation types (@ApplicationModule, @NamedInterface)
+    // on the compile classpath only — package-info declarations need them, but
+    // we deliberately don't pull in spring-modulith-starter-core's runtime
+    // auto-config (event-publication registry, observability) until ADR 0018
+    // domain events first ship.
+    compileOnly("org.springframework.modulith:spring-modulith-api")
+    // S-155: ApplicationModules.of(...).verify() — Spring Modulith's module
+    // boundary check. Test-only; the BOM (above) pins the version.
+    testImplementation("org.springframework.modulith:spring-modulith-starter-test")
+    // S-155: ArchUnit + its JUnit 5 runner — inner-layer direction-of-dependency
+    // rules (ADR 0023). Test-only.
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
@@ -137,6 +180,15 @@ tasks.withType<JavaCompile>().configureEach {
 // errorprone wholesale would silently drop FutureReturnValueIgnored,
 // EqualsHashCode, etc. as the test suite grows.
 tasks.named<JavaCompile>("compileTestJava") {
+    options.errorprone.nullaway {
+        severity = CheckSeverity.OFF
+    }
+}
+
+// archDemo compile: NullAway off (the deliberate-leak classes carry no
+// null-safety contract — they exist purely to trip ArchUnit). Same
+// rationale as compileTestJava.
+tasks.named<JavaCompile>("compileArchDemoJava") {
     options.errorprone.nullaway {
         severity = CheckSeverity.OFF
     }
@@ -214,6 +266,22 @@ flyway {
 }
 
 tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+// S-155: runs `LayeringRulesDemoTest` (in the archDemo source set) which
+// re-declares the production ArchUnit rules and asserts each one FIRES
+// on the deliberate violations in `src/archDemo/java/...`. Catches the
+// regression where someone weakens a rule and `./gradlew test` silently
+// keeps passing.
+//
+// Intentionally NOT wired into `check` — CI invokes it explicitly:
+//     ./gradlew verifyArchUnitFailsOnViolation
+val verifyArchUnitFailsOnViolation by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Asserts ArchUnit detects the deliberate layering violations under src/archDemo/java (ADR 0023 regression guard)."
+    testClassesDirs = archDemo.output.classesDirs
+    classpath = archDemo.runtimeClasspath
     useJUnitPlatform()
 }
 

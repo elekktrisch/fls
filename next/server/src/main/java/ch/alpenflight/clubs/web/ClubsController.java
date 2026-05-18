@@ -1,8 +1,9 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.web;
 
-import ch.alpenflight.clubs.ClubDtos.ClubCreateRequest;
-import ch.alpenflight.clubs.ClubDtos.ClubResponse;
-import ch.alpenflight.clubs.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
+import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
+import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.clubs.application.ClubsService;
 import ch.alpenflight.platform.id.ClubId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>{@code @PathVariable ClubId id} resolves through
  * {@code ClubIdPathConverter} so callers send the prefixed external form
- * {@code clb_<26-char>}. The SpEL predicates dereference {@code #id.value()}
+ * {@code clb-<uuid>}. The SpEL predicates dereference {@code #id.value()}
  * to compare against the JWT's raw-UUID {@code clubId} claim.
  *
  * <p>Walking-skeleton scope: the DTO omits country / club-state pickers —

@@ -67,6 +67,10 @@ Strict minimum to land the first user-visible vertical slice (Phase D). **No ite
 - S-022 — M — ClubTenantIdentifierResolver + @TenantId (deps S-012, S-015, S-020)
 - S-026 — M — Authorization model — roles → @PreAuthorize (deps S-020) — *needed to gate the first endpoint; no later CRUD ships without it*
 
+**Module layering enforcement (ADR 0023 — lands before any new aggregate module):**
+
+- S-155 — L — Module layering template — Spring Modulith + ArchUnit + Clubs reshape (deps S-001, S-022)
+
 **Test infrastructure:**
 
 - S-015 — M — Testcontainers test-DB strategy (deps S-009)
@@ -300,7 +304,7 @@ Observability stack ships at production-deploy time. Application-side hooks (S-0
 
 ## How to use this
 
-- **Right now** — Phase B is the critical path. Sequence: S-019 + S-039 + S-030 in parallel → S-003 → S-004 → S-020 + S-022 + S-026 (parallel) → S-006 + S-007 + S-008 + S-021 (parallel) → **Phase D walking skeleton (S-047 slim + S-049 + S-024)**.
+- **Right now** — Phase B is the critical path. Sequence: S-019 + S-039 + S-030 in parallel → S-003 → S-004 → S-020 + S-022 + S-026 (parallel) → **S-155 (layering enforcement; lands before any new aggregate module)** → S-006 + S-007 + S-008 + S-021 (parallel) → **Phase D walking skeleton (S-047 slim + S-049 + S-024)**. S-155 ships the four-package template; every new module (S-047, S-049, S-050, …) is scaffolded into that template from commit one. If S-047 refines before S-155 lands, hold the implement until S-155 is in — the boyscout cost of reshaping reference data later is larger than waiting one story.
 - **Walking skeleton is the milestone to optimize toward.** Operator can demo end-to-end behavior the moment Phase D closes. Every story choice before then is "does this block the demo?"
 - **Phase E thickens; deferred items land here.** Don't pull S-027 (audit), S-057 (translations), S-005 (i18n picker) earlier "just to be done with them" — they land when their first consuming story arrives.
 - **Test corpus expansion (S-101..S-106)** — runs against legacy first, can begin in parallel with any phase.

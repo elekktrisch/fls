@@ -284,7 +284,7 @@ class IdentityBaselineIntegrationTest {
                             .as("%s.id COMMENT must reference ADR 0019 + the '%s' prefix", e.table, e.prefix)
                             .isNotNull()
                             .containsIgnoringCase("ADR 0019")
-                            .contains(e.prefix + "_");
+                            .contains(e.prefix + "-");
                 }
             }
         }

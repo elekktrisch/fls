@@ -10,8 +10,13 @@ import org.jspecify.annotations.Nullable;
  * {@code Person} or {@code User} id in a {@code Club} slot — the confusion
  * the codebase wants to make impossible at the type system level.
  *
- * <p>External form is {@code clb_<26-char Crockford Base32>} (ADR 0019).
- * JSON wire format is the external string, configured centrally in
+ * <p>External form is {@code clb-<uuid>}, where {@code <uuid>} is the JDK's
+ * canonical 36-character dashed UUID (ADR 0019). The dashed UUID body keeps
+ * the value parsing trivial via {@link UUID#fromString(String)}; the
+ * 4-character {@code clb-} prefix lets readers spot a Club id at a glance
+ * without standing in the way of any standard UUID tooling.
+ *
+ * <p>JSON wire format is the external string, configured centrally in
  * {@link TypedIdJacksonModule} (registered with the application
  * {@code ObjectMapper}); this record carries no Jackson annotations on
  * purpose. The {@link Schema} hint tells springdoc to emit
@@ -24,10 +29,13 @@ import org.jspecify.annotations.Nullable;
  * S-012 — typed wrappers are reserved for ids that legitimately cross
  * aggregate boundaries.
  */
-@Schema(type = "string", pattern = "^clb_[0-9a-z]{26}$", example = "clb_019e30c32c0070018000000000000001")
+@Schema(
+        type = "string",
+        pattern = "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        example = "clb-019e30c3-2c00-7001-8000-000000000001")
 public record ClubId(UUID value) {
 
-    public static final String PREFIX = "clb_";
+    public static final String PREFIX = "clb-";
 
     public ClubId {
         if (value == null) {
@@ -51,11 +59,17 @@ public record ClubId(UUID value) {
             throw new IllegalArgumentException(
                     "ClubId external form must start with '" + PREFIX + "', got: " + external);
         }
-        return new ClubId(IdEncoding.decode(external.substring(PREFIX.length())));
+        String payload = external.substring(PREFIX.length());
+        try {
+            return new ClubId(UUID.fromString(payload));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "ClubId payload '" + payload + "' is not a valid UUID", e);
+        }
     }
 
     public String toExternal() {
-        return PREFIX + IdEncoding.encode(value);
+        return PREFIX + value.toString();
     }
 
     @Override

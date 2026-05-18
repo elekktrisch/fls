@@ -1,8 +1,9 @@
-package ch.alpenflight.clubs;
+package ch.alpenflight.clubs.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.WithTenant;

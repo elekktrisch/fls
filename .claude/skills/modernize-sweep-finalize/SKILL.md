@@ -25,15 +25,13 @@ Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-dire
 
 ## Per-story disposition
 
-For each story at `docs/modernization/stories/S-NNN-*.md` **top-level only** (skip `implemented/`).
+For each story at `docs/modernization/stories/implemented/S-NNN-*.md` (`/modernize-implement` Step 8 archives to `implemented/`; finalize merges from there).
 
 ### Finalize (auto)
 
 ALL of:
 - `merged: true` is **not** set.
-- `reviewed: true`.
-- `review_outcome ∈ {pass, improvements-only}`.
-- `## Review` has no un-`[accepted: …]` `[blocker]` bullets.
+- `status: done`.
 - `github_pr:` set; `gh pr view <M> --json state` returns `OPEN`.
 - PR is `READY_FOR_REVIEW`, not `DRAFT`.
 - `gh pr checks <M>` all green.
@@ -45,9 +43,7 @@ ALL of:
 
 Any of:
 - `merged: true` at top-level (rare; partial-finalize artifact — log path so operator can `git mv`).
-- `reviewed: false`.
-- `review_outcome: blockers`.
-- Un-`[accepted]` `[blocker]` in `## Review`.
+- `status:` is not `done`.
 - `github_pr:` absent (fallback story).
 - PR `MERGED` (race; stamp `merged: true` locally so next sweep skips).
 - PR `CLOSED` unmerged; investigate.
@@ -67,9 +63,9 @@ Any of:
 
 ### Step 1 — Enumerate candidates
 
-1. `ls docs/modernization/stories/S-*.md` (skip `implemented/`).
+1. `ls docs/modernization/stories/implemented/S-*.md` (implemented-folder stories — they've already been marked done by `/modernize-implement` Step 8).
 2. Read only frontmatter (to second `---`) for each.
-3. Reject cheap: `merged: true`, `reviewed: false`, `review_outcome: blockers`.
+3. Reject cheap: `merged: true`, `status:` is not `done`.
 4. Result: candidate list (typically << 10 even with 100+ stories).
 
 ### Step 2 — Verify each candidate vs PR + CI state
@@ -91,11 +87,11 @@ Per eligible candidate, run the automation subset of `/modernize-finalize`:
 
 1. **Skip Step 1** (ADR amendments) — eliminated by defer rule.
 2. **Skip Step 2** (merge-strategy prompt) — sweep defaults to **squash** (no prompt).
-3. **Step 2.5 — pre-merge bookkeeping commit on PR branch:**
+3. **Step 2.5 — docs-prune + merged-stamp commit on PR branch (auto-only):**
    - `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. Diverged → defer with reason "branch diverged".
+   - Run finalize's docs-prune pass with the auto-only carve-out: spawn the `tech-writer-reviewer` agent; apply auto-delete entries; **if `surface_to_operator` non-empty, defer with reason "unclear docs-prune requires operator"** — sweep does not prompt mid-flight.
    - Stamp `merged: true`, `merged_at: <today>` on frontmatter. Don't stamp `merge_commit:`.
-   - `mkdir -p docs/modernization/stories/implemented && git mv …`.
-   - Commit `#N: archive — stamp merged state + move to implemented/`. Push.
+   - Commit `#N: docs prune at finalize — <N sections removed>` (or `#N: pre-merge — stamp merged` if the prune phase yielded zero edits). Push.
    - `gh run watch --exit-status <latest-run-id>`. Red → defer with reason "CI failed on bookkeeping commit".
 4. **Step 3 — merge:** `gh pr merge <M> --squash --delete-branch --subject "S-NNN: <title>" --body "Closes #N"`.
    - Non-zero (`not mergeable` / `requires review` / other): defer with verbatim gh error. The bookkeeping commit stays on the PR branch.
@@ -117,6 +113,7 @@ Between candidates: re-pull `main` to incorporate the prior squash, then proceed
   - `CI failing / in-progress:` IDs.
   - `CONFLICTING:` IDs.
   - `DRAFT (implement not complete):` IDs.
+  - `Unclear docs-prune (sweep won't prompt):` IDs.
   - `Other (PR closed / not found):` IDs.
 - **Errors:** count + per-story message.
 - **Suggested operator actions** per defer reason:

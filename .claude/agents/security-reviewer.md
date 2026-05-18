@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Post-implement security review — verifies the Security plan landed (authz, tenant gates, validation, audit, PII, OWASP). Used by /modernize-review. Read-only.
+description: Post-implement security review — verifies the Security plan landed (authz, tenant gates, validation, audit, PII, OWASP). Used by /modernize-implement Step 7. Read-only.
 tools: Read, Glob, Grep, Bash
 ---
 

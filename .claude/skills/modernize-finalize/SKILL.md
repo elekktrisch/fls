@@ -1,11 +1,11 @@
 ---
 name: modernize-finalize
-description: Phase 9 — terminal: process proposed ADR amendments, squash-merge PR, delete branch, verify issue closure, archive story to implemented/. One-shot. Trigger: /modernize-finalize S-NNN.
+description: Phase 7 — terminal: docs-prune pass + process proposed ADR amendments + squash-merge PR + delete branch + verify issue closure. One-shot. Trigger: /modernize-finalize S-NNN.
 ---
 
-# Phase 9 — Story Finalize
+# Phase 7 — Story Finalize
 
-Take one reviewed story whose blockers are clear; merge the PR; archive bookkeeping. One-shot — either succeeds or refuses.
+Take one implemented story; clean up rotted documentation that the code now sources; merge the PR; archive bookkeeping. One-shot — either succeeds or refuses.
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 
@@ -23,16 +23,14 @@ The story ID can be passed explicitly (`S-NNN`) or inferred from the current bra
 
 1. Story ID resolved per § Story ID resolution above.
 2. Story file at `stories/implemented/S-NNN-*.md` — `/modernize-implement` Step 8 archives the story into `implemented/` as part of the mark-done commit, so it's already there by the time finalize runs. If `merged: true` already → refuse ("already finalized").
-3. `reviewed: true`.
-4. `review_outcome ∈ {pass, improvements-only}`. `blockers` → refuse ("rework first").
-5. `## Review` section has no `[blocker]` bullets lacking an `[accepted: …]` annotation.
-6. `github_pr: M` and `gh pr view M --json state` returns `OPEN` (not `MERGED`, not `CLOSED`).
-7. PR is `READY_FOR_REVIEW`, not `DRAFT`.
-8. `gh pr checks M` shows all green (no `failing` / `in_progress`).
-9. No human `CHANGES_REQUESTED` review (best-effort; surface + ask if present).
-10. Working tree clean.
+3. `status: done`.
+4. `github_pr: M` and `gh pr view M --json state` returns `OPEN` (not `MERGED`, not `CLOSED`).
+5. PR is `READY_FOR_REVIEW`, not `DRAFT`.
+6. `gh pr checks M` shows all green (no `failing` / `in_progress`).
+7. No human `CHANGES_REQUESTED` review (best-effort; surface + ask if present).
+8. Working tree clean.
 
-Fallback (no `github_pr:`): preconditions 6-9 don't apply. Skill becomes bookkeeping-only — stamp `merged: true`, report. No merge / branch delete.
+Fallback (no `github_pr:`): preconditions 4-7 don't apply. Skill becomes bookkeeping-only — stamp `merged: true`, report. No merge / branch delete.
 
 ## Procedure
 
@@ -53,28 +51,40 @@ Per [[feedback-always-squash-merge]]: squash without asking. Skip the strategy p
 
 If operator wants override: ask explicitly via single `AskUserQuestion` with options: squash (default) / merge commit / rebase / abort.
 
-### Step 2.5 — Pre-merge merged-stamp + review-prune commit on the PR branch
+### Step 2.5 — Docs-prune pass
 
-The story file already lives at `docs/modernization/stories/implemented/S-NNN-*.md` — `/modernize-implement`'s Step 8 mv'd it there in the same commit as `status: done`. Step 2.5 adds the `merged:` stamps **and prunes `## Review` to its load-bearing remnants** in one commit, before the squash-merge fires.
+The story body was pruned at mark-done. Step 2.5 broadens the prune to every doc the PR touched **plus the wider doc tree where renamed / moved / deleted symbols leave stale citations**. Cleanly removes the documentation that the shipped code now sources more reliably than the prose.
 
+**Scope:**
+- All doc files in the PR diff (anything matching `docs/**`, `*.md`, `CONVENTIONS.md`, `package-info.java`).
+- **Plus** grep hits across `docs/**`, `next/**/*.md`, and every `package-info.java` for any symbol the PR renamed / moved / deleted. Compute the rename list from the PR diff's `R`/`D` rows + class / file / package renames inferred from the diff.
+
+**Per-section disposition** (per the operator's directive — see [[feedback-derive-before-asking]]):
+
+| Section kind | Action |
+|---|---|
+| References to **unimplemented / future stories or planned features** | KEEP — load-bearing plan content. |
+| Doc lives at `docs/modernization/stories/implemented/` | KEEP — that's the historical record of what shipped. |
+| Section the code now sources more reliably (file trees, method signatures, DTO field lists, test-method tables, post-decision "Migration cost ~30 min", stale path/symbol citations after a rename) — **clearly rot** | **DELETE** (auto, no prompt). |
+| Section the code sources but the prose carries load-bearing why / decision / contract context | KEEP. |
+| Unclear / mixed (some lines load-bearing, others rot) | SURFACE to operator. |
+
+**Procedure:**
 1. `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. Bail "PR branch diverged" if pull fails.
 2. Verify the file is already at `implemented/` (it should be — `/modernize-implement` Step 8 moved it). If still at top-level `stories/`, the implementer ran the previous (pre-skill-update) flow; do the mv now per the implement-Step-8 trap-guard ordering as a one-off.
-3. **Prune `## Review`** (walk the `<!-- modernize-review: start --> / end -->` block):
-   - Drop the `**Reviewed:** … **PR:** … **Outcome:** …` metadata line — `gh pr view` + commit history carry it.
-   - Drop bullets annotated `[in-rework]` / `[auto-in-rework]` — the fix landed in the diff; code is the evidence.
-   - Drop bullets annotated `[accepted: …]` / `[auto-accepted: …]` UNLESS the rationale is load-bearing (rare — e.g. cites a sacred-cow trade-off that future readers must understand). When in doubt, drop.
-   - Drop the entire `### Maintainability` / `### Security` / `### Usability` / `### Code quality` heading once it has zero bullets left.
-   - **Keep:** `[deferred → S-XXX]` bullets — they're the lineage explanation for the follow-up stories. Keep the `### Parity` `**Oracle:**` line if a parity oracle exists or was explicitly N/A.
-   - If the entire `## Review` block collapses to nothing, delete the section + its delimiters too.
-4. Update story frontmatter (edit in place at the `implemented/` path):
+3. Spawn a one-shot `tech-writer-reviewer` agent with the scope + disposition rules above. Output format: `{ auto_delete: [<file:line-range, reason>...], surface_to_operator: [<file:line-range, both-sides>...] }`. Carve-outs (future/implemented) yield no output.
+4. **Apply auto-delete entries silently.** Edit each cited file; remove the cited section / lines.
+5. **If `surface_to_operator` non-empty:** present as one consolidated `AskUserQuestion` (multi-select) — operator picks which of the unclear sections to delete; the rest stay. Apply the picked deletions.
+6. Update story frontmatter (edit in place at the `implemented/` path):
    ```yaml
    merged: true
    merged_at: <ISO date>
-   status: done  # confirm
    ```
-   Do **not** stamp `merge_commit:` — SHA isn't known yet; merge SHA recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` or `gh pr view M --json mergeCommit`.
-5. Commit `#N: pre-merge — stamp merged + prune review`. Push.
-6. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
+   Do **not** stamp `merge_commit:` — SHA isn't known yet; recoverable via `gh pr view M --json mergeCommit`.
+7. Commit `#N: docs prune at finalize — <N sections removed across <K> files>`. Push.
+8. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
+
+If the diff has zero docs-affecting changes AND grep returns no stale citations, skip Step 2.5's prune phase but still do the `merged:` stamp commit (item 6 + 7).
 
 If repo allows `gh pr merge --auto`: MAY substitute Step 2.5's watch with `gh pr merge --auto --squash` (queues for green CI). Default flow is explicit watch-then-merge.
 
@@ -131,7 +141,6 @@ ADR amendments commit to `main` directly — recognised exception to story-per-b
 ## Quality bar
 
 - One story per invocation. One-shot, not iterative.
-- Refuse on blockers without `[accepted: …]` annotation.
 - Squash by default (per [[feedback-always-squash-merge]]); other strategies are operator overrides.
 - ADR amendments are operator-confirmed (never auto-apply).
 - ADR amendments commit to main directly (no PR per amendment).
@@ -140,7 +149,7 @@ ADR amendments commit to `main` directly — recognised exception to story-per-b
 - Finalized stories archive to `stories/implemented/`. Mandatory.
 - Bookkeeping rides the PR, not a post-merge main commit. Step 2.5 commits + the squash gives ONE commit on main per story (plus optionally one for ADR amendments).
 - `merge_commit:` is NOT stamped on frontmatter (recoverable from git log; can't be known pre-merge).
-- **Step 2.5 prunes `## Review` to load-bearing remnants** — deferred-to references, parity-oracle line, anything else is working-notes noise once the PR is about to land.
+- **Step 2.5 deletes rotted prose** — file trees, method signatures, post-decision migration estimates, stale citations after renames. Carve-outs: future-story plans + the `stories/implemented/` historical record. Unclear sections surface to operator.
 - Per [[feedback-no-shas-in-committed-docs]]: never embed git SHAs in committed docs. Cite by subject / file:line / PR# / story-ID. SHAs OK in ephemera (issue comments, operator report).
 
 ## Not in scope

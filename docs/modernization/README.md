@@ -9,7 +9,7 @@ A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite
 >
 > Skill + agent files target ≤ 200 / ≤ 100 lines. When a procedure here disagrees with the directives, the directives win.
 
-**Skill set:** the nine numbered phases (discover → vision → adrs → decompose → refine → implement → review → rework → finalize) plus three orchestration extensions for throughput (`/modernize-refine-ahead`, `/modernize-sweep-finalize`, `/modernize-fleet`) — see [Orchestration extensions](#orchestration-extensions) below.
+**Skill set:** the seven numbered phases (discover → vision → adrs → decompose → refine → implement → finalize) plus the operator-invoked `/modernize-rework` side path, plus three orchestration extensions for throughput (`/modernize-refine-ahead`, `/modernize-sweep-finalize`, `/modernize-fleet`) — see [Orchestration extensions](#orchestration-extensions) below.
 
 ## Strategic anchors (fixed for this project)
 
@@ -22,7 +22,7 @@ These are baked into the skills via [`00-seed.md`](00-seed.md). They are **not**
 
 Everything else — backend language, frontend framework, database, auth, hosting, observability — is **decided by the workflow** via ADRs.
 
-## The nine phases
+## The seven phases
 
 | # | Skill | Mode | Reads | Produces |
 |---|---|---|---|---|
@@ -31,15 +31,15 @@ Everything else — backend language, frontend framework, database, auth, hostin
 | 3 | `/modernize-adrs` | interactive | phases 1–2 + decisions | `adrs/0001-*.md`, `adrs/0002-*.md`, ... |
 | 4 | `/modernize-decompose` | batch | phases 1–3 | `epics/E-NN-*.md`, `stories/S-NNN-*.md`, `_ORDER.md` |
 | 5 | `/modernize-refine <S-NNN>` | **per-story** | one story + ADRs + 5 subagents | new sections + `refined: true` in that story file |
-| 6 | `/modernize-implement <S-NNN>` | **per-story** | one refined story + Step 6.7 self-review consult | code in `next/`, tests, `status: done`, GitHub issue + draft→ready-for-review PR |
-| 7 | `/modernize-review <S-NNN>` | **per-story** | one implemented story + 4 reviewer subagents | `## Review` section + `reviewed: true` + GitHub issues for blockers |
-| 8 | `/modernize-rework <S-NNN> [--bold]` | **per-story** | one reviewed story + per-finding triage (interactive or auto in `--bold`) | annotations on review bullets, follow-up story files for deferred items |
-| 9 | `/modernize-finalize <S-NNN>` | **per-story** | one rework-clean story + ADR amendments + operator confirm | pre-merge bookkeeping commit on PR branch (stamps `merged: true`, moves story file to `stories/implemented/`), squash-merge, branch delete, issue close |
+| 6 | `/modernize-implement <S-NNN>` | **per-story** | one refined story + Step 7 reviewer panel + auto-fix loop | code in `next/`, tests, `status: done`, GitHub issue + draft→ready-for-review PR. Reviewer findings (maintainability + security + tech-writer/usability + parity-when-applicable) auto-fixed inline; escalates to operator only on scope/design pivots. |
+| 7 | `/modernize-finalize <S-NNN>` | **per-story** | one implemented story + ADR amendments + operator confirm | docs-prune pass (delete prose the code now sources; carve out future-story plans + `stories/implemented/` archive; surface unclear cases to operator), pre-merge bookkeeping commit on PR branch (stamps `merged: true`), squash-merge, branch delete, issue close |
 
-Phases 1–4 are one-shot planning. Phases 5–9 are per-story execution — invoked once per story, in order from `_ORDER.md`. The split exists because:
+Phases 1–4 are one-shot planning. Phases 5–7 are per-story execution — invoked once per story, in order from `_ORDER.md`. The split exists because:
 - **Just-in-time refinement** keeps specs fresh: refining all 122 stories up-front means most refinement is stale by the time it's read.
 - **One story per implement run** keeps blast radius tight: a single story arrives committable; a batch of stories arrives as a tangle.
-- **Single-story review/rework/finalize** keeps the audit trail per story coherent.
+- **Single-story finalize** keeps the audit trail per story coherent.
+
+**Side skill — `/modernize-rework <S-NNN>`** — operator-invoked only. Use when the implement auto-fix loop escalates (couldn't converge after 2 rounds; reviewer flagged something that needs scope/design pivot), or when the operator decides post-hoc that a shipped story's shape needs revisiting. Not part of the linear phase progression.
 
 The throughput orchestration extensions (`/modernize-refine-ahead`, `/modernize-sweep-finalize`, `/modernize-fleet`) wrap these per-story skills without changing the per-story state machine.
 
@@ -57,14 +57,15 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 | `qa-engineer` | Test pyramid, specific test cases, parity-test design, fixtures, coverage gaps |
 | `performance-engineer` | Hot paths, indexes, N+1 risks, caching, latency budget |
 
-**Review-time (phase 7, invoked in parallel by `/modernize-review`):**
+**Review-time (phase 6 Step 7, invoked in parallel by `/modernize-implement`'s reviewer panel + auto-fix loop):**
 
-| Subagent | Concern |
-|---|---|
-| `maintainability-reviewer` | Layering, clarity, tests, ADR conformance, deps, migrations |
-| `parity-reviewer` | Behavioral parity vs. legacy oracle; tests anchored on behavior not API shape |
-| `security-reviewer` | Authz, validation, PII, audit events, tenancy |
-| `usability-reviewer` | UI consistency, i18n, loading/empty/error states, a11y, responsive |
+| Subagent | Concern | Spawn when |
+|---|---|---|
+| `maintainability-reviewer` | Layering, clarity, tests, ADR conformance, deps, migrations | always |
+| `security-reviewer` | Authz, validation, PII, audit events, tenancy | not `is_docs_only` |
+| `parity-reviewer` | Behavioral parity vs. legacy oracle; tests anchored on behavior not API shape | `parity_test` non-empty OR diff touches `flsserver/` / `flsweb/` |
+| `usability-reviewer` | UI consistency, i18n, loading/empty/error states, a11y, responsive | `has_frontend` (real UI changes, not codegen) |
+| `tech-writer-reviewer` | Cross-doc consistency, stale citations, originator-story TODO bullets | NOT `has_frontend` (replaces usability for backend / docs-only diffs) |
 
 **Implement-time consults (phase 6, invoked one-shot by `/modernize-implement` Step 4.5):**
 
@@ -72,6 +73,12 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 |---|---|
 | `implementation-architect` | Patch design when a fork surfaces the refinement didn't cover |
 | `legacy-investigator` | Disambiguate parity-sensitive legacy behavior at file:line |
+
+**Finalize-time consult (phase 7 Step 2.5, invoked by `/modernize-finalize`):**
+
+| Subagent | Concern |
+|---|---|
+| `tech-writer-reviewer` | Walks PR-touched docs + grep-discovered stale-citation hits; categorises each section as auto-delete / keep / surface-to-operator. |
 
 `solution-architect`, `security-engineer`, `qa-engineer`, `performance-engineer`, `requirements-engineer` from the refine bank are also reusable in implement-time consults. The agents are general personas, not project-specific (here applied to the FLS → AlpenFlight rewrite) — they're reusable outside the modernization workflow.
 
@@ -84,13 +91,14 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 /modernize-adrs        # interactive — produces adrs/*.md
 /modernize-decompose   # produces epics/, stories/, _ORDER.md
 
-# Per-story flow (refine → implement → review → rework? → finalize):
+# Per-story flow (refine → implement → finalize):
 /modernize-refine S-001     # spawns 5 specialists, adds refinement sections + sets refined: true
-/modernize-implement S-001  # writes code, runs tests, self-reviews, sets status: done, opens PR
-/modernize-review S-001     # 4 reviewers, writes ## Review section, files blocker issues
-/modernize-rework S-001     # triages findings (or --bold to auto-decide nudges + simple improvements)
-# operator fixes address-now items, pushes, re-reviews if needed
-/modernize-finalize S-001   # squash-merge, branch delete, issue close
+/modernize-implement S-001  # writes code, runs tests, Step 7 reviewer panel auto-fixes inline,
+                            # sets status: done, archives to implemented/, opens ready-for-review PR
+/modernize-finalize S-001   # docs-prune pass, squash-merge, branch delete, issue close
+
+# Side path (operator-invoked when implement escalates or post-hoc revisit):
+/modernize-rework S-001     # walks scope/design pivots, files follow-up stories if needed
 
 # Then the next story (or use throughput extensions below):
 /modernize-refine S-002
@@ -98,26 +106,21 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 
 # Throughput extensions (optional, layer on top):
 /modernize-refine-ahead 5   # speculatively refine the next 5 unblocked stories
-/modernize-fleet 3          # run refine→implement→review on 3 stories concurrently in worktrees
+/modernize-fleet 3          # run refine→implement on 3 stories concurrently in worktrees
 /modernize-sweep-finalize   # auto-finalize every story that satisfies the gate (no judgment calls)
 ```
 
-Re-running a planning phase (1–4) regenerates its artifact in place. Re-running `/modernize-refine` on a story replaces its refinement sections atomically. Re-running `/modernize-implement` on a story that's already `done` is refused — explicitly flip status if you want to redo work.
+Re-running a planning phase (1–4) regenerates its artifact in place. Re-running `/modernize-refine` on a story replaces its refinement sections atomically. Re-running `/modernize-implement` on a story that's already `done` is refused — explicitly flip status if you want to redo work, or invoke `/modernize-rework` for a scope/design pivot.
 
 ## Orchestration extensions
 
-Three skills layer on top of the nine phases to improve throughput without compromising the per-story state-machine guarantees. All are opt-in.
+Three skills layer on top of the seven phases to improve throughput without compromising the per-story state-machine guarantees. All are opt-in.
 
 | Skill | Purpose | Typical use |
 |---|---|---|
 | `/modernize-refine-ahead [N]` | Speculative buffer-fill — refines the next N unblocked stories ahead of when implement needs them. Stamps `refined_speculative: true` so implement can re-refine if stale. | Run before a fleet batch, or on a `/loop` cadence to keep a rolling buffer of refined stories. |
-| `/modernize-sweep-finalize` | Daemon-style finalize — scans all stories, auto-finalizes anything that satisfies the gate without judgment calls. Defers ADR amendments and `CHANGES_REQUESTED` PRs. | Wrap in `/loop 30m /modernize-sweep-finalize` or `/schedule` for unattended cadence. |
-| `/modernize-fleet [N]` | Parallel-fleet orchestrator — dispatches up to N independent unblocked stories to isolated worktrees and runs refine→implement→review concurrently. Batches operator checkpoints. | Run on the long tail of leaf stories (CRUDs, observability, scheduled jobs). Foundational stories stay JIT. |
-
-Two quality gates were added to the existing skills to support these:
-
-- **`/modernize-implement` Step 6.7 — self-review gate.** A single `maintainability-reviewer` consult against the diff before the status-flip push, scoped to blockers only. Catches the most common review→rework blockers at source and cuts the average review→rework loop from ~1.5 cycles to ~1.0.
-- **`/modernize-rework --bold`** — opt-in auto-triage of nudges and one-line one-file improvements. Blockers and ambiguous improvements still prompt. Annotations distinguish `[auto-accepted]` / `[auto-in-rework]` from operator decisions so the audit trail is clean.
+| `/modernize-sweep-finalize` | Daemon-style finalize — scans `stories/implemented/`, auto-finalizes anything that satisfies the gate without judgment calls. Defers ADR amendments, `CHANGES_REQUESTED` PRs, and unclear docs-prune cases. | Wrap in `/loop 30m /modernize-sweep-finalize` or `/schedule` for unattended cadence. |
+| `/modernize-fleet [N]` | Parallel-fleet orchestrator — dispatches up to N independent unblocked stories to isolated worktrees and runs refine→implement concurrently (implement's Step 7 reviewer panel runs per worktree). Batches operator checkpoints. | Run on the long tail of leaf stories (CRUDs, observability, scheduled jobs). Foundational stories stay JIT. |
 
 ## File layout
 
@@ -147,10 +150,10 @@ A story file evolves over its lifetime:
 1. **After phase 4** — `status: todo`, body has Context / Acceptance / Tasks / Notes.
 2. **After phase 5** (`refined: true`) — body gains Design notes / Edge cases / Security plan / Test plan / Performance plan (and Open design questions if conflicts surfaced). Speculative variant adds `refined_speculative: true`.
 3. **During phase 6** — `status: in_progress`, `started_at: <date>`, `github_issue:`, `github_pr:` stamped.
-4. **After phase 6** — `status: done`, `done_at: <date>`, code lives under `next/`.
-5. **After phase 7** (`reviewed: true`) — body gains `## Review` section with maintainability / parity / security / usability findings; `review_outcome` is `pass` / `improvements-only` / `blockers`.
-6. **After phase 8** (`reworked: true`) — `## Review` bullets annotated `[in-rework]` / `[deferred → S-XXX]` / `[accepted: …]` (or `[auto-*]` variants in `--bold` mode); follow-up story files filed.
-7. **After phase 9** (`merged: true`) — `merged_at` stamped, PR squash-merged to `main`, branch gone, issue closed, **and the story file is moved from `stories/S-NNN-*.md` to `stories/implemented/S-NNN-*.md`** as part of the pre-merge bookkeeping commit (so the squash carries the move and `main` sees exactly one commit per finalized story). `merge_commit` is not stamped — recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` if needed.
+4. **After phase 6** — `status: done`, `done_at: <date>`, body pruned to load-bearing decisions, **file moved to `stories/implemented/S-NNN-*.md`** in the mark-done commit. Reviewer findings (maintainability / security / tech-writer / usability / parity) were auto-fixed inline by Step 7's reviewer panel; no `## Review` section is written — the code commits + the PR diff are the evidence trail.
+5. **After phase 7** (`merged: true`) — `merged_at` stamped, PR squash-merged to `main`, branch gone, issue closed; the finalize docs-prune pass deleted prose the code now sources more reliably (file trees, method signatures, stale citations after renames). `merge_commit` is not stamped — recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` if needed.
+
+**Side path — rework.** If `/modernize-rework <S-NNN>` is invoked (operator-only), `reworked: true` + `reworked_at` stamp; follow-up stories filed under `rework_followups: [S-XXX, ...]`. Most stories never see this state.
 
 ## Why "generic skills + project seed"
 

@@ -1,6 +1,6 @@
 ---
 name: maintainability-reviewer
-description: Post-implement maintainability review — layering, clarity, tests, ADR conformance, deps, migrations. Primary reviewer in /modernize-review. Read-only.
+description: Post-implement maintainability review — layering, clarity, tests, ADR conformance, deps, migrations. Primary reviewer in /modernize-implement Step 7. Read-only.
 tools: Read, Glob, Grep, Bash
 ---
 

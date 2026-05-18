@@ -86,7 +86,7 @@ for story in selected_stories:
     write back to story file
 ```
 
-If you genuinely need higher throughput than this gives, use `/modernize-fleet` (which dispatches stories to worktrees and runs the full refine→implement→review cycle in parallel).
+If you genuinely need higher throughput than this gives, use `/modernize-fleet` (which dispatches stories to worktrees and runs the full refine→implement cycle in parallel).
 
 ## Step-by-step orchestration
 

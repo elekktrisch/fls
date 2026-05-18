@@ -10,7 +10,7 @@
  * Club projection returned to API consumers.
  */
 export type ClubResponse = {
-  /** @pattern ^clb_[0-9a-z]{26}$ */
+  /** @pattern ^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   id?: string;
   name?: string;
   slug?: string;

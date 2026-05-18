@@ -73,15 +73,16 @@ Aggregate roots from [ADR 0018](0018-domain-model-ddd-aggregates.md) carry a 3-l
 
 ### Encoded form
 
-Aggregate-root IDs serialize as `<prefix>_<crockford-base32-uuid-v7>`:
+Aggregate-root IDs serialize as `<prefix>-<uuid>`, where `<uuid>` is the JDK's canonical 36-character dashed UUID:
 
 ```
-flt_0jwq8egfk0fn400084ferpf08a8
+flt-019e30c3-2c00-7001-8000-000000000001
 ```
 
-- 3-letter prefix + `_` separator + 26-character Crockford base32 encoding of the 128-bit UUID v7. Total length: **30 characters**.
-- [Crockford base32](https://www.crockford.com/base32.html) (lowercase): alphabet omits `I / L / O / U` to eliminate read-aloud and OCR ambiguity. Optional check character not used.
-- UUID v7's time-ordered 48-bit prefix is preserved in the encoding — IDs created in the same second share a leading substring, which makes log-scrolling and time-bucketing visually obvious without parsing the timestamp.
+- 3-letter prefix + `-` separator + 36-character canonical UUID (`UUID.toString()` / `UUID.fromString()`). Total length: **40 characters**.
+- The `-` separator matches the dashes inside the UUID itself, so the whole external form reads as one consistent token.
+- UUID v7's time-ordered 48-bit prefix is the leading bytes of the UUID — IDs created in the same second share a leading substring, which makes log-scrolling and time-bucketing visually obvious without parsing the timestamp.
+- **Amended 2026-05-18** (S-155 boyscout): the original form was `<prefix>_<26-char Crockford Base32>`. Crockford encoding bought ~22% length reduction at the cost of a custom codec (`IdEncoding.java`) and a non-standard payload that broke every standard UUID tool (`uuidgen`, `pg_typeof`, IDE UUID generators, psql `?::uuid` casts). Switching to the canonical dashed UUID keeps the readability win of the prefix while making the payload play with every JVM / Postgres / browser tool by default. The 13 aggregate-root `COMMENT ON COLUMN` blocks across `V2`/`V3`/`V4` migrations are refreshed by `V6__aggregate_id_comments_uuid_form.sql`.
 
 ### Internal entities — no prefix
 
@@ -112,16 +113,19 @@ Prefixes are 3 lowercase letters, distinct across the registry. New aggregate ro
 - **Typed-ID value objects** (per [ADR 0018](0018-domain-model-ddd-aggregates.md)) own the prefix:
   ```java
   public record FlightId(UUID value) implements EntityId {
-      public static final String PREFIX = "flt";
-      public String toExternal() { return PREFIX + "_" + Base32Crockford.encode(value); }
-      public static FlightId parse(String external) { /* prefix-check + decode */ }
+      public static final String PREFIX = "flt-";
+      public String toExternal() { return PREFIX + value.toString(); }
+      public static FlightId parse(String external) {
+          if (!external.startsWith(PREFIX)) throw new IllegalArgumentException(...);
+          return new FlightId(UUID.fromString(external.substring(PREFIX.length())));
+      }
   }
   ```
-- **Jackson serializer/deserializer** registered at app startup converts `FlightId ↔ "flt_..."` at every JSON boundary. One global registration; per-type via the typed-ID interface.
-- **Spring URL path converter** (`Converter<String, FlightId>`) parses path variables: `GET /api/v1/flights/{id}` accepts `flt_0jwq8egfk0fn400084ferpf08a8` and yields a `FlightId`.
+- **Jackson serializer/deserializer** registered at app startup converts `FlightId ↔ "flt-..."` at every JSON boundary. One global registration; per-type via the typed-ID interface.
+- **Spring URL path converter** (`Converter<String, FlightId>`) parses path variables: `GET /api/v1/flights/{id}` accepts `flt-019e30c3-2c00-7001-8000-000000000001` and yields a `FlightId`.
 - **Structured logging MDC** writes the prefixed form. Log fields holding aggregate-root IDs (`flight_id`, `actor.user_id`, etc.) carry the prefix; raw UUIDs never appear in log lines.
 - **Hibernate persistence layer** sees only `UUID` (the inner value). `@AttributeConverter` may not even be necessary — the typed-ID `record` can hold a public `UUID value()` accessor and Hibernate maps the wrapper directly via `@Embeddable` / `@Convert` (decided at S-022).
-- **psql debugging helper**: ship a function `flt(text) RETURNS uuid` and a sibling per-prefix function in a `next/server/src/main/resources/db/migration/V<n>__id_codec_functions.sql` migration (post-baseline) for ad-hoc dev queries.
+- **psql debugging helper:** not required — the payload is a standard UUID, so `SELECT … WHERE id = '019e30c3-…'::uuid` works without a custom codec function. Strip the `<prefix>-` in your head (or via `substring(external from 5)`) when copying an ID from a log line.
 
 ### Cutover (S-016) implications
 
@@ -138,7 +142,7 @@ Legacy GUIDs (`uniqueidentifier` in SQL Server) are stored bit-for-bit compatibl
   - One ID type across every entity, every API, every database column. No per-entity decision rule.
   - Application-generated: `flight.id` is known the instant `new Flight(...)` returns — no `entityManager.persist()` round-trip required before publishing to a queue, logging the new ID, or returning it in an HTTP response.
   - UUIDs are URL-safe (no leading zeros, no embedded slashes) and globally unique. External integrations (Proffix sync per [C10](../02-vision-and-constraints.md#3-hard-constraints), OGN ingestion per [C8](../02-vision-and-constraints.md#3-hard-constraints), audit-log correlation, push-notification deep links) carry the same ID without ordinal leakage.
-  - S-016 cutover parity-friendly: legacy GUIDs (16 bytes) → new UUIDs (16 bytes) via a 1:1 remap. Schema diff is the column type rename (`uniqueidentifier` → `uuid`); data preserved bit-for-bit if the remap chooses to keep legacy GUIDs as v4 strings instead of regenerating as v7. **Open Q at S-016:** preserve legacy GUIDs (preserves audit-log searchability into historical data) vs regenerate as v7 (better insert locality going forward; need a lookup table for historical references). Default recommendation: **regenerate as v7 + persist a `legacy_id_map (legacy_guid, new_uuid)` lookup** for historical correlation.
+  - S-016 cutover parity-friendly: legacy GUIDs (16 bytes) → new UUIDs (16 bytes) via a 1:1 remap. Schema diff is the column type rename (`uniqueidentifier` → `uuid`); data preserved bit-for-bit if the remap chooses to keep legacy GUIDs as v4 strings instead of regenerating as v7. The cutover-design Open Q (preserve vs regenerate) is enumerated above with its default recommendation; S-016 makes the final call.
   - Strong-typed ID value objects compose: `FlightId`, `AircraftId`, `PersonId`, etc. wrap `UUID`; cross-entity passing is compile-time-checked.
   - Hibernate 7 `@UuidGenerator(style = TIME)` is one annotation per entity (or one shared `@MappedSuperclass` for the convention) — no per-entity boilerplate.
   - Postgres 17 `uuid` is native; `gen_random_uuid()` is available for the rare migration-time INSERT but not used in the hot path (app generates).
@@ -154,16 +158,15 @@ Legacy GUIDs (`uniqueidentifier` in SQL Server) are stored bit-for-bit compatibl
 
 - **Follow-ups (other ADRs / stories implied):**
   - **Re-refine S-012 / S-013 / S-014** — all three speculative refinements pin `BIGINT GENERATED BY DEFAULT AS IDENTITY` for every PK. Flip to `UUID NOT NULL PRIMARY KEY` (Postgres `uuid` type); FK columns become `UUID`; index sizes per the Worked Example above; constraint definitions unchanged otherwise. Tenant column (`operating_club_id`) becomes `UUID` (was previously `BIGINT` per S-011's `tenant_id_type: Long`). Update [`next/database/tenant-rules.yaml`](../../../next/database/tenant-rules.yaml) `tenant_id_type` from `Long` to `UUID`.
-  - **Story:** establish a `next/server/src/main/java/ch/alpenflight/domain/common/EntityId.java` interface + per-aggregate typed-ID `record`s (`FlightId`, `AircraftId`, `PersonId`, …). Hibernate `AttributeConverter` lifts each typed ID ↔ raw `UUID` at the persistence boundary. Single shared converter via a `@MappedSuperclass` base or per-entity (decided at S-022).
+  - **(landed in S-022 / S-048)** Per-aggregate typed-ID `record`s live in `next/server/src/main/java/ch/alpenflight/platform/id/` (`ClubId` is the worked example; `PersonId`, `FlightId`, … follow the same shape). The `Club` entity field stays raw `UUID`; the getter wraps. No shared `EntityId` interface so far — added when a second typed-ID family member ships and a common abstraction earns its keep.
   - **Story:** establish `@MappedSuperclass AggregateRoot` or per-entity convention with `@Id @UuidGenerator(style = TIME) @Column(columnDefinition = "uuid") private UUID id`. Convention captured in `next/server/CONVENTIONS.md` + enforced by ArchUnit test: every `@Entity` class has a UUID `@Id` field.
   - **Story (S-016 cutover):** decide legacy GUID preservation vs UUID v7 regeneration; build the `legacy_id_map` lookup either way. Verify FK rewriting against production-data-shaped staging (vision §5 rehearsal).
   - **Story (S-024 leakage CI):** parameterized tests now expect UUID columns; helper to insert/read UUID-keyed rows.
   - **Story (S-022 tenant resolver):** the resolver reads `clubId` from the Spring Security principal — now a UUID claim instead of BIGINT. Keycloak realm-role config must carry the user's home-club UUID as a custom claim (`fls_club_id`); existing realm setup at [ADR 0007](0007-auth-scheme.md) needs updating.
   - **Update [ADR 0008](0008-multi-tenancy-mechanism.md)** — line 48 says "tenant column is `bigint` (or UUID)"; with this ADR the choice is now pinned UUID. Update the line + cross-reference this ADR. The change is informational, not behavioral.
   - **Story:** decide whether Keycloak's `sub` claim (Keycloak's own internal user UUID) becomes the AlpenFlight `user.id`, or whether AlpenFlight generates its own UUID and stores `keycloak_sub` as a separate column. Recommended: AlpenFlight owns `user.id`; `keycloak_sub` is a stable but separate identifier. Already noted in S-012 refinement.
-  - **Story (audit log S-027):** UUIDs in `before_state` / `after_state` JSON blobs serialize as the prefixed external form (`flt_0jwq...`); redaction policy operates on column names (per S-013 / S-014 PII catalogs), not on string-shape detection of UUIDs. Historical audit rows from before this ADR carry raw UUIDs — search tooling normalizes both forms.
-  - **Story:** Crockford base32 codec + `Base32Crockford` utility class in `next/server/src/main/java/ch/alpenflight/domain/common/`. Java has no stdlib base32 in this dialect; pull `com.github.f4b6a3:uuid-creator` (RFC 9562 reference implementation including Crockford-style encoders) or implement the codec directly (~60 lines). Decided at the story.
-  - **Story:** Jackson global `Module` registration for `EntityId` typed wrappers; Spring `Converter<String, ?>` registration for URL path variables; logging MDC convention documented in `next/server/CONVENTIONS.md`.
-  - **Story:** psql debugging-helper migration `V<n>__id_codec_functions.sql` shipping per-prefix functions (`flt(text) RETURNS uuid`, `acf(text) RETURNS uuid`, …) for ad-hoc developer queries. Ships separately from the schema-baseline migrations to keep S-009's `forbidden-migration-patterns.txt` allowlist tight.
-  - **Story (S-008 primitives):** error-message component renders aggregate IDs in the prefixed form ("Flight `flt_0jwq8egfk0fn400084ferpf08a8` not found") not as raw UUIDs.
+  - **Story (audit log S-027):** UUIDs in `before_state` / `after_state` JSON blobs serialize as the prefixed external form (`flt-<uuid>`); redaction policy operates on column names (per S-013 / S-014 PII catalogs), not on string-shape detection of UUIDs. Historical audit rows from before this ADR carry raw UUIDs — search tooling normalizes both forms.
+  - **(superseded by S-155 boyscout)** The original ADR text mandated a Crockford base32 codec (`<prefix>_<26-char>`); the S-155 amendment (above) dropped the codec in favour of the JDK's canonical dashed UUID (`<prefix>-<uuid>`). No codec, no `Base32Crockford` utility, no psql `flt(text)` helpers — `'<uuid>'::uuid` works straight from a copy-pasted external form minus the 4-character prefix.
+  - **(landed in S-048 / S-155)** Jackson `Module` registration for typed-ID records — `TypedIdJacksonModule` in `next/server/src/main/java/ch/alpenflight/platform/id/`. Spring `Converter<String, ClubId>` — `ClubIdPathConverter`. Logging MDC convention not yet documented (lands when first structured-logging story does — S-031).
+  - **Story (S-008 primitives):** error-message component renders aggregate IDs in the prefixed form ("Flight `flt-019e30c3-2c00-7001-8000-000000000001` not found") not as raw UUIDs.
   - **Story:** OpenAPI codegen ([ADR 0005](0005-api-shape.md)) emits TypeScript types where `*_id` fields are `string` (UUID); the FE Signal Store typing flows from this. Verify the codegen handles `format: uuid` cleanly.

@@ -15,13 +15,13 @@ class ClubIdTest {
             .build();
 
     @Test
-    void encodes_to_clb_prefix_plus_26_chars() {
+    void encodes_to_clb_prefix_plus_dashed_uuid() {
         ClubId id = ClubId.of(UUID.fromString("019e30c3-2c00-7001-8000-000000000001"));
 
         assertThat(id.toExternal())
-                .startsWith("clb_")
-                .hasSize("clb_".length() + 26)
-                .matches("^clb_[0-9a-z]{26}$");
+                .isEqualTo("clb-019e30c3-2c00-7001-8000-000000000001")
+                .startsWith("clb-")
+                .matches("^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     }
 
     @Test
@@ -42,22 +42,25 @@ class ClubIdTest {
 
     @Test
     void rejects_missing_prefix() {
-        assertThatThrownBy(() -> ClubId.parse("019e30c32c00700180000000000000aa"))
+        assertThatThrownBy(() -> ClubId.parse("019e30c3-2c00-7001-8000-0000000000aa"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ClubId.PREFIX);
     }
 
     @Test
-    void rejects_wrong_length_payload() {
-        assertThatThrownBy(() -> ClubId.parse("clb_short"))
+    void rejects_malformed_payload() {
+        assertThatThrownBy(() -> ClubId.parse("clb-not-a-uuid"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("26");
+                .hasMessageContaining("not a valid UUID");
     }
 
     @Test
-    void rejects_illegal_character() {
-        assertThatThrownBy(() -> ClubId.parse("clb_!!!!!!!!!!!!!!!!!!!!!!!!!!!"))
-                .isInstanceOf(IllegalArgumentException.class);
+    void rejects_truncated_payload() {
+        // Drop the last 12 hex characters — UUID.fromString refuses anything
+        // that's not exactly the canonical 8-4-4-4-12 shape.
+        assertThatThrownBy(() -> ClubId.parse("clb-019e30c3-2c00-7001-8000-"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not a valid UUID");
     }
 
     @Test
@@ -71,8 +74,7 @@ class ClubIdTest {
         ClubId id = ClubId.of(UUID.fromString("019e30c3-2c00-7001-8000-000000000001"));
 
         assertThat(MAPPER.writeValueAsString(id))
-                .startsWith("\"clb_")
-                .endsWith("\"");
+                .isEqualTo("\"clb-019e30c3-2c00-7001-8000-000000000001\"");
     }
 
     @Test
