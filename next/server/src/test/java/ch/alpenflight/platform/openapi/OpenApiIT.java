@@ -59,11 +59,11 @@ class OpenApiIT {
     }
 
     @Test
-    void specContainsHelloOperation() throws Exception {
+    void specContainsClubsCollectionOperation() throws Exception {
         JsonNode spec = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
-        JsonNode hello = spec.path("paths").path("/api/v1/hello").path("get");
-        assertThat(hello.isMissingNode()).isFalse();
-        assertThat(hello.path("responses").path("200").isMissingNode()).isFalse();
+        JsonNode listClubs = spec.path("paths").path("/api/v1/clubs").path("get");
+        assertThat(listClubs.isMissingNode()).isFalse();
+        assertThat(listClubs.path("responses").path("200").isMissingNode()).isFalse();
     }
 
     @Test

@@ -1362,6 +1362,7 @@
           "config": {
             "access.token.claim": "true",
             "claim.name": "realm_access.roles",
+            "id.token.claim": "true",
             "introspection.token.claim": "true",
             "jsonType.label": "String",
             "multivalued": "true",
@@ -1710,6 +1711,7 @@
         "basic",
         "clubId",
         "email",
+        "offline_access",
         "profile",
         "roles",
         "web-origins"
@@ -1725,7 +1727,6 @@
       "optionalClientScopes": [
         "address",
         "microprofile-jwt",
-        "offline_access",
         "organization",
         "phone"
       ],

@@ -6,9 +6,15 @@
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      DEV-ONLY CSP baseline. `angular.json` `production` configuration
+      fileReplaces this file with `src/index.prod.html` (no inline CSP).
+      Production CSP is owned by the S-041 reverse proxy via response
+      header. `connect-src` allows the dev Keycloak (S-021 / ADR 0007).
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://localhost:8090; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     />
   </head>
   <body>

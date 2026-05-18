@@ -21,7 +21,13 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'node node_modules/@angular/cli/bin/ng serve --port=4200',
+    // SPA boots under the `mock-auth` angular.json configuration —
+    // fileReplaces app.config.ts → app.config.mock.ts so the bootstrap
+    // does NOT hit `/realms/alpenflight` (no Keycloak in this lane).
+    // Specs that need a real OIDC round-trip belong in a follow-up
+    // playwright project + Keycloak-up CI job (S-021 manual smoke
+    // covers the OIDC path today; see story file).
+    command: 'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
     cwd: PROJECT_ROOT,
     url: BASE_URL,
     reuseExistingServer: !process.env['CI'],

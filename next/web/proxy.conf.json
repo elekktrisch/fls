@@ -1,21 +1,6 @@
 {
-  "//": "DEV-ONLY proxy. Targets are pinned to http://localhost:8080. Do NOT add remote targets — legacy start-test/start-prod patterns are prohibited.",
+  "//": "DEV-ONLY proxy. /api/v1/* targets the Spring backend on :8080. Keycloak is NOT proxied — the OIDC lib needs the absolute issuer URL (see auth.config.ts) and Keycloak's realm grants CORS to http://localhost:4200 via webOrigins=[\"+\"] + the client's redirectUris allowlist.",
   "/api/v1/*": {
-    "target": "http://localhost:8080",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/Token": {
-    "target": "http://localhost:8080",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/oauth2/*": {
-    "target": "http://localhost:8080",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/realms/*": {
     "target": "http://localhost:8080",
     "secure": false,
     "changeOrigin": true

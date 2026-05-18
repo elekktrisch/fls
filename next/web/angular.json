@@ -17,6 +17,7 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "src/main.ts",
+            "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
             "assets": [
               {
@@ -42,6 +43,7 @@
                   "maximumError": "8kB"
                 }
               ],
+              "index": "src/index.prod.html",
               "optimization": true,
               "outputHashing": "all",
               "namedChunks": false,
@@ -53,6 +55,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "mock-auth": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/app/app.config.ts",
+                  "with": "src/app/app.config.mock.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -68,6 +81,9 @@
             },
             "development": {
               "buildTarget": "web:build:development"
+            },
+            "mock-auth": {
+              "buildTarget": "web:build:mock-auth"
             }
           },
           "defaultConfiguration": "development"

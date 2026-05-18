@@ -35,16 +35,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * <ol>
  *   <li>Delete the whole {@code ch.alpenflight.auth} package (3 files).</li>
  *   <li>Delete {@code application-mock-auth.yml}.</li>
- *   <li>Delete the SPA-side {@code mock-auth.interceptor.ts} +
- *       {@code mock-auth.bootstrap.ts} + {@code core/auth/README.md}.</li>
+ *   <li>Delete the SPA-side {@code app.config.mock.ts} + the
+ *       {@code mock-auth} configuration from {@code angular.json}.</li>
  *   <li>Drop {@code SPRING_PROFILES_ACTIVE=mock-auth} from any compose /
  *       run config.</li>
- *   <li>{@link ClubAwareJwtAuthenticationConverter} stays — S-020 wires it
- *       against the real {@code JwtDecoder} via
+ *   <li>{@link ClubAwareJwtAuthenticationConverter} stays — S-020 wired
+ *       it against the real {@code JwtDecoder} via
  *       {@code oauth2ResourceServer().jwt().jwtAuthenticationConverter(...)}.</li>
- *   <li>{@link ch.alpenflight.clubs.ClubsController} {@code @PreAuthorize}
- *       expressions DO NOT change. The auth seam is the principal source,
- *       not the predicate.</li>
+ *   <li>{@code ClubsController} {@code @PreAuthorize} expressions DO
+ *       NOT change. The auth seam is the principal source, not the
+ *       predicate.</li>
  * </ol>
  */
 @Configuration
@@ -98,7 +98,6 @@ public class MockSecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**",
                                 "/actuator/info",
-                                "/api/v1/hello",
                                 // Spring dispatches 4xx to /error for the
                                 // default JSON error renderer — denying it
                                 // anonymous turns a 400 into a 403 and
