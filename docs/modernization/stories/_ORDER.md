@@ -52,6 +52,7 @@ Strict minimum to land the first user-visible vertical slice (Phase D). **No ite
 **Infra services + healthchecks:**
 
 - S-019 — M — Keycloak in docker-compose + realm export (deps S-002 indirectly for SPA client + S-039 for compose service)
+- S-153 — S — S-019 rework follow-ups (check-realm-shape + export-realm + misc hardening) — *origin: rework*
 - S-039 — M — docker-compose.yml skeleton (dev: backend + Postgres 17 + Keycloak + mailpit) (deps S-001, S-002)
 - S-030 — M — Actuator + Micrometer (deps S-001) — *kept for `/actuator/health` healthchecks used by S-039 backend probe*
 

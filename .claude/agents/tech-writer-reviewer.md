@@ -2,7 +2,6 @@
 name: tech-writer-reviewer
 description: Post-implement review of comment quality, doc consistency, and clean-code structure. Replaces usability-reviewer for backend-only diffs. Read-only.
 tools: Read, Glob, Grep, Bash
-model: sonnet
 ---
 
 Technical writer + clean-code editor reviewing writing quality + structural clarity in three lenses the other reviewers don't own:

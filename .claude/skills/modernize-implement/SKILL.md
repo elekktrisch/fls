@@ -103,9 +103,15 @@ One consult per fork, no chaining. Record in the done report.
 
 ### Step 7 — Pre-push gate (Step 6.7 self-review)
 
-Before the final status-flip commit, one `maintainability-reviewer` consult against `git diff main...HEAD`. **Scope override: blockers only** ("surface only findings that break a refinement contract, ADR, sacred cow, security invariant, or leave an AC without a passing test"). Return `(none)` if clean.
+Before the final status-flip commit, run a self-review consult against `git diff main...HEAD`. **Scope override: blockers only** ("surface only findings that break a refinement contract, ADR, sacred cow, security invariant, or leave an AC without a passing test"). Return `(none)` if clean.
 
-- `(none)`: proceed to Step 8.
+**Consult dispatch:**
+- `maintainability-reviewer` — **always**.
+- `tech-writer-reviewer` — when the diff touches `docs/**`, `*.md`, `CLAUDE.md`, or any ADR. Catches cross-doc consistency drift the maintainability lens misses (stale cross-refs, originator-story TODO sections left in place after the TODO landed, downstream stories citing pre-rebrand identifiers). Costs one extra subagent call; saves a review/rework loop.
+
+Spawn both (when applicable) in ONE message — parallel, not serial.
+
+- `(none)` from all consulted reviewers: proceed to Step 8.
 - Blockers fixable in one commit: fix, commit `#N: self-review fixes — <summary>`, push, proceed.
 - Structural blocker (design contradiction, missing AC, ADR conflict): **stop, escalate per Step 6**. Don't fix-and-push past a redesign.
 
@@ -131,6 +137,7 @@ Delete:
 - File trees, package layouts, method signatures, DTO field lists — `ls`, `grep`, the code itself.
 - Test method names, test-method tables — the test files name themselves.
 - Threat-model rows whose mitigations landed in code (the code carries it; the row is noise).
+- **`## Proposed ADR amendment` (and any other "TODO operator decides" section).** Either resolve in the same PR (apply the ADR amendment yourself per the rework propagation-check rule and delete the section) OR move to a deferred follow-up story (`origin: rework-meta`, `kind: adr-amendment`). NEVER carry as "load-bearing decision" — the next review WILL re-flag it as a blocker for self-contradiction with the resolved `[accepted]` annotation in the review block.
 - Latency budgets that aren't separately measured.
 - "Alternatives considered" — the PR description holds the rejection rationale.
 - "Implementation deviations from refined design" sections — drift-tracking is not value; the code is the answer.

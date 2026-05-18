@@ -23,7 +23,7 @@ SPA-side counterpart to S-020. Replaces the legacy "POST /Token + sessionStorage
 See frontmatter.
 
 ## Tasks
-- [ ] Install `angular-auth-oidc-client`; configure against `localhost:8080/realms/fls`.
+- [ ] Install `angular-auth-oidc-client`; configure against `http://localhost:8090/realms/alpenflight` (issuer per ADR 0007 + `next/auth/README.md`; client-id `alpenflight-web`, public + PKCE-S256, redirect URIs `http://localhost:{4200,3000}/*`).
 - [ ] Wire `LoginCallback` route.
 - [ ] HttpInterceptor that attaches the access token to outgoing requests to `/api/v1/**`.
 - [ ] Silent refresh configuration (the library handles the iframe + refresh-token rotation).

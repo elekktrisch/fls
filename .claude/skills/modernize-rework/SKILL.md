@@ -83,6 +83,17 @@ Prompt the operator with top candidates (batched ≤ 4). Each gets 3 options:
 
 If 0 patterns surface, record `rework_meta_improvements: 0`. Meta-improvements never auto-decide.
 
+#### Apply-now propagation check (mandatory)
+
+When **Apply now (boyscout)** is chosen for an ADR amendment, conventions update, or any cross-cutting identifier / URL / config-key change, run the propagation check IN THE SAME COMMIT — otherwise the next `/modernize-review` re-surfaces the gap as a new blocker (the rework loop trap that this rule prevents):
+
+1. **Grep for downstream references** to the old value across `docs/`, `next/`, `e2e/`, `CLAUDE.md`. Use the most specific identifier (URL, realm name, key name) — not a substring that catches unrelated text.
+2. **Update load-bearing references** (story task lines that an implementer will read; cross-doc cites; CONVENTIONS.md examples) in the same commit.
+3. **Retract the originator-story TODO section.** When applying an `## Proposed ADR amendment` block from the story body, also delete or update that block to read "Applied in PR #M" — leaving "Operator's call: amend now or batch later" as a contradiction inside the file the re-review WILL flag.
+4. **Skip historical refs** (per ADR 0022 directive 1) — implemented stories whose snippets are point-in-time fall under "annotate as superseded" not "rewrite the body."
+
+Record the propagation-grep result one-liner in the commit body so re-review can verify scope.
+
 ### Step 4 — Write back
 
 Replace `## Review` section in place. Frontmatter — only the load-bearing fields. Per-decision counts go into the operator report, not the file (commit history + the annotated `## Review` block carry that).

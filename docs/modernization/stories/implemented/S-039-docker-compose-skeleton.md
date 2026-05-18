@@ -23,6 +23,13 @@ parity_test: none
 refined: true
 refined_at: 2026-05-15
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+# Topology note: this story's body cites the pre-rebrand realm/port pair
+# `localhost:8080/realms/fls` in several places. The live topology shipped
+# by S-019 is `http://localhost:8090/realms/alpenflight` under the
+# `alpenflight-dev` compose project. See `next/auth/README.md` for the
+# canonical dual-port layout; the snippets in this body are point-in-time
+# (per ADR 0022 directive 1, historical doc-drift defers to "annotate as
+# superseded" rather than rewrite).
 refined_speculative: true
 refined_speculative_at: 2026-05-15
 github_issue: 46
