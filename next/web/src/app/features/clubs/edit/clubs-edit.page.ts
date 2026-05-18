@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+} from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -7,12 +14,13 @@ import {
   type FormGroup,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
+import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ClubsStore } from '../clubs.store';
 
 type ClubForm = FormGroup<{
@@ -43,7 +51,7 @@ type ClubForm = FormGroup<{
         [required]="true"
         [errors]="form.controls.name.touched ? form.controls.name.errors : null"
       >
-        <af-input id="clubName" formControlName="name" autocomplete="off" />
+        <af-input inputId="clubName" formControlName="name" autocomplete="off" />
       </af-form-field>
 
       <af-form-field
@@ -53,7 +61,7 @@ type ClubForm = FormGroup<{
         [errors]="form.controls.slug.touched ? form.controls.slug.errors : null"
       >
         <af-input
-          id="clubSlug"
+          inputId="clubSlug"
           formControlName="slug"
           autocomplete="off"
           placeholder="lowercase-with-hyphens"
@@ -67,7 +75,7 @@ type ClubForm = FormGroup<{
           [required]="true"
           [errors]="form.controls.clubKey.touched ? form.controls.clubKey.errors : null"
         >
-          <af-input id="clubKey" formControlName="clubKey" autocomplete="off" />
+          <af-input inputId="clubKey" formControlName="clubKey" autocomplete="off" />
         </af-form-field>
       }
 
@@ -122,6 +130,7 @@ export class ClubsEditPage {
   protected readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
+  private readonly bus = inject(MUTATION_BUS);
 
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly clubId = computed(() => this.routeId().get('id'));
@@ -136,6 +145,8 @@ export class ClubsEditPage {
     clubKey: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(10)]),
     publicRegistrationEnabled: this.fb.nonNullable.control(false),
   });
+
+  private saveSubmitted = false;
 
   constructor() {
     effect(() => {
@@ -162,6 +173,20 @@ export class ClubsEditPage {
       if (err && err.includes('already in use')) {
         this.form.controls.slug.setErrors({ duplicate: true });
         this.form.controls.slug.markAsTouched();
+        this.saveSubmitted = false;
+      }
+    });
+
+    // Navigate on confirmed server success — the store emits club.created /
+    // club.updated only inside the rxMethod's tapResponse.next callback,
+    // which fires after the HTTP response. Errors leave saveSubmitted false
+    // (cleared by the saveError effect above) so we don't navigate past them.
+    const destroyRef = inject(DestroyRef);
+    this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
+      if (!this.saveSubmitted) return;
+      if (evt.kind === 'club.created' || evt.kind === 'club.updated') {
+        this.saveSubmitted = false;
+        this.router.navigateByUrl('/clubs');
       }
     });
   }
@@ -173,6 +198,7 @@ export class ClubsEditPage {
     }
     const value = this.form.getRawValue();
     const id = this.clubId();
+    this.saveSubmitted = true;
     if (id) {
       this.store.update({
         id,
@@ -185,10 +211,5 @@ export class ClubsEditPage {
     } else {
       this.store.create(value);
     }
-    queueMicrotask(() => {
-      if (!this.store.saveError()) {
-        this.router.navigateByUrl('/clubs');
-      }
-    });
   }
 }

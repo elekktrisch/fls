@@ -8,6 +8,7 @@ const CANONICAL_KEYS: Record<string, string> = {
   email: 'common.errors.email',
   min: 'common.errors.min',
   max: 'common.errors.max',
+  duplicate: 'common.errors.duplicate',
 };
 
 export function errorTranslationKey(key: string): string {

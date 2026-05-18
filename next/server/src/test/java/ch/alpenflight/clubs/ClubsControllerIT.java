@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -54,6 +55,7 @@ class ClubsControllerIT {
     }
 
     @Autowired TestRestTemplate rest;
+    @Autowired JdbcTemplate jdbc;
 
     @Test
     void listClubs_returns_200_with_seeded_row() {
@@ -136,13 +138,22 @@ class ClubsControllerIT {
     }
 
     @Test
-    void listClubs_excludes_softDeleted_rows() {
+    void deleteClub_softDeletes_rather_than_physical_remove() {
         String slug = "soft-" + suffix();
         ResponseEntity<String> created = post("/api/v1/clubs",
                 createPayload("Soft Deleted", slug, "SFT" + shortSuffix()));
         String id = readJson(created).get("id").asText();
         rest.exchange(RequestEntity.delete(URI.create("/api/v1/clubs/" + id)).build(), Void.class);
 
+        // Row must still exist in the DB with deleted_on stamped — soft, not hard.
+        Integer rowCount = jdbc.queryForObject(
+                "SELECT count(*) FROM club WHERE id = ?::uuid AND deleted_on IS NOT NULL",
+                Integer.class, id);
+        assertThat(rowCount)
+                .as("Soft-delete must leave the row in place with deleted_on stamped")
+                .isEqualTo(1);
+
+        // List endpoint excludes soft-deleted rows.
         ResponseEntity<String> list = rest.getForEntity("/api/v1/clubs", String.class);
         assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(list.getBody()).doesNotContain(slug);

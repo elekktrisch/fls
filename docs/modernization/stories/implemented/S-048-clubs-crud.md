@@ -18,7 +18,7 @@ acceptance:
   - **Rip-out plan documented in `next/server/src/main/java/.../auth/MockSecurityConfig.java` Javadoc + the AC bullet here:** when S-019 (Keycloak) + S-020 (Spring resource server) + S-022 (TenantId) land, the `mock-auth` profile + the SPA `MockAuthInterceptor` get deleted in one commit; the `@PreAuthorize` predicates + Signal Stores + forms stay unchanged.
 estimate: L
 adr_refs: [0005, 0008, 0022]
-parity_test: e2e/tests/masterdata/28-club-crud.spec.ts
+parity_test: e2e/tests/masterdata/clubs-crud.spec.ts
 parity_excluded:
   - Role-based access assertions (CLUB_ADMINISTRATOR own-club restriction, non-sysadmin 403) — mock principal is fixed SYSTEM_ADMINISTRATOR; re-enable at S-019/S-020 when role-switching is available.
   - Login/logout flow (legacy uses `/Token` password grant) — N/A under mock-auth; OIDC re-port at S-021.
@@ -647,7 +647,7 @@ The defining security concern of S-048 is **deliberate mocking of the auth chain
 - Unit: 10 — `ClubsService` slug helpers + `ClubsStore` state machine (vitest, no DOM).
 - Integration: 8 — Spring `@SpringBootTest` with `mock-auth` profile + `SharedPostgresContainer`; covers full HTTP lifecycle, `@PreAuthorize` gate, and profile-gating of `MockSecurityConfig`.
 - E2E: 5 — Playwright against real backend (`mock-auth` + compose `next` profile); new `next/web/e2e/tests/clubs/clubs-crud.spec.ts`.
-- Parity: ported from legacy `e2e/tests/masterdata/28-club-crud.spec.ts` (CRUD-shape only; auth-protected assertions excluded — see Parity strategy).
+- Parity: ported from legacy `e2e/tests/masterdata/clubs-crud.spec.ts` (CRUD-shape only; auth-protected assertions excluded — see Parity strategy).
 
 ### Unit tests
 
@@ -699,7 +699,7 @@ New file `next/web/e2e/tests/clubs/clubs-crud.spec.ts`. Backend running via `doc
 
 ### Parity tests
 
-Ported from `e2e/tests/masterdata/28-club-crud.spec.ts`. The legacy spec exercises full role-matrix assertions (SystemAdministrator vs ClubAdministrator vs others). Under mock-auth, only the SystemAdministrator-path assertions are meaningful. The ported spec asserts **observable CRUD behavior** (list, create, edit, delete, validation, 409 on duplicate slug, soft-delete filtered out) and **explicitly skips** the role-matrix paths until S-019/S-020 land real role-switching.
+Ported from `e2e/tests/masterdata/clubs-crud.spec.ts`. The legacy spec exercises full role-matrix assertions (SystemAdministrator vs ClubAdministrator vs others). Under mock-auth, only the SystemAdministrator-path assertions are meaningful. The ported spec asserts **observable CRUD behavior** (list, create, edit, delete, validation, 409 on duplicate slug, soft-delete filtered out) and **explicitly skips** the role-matrix paths until S-019/S-020 land real role-switching.
 
 New spec file: `next/web/e2e/tests/clubs/clubs-crud.parity.spec.ts` (separate from the happy-path `clubs-crud.spec.ts` so the parity scope is reviewable in isolation).
 
@@ -742,7 +742,7 @@ The `ClubsAuthorizationIT` integration test (under `mock-auth` with downgraded p
 
 ### Parity strategy
 
-`parity_test: e2e/tests/masterdata/28-club-crud.spec.ts` with two excluded categories (frontmatter `parity_excluded:` lists them verbatim):
+`parity_test: e2e/tests/masterdata/clubs-crud.spec.ts` with two excluded categories (frontmatter `parity_excluded:` lists them verbatim):
 
 1. **Role-matrix assertions** — legacy spec logs in as SystemAdministrator vs ClubAdministrator vs others to verify each role's access boundary. Under mock-auth the principal is fixed sysadmin; the role-gating discipline IS exercised via `ClubsAuthorizationIT` (integration test with a downgraded mock principal), so the security invariant has a passing test — just at a different layer.
 2. **Login/logout flow** — legacy uses the `/Token` password grant; OIDC replaces this at S-021. Re-port lands then.

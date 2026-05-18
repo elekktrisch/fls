@@ -3,6 +3,7 @@ package ch.alpenflight.clubs;
 import ch.alpenflight.clubs.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.ClubDtos.ClubUpdateRequest;
+import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,9 +37,11 @@ public class ClubsService {
             UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8"); // ACTIVE
 
     private final ClubsRepository clubs;
+    private final Clock clock;
 
-    public ClubsService(ClubsRepository clubs) {
+    public ClubsService(ClubsRepository clubs, Clock clock) {
         this.clubs = clubs;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +98,7 @@ public class ClubsService {
     public void deleteClub(UUID id) {
         Club club = clubs.findActiveById(id)
                 .orElseThrow(() -> new ClubNotFoundException(id));
-        clubs.delete(club);
+        club.softDelete(clock);
+        clubs.save(club);
     }
 }

@@ -6,6 +6,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
@@ -102,6 +104,12 @@ public class Club {
 
     public void disablePublicRegistration() {
         this.publicRegistrationEnabled = false;
+    }
+
+    public void softDelete(Clock clock) {
+        if (this.deletedOn == null) {
+            this.deletedOn = Instant.now(clock);
+        }
     }
 
     private void setClubKey(String value) {

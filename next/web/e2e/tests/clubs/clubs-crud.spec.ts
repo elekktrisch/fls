@@ -128,6 +128,13 @@ test('clubs: editing the seeded row updates the list', async ({ page }) => {
 
   await expect(page).toHaveURL('/clubs');
   await expect(page.getByTestId('club-row-seed-club-1')).toHaveText('Mountain Soaring');
+
+  // Round-trip persistence: navigate back to the edit form and confirm the
+  // store re-hydrates from the (mocked) server, not just from optimistic
+  // in-memory state. Parity invariant from legacy clubs-crud.spec.ts:86-89.
+  await page.getByTestId('club-row-seed-club-1').click();
+  await expect(page).toHaveURL(/\/clubs\/.+\/edit$/);
+  await expect(page.locator('#clubName')).toHaveValue('Mountain Soaring');
 });
 
 test('clubs: creating a new club appears in the list', async ({ page }) => {

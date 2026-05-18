@@ -33,6 +33,7 @@ import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
     <input
       #inputEl
       class="af-input"
+      [attr.id]="inputId() || null"
       [type]="type()"
       [attr.inputmode]="inputmode()"
       [attr.autocomplete]="autocomplete()"
@@ -73,6 +74,14 @@ import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
 export class AfInputComponent implements ControlValueAccessor {
   private readonly inputEl = viewChild.required<ElementRef<HTMLInputElement>>('inputEl');
   protected readonly _elementRef = inject(ElementRef);
+
+  /**
+   * Stamped onto the inner native `<input>` so a sibling `<label for="X">`
+   * can target the actual focusable element, not the `<af-input>` host. Use
+   * this instead of binding `id=` on the `<af-input>` tag itself (which
+   * would attach the id to the host but leave the inner input unreachable).
+   */
+  readonly inputId = input<string>('');
 
   readonly type = input<'text' | 'number' | 'email' | 'tel' | 'time' | 'date' | 'password'>('text');
   readonly inputmode = input<'text' | 'numeric' | 'decimal' | 'tel' | 'email' | 'url' | null>(null);
