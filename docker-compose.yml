@@ -173,8 +173,21 @@ services:
   # ---------------------------------------------------------------------------
   keycloak:
     profiles: ["next"]
-    image: quay.io/keycloak/keycloak:26.5
-    command: ["start-dev", "--http-port=8080"]
+    # Custom image bakes next/auth/realm-export.json into the image rather
+    # than bind-mounting it. Bind-mount works in principle but is unreliable
+    # under Docker Desktop file-sharing on Windows hosts; baking mirrors the
+    # same pattern next/ops/pgadmin/ already uses.
+    build:
+      context: ./next/auth
+      dockerfile: Dockerfile
+    image: alpenflight-keycloak:local
+    # --import-realm runs on every boot. Keycloak's default IGNORE_EXISTING
+    # strategy preserves H2-resident edits; new entities from the JSON are
+    # still added. To replay the committed realm cleanly:
+    #   docker compose -p alpenflight-dev down -v keycloak && \
+    #   docker compose -p alpenflight-dev build keycloak && \
+    #   docker compose -p alpenflight-dev up -d keycloak
+    command: ["start-dev", "--http-port=8080", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
