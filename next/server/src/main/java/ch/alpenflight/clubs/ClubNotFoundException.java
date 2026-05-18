@@ -1,6 +1,6 @@
 package ch.alpenflight.clubs;
 
-import java.util.UUID;
+import ch.alpenflight.platform.id.ClubId;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ResponseStatus(HttpStatus.NOT_FOUND)
 public class ClubNotFoundException extends RuntimeException {
 
-    public ClubNotFoundException(UUID id) {
+    public ClubNotFoundException(ClubId id) {
         super("Club not found: " + id);
     }
 }

@@ -1,5 +1,6 @@
 package ch.alpenflight.clubs;
 
+import ch.alpenflight.platform.id.ClubId;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -124,8 +125,14 @@ public class Club {
         this.clubKey = trimmed;
     }
 
-    public @Nullable UUID getId() {
-        return id;
+    /**
+     * Returns the typed {@link ClubId} wrapper around the persistence-layer
+     * {@code UUID}. The field stays raw {@code UUID} so JPA / Hibernate /
+     * Spring Data work without converters; the getter is the seam where the
+     * value leaves the aggregate, so it's the place to type it.
+     */
+    public @Nullable ClubId getId() {
+        return ClubId.ofNullable(id);
     }
 
     public String getClubname() {

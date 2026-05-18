@@ -1,10 +1,10 @@
 package ch.alpenflight.clubs;
 
+import ch.alpenflight.platform.id.ClubId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -21,7 +21,7 @@ public final class ClubDtos {
 
     @Schema(description = "Club projection returned to API consumers.")
     public record ClubResponse(
-            UUID id,
+            ClubId id,
             String name,
             @Nullable String slug,
             String clubKey,

@@ -79,6 +79,12 @@ dependencies {
     // jars does NOT enable a real JWT decoder at runtime.
     implementation("org.springframework.security:spring-security-oauth2-resource-server")
     implementation("org.springframework.security:spring-security-oauth2-jose")
+    // S-022: application-side UUID v7 generation per ADR 0019. Wired by
+    // `FlsUuidV7Generator` (Hibernate `BeforeExecutionGenerator`) and the
+    // `@UuidV7` meta-annotation. Time-ordered keys give B-tree-friendly
+    // inserts which matters for S-028's bulk cutover; gen_random_uuid()
+    // default values on PKs are forbidden by `forbidden-migration-patterns.txt`.
+    implementation("com.github.f4b6a3:uuid-creator:6.0.0")
     // Boot 4 modularized: FlywayAutoConfiguration moved out of
     // spring-boot-autoconfigure into spring-boot-flyway. flyway-core alone
     // does NOT bring it in — explicit declaration needed.

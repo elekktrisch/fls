@@ -25,7 +25,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * against a real {@code JwtDecoder} — same converter, same authorities, same
  * predicates.
  *
- * <p>DELETE WITH PARENT PACKAGE (see {@link MockSecurityConfig} Javadoc).
+ * <p>DELETE WITH PARENT PACKAGE when S-026 ships (see {@link MockSecurityConfig}
+ * Javadoc for the rip-out plan; original S-020 deferral to S-022 was itself
+ * deferred to S-026 in S-022's refine).
  */
 public class MockAuthenticationFilter extends OncePerRequestFilter {
 
