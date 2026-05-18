@@ -127,6 +127,17 @@ Discriminator-based per [ADR 0008](../../docs/modernization/adrs/0008-multi-tena
 - **Mock-auth profile:** `@Profile("mock-auth")` swaps in a hardcoded SYSTEM_ADMINISTRATOR principal with a `clubId` claim. `UserTenantLookup` is `@Profile("!mock-auth")` so the resolver bypasses DB fallback under mock-auth (no users seeded). Mock chain rip-out is deferred to S-026 (role enforcement).
 - **Canonical example:** `MemberState` (`src/main/java/ch/alpenflight/clubs/MemberState.java`) — minimal mapping (PK + `@TenantId` discriminator + one business column) carrying the convention end-to-end. `MemberStateTenantIsolationIT` proves the filter contract.
 
+## Typed entity IDs — S-022, ADR 0019
+
+Aggregate-root identifiers are typed records, **not** raw `UUID`, once they leave the aggregate. The compile-time win: a `Club` id and a `Person` id are different types, so a service / controller / mapper signature cannot accidentally accept one in the other's slot.
+
+- **Where typing applies:** service-layer parameters, controller path / body, DTOs, mapper outputs, REST URLs, JSON, logs. **Inside** the entity, the field stays raw `UUID` (keeps JPA / Hibernate / Spring Data simple); only the *getter* wraps it into the typed record. The getter is the seam — that's where the value leaves the aggregate.
+- **Shape:** `record AggrId(UUID value)`, with `@JsonValue toExternal()` for serialisation, `@JsonCreator parse(String)` for deserialisation, `@Schema(type="string", pattern=…)` so springdoc emits a plain-string schema for the TS codegen. A Spring `@Component Converter<String, AggrId>` handles `@PathVariable` / `@RequestParam` binding.
+- **External form (ADR 0019):** `<prefix>_<26-char Crockford Base32>`. The 26-char payload encodes the full 16-byte UUID with no loss; Crockford alphabet (`0-9a-hjkmnp-tv-z`) drops the four ambiguous letters (`i`, `l`, `o`, `u`). Examples: `clb_…` for `Club`, `psn_…` for `Person`, `usr_…` for `User`.
+- **Internal entities** (per S-012 — `MemberState`, `ClubExtension`, `PersonClub`, …) keep **raw `UUID` at every layer**: no typed wrapper, no prefix. They rarely cross aggregate boundaries; if a future story externalises one (e.g. a per-club controller exposing `MemberState`), that story ships the typed wrapper (`MemberStateId`) **without a prefix** — the prefix scheme is reserved for aggregate roots so external readers can spot aggregate boundaries at a glance.
+- **Canonical example:** `ClubId` (`src/main/java/ch/alpenflight/platform/id/ClubId.java`) + `ClubIdPathConverter` + the round-trip test in `ClubIdTest`. `Club.getId()` returns `ClubId`; `Club.id` (private field) stays `UUID`. `ClubsRepository extends JpaRepository<Club, UUID>` — the persistence layer keeps the raw type; `ClubsService` converts at its public methods (`id.value()` to call into the repo).
+- **`@PreAuthorize` SpEL with typed IDs:** the JWT claim carries a raw UUID string. Compare via `#id.value().toString() == principal.claims['clubId']`, not `#id.toString()` (the latter is the prefixed external form).
+
 ## Column shape (categorical / state / discriminator) — S-012, ADR 0020
 
 Per [ADR 0020](../../docs/modernization/adrs/0020-categorical-column-shape.md), decision rule for picking the SQL column shape. The Java enum is the **only** value-set authority; no DB-side `CHECK IN (...)` mirrors it. Adding / removing an enum value is a Java-only change with no migration burden.

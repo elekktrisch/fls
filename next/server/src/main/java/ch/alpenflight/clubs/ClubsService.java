@@ -3,6 +3,7 @@ package ch.alpenflight.clubs;
 import ch.alpenflight.clubs.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.platform.id.ClubId;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +25,12 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code country_id} (Switzerland) and {@code club_state_id} (ACTIVE).
  * S-047 will introduce real pickers; until then, all new clubs land under
  * those defaults.
+ *
+ * <p>External signatures speak {@link ClubId} so service / controller
+ * parameter lists can't accidentally swap a {@code Club} id for a
+ * {@code Person} / {@code User} id. The repository still keys on raw
+ * {@link UUID} (Spring Data + Hibernate prefer it that way); the service is
+ * the seam where the type narrows.
  */
 @Service
 @Transactional
@@ -50,8 +57,8 @@ public class ClubsService {
     }
 
     @Transactional(readOnly = true)
-    public ClubResponse getClub(UUID id) {
-        return clubs.findActiveById(id)
+    public ClubResponse getClub(ClubId id) {
+        return clubs.findActiveById(id.value())
                 .map(ClubMapper::toResponse)
                 .orElseThrow(() -> new ClubNotFoundException(id));
     }
@@ -75,10 +82,10 @@ public class ClubsService {
         }
     }
 
-    public ClubResponse updateClub(UUID id, ClubUpdateRequest req) {
-        Club club = clubs.findActiveById(id)
+    public ClubResponse updateClub(ClubId id, ClubUpdateRequest req) {
+        Club club = clubs.findActiveById(id.value())
                 .orElseThrow(() -> new ClubNotFoundException(id));
-        if (clubs.existsBySlugExcluding(req.slug(), id)) {
+        if (clubs.existsBySlugExcluding(req.slug(), id.value())) {
             throw new SlugAlreadyExistsException(req.slug());
         }
         club.rename(req.name());
@@ -95,8 +102,8 @@ public class ClubsService {
         }
     }
 
-    public void deleteClub(UUID id) {
-        Club club = clubs.findActiveById(id)
+    public void deleteClub(ClubId id) {
+        Club club = clubs.findActiveById(id.value())
                 .orElseThrow(() -> new ClubNotFoundException(id));
         club.softDelete(clock);
         clubs.save(club);

@@ -2,6 +2,7 @@ package ch.alpenflight.clubs;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -98,10 +99,20 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void updateClub_unknownId_returns_404() {
+        // Valid ClubId external form but no Club with that UUID exists.
+        ClubId ghost = ClubId.of(new java.util.UUID(0L, 0L));
         ResponseEntity<String> res = put(
-                "/api/v1/clubs/00000000-0000-0000-0000-000000000000",
+                "/api/v1/clubs/" + ghost,
                 updatePayload("x", "ghost-" + suffix(), false));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void getClub_malformed_id_returns_400() {
+        // Not a clb_-prefixed ClubId external form → conversion failure.
+        ResponseEntity<String> res = rest.getForEntity(
+                "/api/v1/clubs/00000000-0000-0000-0000-000000000000", String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
@@ -125,13 +136,14 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         String slug = "soft-" + suffix();
         ResponseEntity<String> created = post("/api/v1/clubs",
                 createPayload("Soft Deleted", slug, "SFT" + shortSuffix()));
-        String id = readJson(created).get("id").asText();
-        rest.exchange(RequestEntity.delete(URI.create("/api/v1/clubs/" + id)).build(), Void.class);
+        String externalId = readJson(created).get("id").asText();
+        java.util.UUID rawId = ClubId.parse(externalId).value();
+        rest.exchange(RequestEntity.delete(URI.create("/api/v1/clubs/" + externalId)).build(), Void.class);
 
         // Row must still exist in the DB with deleted_on stamped — soft, not hard.
         Integer rowCount = jdbc.queryForObject(
                 "SELECT count(*) FROM club WHERE id = ?::uuid AND deleted_on IS NOT NULL",
-                Integer.class, id);
+                Integer.class, rawId.toString());
         assertThat(rowCount)
                 .as("Soft-delete must leave the row in place with deleted_on stamped")
                 .isEqualTo(1);

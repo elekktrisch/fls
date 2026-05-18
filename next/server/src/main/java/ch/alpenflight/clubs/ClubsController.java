@@ -3,13 +3,13 @@ package ch.alpenflight.clubs;
 import ch.alpenflight.clubs.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.ClubDtos.ClubUpdateRequest;
+import ch.alpenflight.platform.id.ClubId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,8 +29,13 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>The {@code @PreAuthorize} predicates are the load-bearing security gate
  * — under the {@code mock-auth} profile (S-048) the principal is hard-coded
  * SYSTEM_ADMINISTRATOR, so the disjunctive {@code CLUB_ADMINISTRATOR} clause
- * is never reached today. The predicate shape stays when S-019/S-020 land
- * the real OAuth2 resource server; only the principal source flips.
+ * is never reached today. The predicate shape stays when the real OAuth2
+ * resource server is in play; only the principal source flips.
+ *
+ * <p>{@code @PathVariable ClubId id} resolves through
+ * {@code ClubIdPathConverter} so callers send the prefixed external form
+ * {@code clb_<26-char>}. The SpEL predicates dereference {@code #id.value()}
+ * to compare against the JWT's raw-UUID {@code clubId} claim.
  *
  * <p>Walking-skeleton scope: the DTO omits country / club-state pickers —
  * the service hard-codes the canonical CH / ACTIVE seed UUIDs. S-047
@@ -60,8 +65,8 @@ public class ClubsController {
     @ApiResponse(responseCode = "404", description = "No active club with that id.")
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
-            + "or (hasRole('CLUB_ADMINISTRATOR') and #id.toString() == principal.claims['clubId'])")
-    public ClubResponse getClub(@PathVariable UUID id) {
+            + "or (hasRole('CLUB_ADMINISTRATOR') and #id.value().toString() == principal.claims['clubId'])")
+    public ClubResponse getClub(@PathVariable ClubId id) {
         return service.getClub(id);
     }
 
@@ -81,8 +86,8 @@ public class ClubsController {
     @ApiResponse(responseCode = "409", description = "Slug already in use by another club.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
-            + "or (hasRole('CLUB_ADMINISTRATOR') and #id.toString() == principal.claims['clubId'])")
-    public ClubResponse updateClub(@PathVariable UUID id, @Valid @RequestBody ClubUpdateRequest req) {
+            + "or (hasRole('CLUB_ADMINISTRATOR') and #id.value().toString() == principal.claims['clubId'])")
+    public ClubResponse updateClub(@PathVariable ClubId id, @Valid @RequestBody ClubUpdateRequest req) {
         return service.updateClub(id, req);
     }
 
@@ -91,7 +96,7 @@ public class ClubsController {
     @ApiResponse(responseCode = "404", description = "No active club with that id.")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")
-    public ResponseEntity<Void> deleteClub(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteClub(@PathVariable ClubId id) {
         service.deleteClub(id);
         return ResponseEntity.noContent().build();
     }
