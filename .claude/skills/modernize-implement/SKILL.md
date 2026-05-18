@@ -86,6 +86,7 @@ Order:
   ```
 - **CI failure:** stop foreground work. Comment on issue `CI failed on push <sha>: <run url> — <one-line cause>`. `gh run view --log-failed`. Fix in a new commit `#N: fix CI — <cause>`. Re-watch. Resume only when green.
 - **Don't push past red.** Don't `--no-verify` / `--no-gpg-sign`. Don't force-push.
+- **`ScheduleWakeup` hygiene.** If you schedule a long-fallback wakeup (`delaySeconds ≥ 1200`, `prompt: "/modernize-implement S-NNN"`) while a CI watch runs in the background, the harness's task-notification path will normally re-invoke you faster — the wakeup is just insurance against a hang. Don't schedule a fresh fallback after every CI watch completes; one outstanding fallback is enough. After the **final** push (Step 8 mark-done) returns green, you have no more work to babysit — do NOT schedule a fresh fallback there. A stale wakeup firing 30 min later will re-enter `/modernize-implement` on a `status: done` story and bounce off the precondition; cheap, but noisy.
 
 ### Step 6 — Escalation triggers
 
