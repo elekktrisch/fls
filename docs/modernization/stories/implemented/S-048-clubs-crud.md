@@ -32,6 +32,8 @@ reviewed_at: 2026-05-18
 review_outcome: improvements-only
 review_parity_oracle: e2e/tests/masterdata/clubs-crud.spec.ts + ClubsControllerIT (testcontainer + mock-auth)
 review_reviewers: [maintainability, security, parity, usability]
+merged: true
+merged_at: 2026-05-18
 ---
 
 ## Context
@@ -852,27 +854,7 @@ All targets are dev-environment, warm-backend. Mobile-3G / Vision §F12 validati
 
 <!-- modernize-review: start -->
 
-**Reviewed:** 2026-05-18 · **PR:** #57 · **Outcome:** improvements-only
-
 ### Parity
-**Oracle:** `e2e/tests/masterdata/clubs-crud.spec.ts` (legacy live-backend club-admin round-trip) + `ClubsControllerIT` (testcontainer Postgres under `mock-auth`). Two pass-1 blockers (parity_test path drift, vacuous round-trip assertion) and one soft-delete blocker fixed in `cf38bf5` + `9240f68`; full server round-trip now exercised via `page.reload()` between save and re-navigate.
-
-- **[improvement]** No e2e delete scenario; soft-delete list-exclusion is backend-IT-only. `[accepted: walking-skeleton scope — backend IT covers it; e2e delete adds in the next domain story or rework]`
-- **[improvement]** `ClubsControllerIT` `nanoTime`-based slug suffixes may collide under parallel JVMs. `clubs-crud.spec.ts:212`. `[accepted: deferred — switch to UUID.randomUUID() when collisions actually surface]`
-
-### Security
-- **[improvement]** `@PreAuthorize` on `/{id}` compares `#id.toString() == principal.claims['clubId']` (string equality). Forward-looking for S-020 — claim may arrive in a Keycloak-shaped form that needs UUID parsing. `[accepted: deferred to S-019/S-020 where the real JWT decoder lands]`
-- **[improvement]** `ClubAwareJwtAuthenticationConverter` accepts any role string in `realm_access.roles[]`. Forward-looking for S-019/S-020 — allowlist known roles to harden against Keycloak misconfig. `[accepted: deferred to S-019/S-020]`
-- **[improvement]** Permit-list duplicated across `SecurityConfig` and `MockSecurityConfig`. Extract a shared constant. `[accepted: walking-skeleton — extract when third consumer appears or at S-019/S-020 rip-out]`
-- **[improvement]** No CI grep guard for `mock-auth` in shipped `application-prod*.yml`. `[accepted: deferred to S-040 prod-profile story; today there is no prod profile to guard]`
-- **[improvement]** `HelloControllerIT` uses `addFilters=false`; the permitted-200 contract for `/api/v1/hello` is no longer asserted under the real chain. `[accepted: deferred — add a HelloControllerSecurityIT alongside S-020 when the chain is real]`
-
-### Usability
-- **[improvement]** `AfInputComponent.setDisabledState` is a no-op; `clubKey.disable()` on edit doesn't visually disable the input. `af-input.component.ts:109`. `[accepted: deferred to the next af-input consumer that needs CVA-driven disable; edit-page hides clubKey, not disables it]`
-
-### Maintainability
-- **[improvement]** `TimeConfig` placed at `ch.alpenflight.config/` instead of `platform/`. `[accepted: nudge — single-file package; fold into platform/ when a second time-related bean appears]`
-- **[improvement]** No unit coverage of `Club.softDelete(Clock)` idempotency guard. `Club.java:109-113`. `[accepted: integration test exercises the path; pure-unit replay covered when domain test suite expands]`
-- **[improvement]** `AfFormFieldComponent` JSDoc example still shows the pre-fix `<input id="X">` pattern. `af-form-field.component.ts:13-15`. `[accepted: doc-drift improvement; update next time the file is touched]`
+**Oracle:** `e2e/tests/masterdata/clubs-crud.spec.ts` (legacy live-backend club-admin round-trip) + `ClubsControllerIT` (testcontainer Postgres under `mock-auth`). Two-pass review: 6 first-pass blockers + 2 second-pass blockers all fixed in PR #57; remaining findings were improvements accepted as walking-skeleton / forward-looking deferrals.
 
 <!-- modernize-review: end -->
