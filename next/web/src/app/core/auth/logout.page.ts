@@ -13,9 +13,9 @@ import { SessionStore } from '../session/session.store';
 @Component({
   selector: 'af-logout',
   template: `
-    <main class="flex min-h-screen items-center justify-center p-8">
+    <div class="flex min-h-screen items-center justify-center p-8">
       <h1 class="text-lg font-normal" aria-live="polite">Abmeldung läuft…</h1>
-    </main>
+    </div>
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
