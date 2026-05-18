@@ -77,6 +77,14 @@ class OpenApiIT {
     }
 
     @Test
+    void specRequiresBearerAuthOnOperations() throws Exception {
+        JsonNode spec = json.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
+        JsonNode security = spec.path("paths").path("/api/v1/clubs").path("get").path("security");
+        assertThat(security.isArray()).as("each operation must declare a security requirement").isTrue();
+        assertThat(security.toString()).contains("bearerAuth");
+    }
+
+    @Test
     void swaggerUiReturns200() {
         ResponseEntity<String> response = restTemplate.getForEntity("/swagger-ui/index.html", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
