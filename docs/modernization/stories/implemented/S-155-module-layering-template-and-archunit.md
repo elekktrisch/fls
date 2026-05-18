@@ -5,6 +5,8 @@ epic: E-01
 status: done
 started_at: 2026-05-18
 done_at: 2026-05-18
+merged: true
+merged_at: 2026-05-18
 refined: true
 github_issue: 68
 github_pr: 69
