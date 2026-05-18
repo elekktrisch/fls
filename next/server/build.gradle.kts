@@ -43,6 +43,17 @@ repositories {
     mavenCentral()
 }
 
+// S-155 (ADR 0023): Spring Modulith verifies module-level boundaries between
+// top-level packages under ch.alpenflight (clubs, auth, platform, …); ArchUnit
+// verifies inner-layer direction-of-dependency inside each module
+// (domain/application/web/infra). Both are test-only — runtime classpath is
+// unaffected.
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.modulith:spring-modulith-bom:2.0.5")
+    }
+}
+
 // Dedicated source set used by `verifyNullAwayFailsOnViolation` to prove that
 // null-safety violations fail the build (acceptance criterion 3). Not wired
 // into `check` / `build`; only the verification task invokes its compile.
@@ -116,6 +127,18 @@ dependencies {
     // `.with(jwt())` post-processors so role-gate ITs can downgrade the
     // principal without booting the mock-auth filter chain.
     testImplementation("org.springframework.security:spring-security-test")
+    // S-155: Spring Modulith annotation types (@ApplicationModule, @NamedInterface)
+    // on the compile classpath only — package-info declarations need them, but
+    // we deliberately don't pull in spring-modulith-starter-core's runtime
+    // auto-config (event-publication registry, observability) until ADR 0018
+    // domain events first ship.
+    compileOnly("org.springframework.modulith:spring-modulith-api")
+    // S-155: ApplicationModules.of(...).verify() — Spring Modulith's module
+    // boundary check. Test-only; the BOM (above) pins the version.
+    testImplementation("org.springframework.modulith:spring-modulith-starter-test")
+    // S-155: ArchUnit + its JUnit 5 runner — inner-layer direction-of-dependency
+    // rules (ADR 0023). Test-only.
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
