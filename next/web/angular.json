@@ -42,6 +42,12 @@
                   "maximumError": "8kB"
                 }
               ],
+              "fileReplacements": [
+                {
+                  "replace": "src/index.html",
+                  "with": "src/index.prod.html"
+                }
+              ],
               "optimization": true,
               "outputHashing": "all",
               "namedChunks": false,

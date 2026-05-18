@@ -7,11 +7,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <!--
-      Day-1 CSP baseline. S-041 (reverse proxy) replaces this with a
-      response-header CSP at prod cutover. `connect-src` allows the OIDC
-      discovery + token-refresh endpoints against the dev Keycloak
-      (S-021 / ADR 0007); the hosted prod IdP URL gets folded into the
-      S-041 policy.
+      DEV-ONLY CSP baseline. `angular.json` `production` configuration
+      fileReplaces this file with `src/index.prod.html` (no inline CSP).
+      Production CSP is owned by the S-041 reverse proxy via response
+      header. `connect-src` allows the dev Keycloak (S-021 / ADR 0007).
     -->
     <meta
       http-equiv="Content-Security-Policy"
