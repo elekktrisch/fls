@@ -29,8 +29,8 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "example" : "clb_019e30c32c0070018000000000000001",
-            "pattern" : "^clb_[0-9a-z]{26}$"
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         } ],
         "responses" : {
@@ -66,8 +66,8 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "example" : "clb_019e30c32c0070018000000000000001",
-            "pattern" : "^clb_[0-9a-z]{26}$"
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         } ],
         "requestBody" : {
@@ -123,8 +123,8 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "example" : "clb_019e30c32c0070018000000000000001",
-            "pattern" : "^clb_[0-9a-z]{26}$"
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         } ],
         "responses" : {
@@ -246,8 +246,8 @@
         "properties" : {
           "id" : {
             "type" : "string",
-            "example" : "clb_019e30c32c0070018000000000000001",
-            "pattern" : "^clb_[0-9a-z]{26}$"
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "name" : {
             "type" : "string"

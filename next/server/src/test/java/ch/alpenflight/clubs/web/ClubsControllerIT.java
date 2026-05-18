@@ -109,7 +109,7 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
     @Test
     void getClub_malformed_id_returns_400() {
-        // Not a clb_-prefixed ClubId external form → conversion failure.
+        // Not a clb--prefixed ClubId external form → conversion failure.
         ResponseEntity<String> res = rest.getForEntity(
                 "/api/v1/clubs/00000000-0000-0000-0000-000000000000", String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);

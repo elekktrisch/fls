@@ -73,15 +73,16 @@ Aggregate roots from [ADR 0018](0018-domain-model-ddd-aggregates.md) carry a 3-l
 
 ### Encoded form
 
-Aggregate-root IDs serialize as `<prefix>_<crockford-base32-uuid-v7>`:
+Aggregate-root IDs serialize as `<prefix>-<uuid>`, where `<uuid>` is the JDK's canonical 36-character dashed UUID:
 
 ```
-flt_0jwq8egfk0fn400084ferpf08a8
+flt-019e30c3-2c00-7001-8000-000000000001
 ```
 
-- 3-letter prefix + `_` separator + 26-character Crockford base32 encoding of the 128-bit UUID v7. Total length: **30 characters**.
-- [Crockford base32](https://www.crockford.com/base32.html) (lowercase): alphabet omits `I / L / O / U` to eliminate read-aloud and OCR ambiguity. Optional check character not used.
-- UUID v7's time-ordered 48-bit prefix is preserved in the encoding — IDs created in the same second share a leading substring, which makes log-scrolling and time-bucketing visually obvious without parsing the timestamp.
+- 3-letter prefix + `-` separator + 36-character canonical UUID (`UUID.toString()` / `UUID.fromString()`). Total length: **40 characters**.
+- The `-` separator matches the dashes inside the UUID itself, so the whole external form reads as one consistent token.
+- UUID v7's time-ordered 48-bit prefix is the leading bytes of the UUID — IDs created in the same second share a leading substring, which makes log-scrolling and time-bucketing visually obvious without parsing the timestamp.
+- **Amended 2026-05-18** (S-155 boyscout): the original form was `<prefix>_<26-char Crockford Base32>`. Crockford encoding bought ~22% length reduction at the cost of a custom codec (`IdEncoding.java`) and a non-standard payload that broke every standard UUID tool (`uuidgen`, `pg_typeof`, IDE UUID generators, psql `?::uuid` casts). Switching to the canonical dashed UUID keeps the readability win of the prefix while making the payload play with every JVM / Postgres / browser tool by default. The 13 aggregate-root `COMMENT ON COLUMN` blocks across `V2`/`V3`/`V4` migrations are refreshed by `V6__aggregate_id_comments_uuid_form.sql`.
 
 ### Internal entities — no prefix
 
@@ -112,16 +113,19 @@ Prefixes are 3 lowercase letters, distinct across the registry. New aggregate ro
 - **Typed-ID value objects** (per [ADR 0018](0018-domain-model-ddd-aggregates.md)) own the prefix:
   ```java
   public record FlightId(UUID value) implements EntityId {
-      public static final String PREFIX = "flt";
-      public String toExternal() { return PREFIX + "_" + Base32Crockford.encode(value); }
-      public static FlightId parse(String external) { /* prefix-check + decode */ }
+      public static final String PREFIX = "flt-";
+      public String toExternal() { return PREFIX + value.toString(); }
+      public static FlightId parse(String external) {
+          if (!external.startsWith(PREFIX)) throw new IllegalArgumentException(...);
+          return new FlightId(UUID.fromString(external.substring(PREFIX.length())));
+      }
   }
   ```
-- **Jackson serializer/deserializer** registered at app startup converts `FlightId ↔ "flt_..."` at every JSON boundary. One global registration; per-type via the typed-ID interface.
-- **Spring URL path converter** (`Converter<String, FlightId>`) parses path variables: `GET /api/v1/flights/{id}` accepts `flt_0jwq8egfk0fn400084ferpf08a8` and yields a `FlightId`.
+- **Jackson serializer/deserializer** registered at app startup converts `FlightId ↔ "flt-..."` at every JSON boundary. One global registration; per-type via the typed-ID interface.
+- **Spring URL path converter** (`Converter<String, FlightId>`) parses path variables: `GET /api/v1/flights/{id}` accepts `flt-019e30c3-2c00-7001-8000-000000000001` and yields a `FlightId`.
 - **Structured logging MDC** writes the prefixed form. Log fields holding aggregate-root IDs (`flight_id`, `actor.user_id`, etc.) carry the prefix; raw UUIDs never appear in log lines.
 - **Hibernate persistence layer** sees only `UUID` (the inner value). `@AttributeConverter` may not even be necessary — the typed-ID `record` can hold a public `UUID value()` accessor and Hibernate maps the wrapper directly via `@Embeddable` / `@Convert` (decided at S-022).
-- **psql debugging helper**: ship a function `flt(text) RETURNS uuid` and a sibling per-prefix function in a `next/server/src/main/resources/db/migration/V<n>__id_codec_functions.sql` migration (post-baseline) for ad-hoc dev queries.
+- **psql debugging helper:** not required — the payload is a standard UUID, so `SELECT … WHERE id = '019e30c3-…'::uuid` works without a custom codec function. Strip the `<prefix>-` in your head (or via `substring(external from 5)`) when copying an ID from a log line.
 
 ### Cutover (S-016) implications
 

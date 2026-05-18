@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>{@code @PathVariable ClubId id} resolves through
  * {@code ClubIdPathConverter} so callers send the prefixed external form
- * {@code clb_<26-char>}. The SpEL predicates dereference {@code #id.value()}
+ * {@code clb-<uuid>}. The SpEL predicates dereference {@code #id.value()}
  * to compare against the JWT's raw-UUID {@code clubId} claim.
  *
  * <p>Walking-skeleton scope: the DTO omits country / club-state pickers —
