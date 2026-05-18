@@ -10,14 +10,14 @@ github_pr: 60
 depends_on: []
 reviewed: true
 reviewed_at: 2026-05-18T05:45
-review_outcome: blockers
-review_blockers: 2
-review_improvements: 4
+review_outcome: improvements-only
 review_parity_oracle: N/A — parity_test=none + no flsserver/flsweb in diff
 review_reviewers: [maintainability, security, tech-writer]
 reworked: true
 reworked_at: 2026-05-18
 rework_followups: [S-153]
+merged: true
+merged_at: 2026-05-18
 acceptance:
   - `docker compose -p alpenflight-dev up -d keycloak` brings Keycloak online at `http://localhost:8090/realms/alpenflight` (host HTTP 8090 → container 8080; management 9090 → 9000).
   - A pre-seeded realm `alpenflight` is committed under `next/auth/realm-export.json` and imported on first boot via `--import-realm`. Distribution is via a baked `alpenflight-keycloak:local` image (built from `next/auth/Dockerfile`) because Docker Desktop's bind-mount for single files is unreliable on Windows hosts.
@@ -55,27 +55,10 @@ See `next/auth/README.md` for the operator manual, downstream consumer table, de
 
 <!-- modernize-review: start -->
 
-**Reviewed:** 2026-05-18 (re-review after fix-blocker pass) · **PR:** #60 · **Outcome:** blockers
-
-### Code quality
-
-- **[blocker]** S-021 task line still cites the pre-rebrand issuer URL — `docs/modernization/stories/S-021-angular-oidc-client.md:26`. The line `configure against localhost:8080/realms/fls` contradicts both the ADR 0007 amendment in this PR and `next/auth/README.md`. An implementer picking up S-021 will configure the wrong host port + realm. **Fix:** update to `http://localhost:8090/realms/alpenflight`.
-- **[blocker]** S-019 body "Proposed ADR amendment" section not retracted after the amendment was applied — `docs/modernization/stories/implemented/S-019-keycloak-compose.md:51-53`. Section still reads "Operator's call: amend now or…" but the ADR was amended in this very PR. Future reader sees an open proposal the file's review block already resolved. **Fix:** strike the section (or one-line note: "Applied in PR #60").
-- **[improvement]** S-039 (implemented) carries the pre-rebrand realm name + port throughout — `docs/modernization/stories/implemented/S-039-docker-compose-skeleton.md:141,191,214,330,490`. Cites `localhost:8080/realms/fls`. Snippets would mislead anyone reconstructing topology from the story. **Fix (per Directive 1):** annotate the story header with a one-line "topology superseded by S-019 — see `next/auth/README.md`".
-- **[improvement]** `check-realm-shape.sh:97-102` clubId-block trailing clause restates the `fail` message — already expressed in the assertion. **Fix:** trim the trailing clause; keep the first sentence (why we parse the nested JSON-string).
-- **[improvement]** `check-realm-shape.sh:89` token-policy block comment says nothing the section header doesn't. **Fix:** drop the comment line.
-- **[improvement]** README round-trip code-block comment is 3 lines of explanation at shell indent — `next/auth/README.md:89-91`. Mix of usage + rationale. **Fix:** condense to one line, e.g. `# down -v: wipe H2 volume so IGNORE_EXISTING doesn't hide the change.`
-
 ### Parity
 **Oracle:** N/A — `parity_test: none` + no `flsserver/`/`flsweb/` paths in diff. S-019 is greenfield IdP setup; replaces the legacy `/Token` password grant entirely.
 
-### Carried over from prior review (lineage)
-
-- **13 improvements deferred → [S-153](../S-153-s019-rework-followups.md)** — `check-realm-shape.sh` coverage gaps, `export-realm.sh` hardening, Python-heredoc extraction, misc README/docker-compose touches. Full bullet list in S-153 AC checklist.
-- **1 improvement accepted** — ADR 0007 issuer URL amendment was applied in PR #60 as a boyscout meta-improvement. Propagation completeness is one of the new blockers above.
-
-### Cross-reviewer agreements
-
-- Maintainability + security re-review both returned `(none)` — confirms the fix-blocker pass landed cleanly. New blockers are ADR-amendment-propagation gaps surfaced by tech-writer alone.
+### Deferred to follow-up
+- **16 improvements deferred → [S-153](../S-153-s019-rework-followups.md)** — `check-realm-shape.sh` coverage gaps, `export-realm.sh` hardening, Python-heredoc extraction, misc README/docker-compose touches, plus 3 leftover comment-trim improvements from the post-fix re-review.
 
 <!-- modernize-review: end -->

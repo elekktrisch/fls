@@ -37,3 +37,6 @@ The full review block (including `[deferred → S-153]` annotations) is in `docs
 Docs/ops touches:
 - [ ] `next/auth/README.md` Downstream consumers table includes S-134 (federated IdP + DB-fallback for `clubId`).
 - [ ] `docker-compose.yml:206-208` healthcheck carries a one-line comment documenting the bash `/dev/tcp` dependency.
+- [ ] `next/auth/scripts/check-realm-shape.sh` clubId-block trailing-clause restates the `fail` message — trim to keep only the why-explanation.
+- [ ] `next/auth/scripts/check-realm-shape.sh` token-policy block comment paraphrases its section header — drop the comment.
+- [ ] `next/auth/README.md` round-trip code-block comment is 3 lines at shell indent — condense to one line.
