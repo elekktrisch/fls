@@ -67,6 +67,26 @@ configurations.named("nullawayDemoImplementation").configure {
     extendsFrom(configurations.implementation.get())
 }
 
+// S-155: regression source set for ADR-0023 layering rules. Holds three
+// deliberate violations (one per rule) + a test class that re-declares
+// the same rules and asserts each fires. Wired only into the
+// `verifyArchUnitFailsOnViolation` task — NOT into `test` / `check`, so
+// `./gradlew test` is unaffected.
+val archDemo: SourceSet by sourceSets.creating {
+    java.srcDir("src/archDemo/java")
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += output + compileClasspath
+}
+
+configurations.named("archDemoImplementation").configure {
+    extendsFrom(configurations.implementation.get())
+    extendsFrom(configurations.testImplementation.get())
+}
+
+configurations.named("archDemoRuntimeOnly").configure {
+    extendsFrom(configurations.testRuntimeOnly.get())
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-validation")
@@ -165,6 +185,15 @@ tasks.named<JavaCompile>("compileTestJava") {
     }
 }
 
+// archDemo compile: NullAway off (the deliberate-leak classes carry no
+// null-safety contract — they exist purely to trip ArchUnit). Same
+// rationale as compileTestJava.
+tasks.named<JavaCompile>("compileArchDemoJava") {
+    options.errorprone.nullaway {
+        severity = CheckSeverity.OFF
+    }
+}
+
 // Custom verification task: runs the demo compile in a sub-Gradle invocation
 // and asserts it fails because of NullAway. Wired into `check` is intentional
 // NOT done — CI / contributors run this explicitly:
@@ -237,6 +266,22 @@ flyway {
 }
 
 tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
+// S-155: runs `LayeringRulesDemoTest` (in the archDemo source set) which
+// re-declares the production ArchUnit rules and asserts each one FIRES
+// on the deliberate violations in `src/archDemo/java/...`. Catches the
+// regression where someone weakens a rule and `./gradlew test` silently
+// keeps passing.
+//
+// Intentionally NOT wired into `check` — CI invokes it explicitly:
+//     ./gradlew verifyArchUnitFailsOnViolation
+val verifyArchUnitFailsOnViolation by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Asserts ArchUnit detects the deliberate layering violations under src/archDemo/java (ADR 0023 regression guard)."
+    testClassesDirs = archDemo.output.classesDirs
+    classpath = archDemo.runtimeClasspath
     useJUnitPlatform()
 }
 
