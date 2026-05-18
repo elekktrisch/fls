@@ -71,22 +71,49 @@ The story body was pruned at mark-done. Step 2.5 broadens the prune to every doc
 
 **Procedure:**
 1. `git fetch origin && git checkout story/S-NNN-<slug> && git pull --ff-only`. Bail "PR branch diverged" if pull fails.
-2. Verify the file is already at `implemented/` (it should be — `/modernize-implement` Step 8 moved it). If still at top-level `stories/`, the implementer ran the previous (pre-skill-update) flow; do the mv now per the implement-Step-8 trap-guard ordering as a one-off.
-3. Spawn a one-shot `tech-writer-reviewer` agent with the scope + disposition rules above. Output format: `{ auto_delete: [<file:line-range, reason>...], surface_to_operator: [<file:line-range, both-sides>...] }`. Carve-outs (future/implemented) yield no output.
-4. **Apply auto-delete entries silently.** Edit each cited file; remove the cited section / lines.
-5. **If `surface_to_operator` non-empty:** present as one consolidated `AskUserQuestion` (multi-select) — operator picks which of the unclear sections to delete; the rest stay. Apply the picked deletions.
-6. Update story frontmatter (edit in place at the `implemented/` path):
+2. Verify the file is already at `implemented/`. If still at top-level `stories/`, the implementer ran the previous (pre-skill-update) flow; do the `git mv` now per the implement-Step-8 trap-guard ordering as a one-off.
+
+3. **Pre-flight grep (Bash, ~5s).** Compute the symbol-rename / file-rename / file-delete list from the PR diff:
+   - `git diff --diff-filter=R --name-status <base>..<head>` → file renames (`old-path → new-path`).
+   - `git diff --diff-filter=D --name-only <base>..<head>` → file deletions.
+   - Class / package renames inferred from inside-file diffs (e.g. `package ch.alpenflight.clubs;` → `package ch.alpenflight.clubs.domain;` on a moved file means the FQN renamed too).
+   
+   For each old name / path, grep across the prune target tree:
+   ```bash
+   grep -rln --include='*.md' --include='package-info.java' \
+        -e "<old-name-1>" -e "<old-name-2>" ... \
+        docs/ next/ .claude/agents/
+   ```
+   (Exclude `docs/modernization/stories/implemented/` from results — carve-out by rule.)
+
+4. **Fast-path skip.** If pre-flight grep returns zero hits AND the PR diff contains zero matches in `docs/**` / `*.md` / `CONVENTIONS.md` / `package-info.java`: nothing to prune. Skip directly to step 8 (stamp `merged:` + commit `#N: pre-merge — stamp merged`). The implementer's Step 7 reviewer panel already cleaned up; no second pass needed.
+
+5. **Auto-patch mechanical renames inline.** For each grep hit that is a pure-rename citation (the line contains the old name and replacing it with the new name yields a valid citation), apply the replacement directly via `Edit`. No agent call needed — these are deterministic textual replacements. Examples: `clubs/Club.java` → `clubs/domain/Club.java`; `ClubsRepository` → `JpaClubRepository`; description bullets referencing a deleted skill that have an obvious replacement target.
+   - Skip a hit and queue it for the agent if the line carries narrative context that would read wrong after a naive replace (e.g. "ClubsRepository **WAS** a Spring Data interface" — the verb tense matters).
+
+6. **Spawn the agent only when needed.** If the remaining set is non-empty after fast-path + auto-patch — OR the PR-touched docs include sections with rot-pattern signatures (file trees / method signatures / DTO field lists / post-decision migration estimates / test-method tables) — spawn one `tech-writer-reviewer` with:
+   - A pre-computed input list of files + line ranges to classify (don't make the agent re-discover scope).
+   - The disposition rules above.
+   - Output format: `{ auto_delete: [...], surface_to_operator: [...] }`. Carve-outs yield no output.
+
+7. **Apply agent output:**
+   - Auto-delete entries → edit each cited file; remove the cited section / lines.
+   - `surface_to_operator` non-empty → present as one consolidated `AskUserQuestion` (multi-select); operator picks which to delete; apply the picked deletions.
+
+8. **Stamp + commit.** Update story frontmatter at the `implemented/` path:
    ```yaml
    merged: true
    merged_at: <ISO date>
    ```
    Do **not** stamp `merge_commit:` — SHA isn't known yet; recoverable via `gh pr view M --json mergeCommit`.
-7. Commit `#N: docs prune at finalize — <N sections removed across <K> files>`. Push.
-8. Watch CI on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
+   
+   Commit subject: `#N: docs prune at finalize — <N sections / K files>` (or `#N: pre-merge — stamp merged` on the fast-path). Push.
 
-If the diff has zero docs-affecting changes AND grep returns no stale citations, skip Step 2.5's prune phase but still do the `merged:` stamp commit (item 6 + 7).
+9. **Watch CI** on freshened head (`gh run watch --exit-status <latest-run-id>`). Markdown-only diff usually clears in seconds. On red: surface failure + refuse "fix and re-run". Do NOT auto-revert.
 
-If repo allows `gh pr merge --auto`: MAY substitute Step 2.5's watch with `gh pr merge --auto --squash` (queues for green CI). Default flow is explicit watch-then-merge.
+If repo allows `gh pr merge --auto`: MAY substitute step 9's watch with `gh pr merge --auto --squash` (queues for green CI). Default flow is explicit watch-then-merge.
+
+**Why the three-tier:** the agent spend per finalize is dominated by scope-discovery (the grep) + classifying mechanical renames. Bash does the first in milliseconds; the auto-patch tier does the second deterministically. The agent only earns its keep on the residual — rot-pattern detection in PR-touched docs + judgment calls on mixed sections. On a clean implement (Step 7's tech-writer-reviewer already caught the drift), Steps 4–7 collapse to a no-op and finalize takes ~10 seconds instead of ~3 minutes.
 
 ### Step 3 — Merge
 
@@ -150,6 +177,7 @@ ADR amendments commit to `main` directly — recognised exception to story-per-b
 - Bookkeeping rides the PR, not a post-merge main commit. Step 2.5 commits + the squash gives ONE commit on main per story (plus optionally one for ADR amendments).
 - `merge_commit:` is NOT stamped on frontmatter (recoverable from git log; can't be known pre-merge).
 - **Step 2.5 deletes rotted prose** — file trees, method signatures, post-decision migration estimates, stale citations after renames. Carve-outs: future-story plans + the `stories/implemented/` historical record. Unclear sections surface to operator.
+- **Step 2.5 is three-tiered for cost:** Bash pre-flight grep (always); auto-patch pure renames inline (no agent); spawn the agent only when rot-pattern signatures or judgment calls remain. Fast-path the whole step when nothing to do.
 - Per [[feedback-no-shas-in-committed-docs]]: never embed git SHAs in committed docs. Cite by subject / file:line / PR# / story-ID. SHAs OK in ephemera (issue comments, operator report).
 
 ## Not in scope
