@@ -5,6 +5,8 @@ epic: E-03
 status: done
 started_at: 2026-05-18
 done_at: 2026-05-18
+merged: true
+merged_at: 2026-05-18
 depends_on: [S-002, S-006, S-019]
 acceptance:
   - `angular-auth-oidc-client` (or equivalent) is wired against Keycloak.

@@ -7,9 +7,10 @@ const KEY = 'alpenflight.post-login-redirect';
 
 export const DEFAULT_POST_LOGIN_ROUTE = '/clubs';
 
-// eslint-disable-next-line no-restricted-globals
-const storage = (): Storage | null =>
-  typeof sessionStorage === 'undefined' ? null : sessionStorage;
+function storage(): Storage | null {
+  // eslint-disable-next-line no-restricted-globals
+  return typeof sessionStorage === 'undefined' ? null : sessionStorage;
+}
 
 export function rememberPostLoginRedirect(url: string): void {
   storage()?.setItem(KEY, url);

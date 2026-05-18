@@ -172,14 +172,8 @@ Promote the picked answer to this section + the corresponding canonical example.
   alongside the integration test in the same package, plain JUnit (no
   `@SpringBootTest`). Example: `MigrationFolderConventionsTest`,
   `TestSupportPackageBoundaryTest`.
-- **Slice tests** (`@WebMvcTest`, `@DataJpaTest`, etc.) don't auto-configure
-  a DataSource and don't need the shared container. Example:
-  `HelloControllerIT`. The Postgres-backed companion
-  `HelloEndpointPostgresIT` extends `PostgresIntegrationTest` and
-  exercises the same endpoint through the full security chain via
-  `JwtTestFixture` — both shapes coexist.
 - **Canonical example:** `src/test/java/ch/alpenflight/server/migration/FlywayBootstrapIntegrationTest.java` (raw lifecycle pattern, predates the base class) /
-  `src/test/java/ch/alpenflight/platform/hello/HelloEndpointPostgresIT.java` (S-015 base-class pattern).
+  `src/test/java/ch/alpenflight/clubs/web/ClubsControllerIT.java` (S-015 base-class pattern, full security chain via `JwtTestFixture`).
 
 ## Multi-tenancy — S-022, ADR 0008
 
@@ -253,7 +247,7 @@ The OpenAPI spec at `/v3/api-docs` is the source of truth that the SPA's TS code
 - **Every public DTO record / class** carries `@Schema(description = ...)` on the type. Fields whose name isn't self-explanatory carry their own `@Schema(description = ...)`.
 - **Every non-`200` response** declared with `@ApiResponse(responseCode = "...", description = ...)`. Typed error responses use `content = @Content(schema = @Schema(implementation = ProblemDetail.class))`.
 - **Every DTO field** carries the Jakarta validation annotation that captures its real constraint (`@NotNull`, `@Size`, `@Pattern`, `@Min`, `@Max`). These flow into the spec and become client-side constraints — they ARE the input-validation contract.
-- **Canonical worked example:** [`HelloController`](src/main/java/ch/alpenflight/platform/hello/HelloController.java) + [`HelloResponse`](src/main/java/ch/alpenflight/platform/hello/HelloResponse.java).
+- **Canonical worked example:** [`ClubsController`](src/main/java/ch/alpenflight/clubs/web/ClubsController.java) + [`ClubResponse`](src/main/java/ch/alpenflight/clubs/web/ClubResponse.java) / [`ClubCreateRequest`](src/main/java/ch/alpenflight/clubs/web/ClubCreateRequest.java).
 
 ### Type placement
 

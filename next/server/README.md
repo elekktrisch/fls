@@ -10,7 +10,6 @@ skeleton was set up by [S-001](../../docs/modernization/stories/S-001-scaffold-s
 ```bash
 ./gradlew bootRun
 curl http://localhost:8080/actuator/health
-curl http://localhost:8080/api/v1/hello
 ```
 
 The server binds to `0.0.0.0:8080` by default (all network interfaces; no
@@ -60,7 +59,8 @@ and contained — both tools build the same artifact.
   every `ch.alpenflight.<domain>` package added later (e.g. `ch.alpenflight.flight`,
   `ch.alpenflight.aircraft`).
 - **Package by domain, not by layer.** Cross-cutting non-domain code lives
-  under `ch.alpenflight.platform` (this is where `HelloController` sits).
+  under `ch.alpenflight.platform` (today: `id`, `openapi`, `security`,
+  `tenancy`).
 - **`application.yml`**, not `application.properties`. Profile overrides go in
   `application-{dev,test,prod}.yml`.
 - **JSpecify `@NullMarked` at every package root.** Every new package needs a
@@ -77,7 +77,7 @@ and contained — both tools build the same artifact.
 | Servlet vs. reactive | Servlet (`spring-boot-starter-webmvc`). MVC + virtual threads. JPA needs a session-bound thread; reactive R2DBC-Hibernate is not production-ready. |
 | Virtual threads | Enabled (`spring.threads.virtual.enabled=true`). JEP 491 (Java 25) eliminated the `synchronized` pinning footgun. Re-audit when S-018 ShedLock + S-022 `@TenantId` `ThreadLocal` land. |
 | CORS | **Not wired here.** Will land with the first frontend integration story (S-021). The legacy `*` open-cors baseline is **not** inherited. |
-| Spring Security | **Not on the classpath.** S-020 owns adding the starter + first `SecurityFilterChain`. `GET /api/v1/hello` and `GET /actuator/{health,info}` are deliberately unauthenticated until then. |
+| Spring Security | OAuth2 resource server (S-020). Every `/api/v1/*` endpoint requires a valid Keycloak-issued JWT; `@PreAuthorize` on each controller (S-022). Actuator health/info stay anonymous. |
 | Flyway | Not wired. S-009. |
 | Lombok | No. |
 
@@ -109,8 +109,7 @@ next/server/
 ├── src/main/java/ch/alpenflight/
 │   ├── AlpenFlightApplication.java                                # @SpringBootApplication
 │   ├── package-info.java                                  # @NullMarked
-│   ├── config/                                            # placeholder; cross-cutting beans land here
-│   └── platform/hello/HelloController.java                # demo endpoint; remove at S-020
+│   └── config/                                            # placeholder; cross-cutting beans land here
 ├── src/main/resources/
 │   ├── application.yml                                    # base config (pinned: open-in-view=false,
 │   ├── application-dev.yml                                #   strict Jackson, narrow Actuator surface,
@@ -135,9 +134,9 @@ suppress narrowly and explain why:
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/v1/hello` | Demo. Returns `{"message":"Hello FLS","timestamp":"<ISO-8601>"}`. Auth-gate or remove at S-020. |
-| GET | `/actuator/health` | Liveness/readiness composite. Includes `db` indicator once Flyway autoconfig is wired. |
+| GET | `/actuator/health` | Liveness/readiness composite. Includes `db` indicator. |
 | GET | `/actuator/info` | Empty until `info.*` keys land. |
+| GET | `/api/v1/clubs` | Clubs list — requires SYSTEM_ADMINISTRATOR. Worked example for the OpenAPI / `@PreAuthorize` conventions. |
 
 ## Database migrations (Flyway)
 

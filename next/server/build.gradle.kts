@@ -139,7 +139,7 @@ dependencies {
     // via SharedPostgresContainer. The Docker daemon is a hard requirement
     // for the DB-touching tests; @EnabledIf("dockerAvailable") on each class
     // skips them cleanly when Docker is absent (`./gradlew check` still
-    // passes). HelloControllerIT uses @WebMvcTest (slice; no DataSource).
+    // passes).
     // Boot 4.0 split: TestRestTemplate (in spring-boot-resttestclient) depends
     // on RestTemplateBuilder which lives in spring-boot-restclient.
     testImplementation("org.springframework.boot:spring-boot-starter-restclient-test")
