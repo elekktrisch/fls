@@ -2,7 +2,9 @@
 id: S-015
 title: Testcontainers test-DB strategy + helpers
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-18
+github_issue: 64
 depends_on: [S-009]
 acceptance:
   - Test-DB strategy decided: **Testcontainers Postgres + transactional rollback per test** (recommended) or per-class clean migration. Document the decision.
