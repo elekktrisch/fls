@@ -3,7 +3,6 @@ package ch.alpenflight.platform.tenancy;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
@@ -12,26 +11,25 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 /**
- * Resolves a tenant by looking the authenticated user up in the {@code user}
- * table. Used for two paths in the resolver chain: federated-issuer DB-verify
- * (claim present but issuer not on the trusted allowlist) and claim-absent
- * fallback (Google / Auth0 baseline — no {@code clubId} claim at all).
+ * Resolves a tenant by looking the authenticated user up by
+ * {@code keycloak_sub}. Used by the resolver when the JWT lacks a
+ * {@code clubId} claim — Keycloak realm tokens carry the claim, federated
+ * (Google / Auth0) baseline tokens do not.
  *
  * <p>{@link JdbcTemplate}, not JPA — the calling resolver runs inside
  * Hibernate's session-open path, so opening another JPA session would
- * recurse. {@code user} carries no {@code @TenantId} (per V2 it's a
- * cross-tenant identity row), so the raw JDBC path doesn't bypass any
- * filter it should have honored.
+ * recurse. {@code user} carries no {@code @TenantId} (it's a cross-tenant
+ * identity row per V2), so the raw JDBC path doesn't bypass any filter
+ * it should have honored.
  *
- * <p>Lookup order: {@code keycloak_sub} first (UNIQUE per S-012); then
- * {@code lower(notification_email)} but only when the JWT claims
- * {@code email_verified=true} AND exactly one non-deleted {@code user} row
- * matches. Multiple matches or unverified email → empty (resolver returns
- * sentinel). Email is never logged.
+ * <p>Lookup is keyed on {@code keycloak_sub} (UNIQUE per S-012) and is
+ * only meaningful when the JWT subject is a UUID literal — Keycloak's
+ * default sub shape. Non-UUID subjects (Google's numeric IDs) currently
+ * return empty; the lookup story for those IdPs ships when they onboard.
  *
- * <p>Disabled under {@code mock-auth} — the hardcoded mock principal carries
- * a non-null {@code clubId} claim, the resolver consumes it directly, and
- * no DB users are seeded.
+ * <p>Disabled under {@code @Profile("mock-auth")}: the resolver injects
+ * {@code Optional.empty()} and skips DB calls — the mock principal's
+ * hardcoded {@code clubId} claim is always present.
  */
 @Component
 @Profile("!mock-auth")
@@ -46,59 +44,24 @@ public class UserTenantLookup {
     }
 
     public Optional<UUID> resolveTenantFor(Jwt jwt) {
-        Optional<UUID> bySub = bySubject(jwt);
-        if (bySub.isPresent()) {
-            LOG.debug("tenant-lookup sub-hit sub={}", jwt.getSubject());
-            return bySub;
+        String sub = jwt.getSubject();
+        if (sub == null || sub.isBlank()) {
+            return Optional.empty();
         }
-        Optional<UUID> byEmail = byVerifiedEmail(jwt);
-        if (byEmail.isPresent()) {
-            LOG.debug("tenant-lookup email-hit sub={}", jwt.getSubject());
-            return byEmail;
-        }
-        LOG.debug("tenant-lookup miss sub={}", jwt.getSubject());
-        return Optional.empty();
-    }
-
-    private Optional<UUID> bySubject(Jwt jwt) {
-        UUID sub = parseUuid(jwt.getSubject());
-        if (sub == null) {
+        UUID parsed;
+        try {
+            parsed = UUID.fromString(sub);
+        } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
         List<UUID> matches = jdbc.queryForList(
                 "SELECT club_id FROM \"user\" WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL",
-                UUID.class, sub.toString());
-        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
-    }
-
-    private Optional<UUID> byVerifiedEmail(Jwt jwt) {
-        Boolean verified = jwt.getClaimAsBoolean("email_verified");
-        if (!Boolean.TRUE.equals(verified)) {
-            return Optional.empty();
+                UUID.class, parsed.toString());
+        if (matches.size() == 1) {
+            LOG.debug("tenant-lookup sub-hit sub={}", sub);
+            return Optional.of(matches.get(0));
         }
-        String email = jwt.getClaimAsString("email");
-        if (email == null || email.isBlank()) {
-            return Optional.empty();
-        }
-        List<UUID> matches = jdbc.queryForList(
-                """
-                SELECT club_id FROM "user"
-                WHERE lower(notification_email) = lower(?)
-                  AND email_confirmed = true
-                  AND deleted_on IS NULL
-                """,
-                UUID.class, email);
-        return matches.size() == 1 ? Optional.of(matches.get(0)) : Optional.empty();
-    }
-
-    private static @Nullable UUID parseUuid(@Nullable String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+        LOG.debug("tenant-lookup miss sub={} matches={}", sub, matches.size());
+        return Optional.empty();
     }
 }

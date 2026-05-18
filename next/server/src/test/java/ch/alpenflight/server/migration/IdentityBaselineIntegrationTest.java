@@ -9,6 +9,8 @@ import ch.alpenflight.server.testsupport.SharedPostgresContainer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -411,26 +413,22 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
+    /**
+     * V2 must not contain {@code INSERT INTO member_state} / {@code person_category}
+     * statements — those are per-club seeds populated at S-016 cutover, not in V2.
+     * We assert on the migration text rather than the table row count because
+     * S-022+ integration tests legitimately insert into these tables and leave
+     * rows behind per ADR 0021's pre-clean-not-teardown policy.
+     */
     @Test
-    void member_state_not_seeded_in_this_migration() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT count(*) FROM member_state")) {
-            rs.next();
-            assertThat(rs.getInt(1))
-                    .as("member_state seeds are per-club; populated at S-016 cutover, not in V2")
-                    .isZero();
+    void v2_does_not_seed_member_state_or_person_category() throws Exception {
+        Path v2 = Path.of("src/main/resources/db/migration/V2__identity_and_reference.sql");
+        if (!Files.isRegularFile(v2)) {
+            v2 = Path.of("next/server/src/main/resources/db/migration/V2__identity_and_reference.sql");
         }
-    }
-
-    @Test
-    void person_category_not_seeded_in_this_migration() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT count(*) FROM person_category")) {
-            rs.next();
-            assertThat(rs.getInt(1)).isZero();
-        }
+        String body = Files.readString(v2);
+        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO member_state\\b");
+        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO person_category\\b");
     }
 
     /**

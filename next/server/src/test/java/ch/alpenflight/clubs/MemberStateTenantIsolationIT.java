@@ -3,7 +3,6 @@ package ch.alpenflight.clubs;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import ch.alpenflight.platform.tenancy.MissingTenantContextException;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.WithTenant;
@@ -11,14 +10,16 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * AC4 + AC5 + AC3 evidence: with the resolver wired and {@code @TenantId} on
  * {@link MemberState}, {@code findAll()} returns only the current tenant's
  * rows; mid-test switch via {@link TenantTestContext#runAs} sees the other
- * tenant's rows; insert under the sentinel context fails fast via the
- * {@code PreInsertEventListener}.
+ * tenant's rows; inserts under the sentinel context fail at the
+ * {@code fk_member_state_club_id} foreign-key constraint (nil UUID is not
+ * present in {@code club}).
  *
  * <p>Per ADR 0021: per-test unique club keys; pre-clean by stable test name;
  * no {@code @AfterEach} cleanup.
@@ -81,16 +82,18 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void no_tenant_context_inserts_are_rejected_by_guard() {
+    void no_tenant_context_inserts_fail_at_fk_constraint() {
         assertThatThrownBy(() -> memberStates.save(new MemberState("would-poison")))
-                .hasRootCauseInstanceOf(MissingTenantContextException.class);
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_member_state_club_id");
     }
 
     @Test
-    void explicit_runUnscoped_inserts_are_rejected_by_guard() {
+    void explicit_runUnscoped_inserts_fail_at_fk_constraint() {
         TenantTestContext.runUnscoped(() ->
                 assertThatThrownBy(() -> memberStates.save(new MemberState("would-poison-unscoped")))
-                        .hasRootCauseInstanceOf(MissingTenantContextException.class));
+                        .isInstanceOf(DataIntegrityViolationException.class)
+                        .hasMessageContaining("fk_member_state_club_id"));
     }
 
     private void cleanupPreviousRun() {
