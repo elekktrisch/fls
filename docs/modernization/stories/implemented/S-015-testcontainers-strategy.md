@@ -19,6 +19,16 @@ parity_test: none
 refined: true
 refined_at: 2026-05-16
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
+reviewed: true
+reviewed_at: 2026-05-18
+review_outcome: improvements-only
+review_blockers: 0
+review_improvements: 4
+review_nudges: 5
+review_parity_oracle: N/A — greenfield test infrastructure; no legacy oracle exists
+review_reviewers: [maintainability, security, tech-writer]
+merged: true
+merged_at: 2026-05-18
 ---
 
 ## Context
@@ -36,3 +46,13 @@ refined_specialists: [requirements-engineer, solution-architect, security-engine
 - **No `@Transactional` rollback.** S-015's original refinement chose Spring's `@Rollback(true)` + class-level `@Transactional` as the isolation strategy. ADR 0021 (landed post-refine, 2026-05-16) explicitly rejected that approach: rollback doesn't survive HTTP boundaries (`MockMvc` / `TestRestTemplate` requests run in their own transaction). Implementation follows ADR 0021's per-test unique-`Club` + pre-clean-at-start pattern. Existing `ClubsControllerIT` already uses this pattern; the shared `IntegrationTestSupport.createTestClub(...)` helper lands at S-022.
 - **`@WithTenant(String)` not `@WithTenant(long)`.** Java annotations cannot carry `UUID`. Pre-coordinated with S-022's resolver contract (PR #63).
 - **No `org.testcontainers:postgresql` dependency** — kept the S-009-established Docker-CLI lifecycle helper (`PostgresTestContainerLifecycle`) because Testcontainers 1.21.x bundles docker-java 3.4.x which negotiates Docker REST API 1.32; the sandbox daemon requires ≥1.44.
+
+## Review
+
+<!-- modernize-review: start -->
+
+### Parity
+
+**Oracle:** N/A — greenfield test infrastructure; no legacy oracle exists.
+
+<!-- modernize-review: end -->
