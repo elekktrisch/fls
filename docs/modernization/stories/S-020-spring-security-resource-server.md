@@ -5,6 +5,7 @@ epic: E-03
 status: in_progress
 started_at: 2026-05-18
 github_issue: 61
+github_pr: 62
 depends_on: [S-001, S-019]
 acceptance:
   - `spring-boot-starter-oauth2-resource-server` is in the dependency graph.
