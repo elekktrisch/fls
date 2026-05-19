@@ -169,3 +169,58 @@ test('clubs: 409 on duplicate slug surfaces as a save error', async ({ page }) =
   await expect(page.getByTestId('clubs-save-error')).toBeVisible();
   await expect(page.getByTestId('clubs-save-error')).toContainText('already in use');
 });
+
+// S-007 — inline-validation contract: sync validators surface per-keystroke
+// next to the offending control, without waiting for submit-click. Covers
+// AC-DIR-1 from the vision amendment via the reference form.
+test('clubs: invalid slug shows an inline field error before submit', async ({ page }) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto('/clubs/new');
+  await page.locator('#clubName').fill('Test Club');
+  await page.locator('#clubKey').fill('TST');
+
+  // Type a slug that violates the pattern (uppercase) AND is too short.
+  // The control is `touched` only after blur, so focus a sibling field
+  // afterwards to mirror the convention "errors render once the user has
+  // engaged the field" (touched gate avoids first-paint noise).
+  const slug = page.locator('#clubSlug');
+  await slug.fill('AB');
+  await slug.blur();
+
+  // Submit must be disabled while the form is invalid.
+  await expect(page.getByTestId('clubs-save-button')).toBeDisabled();
+
+  // The inline error renders next to the field via <af-field-errors>; the
+  // mapped error key is `common.errors.pattern` (the canonical placeholder
+  // until S-005 wires the i18n layer in).
+  await expect(page.locator('af-field-errors').filter({ hasText: 'pattern' })).toBeVisible();
+});
+
+// S-007 — async validator surfaces a duplicate slug *before* the user clicks
+// save. Server 409 stays the authoritative gate; this is the UX nicety.
+test('clubs: client-side async validator flags a duplicate slug before submit', async ({
+  page,
+}) => {
+  const clubs: MockClub[] = [{ ...seedClub }];
+  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+
+  await page.goto('/clubs');
+  // Wait for the list load to populate ClubsStore — async validator
+  // probes the in-memory entity map.
+  await expect(page.getByTestId('club-row-seed-club-1')).toBeVisible();
+
+  await page.getByRole('button', { name: 'New club' }).click();
+  await expect(page).toHaveURL('/clubs/new');
+
+  await page.locator('#clubName').fill('Conflict Pre-check');
+  await page.locator('#clubKey').fill('CPC');
+  const slug = page.locator('#clubSlug');
+  await slug.fill(seedClub.slug); // 'seed-club-1' is already taken
+  await slug.blur();
+
+  // Save button disabled because async validator flagged duplicate.
+  await expect(page.getByTestId('clubs-save-button')).toBeDisabled();
+  await expect(page.locator('af-field-errors').filter({ hasText: 'duplicate' })).toBeVisible();
+});
