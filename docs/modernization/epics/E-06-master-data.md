@@ -2,7 +2,7 @@
 id: E-06
 title: Master data & reference data parity
 status: todo
-adr_refs: [0005, 0008]
+adr_refs: [0005, 0008, 0014, 0024]
 ---
 
 ## Goal
@@ -24,6 +24,7 @@ Port the CRUD-shaped admin surface (clubs, aircraft, persons, users, locations, 
 - [ ] S-055 — Email templates CRUD
 - [ ] S-056 — System data + system-logs view
 - [ ] S-057 — Translations migrated to bundled JSON (closes C15; removes `/api/v1/translations`)
+- [ ] S-158 — Tenant-branding seven-surface preview component (ADR 0024 follow-up)
 
 ## Done when
 - Every master-data CRUD spec in `e2e/tests/` (specs `12`, `13`, `26`, `27`, `28`, `29`, `30`, `31`) passes against the new stack with parity-equivalent screens.
