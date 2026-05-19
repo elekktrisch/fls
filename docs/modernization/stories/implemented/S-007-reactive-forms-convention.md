@@ -2,8 +2,9 @@
 id: S-007
 title: Reactive Forms convention + typed form helpers
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-19
+done_at: 2026-05-19
 depends_on: [S-002, S-004]
 acceptance:
   - A reference form (`ClubsEditPage` at `next/web/src/app/features/clubs/edit/`) demonstrates typed Reactive Forms (`FormGroup<{...}>`), control-level validation messages, an async validator, submit-disabled state.
