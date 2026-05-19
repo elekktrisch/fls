@@ -12,7 +12,7 @@
   } ],
   "tags" : [ {
     "name" : "Clubs",
-    "description" : "Clubs CRUD (S-048 walking skeleton, mocked authorization)."
+    "description" : "Clubs CRUD."
   } ],
   "paths" : {
     "/api/v1/clubs/{id}" : {
