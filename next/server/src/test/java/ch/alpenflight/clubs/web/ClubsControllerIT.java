@@ -3,11 +3,13 @@ package ch.alpenflight.clubs.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.id.ClubId;
+import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,35 +17,53 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Full-stack HTTP integration test for the Clubs CRUD slice under the
- * {@code mock-auth} profile (S-048). Asserts the API surface, the
- * {@code @PreAuthorize} happy-path under a sysadmin principal, and the
- * soft-delete filtering invariant.
+ * Full-stack HTTP integration test for the Clubs CRUD slice. Asserts the
+ * API surface, the {@code @PreAuthorize} happy-path under a sysadmin
+ * principal, and the soft-delete filtering invariant.
+ *
+ * <p>Imports {@link JwtTestFixture} so the production filter chain runs
+ * against synthesised RSA-signed tokens — every request carries a
+ * {@code Bearer <sysadmin-jwt>} header so the role-gate predicate
+ * {@code hasRole('SYSTEM_ADMINISTRATOR')} on the Clubs methods passes.
+ * Role-matrix evidence (clubadmin / flight-operator + own-club / other-club
+ * SpEL gates) lives in {@code ClubsAuthorizationTest}; this IT covers the
+ * happy-path behavior of the underlying service + persistence stack.
  *
  * <p>Per-test isolation relies on time-stamped unique slugs / clubKeys —
  * the V5 seed row stays untouched.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-@ActiveProfiles({"test", "mock-auth"})
+@Import(JwtTestFixture.class)
 class ClubsControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
+    @Autowired JwtTestFixture jwts;
+
+    private String sysadminToken;
+
+    @org.junit.jupiter.api.BeforeEach
+    void mintSysadminToken() {
+        sysadminToken = jwts.mint(c -> c
+                .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
+                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+    }
 
     @Test
     void listClubs_returns_200_with_seeded_row() {
-        ResponseEntity<String> res = rest.getForEntity("/api/v1/clubs", String.class);
+        ResponseEntity<String> res = get("/api/v1/clubs");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(res.getBody()).isNotNull().contains("seed-club-1");
     }
@@ -110,8 +130,7 @@ class ClubsControllerIT extends PostgresIntegrationTest {
     @Test
     void getClub_malformed_id_returns_400() {
         // Not a clb--prefixed ClubId external form → conversion failure.
-        ResponseEntity<String> res = rest.getForEntity(
-                "/api/v1/clubs/00000000-0000-0000-0000-000000000000", String.class);
+        ResponseEntity<String> res = get("/api/v1/clubs/00000000-0000-0000-0000-000000000000");
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
@@ -122,12 +141,12 @@ class ClubsControllerIT extends PostgresIntegrationTest {
                 createPayload("Doomed Club", slug, "DMD" + shortSuffix()));
         String id = readJson(created).get("id").asText();
 
-        ResponseEntity<Void> del = rest.exchange(
-                RequestEntity.delete(URI.create("/api/v1/clubs/" + id)).build(),
+        ResponseEntity<Void> del = rest.exchange(authed(
+                        RequestEntity.delete(URI.create("/api/v1/clubs/" + id))).build(),
                 Void.class);
         assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        ResponseEntity<String> after = rest.getForEntity("/api/v1/clubs/" + id, String.class);
+        ResponseEntity<String> after = get("/api/v1/clubs/" + id);
         assertThat(after.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
@@ -138,7 +157,9 @@ class ClubsControllerIT extends PostgresIntegrationTest {
                 createPayload("Soft Deleted", slug, "SFT" + shortSuffix()));
         String externalId = readJson(created).get("id").asText();
         java.util.UUID rawId = ClubId.parse(externalId).value();
-        rest.exchange(RequestEntity.delete(URI.create("/api/v1/clubs/" + externalId)).build(), Void.class);
+        rest.exchange(authed(
+                        RequestEntity.delete(URI.create("/api/v1/clubs/" + externalId))).build(),
+                Void.class);
 
         // Row must still exist in the DB with deleted_on stamped — soft, not hard.
         Integer rowCount = jdbc.queryForObject(
@@ -149,27 +170,42 @@ class ClubsControllerIT extends PostgresIntegrationTest {
                 .isEqualTo(1);
 
         // List endpoint excludes soft-deleted rows.
-        ResponseEntity<String> list = rest.getForEntity("/api/v1/clubs", String.class);
+        ResponseEntity<String> list = get("/api/v1/clubs");
         assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(list.getBody()).doesNotContain(slug);
     }
 
     // ----- helpers -----
 
+    private ResponseEntity<String> get(String path) {
+        return rest.exchange(authed(
+                        RequestEntity.get(URI.create(path))).build(),
+                String.class);
+    }
+
     private ResponseEntity<String> post(String path, Map<String, Object> body) {
-        return rest.exchange(
-                RequestEntity.post(URI.create(path))
-                        .contentType(MediaType.APPLICATION_JSON)
+        return rest.exchange(authed(
+                        RequestEntity.post(URI.create(path))
+                                .contentType(MediaType.APPLICATION_JSON))
                         .body(body),
                 String.class);
     }
 
     private ResponseEntity<String> put(String path, Map<String, Object> body) {
-        return rest.exchange(
-                RequestEntity.put(URI.create(path))
-                        .contentType(MediaType.APPLICATION_JSON)
+        return rest.exchange(authed(
+                        RequestEntity.put(URI.create(path))
+                                .contentType(MediaType.APPLICATION_JSON))
                         .body(body),
                 String.class);
+    }
+
+    private <T extends RequestEntity.BodyBuilder> T authed(T builder) {
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        return builder;
+    }
+
+    private RequestEntity.HeadersBuilder<?> authed(RequestEntity.HeadersBuilder<?> builder) {
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
     }
 
     private static Map<String, Object> createPayload(String name, String slug, String clubKey) {

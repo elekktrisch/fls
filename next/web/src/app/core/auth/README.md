@@ -52,15 +52,22 @@ swaps in the new pair. On rotation failure
 SessionStore first (avoids the route guard re-rendering on stale state)
 and then triggers `authorize()` for a fresh login.
 
-## Mock-auth seam
+## Mock-auth seam (Playwright-CI / no-Keycloak dev convenience)
 
-Dev workflows that don't want a running Keycloak use the `mock-auth`
-angular.json configuration. `angular.json` `fileReplacements` swap
-`src/app/app.config.ts` → `src/app/app.config.mock.ts`. The mock config
-stamps `Authorization: Bearer mock-sysadmin` on every `/api/v1/*`
-request; the backend's `MockSecurityConfig` (S-048, profile `mock-auth`)
-decodes it as SYSTEM_ADMINISTRATOR. The mock seam is scheduled for
-deletion at S-026 once real role enforcement lands.
+S-026 deleted the backend `MockSecurityConfig` — the production OAuth2
+resource server is the only filter chain on the wire. The SPA seam
+stays alive as a Playwright-CI affordance: the suite stubs the backend
+via `page.route(...)`, so the SPA boots under the `mock-auth`
+angular.json configuration without a running Keycloak.
+`fileReplacements` swap `src/app/app.config.ts` →
+`src/app/app.config.mock.ts`, which stamps `Authorization: Bearer
+mock-sysadmin` on every `/api/v1/*` request.
+
+If a request escapes the route stub and reaches the real backend, that
+backend rejects it with 401 — the bearer is not a valid JWT. The
+rejection is intentional: it surfaces accidental configuration drift
+loudly rather than silently authenticating. The SPA seam re-rips when
+a real-OIDC Playwright project lands (S-021 follow-up).
 
 Run mock-auth:
 

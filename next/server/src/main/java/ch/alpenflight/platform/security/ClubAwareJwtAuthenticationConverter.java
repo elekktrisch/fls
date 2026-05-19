@@ -20,9 +20,9 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
  *       {@code @PreAuthorize("principal.claims['clubId']")} reads.</li>
  * </ul>
  *
- * <p>This converter is what stays after the S-019/S-020 rip-out: the
- * {@code mock-auth} filter chain wraps a hand-built {@link Jwt} through this
- * exact converter so the authority-shape is exercised under the mock.
+ * <p>The mapping is exercised end-to-end by {@code ClubsAuthorizationTest}
+ * (synthetic JWTs via Spring Security's test post-processor) and the live
+ * {@code JwtDecoder} path is covered by {@code SecurityFilterChainIT}.
  */
 @Configuration
 public class ClubAwareJwtAuthenticationConverter extends JwtAuthenticationConverter {

@@ -105,21 +105,24 @@ class ClubTenantIdentifierResolverUnitTest {
     }
 
     @Test
-    void mock_auth_profile_without_lookup_skips_db_path() {
-        ClubTenantIdentifierResolver mockAuthResolver =
+    void absent_lookup_with_claim_resolves_directly_via_claim() {
+        // Defensive: the constructor accepts Optional<UserTenantLookup> so a
+        // future deployment that excludes the lookup bean (e.g. minimal-mode)
+        // still resolves the happy claim-present path.
+        ClubTenantIdentifierResolver lookupless =
                 new ClubTenantIdentifierResolver(Optional.empty());
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of("clubId", CLAIM_CLUB.toString())));
 
-        assertThat(mockAuthResolver.resolveCurrentTenantIdentifier()).isEqualTo(CLAIM_CLUB);
+        assertThat(lookupless.resolveCurrentTenantIdentifier()).isEqualTo(CLAIM_CLUB);
     }
 
     @Test
-    void mock_auth_no_claim_no_lookup_falls_through_to_sentinel() {
-        ClubTenantIdentifierResolver mockAuthResolver =
+    void absent_lookup_without_claim_falls_through_to_sentinel() {
+        ClubTenantIdentifierResolver lookupless =
                 new ClubTenantIdentifierResolver(Optional.empty());
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of()));
 
-        assertThat(mockAuthResolver.resolveCurrentTenantIdentifier())
+        assertThat(lookupless.resolveCurrentTenantIdentifier())
                 .isEqualTo(ClubTenantIdentifierResolver.NO_TENANT);
     }
 
