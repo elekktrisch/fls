@@ -125,12 +125,10 @@ public class ClubsService {
 
     private void validateReferences(CountryId countryId, ClubStateId clubStateId) {
         if (!countries.existsById(countryId.value())) {
-            throw new InvalidClubReferenceException("countryId",
-                    "Unknown countryId: " + countryId.value());
+            throw new InvalidClubReferenceException("countryId");
         }
         if (!clubStates.existsById(clubStateId.value())) {
-            throw new InvalidClubReferenceException("clubStateId",
-                    "Unknown clubStateId: " + clubStateId.value());
+            throw new InvalidClubReferenceException("clubStateId");
         }
     }
 

@@ -9,8 +9,8 @@ public class InvalidClubReferenceException extends RuntimeException {
 
     private final String field;
 
-    public InvalidClubReferenceException(String field, String message) {
-        super(message);
+    public InvalidClubReferenceException(String field) {
+        super("Unknown " + field);
         this.field = field;
     }
 

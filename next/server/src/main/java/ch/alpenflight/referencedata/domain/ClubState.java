@@ -8,6 +8,7 @@ import jakarta.persistence.Table;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
+
 /**
  * Lifecycle-state reference row for {@code Club} (ACTIVE / SUSPENDED / …).
  * System-global; not tenant-scoped. Mapped to the V2 {@code club_state}
@@ -32,10 +33,6 @@ public class ClubState {
 
     public @Nullable ClubStateId getId() {
         return ClubStateId.ofNullable(id);
-    }
-
-    public @Nullable UUID getRawId() {
-        return id;
     }
 
     public String getCode() {

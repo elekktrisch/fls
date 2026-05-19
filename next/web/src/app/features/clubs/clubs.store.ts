@@ -158,5 +158,11 @@ function errorMessage(e: HttpErrorResponse, slug: string): string {
   if (e.status === 409) {
     return `Slug "${slug}" is already in use.`;
   }
+  // RFC-7807-ish: the server attaches `{ field, message }` (ApiError) for 400.
+  // Prefer it over the raw `HttpErrorResponse.message` boilerplate.
+  const body = e.error as { field?: string; message?: string } | null;
+  if (body && typeof body.message === 'string' && body.message.length > 0) {
+    return body.field ? `${body.field}: ${body.message}` : body.message;
+  }
   return e.message;
 }

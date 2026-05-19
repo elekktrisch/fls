@@ -16,13 +16,15 @@ acceptance:
   - Remaining cross-tenant lookups (Language, StartType, LengthUnitType, ElevationUnitType, CounterUnitType, ExtensionType, Role) deferred to a Phase-E continuation; tenant-scoped MemberState + PersonCategory deferred to their own per-tenant stories.
 estimate: M
 adr_refs: [0005, 0008, 0019, 0022, 0023]
-parity_test: e2e/tests/masterdata/clubs-crud.spec.ts (extended)
+parity_test: next/web/e2e/tests/clubs/clubs-crud.spec.ts (extended)
 parity_excluded:
   - Standalone read endpoints (`GET /api/v1/countries`, `/api/v1/club-states`) — greenfield read paths with no legacy oracle worth recording; the demoable parity is the extended Clubs form picker.
+  - Server-side `ORDER BY name COLLATE "de-CH-x-icu"` upgrades the country sort from legacy default SQL Server collation; accented Latin names (Côte d'Ivoire, Réunion) now sort inside their letter group instead of at the end. Deliberate divergence — legacy ordering was a bug.
 refined: true
 refined_at: 2026-05-19
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 github_issue: 79
+github_pr: 80
 ---
 
 ## Context

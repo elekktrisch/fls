@@ -40,10 +40,6 @@ public class Country {
         return CountryId.ofNullable(id);
     }
 
-    public @Nullable UUID getRawId() {
-        return id;
-    }
-
     public String getIso2Code() {
         return iso2Code;
     }

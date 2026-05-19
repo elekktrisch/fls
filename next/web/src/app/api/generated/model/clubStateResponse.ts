@@ -11,7 +11,7 @@
  */
 export type ClubStateResponse = {
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
-  id?: string;
-  code?: string;
-  name?: string;
+  id: string;
+  code: string;
+  name: string;
 };

@@ -55,6 +55,11 @@ type ClubForm = FormGroup<{
     @if (store.saveError(); as err) {
       <p class="af-clubs-error" data-testid="clubs-save-error">{{ err }}</p>
     }
+    @if (referenceData.loadError(); as refErr) {
+      <p class="af-clubs-error" data-testid="clubs-ref-data-error">
+        Reference data unavailable: {{ refErr }}
+      </p>
+    }
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" data-testid="clubs-edit-form" novalidate>
       <af-form-field
@@ -227,17 +232,22 @@ export class ClubsEditPage {
       }
       this.store.select(id);
       const club = this.store.selectedClub();
-      if (club) {
-        this.form.patchValue({
-          name: club.name ?? '',
-          slug: club.slug ?? '',
-          clubKey: club.clubKey ?? '',
-          publicRegistrationEnabled: club.publicRegistrationEnabled ?? false,
-          countryId: club.countryId ?? '',
-          clubStateId: club.clubStateId ?? '',
-        });
-        this.form.controls.clubKey.disable({ emitEvent: false });
-      }
+      if (!club) return;
+      // Race guard: countryId / clubStateId must match an option in the
+      // <af-select> when patched, otherwise nz-select silently drops the
+      // value and the form looks empty + invalid with no cue. Re-fire when
+      // ref-data lands.
+      const countriesReady = this.referenceData.countries().length > 0;
+      const clubStatesReady = this.referenceData.clubStates().length > 0;
+      this.form.patchValue({
+        name: club.name ?? '',
+        slug: club.slug ?? '',
+        clubKey: club.clubKey ?? '',
+        publicRegistrationEnabled: club.publicRegistrationEnabled ?? false,
+        countryId: countriesReady ? club.countryId : '',
+        clubStateId: clubStatesReady ? club.clubStateId : '',
+      });
+      this.form.controls.clubKey.disable({ emitEvent: false });
     });
 
     // Any save error (409, 500, network) disarms the bus-driven navigation

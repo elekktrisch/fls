@@ -17,7 +17,7 @@ export type ClubResponse = {
   clubKey?: string;
   publicRegistrationEnabled?: boolean;
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
-  countryId?: string;
+  countryId: string;
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
-  clubStateId?: string;
+  clubStateId: string;
 };

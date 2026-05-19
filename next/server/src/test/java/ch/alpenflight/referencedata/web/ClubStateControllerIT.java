@@ -7,6 +7,7 @@ import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,6 +72,33 @@ class ClubStateControllerIT extends PostgresIntegrationTest {
                 RequestEntity.get(URI.create("/api/v1/club-states")).build(),
                 String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void listClubStates_returns_identical_rows_under_two_different_tenant_claims() {
+        String tokenA = jwts.mint(c -> c
+                .claim("clubId", "019e30c3-2c00-7001-8000-0000000000a1")
+                .claim("realm_access", Map.of("roles", List.of("FLIGHT_OPERATOR"))));
+        String tokenB = jwts.mint(c -> c
+                .claim("clubId", "019e30c3-2c00-7001-8000-0000000000a2")
+                .claim("realm_access", Map.of("roles", List.of("FLIGHT_OPERATOR"))));
+
+        ResponseEntity<String> rA = rest.exchange(
+                RequestEntity.get(URI.create("/api/v1/club-states"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenA).build(),
+                String.class);
+        ResponseEntity<String> rB = rest.exchange(
+                RequestEntity.get(URI.create("/api/v1/club-states"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenB).build(),
+                String.class);
+
+        List<String> idsA = new ArrayList<>();
+        readJson(rA).forEach(n -> idsA.add(n.get("id").asText()));
+        List<String> idsB = new ArrayList<>();
+        readJson(rB).forEach(n -> idsB.add(n.get("id").asText()));
+        assertThat(idsA)
+                .as("ClubState reads must surface the IDENTICAL row set across tenant claims")
+                .containsExactlyElementsOf(idsB);
     }
 
     private ResponseEntity<String> get(String path) {

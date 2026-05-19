@@ -29,8 +29,8 @@ public final class ClubDtos {
             @Nullable String slug,
             String clubKey,
             boolean publicRegistrationEnabled,
-            CountryId countryId,
-            ClubStateId clubStateId) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) CountryId countryId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ClubStateId clubStateId) {}
 
     @Schema(description = "Payload to create a new club.")
     public record ClubCreateRequest(

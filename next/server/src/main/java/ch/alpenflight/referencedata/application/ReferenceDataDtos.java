@@ -14,13 +14,13 @@ public final class ReferenceDataDtos {
 
     @Schema(description = "Country listitem projection — dropdown fuel.")
     public record CountryResponse(
-            CountryId id,
-            String iso2Code,
-            String name) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) CountryId id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String iso2Code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name) {}
 
     @Schema(description = "ClubState listitem projection — dropdown fuel.")
     public record ClubStateResponse(
-            ClubStateId id,
-            String code,
-            String name) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ClubStateId id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name) {}
 }

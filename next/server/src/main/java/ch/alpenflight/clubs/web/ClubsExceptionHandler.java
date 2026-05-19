@@ -3,7 +3,6 @@ package ch.alpenflight.clubs.web;
 import ch.alpenflight.clubs.domain.ClubNotFoundException;
 import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
 import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
-import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -22,6 +21,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackageClasses = ClubsController.class)
 class ClubsExceptionHandler {
 
+    /** Typed error body for 400 / 409. RFC-7807-shaped enough to evolve later. */
+    public record ApiError(String field, String message) {}
+
     @ExceptionHandler(ClubNotFoundException.class)
     ResponseEntity<Void> handleNotFound(ClubNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
@@ -33,8 +35,9 @@ class ClubsExceptionHandler {
     }
 
     @ExceptionHandler(InvalidClubReferenceException.class)
-    ResponseEntity<Map<String, String>> handleInvalidReference(InvalidClubReferenceException e) {
+    ResponseEntity<ApiError> handleInvalidReference(InvalidClubReferenceException e) {
+        String message = e.getMessage();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("field", e.getField(), "message", e.getMessage()));
+                .body(new ApiError(e.getField(), message == null ? "Invalid reference" : message));
     }
 }

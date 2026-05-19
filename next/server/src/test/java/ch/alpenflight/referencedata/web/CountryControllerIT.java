@@ -121,9 +121,12 @@ class CountryControllerIT extends PostgresIntegrationTest {
 
         assertThat(rA.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(rB.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(readJson(rA).size())
-                .as("Reads must surface the same set regardless of tenant claim (no @TenantId on Country)")
-                .isEqualTo(readJson(rB).size());
+        List<String> idsA = collectIds(rA);
+        List<String> idsB = collectIds(rB);
+        assertThat(idsA)
+                .as("Country reads must surface the IDENTICAL row set across tenant claims "
+                        + "(row-count parity alone would pass a swapped-but-same-size leak)")
+                .containsExactlyElementsOf(idsB);
     }
 
     @Test
@@ -157,5 +160,11 @@ class CountryControllerIT extends PostgresIntegrationTest {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse response: " + res.getBody(), e);
         }
+    }
+
+    private static List<String> collectIds(ResponseEntity<String> res) {
+        List<String> ids = new ArrayList<>();
+        readJson(res).forEach(n -> ids.add(n.get("id").asText()));
+        return ids;
     }
 }

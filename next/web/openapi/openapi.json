@@ -312,7 +312,8 @@
             "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
             "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
-        }
+        },
+        "required" : [ "clubStateId", "countryId" ]
       },
       "ClubCreateRequest" : {
         "type" : "object",
@@ -368,7 +369,8 @@
           "name" : {
             "type" : "string"
           }
-        }
+        },
+        "required" : [ "id", "iso2Code", "name" ]
       },
       "ClubStateResponse" : {
         "type" : "object",
@@ -386,7 +388,8 @@
           "name" : {
             "type" : "string"
           }
-        }
+        },
+        "required" : [ "code", "id", "name" ]
       }
     },
     "securitySchemes" : {

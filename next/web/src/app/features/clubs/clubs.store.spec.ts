@@ -15,6 +15,8 @@ const sampleClub: ClubResponse = {
   slug: 'seed-club-1',
   clubKey: 'SEED',
   publicRegistrationEnabled: false,
+  countryId: '019e2e15-2c00-74be-8000-0000000004be',
+  clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
 };
 
 type StubbedApi = Pick<ClubsService, 'listClubs' | 'createClub' | 'updateClub' | 'deleteClub'>;
