@@ -2,8 +2,9 @@
 id: S-047
 title: Reference-data domain — slim slice (Country + ClubState) + S-048 Clubs-form retrofit
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-05-19
+done_at: 2026-05-19
 depends_on: [S-006, S-007, S-008, S-022, S-048]
 acceptance:
   - New `referencedata` Spring Modulith module (`ch.alpenflight.referencedata.{domain,application,web,infra}`) per ADR 0023. Country + ClubState entities ported (cross-tenant; no `@TenantId`; read-only).
