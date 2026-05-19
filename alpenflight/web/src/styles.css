@@ -1,43 +1,32 @@
 @import 'tailwindcss';
 @import 'ng-zorro-antd/ng-zorro-antd.variable.min.css';
 
-/* Roboto webfont — self-hosted via @fontsource/roboto. CSP allows style-src
-   'self' only, so external Google Fonts is not an option. */
 @import '@fontsource/roboto/400.css';
 @import '@fontsource/roboto/500.css';
 @import '@fontsource/roboto/700.css';
 
 @theme {
-  /* Brand palette (OKLCH for perceptual uniformity). */
   --color-brand-50: oklch(0.97 0.014 254.6);
   --color-brand-100: oklch(0.93 0.034 254.6);
   --color-brand-500: oklch(0.62 0.18 254.6);
   --color-brand-600: oklch(0.55 0.2 254.6);
   --color-brand-700: oklch(0.47 0.2 254.6);
 
-  /* Type. Roboto everywhere per operator directive (2026-05-17). */
   --font-sans: 'Roboto', system-ui, sans-serif;
   --font-display: 'Roboto', system-ui, sans-serif;
 
-  /* AC-DIR-1 — breakpoint tokens. */
   --breakpoint-sm: 360px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1440px;
 
-  /* Radii. Sharp per ADR 0024 §Decision — 2px max for any exception. */
   --radius-md: 0;
 
-  /* Semantic surface tokens — backed by Tailwind's slate scale. Keep the
-     color-named tokens as the source values so a future dark theme (v2) is
-     a single PR swap rather than a refactor (ADR 0024 §Decision). */
   --color-surface-bg: var(--color-slate-50);
   --color-surface-fg: var(--color-slate-900);
   --color-surface-muted: var(--color-slate-500);
   --color-border: var(--color-slate-200);
 
-  /* Type scale — 1.125 minor third × 16px base (ADR 0024 typography stance).
-     Heading weights are 500 (Medium); body is 400. No Bold anywhere. */
   --text-h1: 1.802rem; /* 28.83px */
   --text-h2: 1.602rem; /* 25.63px */
   --text-h3: 1.424rem; /* 22.78px */
@@ -46,17 +35,11 @@
   --text-h6: 1rem; /*     16px */
   --text-muted: 0.875rem; /* 14px — helper / meta text */
 
-  /* Chrome dimensions (single source of truth so the top-bar height, the
-     content offset, and any sticky offset all read the same number). */
   --space-header-h: 3.5rem; /* 56px */
 
-  /* Section gap — between major page sections (form sections, dashboard
-     blocks, etc.). 48px aligns with the comfortable density rhythm. */
   --space-section: 3rem;
 }
 
-/* AC-DIR-2 — density-scoped tokens. data-density attribute drives the switch;
-   <af-density-provider> sets it. */
 :root,
 [data-density='comfortable'] {
   --space-row: 0.75rem;
@@ -71,11 +54,6 @@
   --row-height: 1.75rem; /* 28 px for dense-desktop */
 }
 
-/* ng-zorro → Tailwind token bridge. Tailwind tokens are authoritative;
-   --ant-* variables consume them. Keep root-only; deeper-scope overrides
-   surprise consumers. ng-zorro-antd.variable.min.css only exposes color
-   tokens — radius / motion / font-family must be overridden via direct
-   rules below, not via --ant-* variables. */
 :root {
   --ant-primary-color: var(--color-brand-500);
   --ant-primary-color-hover: var(--color-brand-600);
@@ -85,9 +63,6 @@
   --ant-warning-color: oklch(0.78 0.16 80);
 }
 
-/* ADR 0024 §Decision — sharp radius + restrained motion across ng-zorro.
-   Hardcoded in the antd stylesheet, so the override needs to come after
-   the @import with !important to beat per-component class selectors. */
 [class*='ant-'],
 [class*='ant-']::before,
 [class*='ant-']::after {
@@ -95,15 +70,10 @@
   transition-duration: 50ms !important;
 }
 
-/* Cap finite-keyframe animations (dropdown / modal slide-down etc.).
-   Loaders, skeletons and progress are excluded — their infinite-loop
-   timing IS the visual rhythm of "ongoing" and looks frantic at 120ms. */
 [class*='ant-']:not([class*='ant-spin']):not([class*='ant-skeleton']):not([class*='ant-progress']) {
-  animation-duration: 120ms !important;
+  animation-duration: 50ms !important;
 }
 
-/* Restore semantic round shapes. Same specificity as [class*='ant-'] but
-   later in the cascade, so they win without needing !important on each. */
 .ant-avatar,
 .ant-avatar-lg,
 .ant-avatar-sm,
@@ -122,34 +92,56 @@
   border-radius: 100px !important;
 }
 
-/* AC-DIR-3 — touch-target enforcement on comfortable density.
-   Top-level rules over per-host ::ng-deep: one source of truth.
-   Horizontal padding is bumped above antd's default (15px) so the button
-   doesn't read squished against the 44px touch-target height. */
 [data-density='comfortable'] .ant-btn,
 [data-density='comfortable'] .ant-input,
 [data-density='comfortable'] .ant-select-selector {
   min-height: 44px;
 }
-/* !important on padding because the antd variable stylesheet has many
-   cascading per-state rules (.ant-btn:hover, .ant-btn[disabled],
-   .ant-btn-primary, etc.) that re-set the padding shorthand at higher
-   specificity than [data-density='comfortable'] .ant-btn alone. */
-/* ng-zorro's .ant-select-single.ant-select carries a fixed `height: 32px`
-   that the inner .ant-select-selector inherits from. Overriding only the
-   selector inflates the visible border to 44px but leaves the outer
-   container 32px tall — the absolutely-positioned chevron stays anchored
-   to the 32px box and visually appears glued to the top of the wider
-   selector. Bumping the outer container too keeps the chevron centered.
-   Same fix applies to .ant-select-multiple (height: 32px in antd). */
+
 body[data-density='comfortable'] .ant-select-single,
 body[data-density='comfortable'] .ant-select-multiple {
   height: auto !important;
   min-height: 44px !important;
 }
+/* Match the af-input visual: slate-300 border, slate-50 disabled bg,
+   brand-500 outline on focus (NOT antd's blue border + box-shadow ring).
+   `.ant-select-selector` is the visible bordered box. */
+body[data-density='comfortable'] .ant-select-selector {
+  border-color: var(--color-slate-300) !important;
+  padding-inline: 0.75rem !important; /* 12px — matches af-input's px-3 */ /* 8px — matches af-input visual inset */
+}
+body[data-density='comfortable']
+  .ant-select-focused:not(.ant-select-disabled):not(.ant-select-customize-input):not(
+    .ant-pagination-size-changer
+  )
+  .ant-select-selector,
+body[data-density='comfortable']
+  .ant-select-open:not(.ant-select-disabled):not(.ant-select-customize-input):not(
+    .ant-pagination-size-changer
+  )
+  .ant-select-selector {
+  border-color: var(--color-slate-300) !important;
+  box-shadow: none !important;
+  outline: 2px solid var(--color-brand-500) !important;
+  outline-offset: 1px !important;
+}
 body[data-density='comfortable'] .ant-select-single .ant-select-selection-item,
 body[data-density='comfortable'] .ant-select-single .ant-select-selection-placeholder {
   line-height: 42px !important; /* (44 - 2px border) ≈ inline content centered */
+  font-size: 1rem !important; /* 16px — match af-input body size */
+}
+/* antd's .ant-select-single sets font-size: 14px on the outer container,
+   which cascades to the search-input and to the dropdown menu items.
+   Lift everything to 16px so visual rhythm matches af-input. */
+body[data-density='comfortable'] .ant-select-single,
+body[data-density='comfortable'] .ant-select-single .ant-select-selector .ant-select-selection-search-input {
+  font-size: 1rem !important;
+}
+
+body[data-density='comfortable'] .ant-select-single .ant-select-selector .ant-select-selection-search-input {
+  height: 100% !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
 }
 body[data-density='comfortable'] .ant-btn {
   padding-inline: 2.5rem !important; /* 40px — generous primary-button feel */
@@ -177,22 +169,13 @@ body[data-density='comfortable'] .ant-btn-icon-only {
   padding-inline: 0.875rem; /* 14px — denser but still readable */
 }
 
-/* Tabular numerals for data columns (flight-list, reports, etc.). Per ADR 0024
-   typography stance — column alignment beats proportional rhythm on data. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Page container + headings live in components / Tailwind utilities —
-   styles.css does not own them. See <af-page> molecule + the type-scale
-   tokens above. */
-
-/* View Transitions API — wired via withViewTransitions() in app.config.ts.
-   ADR 0024 motion clause: opacity 120ms ease-out only. No slide, no spring.
-   The top-level transition wrappers are auto-created by Angular's router. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 120ms;
+  animation-duration: 50ms;
   animation-timing-function: ease-out;
   animation-name: af-fade;
 }
@@ -208,7 +191,6 @@ body[data-density='comfortable'] .ant-btn-icon-only {
   }
 }
 
-/* Body baseline: slate-50 ambient background; slate-900 ink; Roboto. */
 body {
   background: var(--color-surface-bg);
   color: var(--color-surface-fg);
