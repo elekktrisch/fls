@@ -2,7 +2,9 @@
 id: S-156
 title: Install lucide-angular + wire `<af-icon>` atom
 epic: E-01
-status: todo
+status: in_progress
+started_at: 2026-05-19
+github_issue: 77
 estimate: S
 parity_test: none
 depends_on: [S-008]
