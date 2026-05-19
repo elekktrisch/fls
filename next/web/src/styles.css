@@ -25,8 +25,16 @@
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1440px;
 
-  /* Radii. */
-  --radius-md: 0.375rem;
+  /* Radii. Sharp per ADR 0024 §Decision — 2px max for any exception. */
+  --radius-md: 0;
+
+  /* Semantic surface tokens — backed by Tailwind's slate scale. Keep the
+     color-named tokens as the source values so a future dark theme (v2) is
+     a single PR swap rather than a refactor (ADR 0024 §Decision). */
+  --color-surface-bg: var(--color-slate-50);
+  --color-surface-fg: var(--color-slate-900);
+  --color-surface-muted: var(--color-slate-500);
+  --color-border: var(--color-slate-200);
 }
 
 /* AC-DIR-2 — density-scoped tokens. data-density attribute drives the switch;
@@ -72,4 +80,10 @@
 [data-density='dense'] .ant-btn-icon-only {
   min-width: 28px;
   min-height: 28px;
+}
+
+/* Tabular numerals for data columns (flight-list, reports, etc.). Per ADR 0024
+   typography stance — column alignment beats proportional rhythm on data. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }

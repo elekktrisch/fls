@@ -13,7 +13,7 @@ src/app/shared/ui/
 ├── atoms/           single-purpose, zero-dependency primitives
 │   ├── button/      <af-button>
 │   ├── input/       <af-input>
-│   ├── icon/        <af-icon>
+│   ├── icon/        <af-icon>      Lucide line icons via dynamic-name (ADR 0024 / S-156)
 │   └── badge/       <af-badge>
 ├── molecules/       compositions of 2–N atoms with one concern
 │   ├── form-field/  <af-form-field>     label + input + error
@@ -181,3 +181,20 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 - No sibling-store injection from `features/**/*.store.ts`. Coordinate cross-domain via `MUTATION_BUS`. See `src/app/core/mutation-bus/README.md`.
 - No raw `access_token` / `refresh_token` / `id_token` in any `signalStore` state. Tokens live in the OIDC library's storage (S-021).
 - No `any` — `tsconfig.json` strict family is the floor.
+
+## 11. Visual conventions
+
+[ADR 0024](../../docs/modernization/adrs/0024-visual-design-system-and-tone.md) is the source of truth for the aesthetic layer — mood, neutrals, radius, elevation, typographic stance, icons, motion, copy voice, state personality, navigation pattern, wordmark, and ng-zorro override depth. Headlines that affect day-to-day work:
+
+- **Neutrals:** Tailwind `slate` (cool blue-gray). Brand color stays at `--color-brand-500` (sky blue) and appears only on actions / links / focus rings / active nav indicators / selected-row accents / progress / the brand glyph — **never** on chrome backgrounds.
+- **Radius:** sharp. `--radius-md: 0` in `src/styles.css`; 2px is the maximum tolerated exception.
+- **Elevation:** flat — author code uses 1px slate-200 borders for separation, no shadows. Drop-shadow reserved for the active-modal overlay. ng-zorro defaults (dropdown shadows etc.) are accepted as a deliberate scope cap.
+- **Typography:** Roboto. Body 400 / headings 500 (no Bold). Scale 1.125 (minor third). **Sentence case everywhere** — buttons, nav, labels. Apply the `.tabular` utility on numeric data columns.
+- **Icons:** Lucide via `<af-icon name="…" />`. Registry at `core/icons/icon-registry.ts`; feature stories add named imports there. ng-zorro internal icons (chevrons, X, ✓) stay untouched.
+- **Motion:** restrained — `opacity 120ms ease-out` only. No slide-in, no spring, no pulsing skeletons. Hover/focus state changes are instant.
+- **State personality:** terse + functional. One-line empty states, no illustrations. Inline red helper for field errors, dismissable toast for global errors. Spinner only after 300ms.
+- **Voice:** terse Swiss-impersonal. Short declarative + imperative. No "we". Past-tense done states. German-shaped economy; cheap to translate to DE / FR / IT.
+- **Color mode:** light only v1. Semantic surface tokens (`--color-surface-bg`, `--color-surface-fg`, `--color-surface-muted`, `--color-border`) are in place so a future dark swap is a single PR.
+- **ng-zorro:** bridge tokens only (`--ant-*` variables in `styles.css`). Accept antd defaults where the bridge doesn't reach (focus ring style, hover-bg tint, dropdown shadows, slide-down motion, table padding) — deliberate scope cap.
+
+When in doubt, read ADR 0024. Drift from this section is a maintainability-reviewer finding.
