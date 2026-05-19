@@ -138,11 +138,19 @@ export class ClubsEditPage {
   protected readonly clubId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.clubId() === null);
 
+  // S-007 — slug validator stack (sync + in-memory async-style) declared
+  // alongside the rest of the form definition. The duplicate-check closure
+  // reads `this.store.entities()` and `this.clubId()` lazily so it stays
+  // current as the store refreshes / the route changes.
   protected readonly form: ClubForm = this.fb.group({
     name: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(100)]),
     slug: this.fb.nonNullable.control('', [
       Validators.required,
       Validators.pattern(/^[a-z0-9-]{3,64}$/),
+      slugAvailable({
+        entities: () => this.store.entities(),
+        currentId: () => this.clubId(),
+      }),
     ]),
     clubKey: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(10)]),
     publicRegistrationEnabled: this.fb.nonNullable.control(false),
@@ -151,17 +159,6 @@ export class ClubsEditPage {
   protected readonly saveSubmitted = signal(false);
 
   constructor() {
-    // Async-style validator example for S-007 (Reactive Forms convention).
-    // Runs against the in-memory ClubsStore — server 409 is still the
-    // authoritative duplicate gate, mapped onto the same `duplicate` key
-    // by the saveError effect below.
-    this.form.controls.slug.addValidators(
-      slugAvailable({
-        entities: () => this.store.entities(),
-        currentId: () => this.clubId(),
-      }),
-    );
-
     effect(() => {
       // Re-run the slug validator whenever the entity list refreshes so the
       // duplicate flag updates the moment ClubsStore.loadAll() resolves.
