@@ -164,6 +164,7 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 ## 9. Local-environment quirks (sandbox)
 
 - `node_modules/` in this folder is a **symlink** to `/home/agent/fls-build/alpenflight/node_modules/`. The mounted Windows host FS at `/c/Users/...` cannot reliably `rmdir` deeply-nested directories during `pnpm install`, so the store + the live `node_modules` both live on the Linux-local FS. Don't `rm -rf` the symlink target without recreating it.
+- **If the symlink is missing**, recreate it directly — do NOT run `pnpm install` first. `ng build` triggers an automatic deps-status check that will try to materialize `node_modules` on the Windows FS and fail with `EACCES` partway through, leaving a corrupt real directory behind. Recovery: `rm -rf alpenflight/web/node_modules && ln -s /home/agent/fls-build/alpenflight/node_modules alpenflight/web/node_modules`.
 - pnpm is configured project-wide with `nodeLinker: hoisted` + `packageImportMethod: copy` (see `pnpm-workspace.yaml`). Don't switch to symlinked layout — that retriggers the cross-FS issue.
 - **Install scripts are globally disabled** (`pnpm config set ignore-scripts true`, `npm config set ignore-scripts true`). esbuild's platform binary is selected via the `ESBUILD_BINARY_PATH` env var (persisted in `/etc/sandbox-persistent.sh`) — no postinstall needed.
 
