@@ -5,6 +5,8 @@ epic: E-03
 status: done
 started_at: 2026-05-19
 done_at: 2026-05-19
+merged: true
+merged_at: 2026-05-19
 depends_on: [S-020]
 acceptance:
   - Three roles are mapped end-to-end: `system_administrator`, `club_administrator`, `flight_operator` (matching `RoleApplicationKeyStrings.cs`).
