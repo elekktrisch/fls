@@ -2,8 +2,9 @@
 id: S-156
 title: Install @lucide/angular + wire `<af-icon>` atom
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-19
+done_at: 2026-05-19
 github_issue: 77
 github_pr: 78
 estimate: S
