@@ -8,6 +8,9 @@ import { DensityService } from '../../density';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NzButtonModule],
+  host: {
+    'class': 'flex'
+  },
   template: `
     <button
       nz-button
@@ -20,6 +23,7 @@ import { DensityService } from '../../density';
       [attr.aria-label]="ariaLabel()"
       [type]="htmlType()"
       (click)="clicked.emit($event)"
+      class="flex-1"
     >
       <ng-content />
     </button>

@@ -7,23 +7,12 @@ import { errorsToKeys } from './field-errors';
   selector: 'af-field-errors',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'block' },
   template: `
     @for (key of keys(); track key) {
-      <span class="af-field-error" role="alert">{{ key }}</span>
+      <span class="block text-sm text-red-600" role="alert">{{ key }}</span>
     }
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-      .af-field-error {
-        color: var(--ant-error-color);
-        font-size: 0.875rem;
-        display: block;
-      }
-    `,
-  ],
 })
 export class AfFieldErrorsComponent {
   readonly errors = input<ValidationErrors | null>(null);

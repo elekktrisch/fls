@@ -11,13 +11,20 @@
       fileReplaces this file with `src/index.prod.html` (no inline CSP).
       Production CSP is owned by the S-041 reverse proxy via response
       header. `connect-src` allows the dev Keycloak (S-021 / ADR 0007).
+
+      `style-src 'unsafe-inline'`: Angular component styles (styles: [...])
+      compile to runtime <style> tags, and ng-zorro / Angular CDK overlays
+      (dropdown, drawer, modal, tooltip) set inline `style` attributes via
+      JS for positioning. Both are blocked by strict `style-src 'self'`.
+      The S-041 production proxy CSP needs to mirror this — either with
+      `'unsafe-inline'` or a per-stylesheet nonce. Tracked in S-041.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' http://localhost:8090; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8090; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     />
   </head>
-  <body>
+  <body data-density="comfortable">
     <af-root></af-root>
   </body>
 </html>

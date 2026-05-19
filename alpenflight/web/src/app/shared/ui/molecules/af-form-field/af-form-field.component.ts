@@ -1,44 +1,38 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import type { ValidationErrors } from '@angular/forms';
-import { NzFormModule } from 'ng-zorro-antd/form';
 
 import { AfFieldErrorsComponent } from '../af-field-errors';
 
 /**
- * Label + content + errors wrapper.
- *
- * **Label association convention:** the consumer is responsible for matching
- * the `[for]` input with the projected input's `id` attribute. Example:
+ * Label + content + errors wrapper. Vertical stack everywhere — label
+ * above the input — so widths align cleanly regardless of field type and
+ * the label sits where readers expect.
  *
  *   <af-form-field label="Email" for="emailField" [required]="true" [errors]="ctl.errors">
  *     <input id="emailField" [formControl]="ctl" type="email" />
  *   </af-form-field>
  *
- * Auto-wiring (querying the projected content + stamping an id) is not done
- * today; the first feature consumer (S-049 Locations CRUD with mocked auth,
- * per operator suggestion) can drive an auto-wire directive if the manual
- * convention turns out to bite.
+ * Label-association convention: the consumer matches the `[for]` input
+ * with the projected input's `id` attribute.
  */
-
 @Component({
   selector: 'af-form-field',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NzFormModule, AfFieldErrorsComponent],
+  imports: [AfFieldErrorsComponent],
+  host: { class: 'block' },
   template: `
-    <nz-form-item>
+    <div class="flex flex-col gap-1.5 mb-4">
       @if (label()) {
-        <nz-form-label [nzRequired]="required()" [nzFor]="for()">
-          {{ label() }}
-        </nz-form-label>
+        <label [attr.for]="for() || null" class="text-sm font-medium text-slate-700">
+          {{ label() }}@if (required()) {
+            <span class="text-red-600 ml-0.5" aria-hidden="true">*</span>
+          }
+        </label>
       }
-      <nz-form-control [nzErrorTip]="errorTip">
-        <ng-content />
-      </nz-form-control>
-      <ng-template #errorTip>
-        <af-field-errors [errors]="errors()" />
-      </ng-template>
-    </nz-form-item>
+      <ng-content />
+      <af-field-errors [errors]="errors()" />
+    </div>
   `,
 })
 export class AfFormFieldComponent {

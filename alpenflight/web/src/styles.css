@@ -35,6 +35,24 @@
   --color-surface-fg: var(--color-slate-900);
   --color-surface-muted: var(--color-slate-500);
   --color-border: var(--color-slate-200);
+
+  /* Type scale — 1.125 minor third × 16px base (ADR 0024 typography stance).
+     Heading weights are 500 (Medium); body is 400. No Bold anywhere. */
+  --text-h1: 1.802rem; /* 28.83px */
+  --text-h2: 1.602rem; /* 25.63px */
+  --text-h3: 1.424rem; /* 22.78px */
+  --text-h4: 1.266rem; /* 20.25px */
+  --text-h5: 1.125rem; /* 18px    */
+  --text-h6: 1rem; /*     16px */
+  --text-muted: 0.875rem; /* 14px — helper / meta text */
+
+  /* Chrome dimensions (single source of truth so the top-bar height, the
+     content offset, and any sticky offset all read the same number). */
+  --space-header-h: 3.5rem; /* 56px */
+
+  /* Section gap — between major page sections (form sections, dashboard
+     blocks, etc.). 48px aligns with the comfortable density rhythm. */
+  --space-section: 3rem;
 }
 
 /* AC-DIR-2 — density-scoped tokens. data-density attribute drives the switch;
@@ -55,35 +73,146 @@
 
 /* ng-zorro → Tailwind token bridge. Tailwind tokens are authoritative;
    --ant-* variables consume them. Keep root-only; deeper-scope overrides
-   surprise consumers. */
+   surprise consumers. ng-zorro-antd.variable.min.css only exposes color
+   tokens — radius / motion / font-family must be overridden via direct
+   rules below, not via --ant-* variables. */
 :root {
   --ant-primary-color: var(--color-brand-500);
   --ant-primary-color-hover: var(--color-brand-600);
   --ant-primary-color-active: var(--color-brand-700);
-  --ant-border-radius-base: var(--radius-md);
-  --ant-font-family: var(--font-sans);
   --ant-success-color: oklch(0.65 0.18 145);
   --ant-error-color: oklch(0.6 0.22 25);
   --ant-warning-color: oklch(0.78 0.16 80);
 }
 
+/* ADR 0024 §Decision — sharp radius + restrained motion across ng-zorro.
+   Hardcoded in the antd stylesheet, so the override needs to come after
+   the @import with !important to beat per-component class selectors. */
+[class*='ant-'],
+[class*='ant-']::before,
+[class*='ant-']::after {
+  border-radius: 0 !important;
+  transition-duration: 50ms !important;
+}
+
+/* Cap finite-keyframe animations (dropdown / modal slide-down etc.).
+   Loaders, skeletons and progress are excluded — their infinite-loop
+   timing IS the visual rhythm of "ongoing" and looks frantic at 120ms. */
+[class*='ant-']:not([class*='ant-spin']):not([class*='ant-skeleton']):not([class*='ant-progress']) {
+  animation-duration: 120ms !important;
+}
+
+/* Restore semantic round shapes. Same specificity as [class*='ant-'] but
+   later in the cascade, so they win without needing !important on each. */
+.ant-avatar,
+.ant-avatar-lg,
+.ant-avatar-sm,
+.ant-avatar-circle,
+.ant-comment-avatar img,
+.ant-badge-dot,
+.ant-btn-circle,
+.ant-radio-inner,
+.ant-slider-handle,
+.ant-spin-dot-item,
+.ant-progress-circle-trail,
+.ant-progress-circle-path {
+  border-radius: 50% !important;
+}
+.ant-switch {
+  border-radius: 100px !important;
+}
+
 /* AC-DIR-3 — touch-target enforcement on comfortable density.
-   Top-level rules over per-host ::ng-deep: one source of truth. */
+   Top-level rules over per-host ::ng-deep: one source of truth.
+   Horizontal padding is bumped above antd's default (15px) so the button
+   doesn't read squished against the 44px touch-target height. */
 [data-density='comfortable'] .ant-btn,
 [data-density='comfortable'] .ant-input,
 [data-density='comfortable'] .ant-select-selector {
   min-height: 44px;
 }
-[data-density='comfortable'] .ant-btn-icon-only {
-  min-width: 44px;
+/* !important on padding because the antd variable stylesheet has many
+   cascading per-state rules (.ant-btn:hover, .ant-btn[disabled],
+   .ant-btn-primary, etc.) that re-set the padding shorthand at higher
+   specificity than [data-density='comfortable'] .ant-btn alone. */
+/* ng-zorro's .ant-select-single.ant-select carries a fixed `height: 32px`
+   that the inner .ant-select-selector inherits from. Overriding only the
+   selector inflates the visible border to 44px but leaves the outer
+   container 32px tall — the absolutely-positioned chevron stays anchored
+   to the 32px box and visually appears glued to the top of the wider
+   selector. Bumping the outer container too keeps the chevron centered.
+   Same fix applies to .ant-select-multiple (height: 32px in antd). */
+body[data-density='comfortable'] .ant-select-single,
+body[data-density='comfortable'] .ant-select-multiple {
+  height: auto !important;
+  min-height: 44px !important;
+}
+body[data-density='comfortable'] .ant-select-single .ant-select-selection-item,
+body[data-density='comfortable'] .ant-select-single .ant-select-selection-placeholder {
+  line-height: 42px !important; /* (44 - 2px border) ≈ inline content centered */
+}
+body[data-density='comfortable'] .ant-btn {
+  padding-inline: 2.5rem !important; /* 40px — generous primary-button feel */
+  font-weight: 500;
+}
+body[data-density='comfortable'] .ant-btn-sm {
+  min-height: 36px !important;
+  padding-inline: 1.5rem !important; /* 24px */
+}
+body[data-density='comfortable'] .ant-btn-lg {
+  min-height: 52px !important;
+  padding-inline: 3rem !important; /* 48px */
+  font-size: 1rem !important;
+}
+/* Icon-only buttons stay square — undo the horizontal-padding bump. */
+body[data-density='comfortable'] .ant-btn-icon-only {
+  min-width: 44px !important;
+  padding-inline: 0 !important;
 }
 [data-density='dense'] .ant-btn-icon-only {
   min-width: 28px;
   min-height: 28px;
+}
+[data-density='dense'] .ant-btn {
+  padding-inline: 0.875rem; /* 14px — denser but still readable */
 }
 
 /* Tabular numerals for data columns (flight-list, reports, etc.). Per ADR 0024
    typography stance — column alignment beats proportional rhythm on data. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* Page container + headings live in components / Tailwind utilities —
+   styles.css does not own them. See <af-page> molecule + the type-scale
+   tokens above. */
+
+/* View Transitions API — wired via withViewTransitions() in app.config.ts.
+   ADR 0024 motion clause: opacity 120ms ease-out only. No slide, no spring.
+   The top-level transition wrappers are auto-created by Angular's router. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 120ms;
+  animation-timing-function: ease-out;
+  animation-name: af-fade;
+}
+::view-transition-old(root) {
+  animation-direction: reverse;
+}
+@keyframes af-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Body baseline: slate-50 ambient background; slate-900 ink; Roboto. */
+body {
+  background: var(--color-surface-bg);
+  color: var(--color-surface-fg);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
 }

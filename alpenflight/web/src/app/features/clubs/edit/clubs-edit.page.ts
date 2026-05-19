@@ -17,10 +17,15 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
+
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
+import { AfPageComponent } from '@ui/molecules/af-page';
+import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
+import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
@@ -46,132 +51,125 @@ type ClubForm = FormGroup<{
     AfInputComponent,
     AfSelectComponent,
     AfButtonComponent,
+    AfPageComponent,
+    AfPageHeaderComponent,
+    AfPageErrorComponent,
+    NzCheckboxModule,
   ],
+  host: { class: 'block' },
   template: `
-    <header class="af-clubs-edit-header">
-      <h1>{{ isCreate() ? 'New club' : 'Edit club' }}</h1>
-    </header>
+    <af-page mode="narrow">
+      <af-page-header [title]="isCreate() ? 'New club' : 'Edit club'" />
 
-    @if (store.saveError(); as err) {
-      <p class="af-clubs-error" data-testid="clubs-save-error">{{ err }}</p>
-    }
-    @if (referenceData.loadError(); as refErr) {
-      <p class="af-clubs-error" data-testid="clubs-ref-data-error">
-        Reference data unavailable: {{ refErr }}
-      </p>
-    }
+      <af-page-error
+        [message]="store.saveError()"
+        [retryLabel]="null"
+        data-testid="clubs-save-error"
+      />
+      <af-page-error
+        [message]="referenceData.loadError() ? 'Reference data unavailable.' : null"
+        (retry)="referenceData.loadAll()"
+        data-testid="clubs-ref-data-error"
+      />
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" data-testid="clubs-edit-form" novalidate>
-      <af-form-field
-        label="Name"
-        for="clubName"
-        [required]="true"
-        [errors]="form.controls.name.touched ? form.controls.name.errors : null"
+      <form
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        data-testid="clubs-edit-form"
+        class="flex flex-col gap-2"
+        novalidate
       >
-        <af-input inputId="clubName" formControlName="name" autocomplete="off" />
-      </af-form-field>
-
-      <af-form-field
-        label="Slug"
-        for="clubSlug"
-        [required]="true"
-        [errors]="form.controls.slug.touched ? form.controls.slug.errors : null"
-      >
-        <af-input
-          inputId="clubSlug"
-          formControlName="slug"
-          autocomplete="off"
-          placeholder="lowercase-with-hyphens"
-        />
-      </af-form-field>
-
-      @if (isCreate()) {
         <af-form-field
-          label="Club key"
-          for="clubKey"
+          label="Name"
+          for="clubName"
           [required]="true"
-          [errors]="form.controls.clubKey.touched ? form.controls.clubKey.errors : null"
+          [errors]="form.controls.name.touched ? form.controls.name.errors : null"
         >
-          <af-input inputId="clubKey" formControlName="clubKey" autocomplete="off" />
+          <af-input inputId="clubName" formControlName="name" autocomplete="off" />
         </af-form-field>
-      }
 
-      <af-form-field
-        label="Country"
-        for="countryId"
-        [required]="true"
-        [errors]="form.controls.countryId.touched ? form.controls.countryId.errors : null"
-      >
-        <af-select
-          inputId="countryId"
-          formControlName="countryId"
-          placeholder="Select country"
-          [showSearch]="true"
-          [options]="countryOptions()"
-          data-testid="clubs-country-select"
-        />
-      </af-form-field>
-
-      <af-form-field
-        label="Club state"
-        for="clubStateId"
-        [required]="true"
-        [errors]="form.controls.clubStateId.touched ? form.controls.clubStateId.errors : null"
-      >
-        <af-select
-          inputId="clubStateId"
-          formControlName="clubStateId"
-          placeholder="Select state"
-          [options]="clubStateOptions()"
-          data-testid="clubs-club-state-select"
-        />
-      </af-form-field>
-
-      <label class="af-clubs-checkbox">
-        <input type="checkbox" formControlName="publicRegistrationEnabled" />
-        Enable public registration
-      </label>
-
-      <div class="af-clubs-actions">
-        <af-button htmlType="button" (clicked)="router.navigateByUrl('/clubs')"> Cancel </af-button>
-        <af-button
-          type="primary"
-          htmlType="submit"
-          [disabled]="form.invalid || saveSubmitted()"
-          data-testid="clubs-save-button"
+        <af-form-field
+          label="Slug"
+          for="clubSlug"
+          [required]="true"
+          [errors]="form.controls.slug.touched ? form.controls.slug.errors : null"
         >
-          Save
-        </af-button>
-      </div>
-    </form>
+          <af-input
+            inputId="clubSlug"
+            formControlName="slug"
+            autocomplete="off"
+            placeholder="lowercase-with-hyphens"
+          />
+        </af-form-field>
+
+        @if (isCreate()) {
+          <af-form-field
+            label="Club key"
+            for="clubKey"
+            [required]="true"
+            [errors]="form.controls.clubKey.touched ? form.controls.clubKey.errors : null"
+          >
+            <af-input inputId="clubKey" formControlName="clubKey" autocomplete="off" />
+          </af-form-field>
+        }
+
+        <af-form-field
+          label="Country"
+          for="countryId"
+          [required]="true"
+          [errors]="form.controls.countryId.touched ? form.controls.countryId.errors : null"
+        >
+          <af-select
+            inputId="countryId"
+            formControlName="countryId"
+            placeholder="Select country"
+            [showSearch]="true"
+            [options]="countryOptions()"
+            data-testid="clubs-country-select"
+          />
+        </af-form-field>
+
+        <af-form-field
+          label="Club state"
+          for="clubStateId"
+          [required]="true"
+          [errors]="form.controls.clubStateId.touched ? form.controls.clubStateId.errors : null"
+        >
+          <af-select
+            inputId="clubStateId"
+            formControlName="clubStateId"
+            placeholder="Select state"
+            [options]="clubStateOptions()"
+            data-testid="clubs-club-state-select"
+          />
+        </af-form-field>
+
+        <label
+          nz-checkbox
+          formControlName="publicRegistrationEnabled"
+          class="mt-2 mb-4 select-none"
+        >
+          Enable public registration
+        </label>
+
+        <div
+          class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200"
+        >
+          <af-button htmlType="button" (clicked)="router.navigateByUrl('/clubs')">
+            Cancel
+          </af-button>
+          <af-button
+            type="primary"
+            htmlType="submit"
+            [disabled]="form.invalid || saveSubmitted()"
+            data-testid="clubs-save-button"
+          >
+            Save
+          </af-button>
+        </div>
+      </form>
+    </af-page>
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-        padding: var(--space-row);
-        max-width: 32rem;
-      }
-      .af-clubs-edit-header {
-        margin-bottom: 1rem;
-      }
-      .af-clubs-error {
-        color: var(--ant-error-color);
-        margin-bottom: 0.75rem;
-      }
-      .af-clubs-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin: 0.5rem 0 1rem;
-      }
-      .af-clubs-actions {
-        display: flex;
-        gap: 0.5rem;
-        justify-content: flex-end;
-      }
-    `,
-  ],
 })
 export class ClubsEditPage {
   protected readonly store = inject(ClubsStore);

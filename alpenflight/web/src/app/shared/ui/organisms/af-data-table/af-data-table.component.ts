@@ -26,10 +26,11 @@ export interface PageChange {
  *     <ng-template #meta let-item>{{ item.timestamp }}</ng-template>
  *   </af-data-table>
  *
- * Layout is fully CSS-responsive: items stack vertically inside each row at
- * narrow viewports (card-like), and flow horizontally with whitespace at
- * wider viewports. Density-scoped tokens (`--space-row`, `--row-height`)
- * drive spacing; no breakpoint JS.
+ * Below md the row stacks vertically (card-like); at md and above the
+ * cells flow horizontally — primary takes remaining width, secondary
+ * sits next to it, meta is pinned to the right. The kebab / trailing
+ * action lives in #meta, which is why meta is the flex-none rightmost
+ * cell, not the wrapping one.
  *
  * The `[virtualScroll]` seam is wired but no-op — S-047 turns it on for
  * lists >500 rows.
@@ -39,27 +40,34 @@ export interface PageChange {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NgTemplateOutlet, NzEmptyModule, NzPaginationModule, NzSpinModule],
+  host: { class: 'block' },
   template: `
     @if (loading()) {
-      <nz-spin />
+      <div class="flex justify-center py-12">
+        <nz-spin />
+      </div>
     } @else if (items().length === 0) {
       <nz-empty />
     } @else {
-      <ul role="list" class="af-list">
+      <ul role="list" class="flex flex-col gap-2 list-none m-0 p-0">
         @for (item of items(); track item) {
-          <li class="af-list-item">
-            <div class="af-list-primary">
-              @if (primary(); as tpl) {
-                <ng-container *ngTemplateOutlet="tpl; context: { $implicit: item }" />
+          <li
+            class="flex items-center gap-4 p-4 bg-white border border-slate-200 hover:border-slate-300"
+          >
+            <div class="flex-1 min-w-0 flex flex-col gap-0.5">
+              <div class="font-medium truncate">
+                @if (primary(); as tpl) {
+                  <ng-container *ngTemplateOutlet="tpl; context: { $implicit: item }" />
+                }
+              </div>
+              @if (secondary(); as tpl) {
+                <div class="text-sm text-slate-500 truncate">
+                  <ng-container *ngTemplateOutlet="tpl; context: { $implicit: item }" />
+                </div>
               }
             </div>
-            @if (secondary(); as tpl) {
-              <div class="af-list-secondary">
-                <ng-container *ngTemplateOutlet="tpl; context: { $implicit: item }" />
-              </div>
-            }
             @if (meta(); as tpl) {
-              <div class="af-list-meta">
+              <div class="flex-none">
                 <ng-container *ngTemplateOutlet="tpl; context: { $implicit: item }" />
               </div>
             }
@@ -68,7 +76,7 @@ export interface PageChange {
       </ul>
       @if (showPagination()) {
         <nz-pagination
-          class="af-list-pagination"
+          class="block mt-3"
           [nzPageSize]="pageSize()"
           [nzTotal]="total() ?? items().length"
           (nzPageIndexChange)="onPageIndexChange($event)"
@@ -76,64 +84,6 @@ export interface PageChange {
       }
     }
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-      .af-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-row);
-      }
-      .af-list-item {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-        padding: var(--space-field);
-        border: 1px solid var(--ant-border-color-base, #f0f0f0);
-        border-radius: var(--radius-md);
-        background: #fff;
-      }
-      @container (min-width: 768px) {
-        .af-list-item {
-          flex-direction: row;
-          align-items: center;
-          gap: 1rem;
-        }
-        .af-list-primary {
-          flex: 1 1 auto;
-        }
-        .af-list-secondary {
-          flex: 0 1 auto;
-          opacity: 0.85;
-        }
-        .af-list-meta {
-          flex: 0 0 auto;
-          opacity: 0.7;
-          font-size: 0.875rem;
-        }
-      }
-      .af-list-primary {
-        font-weight: 500;
-      }
-      .af-list-secondary {
-        font-size: 0.875rem;
-        opacity: 0.85;
-      }
-      .af-list-meta {
-        font-size: 0.75rem;
-        opacity: 0.7;
-      }
-      .af-list-pagination {
-        margin-top: 0.75rem;
-        display: block;
-      }
-    `,
-  ],
 })
 export class AfDataTableComponent<T> {
   readonly items = input.required<readonly T[]>();
