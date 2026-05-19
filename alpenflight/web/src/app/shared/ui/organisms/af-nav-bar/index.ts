@@ -1,1 +1,6 @@
-export { AfNavBarComponent, type NavItem } from './af-nav-bar.component';
+export {
+  AfNavBarComponent,
+  type Locale,
+  type NavItem,
+  type UserSummary,
+} from './af-nav-bar.component';

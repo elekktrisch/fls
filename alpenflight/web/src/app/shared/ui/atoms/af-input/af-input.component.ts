@@ -29,10 +29,11 @@ import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
       multi: true,
     },
   ],
+  host: { class: 'block' },
   template: `
     <input
       #inputEl
-      class="af-input"
+      class="w-full h-11 px-3 bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-[1px] aria-invalid:border-red-600 disabled:bg-slate-50 disabled:text-slate-400"
       [attr.id]="inputId() || null"
       [type]="type()"
       [attr.inputmode]="inputmode()"
@@ -47,29 +48,6 @@ import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
       (blur)="onTouched()"
     />
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-      .af-input {
-        width: 100%;
-        min-height: var(--row-height);
-        padding: 0 0.75rem;
-        border: 1px solid var(--ant-border-color-base, #d9d9d9);
-        border-radius: var(--radius-md);
-        font: inherit;
-        background: #fff;
-      }
-      .af-input:focus-visible {
-        outline: 2px solid var(--color-brand-500);
-        outline-offset: 1px;
-      }
-      .af-input[aria-invalid='true'] {
-        border-color: var(--ant-error-color);
-      }
-    `,
-  ],
 })
 export class AfInputComponent implements ControlValueAccessor {
   private readonly inputEl = viewChild.required<ElementRef<HTMLInputElement>>('inputEl');
@@ -77,9 +55,7 @@ export class AfInputComponent implements ControlValueAccessor {
 
   /**
    * Stamped onto the inner native `<input>` so a sibling `<label for="X">`
-   * can target the actual focusable element, not the `<af-input>` host. Use
-   * this instead of binding `id=` on the `<af-input>` tag itself (which
-   * would attach the id to the host but leave the inner input unreachable).
+   * can target the actual focusable element, not the `<af-input>` host.
    */
   readonly inputId = input<string>('');
 

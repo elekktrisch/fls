@@ -7,14 +7,14 @@ the application's `SessionStore`.
 
 ## What's here
 
-| File | Role |
-|---|---|
-| `auth.config.ts` | Single source of truth for the OIDC `OpenIdConfiguration` (authority, secureRoutes, silent renew, ui_locales). |
-| `oidc-claims.ts` | Pure mapper: Keycloak claim payload → `SessionStore.User`. Drops unknown realm roles; tolerates a missing `clubId`. |
+| File                     | Role                                                                                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.config.ts`         | Single source of truth for the OIDC `OpenIdConfiguration` (authority, secureRoutes, silent renew, ui_locales).                                             |
+| `oidc-claims.ts`         | Pure mapper: Keycloak claim payload → `SessionStore.User`. Drops unknown realm roles; tolerates a missing `clubId`.                                        |
 | `oidc-session-bridge.ts` | Wires `oidcSecurity.userData()` signal + `PublicEventsService` events into `SessionStore`. Single seam — no other component injects `OidcSecurityService`. |
-| `auth-callback.page.ts` | Landing page for the `/auth/callback` redirect. The library handles the token exchange; this page renders a placeholder. |
-| `logout.page.ts` | RP-initiated logout — clears SessionStore synchronously, then `oidcSecurity.logoff()`. |
-| `auth.routes.ts` | `/auth/callback` + `/auth/logout` routes, both `publicAccess: true`. |
+| `auth-callback.page.ts`  | Landing page for the `/auth/callback` redirect. The library handles the token exchange; this page renders a placeholder.                                   |
+| `logout.page.ts`         | RP-initiated logout — clears SessionStore synchronously, then `oidcSecurity.logoff()`.                                                                     |
+| `auth.routes.ts`         | `/auth/callback` + `/auth/logout` routes, both `publicAccess: true`.                                                                                       |
 
 ## How auth flows
 

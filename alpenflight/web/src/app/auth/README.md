@@ -10,12 +10,12 @@ deep-dive on the OIDC integration itself lives in
 Root-scoped (`providedIn: 'root'`). Holds claims-derived state only — never
 raw tokens. Field surface today:
 
-| Field | Type | Notes |
-|---|---|---|
-| `authenticatedUser` | `User \| null` | `id`, `username`, `email`, `firstName`, `lastName`, `clubId`, `roles[]`. All of `username`/`email`/`firstName`/`lastName` are PII (FADP / GDPR). |
-| `currentClubId` | `string \| null` | Tenant binding. Server enforces tenant from JWT — UI value is advisory. |
-| `sessionStatus` | `'idle' \| 'loading' \| 'authenticated' \| 'unauthenticated'` | `'idle'` ≠ `'unauthenticated'` so guards can distinguish "OIDC still resolving" from "definitely logged out." |
-| `bootstrapStartedAt` | `number \| null` | Idempotence gate for `bootstrapPrefetch()`. |
+| Field                | Type                                                          | Notes                                                                                                                                            |
+| -------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `authenticatedUser`  | `User \| null`                                                | `id`, `username`, `email`, `firstName`, `lastName`, `clubId`, `roles[]`. All of `username`/`email`/`firstName`/`lastName` are PII (FADP / GDPR). |
+| `currentClubId`      | `string \| null`                                              | Tenant binding. Server enforces tenant from JWT — UI value is advisory.                                                                          |
+| `sessionStatus`      | `'idle' \| 'loading' \| 'authenticated' \| 'unauthenticated'` | `'idle'` ≠ `'unauthenticated'` so guards can distinguish "OIDC still resolving" from "definitely logged out."                                    |
+| `bootstrapStartedAt` | `number \| null`                                              | Idempotence gate for `bootstrapPrefetch()`.                                                                                                      |
 
 Computed signals (read-only views): `isAuthenticated`, `isLoadingSession`,
 `isClubAdmin`, `isSystemAdmin`.
@@ -47,12 +47,12 @@ Code-review checklist for every new field on `SessionStore`:
 
 Functional `CanActivateFn`, default-deny. Decision table:
 
-| Route data | sessionStatus | Result |
-|---|---|---|
-| `publicAccess === true` | any | `true` |
-| any | `idle` / `loading` | `false` (defer; OIDC init settles via the bridge) |
-| not public | `authenticated` | `true` |
-| not public | `unauthenticated` | `oidcSecurity.authorize()` + `false` (hard redirect to Keycloak) |
+| Route data              | sessionStatus      | Result                                                           |
+| ----------------------- | ------------------ | ---------------------------------------------------------------- |
+| `publicAccess === true` | any                | `true`                                                           |
+| any                     | `idle` / `loading` | `false` (defer; OIDC init settles via the bridge)                |
+| not public              | `authenticated`    | `true`                                                           |
+| not public              | `unauthenticated`  | `oidcSecurity.authorize()` + `false` (hard redirect to Keycloak) |
 
 The `false` (defer) branch normally never fires under the cold-start
 path — `withAppInitializerAuthCheck()` blocks bootstrap until `checkAuth()`

@@ -1,9 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzDrawerModule } from 'ng-zorro-antd/drawer';
-import { NzIconModule } from 'ng-zorro-antd/icon';
-import { NzLayoutModule } from 'ng-zorro-antd/layout';
-import { NzMenuModule } from 'ng-zorro-antd/menu';
+import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 
 import { AfIconComponent } from '../../atoms/af-icon';
 import { ViewportService } from '../../viewport';
@@ -14,97 +20,208 @@ export interface NavItem {
   readonly icon?: string;
 }
 
+export interface UserSummary {
+  readonly displayName: string;
+  readonly initials: string;
+}
+
+export type Locale = 'de' | 'fr' | 'it' | 'en';
+
+const LOCALE_LABELS: Record<Locale, string> = {
+  de: 'Deutsch',
+  fr: 'Français',
+  it: 'Italiano',
+  en: 'English',
+};
+
 /**
- * Hub-and-spoke nav. Above `md` renders a fixed left rail
- * (`nz-layout-sider` + `nz-menu`). Below `md` collapses to a drawer
- * triggered by a top-bar hamburger.
+ * Top-bar primary nav (ADR 0024 §Decision).
+ *
+ *   ┌────────────────────────────────────────────────────────────────┐
+ *   │ [✈ AlpenFlight]  Clubs  Flights  Members         [👤 user ▾]   │
+ *   └────────────────────────────────────────────────────────────────┘
+ *
+ * Single-layer, 56px tall. Below md, sections collapse to a hamburger
+ * drawer; the bar shows hamburger + brand + user avatar.
+ *
+ * Active section indicator: brand-500 underline.
  */
 @Component({
   selector: 'af-nav-bar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    NzLayoutModule,
-    NzMenuModule,
-    NzDrawerModule,
-    NzIconModule,
-    RouterLink,
-    RouterLinkActive,
-    AfIconComponent,
-  ],
+  imports: [NzDrawerModule, NzDropDownModule, RouterLink, RouterLinkActive, AfIconComponent],
+  host: { class: 'block' },
   template: `
-    @if (isWide()) {
-      <nz-sider [nzWidth]="220" nzTheme="light">
-        <ul nz-menu nzMode="inline">
-          @for (item of items(); track item.path) {
-            <li nz-menu-item [routerLink]="item.path" routerLinkActive="ant-menu-item-selected">
-              @if (item.icon) {
-                <nz-icon [nzType]="item.icon" />
-              }
-              <span>{{ item.label }}</span>
-            </li>
-          }
-        </ul>
-      </nz-sider>
-    } @else {
-      <header class="af-mobile-bar">
+    <header
+      role="banner"
+      class="sticky top-0 z-50 flex items-center gap-3 h-14 px-4 bg-white border-b border-slate-200 md:gap-6 md:px-6 lg:px-8 xl:px-12"
+    >
+      <!-- Below-md hamburger -->
+      @if (!isWide()) {
         <button
           type="button"
-          class="af-burger"
+          class="bg-transparent border-0 p-0 w-11 h-11 inline-flex items-center justify-center cursor-pointer text-slate-900"
           [attr.aria-label]="'Open navigation'"
+          data-testid="af-nav-burger"
           (click)="openDrawer()"
         >
-          <nz-icon nzType="menu" />
+          <af-icon name="menu" [size]="20" />
         </button>
-        <af-icon name="plane" [size]="20" class="text-brand-500" />
-        <strong>{{ title() }}</strong>
-      </header>
-      <nz-drawer
-        [nzVisible]="drawerOpen()"
-        nzPlacement="left"
-        [nzClosable]="true"
-        (nzOnClose)="closeDrawer()"
+      }
+
+      <!-- Brand -->
+      <a
+        [routerLink]="brandHref()"
+        class="inline-flex items-center gap-2 flex-none text-slate-900 no-underline font-medium"
+        data-testid="af-nav-brand"
       >
-        <ng-container *nzDrawerContent>
-          <ul nz-menu nzMode="inline">
+        <af-icon name="plane" [size]="22" class="text-brand-500" />
+        <span class="text-lg tracking-tight">{{ title() }}</span>
+      </a>
+
+      <!-- Section tabs (above md only) -->
+      @if (isWide()) {
+        <nav class="flex items-stretch gap-1 h-full ml-2" aria-label="Primary">
+          @for (item of items(); track item.path) {
+            <a
+              [routerLink]="item.path"
+              routerLinkActive="!text-slate-900 !border-brand-500"
+              class="inline-flex items-center px-3.5 text-[15px] text-slate-600 no-underline border-b-2 border-transparent -mb-px hover:text-slate-900"
+              [attr.data-testid]="'af-nav-section-' + item.path"
+            >
+              {{ item.label }}
+            </a>
+          }
+        </nav>
+      }
+
+      <span class="flex-1"></span>
+
+      <!-- User menu (right) -->
+      @if (user(); as u) {
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 bg-transparent border-0 px-2 py-1 cursor-pointer text-slate-900 min-h-10 hover:bg-slate-50"
+          nz-dropdown
+          [nzDropdownMenu]="userMenu"
+          nzTrigger="click"
+          nzPlacement="bottomRight"
+          data-testid="af-nav-user"
+          [attr.aria-label]="'Account menu for ' + u.displayName"
+        >
+          <span
+            class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-100 text-brand-700 text-[13px] font-medium"
+            aria-hidden="true"
+            >{{ u.initials }}</span
+          >
+          @if (isWide()) {
+            <af-icon name="chevron-down" [size]="16" />
+          }
+        </button>
+        <nz-dropdown-menu #userMenu="nzDropdownMenu">
+          <ul
+            class="list-none m-0 p-1 min-w-[12.5rem] bg-white border border-slate-200"
+            role="menu"
+          >
+            <li role="presentation" class="px-3 py-2 text-sm text-slate-500 font-medium">
+              {{ u.displayName }}
+            </li>
+            <li role="presentation" class="h-px bg-slate-200 my-1" aria-hidden="true"></li>
+            <li role="none">
+              <a
+                role="menuitem"
+                class="flex items-center gap-2.5 w-full px-3 py-2 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
+                routerLink="/profile"
+              >
+                <af-icon name="user" [size]="16" />
+                <span>Profile</span>
+              </a>
+            </li>
+            <li role="none">
+              <a
+                role="menuitem"
+                class="flex items-center gap-2.5 w-full px-3 py-2 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
+                routerLink="/settings"
+              >
+                <af-icon name="settings" [size]="16" />
+                <span>Settings</span>
+              </a>
+            </li>
+            <li role="presentation" class="h-px bg-slate-200 my-1" aria-hidden="true"></li>
+            <li
+              role="presentation"
+              class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500"
+            >
+              <af-icon name="globe" [size]="16" />
+              <span>Language</span>
+            </li>
+            @for (loc of locales; track loc) {
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="flex items-center justify-between gap-2.5 w-full pl-8 pr-3 py-2 bg-transparent border-0 text-[15px] cursor-pointer text-left hover:bg-slate-50"
+                  [class.text-brand-700]="loc === locale()"
+                  [class.text-slate-900]="loc !== locale()"
+                  (click)="localeChange.emit(loc)"
+                >
+                  <span>{{ localeLabel(loc) }}</span>
+                  @if (loc === locale()) {
+                    <af-icon name="check" [size]="14" />
+                  }
+                </button>
+              </li>
+            }
+            <li role="presentation" class="h-px bg-slate-200 my-1" aria-hidden="true"></li>
+            <li role="none">
+              <a
+                role="menuitem"
+                class="flex items-center gap-2.5 w-full px-3 py-2 text-[15px] text-red-600 no-underline cursor-pointer text-left hover:bg-slate-50"
+                routerLink="/auth/logout"
+                data-testid="af-nav-logout"
+              >
+                <af-icon name="log-out" [size]="16" />
+                <span>Sign out</span>
+              </a>
+            </li>
+          </ul>
+        </nz-dropdown-menu>
+      }
+    </header>
+
+    <!-- Mobile drawer (sections only; user menu stays in the bar) -->
+    <nz-drawer
+      [nzVisible]="drawerOpen()"
+      nzPlacement="left"
+      [nzClosable]="true"
+      [nzWidth]="280"
+      nzTitle="Navigation"
+      (nzOnClose)="closeDrawer()"
+    >
+      <ng-container *nzDrawerContent>
+        <nav aria-label="Primary mobile">
+          <ul class="list-none m-0 p-0 flex flex-col gap-1">
             @for (item of items(); track item.path) {
-              <li nz-menu-item routerLinkActive="ant-menu-item-selected">
-                <a [routerLink]="item.path" (click)="closeDrawer()">
+              <li>
+                <a
+                  [routerLink]="item.path"
+                  routerLinkActive="!border-brand-500 !text-brand-700 !font-medium"
+                  class="flex items-center gap-2.5 py-3 px-2 text-slate-900 no-underline border-l-[3px] border-transparent"
+                  (click)="closeDrawer()"
+                >
                   @if (item.icon) {
-                    <nz-icon [nzType]="item.icon" />
+                    <af-icon [name]="item.icon" [size]="18" />
                   }
                   <span>{{ item.label }}</span>
                 </a>
               </li>
             }
           </ul>
-        </ng-container>
-      </nz-drawer>
-    }
+        </nav>
+      </ng-container>
+    </nz-drawer>
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-      .af-mobile-bar {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.5rem 1rem;
-        border-bottom: 1px solid var(--ant-border-color-base, #d9d9d9);
-        background: #fff;
-      }
-      .af-burger {
-        background: none;
-        border: 0;
-        font-size: 1.25rem;
-        min-width: 44px;
-        min-height: 44px;
-        cursor: pointer;
-      }
-    `,
-  ],
 })
 export class AfNavBarComponent {
   readonly #viewport = inject(ViewportService);
@@ -112,6 +229,16 @@ export class AfNavBarComponent {
 
   readonly items = input.required<readonly NavItem[]>();
   readonly title = input<string>('AlpenFlight');
+  readonly brandHref = input<string>('/');
+  readonly user = input<UserSummary | null>(null);
+  readonly locale = input<Locale>('de');
+
+  readonly localeChange = output<Locale>();
+
+  protected readonly locales: readonly Locale[] = ['de', 'fr', 'it', 'en'];
+  protected localeLabel(loc: Locale): string {
+    return LOCALE_LABELS[loc];
+  }
 
   readonly #drawerOpen = signal(false);
   protected readonly drawerOpen = this.#drawerOpen.asReadonly();

@@ -1,44 +1,45 @@
 @import 'tailwindcss';
 @import 'ng-zorro-antd/ng-zorro-antd.variable.min.css';
 
-/* Roboto webfont — self-hosted via @fontsource/roboto. CSP allows style-src
-   'self' only, so external Google Fonts is not an option. */
 @import '@fontsource/roboto/400.css';
 @import '@fontsource/roboto/500.css';
 @import '@fontsource/roboto/700.css';
 
 @theme {
-  /* Brand palette (OKLCH for perceptual uniformity). */
   --color-brand-50: oklch(0.97 0.014 254.6);
   --color-brand-100: oklch(0.93 0.034 254.6);
   --color-brand-500: oklch(0.62 0.18 254.6);
   --color-brand-600: oklch(0.55 0.2 254.6);
   --color-brand-700: oklch(0.47 0.2 254.6);
 
-  /* Type. Roboto everywhere per operator directive (2026-05-17). */
   --font-sans: 'Roboto', system-ui, sans-serif;
   --font-display: 'Roboto', system-ui, sans-serif;
 
-  /* AC-DIR-1 — breakpoint tokens. */
   --breakpoint-sm: 360px;
   --breakpoint-md: 768px;
   --breakpoint-lg: 1024px;
   --breakpoint-xl: 1440px;
 
-  /* Radii. Sharp per ADR 0024 §Decision — 2px max for any exception. */
   --radius-md: 0;
 
-  /* Semantic surface tokens — backed by Tailwind's slate scale. Keep the
-     color-named tokens as the source values so a future dark theme (v2) is
-     a single PR swap rather than a refactor (ADR 0024 §Decision). */
   --color-surface-bg: var(--color-slate-50);
   --color-surface-fg: var(--color-slate-900);
   --color-surface-muted: var(--color-slate-500);
   --color-border: var(--color-slate-200);
+
+  --text-h1: 1.802rem; /* 28.83px */
+  --text-h2: 1.602rem; /* 25.63px */
+  --text-h3: 1.424rem; /* 22.78px */
+  --text-h4: 1.266rem; /* 20.25px */
+  --text-h5: 1.125rem; /* 18px    */
+  --text-h6: 1rem; /*     16px */
+  --text-muted: 0.875rem; /* 14px — helper / meta text */
+
+  --space-header-h: 3.5rem; /* 56px */
+
+  --space-section: 3rem;
 }
 
-/* AC-DIR-2 — density-scoped tokens. data-density attribute drives the switch;
-   <af-density-provider> sets it. */
 :root,
 [data-density='comfortable'] {
   --space-row: 0.75rem;
@@ -53,37 +54,153 @@
   --row-height: 1.75rem; /* 28 px for dense-desktop */
 }
 
-/* ng-zorro → Tailwind token bridge. Tailwind tokens are authoritative;
-   --ant-* variables consume them. Keep root-only; deeper-scope overrides
-   surprise consumers. */
 :root {
   --ant-primary-color: var(--color-brand-500);
   --ant-primary-color-hover: var(--color-brand-600);
   --ant-primary-color-active: var(--color-brand-700);
-  --ant-border-radius-base: var(--radius-md);
-  --ant-font-family: var(--font-sans);
   --ant-success-color: oklch(0.65 0.18 145);
   --ant-error-color: oklch(0.6 0.22 25);
   --ant-warning-color: oklch(0.78 0.16 80);
 }
 
-/* AC-DIR-3 — touch-target enforcement on comfortable density.
-   Top-level rules over per-host ::ng-deep: one source of truth. */
+[class*='ant-'],
+[class*='ant-']::before,
+[class*='ant-']::after {
+  border-radius: 0 !important;
+  transition-duration: 50ms !important;
+}
+
+[class*='ant-']:not([class*='ant-spin']):not([class*='ant-skeleton']):not([class*='ant-progress']) {
+  animation-duration: 50ms !important;
+}
+
+.ant-avatar,
+.ant-avatar-lg,
+.ant-avatar-sm,
+.ant-avatar-circle,
+.ant-comment-avatar img,
+.ant-badge-dot,
+.ant-btn-circle,
+.ant-radio-inner,
+.ant-slider-handle,
+.ant-spin-dot-item,
+.ant-progress-circle-trail,
+.ant-progress-circle-path {
+  border-radius: 50% !important;
+}
+.ant-switch {
+  border-radius: 100px !important;
+}
+
 [data-density='comfortable'] .ant-btn,
 [data-density='comfortable'] .ant-input,
 [data-density='comfortable'] .ant-select-selector {
   min-height: 44px;
 }
-[data-density='comfortable'] .ant-btn-icon-only {
-  min-width: 44px;
+
+body[data-density='comfortable'] .ant-select-single,
+body[data-density='comfortable'] .ant-select-multiple {
+  height: auto !important;
+  min-height: 44px !important;
+}
+/* Match the af-input visual: slate-300 border, slate-50 disabled bg,
+   brand-500 outline on focus (NOT antd's blue border + box-shadow ring).
+   `.ant-select-selector` is the visible bordered box. */
+body[data-density='comfortable'] .ant-select-selector {
+  border-color: var(--color-slate-300) !important;
+  padding-inline: 0.75rem !important; /* 12px — matches af-input's px-3 */
+}
+body[data-density='comfortable']
+  .ant-select-focused:not(.ant-select-disabled):not(.ant-select-customize-input):not(
+    .ant-pagination-size-changer
+  )
+  .ant-select-selector,
+body[data-density='comfortable']
+  .ant-select-open:not(.ant-select-disabled):not(.ant-select-customize-input):not(
+    .ant-pagination-size-changer
+  )
+  .ant-select-selector {
+  border-color: var(--color-slate-300) !important;
+  box-shadow: none !important;
+  outline: 2px solid var(--color-brand-500) !important;
+  outline-offset: 1px !important;
+}
+body[data-density='comfortable'] .ant-select-single .ant-select-selection-item,
+body[data-density='comfortable'] .ant-select-single .ant-select-selection-placeholder {
+  line-height: 42px !important; /* (44 - 2px border) ≈ inline content centered */
+  font-size: 1rem !important; /* 16px — match af-input body size */
+}
+/* antd's .ant-select-single sets font-size: 14px on the outer container,
+   which cascades to the search-input and to the dropdown menu items.
+   Lift everything to 16px so visual rhythm matches af-input. */
+body[data-density='comfortable'] .ant-select-single,
+body[data-density='comfortable']
+  .ant-select-single
+  .ant-select-selector
+  .ant-select-selection-search-input {
+  font-size: 1rem !important;
+}
+
+body[data-density='comfortable']
+  .ant-select-single
+  .ant-select-selector
+  .ant-select-selection-search-input {
+  height: 100% !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+body[data-density='comfortable'] .ant-btn {
+  padding-inline: 2.5rem !important; /* 40px — generous primary-button feel */
+  font-weight: 500;
+}
+body[data-density='comfortable'] .ant-btn-sm {
+  min-height: 36px !important;
+  padding-inline: 1.5rem !important; /* 24px */
+}
+body[data-density='comfortable'] .ant-btn-lg {
+  min-height: 52px !important;
+  padding-inline: 3rem !important; /* 48px */
+  font-size: 1rem !important;
+}
+/* Icon-only buttons stay square — undo the horizontal-padding bump. */
+body[data-density='comfortable'] .ant-btn-icon-only {
+  min-width: 44px !important;
+  padding-inline: 0 !important;
 }
 [data-density='dense'] .ant-btn-icon-only {
   min-width: 28px;
   min-height: 28px;
 }
+[data-density='dense'] .ant-btn {
+  padding-inline: 0.875rem; /* 14px — denser but still readable */
+}
 
-/* Tabular numerals for data columns (flight-list, reports, etc.). Per ADR 0024
-   typography stance — column alignment beats proportional rhythm on data. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 50ms;
+  animation-timing-function: ease-out;
+  animation-name: af-fade;
+}
+::view-transition-old(root) {
+  animation-direction: reverse;
+}
+@keyframes af-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+body {
+  background: var(--color-surface-bg);
+  color: var(--color-surface-fg);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
 }

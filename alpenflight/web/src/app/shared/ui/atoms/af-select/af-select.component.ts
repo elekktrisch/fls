@@ -30,8 +30,10 @@ export interface AfSelectOption<T> {
       multi: true,
     },
   ],
+  host: { class: 'block w-full' },
   template: `
     <nz-select
+      class="w-full"
       [nzSize]="nzSize()"
       [nzPlaceHolder]="placeholder()"
       [nzShowSearch]="showSearch()"
@@ -49,13 +51,6 @@ export interface AfSelectOption<T> {
       }
     </nz-select>
   `,
-  styles: [
-    `
-      :host {
-        display: block;
-      }
-    `,
-  ],
 })
 export class AfSelectComponent<T> implements ControlValueAccessor {
   readonly #density = inject(DensityService);
