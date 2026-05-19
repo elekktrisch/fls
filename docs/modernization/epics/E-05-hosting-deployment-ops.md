@@ -22,7 +22,7 @@ Build the production-deploy story for the multi-tenant SaaS: production Docker i
 - [ ] S-045 — K8s-migration trigger criteria (written threshold)
 - [ ] S-046 — Helm/Kustomize manifest stub mirroring compose topology
 - [ ] S-151 — Production Keycloak deployment
-- [ ] S-152 — Rename `alpenflight/` → `alpenflight/` working subtree
+- [ ] S-152 — Rename `next/` → `alpenflight/` working subtree
 
 ## Done when
 - A clean VPS can be brought from zero to running production stack via documented steps in <2 hours.

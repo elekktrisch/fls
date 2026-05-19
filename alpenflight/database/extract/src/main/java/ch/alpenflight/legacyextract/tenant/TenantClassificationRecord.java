@@ -8,7 +8,7 @@ import java.util.List;
  * S-023 (unscoped contexts), S-024 (leakage CI), S-025 (public-flow resolver).
  *
  * @param legacyTable        legacy SQL Server table name as it appears in S-010's {@code tables.json}
- * @param targetEntity       next-system JPA entity name (e.g. {@code Flight} for legacy {@code Flights})
+ * @param targetEntity       AlpenFlight JPA entity name (e.g. {@code Flight} for legacy {@code Flights})
  * @param legacyScope        classification of the legacy shape — consumed by S-016 migration
  * @param targetScope        classification S-022 / S-024 act on (may differ from legacyScope when S-013 reshapes)
  * @param tenantColumn       column name carrying the tenant identifier in the target schema; null for non-tenant-scoped

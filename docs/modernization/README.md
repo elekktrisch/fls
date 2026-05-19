@@ -17,7 +17,7 @@ These are baked into the skills via [`00-seed.md`](00-seed.md). They are **not**
 
 - **Strategy:** greenfield rewrite of both `flsserver` and `flsweb`. Database is in scope only if a viable data-migration path exists.
 - **Coexistence:** AlpenFlight is a multi-tenant SaaS — each legacy FLS deployment onboards independently via the export-JAR + UI-upload flow (epic E-15) on its own schedule. No centralized cutover event; old and new run side-by-side per-tenant until that tenant uploads.
-- **Target repo layout:** new code lives under a single top-level subtree `alpenflight/` (working slug — rename to `alpenflight/` tracked by S-152), with sub-folders `alpenflight/server/`, `alpenflight/web/`, `alpenflight/database/`, `alpenflight/auth/`, `alpenflight/ops/`, `alpenflight/migration-bundle/`, and `alpenflight/migration-tool/`. The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repository.
+- **Target repo layout:** new code lives under a single top-level subtree `alpenflight/` (renamed from `next/` in S-152), with sub-folders `alpenflight/server/`, `alpenflight/web/`, `alpenflight/database/`, `alpenflight/auth/`, `alpenflight/ops/`, `alpenflight/migration-bundle/`, and `alpenflight/migration-tool/`. The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repository.
 - **Artifact tracking:** markdown-only for now. GitHub-issue sync deferred until there are stories worth tracking.
 
 Everything else — backend language, frontend framework, database, auth, hosting, observability — is **decided by the workflow** via ADRs.

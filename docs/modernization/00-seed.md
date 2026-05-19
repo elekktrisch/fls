@@ -20,7 +20,7 @@ The existing docs at the repo root are authoritative reading before any phase ru
 
 - **Strategy:** greenfield rewrite. Not strangler-fig, not in-place upgrade. New code is written from scratch in sibling folders.
 - **Coexistence model:** AlpenFlight is a self-service SaaS — each legacy FLS deployment onboards independently via the export-JAR + UI-upload flow (epic E-15), on its own schedule. There is no centralized cutover event. Old and new run side-by-side per-tenant until that tenant uploads and is provisioned. No reverse-proxy bridge, no shared session, no shared DB writes.
-- **Repo layout:** new code lives under a single top-level subtree, working slug `alpenflight/` (rename to `alpenflight/` tracked by S-152), with sub-folders:
+- **Repo layout:** new code lives under a single top-level subtree `alpenflight/` (renamed from `next/` in S-152), with sub-folders:
   - `alpenflight/server/` — Spring Boot service
   - `alpenflight/web/` — Angular frontend
   - `alpenflight/database/` — Flyway migrations, seed data, test fixtures

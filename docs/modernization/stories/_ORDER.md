@@ -282,7 +282,7 @@ The migration-path feature introduced by vision amendment 2026-05-17c. Reorders 
 - S-045 — S — K8s-migration trigger criteria (pure documentation, can fire any time once S-044 lands)
 - S-091 — M — Production SMTP relay selection (deps S-082, S-044)
 - S-151 — M — Production Keycloak deployment (deps S-019, S-041, S-044, S-042)
-- S-152 — S — Rename `alpenflight/` → `alpenflight/` working subtree (no deps; fires whenever)
+- S-152 — S — Rename `next/` → `alpenflight/` working subtree (no deps; fires whenever)
 
 ## Phase L — Production observability (production-side telemetry)
 

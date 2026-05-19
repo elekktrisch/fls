@@ -176,7 +176,7 @@ Things that surfaced during elicitation but aren't decided:
 - **EPPlus license verification.** R4 — need to confirm what version is pinned in `flsserver/`. Output of the verification feeds the Excel-export ADR.
 - **Production performance baseline.** Performance NFRs are "don't regress" — we need a one-time measurement of current p95s on the top 5 routes so the new system has something to compare against. Schedule for phase 4 or earlier.
 - **Audit-log scope per endpoint.** C12 says "every mutating endpoint". Define what fields the audit record carries (actor, before/after JSON?) during phase 3 or early phase 4.
-- **Product slug + final folder name.** *(resolved 2026-05-17c.)* The working slug `alpenflight/` is being renamed to `alpenflight/` via S-152. Fires whenever; no calendar dependency.
+- **Product slug + final folder name.** *(resolved 2026-05-19 by S-152.)* Working subtree renamed from `next/` to `alpenflight/`; product is AlpenFlight.
 - **Demo / try-it mode for unsigned-in visitors.** *(noted 2026-05-15; resolved 2026-05-17c.)* Chosen shape: option (b), the sandbox tenant that resets nightly and accepts writes from anonymous demo sessions. Tracked in epic **E-15** (S-135 seeds + S-136 anonymous-session scoping). Multi-tenancy plumbing reuses the standard `@TenantId` path; ADR 0018 locks the `sandbox` lifecycle state and the anonymous-session contract.
 
 ### Phase-3 ADR candidates implied by the 2026-05-15a amendment

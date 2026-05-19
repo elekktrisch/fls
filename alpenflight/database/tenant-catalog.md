@@ -202,7 +202,7 @@ MD + `tenant-rules.yaml`.
 
 - `legacy_table` matches S-010's `tables.json[*].table_name` verbatim
   (e.g. `Flights`, `PersonClub`).
-- `target_entity` matches the next-system JPA entity name
+- `target_entity` matches the AlpenFlight JPA entity name
   (e.g. `Flight`, `PersonClub`). Singular for entity tables, retains the
   legacy spelling for join tables.
 - `tenant_column` is `club_id` (snake_case, target schema convention) on every
