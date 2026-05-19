@@ -32,7 +32,8 @@ Methods:
   clear). Exits the guard's loading-defer branch so
   `oidcSecurity.authorize()` can fire.
 - `bootstrapPrefetch()` — AC-DIR-1 seam; only fires when authenticated,
-  stamps `bootstrapStartedAt`. Wires real per-domain prefetch at S-047+.
+  stamps `bootstrapStartedAt`. Fans out to `ReferenceDataStore.loadAll()`
+  today; future masterdata stores (aircraft, persons, …) plug in here.
 
 ### PII policy
 
@@ -111,7 +112,7 @@ for them and `AppComponent` skips the prefetch call. Unauthenticated
 visits to any other route trigger `oidcSecurity.authorize()` — a hard
 redirect to Keycloak — instead of a local `/login` URL.
 
-## Cross-tenant safety (forward-looking, S-021/S-047)
+## Cross-tenant safety
 
 - `providedIn: 'root'` stores survive logout / tenant switch. Every store
   MUST subscribe to the bus and `.clear()` on `session.logout` +
