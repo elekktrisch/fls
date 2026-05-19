@@ -64,6 +64,23 @@ The consumer is responsible for matching `<af-form-field [for]="X">` with the pr
 
 Auto-wiring is not done today; the first feature consumer drives the decision.
 
+## Reactive Forms convention (S-007)
+
+Reference: `src/app/features/clubs/edit/clubs-edit.page.ts` is the canonical typed-FormGroup form. New domain edit pages copy its shape; convention extracts below.
+
+- **Validators live in the form definition** (`FormBuilder.group({...})`), never in the component template or submit handler. Custom validators are pure factory functions in a sibling `*.validators.ts` file when reused; inline when one-off. Pattern: `clubs-edit.validators.ts → slugAvailable(opts)`.
+- **Typed `FormGroup<{...}>`** over `fb.nonNullable.control(...)` per field — no `null | undefined` in `getRawValue()`. The form-shape type names the controls explicitly (`type ClubForm = FormGroup<{ name: FormControl<string>; ... }>`).
+- **Error rendering** is `<af-form-field [errors]="ctl.touched ? ctl.errors : null">` with `<af-field-errors>` wired by the form-field molecule. `field-errors.ts` maps validator key → translation key (`required` → `common.errors.required`; unknown → `common.errors.<key>`). New custom validators register a new error key — no template churn.
+- **Inline (per-keystroke) validation by default** — sync validators use the default `updateOn: 'change'`. **`updateOn: 'blur'`** is reserved for *network*-backed async validators per [Angular's perf guidance](https://angular.dev/guide/forms/form-validation) (they'd otherwise fire on every keystroke). `slugAvailable` runs in-memory and keeps the default. The legacy top-level `MessageManager` error-bar pattern is **not** carried forward; errors render next to the offending control.
+- **Touched gate avoids first-paint noise** — bind `[errors]` via `ctl.touched ? ctl.errors : null` so the field doesn't scream until the user has engaged it. `markAllAsTouched()` on submit-of-invalid so error tips render even if a field was never blurred.
+- **Submit-disabled state:** `[disabled]="form.invalid || saveInFlight()"`. Don't roll your own dirty/pristine logic — `form.invalid` is the answer.
+- **Edit vs. create — single component, two routes.** Route param presence is the mode discriminator (`isCreate = computed(() => routeId().get('id') === null)`). On `create` the form binds to a fresh `FormBuilder.group(...)`. On `edit` an `effect()` reads the entity from the feature store and `patchValue()`s. Immutable-post-create fields are `disable({ emitEvent: false })`d in the same effect; **re-enable on edit→new navigation** in the same effect — `patchValue` doesn't reset disabled state.
+- **`getRawValue()` over `value`** — `value` skips disabled controls; create-mode submit needs all fields.
+- **Server per-field errors** — on save failure, the store sets a `saveError` signal; the page's effect inspects it and maps known shapes onto `ctl.setErrors({ <key>: true })` matching the same error key the corresponding client-side validator would have surfaced. Generic / unknown save errors render at the top via the store's `saveError` line — visually distinguished from per-field validation.
+- **Async validator pattern (in-memory):** `slugAvailable({ entities, currentId })` factory returns a `ValidatorFn`. Excludes `currentId` from the duplicate scan so edit-mode doesn't flag the row's own slug. Server 409 is still the authoritative duplicate gate; both paths set `{ duplicate: true }` so one error key surfaces consistently.
+
+AC-DIR-3 (responsive form layout), AC-DIR-4 (IndexedDB draft auto-save), and AC-DIR-5 (Ctrl+S / Ctrl+D / Esc keyboard contract) are deferred until S-062c flight-edit lands — the first form complex enough to be load-bearing. Adding them speculatively now would build infra against the 4-field reference.
+
 ## Lists, not tables
 
 Per operator directive 2026-05-17, `af-data-table` renders `<ul role="list">` with `<li>` items — never a `<table>` or `nz-table`. Layout is CSS-responsive via `@container (min-width: 768px)`: items stack vertically at narrow viewports, flow horizontally above. The consumer projects `[primary]`, `[secondary]`, `[meta]` templates.
