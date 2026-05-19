@@ -187,8 +187,35 @@ Discriminator-based per [ADR 0008](../../docs/modernization/adrs/0008-multi-tena
 - **Indexes for hot paths:** every `@TenantId` column already has a single-column index (per S-012). Once a query joins a tenant-scoped table with another `WHERE` clause that filters significantly, prefer a composite index leading with `club_id` (e.g. `(club_id, start_date)`) so Postgres can index-only-scan the tenant slice.
 - **Virtual threads:** the `SecurityContextHolder` strategy stays at default `MODE_THREADLOCAL`. JEP 491 (Java 25) removed `synchronized` pinning; Spring's `DelegatingSecurityContextRunnable` propagates the principal across `@Async` / `TaskExecutor` boundaries. Anti-pattern: raw `CompletableFuture.runAsync` / `Thread.startVirtualThread` without the delegating wrapper — the child thread sees no principal and the resolver returns `NO_TENANT`, which writes then reject at the FK layer.
 - **UUID v7 generation:** every aggregate-root entity should mark its `id` field with `@UuidV7` (from `ch.alpenflight.platform.id`). The generator runs application-side via `com.github.f4b6a3:uuid-creator` and produces time-ordered keys that keep B-tree inserts monotonic. `gen_random_uuid()` defaults on PK columns are forbidden by `forbidden-migration-patterns.txt`.
-- **Mock-auth profile:** `@Profile("mock-auth")` swaps in a hardcoded SYSTEM_ADMINISTRATOR principal with a `clubId` claim. `UserTenantLookup` is `@Profile("!mock-auth")` so the resolver bypasses DB fallback under mock-auth (no users seeded). Mock chain rip-out is deferred to S-026 (role enforcement).
 - **Canonical example:** `MemberState` (`src/main/java/ch/alpenflight/clubs/domain/MemberState.java`) — minimal mapping (PK + `@TenantId` discriminator + one business column) carrying the convention end-to-end. `MemberStateTenantIsolationIT` proves the filter contract.
+
+## Authorization patterns — S-026, ADR 0007
+
+Method-level `@PreAuthorize` is the load-bearing gate on every protected endpoint. Authorities are populated by `ClubAwareJwtAuthenticationConverter` from the JWT's `realm_access.roles[]` claim, each prefixed with `ROLE_` so `hasRole('X')` matches. The three roles ported from legacy `RoleApplicationKeyStrings.cs` are `SYSTEM_ADMINISTRATOR`, `CLUB_ADMINISTRATOR`, `FLIGHT_OPERATOR` (see `next/auth/realm-export.json` for the realm definition; `PILOT` / `OFFICE_USER` / `GUEST` exist in the realm too but no S-026 endpoint references them — promote them as new endpoints need finer roles).
+
+### Predicate shapes
+
+Pick the narrowest predicate that captures the access semantic. Three load-bearing shapes:
+
+1. **Single role required** — `@PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")`. Use when exactly one role can call the endpoint.
+2. **Role disjunction** — `@PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')")`. Use for read surfaces multiple roles share, with no per-tenant gate (sysadmin-wide reads + viewer reads).
+3. **Sysadmin override + per-tenant SpEL gate** — `@PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') or ((hasRole('CLUB_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')) and #id.value().toString() == principal.claims['clubId'])")`. The default shape for per-tenant operations on the Clubs aggregate root. The SpEL clause compares the typed-ID's raw UUID (`#id.value()`) to the JWT's `clubId` claim (a raw UUID string), not the prefixed external form (typed-ID discipline per §Typed entity IDs).
+
+### When in doubt
+
+Default to **explicit `@PreAuthorize` per method**, not class-level. Class-level annotations evaporate at refactor time (a new method on the controller silently inherits) and the predicate semantics drift away from the URL semantics. The canonical worked example is [`ClubsController`](src/main/java/ch/alpenflight/clubs/web/ClubsController.java) — every method declares its own predicate; the Javadoc table summarises the matrix per HTTP verb.
+
+### Test contract
+
+Every controller ships a companion `*AuthorizationTest` that asserts each `@PreAuthorize` predicate gates correctly. Use `SecurityMockMvcRequestPostProcessors.jwt().jwt(t -> t.claim("clubId", "<uuid>")).authorities(...)` to plant a synthetic principal carrying the role + claim under test. Cover at minimum: anonymous → 401 (representative), every named role's positive case, every named role's negative case (including own-club vs other-club for SpEL-gated paths). Canonical example: [`ClubsAuthorizationTest`](src/test/java/ch/alpenflight/clubs/web/ClubsAuthorizationTest.java) — the full matrix shape new controllers copy.
+
+The live `JwtDecoder` / issuer / signature chain is covered once by [`SecurityFilterChainIT`](src/test/java/ch/alpenflight/platform/security/SecurityFilterChainIT.java); the per-controller authorization tests do not need to re-prove it.
+
+### Cross-references
+
+- **Audience validation deferred** — see S-020's done-state notes. The validator chain is `JwtTimestampValidator + JwtIssuerValidator` only; per-IdP audience pinning is revisited when the production IdP is chosen.
+- **`clubId` claim is server-authoritative.** The SPA never sends `clubId` on the wire; the tenant resolver (`ClubTenantIdentifierResolver`, §Multi-tenancy) reads it from the validated JWT. The SpEL gate above is defense-in-depth on the Clubs aggregate root specifically — it's the only aggregate whose path-variable identity is also the tenant discriminator.
+- **Token without `realm_access`** (e.g. future Proffix client-credentials) carries no `ROLE_*` authorities; every role-required predicate evaluates false. Machine-client paths declare their own predicate (`hasAuthority('SCOPE_proffix-sync')` or similar) at S-029.
 
 ## Typed entity IDs — S-022, ADR 0019
 

@@ -117,6 +117,6 @@ The committed export is bit-stable across round-trips (deep-sorted, no timestamp
 | S-028 bulk-provision users | Admin REST API + `requiredActions: ["UPDATE_PASSWORD"]` flag (C14) |
 | S-029 Proffix machine client | `clientId=alpenflight-proffix` + client-credentials grant + secret-rotation procedure |
 
-## When this story's mock-auth rips out
+## Mock-auth status (post-S-026)
 
-S-048's `mock-auth` seam (the SPA `MockAuthInterceptor` + the backend `MockSecurityConfig`) deletes in one commit when S-019 + S-020 + S-022 land together. The realm shape committed here is the contract that swap binds to.
+The backend `MockSecurityConfig` chain was deleted by S-026 — the production OAuth2 resource server is the only filter chain. The SPA's `app.config.mock.ts` seam (still alive under the `mock-auth` angular.json configuration) is now a Playwright-CI / no-Keycloak dev convenience: it stamps `Authorization: Bearer mock-sysadmin` on `/api/v1/*` requests, which the live backend rejects with 401. The Playwright SPA suite stubs the backend via `page.route(...)` so the rejection never surfaces in test runs; accidental hits against a running backend fail loudly. The SPA seam re-rips when a real-OIDC Playwright project lands (S-021 follow-up).

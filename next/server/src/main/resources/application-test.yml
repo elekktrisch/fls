@@ -11,9 +11,9 @@ spring:
   datasource:
     hikari:
       # Cap pool size per Spring context. The context cache keeps several
-      # contexts alive across mock-auth / no-mock-auth / springdoc-test
-      # variants — without a cap each acquires Hikari's default 10
-      # connections and the shared testcontainer exhausts PG's max_connections.
+      # contexts alive across springdoc-test / no-springdoc variants —
+      # without a cap each acquires Hikari's default 10 connections and the
+      # shared testcontainer exhausts PG's max_connections.
       maximum-pool-size: 4
   flyway:
     # Eliminates container-readiness flake in integration tests without

@@ -21,11 +21,19 @@ import { SessionStore, type User } from './core/session/session.store';
 
 /*
  * Mock-auth profile (active only under the `mock-auth` angular.json build
- * configuration via fileReplacements). Dev convenience for working without
- * a running Keycloak: every `/api/v1/*` request carries `Bearer
- * mock-sysadmin`, which the backend's MockAuthenticationFilter
- * (S-048, profile `mock-auth`) decodes into a SYSTEM_ADMINISTRATOR
- * principal. Tree-shaken out of prod via the seam in `angular.json`.
+ * configuration via fileReplacements). Playwright-CI / no-Keycloak dev
+ * convenience: bootstraps `SessionStore` with a synthetic SYSTEM_ADMINISTRATOR
+ * principal so the SPA renders without a running Keycloak, and stamps
+ * `Bearer mock-sysadmin` on every `/api/v1/*` request.
+ *
+ * Post-S-026 the backend `MockSecurityConfig` is gone — the live backend
+ * rejects the mock bearer with 401 (`ClubsAuthorizationTest
+ * .list_with_legacy_mock_auth_header_returns_401` regression-locks the
+ * rejection). The Playwright suite stubs the backend via
+ * `page.route(...)` so accidental hits against a real backend fail
+ * loudly. Tree-shaken out of prod via the `fileReplacements` seam in
+ * `angular.json`. The SPA seam re-rips when a real-OIDC Playwright
+ * project lands (S-021 follow-up).
  *
  * S-021 ripped the `core/auth/mock-auth.{bootstrap,interceptor}.ts`
  * helper files; the residual mock now lives inline in this config so

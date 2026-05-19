@@ -27,16 +27,27 @@ import org.springframework.web.bind.annotation.RestController;
  * REST surface for the Clubs aggregate. Per ADR 0005 the path is plural
  * {@code /api/v1/clubs}.
  *
- * <p>The {@code @PreAuthorize} predicates are the load-bearing security gate
- * — under the {@code mock-auth} profile (S-048) the principal is hard-coded
- * SYSTEM_ADMINISTRATOR, so the disjunctive {@code CLUB_ADMINISTRATOR} clause
- * is never reached today. The predicate shape stays when the real OAuth2
- * resource server is in play; only the principal source flips.
+ * <p>Canonical reference for the three-role {@code @PreAuthorize}
+ * convention (S-026). The predicate matrix:
+ *
+ * <ul>
+ *   <li><b>List</b> ({@code GET /}): SYSTEM_ADMINISTRATOR catalogs every
+ *       club; FLIGHT_OPERATOR sees the catalog (the read surface that lets
+ *       operators pick context); CLUB_ADMINISTRATOR is denied (their reach
+ *       is one club, served via {@code GET /{id}}).</li>
+ *   <li><b>Read by id</b> ({@code GET /{id}}): SYSTEM_ADMINISTRATOR any
+ *       club; CLUB_ADMINISTRATOR + FLIGHT_OPERATOR only the principal's own
+ *       club (SpEL gate against the JWT {@code clubId} claim).</li>
+ *   <li><b>Mutations</b> ({@code POST}, {@code PUT /{id}}, {@code DELETE
+ *       /{id}}): SYSTEM_ADMINISTRATOR; {@code PUT} also allowed for the
+ *       owning CLUB_ADMINISTRATOR. FLIGHT_OPERATOR is read-only.</li>
+ * </ul>
  *
  * <p>{@code @PathVariable ClubId id} resolves through
  * {@code ClubIdPathConverter} so callers send the prefixed external form
  * {@code clb-<uuid>}. The SpEL predicates dereference {@code #id.value()}
- * to compare against the JWT's raw-UUID {@code clubId} claim.
+ * to compare against the JWT's raw-UUID {@code clubId} claim (typed-id
+ * vs. claim-form discipline per CONVENTIONS.md §Typed entity IDs).
  *
  * <p>Walking-skeleton scope: the DTO omits country / club-state pickers —
  * the service hard-codes the canonical CH / ACTIVE seed UUIDs. S-047
@@ -44,7 +55,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping(path = "/api/v1/clubs", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Clubs", description = "Clubs CRUD (S-048 walking skeleton, mocked authorization).")
+@Tag(name = "Clubs", description = "Clubs CRUD.")
 public class ClubsController {
 
     private final ClubsService service;
@@ -56,7 +67,7 @@ public class ClubsController {
     @Operation(summary = "List all clubs (active, sorted by name).")
     @ApiResponse(responseCode = "200", description = "Array of club projections.")
     @GetMapping
-    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')")
     public List<ClubResponse> listClubs() {
         return service.listClubs();
     }
@@ -66,7 +77,8 @@ public class ClubsController {
     @ApiResponse(responseCode = "404", description = "No active club with that id.")
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
-            + "or (hasRole('CLUB_ADMINISTRATOR') and #id.value().toString() == principal.claims['clubId'])")
+            + "or ((hasRole('CLUB_ADMINISTRATOR') or hasRole('FLIGHT_OPERATOR')) "
+            + "and #id.value().toString() == principal.claims['clubId'])")
     public ClubResponse getClub(@PathVariable ClubId id) {
         return service.getClub(id);
     }
