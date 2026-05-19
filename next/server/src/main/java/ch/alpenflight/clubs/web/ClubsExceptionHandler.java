@@ -1,7 +1,9 @@
 package ch.alpenflight.clubs.web;
 
 import ch.alpenflight.clubs.domain.ClubNotFoundException;
+import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
 import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,5 +30,11 @@ class ClubsExceptionHandler {
     @ExceptionHandler(SlugAlreadyExistsException.class)
     ResponseEntity<Void> handleSlugConflict(SlugAlreadyExistsException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).build();
+    }
+
+    @ExceptionHandler(InvalidClubReferenceException.class)
+    ResponseEntity<Map<String, String>> handleInvalidReference(InvalidClubReferenceException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("field", e.getField(), "message", e.getMessage()));
     }
 }

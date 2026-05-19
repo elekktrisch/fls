@@ -107,6 +107,17 @@ public class Club {
         this.publicRegistrationEnabled = false;
     }
 
+    public void relocate(UUID newCountryId, UUID newClubStateId) {
+        if (newCountryId == null) {
+            throw new IllegalArgumentException("countryId must not be null");
+        }
+        if (newClubStateId == null) {
+            throw new IllegalArgumentException("clubStateId must not be null");
+        }
+        this.countryId = newCountryId;
+        this.clubStateId = newClubStateId;
+    }
+
     public void softDelete(Clock clock) {
         if (this.deletedOn == null) {
             this.deletedOn = Instant.now(clock);
@@ -149,6 +160,14 @@ public class Club {
 
     public boolean isPublicRegistrationEnabled() {
         return publicRegistrationEnabled;
+    }
+
+    public @Nullable UUID getCountryId() {
+        return countryId;
+    }
+
+    public @Nullable UUID getClubStateId() {
+        return clubStateId;
     }
 
     public boolean isDeleted() {

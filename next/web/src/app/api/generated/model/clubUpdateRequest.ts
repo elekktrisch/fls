@@ -22,4 +22,8 @@ export type ClubUpdateRequest = {
      */
   slug: string;
   publicRegistrationEnabled?: boolean;
+  /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
+  countryId: string;
+  /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
+  clubStateId: string;
 };

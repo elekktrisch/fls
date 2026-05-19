@@ -1,8 +1,11 @@
 package ch.alpenflight.clubs.application;
 
 import ch.alpenflight.platform.id.ClubId;
+import ch.alpenflight.platform.id.ClubStateId;
+import ch.alpenflight.platform.id.CountryId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
@@ -25,18 +28,24 @@ public final class ClubDtos {
             String name,
             @Nullable String slug,
             String clubKey,
-            boolean publicRegistrationEnabled) {}
+            boolean publicRegistrationEnabled,
+            CountryId countryId,
+            ClubStateId clubStateId) {}
 
     @Schema(description = "Payload to create a new club.")
     public record ClubCreateRequest(
             @NotBlank @Size(max = 100) String name,
             @NotBlank @Size(min = 3, max = 64) @Pattern(regexp = "^[a-z0-9-]+$") String slug,
             @NotBlank @Size(max = 10) String clubKey,
-            boolean publicRegistrationEnabled) {}
+            boolean publicRegistrationEnabled,
+            @NotNull CountryId countryId,
+            @NotNull ClubStateId clubStateId) {}
 
     @Schema(description = "Payload to update a club. `clubKey` is immutable post-create.")
     public record ClubUpdateRequest(
             @NotBlank @Size(max = 100) String name,
             @NotBlank @Size(min = 3, max = 64) @Pattern(regexp = "^[a-z0-9-]+$") String slug,
-            boolean publicRegistrationEnabled) {}
+            boolean publicRegistrationEnabled,
+            @NotNull CountryId countryId,
+            @NotNull ClubStateId clubStateId) {}
 }
