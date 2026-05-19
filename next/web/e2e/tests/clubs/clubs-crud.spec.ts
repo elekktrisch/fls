@@ -1,16 +1,18 @@
 import { expect, test, type Route } from '@playwright/test';
 
 /**
- * S-048 walking-skeleton CRUD shape. Mocks the backend via `page.route` so
- * the spec runs in CI without a live Spring + Postgres stack. Real-backend
- * e2e is verified manually against `./gradlew bootRun --args='--spring.profiles.active=mock-auth'`
- * + the SPA proxy until a compose `next/server` service + dedicated CI job
- * land (see Risks in docs/modernization/stories/S-048-clubs-crud.md).
+ * Clubs CRUD shape. Mocks the backend via `page.route` so the spec runs
+ * in CI without a live Spring + Postgres stack. Real-backend e2e against
+ * a logged-in OIDC session lands with the real-OIDC Playwright project
+ * follow-up (S-021); the SPA is booted under the `mock-auth` angular
+ * configuration here, which only stamps `Bearer mock-sysadmin` on
+ * `/api/v1/*` calls — the live backend would reject it, but every
+ * request in this file is intercepted by the route stub before reaching
+ * the network.
  *
  * Parity port of legacy `e2e/tests/masterdata/28-club-crud.spec.ts` —
- * observable CRUD behavior only. Role-matrix + login-flow assertions are
- * excluded under mock-auth (frontmatter `parity_excluded:` lists why) and
- * re-port at S-019/S-020/S-021.
+ * observable CRUD behavior only. Role-matrix + login-flow assertions
+ * land alongside the real-OIDC Playwright project.
  */
 
 interface MockClub {
