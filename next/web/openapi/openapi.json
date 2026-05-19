@@ -11,6 +11,12 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
+    "name" : "Countries",
+    "description" : "ISO-3166 country catalog."
+  }, {
+    "name" : "ClubStates",
+    "description" : "Club lifecycle-state catalog."
+  }, {
     "name" : "Clubs",
     "description" : "Clubs CRUD."
   } ],
@@ -192,6 +198,50 @@
           }
         }
       }
+    },
+    "/api/v1/countries" : {
+      "get" : {
+        "tags" : [ "Countries" ],
+        "summary" : "List all countries, alphabetical under de-CH ICU collation.",
+        "operationId" : "listCountries",
+        "responses" : {
+          "200" : {
+            "description" : "Array of country listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CountryResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/club-states" : {
+      "get" : {
+        "tags" : [ "ClubStates" ],
+        "summary" : "List all club states, alphabetical under de-CH ICU collation.",
+        "operationId" : "listClubStates",
+        "responses" : {
+          "200" : {
+            "description" : "Array of club-state listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ClubStateResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components" : {
@@ -213,9 +263,21 @@
           },
           "publicRegistrationEnabled" : {
             "type" : "boolean"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-74be-8000-0000000004be",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "clubStateId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
-        "required" : [ "name", "slug" ]
+        "required" : [ "clubStateId", "countryId", "name", "slug" ]
       },
       "ClubResponse" : {
         "type" : "object",
@@ -237,8 +299,21 @@
           },
           "publicRegistrationEnabled" : {
             "type" : "boolean"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-74be-8000-0000000004be",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "clubStateId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
-        }
+        },
+        "required" : [ "clubStateId", "countryId" ]
       },
       "ClubCreateRequest" : {
         "type" : "object",
@@ -262,9 +337,59 @@
           },
           "publicRegistrationEnabled" : {
             "type" : "boolean"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-74be-8000-0000000004be",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "clubStateId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         },
-        "required" : [ "clubKey", "name", "slug" ]
+        "required" : [ "clubKey", "clubStateId", "countryId", "name", "slug" ]
+      },
+      "CountryResponse" : {
+        "type" : "object",
+        "description" : "Country listitem projection — dropdown fuel.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-74be-8000-0000000004be",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "iso2Code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "iso2Code", "name" ]
+      },
+      "ClubStateResponse" : {
+        "type" : "object",
+        "description" : "ClubState listitem projection — dropdown fuel.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "id", "name" ]
       }
     },
     "securitySchemes" : {

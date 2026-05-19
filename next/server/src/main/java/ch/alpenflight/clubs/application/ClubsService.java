@@ -6,8 +6,13 @@ import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
 import ch.alpenflight.clubs.domain.Club;
 import ch.alpenflight.clubs.domain.ClubNotFoundException;
 import ch.alpenflight.clubs.domain.ClubRepository;
+import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
 import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
 import ch.alpenflight.platform.id.ClubId;
+import ch.alpenflight.platform.id.ClubStateId;
+import ch.alpenflight.platform.id.CountryId;
+import ch.alpenflight.referencedata.domain.ClubStateRepository;
+import ch.alpenflight.referencedata.domain.CountryRepository;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
@@ -25,10 +30,11 @@ import org.springframework.transaction.annotation.Transactional;
  *       slug IS NOT NULL} (source of truth — wins races).
  * </ol>
  *
- * <p>The walking-skeleton create path uses the canonical seed UUIDs for
- * {@code country_id} (Switzerland) and {@code club_state_id} (ACTIVE).
- * S-047 will introduce real pickers; until then, all new clubs land under
- * those defaults.
+ * <p>FK references to {@code country} / {@code club_state} are pre-checked
+ * against the {@link CountryRepository} / {@link ClubStateRepository} domain
+ * ports so a bad id surfaces as {@link InvalidClubReferenceException} (HTTP
+ * 400) instead of leaking the Postgres FK-violation message; the FK
+ * constraint itself stays the source of truth at commit time.
  *
  * <p>External signatures speak {@link ClubId} so service / controller
  * parameter lists can't accidentally swap a {@code Club} id for a
@@ -37,24 +43,27 @@ import org.springframework.transaction.annotation.Transactional;
  * the seam where the type narrows.
  *
  * <p>Depends on {@link ClubRepository} (domain port) per ADR 0023 — the
- * concrete Spring Data implementation lives in {@code clubs.infra}.
+ * concrete Spring Data implementation lives in {@code clubs.infra}. The
+ * cross-module imports of {@link CountryRepository} / {@link ClubStateRepository}
+ * are sanctioned by the {@code referencedata} module's OPEN type per
+ * its package-info.
  */
 @Service
 @Transactional
 public class ClubsService {
 
-    // Canonical seed UUIDs — see V2 reference seeds + V5 walking-skeleton row.
-    // Hard-coded for the walking skeleton; S-047 replaces with FK pickers.
-    private static final UUID DEFAULT_COUNTRY_ID =
-            UUID.fromString("019e2e15-2c00-74be-8000-0000000004be"); // CH
-    private static final UUID DEFAULT_CLUB_STATE_ID =
-            UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8"); // ACTIVE
-
     private final ClubRepository clubs;
+    private final CountryRepository countries;
+    private final ClubStateRepository clubStates;
     private final Clock clock;
 
-    public ClubsService(ClubRepository clubs, Clock clock) {
+    public ClubsService(ClubRepository clubs,
+                        CountryRepository countries,
+                        ClubStateRepository clubStates,
+                        Clock clock) {
         this.clubs = clubs;
+        this.countries = countries;
+        this.clubStates = clubStates;
         this.clock = clock;
     }
 
@@ -74,19 +83,15 @@ public class ClubsService {
         if (clubs.existsBySlug(req.slug())) {
             throw new SlugAlreadyExistsException(req.slug());
         }
+        validateReferences(req.countryId(), req.clubStateId());
         Club club = Club.create(
                 req.name(),
                 req.slug(),
                 req.clubKey(),
                 req.publicRegistrationEnabled(),
-                DEFAULT_COUNTRY_ID,
-                DEFAULT_CLUB_STATE_ID);
-        try {
-            return ClubMapper.toResponse(clubs.save(club));
-        } catch (DataIntegrityViolationException e) {
-            // Race with a concurrent create — partial UNIQUE is the gate.
-            throw new SlugAlreadyExistsException(req.slug());
-        }
+                req.countryId().value(),
+                req.clubStateId().value());
+        return ClubMapper.toResponse(persist(club, req.slug()));
     }
 
     public ClubResponse updateClub(ClubId id, ClubUpdateRequest req) {
@@ -95,6 +100,7 @@ public class ClubsService {
         if (clubs.existsBySlugExcluding(req.slug(), id.value())) {
             throw new SlugAlreadyExistsException(req.slug());
         }
+        validateReferences(req.countryId(), req.clubStateId());
         club.rename(req.name());
         club.rebrand(req.slug());
         if (req.publicRegistrationEnabled()) {
@@ -102,10 +108,27 @@ public class ClubsService {
         } else {
             club.disablePublicRegistration();
         }
+        club.relocate(req.countryId().value(), req.clubStateId().value());
+        return ClubMapper.toResponse(persist(club, req.slug()));
+    }
+
+    private Club persist(Club club, String slug) {
         try {
-            return ClubMapper.toResponse(clubs.save(club));
+            return clubs.save(club);
         } catch (DataIntegrityViolationException e) {
-            throw new SlugAlreadyExistsException(req.slug());
+            // Race-loser path: partial UNIQUE on slug wins regardless of the
+            // service-layer pre-check. FK violations are pre-empted by
+            // validateReferences above; any DIVE here is the slug case.
+            throw new SlugAlreadyExistsException(slug);
+        }
+    }
+
+    private void validateReferences(CountryId countryId, ClubStateId clubStateId) {
+        if (!countries.existsById(countryId.value())) {
+            throw new InvalidClubReferenceException("countryId");
+        }
+        if (!clubStates.existsById(clubStateId.value())) {
+            throw new InvalidClubReferenceException("clubStateId");
         }
     }
 

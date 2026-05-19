@@ -77,9 +77,31 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         JsonNode body = readJson(res);
         assertThat(body.get("name").asText()).isEqualTo("Mountain Soaring");
         assertThat(body.get("slug").asText()).isEqualTo(slug);
+        assertThat(body.get("countryId").asText()).isEqualTo(SEED_COUNTRY_ID);
+        assertThat(body.get("clubStateId").asText()).isEqualTo(SEED_CLUB_STATE_ID);
         URI loc = res.getHeaders().getLocation();
         assertThat(loc).isNotNull();
         assertThat(loc.getPath()).isEqualTo("/api/v1/clubs/" + body.get("id").asText());
+    }
+
+    @Test
+    void createClub_unknownCountryId_returns_400_with_field_diagnostic() {
+        Map<String, Object> payload = createPayload(
+                "Bad Country", "bad-country-" + suffix(), "BCY" + shortSuffix());
+        payload.put("countryId", "00000000-0000-0000-0000-000000000000");
+        ResponseEntity<String> res = post("/api/v1/clubs", payload);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(res.getBody()).contains("countryId");
+    }
+
+    @Test
+    void createClub_unknownClubStateId_returns_400_with_field_diagnostic() {
+        Map<String, Object> payload = createPayload(
+                "Bad State", "bad-state-" + suffix(), "BST" + shortSuffix());
+        payload.put("clubStateId", "00000000-0000-0000-0000-000000000000");
+        ResponseEntity<String> res = post("/api/v1/clubs", payload);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(res.getBody()).contains("clubStateId");
     }
 
     @Test
@@ -208,12 +230,17 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
     }
 
+    private static final String SEED_COUNTRY_ID = ClubsTestFixtures.SEED_COUNTRY_ID;
+    private static final String SEED_CLUB_STATE_ID = ClubsTestFixtures.SEED_CLUB_STATE_ID;
+
     private static Map<String, Object> createPayload(String name, String slug, String clubKey) {
         Map<String, Object> n = new LinkedHashMap<>();
         n.put("name", name);
         n.put("slug", slug);
         n.put("clubKey", clubKey);
         n.put("publicRegistrationEnabled", false);
+        n.put("countryId", SEED_COUNTRY_ID);
+        n.put("clubStateId", SEED_CLUB_STATE_ID);
         return n;
     }
 
@@ -222,6 +249,8 @@ class ClubsControllerIT extends PostgresIntegrationTest {
         n.put("name", name);
         n.put("slug", slug);
         n.put("publicRegistrationEnabled", publicReg);
+        n.put("countryId", SEED_COUNTRY_ID);
+        n.put("clubStateId", SEED_CLUB_STATE_ID);
         return n;
     }
 

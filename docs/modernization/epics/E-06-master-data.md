@@ -13,8 +13,8 @@ Port the CRUD-shaped admin surface (clubs, aircraft, persons, users, locations, 
 - Out: business-state entities (flights, reservations, planning days, deliveries — live in E-07/E-08/E-09).
 
 ## Stories
-- [ ] S-047 — Reference-data domain (countries, unit types, member states, person categories, languages) — server + client
-- [ ] S-048 — Clubs CRUD
+- [x] S-047 — Reference-data domain — slim slice (Country + ClubState) shipped; remaining cross-tenant lookups + tenant-scoped MemberState / PersonCategory deferred to Phase E
+- [x] S-048 — Clubs CRUD
 - [ ] S-049 — Locations CRUD
 - [ ] S-050 — Aircraft CRUD (+ aircraft types/states)
 - [ ] S-051 — Persons CRUD + PersonClub many-to-many

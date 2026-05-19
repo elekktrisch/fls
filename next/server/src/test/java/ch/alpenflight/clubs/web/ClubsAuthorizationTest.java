@@ -350,12 +350,17 @@ class ClubsAuthorizationTest {
         return id.asText();
     }
 
+    private static final String SEED_COUNTRY_ID = ClubsTestFixtures.SEED_COUNTRY_ID;
+    private static final String SEED_CLUB_STATE_ID = ClubsTestFixtures.SEED_CLUB_STATE_ID;
+
     private static Map<String, Object> createPayload(String name, String slug, String clubKey) {
         Map<String, Object> n = new LinkedHashMap<>();
         n.put("name", name);
         n.put("slug", slug);
         n.put("clubKey", clubKey);
         n.put("publicRegistrationEnabled", false);
+        n.put("countryId", SEED_COUNTRY_ID);
+        n.put("clubStateId", SEED_CLUB_STATE_ID);
         return n;
     }
 
@@ -364,6 +369,8 @@ class ClubsAuthorizationTest {
         n.put("name", name);
         n.put("slug", slug);
         n.put("publicRegistrationEnabled", publicReg);
+        n.put("countryId", SEED_COUNTRY_ID);
+        n.put("clubStateId", SEED_CLUB_STATE_ID);
         return n;
     }
 

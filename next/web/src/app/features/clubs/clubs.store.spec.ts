@@ -15,6 +15,8 @@ const sampleClub: ClubResponse = {
   slug: 'seed-club-1',
   clubKey: 'SEED',
   publicRegistrationEnabled: false,
+  countryId: '019e2e15-2c00-74be-8000-0000000004be',
+  clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
 };
 
 type StubbedApi = Pick<ClubsService, 'listClubs' | 'createClub' | 'updateClub' | 'deleteClub'>;
@@ -100,6 +102,8 @@ describe('ClubsStore', () => {
       slug: 'new-club',
       clubKey: 'NEW',
       publicRegistrationEnabled: false,
+      countryId: '019e2e15-2c00-74be-8000-0000000004be',
+      clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
     });
 
     expect(store.entities().some((c) => c.id === 'new')).toBe(true);
@@ -121,6 +125,8 @@ describe('ClubsStore', () => {
       slug: 'seed-club-1',
       clubKey: 'DUP',
       publicRegistrationEnabled: false,
+      countryId: '019e2e15-2c00-74be-8000-0000000004be',
+      clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
     });
 
     expect(store.saveError()).toContain('seed-club-1');
@@ -141,7 +147,13 @@ describe('ClubsStore', () => {
     const store = TestBed.inject(ClubsStore);
     store.update({
       id: sampleClub.id!,
-      req: { name: 'Renamed Seed', slug: 'seed-club-1', publicRegistrationEnabled: false },
+      req: {
+        name: 'Renamed Seed',
+        slug: 'seed-club-1',
+        publicRegistrationEnabled: false,
+        countryId: '019e2e15-2c00-74be-8000-0000000004be',
+        clubStateId: '019e2e15-2c00-7bb8-8000-000000000bb8',
+      },
     });
 
     expect(store.entities()[0]?.name).toBe('Renamed Seed');

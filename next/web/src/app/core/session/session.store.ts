@@ -2,6 +2,7 @@ import { computed, inject } from '@angular/core';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
+import { ReferenceDataStore } from '../reference-data/reference-data.store';
 
 // Realm roles from `next/auth/realm-export.json`. Mirrored from the
 // `realm_access.roles[]` claim Keycloak stamps onto access + id tokens.
@@ -63,7 +64,7 @@ export const SessionStore = signalStore(
       () => authenticatedUser()?.roles.includes('SYSTEM_ADMINISTRATOR') ?? false,
     ),
   })),
-  withMethods((store, bus = inject(MUTATION_BUS)) => ({
+  withMethods((store, bus = inject(MUTATION_BUS), refData = inject(ReferenceDataStore)) => ({
     login(user: User, clubId: string | null): void {
       patchState(store, {
         authenticatedUser: user,
@@ -86,19 +87,19 @@ export const SessionStore = signalStore(
     /**
      * AC-DIR-1 aggressive-prefetch seam. Called by S-021's OIDC success
      * handler after `login()` and by the tenant-switch UI after the active
-     * `currentClubId` changes. Per-domain prefetch wiring lands at S-047+;
-     * today this method only stamps the bootstrap marker so future
-     * implementers can see the seam.
+     * `currentClubId` changes. Each store owns its own catchError-per-stream
+     * forkJoin internally; this method just fans out the `loadAll()` calls.
+     * Cancellation rides session.logout through MUTATION_BUS — every store
+     * subscribes and self-clears.
      */
     bootstrapPrefetch(): void {
       if (sessionStatusIsLoading(store.sessionStatus()) || !store.isAuthenticated()) {
         return;
       }
       patchState(store, { bootstrapStartedAt: Date.now() });
-      // TODO(S-047+): forkJoin([aircraftsStore.loadAll(), personsStore.loadAll(), ...])
-      // with per-stream catchError(() => of(null)) so one slow endpoint
-      // doesn't stall the whole bootstrap. Cancellation rides session.logout
-      // through MUTATION_BUS.
+      refData.loadAll();
+      // Future masterdata stores (aircraft, persons, locations, flight-types,
+      // routes) plug in here as they land.
     },
   })),
 );
