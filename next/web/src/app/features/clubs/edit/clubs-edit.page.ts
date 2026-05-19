@@ -23,6 +23,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ClubsStore } from '../clubs.store';
+import { slugAvailable } from './clubs-edit.validators';
 
 type ClubForm = FormGroup<{
   name: FormControl<string>;
@@ -150,10 +151,30 @@ export class ClubsEditPage {
   protected readonly saveSubmitted = signal(false);
 
   constructor() {
+    // Async-style validator example for S-007 (Reactive Forms convention).
+    // Runs against the in-memory ClubsStore — server 409 is still the
+    // authoritative duplicate gate, mapped onto the same `duplicate` key
+    // by the saveError effect below.
+    this.form.controls.slug.addValidators(
+      slugAvailable({
+        entities: () => this.store.entities(),
+        currentId: () => this.clubId(),
+      }),
+    );
+
+    effect(() => {
+      // Re-run the slug validator whenever the entity list refreshes so the
+      // duplicate flag updates the moment ClubsStore.loadAll() resolves.
+      void this.store.entities();
+      this.form.controls.slug.updateValueAndValidity({ emitEvent: false });
+    });
+
     effect(() => {
       const id = this.clubId();
       if (!id) {
         this.store.select(null);
+        // Re-enable on edit→new navigation; patchValue doesn't reset disabled.
+        this.form.controls.clubKey.enable({ emitEvent: false });
         return;
       }
       this.store.select(id);
