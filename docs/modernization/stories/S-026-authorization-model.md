@@ -2,7 +2,8 @@
 id: S-026
 title: Authorization model — roles → @PreAuthorize mapping
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-19
 depends_on: [S-020]
 acceptance:
   - Three roles are mapped end-to-end: `system_administrator`, `club_administrator`, `flight_operator` (matching `RoleApplicationKeyStrings.cs`).
@@ -15,6 +16,7 @@ parity_test: none
 refined: true
 refined_at: 2026-05-19
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer]
+github_issue: 73
 ---
 
 ## Context
