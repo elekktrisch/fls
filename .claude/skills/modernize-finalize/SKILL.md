@@ -57,7 +57,7 @@ The story body was pruned at mark-done. Step 2.5 broadens the prune to every doc
 
 **Scope:**
 - All doc files in the PR diff (anything matching `docs/**`, `*.md`, `CONVENTIONS.md`, `package-info.java`).
-- **Plus** grep hits across `docs/**`, `next/**/*.md`, and every `package-info.java` for any symbol the PR renamed / moved / deleted. Compute the rename list from the PR diff's `R`/`D` rows + class / file / package renames inferred from the diff.
+- **Plus** grep hits across `docs/**`, `alpenflight/**/*.md`, and every `package-info.java` for any symbol the PR renamed / moved / deleted. Compute the rename list from the PR diff's `R`/`D` rows + class / file / package renames inferred from the diff.
 
 **Per-section disposition** (per the operator's directive — see [[feedback-derive-before-asking]]):
 
@@ -82,7 +82,7 @@ The story body was pruned at mark-done. Step 2.5 broadens the prune to every doc
    ```bash
    grep -rln --include='*.md' --include='package-info.java' \
         -e "<old-name-1>" -e "<old-name-2>" ... \
-        docs/ next/ .claude/agents/
+        docs/ alpenflight/ .claude/agents/
    ```
    (Exclude `docs/modernization/stories/implemented/` from results — carve-out by rule.)
 

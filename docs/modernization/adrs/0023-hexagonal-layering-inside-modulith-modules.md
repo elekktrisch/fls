@@ -69,7 +69,7 @@ The four-package template (`domain/`, `application/`, `web/`, `infra/`) is the c
   - JPA annotations on the aggregate are a deliberate purity concession. Pure-DDD readers will object. Mitigation: ADR text documents the trade; ADR 0022 directive 1 is the citation.
   - Three extra package-info files + a `JpaXxxRepository` extending the domain interface is per-module overhead vs Option D. Real but small.
   - LazyInitializationException-class bugs (a `web/` mapper touching a lazy aggregate-internal collection outside the transaction) are now harder to spot because the mapper lives in a different package from the entity. Mitigation: mappers run on `@Transactional` boundaries by convention; integration tests against real Postgres (per [ADR 0021](0021-integration-test-data-isolation.md)) catch the rest.
-  - ArchUnit + Spring Modulith add ~2 test deps to `next/server/build.gradle.kts` and ~10s to the test phase. Acceptable.
+  - ArchUnit + Spring Modulith add ~2 test deps to `alpenflight/server/build.gradle.kts` and ~10s to the test phase. Acceptable.
 
 - **Follow-ups:**
   - **(done in S-155)** Clubs reshape, Spring Modulith dep + `ApplicationModules.verify()`, ArchUnit dep + 4-rule inner-layer suite, `archDemo` regression source set + `verifyArchUnitFailsOnViolation` task, `CONVENTIONS.md` "Module layout" section.

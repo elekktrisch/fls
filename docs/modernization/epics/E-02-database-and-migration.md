@@ -6,7 +6,7 @@ adr_refs: [0002, 0003, 0019]
 ---
 
 ## Goal
-Design the Postgres 17 target schema, wire Flyway as the migration driver, and build the legacy schema-mapping library (`next/migration-bundle/`) shared by the export JAR (S-139) and the server ingest pipeline (S-141). Parity oracle in CI exercises the full JAR → upload → ingest path on every push against a seeded legacy SQL Server fixture.
+Design the Postgres 17 target schema, wire Flyway as the migration driver, and build the legacy schema-mapping library (`alpenflight/migration-bundle/`) shared by the export JAR (S-139) and the server ingest pipeline (S-141). Parity oracle in CI exercises the full JAR → upload → ingest path on every push against a seeded legacy SQL Server fixture.
 
 ## Scope
 - In: target schema design, Flyway wiring, parity-baseline extraction from current SQL Server, schema-mapping library, parity oracle (row counts + FK integrity + sampled-value diffs), Testcontainers test-DB strategy, ShedLock stub.

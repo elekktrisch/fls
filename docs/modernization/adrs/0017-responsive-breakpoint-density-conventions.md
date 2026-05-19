@@ -21,7 +21,7 @@ Frontend stack is already pinned: Angular 21 + Tailwind 4 ([ADR 0004](0004-front
 
 - **Capabilities:** Tailwind utility classes with `sm:` / `md:` / `lg:` / `xl:` breakpoint variants for screen-level layout. `@container` queries for component-local density (a `<fls-flight-form>` shown inside a sidebar can use the compact variant even on a desktop viewport). CSS variables for the whitelabel primary color ([ADR 0014](0014-per-tenant-theming.md)) and the density-toggle (single class flips a CSS variable that propagates to padding / font-size / gap utilities). Breakpoint values override Tailwind defaults: `sm=360 / md=768 / lg=1024 / xl=1440` per [vision §2](../02-vision-and-constraints.md#2-non-functional-requirements). Touch-target rule encoded as utility class: `min-h-[44px] @lg:min-h-[28px]` for icon-only secondary actions on dense-desktop.
 - **Fit to criteria:** Criterion 13 ✓ (Tailwind 4 + Angular 21 make CSS-driven density the cheap path; container queries are first-class). Criterion 12 ✓ (CSS variables are the whitelabel pattern from ADR 0014 — same mechanism for density-toggle). Criterion 7 ✓ (zero JS for layout; no observer subscriptions; no rxjs graph). Criterion 1 ✓ (Tailwind 4 + container queries supported in evergreen browsers; Angular 21 lifecycle through 2027+).
-- **Migration cost:** low. The convention is captured in `next/web/tailwind.config.ts` (breakpoint overrides + plugin for container queries) + a CONVENTIONS.md section in `next/web/`. Primitives kit (S-008) inherits via utility classes; no new abstractions.
+- **Migration cost:** low. The convention is captured in `alpenflight/web/tailwind.config.ts` (breakpoint overrides + plugin for container queries) + a CONVENTIONS.md section in `alpenflight/web/`. Primitives kit (S-008) inherits via utility classes; no new abstractions.
 - **Ecosystem risk:** low. Tailwind 4 is the current major; container queries are Baseline 2023 (Chrome 105+, Safari 16+, Firefox 110+). Angular 21 doesn't fight this — components are template-driven.
 - **Escape hatch:** every Tailwind class is a CSS rule under the hood. Swapping to plain CSS or another utility framework is mechanical. Container queries are CSS-spec-level, not framework-bound.
 
@@ -58,7 +58,7 @@ Chosen: **Option A — Tailwind 4 responsive variants + container queries + CSS 
   - Container queries require Tailwind's `@tailwindcss/container-queries` plugin enabled in `tailwind.config.ts` — small operational dependency.
 
 - **Follow-ups (other ADRs / stories implied):**
-  - **Story:** establish `next/web/tailwind.config.ts` with the overridden breakpoint values + container-queries plugin + the density-toggle CSS variable. Inherited by S-007 (forms) + S-008 (primitives).
+  - **Story:** establish `alpenflight/web/tailwind.config.ts` with the overridden breakpoint values + container-queries plugin + the density-toggle CSS variable. Inherited by S-007 (forms) + S-008 (primitives).
   - **Story:** ESLint / Tailwind plugin rule enforcing touch-target sizing convention (≥44px on `<lg`, ≥28px on `≥lg` for icon-only secondary).
   - **Story (S-008):** primitives kit ships each primitive at all 4 breakpoints with Storybook stories; the kit's CONVENTIONS doc cites this ADR.
   - **Story (S-007):** forms convention ships the dense-desktop grid + sticky-save-bar mobile layout as paired reference forms in Storybook.

@@ -223,7 +223,7 @@ Notes:
 - **Performance**: list endpoint is the hot path; p95 < 250ms server-side target (Performance plan below).
 - **Security**: `[Authorize]` everywhere (per ADR 0007); `CanUpdateRecord` server-enforced on PUT/DELETE (legacy gap closed).
 - **Observability**: audit log per C12 — every Insert/Update/Delete/Copy emits an audit event.
-- **i18n**: `VALIDATION_ERROR_*` keys returned as message keys, translated client-side. Under C15 they exist in `next/web/`'s bundles (S-057).
+- **i18n**: `VALIDATION_ERROR_*` keys returned as message keys, translated client-side. Under C15 they exist in `alpenflight/web/`'s bundles (S-057).
 
 ## Security plan
 

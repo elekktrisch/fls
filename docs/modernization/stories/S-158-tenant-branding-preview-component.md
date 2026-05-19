@@ -30,7 +30,7 @@ The component is **independent of the branding admin form** — it's a controlle
 
 ## Acceptance criteria
 
-- [ ] `<af-branding-preview>` molecule exists under `next/web/src/app/shared/ui/molecules/af-branding-preview/`; standalone, signal-based, zoneless-compatible.
+- [ ] `<af-branding-preview>` molecule exists under `alpenflight/web/src/app/shared/ui/molecules/af-branding-preview/`; standalone, signal-based, zoneless-compatible.
 - [ ] Single signal input: `primaryColor: string` (OKLCH or hex acceptable — the component does not validate the format; consuming form is responsible).
 - [ ] Renders all seven brand-color surfaces in a single compact panel:
   - A primary button (with the input color as background, white text, ADR 0024-locked sharp corners).
@@ -47,7 +47,7 @@ The component is **independent of the branding admin form** — it's a controlle
 
 ## Tasks
 
-- [ ] Create `next/web/src/app/shared/ui/molecules/af-branding-preview/` (component + spec + index barrel).
+- [ ] Create `alpenflight/web/src/app/shared/ui/molecules/af-branding-preview/` (component + spec + index barrel).
 - [ ] Render the seven surfaces; use `<af-icon>` for the wordmark glyph (S-156) and `<af-button>` (S-008) for the primary button.
 - [ ] Wire signal input + reactive recomputation.
 - [ ] Responsive layout tested at 360 / 768 / 1024 / 1440.

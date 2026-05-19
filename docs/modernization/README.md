@@ -1,6 +1,6 @@
 # Modernization Workflow
 
-A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite of this codebase. Driven by Claude Code skills under `.claude/skills/` plus specialist subagents under `.claude/agents/`; emits markdown artifacts to this folder and (in phase 6) code to `next/`.
+A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite of this codebase. Driven by Claude Code skills under `.claude/skills/` plus specialist subagents under `.claude/agents/`; emits markdown artifacts to this folder and (in phase 6) code to `alpenflight/`.
 
 > **Primary directives** — [ADR 0022](adrs/0022-modernization-primary-directives.md). Read this before any skill file.
 >
@@ -17,7 +17,7 @@ These are baked into the skills via [`00-seed.md`](00-seed.md). They are **not**
 
 - **Strategy:** greenfield rewrite of both `flsserver` and `flsweb`. Database is in scope only if a viable data-migration path exists.
 - **Coexistence:** AlpenFlight is a multi-tenant SaaS — each legacy FLS deployment onboards independently via the export-JAR + UI-upload flow (epic E-15) on its own schedule. No centralized cutover event; old and new run side-by-side per-tenant until that tenant uploads.
-- **Target repo layout:** new code lives under a single top-level subtree `next/` (working slug — rename to `alpenflight/` tracked by S-152), with sub-folders `next/server/`, `next/web/`, `next/database/`, `next/auth/`, `next/ops/`, `next/migration-bundle/`, and `next/migration-tool/`. The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repository.
+- **Target repo layout:** new code lives under a single top-level subtree `alpenflight/` (working slug — rename to `alpenflight/` tracked by S-152), with sub-folders `alpenflight/server/`, `alpenflight/web/`, `alpenflight/database/`, `alpenflight/auth/`, `alpenflight/ops/`, `alpenflight/migration-bundle/`, and `alpenflight/migration-tool/`. The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repository.
 - **Artifact tracking:** markdown-only for now. GitHub-issue sync deferred until there are stories worth tracking.
 
 Everything else — backend language, frontend framework, database, auth, hosting, observability — is **decided by the workflow** via ADRs.
@@ -31,7 +31,7 @@ Everything else — backend language, frontend framework, database, auth, hostin
 | 3 | `/modernize-adrs` | interactive | phases 1–2 + decisions | `adrs/0001-*.md`, `adrs/0002-*.md`, ... |
 | 4 | `/modernize-decompose` | batch | phases 1–3 | `epics/E-NN-*.md`, `stories/S-NNN-*.md`, `_ORDER.md` |
 | 5 | `/modernize-refine <S-NNN>` | **per-story** | one story + ADRs + 5 subagents | new sections + `refined: true` in that story file |
-| 6 | `/modernize-implement <S-NNN>` | **per-story** | one refined story + Step 7 reviewer panel + auto-fix loop | code in `next/`, tests, `status: done`, GitHub issue + draft→ready-for-review PR. Reviewer findings (maintainability + security + tech-writer/usability + parity-when-applicable) auto-fixed inline; escalates to operator only on scope/design pivots. |
+| 6 | `/modernize-implement <S-NNN>` | **per-story** | one refined story + Step 7 reviewer panel + auto-fix loop | code in `alpenflight/`, tests, `status: done`, GitHub issue + draft→ready-for-review PR. Reviewer findings (maintainability + security + tech-writer/usability + parity-when-applicable) auto-fixed inline; escalates to operator only on scope/design pivots. |
 | 7 | `/modernize-finalize <S-NNN>` | **per-story** | one implemented story + ADR amendments + operator confirm | docs-prune pass (delete prose the code now sources; carve out future-story plans + `stories/implemented/` archive; surface unclear cases to operator), pre-merge bookkeeping commit on PR branch (stamps `merged: true`), squash-merge, branch delete, issue close |
 
 Phases 1–4 are one-shot planning. Phases 5–7 are per-story execution — invoked once per story, in order from `_ORDER.md`. The split exists because:

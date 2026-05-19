@@ -6,15 +6,15 @@ adr_refs: [0001, 0004, 0005, 0006, 0023, 0024]
 ---
 
 ## Goal
-Stand up the `next/server/` (Spring Boot 4.x / Java 25) and `next/web/` (Angular 21 / Tailwind / TypeScript) project skeletons with the cross-cutting conventions wired up — build tooling, null-safety, OpenAPI publication, TS codegen, i18n, NgRx Signal Store reference, Reactive Forms patterns, component-primitives kit. Once this epic is done, every subsequent feature story is "write a new domain on the template" rather than "decide how the template should look."
+Stand up the `alpenflight/server/` (Spring Boot 4.x / Java 25) and `alpenflight/web/` (Angular 21 / Tailwind / TypeScript) project skeletons with the cross-cutting conventions wired up — build tooling, null-safety, OpenAPI publication, TS codegen, i18n, NgRx Signal Store reference, Reactive Forms patterns, component-primitives kit. Once this epic is done, every subsequent feature story is "write a new domain on the template" rather than "decide how the template should look."
 
 ## Scope
 - In: project skeletons; one-touch dev startup for both apps; codegen pipeline; reference patterns for state, forms, components, i18n.
 - Out: any business feature; auth (E-03); observability (E-04); deployment (E-05); CI workflows beyond a basic build+test pipeline.
 
 ## Stories
-- [ ] S-001 — Scaffold `next/server/` Spring Boot skeleton
-- [ ] S-002 — Scaffold `next/web/` Angular skeleton
+- [ ] S-001 — Scaffold `alpenflight/server/` Spring Boot skeleton
+- [ ] S-002 — Scaffold `alpenflight/web/` Angular skeleton
 - [ ] S-003 — Wire springdoc-openapi + publish OpenAPI spec
 - [ ] S-004 — Pick + wire TypeScript API client codegen
 - [ ] S-005 — Pick + wire i18n library + bundled JSON shape

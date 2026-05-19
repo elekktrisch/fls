@@ -1,6 +1,6 @@
 name: extract
 
-# Scoped to next/database/extract/ (the FLS legacy SQL Server metadata
+# Scoped to alpenflight/database/extract/ (the FLS legacy SQL Server metadata
 # extractor — see the module README). Kept separate from ci.yml so changes
 # to this subtree don't trigger the expensive legacy-e2e lane.
 
@@ -8,12 +8,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'next/database/extract/**'
+      - 'alpenflight/database/extract/**'
       - '.github/workflows/extract.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'next/database/extract/**'
+      - 'alpenflight/database/extract/**'
       - '.github/workflows/extract.yml'
   workflow_dispatch:
 
@@ -44,7 +44,7 @@ jobs:
         run: docker pull mcr.microsoft.com/mssql/server:2022-latest
 
       - name: Build + test
-        working-directory: next/database/extract
+        working-directory: alpenflight/database/extract
         # The integration test spins up SQL Server via the `docker` CLI
         # directly (sandbox API negotiation limitation — see module README's
         # "Why not Testcontainers" section). GitHub Actions runners ship
@@ -56,6 +56,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: extract-test-report
-          path: next/database/extract/build/reports/tests/test
+          path: alpenflight/database/extract/build/reports/tests/test
           retention-days: 7
           if-no-files-found: ignore

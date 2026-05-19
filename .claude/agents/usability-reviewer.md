@@ -26,10 +26,10 @@ categorized finding list the synthesis step can drop into the story file.
   The Design notes capture UX intent (component shape, route, what the user
   sees); the Test plan often names the user-visible flows the e2e tests
   cover, which is your map of what's user-facing.
-- **Identify the UI surface in the diff.** Files under `next/web/` —
+- **Identify the UI surface in the diff.** Files under `alpenflight/web/` —
   components, templates, routes, Signal Stores feeding views, generated
   TS clients consumed by components.
-  - **If the diff has no `next/web/` changes**, your output is `(N/A — no
+  - **If the diff has no `alpenflight/web/` changes**, your output is `(N/A — no
     UI changes)`. Stop. Don't manufacture findings to justify your
     invocation.
 - **Read the surrounding components.** Usability is mostly about
@@ -46,7 +46,7 @@ categorized finding list the synthesis step can drop into the story file.
   - Screen reader (labels, ARIA, role semantics).
 - **Check i18n discipline.** Every user-visible string in templates and
   toasts goes through `$translate` / the i18n pipe. Any hardcoded string
-  in `next/web/` is at least improvement; in a label / button / heading
+  in `alpenflight/web/` is at least improvement; in a label / button / heading
   it's a blocker (legacy default locale is German; a hardcoded English
   string is a parity break).
 - **Cite file:line for every finding.** A finding without a location is an
@@ -140,7 +140,7 @@ If the diff has no UI changes, return only:
 ```markdown
 ## Usability findings
 
-(N/A — no UI changes in this diff. Files under `next/web/` unchanged.)
+(N/A — no UI changes in this diff. Files under `alpenflight/web/` unchanged.)
 ```
 
 Don't pad. Don't manufacture findings on backend-only stories.

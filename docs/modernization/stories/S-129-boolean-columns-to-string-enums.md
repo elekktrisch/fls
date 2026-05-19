@@ -61,7 +61,7 @@ strings rather than booleans, and remove the "NULL-is-meaningful" trap.
   (`reference-seeds-canonical-uuids.json`) updated: each reference row's
   boolean fields become string-coded.
 - `forbidden-migration-patterns.txt` extended with a regex catching new
-  `BOOLEAN`-typed column declarations in `next/server/.../db/migration/`
+  `BOOLEAN`-typed column declarations in `alpenflight/server/.../db/migration/`
   so the migration shape doesn't drift back.
 - Flyway migration applies cleanly against a fresh Postgres in
   Testcontainers; all S-012 + S-013 baseline tests stay green.
@@ -102,7 +102,7 @@ strings rather than booleans, and remove the "NULL-is-meaningful" trap.
 ## Absorbed from S-013 rework triage 2026-05-16
 
 - **aircraft_operating_counter.at_date_time CHECK uses non-IMMUTABLE `now()`** —
-  `next/server/src/main/resources/db/migration/V3__flights_aircraft_locations.sql:623-624`.
+  `alpenflight/server/src/main/resources/db/migration/V3__flights_aircraft_locations.sql:623-624`.
   Postgres permits `now()` in CHECK at table-create but only evaluates at row
   INSERT/UPDATE — the constraint is not query-plan-time enforced, and future
   Postgres majors may warn or treat the expression as non-deterministic.

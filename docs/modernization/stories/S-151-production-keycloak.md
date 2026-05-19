@@ -6,10 +6,10 @@ status: todo
 depends_on: [S-019]
 acceptance:
   - Production Keycloak instance is deployed on the AlpenFlight production VPS, in Switzerland or the EU (C4).
-  - Realm config mirrors the `next/auth/realm-export.json` from S-019 (signup enabled + Google IdP per S-134 + production client IDs/secrets).
+  - Realm config mirrors the `alpenflight/auth/realm-export.json` from S-019 (signup enabled + Google IdP per S-134 + production client IDs/secrets).
   - HTTPS termination via the reverse proxy (S-041); JWKS endpoint reachable from the AlpenFlight backend.
   - Backup of the Keycloak DB is part of the off-site backup story (S-042).
-  - The choice "self-hosted Keycloak vs. hosted alternative (Ory / Logto / Auth0)" is recorded with a one-paragraph rationale in `next/auth/prod-idp.md`.
+  - The choice "self-hosted Keycloak vs. hosted alternative (Ory / Logto / Auth0)" is recorded with a one-paragraph rationale in `alpenflight/auth/prod-idp.md`.
 estimate: M
 adr_refs: [0007]
 parity_test: none

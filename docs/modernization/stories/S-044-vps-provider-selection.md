@@ -5,7 +5,7 @@ epic: E-05
 status: todo
 depends_on: []
 acceptance:
-  - Provider chosen and documented in `next/ops/vps-provider-evaluation.md` (Hetzner DE/EU, Exoscale CH, Infomaniak CH, Init7 CH, OVHcloud FR/DE — comparison matrix + recommendation).
+  - Provider chosen and documented in `alpenflight/ops/vps-provider-evaluation.md` (Hetzner DE/EU, Exoscale CH, Infomaniak CH, Init7 CH, OVHcloud FR/DE — comparison matrix + recommendation).
   - Signed DPA (data processing agreement) on file with the chosen provider; region setting + snapshot storage region both verified Swiss or EU per C4.
   - Production VPS provisioned: 4 vCPU / 8 GB RAM / 80 GB SSD (NVMe where offered); Debian 13 or Ubuntu 24.04 LTS.
   - SSH key auth only (`PasswordAuthentication no`); root SSH disabled (`PermitRootLogin no`); non-root sudo user with passwordless sudo (key-gated).
@@ -14,8 +14,8 @@ acceptance:
   - Provider-level snapshots scheduled daily with ≥30-day retention (operator confirms in panel screenshot, recorded in provisioning report).
   - PTR record matches the planned hostname (required for S-091 SMTP deliverability).
   - DNS is decoupled from the VPS provider (Cloudflare or DNSimple as authoritative) so future provider migration is non-disruptive.
-  - `next/ops/scripts/provision-vps.sh` is idempotent (re-running is a no-op when state already correct); tested on a throwaway VPS first.
-  - `next/ops/scripts/verify-vps.sh` runs the full verification checklist (Test plan) and exits 0.
+  - `alpenflight/ops/scripts/provision-vps.sh` is idempotent (re-running is a no-op when state already correct); tested on a throwaway VPS first.
+  - `alpenflight/ops/scripts/verify-vps.sh` runs the full verification checklist (Test plan) and exits 0.
   - `docs/modernization/ops/S-044-provisioning-report.md` captures: provider, region, DC city, VPS ID, IP, SSH key fingerprint, snapshot policy ID, perf baselines (fio/sysbench/ping/docker-stats sums), all evidence.
   - External `nmap` from off-host shows only `{22, 80, 443}` open; data service ports (5432, 8080-admin, 1025, 8025, 9000, 9090, 3000) all closed/filtered.
   - Provider account has 2FA enforced (hardware key preferred); provider API tokens scoped to "create/destroy VPS + snapshot" only.
@@ -36,15 +36,15 @@ ADR 0010 chose "single Swiss/EU VPS + Docker Compose, K8s-ready hygiene from day
 See frontmatter.
 
 ## Tasks
-- [ ] Author `next/ops/vps-provider-evaluation.md` (the comparison matrix below + recommendation).
+- [ ] Author `alpenflight/ops/vps-provider-evaluation.md` (the comparison matrix below + recommendation).
 - [ ] Operator picks the provider; sign DPA; record region + jurisdiction.
-- [ ] Author `next/ops/scripts/provision-vps.sh` (idempotent bash; 50–100 lines; behavior contract in Design notes).
-- [ ] Optionally author `next/ops/cloud-init/user-data.yml` for providers that support it (Hetzner Cloud, Exoscale).
+- [ ] Author `alpenflight/ops/scripts/provision-vps.sh` (idempotent bash; 50–100 lines; behavior contract in Design notes).
+- [ ] Optionally author `alpenflight/ops/cloud-init/user-data.yml` for providers that support it (Hetzner Cloud, Exoscale).
 - [ ] Test `provision-vps.sh` on a throwaway VPS — assert idempotent (second run is no-op).
 - [ ] Provision the production VPS; run the script; verify with `verify-vps.sh`.
-- [ ] Author `next/ops/runbooks/host-setup.md` (operator manual: provision dialog, DNS records, bootstrap invocation, verification checklist, snapshot rotation, rollback hatch).
-- [ ] Author `next/ops/dns/zone-records.md` (DNS records maintained at the decoupled DNS provider).
-- [ ] Run perf baseline measurements (fio, sysbench, ping, docker-stats 24h sample) and commit `next/ops/vps-perf-baseline.md` — feeds S-108 and S-111.
+- [ ] Author `alpenflight/ops/runbooks/host-setup.md` (operator manual: provision dialog, DNS records, bootstrap invocation, verification checklist, snapshot rotation, rollback hatch).
+- [ ] Author `alpenflight/ops/dns/zone-records.md` (DNS records maintained at the decoupled DNS provider).
+- [ ] Run perf baseline measurements (fio, sysbench, ping, docker-stats 24h sample) and commit `alpenflight/ops/vps-perf-baseline.md` — feeds S-108 and S-111.
 - [ ] Test the snapshot-restore-on-throwaway drill (lightweight; full DR drill is S-043). Destroy the throwaway instance afterward.
 
 <!-- modernize-refine: start -->
@@ -53,16 +53,16 @@ See frontmatter.
 
 ### Module layout
 
-- `next/ops/vps-provider-evaluation.md` — comparison matrix + recommendation (decision artifact).
-- `next/ops/runbooks/host-setup.md` — operator manual.
-- `next/ops/scripts/provision-vps.sh` — idempotent bootstrap.
-- `next/ops/scripts/verify-vps.sh` — verification checklist runner.
-- `next/ops/cloud-init/user-data.yml` — optional, for providers supporting cloud-init.
-- `next/ops/dns/zone-records.md` — authoritative DNS records (A/AAAA/PTR/CAA/TXT) at the decoupled DNS provider.
-- `next/ops/vps-perf-baseline.md` — fio/sysbench/ping baselines (feeds S-108, S-111).
+- `alpenflight/ops/vps-provider-evaluation.md` — comparison matrix + recommendation (decision artifact).
+- `alpenflight/ops/runbooks/host-setup.md` — operator manual.
+- `alpenflight/ops/scripts/provision-vps.sh` — idempotent bootstrap.
+- `alpenflight/ops/scripts/verify-vps.sh` — verification checklist runner.
+- `alpenflight/ops/cloud-init/user-data.yml` — optional, for providers supporting cloud-init.
+- `alpenflight/ops/dns/zone-records.md` — authoritative DNS records (A/AAAA/PTR/CAA/TXT) at the decoupled DNS provider.
+- `alpenflight/ops/vps-perf-baseline.md` — fio/sysbench/ping baselines (feeds S-108, S-111).
 - `docs/modernization/ops/S-044-provisioning-report.md` — provisioning evidence (region, VPS ID, IP, SSH fingerprint, snapshot policy, perf baselines).
 
-**No code in `next/server/` or `next/web/`.** No application changes.
+**No code in `alpenflight/server/` or `alpenflight/web/`.** No application changes.
 
 ### Host shape
 
@@ -79,7 +79,7 @@ See frontmatter.
 
 ### Provider comparison matrix
 
-Commit as `next/ops/vps-provider-evaluation.md`. Columns: provider, region(s), spec, monthly price, snapshot retention, object-storage residency, DPA / GDPR posture, IPv6, KVM rescue, cloud-init, floating IP, control-panel rating, support quality, escape hatch, notes.
+Commit as `alpenflight/ops/vps-provider-evaluation.md`. Columns: provider, region(s), spec, monthly price, snapshot retention, object-storage residency, DPA / GDPR posture, IPv6, KVM rescue, cloud-init, floating IP, control-panel rating, support quality, escape hatch, notes.
 
 | Provider | Region(s) | Spec/Plan | Price (€/CHF) | Snapshot | Object storage | DPA | IPv6 | KVM | cloud-init | Floating IP | Panel | Support | Escape | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -138,7 +138,7 @@ Commit as `next/ops/vps-provider-evaluation.md`. Columns: provider, region(s), s
 ### DNS architecture
 
 - **Decouple DNS from VPS provider** (Cloudflare or DNSimple as authoritative). Enables provider migration without DNS lock-in.
-- DNS records (committed in `next/ops/dns/zone-records.md`):
+- DNS records (committed in `alpenflight/ops/dns/zone-records.md`):
   - `A` + `AAAA` for VPS IPs
   - `PTR` requested from the VPS provider's panel pointing to the hostname (S-091 SMTP)
   - `CAA 0 issue "letsencrypt.org"` to lock TLS issuance to a single CA (mitigates A02)
@@ -374,7 +374,7 @@ N/A — VPS hosts a single deployment. **Ops note:** when running `psql` directl
 - **Memory bandwidth:** `sysbench memory --memory-block-size=1M --memory-total-size=10G run`; record MB/s.
 - **Steady-state compose footprint:** 24h `docker stats --no-stream` sampled every 60s after compose up (no traffic). Pass: total RSS ≤ 3.5 GB idle; no monotonic growth (memory-leak smell).
 - **Synthetic-load compose footprint:** 30-min k6 ramp matching S-108 baseline mix; record peak RSS. Pass: ≤ 5.5 GB peak (confirms 8 GB headroom thesis); fail-loud if any container OOM-kills.
-- **Baseline persistence:** all results land in `next/ops/vps-perf-baseline.md` (provider + plan + region + date stamped); feeds S-108 and S-111.
+- **Baseline persistence:** all results land in `alpenflight/ops/vps-perf-baseline.md` (provider + plan + region + date stamped); feeds S-108 and S-111.
 
 ### CPU sizing
 - 4 vCPU sufficient at our scale; Postgres + Spring Boot don't peg under typical load.

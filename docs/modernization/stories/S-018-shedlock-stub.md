@@ -7,7 +7,7 @@ depends_on: [S-009]
 acceptance:
   - The `shedlock` table is in V1__baseline (DDL per `net.javacrumbs.shedlock-provider-jdbc-template`).
   - The ShedLock dependency is added but **not** enabled — `@SchedulerLock` annotations are not yet applied to jobs.
-  - A README under `next/server/src/main/resources/db/migration/` notes the migration path to multi-instance: flip a property + annotate jobs.
+  - A README under `alpenflight/server/src/main/resources/db/migration/` notes the migration path to multi-instance: flip a property + annotate jobs.
 estimate: S
 adr_refs: [0009]
 parity_test: none
@@ -38,19 +38,19 @@ This is intentionally a stub — don't activate ShedLock or annotate jobs. Activ
 
 ### V1 immutability — ship as `V2__shedlock.sql`, NOT amend V1
 
-AC1's "in V1__baseline" predates S-009 going `done`. V1's checksum is locked per `next/server/CONVENTIONS.md` and the in-file header at `V1__baseline.sql:10-12`. Amending V1 would break `flyway:validate` on every consumer DB. **Reinterpret AC1: the table ships as `V2__shedlock.sql`.**
+AC1's "in V1__baseline" predates S-009 going `done`. V1's checksum is locked per `alpenflight/server/CONVENTIONS.md` and the in-file header at `V1__baseline.sql:10-12`. Amending V1 would break `flyway:validate` on every consumer DB. **Reinterpret AC1: the table ships as `V2__shedlock.sql`.**
 
 ### Artifact layout
 
 | File | Action | Content |
 |---|---|---|
-| `next/server/src/main/resources/db/migration/V2__shedlock.sql` | new | Canonical ShedLock DDL verbatim from `shedlock-provider-jdbc-template` 7.7.0 + header comment explaining the stub posture |
-| `next/server/build.gradle.kts` | edit | Add `implementation("net.javacrumbs.shedlock:shedlock-spring:7.7.0")` + `implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.7.0")` (`implementation` scope, not `compileOnly`/commented — honest classpath; classes load but are inert without `@EnableSchedulerLock`) |
-| `next/database/tenant-rules.yaml` | edit | Add `shedlock` SYSTEM_GLOBAL override (parallel to `flyway_schema_history` / `app_meta` entries from S-009). Without it S-011's classifier emits UNKNOWN |
-| `next/server/CONVENTIONS.md` | edit | Append "Background jobs / ShedLock — S-018" section with stub-vs-activate rule + future activation runbook |
-| `next/server/README.md` | edit | Database-migrations section gains a "ShedLock activation playbook" subsection (NOT a separate README under `db/migration/` — that folder stays SQL-only) |
-| `next/server/src/test/java/ch/alpenflight/server/migration/MigrationFolderConventionsTest.java` | extend | 3 new tests (V2 present + correct DDL shape + no `@EnableSchedulerLock` leaked in `src/main/java`) |
-| `next/server/src/test/java/ch/alpenflight/server/migration/FlywayBootstrapIntegrationTest.java` | extend | 2 new tests (table exists with the 4 expected columns + PK; table is empty post-boot) |
+| `alpenflight/server/src/main/resources/db/migration/V2__shedlock.sql` | new | Canonical ShedLock DDL verbatim from `shedlock-provider-jdbc-template` 7.7.0 + header comment explaining the stub posture |
+| `alpenflight/server/build.gradle.kts` | edit | Add `implementation("net.javacrumbs.shedlock:shedlock-spring:7.7.0")` + `implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.7.0")` (`implementation` scope, not `compileOnly`/commented — honest classpath; classes load but are inert without `@EnableSchedulerLock`) |
+| `alpenflight/database/tenant-rules.yaml` | edit | Add `shedlock` SYSTEM_GLOBAL override (parallel to `flyway_schema_history` / `app_meta` entries from S-009). Without it S-011's classifier emits UNKNOWN |
+| `alpenflight/server/CONVENTIONS.md` | edit | Append "Background jobs / ShedLock — S-018" section with stub-vs-activate rule + future activation runbook |
+| `alpenflight/server/README.md` | edit | Database-migrations section gains a "ShedLock activation playbook" subsection (NOT a separate README under `db/migration/` — that folder stays SQL-only) |
+| `alpenflight/server/src/test/java/ch/alpenflight/server/migration/MigrationFolderConventionsTest.java` | extend | 3 new tests (V2 present + correct DDL shape + no `@EnableSchedulerLock` leaked in `src/main/java`) |
+| `alpenflight/server/src/test/java/ch/alpenflight/server/migration/FlywayBootstrapIntegrationTest.java` | extend | 2 new tests (table exists with the 4 expected columns + PK; table is empty post-boot) |
 
 ### V2 DDL (exact)
 
@@ -69,7 +69,7 @@ AC1's "in V1__baseline" predates S-009 going `done`. V1's checksum is locked per
 -- TIMESTAMPTZ — matches `usingDbTime()` semantics).
 --
 -- SYSTEM_GLOBAL: no club_id column, no @TenantId. Classified accordingly in
--- next/database/tenant-rules.yaml.
+-- alpenflight/database/tenant-rules.yaml.
 
 CREATE TABLE shedlock (
     name       VARCHAR(64)  NOT NULL,
@@ -127,7 +127,7 @@ One PR per step when HA arrives:
 - **Rejected — commented-out / `compileOnly` deps.** Dishonest dep tree; breaks `failOnVersionConflict`-style audits; hides ShedLock from `dependencyInsight`.
 - **Rejected — activate on single-instance.** One DB round-trip per `@Scheduled` invocation for zero benefit; staging discipline collapses; HA story has nothing left to do.
 - **Rejected — skip the table now, add at HA cutover.** Defeats S-018's whole purpose: schema changes during an HA cutover (when Flyway checksums + replica rollouts + DB locks all interact) is exactly the operation we're avoiding.
-- **Rejected — separate `db/migration/README.md`.** Pollutes the migration classpath (Flyway scans it). Fold the activation notes into `next/server/README.md` + `CONVENTIONS.md`.
+- **Rejected — separate `db/migration/README.md`.** Pollutes the migration classpath (Flyway scans it). Fold the activation notes into `alpenflight/server/README.md` + `CONVENTIONS.md`.
 
 ### Module layout
 
@@ -141,7 +141,7 @@ No new server subpackage at S-018. `ch.alpenflight.platform.scheduling` is **res
 
 **AC2 — dep posture.** "Added but not enabled" has three interpretations: `compileOnly` (drift trap — compiles but missing at runtime), `implementation` (real classpath; inert without `@EnableSchedulerLock`), commented-out (dishonest dep tree). Pin `implementation`.
 
-**AC3 — README location.** `next/server/src/main/resources/db/migration/` is reserved for `.sql`; non-SQL files pollute the classpath that `spring.flyway.locations` scans. Fold into `next/server/README.md`'s existing Database-migrations section + `CONVENTIONS.md`.
+**AC3 — README location.** `alpenflight/server/src/main/resources/db/migration/` is reserved for `.sql`; non-SQL files pollute the classpath that `spring.flyway.locations` scans. Fold into `alpenflight/server/README.md`'s existing Database-migrations section + `CONVENTIONS.md`.
 
 ### Hidden requirements
 
@@ -240,7 +240,7 @@ ShedLock writes are intentionally non-audited. Capture as explicit exclusion in 
 - ShedLock deps on classpath (Class.forName succeeds for both).
 - **No `@EnableSchedulerLock` anywhere in `ch.alpenflight.*`.**
 - `shedlock` table is empty post-boot.
-- `next/database/tenant-rules.yaml` carries the SYSTEM_GLOBAL entry.
+- `alpenflight/database/tenant-rules.yaml` carries the SYSTEM_GLOBAL entry.
 
 **S-018 does NOT own:** ShedLock activation (HA story), job porting (S-081+), observability (S-035), per-job lock contention.
 
@@ -250,7 +250,7 @@ Integration-only per stack convention. 6 new test methods across 3 existing/new 
 
 ### Specific test cases
 
-**Extend `MigrationFolderConventionsTest`** (`next/server/src/test/java/ch/alpenflight/server/migration/`):
+**Extend `MigrationFolderConventionsTest`** (`alpenflight/server/src/test/java/ch/alpenflight/server/migration/`):
 
 - `v2_shedlock_migration_present` — `db/migration/V2__shedlock.sql` exists; matches `^V2__[a-z0-9_]+\.sql$`.
 - `v2_shedlock_matches_canonical_provider_ddl` — file contains `CREATE TABLE shedlock`, the 4 column names, and `PRIMARY KEY (name)`. Drift between this file and ShedLock 7.7.0's contract → fail at PR time.

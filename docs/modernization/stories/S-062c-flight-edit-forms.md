@@ -77,7 +77,7 @@ See frontmatter.
 
 ### Module layout — client-side
 
-`next/web/src/app/flights/` (extending what S-062b created):
+`alpenflight/web/src/app/flights/` (extending what S-062b created):
 - `flight-routes.ts` — UPGRADE: replace placeholders with real components.
 - `flight.store.ts` — EXTEND: add detail-state slice + `save`/`delete` methods + `MutationBus` emit.
 - `services/flight-api.ts` — EXTEND: wrap `getFlight`, `getNewTemplate`, `getCopyTemplate`, `createFlight`, `updateFlight`, `deleteFlight`.

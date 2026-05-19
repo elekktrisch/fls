@@ -1,0 +1,518 @@
+# Tenant-scope classification — committed human-curated overrides + the public-flow allowlist seed.
+# See `tenant-catalog.md` for the narrative + sacred-cow reasoning.
+# See `alpenflight/database/extract/src/main/java/ch/fls/legacyextract/tenant/TenantClassifier.java`
+# for the assignment algorithm (first-match-wins; YAML overrides beat column-presence heuristics).
+
+version: 1
+hibernate_pin: "7.x"  # ADR 0001 + 0019 — needed for application-side UUID v7 generation (uuid-creator).
+tenant_id_type: "UUID"  # ADR 0019 — Postgres native `uuid` column on every tenant-scoped table. 16-byte entries.
+
+# Per-entity overrides. Keyed by legacy SQL Server table name (matches S-010 extractor output).
+# Each override either pins a `kind` (drives classification) and/or carries metadata downstream
+# stories consume (target_entity, pii_blob, ride_through_targets, preconditions).
+overrides:
+
+  # ---- Cross-tenant entities — the sacred-cow cluster ----
+
+  Persons:
+    kind: cross-tenant
+    target_entity: Person
+    rationale_ref: tenant-catalog.md#persons
+    pii_columns:
+      - firstname
+      - lastname
+      - midname
+      - company_name
+      - address_line1
+      - address_line2
+      - zip
+      - city
+      - region
+      - private_phone
+      - mobile_phone
+      - business_phone
+      - fax_number
+      - email_private
+      - email_business
+      - birthday
+      - licence_number
+      - spot_link
+    # Cross-club crew, multi-club membership via PersonClub. Cross-tenant by design.
+    # PII catalog drives S-027 audit-blob redaction + FADP DSAR scope.
+
+  PersonClub:
+    kind: cross-tenant
+    target_entity: PersonClub
+    rationale_ref: tenant-catalog.md#personclub
+    pii_columns:
+      - member_number  # quasi-PII — combined with name reveals membership
+    # The cross-tenant join table itself. A Person can belong to many Clubs.
+    # PersonClub is internal to the Person aggregate (ADR 0018) — no own
+    # repository at S-022; mutation via Person.addMembership() / removeMembership().
+
+  # ---- Principal subject ----
+
+  Users:
+    kind: principal
+    target_entity: User
+    rationale_ref: tenant-catalog.md#users
+    pii_columns:
+      - username
+      - notification_email
+      - phone_number
+      - remarks
+    # Has a ClubId column (login principal's primary club) but tenancy resolves
+    # FROM this row, not OVER it. Cannot carry @TenantId or the resolver
+    # would chicken-and-egg the user load.
+
+  # ---- Reference data — no tenant filter ever ----
+
+  Countries:
+    kind: reference
+    target_entity: Country
+    rationale_ref: tenant-catalog.md#reference-data
+  LanguageTranslations:
+    kind: reference
+    target_entity: LanguageTranslation
+    rationale_ref: tenant-catalog.md#reference-data
+  Languages:
+    kind: reference
+    target_entity: Language
+    rationale_ref: tenant-catalog.md#reference-data
+  AircraftTypes:
+    kind: reference
+    target_entity: AircraftType
+    rationale_ref: tenant-catalog.md#reference-data
+  AircraftStates:
+    kind: reference
+    target_entity: AircraftState
+    rationale_ref: tenant-catalog.md#reference-data
+  StartTypes:
+    kind: reference
+    target_entity: StartType
+    rationale_ref: tenant-catalog.md#reference-data
+  MemberStates:
+    kind: tenant-scoped  # reclassified S-012 — legacy ClubId NOT NULL; per-club seeds at S-016
+    target_entity: MemberState
+    tenant_column: club_id
+    rationale_ref: tenant-catalog.md#reference-data
+    # Per ADR 0018 internal to the Club aggregate; CASCADE on Club delete.
+  ClubStates:
+    kind: reference
+    target_entity: ClubState
+    rationale_ref: tenant-catalog.md#reference-data
+  CounterUnitTypes:
+    kind: reference
+    target_entity: CounterUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  LengthUnitTypes:
+    kind: reference
+    target_entity: LengthUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  ElevationUnitTypes:
+    kind: reference
+    target_entity: ElevationUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  AccountingUnitTypes:
+    kind: reference
+    target_entity: AccountingUnitType
+    rationale_ref: tenant-catalog.md#reference-data
+  AccountingRuleFilterTypes:
+    kind: reference
+    target_entity: AccountingRuleFilterType
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightAirStates:
+    kind: reference
+    target_entity: FlightAirState
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightProcessStates:
+    kind: reference
+    target_entity: FlightProcessState
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightCrewTypes:
+    kind: reference
+    target_entity: FlightCrewType
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightCostBalanceTypes:
+    kind: reference
+    target_entity: FlightCostBalanceType
+    rationale_ref: tenant-catalog.md#reference-data
+  FlightTypes:
+    kind: tenant-scoped  # reclassified S-013 — legacy FlightType.cs:25 carries ClubId NOT NULL
+    target_entity: FlightType
+    tenant_column: operating_club_id
+    emits_audit: true
+    rationale_ref: tenant-catalog.md#reference-data
+    # S-013 design notes promote this from "reference" to TENANT_SCOPED + aggregate-root
+    # per ADR 0018 (5 aggregate roots in S-013: flight, aircraft, location, flight_type, article).
+    # FlightType carries per-club booleans (is_for_glider_flights / is_for_tow_flights /
+    # is_for_motor_flights / is_check_flight / ...) — not shared across tenants.
+  AircraftReservationTypes:
+    kind: tenant-scoped  # reclassified S-014 — legacy AircraftReservationType.cs:33 ClubId NOT NULL
+    target_entity: AircraftReservationType
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#reference-data
+    # Per-club lookup; not an aggregate root (Club-aggregate-internal lookup,
+    # parallel to S-012 MemberStates / PersonCategories). S-064 owns mutation.
+  LocationTypes:
+    kind: reference
+    target_entity: LocationType
+    rationale_ref: tenant-catalog.md#reference-data
+  PersonCategories:
+    kind: tenant-scoped  # reclassified S-012 — legacy ClubId NOT NULL; per-club seeds at S-016
+    target_entity: PersonCategory
+    tenant_column: club_id
+    rationale_ref: tenant-catalog.md#reference-data
+    # Per ADR 0018 internal to the Club aggregate; CASCADE on Club delete.
+    # Self-FK parent_person_category_id ON DELETE RESTRICT preserves hierarchy.
+  PlanningDayAssignmentTypes:
+    kind: tenant-scoped  # reclassified S-014 — legacy PlanningDayAssignmentType.cs:21 ClubId NOT NULL
+    target_entity: PlanningDayAssignmentType
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#reference-data
+    # Per-club lookup; not an aggregate root. Mutation gated to FLIGHT_OPS / CLUB_ADMIN at S-064.
+  ExtensionTypes:
+    kind: reference
+    target_entity: ExtensionType
+    rationale_ref: tenant-catalog.md#reference-data
+  AuditLogEventTypes:
+    kind: reference
+    target_entity: AuditLogEventType
+    rationale_ref: tenant-catalog.md#reference-data
+  UserAccountStates:
+    kind: reference
+    target_entity: UserAccountState
+    rationale_ref: tenant-catalog.md#reference-data
+  Extensions:
+    kind: reference
+    target_entity: Extension
+    rationale_ref: tenant-catalog.md#reference-data
+    # Extension TYPE definitions — shared across all tenants. ExtensionValues
+    # is the per-club payload (auto-classified as tenant-scoped if it carries
+    # a ClubId column).
+  Locations:
+    kind: reference
+    target_entity: Location
+    rationale_ref: tenant-catalog.md#reference-data
+    pii_columns: [description]
+    # Sacred-cow: shared airports (LSZH used by multiple clubs). Reference data,
+    # not tenant-scoped. Note: if a future schema adds club-private waypoints,
+    # split into Location (reference) + ClubLocation (tenant-scoped).
+    # SYSTEM_ADMIN-only mutation (cross-tenant impact); S-013 column comment on
+    # location.id pins the contract.
+  InOutboundPoints:
+    kind: reference
+    target_entity: InOutboundPoint
+    rationale_ref: tenant-catalog.md#reference-data
+    # Airport routing waypoints — shared like Locations.
+  PersonFlightTimeCredits:
+    kind: cross-tenant
+    target_entity: PersonFlightTimeCredit
+    rationale_ref: tenant-catalog.md#persons
+    # Credits attached to a Person — cross-tenant by construction (the same
+    # Person can hold credits across multiple Clubs via PersonClub). The
+    # row carries the per-club association via Person's relationships, not
+    # via a ClubId column.
+
+  # ---- System-global ----
+
+  Settings:
+    kind: system
+    target_entity: Setting
+    rationale_ref: tenant-catalog.md#system-global
+  SystemData:
+    kind: system
+    target_entity: SystemData
+    rationale_ref: tenant-catalog.md#system-global
+  SystemVersion:
+    kind: system
+    target_entity: SystemVersion
+    rationale_ref: tenant-catalog.md#system-global
+  SystemLogs:
+    kind: system
+    target_entity: SystemLog
+    rationale_ref: tenant-catalog.md#system-global
+  Roles:
+    kind: system
+    target_entity: Role
+    rationale_ref: tenant-catalog.md#system-global
+  UserRoles:
+    kind: system
+    target_entity: UserRole
+    rationale_ref: tenant-catalog.md#system-global
+
+  # S-009 schema-migration metadata. Neither is a domain entity; both are
+  # operational state tracked by the migration tooling itself.
+  flyway_schema_history:
+    kind: system
+    target_entity: FlywaySchemaHistory
+    rationale_ref: tenant-catalog.md#system-global
+    # Created and managed by Flyway autoconfig. Operator-only writes via
+    # `flyway repair`. Read-only from application code.
+  app_meta:
+    kind: system
+    target_entity: AppMeta
+    rationale_ref: tenant-catalog.md#system-global
+    # S-009 sentinel: tracks schema generation (S-009, S-012, ...). System
+    # ops table, not tenant data.
+
+  # ---- Tenant-scoped — most of the domain ----
+  # No override needed when the column-presence rule fires (ClubId present).
+  # Listed here when downstream metadata matters (pii_blob, ride_through_targets,
+  # preconditions, target_entity rename).
+
+  Clubs:
+    kind: tenant-scoped
+    target_entity: Club
+    rationale_ref: tenant-catalog.md#clubs
+    # The tenant identity row itself. Each Club row IS a tenant.
+
+  Aircrafts:
+    kind: cross-tenant   # reclassified 2026-05-16 per operator: aircraft has no @TenantId
+    target_entity: Aircraft
+    rationale_ref: tenant-catalog.md#aircraft
+    tenant_column_legacy: OwnerClubId  # legacy column; in new schema renamed `owner_club_id` and made NULLABLE
+    owner_column: owner_club_id        # uuid NULL → club(id) ON DELETE SET NULL; aircraft may be Person-owned (private) or cross-club shared (charter / rental)
+    emits_audit: true
+    pii_columns: [comment]
+    sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
+    pii_ride_through: [aircraft_owner_person_id]
+    # Reclassification rationale (2026-05-16): Charter / loan / private ownership cases mean
+    # the aircraft has no inherent tenant scope. Each Flight on the aircraft carries its own
+    # `operating_club_id` (set per-flight by the operator, NOT denormalized from aircraft).
+    # Service layer (S-026) enforces "may this club use this aircraft?" via owner_club_id +
+    # charter agreement + public-rental checks. Sacred-cow parallel to Person + Location.
+
+  AircraftAircraftStates:
+    kind: cross-tenant
+    target_entity: AircraftAircraftState
+    rationale_ref: tenant-catalog.md#aircraft
+    emits_audit: true
+    pii_columns: [remarks]
+    pii_ride_through: [noticed_by_person_id]
+    ride_through_targets: [Persons]
+    # Per-aircraft state history (FK: AircraftId; ValidFrom / ValidTo / NoticedByPersonId).
+    # Inherits Aircrafts' cross-tenant classification (2026-05-16 amendment): airworthiness
+    # state is a property of the physical aircraft, not of any one operating club. A grounded
+    # aircraft is grounded for every club that uses it. Service layer reads via the Aircraft
+    # aggregate; tenancy is enforced at the parent.
+
+  AircraftOperatingCounters:
+    kind: cross-tenant
+    target_entity: AircraftOperatingCounter
+    rationale_ref: tenant-catalog.md#aircraft
+    emits_audit: true
+    # Per-aircraft engine / flight-hour counter history (FK: AircraftId; AtDateTime, totals,
+    # next-maintenance thresholds). Inherits Aircrafts' cross-tenant classification: counters
+    # measure the physical aircraft's lifetime and accumulate across every operating club.
+    # Maintenance triggers (NextMaintenanceAt*) are airframe-level, not club-level.
+
+  AuditLogs:
+    kind: tenant-scoped
+    target_entity: AuditLog
+    rationale_ref: tenant-catalog.md#audit-logs
+    pii_blob: true
+    emits_audit: false  # audit logs are not themselves audited (no infinite recursion)
+    # The row is tenant-scoped; payload may reference cross-cluster Persons.
+
+  AuditLogDetails:
+    kind: tenant-scoped
+    target_entity: AuditLogDetail
+    rationale_ref: tenant-catalog.md#audit-logs
+    pii_blob: true
+    emits_audit: false
+    # OriginalValue / NewValue blobs are the system's largest PII container.
+    # DSAR scope cascades cross-tenant (Person erasure → scrub audit blobs in every club).
+
+  Flights:
+    target_entity: Flight
+    rationale_ref: tenant-catalog.md#flights
+    emits_audit: true
+    ride_through_targets: [Persons, Aircrafts, Locations]
+    pii_columns: [comment, incident_comment, validation_errors, outbound_route, inbound_route]
+    # coupon_number is structurally quasi-PII (voucher code tied to a Person)
+    # but is intentionally OFF this list — it has its own VARCHAR(20) + regex
+    # CHECK shape and the S-027 audit-redaction set treats free-text PII columns
+    # only. If a future audit policy wants coupon-redaction, classify under
+    # `sensitive_columns` (parallel to aircraft.flarm_id) rather than PII proper.
+    # Per the 2026-05-16 Aircrafts → cross-tenant amendment: Flight.operating_club_id is NO
+    # LONGER denormalized from aircraft.owner_club_id (the latter is now optional + cross-
+    # tenant). Each Flight carries its own operating_club_id, set per-flight by the operator
+    # (typically defaults to user.club_id at the API layer). Charter case: Club B operates
+    # Club A's aircraft → flight.operating_club_id = Club B, aircraft.owner_club_id = Club A.
+    #
+    # Classifier note: legacy Flights had no ClubId column — tenancy was INDIRECT via
+    # Aircrafts.OwnerClubId FK-hop. `kind:` is omitted so step 1 (override) doesn't fire and
+    # step 3 (FK-hop) correctly classifies legacy_scope = INDIRECT_TENANT. `target_scope`
+    # below pins the new-schema invariant: S-013 ships a real `club_id` column on flight.
+    target_scope: TENANT_SCOPED
+    tenant_column: operating_club_id
+    preconditions:
+      - "S-013 ships flight.operating_club_id as required column set per-flight by operator (do not denormalize from aircraft.owner_club_id)"
+      - "S-022 service layer enforces 'may this club use this aircraft?' (owner / charter / public-rental checks) via Aircraft aggregate"
+
+  Articles:
+    kind: tenant-scoped  # S-013 — aggregate root per ADR 0018; legacy Article carries ClubId NOT NULL
+    target_entity: Article
+    tenant_column: operating_club_id
+    emits_audit: true
+    rationale_ref: tenant-catalog.md#articles
+    # Per-club catalog of billable articles (article_number unique within club).
+    # Price + accounting-rule mutations are ACCOUNTANT / ADMIN-gated at the service
+    # layer; audit captured on every mutation.
+
+  Deliveries:
+    kind: tenant-scoped
+    target_entity: Delivery
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: true
+    ride_through_targets: [Persons, Flights]  # RecipientPersonId may be cross-club; Flight is same-tenant
+    pii_columns:
+      # 9 frozen recipient snapshot columns (Swiss OR Art. 957a 10-year retention).
+      - recipient_name
+      - recipient_firstname
+      - recipient_lastname
+      - recipient_address_line1
+      - recipient_address_line2
+      - recipient_zip_code
+      - recipient_city
+      - recipient_country_name
+      - recipient_person_club_member_number
+      # Free-text quasi-PII.
+      - delivery_information
+      - additional_information
+    pii_ride_through: [recipient_person_id]
+    fadp_dsar_retention_exempt_when: "process_state_id >= 20"  # OR Art. 957a override
+
+  DeliveryItems:
+    kind: tenant-scoped   # denormalized operating_club_id from delivery
+    target_entity: DeliveryItem
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: true
+    pii_columns: [item_text, additional_information]
+    preconditions:
+      - "Denormalize operating_club_id from delivery.operating_club_id; @TenantId at S-022"
+
+  AccountingRuleFilters:
+    kind: tenant-scoped
+    target_entity: AccountingRuleFilter
+    rationale_ref: tenant-catalog.md#accounting-rule-filter
+    emits_audit: true
+    pii_columns: [filter_config]   # whole-jsonb redaction (matched_club_member_numbers etc.)
+    pii_blob: true
+    # filter_config jsonb is the canonical A03 polymorphic-deserialization
+    # vector. Jackson default-typing DISABLED globally; ArchUnit rule bans
+    # @JsonTypeInfo(use=Id.CLASS). S-064 enforces per-discriminator typed
+    # shape allow-list. CLUB_ADMIN-only mutation; HIGHEST audit priority.
+
+  AircraftReservations:
+    kind: tenant-scoped
+    target_entity: AircraftReservation
+    rationale_ref: tenant-catalog.md#aircraft-reservation
+    emits_audit: true
+    ride_through_targets: [Persons, Aircrafts]  # Aircrafts added per 2026-05-16 amendment
+    pii_columns: [info]
+    pii_ride_through: [pilot_person_id, second_crew_person_id]
+    # `pii_ride_through` lists ONLY cross-tenant FKs to entities that carry direct PII
+    # (Persons). Consumers (S-027 audit-blob redaction, S-051 DSAR scope) iterate this
+    # list assuming "data here is PII to redact / scrub on subject erasure" — including
+    # a non-PII FK (Aircraft) here would either over-redact a non-PII identifier in
+    # audit blobs OR follow the FK to scrub Aircraft data on a Person DSAR (wrong
+    # subject). Cross-tenant FKs that are authz-relevant but NOT PII go in
+    # `cross_tenant_fks` below.
+    cross_tenant_fks: [aircraft_id]
+    preconditions:
+      - "S-022 / S-064 service layer enforces Aircraft.canBeReservedBy(operating_club_id) at create/update"
+      - "Audit event carries cross_tenant: true when aircraft.owner_club_id != aircraft_reservation.operating_club_id"
+      - "S-024 leakage CI roster MUST include aircraft_reservation.aircraft_id as cross-tenant FK"
+      - "S-027 audit-blob redaction iterates pii_ride_through (NOT cross_tenant_fks); aircraft_id is logged as a cross-tenant marker, not redacted as PII"
+      - "S-051 DSAR scope iterates pii_ride_through (NOT cross_tenant_fks); Person erasure scrubs pilot_person_id / second_crew_person_id, not aircraft_id"
+
+  PlanningDays:
+    kind: tenant-scoped
+    target_entity: PlanningDay
+    rationale_ref: tenant-catalog.md#planning-day
+    emits_audit: true
+    pii_columns: [info]
+
+  PlanningDayAssignments:
+    kind: tenant-scoped   # denormalized operating_club_id from planning_day
+    target_entity: PlanningDayAssignment
+    rationale_ref: tenant-catalog.md#planning-day
+    emits_audit: true
+    ride_through_targets: [Persons]
+    pii_columns: [info]
+    pii_ride_through: [assigned_person_id]
+
+  # S-014 new entries.
+
+  DeliveryCreationTest:
+    kind: tenant-scoped
+    target_entity: DeliveryCreationTest
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: true
+    ride_through_targets: [Flights]
+    pii_columns:
+      - description
+      - last_test_result_message
+      - expected_delivery
+      - last_test_created_delivery
+    pii_blob: true   # jsonb columns may carry recipient + member-number snapshots
+
+  DeliveryCreationTestItem:
+    kind: tenant-scoped   # denormalized
+    target_entity: DeliveryCreationTestItem
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: false   # snapshot rows; mutation captured at parent
+
+  ClubDeliveryNumberCounter:
+    kind: tenant-scoped   # PK is operating_club_id itself
+    target_entity: ClubDeliveryNumberCounter
+    tenant_column: operating_club_id
+    rationale_ref: tenant-catalog.md#deliveries
+    emits_audit: false   # service-layer allocator at S-064 emits the audit event on delivery.book
+
+  FlightCrew:
+    kind: tenant-scoped
+    target_entity: FlightCrew
+    rationale_ref: tenant-catalog.md#flight-crew
+    emits_audit: true
+    ride_through_targets: [Persons]
+    pii_ride_through: [person_id]
+    # Composite UNIQUE (Flight, Person, CrewType). The Person ride-through is
+    # the canonical sacred-cow case (cross-club crew member). emits_audit +
+    # pii_ride_through follow the S-013 design notes contract — S-027 audit
+    # policy + PII-redaction policy consume both flags.
+
+# ---- Public-flow allowlist contract ----
+# DB-table-driven (NOT application property): operators enable/disable per-club
+# from the admin UI without redeploy. S-013 designs the table; S-025 implements
+# the URL-slug resolver; S-011 declares the contract.
+public_flow_allowlist:
+  table: public_flow_club
+  columns: [club_id, url_slug, flow_kind, enabled]
+  flow_kinds: [TRIAL_FLIGHT, PASSENGER_FLIGHT]
+  slug_pattern: "^[a-z0-9-]{3,40}$"
+  resolution_response_on_unknown_slug: 404  # not 403, not "club not found"; constant-time
+
+# ---- Unscoped call-site matrix (for S-023) ----
+# Named call sites that legitimately bypass @TenantId. Each gets an entry in
+# UnscopedTenantContext's whitelist + an explicit role/principal gate.
+unscoped_call_sites:
+  - name: system-admin-reports
+    description: "Cross-club rollup reports for system administrators"
+    principal: SYSTEM_ADMIN
+  - name: ogn-ingest
+    description: "OGN flight ingestion writes flights for many clubs from a service principal"
+    principal: OGN_INGEST
+  - name: daily-scheduled-jobs
+    description: "Scheduled aggregations across all tenants (statistics, license-expiry checks)"
+    principal: SCHEDULED_JOB
+  - name: public-slug-resolution
+    description: "Anonymous URL-slug → club_id resolution before tenant context is established"
+    principal: ANONYMOUS
+  - name: fadp-dsar-cross-club-search
+    description: "Person erasure cascades cross-club; audit-blob redaction needs unscoped read"
+    principal: DPO

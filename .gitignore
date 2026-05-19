@@ -17,8 +17,8 @@ e2e/screenshots
 .claude/*
 !.claude/skills/
 !.claude/agents/
-next/server/build
-next/server/.gradle
-next/web/node_modules
-next/web/dist
-next/web/.angular
+alpenflight/server/build
+alpenflight/server/.gradle
+alpenflight/web/node_modules
+alpenflight/web/dist
+alpenflight/web/.angular

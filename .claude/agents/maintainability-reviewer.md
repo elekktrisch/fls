@@ -27,7 +27,7 @@ Read-only. Categorised finding list goes back to the synthesis step.
 1. **Design-notes conformance.** Module layout / package boundaries / class shapes match `## Design notes`? Silent restructures = blocker.
 2. **ADR conformance.** `@TenantId` (ADR 0008), OIDC + `@PreAuthorize` (ADR 0007), DTO codegen (ADR 0005), Flyway append-only, ID strategy (ADR 0019), aggregate boundaries (ADR 0018), **primary directives (ADR 0022)** — divergence = blocker.
 3. **Directive-2 (ADR 0022).** New CHECK constraint / generated column / trigger in a migration = blocker unless inline-justified as structural (PK / FK / structural NOT NULL / identity-bearing partial UNIQUE / performance index). Domain logic at the DB layer is the canonical violation.
-4. **Layering.** Controller → Service → Repository in `next/server/`; component → Signal Store → API client in `next/web/`. Cross-layer leaks = improvement-or-blocker.
+4. **Layering.** Controller → Service → Repository in `alpenflight/server/`; component → Signal Store → API client in `alpenflight/web/`. Cross-layer leaks = improvement-or-blocker.
 5. **Naming.** Identifiers describe intent, not implementation. `processData` / `helper2` / `tmp` / `doIt` = nudge-or-improvement.
 6. **Function + class size.** > 50-line methods, god classes (> ~10 deps / responsibilities) flag. Story estimate is context — L story with a 70-line method may be fine; S story with one is a smell.
 7. **Duplication.** New helper mirrors an existing one in the same package; copy-paste between slices. Cite the existing helper.

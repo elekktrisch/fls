@@ -30,7 +30,7 @@ All findings below resolved (address-now / accept-with-rationale / further-defer
 
 ### Improvements
 
-- [ ] **Live `Aircrafts` yaml entry missing `ride_through_targets`** — `next/database/tenant-rules.yaml` Aircrafts override. AC line 34 + design-notes example line 413 promise the field. Add `ride_through_targets: [Persons, Locations, Clubs]`.
+- [ ] **Live `Aircrafts` yaml entry missing `ride_through_targets`** — `alpenflight/database/tenant-rules.yaml` Aircrafts override. AC line 34 + design-notes example line 413 promise the field. Add `ride_through_targets: [Persons, Locations, Clubs]`.
 - [ ] **Design-notes example block: `Aircrafts.ride_through_targets` lowercase singular** — story line 413 reads `[person, location, club]`; flip to `[Persons, Locations, Clubs]` to match the PascalCase-plural convention of the surrounding entries. (Bundle with the live-YAML fix above.)
 - [ ] **`Flights` design-notes yaml-block includes `kind: tenant-scoped` while real YAML deliberately omits it** — story line 423 vs `tenant-rules.yaml:322-344`. Remove the `kind:` line from the design-notes example + add a one-line inline note "(kind: deliberately omitted — see classifier note in tenant-rules.yaml:339)" so the example matches reality.
 - [ ] **`Flights.pii_columns` test does not pin `coupon_number` absence** — `TenantCatalogYamlTest:128-135`. Rework removed `coupon_number` from `Flights.pii_columns`; test only asserts the 5 free-text columns are present. Add `.doesNotContain("coupon_number")` with a one-line rationale.

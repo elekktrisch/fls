@@ -52,7 +52,7 @@ Chosen: **Option A — Flyway**. SQL-first matches the team's existing relations
   - The Community OSS edition's feature ceiling is below the paid one (no native undo, no multi-DB orchestration). We don't need either, but if a future ADR introduces a second DB the limitation should be revisited.
 
 - **Follow-ups (other ADRs / stories implied):**
-  - **Story:** scaffold `next/database/` (or a `db/migration` folder inside `next/server/`) with `V1__baseline.sql` defining the target schema.
+  - **Story:** scaffold `alpenflight/database/` (or a `db/migration` folder inside `alpenflight/server/`) with `V1__baseline.sql` defining the target schema.
   - **Story:** establish a parity baseline (table list, column types, constraints) extracted from the current SQL Server DB; use it as the spec for `V1__baseline.sql`.
   - **Story:** write the one-shot data-migration step that loads production data into the new schema; rehearse against a production-shaped staging DB at least twice ([C6](../02-vision-and-constraints.md#3-hard-constraints) ≤6 hr budget).
   - **Story:** wire `flyway:validate` and `flyway:info` into CI so drift between branches is caught at PR time.

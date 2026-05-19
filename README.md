@@ -15,8 +15,8 @@ The codebase is split into three layers — legacy, bridge, and rewrite — list
 | [`flsserver/`](flsserver/) | legacy | ASP.NET Web API on .NET Framework 4.5, C#, EF6, OWIN. |
 | [`flsweb/`](flsweb/) | legacy | AngularJS 1.4 SPA, Webpack 1, ES2015. |
 | [`e2e/`](e2e/) | legacy | Playwright end-to-end tests covering the legacy stack. |
-| [`docs/`](docs/) | bridge | Modernization workflow — current-state, vision, ADRs, epics, stories that describe how to get from legacy to `next/`. |
-| `next/` | rewrite | Greenfield rewrite, produced story-by-story via the modernization workflow. |
+| [`docs/`](docs/) | bridge | Modernization workflow — current-state, vision, ADRs, epics, stories that describe how to get from legacy to `alpenflight/`. |
+| `alpenflight/` | rewrite | Greenfield rewrite, produced story-by-story via the modernization workflow. |
 
 ## Live e2e dashboard
 
@@ -28,7 +28,7 @@ The dashboard links to the Playwright HTML reports (read and mutate projects), t
 
 ## Documentation
 
-**The root-level `*.md` files describe only the legacy stack** (`flsserver` + `flsweb`). The rewrite is planned and documented under [`docs/`](docs/) and lands as code under `next/`.
+**The root-level `*.md` files describe only the legacy stack** (`flsserver` + `flsweb`). The rewrite is planned and documented under [`docs/`](docs/) and lands as code under `alpenflight/`.
 
 Legacy:
 - [CLAUDE.md](CLAUDE.md) — surface map: project layout, build commands, conventions
@@ -37,4 +37,4 @@ Legacy:
 - [TESTING.md](TESTING.md) — running the e2e suite locally and writing new tests
 
 Bridge → rewrite:
-- [docs/modernization/README.md](docs/modernization/README.md) — modernization workflow (current-state, vision, ADRs, epics, stories) that drives what gets built in `next/`
+- [docs/modernization/README.md](docs/modernization/README.md) — modernization workflow (current-state, vision, ADRs, epics, stories) that drives what gets built in `alpenflight/`

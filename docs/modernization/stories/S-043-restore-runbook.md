@@ -5,7 +5,7 @@ epic: E-05
 status: todo
 depends_on: [S-042]
 acceptance:
-  - A runbook under `next/ops/runbooks/restore.md` documents step-by-step recovery from a backup.
+  - A runbook under `alpenflight/ops/runbooks/restore.md` documents step-by-step recovery from a backup.
   - A quarterly drill restores the most recent backup into a parallel VPS; T3 smoke (see S-110) passes against it.
   - The drill produces a timestamped log entry in the runbook recording wall-clock time + any issues found.
 estimate: M

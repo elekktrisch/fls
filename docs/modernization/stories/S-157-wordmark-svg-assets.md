@@ -20,14 +20,14 @@ The rebrand (S-128, done) already established AlpenFlight as the product name an
 
 ## Acceptance criteria
 
-- [ ] Three SVG assets exist under `next/web/public/brand/`:
+- [ ] Three SVG assets exist under `alpenflight/web/public/brand/`:
   - `wordmark-full.svg` — glyph + "AlpenFlight" typeset, single-line; target use: top bar, landing hero.
   - `wordmark-compact.svg` — glyph + "AF" compact form; target use: mobile top bar, narrow contexts.
   - `favicon.svg` — glyph only on brand-500 square (or transparent if better); target use: `<link rel="icon">`.
 - [ ] Glyph is a Lucide-style line icon — either `plane` (paper-plane / aviation) or `mountain` / `mountain-snow` (alpine). Pick one; record in `## Notes`. 1.5px stroke, 20×20 viewBox, brand-500 stroke (`oklch(0.62 0.18 254.6)`).
 - [ ] Wordmark text is Roboto Medium 500, slate-900 (`#0F172A`), set at a reference size of 18px in `wordmark-full.svg`; text is converted to outlines so the SVG renders without the Roboto webfont (loaded asynchronously elsewhere).
 - [ ] All SVGs are hand-authored or exported clean — no editor metadata, no embedded raster, no inline base64 fonts, no inline `style` blocks with hardcoded hex if a CSS variable name is more honest. Stroke/fill colors stay as resolved OKLCH or hex (CSS variables don't resolve inside `<link rel="icon">`).
-- [ ] `next/web/index.html` (and `index.prod.html` if it diverges) references the favicon: `<link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />`.
+- [ ] `alpenflight/web/index.html` (and `index.prod.html` if it diverges) references the favicon: `<link rel="icon" type="image/svg+xml" href="/brand/favicon.svg" />`.
 - [ ] `<af-nav-bar>` organism (kit) consumes `wordmark-full.svg` on `≥md`, `wordmark-compact.svg` on `<md`; visible at all four ADR 0017 breakpoints.
 - [ ] Landing page (S-097 done; S-133 in-flight) consumes `wordmark-full.svg` in the hero.
 - [ ] Asset sizes: each SVG ≤ 4 KB (sanity guard against bloat from outlined glyphs).
@@ -36,7 +36,7 @@ The rebrand (S-128, done) already established AlpenFlight as the product name an
 
 - [ ] Pick glyph (plane vs mountain). Record decision in `## Notes`.
 - [ ] Author `wordmark-full.svg`, `wordmark-compact.svg`, `favicon.svg`.
-- [ ] Drop into `next/web/public/brand/`.
+- [ ] Drop into `alpenflight/web/public/brand/`.
 - [ ] Wire `<link rel="icon">` in `index.html` + `index.prod.html`.
 - [ ] Update `<af-nav-bar>` to consume the assets at the right breakpoint.
 - [ ] Update landing page consumer.

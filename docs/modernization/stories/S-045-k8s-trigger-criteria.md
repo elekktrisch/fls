@@ -5,13 +5,13 @@ epic: E-05
 status: todo
 depends_on: []
 acceptance:
-  - A short doc under `next/ops/k8s-migration-criteria.md` enumerates ≥5 criteria covering scale, reliability, capacity, feature need, and operational need (cadence). Optionally extends with security-driven criteria (network-level tenant isolation, compliance certification, uniform secret management, forensic-retention scale).
+  - A short doc under `alpenflight/ops/k8s-migration-criteria.md` enumerates ≥5 criteria covering scale, reliability, capacity, feature need, and operational need (cadence). Optionally extends with security-driven criteria (network-level tenant isolation, compliance certification, uniform secret management, forensic-retention scale).
   - Each criterion has: name · measurable numeric/boolean threshold · named observation source (Grafana panel / Uptime Kuma alert / contract clause / ops review note) · recommended response (one of `migrate` / `scale-up first` / `investigate root cause` / `revisit at next review`).
   - Doc structure: status (Draft / Pinned), owner, last-reviewed date, next-review-due date, "Why this doc exists", criteria table, "What happens when a criterion fires" runbook, "What's NOT a trigger" negative list, migration cost estimate (rough order of magnitude), references (ADR 0010, S-044, S-046).
   - Doc carries forward C4 (Swiss/EU residency) as a non-negotiable constraint on any future K8s migration path.
   - Doc carries forward ADR 0010 hygiene rules (12-factor, stateless, secrets injected, image digests) as preserved-on-migration invariants.
   - Doc is reviewed and **pinned** by the operator — explicit "I commit to these triggers" comment on the merging PR.
-  - Doc cross-referenced from `next/ops/runbooks/host-setup.md` (S-044's runbook).
+  - Doc cross-referenced from `alpenflight/ops/runbooks/host-setup.md` (S-044's runbook).
   - `last_reviewed` is within 30 days at merge; `next_review_due` is strictly later (recommend +12 months OR per-onboard-event).
 estimate: S
 adr_refs: [0010]
@@ -32,9 +32,9 @@ The doc is **pure documentation** — a markdown contract pinned by the operator
 See frontmatter.
 
 ## Tasks
-- [ ] Author `next/ops/k8s-migration-criteria.md` per the Design notes §"Document shape".
+- [ ] Author `alpenflight/ops/k8s-migration-criteria.md` per the Design notes §"Document shape".
 - [ ] Operator reviews; pins by switching `status: Draft` → `status: Pinned` and adding the "I commit to these triggers" comment on the PR.
-- [ ] Cross-link from `next/ops/runbooks/host-setup.md` (S-044 owns the runbook; if S-044 hasn't landed yet, raise a follow-up checklist item on S-044's PR).
+- [ ] Cross-link from `alpenflight/ops/runbooks/host-setup.md` (S-044 owns the runbook; if S-044 hasn't landed yet, raise a follow-up checklist item on S-044's PR).
 - [ ] Pin `last_reviewed` (today) and `next_review_due` (annual or per-onboard-event).
 - [ ] Run lint checks (markdownlint, link-check) as part of PR.
 
@@ -43,10 +43,10 @@ See frontmatter.
 ## Design notes
 
 ### Module layout
-- `next/ops/k8s-migration-criteria.md` — new operator-owned trigger doc. No code artifacts; this is a pinned operational contract.
+- `alpenflight/ops/k8s-migration-criteria.md` — new operator-owned trigger doc. No code artifacts; this is a pinned operational contract.
 - No server / client / DB changes.
 
-### Document shape (commit at `next/ops/k8s-migration-criteria.md`)
+### Document shape (commit at `alpenflight/ops/k8s-migration-criteria.md`)
 
 ```markdown
 # K8s migration trigger criteria
@@ -168,7 +168,7 @@ Any future K8s migration MUST preserve:
 - **Concurrent counter triggers** — additive; any one fires; no AND-clause across categories unless intentional.
 - **Reverse criterion: trigger met but cost-of-stay-still acceptable** — operator may explicitly decide "trigger fired, decision: stay" with rationale logged.
 - **K8s-readiness violation flag (NOT a migration trigger):** if day-1 hygiene (ADR 0010 rules 1-10) drifts and a story violates "stateless containers" or "logs to stdout", the K8s-readiness assumption breaks. Flag it; don't auto-migrate.
-- **Doc must be referenced from `next/ops/runbooks/host-setup.md`** so future-operator finds it. If S-044 hasn't landed when this story merges, raise a follow-up on S-044's PR to add the link.
+- **Doc must be referenced from `alpenflight/ops/runbooks/host-setup.md`** so future-operator finds it. If S-044 hasn't landed when this story merges, raise a follow-up on S-044's PR to add the link.
 - **Floating-IP / DNS-decoupling assumption:** S-044 notes some providers don't support floating IPs; K8s-migration switchover shape depends on this (IP-swap vs. DNS-TTL flip). Note in doc.
 - **SLO breach measurement window:** C2 specifies *rolling* quarter — pin explicitly in the doc.
 
@@ -226,7 +226,7 @@ Criteria-as-criteria (what fired criteria protect against once K8s is in):
 ### Acceptance verification (PR-review checklist)
 
 **Structural presence:**
-- `verify-file-exists`: `next/ops/k8s-migration-criteria.md` exists.
+- `verify-file-exists`: `alpenflight/ops/k8s-migration-criteria.md` exists.
 - `verify-required-sections`: doc contains H2/H3 for Status, Owner, Last reviewed, Next review due, Criteria, "What happens when a criterion fires", "What's NOT a trigger", "Migration cost", References. Grep returns ≥9 lines.
 - `verify-header-fields`: `status`, `owner`, `last_reviewed`, `next_review_due` populated (no `TBD`, no empty).
 
@@ -243,7 +243,7 @@ Criteria-as-criteria (what fired criteria protect against once K8s is in):
 - `verify-migration-cost-estimate`: concrete order-of-magnitude (engineer-weeks, €/mo). No "significant"/"moderate" alone.
 
 **Cross-doc wiring:**
-- `verify-referenced-from-runbook`: `next/ops/runbooks/host-setup.md` links to `k8s-migration-criteria.md`. Defer to S-044's PR if S-044 hasn't landed.
+- `verify-referenced-from-runbook`: `alpenflight/ops/runbooks/host-setup.md` links to `k8s-migration-criteria.md`. Defer to S-044's PR if S-044 hasn't landed.
 - `verify-adr-back-reference`: doc links to `docs/modernization/adrs/0010-*.md` in References.
 
 **Review-cadence integrity:**
@@ -255,7 +255,7 @@ Criteria-as-criteria (what fired criteria protect against once K8s is in):
 - `verify-operator-signoff`: merging PR contains operator-authored comment/commit-trailer with literal `I commit to these triggers` (or project-agreed phrase). Merge gate, not doc-content check.
 
 ### Lint-style checks (low-cost)
-- `markdownlint next/ops/k8s-migration-criteria.md` with repo's existing config.
+- `markdownlint alpenflight/ops/k8s-migration-criteria.md` with repo's existing config.
 - `link-check` (lychee / markdown-link-check) — verifies ADR back-reference, runbook reference, dashboard URLs.
 - Date-format regex: `^\d{4}-\d{2}-\d{2}$` on `last_reviewed` and `next_review_due`.
 - Controlled-vocab one-liner: extract `recommended response` column; assert every value in allowed set.
@@ -263,7 +263,7 @@ Criteria-as-criteria (what fired criteria protect against once K8s is in):
 For a one-shot doc, a PR-template reviewer checklist is the right ceiling — don't build CI for one file.
 
 ### Test data + fixtures
-None — no runtime fixtures. Doc-as-doc dependency: S-044's `next/ops/runbooks/host-setup.md` for back-reference.
+None — no runtime fixtures. Doc-as-doc dependency: S-044's `alpenflight/ops/runbooks/host-setup.md` for back-reference.
 
 ### Coverage gaps (deferred)
 - `verify-referenced-from-runbook`: blocked on S-044. Mark deferred + raise follow-up on S-044's PR.

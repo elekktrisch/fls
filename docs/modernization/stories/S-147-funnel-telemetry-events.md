@@ -9,7 +9,7 @@ acceptance:
   - All E-15 stories that emit funnel events use a shared `FunnelTelemetry.emit(eventId, props)` helper.
   - Events are written as structured JSON log lines (via S-031's structured-logging pipeline). Optional: also published to a database table for ad-hoc operator queries (refine — storage cost vs. queryability).
   - Operator can run a dashboard query "from landing to trial-active, where do users drop off?" against the structured logs (via Loki / Grafana per S-032 / S-035) or against the table.
-  - Event catalog documented in `next/docs/funnel-events.md`. Adding an event without updating the catalog fails a lint.
+  - Event catalog documented in `alpenflight/docs/funnel-events.md`. Adding an event without updating the catalog fails a lint.
   - PII discipline: events never include email addresses, names, or raw IPs. Actor IDs are opaque; IPs bucketed to /24 (refine).
 estimate: S
 adr_refs: [0008]

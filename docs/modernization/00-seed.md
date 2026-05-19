@@ -20,14 +20,14 @@ The existing docs at the repo root are authoritative reading before any phase ru
 
 - **Strategy:** greenfield rewrite. Not strangler-fig, not in-place upgrade. New code is written from scratch in sibling folders.
 - **Coexistence model:** AlpenFlight is a self-service SaaS — each legacy FLS deployment onboards independently via the export-JAR + UI-upload flow (epic E-15), on its own schedule. There is no centralized cutover event. Old and new run side-by-side per-tenant until that tenant uploads and is provisioned. No reverse-proxy bridge, no shared session, no shared DB writes.
-- **Repo layout:** new code lives under a single top-level subtree, working slug `next/` (rename to `alpenflight/` tracked by S-152), with sub-folders:
-  - `next/server/` — Spring Boot service
-  - `next/web/` — Angular frontend
-  - `next/database/` — Flyway migrations, seed data, test fixtures
-  - `next/auth/` — Keycloak realm exports + IdP config artifacts
-  - `next/ops/` — `docker-compose.yml`, Caddyfile, deploy scripts
-  - `next/migration-bundle/` — schema-mapping library shared by the export JAR and the server ingest pipeline
-  - `next/migration-tool/` — the legacy export JAR (single-file Java fat-jar)
+- **Repo layout:** new code lives under a single top-level subtree, working slug `alpenflight/` (rename to `alpenflight/` tracked by S-152), with sub-folders:
+  - `alpenflight/server/` — Spring Boot service
+  - `alpenflight/web/` — Angular frontend
+  - `alpenflight/database/` — Flyway migrations, seed data, test fixtures
+  - `alpenflight/auth/` — Keycloak realm exports + IdP config artifacts
+  - `alpenflight/ops/` — `docker-compose.yml`, Caddyfile, deploy scripts
+  - `alpenflight/migration-bundle/` — schema-mapping library shared by the export JAR and the server ingest pipeline
+  - `alpenflight/migration-tool/` — the legacy export JAR (single-file Java fat-jar)
   
   The subtree sits sibling to the existing `flsserver/`/`flsweb/` folders inside this repo.
 - **Database:** in scope **only** if a clean data-migration path exists. If reshape is required, the ADR for it must propose the mapping tooling and how to validate parity (the parity oracle in CI is the live mechanism).

@@ -11,7 +11,7 @@
 
 ## Context
 
-S-012 retired the H2-with-`MODE=PostgreSQL` fallback and pinned every `@SpringBootTest` to a JVM-singleton Postgres container ([CONVENTIONS.md "Test infrastructure for DB-touching tests"](../../next/server/CONVENTIONS.md)). One container, one schema, every test boots into the same database. S-012's tests are read-only (information_schema queries, reference-seed assertions) so test-data interference hasn't surfaced — but the moment S-022 lands JPA entities and tests start `INSERT`ing Persons / Clubs / Flights, two tests writing to the same shared schema collide.
+S-012 retired the H2-with-`MODE=PostgreSQL` fallback and pinned every `@SpringBootTest` to a JVM-singleton Postgres container ([CONVENTIONS.md "Test infrastructure for DB-touching tests"](../../alpenflight/server/CONVENTIONS.md)). One container, one schema, every test boots into the same database. S-012's tests are read-only (information_schema queries, reference-seed assertions) so test-data interference hasn't surfaced — but the moment S-022 lands JPA entities and tests start `INSERT`ing Persons / Clubs / Flights, two tests writing to the same shared schema collide.
 
 The legacy e2e suite has had a written "self-contained-parallel" policy since the Playwright suite became parallel-safe ([`flsweb` TEST_WRITING.md §1, mentioned in `e2e/playwright.config.ts:34-37`](../../e2e/playwright.config.ts)). The new-stack Java integration tests need an analogous rule — pinned **before** S-022 sets a precedent we drift from.
 
@@ -31,7 +31,7 @@ The decision space is shaped by three forces:
   - **`@WebMvcTest` slice tests** need no isolation — they don't load a DataSource.
   - **Pure unit tests** need no isolation — they don't touch the database.
   - **Concurrent execution.** Each test's data is keyed by its own `club_id` (tenant-scoped) or stable randomized natural key (cross-tenant). Two tests running in parallel can't see each other's data via the application's normal `@TenantId`-filtered queries; cross-tenant tests don't race because their natural keys are unique by construction. The policy is parallel-safe **by default**.
-  - **Per-test pre-clean, not teardown.** A failing test leaves its data in the database. Developer opens pgAdmin (per `next/ops/dev-up-full.sh`) at any time and inspects the exact state the test produced. Re-running the test pre-cleans its own data and starts fresh. No `@AfterEach`, no global TRUNCATE.
+  - **Per-test pre-clean, not teardown.** A failing test leaves its data in the database. Developer opens pgAdmin (per `alpenflight/ops/dev-up-full.sh`) at any time and inspects the exact state the test produced. Re-running the test pre-cleans its own data and starts fresh. No `@AfterEach`, no global TRUNCATE.
 - **Fit to criteria:**
   - **2 ✓** — JUnit 5 idioms; one helper `IntegrationTestSupport.createTestClub(label)` plus a stable-ID naming convention. No new framework, no custom JUnit Extension required.
   - **5 ✓** — `@TenantId` IS the isolation mechanism in production; tests exercise it. The test suite validates the production constraint structurally.
@@ -82,7 +82,7 @@ Chosen: **Option A — per-test unique `club_id` for tenant-scoped data, stable-
 
 5. **Parallel execution allowed and encouraged.** A test that explicitly cannot run in parallel (operator-level cross-club rollup; OGN ingest service principal; cutover script integration) declares it via `@Execution(SAME_THREAD)` (or by being placed in a single-threaded test set) and documents why in a comment.
 
-6. **Pre-clean, never teardown.** No `@AfterEach`, no global TRUNCATE, no `@Transactional` auto-rollback. Failed-test state stays in the database for the developer to inspect via pgAdmin (`next/ops/dev-up-full.sh`). Re-running the same test pre-cleans its own data.
+6. **Pre-clean, never teardown.** No `@AfterEach`, no global TRUNCATE, no `@Transactional` auto-rollback. Failed-test state stays in the database for the developer to inspect via pgAdmin (`alpenflight/ops/dev-up-full.sh`). Re-running the same test pre-cleans its own data.
 
 7. **Helper:** `IntegrationTestSupport.createTestClub(testClassName, testMethodName)` lands with S-022, returns a `Club` aggregate root with a deterministic `club_key`. Pre-cleanup is one method invocation.
 

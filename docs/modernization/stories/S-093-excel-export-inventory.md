@@ -5,7 +5,7 @@ epic: E-11
 status: todo
 depends_on: []
 acceptance:
-  - A reference doc `next/database/legacy-excel-exports.md` (or similar) lists every Excel-emitting code path in the legacy server with: source code location, sheet structure, column list with types/formats, sample input → sample output.
+  - A reference doc `alpenflight/database/legacy-excel-exports.md` (or similar) lists every Excel-emitting code path in the legacy server with: source code location, sheet structure, column list with types/formats, sample input → sample output.
   - At least three exports inventoried: DeliveryMailExport, AircraftStatisticReport, FlightReports.
 estimate: S
 adr_refs: [0012]

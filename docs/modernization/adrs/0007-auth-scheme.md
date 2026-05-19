@@ -33,7 +33,7 @@ The operator chose to run a self-hosted IdP locally during development and a hos
 - **Migration cost:** medium — seed users/realms/clients via Keycloak's bootstrap; map current users on cutover (C14 forces a reset email).
 - **Ecosystem risk:** low — both projects are widely used.
 - **Escape hatch:** OIDC is standard; swap providers by changing the issuer URL and re-registering clients.
-- **Why chosen for local:** the developer can `docker compose -p alpenflight-dev up -d keycloak` and get a real OIDC issuer at `http://localhost:8090/realms/alpenflight` with no cloud dependency, matching production semantically. (Host port 8090 because the AlpenFlight backend already owns 8080; realm name post-rebrand. See `docker-compose.yml` keycloak service + `next/auth/README.md` dual-port topology.)
+- **Why chosen for local:** the developer can `docker compose -p alpenflight-dev up -d keycloak` and get a real OIDC issuer at `http://localhost:8090/realms/alpenflight` with no cloud dependency, matching production semantically. (Host port 8090 because the AlpenFlight backend already owns 8080; realm name post-rebrand. See `docker-compose.yml` keycloak service + `alpenflight/auth/README.md` dual-port topology.)
 
 ### Option D — Hosted OIDC IdP — chosen for production deployment
 - **Capabilities:** outsource hosting, scaling, patching, MFA, social login, password reset flows.
@@ -70,7 +70,7 @@ Implementation shape:
 - **Negative:**
   - Local dev requires `docker compose up` for the IdP — one more container, one more port, one more set of seed config. Mitigation: bake a Keycloak realm export into the repo so dev setup is one command.
   - Production IdP cost (if hosted) is a recurring expense; self-hosting Keycloak in prod is the cost-free alternative if operability allows.
-  - Realm / client / scope configuration becomes a new artifact to version-control. Mitigation: commit Keycloak realm JSON exports under `next/auth/`.
+  - Realm / client / scope configuration becomes a new artifact to version-control. Mitigation: commit Keycloak realm JSON exports under `alpenflight/auth/`.
   - Swiss/EU residency must be re-verified at production-IdP selection time; the residency promise from C4 is now partly a vendor-due-diligence task.
 
 - **Follow-ups (other ADRs / stories implied):**

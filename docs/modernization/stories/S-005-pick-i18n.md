@@ -6,7 +6,7 @@ status: todo
 depends_on: [S-002]
 acceptance:
   - i18n library chosen: `@angular/localize` (built-in) or transloco. Decision documented.
-  - Translation files live as bundled JSON under `next/web/src/i18n/<locale>.json` — *not* loaded from the server (C15).
+  - Translation files live as bundled JSON under `alpenflight/web/src/i18n/<locale>.json` — *not* loaded from the server (C15).
   - Default locale `de`; placeholder `en` and `fr` files exist (matching legacy languages).
   - A sample component renders a translated string in `de`; switching locale rerenders in real time.
   - The `/api/v1/translations` endpoint is **not** implemented on the new server (closes C15).

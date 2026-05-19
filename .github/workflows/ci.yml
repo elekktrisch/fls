@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Decide whether the next/ lane needs to run based on what changed.
+  # Decide whether the alpenflight/ lane needs to run based on what changed.
   #
   # Legacy (flsserver + flsweb + e2e) is reference-only and exercised by the
   # `nightly.yml` workflow on a schedule — see CLAUDE.md "Legacy is
@@ -38,13 +38,13 @@ jobs:
           predicate-quantifier: 'every'
           filters: |
             next:
-              - '{.github/workflows/ci.yml,next/**}'
+              - '{.github/workflows/ci.yml,alpenflight/**}'
               - '!**/*.md'
 
 
   # ---------------------------------------------------------------------------
-  # next/ build — Spring Boot (Gradle) under next/server, Angular under
-  # next/web. Detects which subdir is buildable; runs only what exists.
+  # alpenflight/ build — Spring Boot (Gradle) under alpenflight/server, Angular under
+  # alpenflight/web. Detects which subdir is buildable; runs only what exists.
   # Legacy lanes live in `nightly.yml` (cron + workflow_dispatch); PR CI
   # only gates the rewrite.
   # ---------------------------------------------------------------------------
@@ -60,12 +60,12 @@ jobs:
       - name: Detect buildable next subdirs
         id: detect
         run: |
-          if [ -f next/server/build.gradle.kts ] || [ -f next/server/build.gradle ]; then
+          if [ -f alpenflight/server/build.gradle.kts ] || [ -f alpenflight/server/build.gradle ]; then
             echo "server=true" >> $GITHUB_OUTPUT
           else
             echo "server=false" >> $GITHUB_OUTPUT
           fi
-          if [ -f next/web/package.json ]; then
+          if [ -f alpenflight/web/package.json ]; then
             echo "web=true" >> $GITHUB_OUTPUT
           else
             echo "web=false" >> $GITHUB_OUTPUT
@@ -82,16 +82,16 @@ jobs:
         if: steps.detect.outputs.server == 'true'
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build next/server
+      - name: Build alpenflight/server
         if: steps.detect.outputs.server == 'true'
-        working-directory: next/server
+        working-directory: alpenflight/server
         run: ./gradlew build --no-daemon
 
       - name: Set up Node 22
         if: steps.detect.outputs.web == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version-file: next/web/.nvmrc
+          node-version-file: alpenflight/web/.nvmrc
 
       - name: Set up pnpm
         if: steps.detect.outputs.web == 'true'
@@ -105,20 +105,20 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local/share/pnpm/store
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('next/web/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Install next/web deps
+      - name: Install alpenflight/web deps
         if: steps.detect.outputs.web == 'true'
-        working-directory: next/web
+        working-directory: alpenflight/web
         env:
           CI: 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Regenerate API client and assert no drift
         if: steps.detect.outputs.web == 'true'
-        working-directory: next/web
+        working-directory: alpenflight/web
         run: |
           pnpm run generate-api
           if ! git diff --exit-code src/app/api/generated/; then
@@ -126,9 +126,9 @@ jobs:
             exit 1
           fi
 
-      - name: Lint + format + test + build next/web
+      - name: Lint + format + test + build alpenflight/web
         if: steps.detect.outputs.web == 'true'
-        working-directory: next/web
+        working-directory: alpenflight/web
         run: |
           pnpm lint
           pnpm format
@@ -137,9 +137,9 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Keycloak realm shape check (S-019). Cheap jq guard over
-  # next/auth/realm-export.json: PKCE-S256, bearer-only, no private key,
+  # alpenflight/auth/realm-export.json: PKCE-S256, bearer-only, no private key,
   # seed users + clubId, ADR 0007 token policy. Reuses `changes.outputs.next`
-  # because the realm-export lives under next/auth/.
+  # because the realm-export lives under alpenflight/auth/.
   # ---------------------------------------------------------------------------
   next-auth-realm-shape:
     name: next auth realm shape
@@ -150,8 +150,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Realm-export shape guard
-        if: hashFiles('next/auth/realm-export.json') != ''
-        run: bash next/auth/scripts/check-realm-shape.sh
+        if: hashFiles('alpenflight/auth/realm-export.json') != ''
+        run: bash alpenflight/auth/scripts/check-realm-shape.sh
 
   # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when

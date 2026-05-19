@@ -1,0 +1,105 @@
+spring:
+  application:
+    name: alpenflight-server
+  profiles:
+    default: dev
+  datasource:
+    # Env-driven; application-dev.yml provides loopback defaults for local dev,
+    # application-prod.yml documents the production env-var contract.
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USER}
+    password: ${DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    # Every property pinned explicitly so future BOM bumps surface as
+    # visible config changes (per S-009 security plan).
+    enabled: true
+    locations: classpath:db/migration
+    out-of-order: false           # strict ordering
+    validate-on-migrate: true
+    baseline-on-migrate: false    # S-016 cutover overrides via its own profile
+    clean-disabled: true          # non-negotiable; protects against `flyway clean` on prod
+    schemas: public
+    default-schema: public
+    table: flyway_schema_history
+  jpa:
+    # No JPA starter on the classpath yet — this is a no-op until S-012, but
+    # locks the invariant so Hibernate session boundaries are correct when JPA
+    # arrives. open-in-view=true is the OSIV footgun that hides N+1 in dev.
+    open-in-view: false
+  jackson:
+    datatype:
+      datetime:
+        # Jackson 3 moved WRITE_DATES_AS_TIMESTAMPS out of SerializationFeature
+        # into DateTimeFeature. ISO-8601 strings, not unix-millis.
+        write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: true
+    mapper:
+      # Strict matching at the DTO boundary: a field named `clubId` does NOT
+      # accept payload key `ClubId`. Catches API contract drift loudly.
+      accept-case-insensitive-properties: false
+    default-property-inclusion: non_null
+    time-zone: UTC
+  threads:
+    virtual:
+      # JEP 491 (Java 25) eliminated `synchronized` pinning. Re-audit when
+      # S-018 ShedLock + S-022 @TenantId ThreadLocal propagation land.
+      enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Split-port topology: JWKS discovery (Spring → Keycloak inside the
+          # compose network) and `iss` validation (against the host URL baked
+          # into every token) need different URLs. The programmatic JwtDecoder
+          # in JwtDecoderConfig consumes both; auto-config backs off when the
+          # bean is present. See alpenflight/auth/README.md §Gotcha for S-020. Both
+          # values env-overridable for the prod hosted-IdP swap.
+          issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
+          jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
+
+server:
+  port: 8080
+  http2:
+    enabled: true
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
+    min-response-size: 1024
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    include-binding-errors: never
+  shutdown: graceful
+  tomcat:
+    max-http-form-post-size: 1MB
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+        exclude: env,heapdump,threaddump,loggers,configprops,beans,shutdown
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+
+# OpenAPI spec publication. Off by default — profiles flip it on (see
+# application-dev.yml + application-test.yml). prod stays off so a stray
+# SPRINGDOC_* env var cannot expose the API shape on a production install;
+# OpenApiOffByDefaultIT regression-locks the prod 404.
+springdoc:
+  api-docs:
+    enabled: false
+    version: openapi_3_1   # default is openapi_3_0; codegen wants 3.1
+  swagger-ui:
+    enabled: false
+  show-actuator: false     # keep /actuator/* out of the codegen surface

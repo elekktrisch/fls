@@ -117,10 +117,10 @@ One consult per fork, no chaining. Record in the done report.
 Before the final status-flip commit, run the full reviewer panel against `git diff main...HEAD`. Findings come back as `[blocker]` / `[improvement]` / `[nudge]`; **fix all three severities inline** (auto-fix policy — the implement skill owns its review). No `## Review` story-body section is written; the fix lives in code commits + the PR diff.
 
 **Scope flags** (compute once before dispatch):
-- `has_frontend` — any `next/web/` path **that is NOT auto-generated** (skip OpenAPI snapshot + codegen artifacts under `next/web/src/app/api/generated/`).
-- `has_backend` — any `next/server/` path.
+- `has_frontend` — any `alpenflight/web/` path **that is NOT auto-generated** (skip OpenAPI snapshot + codegen artifacts under `alpenflight/web/src/app/api/generated/`).
+- `has_backend` — any `alpenflight/server/` path.
 - `has_legacy_ref` — any `flsserver/` or `flsweb/` path.
-- `is_docs_only` — every path matches `docs/**`, `*.md`, `CONVENTIONS.md`, or `next/ops/*.sh|*.json`.
+- `is_docs_only` — every path matches `docs/**`, `*.md`, `CONVENTIONS.md`, or `alpenflight/ops/*.sh|*.json`.
 
 **Reviewer dispatch** (spawn all applicable in ONE message — parallel):
 

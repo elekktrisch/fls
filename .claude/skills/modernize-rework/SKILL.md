@@ -89,7 +89,7 @@ Operator may invoke `/modernize-rework S-NNN` solely for this step when they spo
 
 When **Apply now (boyscout)** is chosen for an ADR amendment, conventions update, or any cross-cutting identifier / URL / config-key change, run the propagation check IN THE SAME COMMIT:
 
-1. **Grep for downstream references** across `docs/`, `next/`, `e2e/`, `CLAUDE.md` (use the most specific identifier — not a substring catching unrelated text).
+1. **Grep for downstream references** across `docs/`, `alpenflight/`, `e2e/`, `CLAUDE.md` (use the most specific identifier — not a substring catching unrelated text).
 2. **Update load-bearing references** (story task lines, cross-doc cites, CONVENTIONS examples) in the same commit.
 3. **Retract the originator-story TODO section** if applicable — leaving "operator's call: amend now or batch later" as a contradiction inside the file.
 4. **Skip historical refs** (per ADR 0022 directive 1) — implemented stories whose snippets are point-in-time fall under "annotate as superseded" not "rewrite the body."

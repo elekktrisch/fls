@@ -6,7 +6,7 @@ status: todo
 depends_on: [S-047, S-048, S-049, S-050, S-051, S-058, S-068, S-081, S-137]
 acceptance:
   - A single Deployment row with `lifecycle_state = sandbox` and a fixed UUID exists in seed data.
-  - The sandbox Deployment contains 1..N seeded Clubs (refine — start with 1 representative club, add a 2nd if multi-club demo is useful) and is pre-populated with realistic Swiss-club-shaped synthetic data: ≥ 3 aircraft (mixed glider + tow + motor), ≥ 10 persons, ≥ 5 locations, ≥ 30 flights spanning the last 30 days, ≥ 10 reservations spanning the next 14 days, ≥ 1 planning day. Seed fixtures live in `next/database/seed/sandbox/`.
+  - The sandbox Deployment contains 1..N seeded Clubs (refine — start with 1 representative club, add a 2nd if multi-club demo is useful) and is pre-populated with realistic Swiss-club-shaped synthetic data: ≥ 3 aircraft (mixed glider + tow + motor), ≥ 10 persons, ≥ 5 locations, ≥ 30 flights spanning the last 30 days, ≥ 10 reservations spanning the next 14 days, ≥ 1 planning day. Seed fixtures live in `alpenflight/database/seed/sandbox/`.
   - `SandboxResetJob` (Spring `@Scheduled`, runs nightly at 03:00 Europe/Zurich per vision §2 NFR; tagged `@LifecycleStateFilter({ SANDBOX })`) truncates all rows belonging to the sandbox Deployment's child Clubs and re-seeds. Completes in < 5 min. Idempotent.
   - Reset job filters strictly: only rows whose `club_id` resolves to the sandbox Deployment are affected. A unit test asserts no other Deployment's rows can be reached.
   - Sandbox Deployment is excluded from real-Deployment scheduled jobs via the `@LifecycleStateFilter` mechanism from S-137.
@@ -25,7 +25,7 @@ Realistic seed data is a soft preference (vision §4): plausible Swiss club name
 See frontmatter.
 
 ## Tasks
-- [ ] Sandbox Deployment + Club(s) in `next/database/seed/sandbox/`.
+- [ ] Sandbox Deployment + Club(s) in `alpenflight/database/seed/sandbox/`.
 - [ ] Per-entity seed fixtures (NDJSON or SQL inserts — refine).
 - [ ] `SandboxResetJob` via Spring `@Scheduled(cron)` + `UnscopedTenantContext` (S-023) + `DeploymentContext` (S-137) for cascading the truncate over all child Clubs.
 - [ ] Unit test asserting the reset can't touch non-sandbox rows.

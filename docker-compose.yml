@@ -77,7 +77,7 @@ services:
       retries: 10
 
   # ---------------------------------------------------------------------------
-  # next/ — target stack (Postgres + pgAdmin + Keycloak). Profile-gated so
+  # alpenflight/ — target stack (Postgres + pgAdmin + Keycloak). Profile-gated so
   # the default `docker compose up` (used by e2e/scripts/dev-up.sh under
   # project `fls-e2e`) still starts only mssql + mailpit.
   #
@@ -88,10 +88,10 @@ services:
   #
   #   docker compose -p alpenflight-dev up -d postgres pgadmin keycloak
   #
-  # next/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
-  # in one command. pgAdmin loads next/ops/pgadmin/servers.json so the target
+  # alpenflight/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
+  # in one command. pgAdmin loads alpenflight/ops/pgadmin/servers.json so the target
   # connection appears pre-wired on first login. Operator manual + footguns
-  # live in next/ops/README.md. Mailpit (legacy stack) is reused as the
+  # live in alpenflight/ops/README.md. Mailpit (legacy stack) is reused as the
   # AlpenFlight backend's SMTP sink — point Spring at host:1025.
   # ---------------------------------------------------------------------------
 
@@ -123,12 +123,12 @@ services:
   # --------------------------------------------------------------------------
   pgadmin:
     profiles: ["next"]
-    # Custom image baked with next/ops/pgadmin/servers.json so the FLS Target
+    # Custom image baked with alpenflight/ops/pgadmin/servers.json so the FLS Target
     # connection appears pre-wired on first login. Bind-mounting servers.json
     # is unreliable on Docker Desktop without file-sharing for the repo path;
     # baking it in is the portable route.
     build:
-      context: ./next/ops/pgadmin
+      context: ./alpenflight/ops/pgadmin
       dockerfile: Dockerfile
     image: alpenflight-pgadmin:local
     depends_on:
@@ -156,7 +156,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # Keycloak — OIDC IdP for the AlpenFlight stack. Runs in dev mode (H2,
-  # bootstrap admin) with no realm imported yet — S-019 lands `next/auth/
+  # bootstrap admin) with no realm imported yet — S-019 lands `alpenflight/auth/
   # realm-export.json` and amends this block to add `--import-realm` plus the
   # bind-mount. Until then, the AlpenFlight realm is created by hand via the
   # admin console (http://localhost:8090, admin / admin).
@@ -173,12 +173,12 @@ services:
   # ---------------------------------------------------------------------------
   keycloak:
     profiles: ["next"]
-    # Custom image bakes next/auth/realm-export.json into the image rather
+    # Custom image bakes alpenflight/auth/realm-export.json into the image rather
     # than bind-mounting it. Bind-mount works in principle but is unreliable
     # under Docker Desktop file-sharing on Windows hosts; baking mirrors the
-    # same pattern next/ops/pgadmin/ already uses.
+    # same pattern alpenflight/ops/pgadmin/ already uses.
     build:
-      context: ./next/auth
+      context: ./alpenflight/auth
       dockerfile: Dockerfile
     image: alpenflight-keycloak:local
     # --import-realm runs on every boot. Keycloak's default IGNORE_EXISTING
