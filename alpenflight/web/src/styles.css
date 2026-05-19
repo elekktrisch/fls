@@ -108,7 +108,7 @@ body[data-density='comfortable'] .ant-select-multiple {
    `.ant-select-selector` is the visible bordered box. */
 body[data-density='comfortable'] .ant-select-selector {
   border-color: var(--color-slate-300) !important;
-  padding-inline: 0.75rem !important; /* 12px — matches af-input's px-3 */ /* 8px — matches af-input visual inset */
+  padding-inline: 0.75rem !important; /* 12px — matches af-input's px-3 */
 }
 body[data-density='comfortable']
   .ant-select-focused:not(.ant-select-disabled):not(.ant-select-customize-input):not(

@@ -17,8 +17,6 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
-import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
-
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
@@ -54,7 +52,6 @@ type ClubForm = FormGroup<{
     AfPageComponent,
     AfPageHeaderComponent,
     AfPageErrorComponent,
-    NzCheckboxModule,
   ],
   host: { class: 'block' },
   template: `
@@ -144,12 +141,13 @@ type ClubForm = FormGroup<{
           />
         </af-form-field>
 
-        <label
-          nz-checkbox
-          formControlName="publicRegistrationEnabled"
-          class="mt-2 mb-4 select-none"
-        >
-          Enable public registration
+        <label class="flex items-center gap-2 cursor-pointer select-none mt-2 mb-4">
+          <input
+            type="checkbox"
+            formControlName="publicRegistrationEnabled"
+            class="w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <span>Enable public registration</span>
         </label>
 
         <div
