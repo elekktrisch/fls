@@ -15,6 +15,10 @@
 
 Without a single binding choice, every primitive in the kit (S-008), every form (S-007), every feature screen, and the walking-skeleton (S-048) re-litigates these sub-decisions. The result is visual fragmentation across the AlpenFlight default theme and the per-tenant brand overlays — both of which must share one chrome. The cost of *not* deciding is paid story-by-story; the cost of deciding once is paid here. Same shape as ADR 0017 for the responsive layer.
 
+## Directive
+
+Any costumization that is look-and-feel related has to be based on the documentation https://ng.ant.design/llms.txt
+
 ## Options considered
 
 ### Option A — Swiss-precision + aerospace-pragmatic
