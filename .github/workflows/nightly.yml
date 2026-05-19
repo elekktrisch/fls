@@ -3,7 +3,7 @@ name: nightly
 # Legacy e2e (Playwright against flsserver + flsweb) and the two legacy
 # build jobs it depends on run on a nightly schedule + on-demand, NOT on
 # every PR. The PR-CI lane (`ci.yml`) only exercises the rewrite under
-# `next/` — that's the codebase actively developed; legacy is reference-
+# `alpenflight/` — that's the codebase actively developed; legacy is reference-
 # only (see CLAUDE.md "Legacy is reference-only"). The e2e suite still
 # guards parity-relevant legacy behavior; it just doesn't gate every PR.
 #

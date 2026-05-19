@@ -5,7 +5,7 @@ epic: E-13
 status: todo
 depends_on: [S-002, S-057, S-097]
 acceptance:
-  - The existing 34 specs (plus expansions from S-101..S-106) run against `next/server/` + `next/web/` and pass.
+  - The existing 34 specs (plus expansions from S-101..S-106) run against `alpenflight/server/` + `alpenflight/web/` and pass.
   - A separate Playwright config (`playwright.config.next.ts`) points at the new app's URLs.
   - CI runs both legacy and new-stack Playwright on relevant branches; the legacy suite stays green for as long as any tenant has not migrated.
 estimate: L

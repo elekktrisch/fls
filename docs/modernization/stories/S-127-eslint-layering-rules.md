@@ -10,7 +10,7 @@ adr_refs: []
 refined: false
 origin: rework
 origin_story: S-002
-origin_finding: `next/web/CLAUDE.md` §1 / §2 promise ESLint enforces atomic-design layering (atoms import nothing from molecules/organisms) and forbids direct cross-feature imports. S-002's `eslint.config.mjs` doesn't carry these rules — the skeleton has no siblings yet so the rule isn't load-bearing, but the convention claim is unenforced.
+origin_finding: `alpenflight/web/CLAUDE.md` §1 / §2 promise ESLint enforces atomic-design layering (atoms import nothing from molecules/organisms) and forbids direct cross-feature imports. S-002's `eslint.config.mjs` doesn't carry these rules — the skeleton has no siblings yet so the rule isn't load-bearing, but the convention claim is unenforced.
 ---
 
 ## Context
@@ -18,7 +18,7 @@ origin_finding: `next/web/CLAUDE.md` §1 / §2 promise ESLint enforces atomic-de
 Follow-up from review of S-002 (originating story). The originating story's review found:
 
 > `eslint.config.mjs` doesn't enforce `no-restricted-imports` for atomic-design layering or cross-feature imports — `CLAUDE.md §1` / §2 promise ESLint enforces "atoms import nothing from molecules/organisms" and "direct imports between feature folders are forbidden." The skeleton has no siblings yet so the rule isn't load-bearing today, but the convention claim is currently unenforced. Reasonable to defer to S-008 / first cross-feature story.
-> **Path:** `next/web/eslint.config.mjs`.
+> **Path:** `alpenflight/web/eslint.config.mjs`.
 
 See [`S-002-scaffold-web-skeleton.md`](S-002-scaffold-web-skeleton.md#review) for full review context.
 

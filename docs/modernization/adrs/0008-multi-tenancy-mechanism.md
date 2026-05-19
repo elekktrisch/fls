@@ -54,7 +54,7 @@ Chosen: **Option A — Hibernate `@TenantId` discriminator multi-tenancy + Sprin
   - Schema cost: every tenant-scoped table gets a `club_id` column + index. Already true today, but now formally required.
 
 - **Follow-ups (other ADRs / stories implied):**
-  - **Story:** define the list of tenant-scoped entities (Flight, Aircraft, AircraftReservation, PlanningDay, Delivery, AccountingRuleFilter, …) vs. cross-tenant entities (Person, User, Country, reference data). Capture in `next/database/` schema design.
+  - **Story:** define the list of tenant-scoped entities (Flight, Aircraft, AircraftReservation, PlanningDay, Delivery, AccountingRuleFilter, …) vs. cross-tenant entities (Person, User, Country, reference data). Capture in `alpenflight/database/` schema design.
   - **Story:** implement `ClubTenantIdentifierResolver` reading from Spring Security principal; implement an `UnscopedTenantContext` mechanism for legitimate cross-tenant operations.
   - **Story:** wire a test rule that defaults to a known tenant + helpers for "run this test as a different tenant" and "run this test cross-tenant."
   - **Story:** add a CI test (smoke / property-based / both) that asserts tenant leakage is impossible — create data in tenant A, attempt to read it while tenant context is B, expect empty result. Run against every repository.

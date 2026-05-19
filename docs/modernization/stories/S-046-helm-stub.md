@@ -5,8 +5,8 @@ epic: E-05
 status: todo
 depends_on: [S-039, S-040, S-041]
 acceptance:
-  - Manifests under `next/ops/k8s/` mirror the compose topology: Deployment + Service per app, StatefulSet for Postgres + Keycloak, ConfigMap/Secret for env, Ingress for the proxy.
-  - `kubectl apply -k next/ops/k8s/` against a kind cluster brings the stack up.
+  - Manifests under `alpenflight/ops/k8s/` mirror the compose topology: Deployment + Service per app, StatefulSet for Postgres + Keycloak, ConfigMap/Secret for env, Ingress for the proxy.
+  - `kubectl apply -k alpenflight/ops/k8s/` against a kind cluster brings the stack up.
   - Smoke test: same T3-equivalent that passes against compose passes against the kind cluster.
 estimate: M
 adr_refs: [0010]

@@ -23,7 +23,7 @@ See frontmatter.
 ## Tasks
 - [ ] Grep new-stack code for the legacy names.
 - [ ] Remove any lingering references.
-- [ ] Document in `next/server/README.md` that these legacy components are decommissioned in the new stack.
+- [ ] Document in `alpenflight/server/README.md` that these legacy components are decommissioned in the new stack.
 
 ## Notes
 The legacy app itself still uses these — they exit the picture when each operator turns off their own legacy FLS deployment. This story is about the new code not accidentally re-introducing them.

@@ -24,7 +24,7 @@ See frontmatter.
 - [ ] Build the resolver dual-mode (delegate to thread-local override; default is principal-driven).
 - [ ] Define a `@SystemTenantAware` annotation backed by Spring AOP that sets/clears the override.
 - [ ] Provide a `runUnscoped(Runnable)` helper for non-annotated call sites (e.g. jobs).
-- [ ] Document the legitimate use cases in `next/server/docs/multi-tenancy.md`.
+- [ ] Document the legitimate use cases in `alpenflight/server/docs/multi-tenancy.md`.
 - [ ] Test with all three caller shapes.
 - [ ] Audit-log entry (S-027) for every unscoped operation — "actor did X without tenant scope" is a high-signal event.
 

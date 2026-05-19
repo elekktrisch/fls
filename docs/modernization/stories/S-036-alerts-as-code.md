@@ -5,7 +5,7 @@ epic: E-04
 status: todo
 depends_on: [S-035]
 acceptance:
-  - Grafana unified alerting rules committed as YAML under `next/ops/grafana/alerts/`.
+  - Grafana unified alerting rules committed as YAML under `alpenflight/ops/grafana/alerts/`.
   - Initial alerts: HTTP 5xx rate > 1% over 5 min, p95 latency > 500ms over 10 min on critical endpoints, scheduled-job-failure (consecutive failures > 0), disk-free < 10%, TLS-cert expiry < 30 days.
   - At least one notification channel is configured (email or Telegram).
   - A test fire produces an actual notification.

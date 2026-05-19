@@ -33,7 +33,7 @@ See frontmatter.
 - [ ] Endpoint scaffold (Spring `@PostMapping` with `InputStream` body).
 - [ ] Decrypt pipeline: header parse, RSA unwrap, AES-GCM stream-decipher, tar inflate.
 - [ ] Manifest reader: enumerate Clubs in bundle, hand off to provisioning service (S-138).
-- [ ] Per-entity ingest dispatch using the shared `next/migration-bundle/` library (S-016).
+- [ ] Per-entity ingest dispatch using the shared `alpenflight/migration-bundle/` library (S-016).
 - [ ] Transactional boundary: full ingest is one Postgres transaction.
 - [ ] Status-polling endpoint + progress state.
 - [ ] Plaintext-leak test fixture + assertion.

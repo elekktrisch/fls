@@ -10,15 +10,15 @@
 
 # User-facing surfaces deferred to closer-to-cutover per S-128 Context.
 # Demo endpoint response body + UI labels; flip with S-020 / cutover.
-next/server/src/main/java/ch/alpenflight/platform/hello/HelloController.java        # "Hello FLS" demo response
-next/server/src/test/java/ch/alpenflight/platform/hello/HelloControllerIT.java      # matches HelloController literal
-next/web/src/index.html                                                              # <title>FLS</title>
-next/web/src/app/features/landing/landing.component.ts                               # "Hello FLS" landing template
-next/web/src/app/features/landing/landing.component.spec.ts                          # matches landing template
+alpenflight/server/src/main/java/ch/alpenflight/platform/hello/HelloController.java        # "Hello FLS" demo response
+alpenflight/server/src/test/java/ch/alpenflight/platform/hello/HelloControllerIT.java      # matches HelloController literal
+alpenflight/web/src/index.html                                                              # <title>FLS</title>
+alpenflight/web/src/app/features/landing/landing.component.ts                               # "Hello FLS" landing template
+alpenflight/web/src/app/features/landing/landing.component.spec.ts                          # matches landing template
 
 # Shared dev-tooling Docker Compose project name. Renaming drops every
 # contributor's running containers; deferred per ODQ to cutover band.
-next/ops/dev-up-full.sh                                                              # PROJECT="fls-e2e" line
+alpenflight/ops/dev-up-full.sh                                                              # PROJECT="fls-e2e" line
 
 # Postgres dev DB name + credentials were renamed fls → alpenflight on
 # 2026-05-16 per operator boyscout-rule directive (feedback-boyscout-rule-
@@ -55,5 +55,5 @@ docs/modernization/stories/implemented/
 
 # Generated / cached / vendored artifacts (excluded from verification grep
 # via --exclude-dir; listed for documentation only).
-# next/server/build/  next/database/extract/build/  .gradle/  node_modules/
-# next/web/.angular/cache/  next/web/dist/  .git/
+# alpenflight/server/build/  alpenflight/database/extract/build/  .gradle/  node_modules/
+# alpenflight/web/.angular/cache/  alpenflight/web/dist/  .git/

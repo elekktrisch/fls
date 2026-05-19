@@ -24,7 +24,7 @@ See frontmatter.
 - [ ] Build the `RuleBasedDeliveryDetails` accumulator class.
 - [ ] Port `IgnoreFlightRulesEngine`.
 - [ ] Port `RecipientRulesEngine`.
-- [ ] Document evaluation order in `next/server/docs/rules-engine.md`.
+- [ ] Document evaluation order in `alpenflight/server/docs/rules-engine.md`.
 - [ ] Tests.
 
 ## Notes

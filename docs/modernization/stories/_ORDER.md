@@ -18,11 +18,11 @@ Topological sort of stories grouped by phase. Within each phase, listed in depen
 
 Skeletons + inventory work that informs everything downstream. These have no dependencies and can begin immediately, in parallel.
 
-- S-001 — M — Scaffold next/server/ Spring Boot skeleton ✓ **done**
+- S-001 — M — Scaffold alpenflight/server/ Spring Boot skeleton ✓ **done**
   - S-123 — S — Lock down springdoc off-state until S-003 wires it (rework follow-up from S-001)
-  - S-124 — S — Annotate next/server/.env.example keys with usage notes (rework follow-up from S-001)
-  - S-125 — S — Surface open-in-view=false consequence in next/server/README.md (rework follow-up from S-001)
-- S-002 — M — Scaffold next/web/ Angular skeleton ✓ **done**
+  - S-124 — S — Annotate alpenflight/server/.env.example keys with usage notes (rework follow-up from S-001)
+  - S-125 — S — Surface open-in-view=false consequence in alpenflight/server/README.md (rework follow-up from S-001)
+- S-002 — M — Scaffold alpenflight/web/ Angular skeleton ✓ **done**
   - S-126 — S — Tighten pnpm-store cache restore-keys in CI (rework follow-up from S-002)
   - S-127 — S — Enforce atomic-design + cross-feature layering via ESLint (rework follow-up from S-002; deps S-008)
 - S-010 — M — Extract production-schema parity baseline ✓ **done**

@@ -5,7 +5,7 @@ epic: E-04
 status: todo
 depends_on: [S-032, S-033]
 acceptance:
-  - Dashboards are committed as JSON under `next/ops/grafana/dashboards/`.
+  - Dashboards are committed as JSON under `alpenflight/ops/grafana/dashboards/`.
   - Grafana provisioning auto-loads them on container start.
   - Four dashboards exist: JVM (heap, GC, threads), HTTP (request rate, p95/p99 latency, error rate per endpoint), JDBC pool (active/idle/wait), Postgres (connections, slow queries, table sizes).
 estimate: M

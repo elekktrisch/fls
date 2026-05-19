@@ -35,12 +35,12 @@ See frontmatter.
 
 ## Tasks
 - [ ] Pick the host shape (self-hosted Uptime Kuma on a separate small VPS — recommended — OR BetterUptime EU SaaS free tier).
-- [ ] If self-hosted: provision the probe VPS (Hetzner CX11 ~€4/mo, different region from prod e.g. FI if prod is DE); apply `next/ops/uptime-probe/probe-host-bootstrap.sh` adapted from `provision-vps.sh` (S-044).
-- [ ] Author `next/ops/uptime-probe/docker-compose.yml` (Uptime Kuma v2; named volume `kuma-data`; restart=unless-stopped; UI bound to loopback + Tailscale OR exposed via Caddy + basic auth on a non-default port).
-- [ ] Author `next/ops/uptime-probe/monitors.md` — declarative source-of-truth for the 6 monitors (Kuma's UI matches).
-- [ ] Author `next/ops/uptime-probe/alert-channels.md` — channel inventory + credential vault refs.
-- [ ] Author `next/ops/uptime-probe/drill-procedure.md` — step-by-step drill + evidence template.
-- [ ] Author `next/ops/uptime-probe/README.md` — purpose, topology, how to add a monitor, how to drill, how to rebuild.
+- [ ] If self-hosted: provision the probe VPS (Hetzner CX11 ~€4/mo, different region from prod e.g. FI if prod is DE); apply `alpenflight/ops/uptime-probe/probe-host-bootstrap.sh` adapted from `provision-vps.sh` (S-044).
+- [ ] Author `alpenflight/ops/uptime-probe/docker-compose.yml` (Uptime Kuma v2; named volume `kuma-data`; restart=unless-stopped; UI bound to loopback + Tailscale OR exposed via Caddy + basic auth on a non-default port).
+- [ ] Author `alpenflight/ops/uptime-probe/monitors.md` — declarative source-of-truth for the 6 monitors (Kuma's UI matches).
+- [ ] Author `alpenflight/ops/uptime-probe/alert-channels.md` — channel inventory + credential vault refs.
+- [ ] Author `alpenflight/ops/uptime-probe/drill-procedure.md` — step-by-step drill + evidence template.
+- [ ] Author `alpenflight/ops/uptime-probe/README.md` — purpose, topology, how to add a monitor, how to drill, how to rebuild.
 - [ ] Configure monitors + alert channels in Kuma; rotate default admin password; enable 2FA if available.
 - [ ] Run SYN-4 (alert-channel self-test) FIRST — gates the drill (so the drill measures detection, not misconfigured alerting).
 - [ ] Run SYN-1 (cert-expiry simulation via badssl.com) + SYN-2 (probe restart) + SYN-3 (probe-host reboot) in parallel with checklist sign-off.
@@ -55,15 +55,15 @@ See frontmatter.
 
 | Path | Purpose |
 |---|---|
-| `next/ops/uptime-probe/docker-compose.yml` | Single-service compose: `louislam/uptime-kuma:2`; named volume `kuma-data`; restart=unless-stopped; UI binding strategy (loopback + tailscale OR Caddy + basic auth). |
-| `next/ops/uptime-probe/probe-host-bootstrap.sh` | Adapted from S-044's `provision-vps.sh`. SSH key only, UFW (22 + 3001 if no Tailscale), fail2ban, unattended-upgrades, Docker + compose plugin, optional Tailscale, clone of `next/ops/uptime-probe/` + `docker compose up -d`. |
-| `next/ops/uptime-probe/monitors.md` | Declarative source-of-truth: 6 monitors (see Monitors). |
-| `next/ops/uptime-probe/alert-channels.md` | Channel inventory + vault refs (no secrets in repo). |
-| `next/ops/uptime-probe/drill-procedure.md` | Drill steps + evidence template. |
-| `next/ops/uptime-probe/README.md` | Operator manual. |
+| `alpenflight/ops/uptime-probe/docker-compose.yml` | Single-service compose: `louislam/uptime-kuma:2`; named volume `kuma-data`; restart=unless-stopped; UI binding strategy (loopback + tailscale OR Caddy + basic auth). |
+| `alpenflight/ops/uptime-probe/probe-host-bootstrap.sh` | Adapted from S-044's `provision-vps.sh`. SSH key only, UFW (22 + 3001 if no Tailscale), fail2ban, unattended-upgrades, Docker + compose plugin, optional Tailscale, clone of `alpenflight/ops/uptime-probe/` + `docker compose up -d`. |
+| `alpenflight/ops/uptime-probe/monitors.md` | Declarative source-of-truth: 6 monitors (see Monitors). |
+| `alpenflight/ops/uptime-probe/alert-channels.md` | Channel inventory + vault refs (no secrets in repo). |
+| `alpenflight/ops/uptime-probe/drill-procedure.md` | Drill steps + evidence template. |
+| `alpenflight/ops/uptime-probe/README.md` | Operator manual. |
 | `docs/modernization/ops/S-037-probe-drill-evidence.md` | Drill log + screenshots; committed once first drill passes; append-only across re-drills. |
 
-**No code in `next/server/` or `next/web/`.** Probe is entirely external infrastructure.
+**No code in `alpenflight/server/` or `alpenflight/web/`.** Probe is entirely external infrastructure.
 
 If SaaS option chosen (BetterUptime), drop `docker-compose.yml` and `probe-host-bootstrap.sh`; the rest of the files describe the SaaS account configuration as code-adjacent docs.
 

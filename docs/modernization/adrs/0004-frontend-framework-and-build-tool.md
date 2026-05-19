@@ -54,7 +54,7 @@ Chosen: **Option A — Angular 21 (signal-based) + TailwindCSS + TypeScript**. D
 - **Follow-ups (other ADRs / stories implied):**
   - **ADR 0005** (API shape) — REST + OpenAPI + generated TypeScript client; codegen output drops into Angular services unchanged.
   - **ADR 0006** (State management / data fetching) — Angular's signal-based resource()/rxResource() vs. third-party TanStack Query for Angular vs. NgRx-signals.
-  - **Story:** scaffold `next/web/` with Angular CLI (latest), TailwindCSS, ESLint config, Vitest or Jest for unit tests, Playwright for e2e.
+  - **Story:** scaffold `alpenflight/web/` with Angular CLI (latest), TailwindCSS, ESLint config, Vitest or Jest for unit tests, Playwright for e2e.
   - **Story:** pick a component-primitive approach — TailwindCSS + Angular CDK (headless) is the front-runner; alternatives Spartan UI (shadcn-for-Angular), Angular Material, PrimeNG. Phase-4 task.
   - **Story:** pick a forms approach — Reactive Forms (typed) is the Angular-idiomatic choice and matches the dev's expected baseline.
   - **Story:** pick an i18n library — `@angular/localize` (built-in) vs. transloco (third-party, more flexible) — consuming the bundled JSON files chosen in [C15](../02-vision-and-constraints.md#3-hard-constraints). Phase-4 task.

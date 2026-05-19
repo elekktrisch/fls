@@ -36,7 +36,7 @@ Fleet-eligible when ALL:
 2. `status: todo`.
 3. All `depends_on` have `merged: true`.
 4. NOT `parity_test` references a not-yet-built harness, OR design notes explicitly say "must be sequential."
-5. No file-path overlap with any other selected story (scan `## Tasks` + `## Design notes` for `next/server/.../<file>`, `next/web/.../<file>`).
+5. No file-path overlap with any other selected story (scan `## Tasks` + `## Design notes` for `alpenflight/server/.../<file>`, `alpenflight/web/.../<file>`).
 6. Different epic from every other selected story (cross-epic preferred).
 
 Collect up to `N`. Report any gap.
@@ -49,9 +49,9 @@ Apply selection rule. Surface candidate set:
 
 ```
 Fleet candidates (in _ORDER.md order, pairwise co-fleetable):
-1. S-NNN (epic E-XX) — <title> — paths: next/server/.../A.java
-2. S-NNN (epic E-XX) — <title> — paths: next/web/.../B.ts
-3. S-NNN (epic E-XX) — <title> — paths: next/server/.../C.java
+1. S-NNN (epic E-XX) — <title> — paths: alpenflight/server/.../A.java
+2. S-NNN (epic E-XX) — <title> — paths: alpenflight/web/.../B.ts
+3. S-NNN (epic E-XX) — <title> — paths: alpenflight/server/.../C.java
 <K> selected (<N> requested, <N-K> ineligible: <one-line reason per skip>).
 Proceed? [Y/n]
 ```

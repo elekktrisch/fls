@@ -11,7 +11,7 @@ origin_story: S-019
 
 ## Context
 
-Catch-all for the 13 deferred improvements from `/modernize-review S-019` (PR #60). All are 1-5 line edits across `next/auth/scripts/`, `next/auth/README.md`, and `docker-compose.yml`. The blocker + 4 critical improvements + ADR 0007 amendment landed in S-019's PR; this story groups the rest into one ship.
+Catch-all for the 13 deferred improvements from `/modernize-review S-019` (PR #60). All are 1-5 line edits across `alpenflight/auth/scripts/`, `alpenflight/auth/README.md`, and `docker-compose.yml`. The blocker + 4 critical improvements + ADR 0007 amendment landed in S-019's PR; this story groups the rest into one ship.
 
 The full review block (including `[deferred → S-153]` annotations) is in `docs/modernization/stories/implemented/S-019-keycloak-compose.md`.
 
@@ -31,12 +31,12 @@ The full review block (including `[deferred → S-153]` annotations) is in `docs
 - [ ] Admin token revoke / `unset TOKEN` in cleanup trap.
 
 `normalize-realm-export.sh` gains:
-- [ ] Python lifted out of the bash heredoc into `next/auth/scripts/normalize-realm-export.py` (or called directly from `export-realm.sh`).
+- [ ] Python lifted out of the bash heredoc into `alpenflight/auth/scripts/normalize-realm-export.py` (or called directly from `export-realm.sh`).
 - [ ] Bare `open()` calls replaced with context managers.
 
 Docs/ops touches:
-- [ ] `next/auth/README.md` Downstream consumers table includes S-134 (federated IdP + DB-fallback for `clubId`).
+- [ ] `alpenflight/auth/README.md` Downstream consumers table includes S-134 (federated IdP + DB-fallback for `clubId`).
 - [ ] `docker-compose.yml:206-208` healthcheck carries a one-line comment documenting the bash `/dev/tcp` dependency.
-- [ ] `next/auth/scripts/check-realm-shape.sh` clubId-block trailing-clause restates the `fail` message — trim to keep only the why-explanation.
-- [ ] `next/auth/scripts/check-realm-shape.sh` token-policy block comment paraphrases its section header — drop the comment.
-- [ ] `next/auth/README.md` round-trip code-block comment is 3 lines at shell indent — condense to one line.
+- [ ] `alpenflight/auth/scripts/check-realm-shape.sh` clubId-block trailing-clause restates the `fail` message — trim to keep only the why-explanation.
+- [ ] `alpenflight/auth/scripts/check-realm-shape.sh` token-policy block comment paraphrases its section header — drop the comment.
+- [ ] `alpenflight/auth/README.md` round-trip code-block comment is 3 lines at shell indent — condense to one line.

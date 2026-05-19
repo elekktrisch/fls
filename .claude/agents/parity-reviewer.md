@@ -27,7 +27,7 @@ into the story file.
   strategy, or substitute a weaker layer (e.g. unit-test stub instead of the
   e2e parity test the plan called for)?
 - **Locate the behavior oracle.** Likely homes — check in this order:
-  - `next/server/src/test/resources/parity/` or `next/web/src/test/parity/`
+  - `alpenflight/server/src/test/resources/parity/` or `alpenflight/web/src/test/parity/`
     fixtures.
   - `e2e/tests/parity/` Playwright specs that run identical scenarios
     against legacy + next.

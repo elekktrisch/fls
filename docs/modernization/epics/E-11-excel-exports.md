@@ -21,4 +21,4 @@ Build the Apache POI export infrastructure (SXSSF streaming for large workbooks,
 ## Done when
 - Helper class wraps every export pattern in <50 lines per call site.
 - Parity verification harness produces zero-delta reports against legacy outputs for at least 3 production-shape inputs per export (DeliveryMailExport, AircraftStatisticReport, FlightReports).
-- The verification harness is part of CI on `next/server/` (smoke run against fixture data).
+- The verification harness is part of CI on `alpenflight/server/` (smoke run against fixture data).

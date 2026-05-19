@@ -63,5 +63,5 @@ Chosen: **Option A — Postgres 17**. Best simultaneous fit across criteria 1, 3
   - **ADR 0010** (Hosting) — choose between self-hosted Postgres (docker-compose) and a managed offering.
   - **ADR 0011** (Observability) — pick a Postgres metrics exporter (postgres_exporter) and slow-query log shipping.
   - **Story:** capture a parity baseline of the current SQL Server schema (table list, column types, constraints, indexes) so the new Postgres schema can be compared row-by-row in [C11](../02-vision-and-constraints.md#3-hard-constraints) verification.
-  - **Story:** design the `next/database/` layout — migration scripts, seed data, fixture for tests.
+  - **Story:** design the `alpenflight/database/` layout — migration scripts, seed data, fixture for tests.
   - **Story:** spike a data-migration script from production-shaped SQL Server data to Postgres, end-to-end, to validate the cutover-window budget ([C6](../02-vision-and-constraints.md#3-hard-constraints) ≤6 hrs).

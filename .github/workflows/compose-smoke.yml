@@ -4,13 +4,13 @@ on:
   pull_request:
     paths:
       - 'docker-compose.yml'
-      - 'next/ops/**'
+      - 'alpenflight/ops/**'
       - '.github/workflows/compose-smoke.yml'
   push:
     branches: [main]
     paths:
       - 'docker-compose.yml'
-      - 'next/ops/**'
+      - 'alpenflight/ops/**'
       - '.github/workflows/compose-smoke.yml'
 
 jobs:

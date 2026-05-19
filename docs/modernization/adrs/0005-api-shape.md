@@ -63,5 +63,5 @@ Chosen: **Option A — REST + OpenAPI (springdoc) + generated TypeScript client*
   - **ADR 0008** (multi-tenancy) — controllers will use a tenant context injected by Spring Security; the OpenAPI spec must not leak tenant IDs into request bodies/paths where the principal already implies them.
   - **Story:** spike the springdoc setup on a one-endpoint Spring Boot project; verify the generated spec is clean enough for orval / hey-api.
   - **Story:** evaluate 2–3 TS codegen tools against a sample DTO graph (including discriminated unions for `FlightAircraftType` and the `FlightProcessState` enum); pick one.
-  - **Story:** establish the spec-publication mechanism — live at `/v3/api-docs` for dev; committed snapshot in `next/web/` for reproducible CI builds.
+  - **Story:** establish the spec-publication mechanism — live at `/v3/api-docs` for dev; committed snapshot in `alpenflight/web/` for reproducible CI builds.
   - **Story:** capture the current REST surface (~46 controllers per [current-state §4](../01-current-state.md#4-integration-map)) as the parity baseline for the new system's OpenAPI spec, especially the `/api/v1/deliveries/*` shape Proffix consumes.

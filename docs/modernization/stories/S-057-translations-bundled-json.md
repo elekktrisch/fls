@@ -5,7 +5,7 @@ epic: E-06
 status: todo
 depends_on: [S-005]
 acceptance:
-  - All translation keys/values from legacy `LanguageTranslation` table exported to `next/web/src/i18n/<locale>.json`.
+  - All translation keys/values from legacy `LanguageTranslation` table exported to `alpenflight/web/src/i18n/<locale>.json`.
   - The new server **does not** implement `/api/v1/translations` (closes C15).
   - The legacy admin UI for editing translations is **not** ported — translation changes now go through PR + deploy.
   - SPA renders correctly in `de`, `en`, `fr` for all ported screens.

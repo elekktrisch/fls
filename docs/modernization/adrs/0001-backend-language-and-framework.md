@@ -79,4 +79,4 @@ Chosen: **Option A — Java 25 + Spring Boot 4.x**. Decision driven by criterion
   - **ADR 0011** (Observability) — Spring Boot Actuator + Micrometer + OpenTelemetry Java agent is the native combo.
   - **Story:** pick a build tool (Gradle Kotlin DSL vs. Maven). Phase-4 task, not an ADR.
   - **Story:** establish a null-safety convention (JSpecify annotations + NullAway in the Gradle/Maven config). Phase-4 task.
-  - **Story:** scaffold the `next/server/` Spring Boot project skeleton with the chosen build tool, NullAway, Actuator, springdoc-openapi pre-wired.
+  - **Story:** scaffold the `alpenflight/server/` Spring Boot project skeleton with the chosen build tool, NullAway, Actuator, springdoc-openapi pre-wired.

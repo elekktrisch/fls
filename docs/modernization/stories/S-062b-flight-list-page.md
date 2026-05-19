@@ -66,7 +66,7 @@ See frontmatter.
 
 ### Module layout — client-side only
 
-`next/web/src/app/flights/`:
+`alpenflight/web/src/app/flights/`:
 - `flight-routes.ts` — Angular standalone route config (`/flights`, `/flights/new` placeholder, `/flights/:id` placeholder, `/flights/copy/:id` placeholder).
 - `flight.store.ts` — single `FlightStore` (`withEntities` for list slice; **detail slice added by S-062c**).
 - `services/flight-api.ts` — thin wrapper over the orval-generated client.
