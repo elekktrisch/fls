@@ -96,18 +96,14 @@ dependencies {
     // keeps working with its lightweight DataSource). Hibernate ships under
     // the JPA umbrella.
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    // S-048 walking-skeleton wires real @PreAuthorize predicates against a
-    // mocked principal (profile `mock-auth`). The starter activates Spring
-    // Security's default chain even without `mock-auth` — see SecurityConfig
-    // for the no-auth-yet baseline that still permits OpenAPI / actuator /
-    // hello so the existing ITs stay green.
+    // Spring Security activates the default chain at startup; the production
+    // SecurityConfig wires it as an OAuth2 resource server (per ADR 0007 /
+    // S-020) and the @PreAuthorize predicates on controllers (S-026) are the
+    // method-level gates.
     implementation("org.springframework.boot:spring-boot-starter-security")
-    // S-048: the resource-server + jose modules bring `Jwt`,
-    // `JwtAuthenticationToken`, and `JwtAuthenticationConverter` — the
-    // converter shape ClubAwareJwtAuthenticationConverter wraps so the
-    // S-020 swap is a one-line change. Auto-configuration is dormant unless
-    // `spring.security.oauth2.resourceserver.*` is set, so adding these
-    // jars does NOT enable a real JWT decoder at runtime.
+    // Resource-server + jose modules bring `Jwt`, `JwtAuthenticationToken`,
+    // and `JwtAuthenticationConverter`. JwtDecoderConfig consumes them to
+    // validate incoming Bearer tokens against the configured issuer's JWKS.
     implementation("org.springframework.security:spring-security-oauth2-resource-server")
     implementation("org.springframework.security:spring-security-oauth2-jose")
     // S-022: application-side UUID v7 generation per ADR 0019. Wired by
@@ -143,9 +139,10 @@ dependencies {
     // Boot 4.0 split: TestRestTemplate (in spring-boot-resttestclient) depends
     // on RestTemplateBuilder which lives in spring-boot-restclient.
     testImplementation("org.springframework.boot:spring-boot-starter-restclient-test")
-    // S-048: spring-security-test provides @WithMockUser + MockMvc
-    // `.with(jwt())` post-processors so role-gate ITs can downgrade the
-    // principal without booting the mock-auth filter chain.
+    // spring-security-test provides @WithMockUser + MockMvc `.with(jwt())`
+    // post-processors so role-gate ITs can plant arbitrary principals + claims
+    // per request without crafting a full RSA-signed JWT (the live decoder
+    // path is covered by SecurityFilterChainIT against JwtTestFixture).
     testImplementation("org.springframework.security:spring-security-test")
     // S-155: Spring Modulith annotation types (@ApplicationModule, @NamedInterface)
     // on the compile classpath only — package-info declarations need them, but

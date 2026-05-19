@@ -5,7 +5,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
@@ -26,13 +25,8 @@ import org.springframework.stereotype.Component;
  * only meaningful when the JWT subject is a UUID literal — Keycloak's
  * default sub shape. Non-UUID subjects (Google's numeric IDs) currently
  * return empty; the lookup story for those IdPs ships when they onboard.
- *
- * <p>Disabled under {@code @Profile("mock-auth")}: the resolver injects
- * {@code Optional.empty()} and skips DB calls — the mock principal's
- * hardcoded {@code clubId} claim is always present.
  */
 @Component
-@Profile("!mock-auth")
 public class UserTenantLookup {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserTenantLookup.class);

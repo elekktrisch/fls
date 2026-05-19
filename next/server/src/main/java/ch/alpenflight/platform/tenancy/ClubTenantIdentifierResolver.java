@@ -22,8 +22,7 @@ import org.springframework.stereotype.Component;
  *   <li>{@link TenantTestContextAccess} (test seam — S-015 {@code @WithTenant}).</li>
  *   <li>JWT {@code clubId} claim when present + parseable.</li>
  *   <li>{@link UserTenantLookup} — covers federated users whose tokens
- *       lack a {@code clubId} claim (Google / Auth0). Absent under
- *       {@code @Profile("mock-auth")}.</li>
+ *       lack a {@code clubId} claim (Google / Auth0).</li>
  *   <li>{@link #NO_TENANT} — the nil UUID. Tenant-scoped reads filter to
  *       zero rows; writes fail at the FK constraint on {@code club_id}.</li>
  * </ol>
