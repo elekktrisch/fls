@@ -2,8 +2,9 @@
 id: S-026
 title: Authorization model — roles → @PreAuthorize mapping
 epic: E-03
-status: in_progress
+status: done
 started_at: 2026-05-19
+done_at: 2026-05-19
 depends_on: [S-020]
 acceptance:
   - Three roles are mapped end-to-end: `system_administrator`, `club_administrator`, `flight_operator` (matching `RoleApplicationKeyStrings.cs`).
