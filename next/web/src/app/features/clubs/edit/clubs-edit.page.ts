@@ -23,6 +23,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ClubsStore } from '../clubs.store';
+import { slugAvailable } from './clubs-edit.validators';
 
 type ClubForm = FormGroup<{
   name: FormControl<string>;
@@ -137,11 +138,19 @@ export class ClubsEditPage {
   protected readonly clubId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.clubId() === null);
 
+  // S-007 — slug validator stack (sync + in-memory async-style) declared
+  // alongside the rest of the form definition. The duplicate-check closure
+  // reads `this.store.entities()` and `this.clubId()` lazily so it stays
+  // current as the store refreshes / the route changes.
   protected readonly form: ClubForm = this.fb.group({
     name: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(100)]),
     slug: this.fb.nonNullable.control('', [
       Validators.required,
       Validators.pattern(/^[a-z0-9-]{3,64}$/),
+      slugAvailable({
+        entities: () => this.store.entities(),
+        currentId: () => this.clubId(),
+      }),
     ]),
     clubKey: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(10)]),
     publicRegistrationEnabled: this.fb.nonNullable.control(false),
@@ -151,9 +160,18 @@ export class ClubsEditPage {
 
   constructor() {
     effect(() => {
+      // Re-run the slug validator whenever the entity list refreshes so the
+      // duplicate flag updates the moment ClubsStore.loadAll() resolves.
+      void this.store.entities();
+      this.form.controls.slug.updateValueAndValidity({ emitEvent: false });
+    });
+
+    effect(() => {
       const id = this.clubId();
       if (!id) {
         this.store.select(null);
+        // Re-enable on edit→new navigation; patchValue doesn't reset disabled.
+        this.form.controls.clubKey.enable({ emitEvent: false });
         return;
       }
       this.store.select(id);
