@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>FLS e2e dashboard</title>
+<style>
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --text: #1a1d21;
+  --muted: #5c6470;
+  --border: #e3e6ea;
+  --primary: #0a66c2;
+  --primary-hover: #0552a3;
+  --success: #0a7f3f;
+  --success-bg: #e3f5ea;
+  --failure: #c0353a;
+  --failure-bg: #fbe6e7;
+  --skipped: #8a6c1d;
+  --skipped-bg: #fcf2d9;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c222b;
+    --text: #e6edf3;
+    --muted: #8d96a0;
+    --border: #2a313b;
+    --primary: #4da3ff;
+    --primary-hover: #79bbff;
+    --success: #3fb950;
+    --success-bg: #14271b;
+    --failure: #f85149;
+    --failure-bg: #2a1416;
+    --skipped: #d29922;
+    --skipped-bg: #2a1f0a;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem) clamp(1rem, 3vw, 1.5rem); }
+header { margin-bottom: 2rem; }
+h1 { font-size: clamp(1.5rem, 4vw, 2.25rem); margin: 0 0 .5rem; letter-spacing: -.02em; }
+h2 { font-size: 1.25rem; margin: 2.5rem 0 1rem; letter-spacing: -.01em; }
+h3 { font-size: 1rem; margin: 0 0 .25rem; }
+p { margin: 0; color: var(--muted); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; background: var(--surface-2); padding: .1em .4em; border-radius: 4px; }
+.meta { font-size: .9rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; align-items: center; }
+.pills { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+.pill { font-size: .75rem; font-weight: 600; padding: .3rem .7rem; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.pill--success { color: var(--success); background: var(--success-bg); }
+.pill--failure, .pill--cancelled { color: var(--failure); background: var(--failure-bg); }
+.pill--skipped { color: var(--skipped); background: var(--skipped-bg); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--shadow);
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.card:hover, .card:focus-visible { border-color: var(--primary); transform: translateY(-1px); outline: none; }
+.card p { font-size: .875rem; margin-top: .25rem; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.cat { font-size: .95rem; margin: 1.25rem 0 .5rem; letter-spacing: -.005em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+.shot {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .12s ease, transform .12s ease;
+}
+.shot:hover, .shot:focus-visible { border-color: var(--primary); transform: translateY(-1px); outline: none; }
+.shot img { width: 100%; height: auto; display: block; aspect-ratio: 16 / 10; object-fit: cover; background: var(--surface-2); }
+.shot span { display: block; padding: .5rem .75rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .75rem; word-break: break-all; color: var(--muted); }
+footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-size: .85rem; color: var(--muted); }
+footer a { color: var(--primary); text-decoration: none; }
+footer a:hover { color: var(--primary-hover); text-decoration: underline; }
+@media (max-width: 480px) {
+  .meta { font-size: .8rem; }
+  .card { padding: .875rem 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>FLS end-to-end run</h1>
+    <div class="meta">
+      <span>2026-05-19 05:31:24 UTC</span>
+      <span>Commit <code>1143467</code></span>
+    </div>
+    <div class="pills">
+      <span class="pill pill--success">playwright &middot; success</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Reports &amp; logs</h2>
+    <div class="grid">
+      <a class="card" href="report/index.html"><h3>Playwright report</h3><p>All categories. Failure traces &amp; screenshots inline.</p></a><a class="card" href="logs/fls-server.log"><h3>FLS server log</h3><p>Mono / ASP.NET Web API output.</p></a><a class="card" href="logs/flsweb.log"><h3>flsweb dev-server log</h3><p>Webpack dev-server stdout.</p></a>
+    </div>
+  </section>
+
+  <section><h2>Full-page screenshots</h2><h3 class="cat">accounting</h3><div class="gallery"><a class="shot" href="screenshots/accounting/delivery-creation-test-01.png"><img src="screenshots/accounting/delivery-creation-test-01.png" loading="lazy" alt="accounting/delivery-creation-test-01.png"><span>delivery-creation-test-01.png</span></a><a class="shot" href="screenshots/accounting/delivery-creation-test-02.png"><img src="screenshots/accounting/delivery-creation-test-02.png" loading="lazy" alt="accounting/delivery-creation-test-02.png"><span>delivery-creation-test-02.png</span></a><a class="shot" href="screenshots/accounting/delivery-creation-test-03.png"><img src="screenshots/accounting/delivery-creation-test-03.png" loading="lazy" alt="accounting/delivery-creation-test-03.png"><span>delivery-creation-test-03.png</span></a><a class="shot" href="screenshots/accounting/rules-edit-01.png"><img src="screenshots/accounting/rules-edit-01.png" loading="lazy" alt="accounting/rules-edit-01.png"><span>rules-edit-01.png</span></a></div><h3 class="cat">auth</h3><div class="gallery"><a class="shot" href="screenshots/auth/airmovements-list.png"><img src="screenshots/auth/airmovements-list.png" loading="lazy" alt="auth/airmovements-list.png"><span>airmovements-list.png</span></a><a class="shot" href="screenshots/auth/dashboard.png"><img src="screenshots/auth/dashboard.png" loading="lazy" alt="auth/dashboard.png"><span>dashboard.png</span></a><a class="shot" href="screenshots/auth/flight-reports.png"><img src="screenshots/auth/flight-reports.png" loading="lazy" alt="auth/flight-reports.png"><span>flight-reports.png</span></a><a class="shot" href="screenshots/auth/flights-edit.png"><img src="screenshots/auth/flights-edit.png" loading="lazy" alt="auth/flights-edit.png"><span>flights-edit.png</span></a><a class="shot" href="screenshots/auth/flights-list.png"><img src="screenshots/auth/flights-list.png" loading="lazy" alt="auth/flights-list.png"><span>flights-list.png</span></a><a class="shot" href="screenshots/auth/login-fail-unknown-user.png"><img src="screenshots/auth/login-fail-unknown-user.png" loading="lazy" alt="auth/login-fail-unknown-user.png"><span>login-fail-unknown-user.png</span></a><a class="shot" href="screenshots/auth/login-fail-wrong-password.png"><img src="screenshots/auth/login-fail-wrong-password.png" loading="lazy" alt="auth/login-fail-wrong-password.png"><span>login-fail-wrong-password.png</span></a><a class="shot" href="screenshots/auth/login-success.png"><img src="screenshots/auth/login-success.png" loading="lazy" alt="auth/login-success.png"><span>login-success.png</span></a><a class="shot" href="screenshots/auth/logout.png"><img src="screenshots/auth/logout.png" loading="lazy" alt="auth/logout.png"><span>logout.png</span></a><a class="shot" href="screenshots/auth/planning-list.png"><img src="screenshots/auth/planning-list.png" loading="lazy" alt="auth/planning-list.png"><span>planning-list.png</span></a><a class="shot" href="screenshots/auth/planning-setup.png"><img src="screenshots/auth/planning-setup.png" loading="lazy" alt="auth/planning-setup.png"><span>planning-setup.png</span></a><a class="shot" href="screenshots/auth/profile.png"><img src="screenshots/auth/profile.png" loading="lazy" alt="auth/profile.png"><span>profile.png</span></a><a class="shot" href="screenshots/auth/reservation-scheduler.png"><img src="screenshots/auth/reservation-scheduler.png" loading="lazy" alt="auth/reservation-scheduler.png"><span>reservation-scheduler.png</span></a><a class="shot" href="screenshots/auth/reservations-list.png"><img src="screenshots/auth/reservations-list.png" loading="lazy" alt="auth/reservations-list.png"><span>reservations-list.png</span></a><a class="shot" href="screenshots/auth/system-logs.png"><img src="screenshots/auth/system-logs.png" loading="lazy" alt="auth/system-logs.png"><span>system-logs.png</span></a></div><h3 class="cat">flights</h3><div class="gallery"><a class="shot" href="screenshots/flights/airmovements-crud-01.png"><img src="screenshots/flights/airmovements-crud-01.png" loading="lazy" alt="flights/airmovements-crud-01.png"><span>airmovements-crud-01.png</span></a><a class="shot" href="screenshots/flights/airmovements-crud-02.png"><img src="screenshots/flights/airmovements-crud-02.png" loading="lazy" alt="flights/airmovements-crud-02.png"><span>airmovements-crud-02.png</span></a><a class="shot" href="screenshots/flights/audit-logs-01.png"><img src="screenshots/flights/audit-logs-01.png" loading="lazy" alt="flights/audit-logs-01.png"><span>audit-logs-01.png</span></a><a class="shot" href="screenshots/flights/create-01.png"><img src="screenshots/flights/create-01.png" loading="lazy" alt="flights/create-01.png"><span>create-01.png</span></a><a class="shot" href="screenshots/flights/edit-01.png"><img src="screenshots/flights/edit-01.png" loading="lazy" alt="flights/edit-01.png"><span>edit-01.png</span></a><a class="shot" href="screenshots/flights/state-transitions-01.png"><img src="screenshots/flights/state-transitions-01.png" loading="lazy" alt="flights/state-transitions-01.png"><span>state-transitions-01.png</span></a><a class="shot" href="screenshots/flights/state-transitions-02.png"><img src="screenshots/flights/state-transitions-02.png" loading="lazy" alt="flights/state-transitions-02.png"><span>state-transitions-02.png</span></a></div><h3 class="cat">masterdata</h3><div class="gallery"><a class="shot" href="screenshots/masterdata/accountingrules-list.png"><img src="screenshots/masterdata/accountingrules-list.png" loading="lazy" alt="masterdata/accountingrules-list.png"><span>accountingrules-list.png</span></a><a class="shot" href="screenshots/masterdata/aircrafts-crud-01.png"><img src="screenshots/masterdata/aircrafts-crud-01.png" loading="lazy" alt="masterdata/aircrafts-crud-01.png"><span>aircrafts-crud-01.png</span></a><a class="shot" href="screenshots/masterdata/aircrafts-form.png"><img src="screenshots/masterdata/aircrafts-form.png" loading="lazy" alt="masterdata/aircrafts-form.png"><span>aircrafts-form.png</span></a><a class="shot" href="screenshots/masterdata/aircrafts-list.png"><img src="screenshots/masterdata/aircrafts-list.png" loading="lazy" alt="masterdata/aircrafts-list.png"><span>aircrafts-list.png</span></a><a class="shot" href="screenshots/masterdata/clubs-crud-after-save.png"><img src="screenshots/masterdata/clubs-crud-after-save.png" loading="lazy" alt="masterdata/clubs-crud-after-save.png"><span>clubs-crud-after-save.png</span></a><a class="shot" href="screenshots/masterdata/clubs-crud-list.png"><img src="screenshots/masterdata/clubs-crud-list.png" loading="lazy" alt="masterdata/clubs-crud-list.png"><span>clubs-crud-list.png</span></a><a class="shot" href="screenshots/masterdata/clubs-form.png"><img src="screenshots/masterdata/clubs-form.png" loading="lazy" alt="masterdata/clubs-form.png"><span>clubs-form.png</span></a><a class="shot" href="screenshots/masterdata/clubs-list.png"><img src="screenshots/masterdata/clubs-list.png" loading="lazy" alt="masterdata/clubs-list.png"><span>clubs-list.png</span></a><a class="shot" href="screenshots/masterdata/deliveries-list.png"><img src="screenshots/masterdata/deliveries-list.png" loading="lazy" alt="masterdata/deliveries-list.png"><span>deliveries-list.png</span></a><a class="shot" href="screenshots/masterdata/deliverycreationtests-list.png"><img src="screenshots/masterdata/deliverycreationtests-list.png" loading="lazy" alt="masterdata/deliverycreationtests-list.png"><span>deliverycreationtests-list.png</span></a><a class="shot" href="screenshots/masterdata/flight-types-crud-01.png"><img src="screenshots/masterdata/flight-types-crud-01.png" loading="lazy" alt="masterdata/flight-types-crud-01.png"><span>flight-types-crud-01.png</span></a><a class="shot" href="screenshots/masterdata/flighttypes-form.png"><img src="screenshots/masterdata/flighttypes-form.png" loading="lazy" alt="masterdata/flighttypes-form.png"><span>flighttypes-form.png</span></a><a class="shot" href="screenshots/masterdata/flighttypes-list.png"><img src="screenshots/masterdata/flighttypes-list.png" loading="lazy" alt="masterdata/flighttypes-list.png"><span>flighttypes-list.png</span></a><a class="shot" href="screenshots/masterdata/locations-crud-01.png"><img src="screenshots/masterdata/locations-crud-01.png" loading="lazy" alt="masterdata/locations-crud-01.png"><span>locations-crud-01.png</span></a><a class="shot" href="screenshots/masterdata/locations-form.png"><img src="screenshots/masterdata/locations-form.png" loading="lazy" alt="masterdata/locations-form.png"><span>locations-form.png</span></a><a class="shot" href="screenshots/masterdata/locations-list.png"><img src="screenshots/masterdata/locations-list.png" loading="lazy" alt="masterdata/locations-list.png"><span>locations-list.png</span></a><a class="shot" href="screenshots/masterdata/member-states-crud-01.png"><img src="screenshots/masterdata/member-states-crud-01.png" loading="lazy" alt="masterdata/member-states-crud-01.png"><span>member-states-crud-01.png</span></a><a class="shot" href="screenshots/masterdata/memberstates-form.png"><img src="screenshots/masterdata/memberstates-form.png" loading="lazy" alt="masterdata/memberstates-form.png"><span>memberstates-form.png</span></a><a class="shot" href="screenshots/masterdata/memberstates-list.png"><img src="screenshots/masterdata/memberstates-list.png" loading="lazy" alt="masterdata/memberstates-list.png"><span>memberstates-list.png</span></a><a class="shot" href="screenshots/masterdata/person-categories-crud-01.png"><img src="screenshots/masterdata/person-categories-crud-01.png" loading="lazy" alt="masterdata/person-categories-crud-01.png"><span>person-categories-crud-01.png</span></a><a class="shot" href="screenshots/masterdata/personcategories-list.png"><img src="screenshots/masterdata/personcategories-list.png" loading="lazy" alt="masterdata/personcategories-list.png"><span>personcategories-list.png</span></a><a class="shot" href="screenshots/masterdata/persons-add-modal-01.png"><img src="screenshots/masterdata/persons-add-modal-01.png" loading="lazy" alt="masterdata/persons-add-modal-01.png"><span>persons-add-modal-01.png</span></a><a class="shot" href="screenshots/masterdata/persons-form.png"><img src="screenshots/masterdata/persons-form.png" loading="lazy" alt="masterdata/persons-form.png"><span>persons-form.png</span></a><a class="shot" href="screenshots/masterdata/persons-list.png"><img src="screenshots/masterdata/persons-list.png" loading="lazy" alt="masterdata/persons-list.png"><span>persons-list.png</span></a><a class="shot" href="screenshots/masterdata/users-form.png"><img src="screenshots/masterdata/users-form.png" loading="lazy" alt="masterdata/users-form.png"><span>users-form.png</span></a><a class="shot" href="screenshots/masterdata/users-list.png"><img src="screenshots/masterdata/users-list.png" loading="lazy" alt="masterdata/users-list.png"><span>users-list.png</span></a></div><h3 class="cat">planning</h3><div class="gallery"><a class="shot" href="screenshots/planning/day-crud-01.png"><img src="screenshots/planning/day-crud-01.png" loading="lazy" alt="planning/day-crud-01.png"><span>day-crud-01.png</span></a><a class="shot" href="screenshots/planning/setup-wizard-01.png"><img src="screenshots/planning/setup-wizard-01.png" loading="lazy" alt="planning/setup-wizard-01.png"><span>setup-wizard-01.png</span></a></div><h3 class="cat">profile</h3><div class="gallery"><a class="shot" href="screenshots/profile/edit-01.png"><img src="screenshots/profile/edit-01.png" loading="lazy" alt="profile/edit-01.png"><span>edit-01.png</span></a></div><h3 class="cat">public</h3><div class="gallery"><a class="shot" href="screenshots/public/landing.png"><img src="screenshots/public/landing.png" loading="lazy" alt="public/landing.png"><span>landing.png</span></a><a class="shot" href="screenshots/public/lostpassword.png"><img src="screenshots/public/lostpassword.png" loading="lazy" alt="public/lostpassword.png"><span>lostpassword.png</span></a><a class="shot" href="screenshots/public/main-anonymous.png"><img src="screenshots/public/main-anonymous.png" loading="lazy" alt="public/main-anonymous.png"><span>main-anonymous.png</span></a><a class="shot" href="screenshots/public/passengerflight.png"><img src="screenshots/public/passengerflight.png" loading="lazy" alt="public/passengerflight.png"><span>passengerflight.png</span></a><a class="shot" href="screenshots/public/registration-flows-01.png"><img src="screenshots/public/registration-flows-01.png" loading="lazy" alt="public/registration-flows-01.png"><span>registration-flows-01.png</span></a><a class="shot" href="screenshots/public/registration-flows-02.png"><img src="screenshots/public/registration-flows-02.png" loading="lazy" alt="public/registration-flows-02.png"><span>registration-flows-02.png</span></a><a class="shot" href="screenshots/public/registration-flows-03.png"><img src="screenshots/public/registration-flows-03.png" loading="lazy" alt="public/registration-flows-03.png"><span>registration-flows-03.png</span></a><a class="shot" href="screenshots/public/registration-flows-04.png"><img src="screenshots/public/registration-flows-04.png" loading="lazy" alt="public/registration-flows-04.png"><span>registration-flows-04.png</span></a><a class="shot" href="screenshots/public/trialflight.png"><img src="screenshots/public/trialflight.png" loading="lazy" alt="public/trialflight.png"><span>trialflight.png</span></a></div><h3 class="cat">reporting</h3><div class="gallery"><a class="shot" href="screenshots/reporting/custom-builder-edit.png"><img src="screenshots/reporting/custom-builder-edit.png" loading="lazy" alt="reporting/custom-builder-edit.png"><span>custom-builder-edit.png</span></a><a class="shot" href="screenshots/reporting/custom-builder-results.png"><img src="screenshots/reporting/custom-builder-results.png" loading="lazy" alt="reporting/custom-builder-results.png"><span>custom-builder-results.png</span></a><a class="shot" href="screenshots/reporting/flight-reports-01.png"><img src="screenshots/reporting/flight-reports-01.png" loading="lazy" alt="reporting/flight-reports-01.png"><span>flight-reports-01.png</span></a></div><h3 class="cat">reservations</h3><div class="gallery"><a class="shot" href="screenshots/reservations/crud-01.png"><img src="screenshots/reservations/crud-01.png" loading="lazy" alt="reservations/crud-01.png"><span>crud-01.png</span></a></div></section>
+
+  <footer>
+    Generated by the <a href="https://github.com/elekktrisch/fls/actions/workflows/e2e.yml">e2e workflow</a>.
+    Source: <a href="https://github.com/elekktrisch/fls">elekktrisch/fls</a>.
+  </footer>
+</div>
+</body>
+</html>
