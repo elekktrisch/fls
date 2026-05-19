@@ -2,7 +2,7 @@
 id: E-01
 title: Foundations & project scaffolding
 status: todo
-adr_refs: [0001, 0004, 0005, 0006, 0023]
+adr_refs: [0001, 0004, 0005, 0006, 0023, 0024]
 ---
 
 ## Goal
@@ -22,6 +22,8 @@ Stand up the `next/server/` (Spring Boot 4.x / Java 25) and `next/web/` (Angular
 - [ ] S-007 — Reactive Forms convention + typed form helpers
 - [ ] S-008 — Component primitives kit + Tailwind design tokens
 - [ ] S-155 — Module layering template — Spring Modulith + ArchUnit + Clubs reshape (ADR 0023)
+- [ ] S-156 — Install lucide-angular + wire `<af-icon>` atom (ADR 0024)
+- [ ] S-157 — Wordmark v1 SVG assets (ADR 0024)
 
 ## Done when
 - A new contributor can `docker compose up && ./gradlew bootRun` (or equivalent) and `ng serve`, hit a sample REST endpoint authenticated against the local IdP, see it in the generated TS client, and render a form against it using the reference store and the UI kit, in under 15 minutes of setup time.

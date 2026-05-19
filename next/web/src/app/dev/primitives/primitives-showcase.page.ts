@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { FormsModule, ReactiveFormsModule, FormControl, Validators } from '@angular/forms';
 
 import { AfButtonComponent } from '../../shared/ui/atoms/af-button';
+import { AfIconComponent } from '../../shared/ui/atoms/af-icon';
 import { AfInputComponent } from '../../shared/ui/atoms/af-input';
 import { AfSelectComponent, type AfSelectOption } from '../../shared/ui/atoms/af-select';
 import { AfDensityProviderDirective } from '../../shared/ui/density';
@@ -43,6 +44,7 @@ const COUNTRIES: readonly AfSelectOption<string>[] = [
     ReactiveFormsModule,
     AfDensityProviderDirective,
     AfButtonComponent,
+    AfIconComponent,
     AfInputComponent,
     AfSelectComponent,
     AfFormFieldComponent,
@@ -79,6 +81,31 @@ const COUNTRIES: readonly AfSelectOption<string>[] = [
         </div>
         <div class="af-row">
           <af-select [options]="countries" [(value)]="country" placeholder="Pick a country" />
+        </div>
+      </section>
+
+      <section>
+        <h2>Atoms — af-icon</h2>
+        <div class="af-row">
+          <af-icon name="plane" [size]="16" />
+          <af-icon name="plane" [size]="20" />
+          <af-icon name="plane" />
+          <af-icon name="plane" [size]="32" />
+        </div>
+        <div class="af-row">
+          <af-icon name="plane" [strokeWidth]="1" />
+          <af-icon name="plane" [strokeWidth]="1.5" />
+          <af-icon name="plane" [strokeWidth]="2" />
+        </div>
+        <div class="af-row">
+          <af-icon name="search" class="text-slate-500" />
+          <af-icon name="check" class="text-brand-500" />
+          <af-icon name="x" class="text-red-600" />
+          <af-icon name="calendar" class="text-slate-500" />
+        </div>
+        <div class="af-row">
+          <af-icon name="pencil" label="Edit" />
+          <af-icon name="trash-2" label="Delete" />
         </div>
       </section>
 

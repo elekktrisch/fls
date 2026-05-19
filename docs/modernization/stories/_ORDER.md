@@ -80,6 +80,8 @@ Strict minimum to land the first user-visible vertical slice (Phase D). **No ite
 - S-006 — M — NgRx Signal Store reference (deps S-002, S-004)
 - S-007 — S — Reactive Forms convention (deps S-002, S-004)
 - S-008 — M — Component primitives kit (deps S-002) — *first slice consumes atoms + form-field + data-table; rest grows JIT*
+  - S-156 — S — Install lucide-angular + wire `<af-icon>` atom (ADR 0024 follow-up; closes S-008's JIT-deferred icon atom)
+  - S-157 — S — Wordmark v1 SVG assets (deps S-156, S-128) — *consumed by S-097 landing + `<af-nav-bar>` once it ships*
 - S-021 — L — Angular OIDC client (deps S-002, S-006, S-019)
 
 ## Phase C — DB schema completion (mostly done)
@@ -127,6 +129,7 @@ Rest of the master-data CRUD plus the Phase-C items deferred until their first c
 - S-055 — M — Email templates CRUD (deps S-048, S-082 — see Phase G)
 - S-052 — L — Users CRUD + role assignment (deps S-051, S-026, S-019, S-020)
 - S-056 — M — System data + system-logs view (deps S-027)
+- S-158 — S — Tenant-branding seven-surface preview component (deps S-008, S-156; ADR 0024 follow-up) — *standalone molecule + dev route; no admin-form consumer yet (branding admin CRUD UI is an ADR 0014 follow-up not yet written). Can fire any time after deps; lands here as the natural home for branding admin UI.*
 
 ## Phase F — Flight operations + reservations + planning
 
