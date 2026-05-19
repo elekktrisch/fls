@@ -57,10 +57,7 @@ const FOOTER_LABELS = {
       >
         <div class="inline-flex items-center gap-2.5">
           <af-icon name="plane" [size]="40" class="text-brand-500" />
-          <h1
-            id="af-landing-title"
-            class="text-2xl font-medium tracking-tight text-slate-900 m-0"
-          >
+          <h1 id="af-landing-title" class="text-2xl font-medium tracking-tight text-slate-900 m-0">
             AlpenFlight
           </h1>
         </div>
@@ -111,11 +108,15 @@ const FOOTER_LABELS = {
       >
         <span>© AlpenFlight</span>
         <span aria-hidden="true">·</span>
-        <a href="/legal/privacy" class="text-inherit no-underline hover:text-slate-900 hover:underline"
+        <a
+          href="/legal/privacy"
+          class="text-inherit no-underline hover:text-slate-900 hover:underline"
           >{{ footerLabels().privacy }}</a
         >
         <span aria-hidden="true">·</span>
-        <a href="/legal/imprint" class="text-inherit no-underline hover:text-slate-900 hover:underline"
+        <a
+          href="/legal/imprint"
+          class="text-inherit no-underline hover:text-slate-900 hover:underline"
           >{{ footerLabels().imprint }}</a
         >
       </footer>

@@ -79,7 +79,10 @@ import { ClubsStore } from '../clubs.store';
             <af-icon name="more-vertical" [size]="18" />
           </button>
           <nz-dropdown-menu #rowMenu="nzDropdownMenu">
-            <ul class="list-none m-0 p-1 min-w-[10rem] bg-white border border-slate-200" role="menu">
+            <ul
+              class="list-none m-0 p-1 min-w-[10rem] bg-white border border-slate-200"
+              role="menu"
+            >
               <li role="none">
                 <a
                   role="menuitem"

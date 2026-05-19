@@ -42,6 +42,7 @@ The directive's override is **global** (one DensityService instance, root-provid
 ## i18n
 
 `LocaleService.set('de' | 'fr' | 'it' | 'en')` is the single switch. It calls:
+
 - `NzI18nService.setLocale(de_DE | fr_FR | it_IT | en_US)` — ng-zorro UI strings.
 - `TRANSLATION_ADAPTER.setActiveLang(locale)` — the seam S-005 fills with transloco / `@angular/localize`.
 - `document.documentElement.lang` — screen-reader / browser cue.
@@ -71,7 +72,7 @@ Reference: `src/app/features/clubs/edit/clubs-edit.page.ts` is the canonical typ
 - **Validators live in the form definition** (`FormBuilder.group({...})`), never in the component template or submit handler. Custom validators are pure factory functions in a sibling `*.validators.ts` file when reused; inline when one-off. Pattern: `clubs-edit.validators.ts → slugAvailable(opts)`.
 - **Typed `FormGroup<{...}>`** over `fb.nonNullable.control(...)` per field — no `null | undefined` in `getRawValue()`. The form-shape type names the controls explicitly (`type ClubForm = FormGroup<{ name: FormControl<string>; ... }>`).
 - **Error rendering** is `<af-form-field [errors]="ctl.touched ? ctl.errors : null">` with `<af-field-errors>` wired by the form-field molecule. `field-errors.ts` maps validator key → translation key (`required` → `common.errors.required`; unknown → `common.errors.<key>`). New custom validators register a new error key — no template churn.
-- **Inline (per-keystroke) validation by default** — sync validators use the default `updateOn: 'change'`. **`updateOn: 'blur'`** is reserved for *network*-backed async validators per [Angular's perf guidance](https://angular.dev/guide/forms/form-validation) (they'd otherwise fire on every keystroke). `slugAvailable` runs in-memory and keeps the default. The legacy top-level `MessageManager` error-bar pattern is **not** carried forward; errors render next to the offending control.
+- **Inline (per-keystroke) validation by default** — sync validators use the default `updateOn: 'change'`. **`updateOn: 'blur'`** is reserved for _network_-backed async validators per [Angular's perf guidance](https://angular.dev/guide/forms/form-validation) (they'd otherwise fire on every keystroke). `slugAvailable` runs in-memory and keeps the default. The legacy top-level `MessageManager` error-bar pattern is **not** carried forward; errors render next to the offending control.
 - **Touched gate avoids first-paint noise** — bind `[errors]` via `ctl.touched ? ctl.errors : null` so the field doesn't scream until the user has engaged it. `markAllAsTouched()` on submit-of-invalid so error tips render even if a field was never blurred.
 - **Submit-disabled state:** `[disabled]="form.invalid || saveInFlight()"`. Don't roll your own dirty/pristine logic — `form.invalid` is the answer.
 - **Edit vs. create — single component, two routes.** Route param presence is the mode discriminator (`isCreate = computed(() => routeId().get('id') === null)`). On `create` the form binds to a fresh `FormBuilder.group(...)`. On `edit` an `effect()` reads the entity from the feature store and `patchValue()`s. Immutable-post-create fields are `disable({ emitEvent: false })`d in the same effect; **re-enable on edit→new navigation** in the same effect — `patchValue` doesn't reset disabled state.

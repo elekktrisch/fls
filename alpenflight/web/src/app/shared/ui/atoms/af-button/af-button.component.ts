@@ -9,7 +9,7 @@ import { DensityService } from '../../density';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [NzButtonModule],
   host: {
-    'class': 'flex'
+    class: 'flex',
   },
   template: `
     <button

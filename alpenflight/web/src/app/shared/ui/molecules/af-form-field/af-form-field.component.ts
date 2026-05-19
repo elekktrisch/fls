@@ -25,7 +25,8 @@ import { AfFieldErrorsComponent } from '../af-field-errors';
     <div class="flex flex-col gap-1.5 mb-4">
       @if (label()) {
         <label [attr.for]="for() || null" class="text-sm font-medium text-slate-700">
-          {{ label() }}@if (required()) {
+          {{ label() }}
+          @if (required()) {
             <span class="text-red-600 ml-0.5" aria-hidden="true">*</span>
           }
         </label>

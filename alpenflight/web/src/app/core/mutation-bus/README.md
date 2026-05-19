@@ -34,7 +34,7 @@ Conventions:
    declared shape — adding a new event without an ID-only payload is a
    compile error.
 3. **Not an audit channel.** Audit log lives on the server (S-027). The
-   bus is *client-side cache fan-out*, nothing else.
+   bus is _client-side cache fan-out_, nothing else.
 
 ## Consumer pattern
 

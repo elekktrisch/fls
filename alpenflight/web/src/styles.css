@@ -134,11 +134,17 @@ body[data-density='comfortable'] .ant-select-single .ant-select-selection-placeh
    which cascades to the search-input and to the dropdown menu items.
    Lift everything to 16px so visual rhythm matches af-input. */
 body[data-density='comfortable'] .ant-select-single,
-body[data-density='comfortable'] .ant-select-single .ant-select-selector .ant-select-selection-search-input {
+body[data-density='comfortable']
+  .ant-select-single
+  .ant-select-selector
+  .ant-select-selection-search-input {
   font-size: 1rem !important;
 }
 
-body[data-density='comfortable'] .ant-select-single .ant-select-selector .ant-select-selection-search-input {
+body[data-density='comfortable']
+  .ant-select-single
+  .ant-select-selector
+  .ant-select-selection-search-input {
   height: 100% !important;
   padding: 0 !important;
   box-sizing: border-box !important;

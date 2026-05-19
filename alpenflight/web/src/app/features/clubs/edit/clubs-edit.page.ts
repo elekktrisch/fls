@@ -150,9 +150,7 @@ type ClubForm = FormGroup<{
           <span>Enable public registration</span>
         </label>
 
-        <div
-          class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200"
-        >
+        <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200">
           <af-button htmlType="button" (clicked)="router.navigateByUrl('/clubs')">
             Cancel
           </af-button>

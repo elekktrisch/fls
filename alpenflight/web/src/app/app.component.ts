@@ -4,7 +4,12 @@ import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/ro
 import { filter, map, startWith } from 'rxjs';
 
 import { SessionStore } from './core/session/session.store';
-import { AfNavBarComponent, type Locale, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
+import {
+  AfNavBarComponent,
+  type Locale,
+  type NavItem,
+  type UserSummary,
+} from '@ui/organisms/af-nav-bar';
 
 const SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
