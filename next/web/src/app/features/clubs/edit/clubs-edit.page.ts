@@ -19,9 +19,11 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
+import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
+import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
 import { ClubsStore } from '../clubs.store';
 import { slugAvailable } from './clubs-edit.validators';
 
@@ -30,13 +32,21 @@ type ClubForm = FormGroup<{
   slug: FormControl<string>;
   clubKey: FormControl<string>;
   publicRegistrationEnabled: FormControl<boolean>;
+  countryId: FormControl<string>;
+  clubStateId: FormControl<string>;
 }>;
 
 @Component({
   selector: 'af-clubs-edit',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, AfFormFieldComponent, AfInputComponent, AfButtonComponent],
+  imports: [
+    ReactiveFormsModule,
+    AfFormFieldComponent,
+    AfInputComponent,
+    AfSelectComponent,
+    AfButtonComponent,
+  ],
   template: `
     <header class="af-clubs-edit-header">
       <h1>{{ isCreate() ? 'New club' : 'Edit club' }}</h1>
@@ -80,6 +90,37 @@ type ClubForm = FormGroup<{
           <af-input inputId="clubKey" formControlName="clubKey" autocomplete="off" />
         </af-form-field>
       }
+
+      <af-form-field
+        label="Country"
+        for="countryId"
+        [required]="true"
+        [errors]="form.controls.countryId.touched ? form.controls.countryId.errors : null"
+      >
+        <af-select
+          inputId="countryId"
+          formControlName="countryId"
+          placeholder="Select country"
+          [showSearch]="true"
+          [options]="countryOptions()"
+          data-testid="clubs-country-select"
+        />
+      </af-form-field>
+
+      <af-form-field
+        label="Club state"
+        for="clubStateId"
+        [required]="true"
+        [errors]="form.controls.clubStateId.touched ? form.controls.clubStateId.errors : null"
+      >
+        <af-select
+          inputId="clubStateId"
+          formControlName="clubStateId"
+          placeholder="Select state"
+          [options]="clubStateOptions()"
+          data-testid="clubs-club-state-select"
+        />
+      </af-form-field>
 
       <label class="af-clubs-checkbox">
         <input type="checkbox" formControlName="publicRegistrationEnabled" />
@@ -129,6 +170,7 @@ type ClubForm = FormGroup<{
 })
 export class ClubsEditPage {
   protected readonly store = inject(ClubsStore);
+  protected readonly referenceData = inject(ReferenceDataStore);
   protected readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
@@ -137,6 +179,13 @@ export class ClubsEditPage {
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly clubId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.clubId() === null);
+
+  protected readonly countryOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    this.referenceData.countries().map((c) => ({ value: c.id, label: c.name ?? c.id })),
+  );
+  protected readonly clubStateOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    this.referenceData.clubStates().map((s) => ({ value: s.id, label: s.name ?? s.id })),
+  );
 
   // S-007 — slug validator stack (sync + in-memory async-style) declared
   // alongside the rest of the form definition. The duplicate-check closure
@@ -154,6 +203,8 @@ export class ClubsEditPage {
     ]),
     clubKey: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(10)]),
     publicRegistrationEnabled: this.fb.nonNullable.control(false),
+    countryId: this.fb.nonNullable.control('', [Validators.required]),
+    clubStateId: this.fb.nonNullable.control('', [Validators.required]),
   });
 
   protected readonly saveSubmitted = signal(false);
@@ -182,6 +233,8 @@ export class ClubsEditPage {
           slug: club.slug ?? '',
           clubKey: club.clubKey ?? '',
           publicRegistrationEnabled: club.publicRegistrationEnabled ?? false,
+          countryId: club.countryId ?? '',
+          clubStateId: club.clubStateId ?? '',
         });
         this.form.controls.clubKey.disable({ emitEvent: false });
       }
@@ -229,6 +282,8 @@ export class ClubsEditPage {
           name: value.name,
           slug: value.slug,
           publicRegistrationEnabled: value.publicRegistrationEnabled,
+          countryId: value.countryId,
+          clubStateId: value.clubStateId,
         },
       });
     } else {
