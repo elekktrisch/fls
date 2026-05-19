@@ -27,6 +27,8 @@ public class TypedIdJacksonModule extends SimpleModule {
     public TypedIdJacksonModule() {
         super("AlpenFlightTypedIds");
         register(ClubId.class, ClubId::parse, ClubId::toExternal);
+        register(CountryId.class, CountryId::parse, CountryId::toWire);
+        register(ClubStateId.class, ClubStateId::parse, ClubStateId::toWire);
     }
 
     private <T> void register(Class<T> type, Function<String, T> parser, Function<T, String> renderer) {
