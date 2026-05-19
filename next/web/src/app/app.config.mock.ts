@@ -16,7 +16,7 @@ import { de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { Subject } from 'rxjs';
 
 import { routes } from './app.routes';
-import { ICON_PROVIDERS } from './core/icons/icon-registry';
+import { provideAlpenflightIcons } from './core/icons/icon-registry';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
 import { SessionStore, type User } from './core/session/session.store';
 
@@ -74,7 +74,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([mockAuthInterceptor])),
     provideAnimationsAsync(),
     provideNzI18n(de_DE),
-    ICON_PROVIDERS,
+    provideAlpenflightIcons(),
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
     provideAppInitializer(mockAuthBootstrap),

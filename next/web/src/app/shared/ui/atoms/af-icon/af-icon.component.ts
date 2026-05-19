@@ -1,13 +1,23 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { LucideDynamicIcon } from '@lucide/angular';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  inject,
+  input,
+  isDevMode,
+} from '@angular/core';
+import { LUCIDE_ICONS, LucideDynamicIcon } from '@lucide/angular';
 
 /*
- * Wrap @lucide/angular's dynamic-name directive so feature code stays decoupled
- * from the underlying package. Name is a kebab-case string resolved against
- * the registry in core/icons/icon-registry.ts (ADR 0024).
+ * Thin wrapper over Lucide's dynamic-name directive. `name` is a kebab-case
+ * string resolved against the registry in core/icons/icon-registry.ts. The
+ * underlying directive class is `LucideDynamicIcon`; `LucideIcon` is a
+ * type-only export in v1.16.0.
  *
- * Note: the Lucide directive class is `LucideDynamicIcon`, not `LucideIcon` —
- * `LucideIcon` is a type-only export (one of the bound icon component types).
+ * Decorative by default (aria-hidden); pass `label` for a standalone
+ * informational icon (role="img" + aria-label). When the icon sits inside a
+ * labelled control (icon-button etc.), leave `label` unset and let the parent
+ * own the accessible name.
  */
 @Component({
   selector: 'af-icon',
@@ -34,8 +44,24 @@ import { LucideDynamicIcon } from '@lucide/angular';
   `,
 })
 export class AfIconComponent {
+  readonly #icons = inject(LUCIDE_ICONS);
+
   readonly name = input.required<string>();
   readonly size = input<number>(24);
   readonly strokeWidth = input<number>(1.5);
-  readonly label = input<string | null>(null);
+  readonly label = input<string | undefined>(undefined);
+
+  constructor() {
+    // Dev-only guard: an unregistered icon name silently renders an empty SVG,
+    // hiding typos. Surface the miss with a path to the fix.
+    if (!isDevMode()) return;
+    effect(() => {
+      const n = this.name();
+      if (!(n in this.#icons)) {
+        console.error(
+          `[af-icon] "${n}" is not registered. Add a named Lucide import to next/web/src/app/core/icons/icon-registry.ts.`,
+        );
+      }
+    });
+  }
 }

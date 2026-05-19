@@ -5,6 +5,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzLayoutModule } from 'ng-zorro-antd/layout';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 
+import { AfIconComponent } from '../../atoms/af-icon';
 import { ViewportService } from '../../viewport';
 
 export interface NavItem {
@@ -29,6 +30,7 @@ export interface NavItem {
     NzIconModule,
     RouterLink,
     RouterLinkActive,
+    AfIconComponent,
   ],
   template: `
     @if (isWide()) {
@@ -54,6 +56,7 @@ export interface NavItem {
         >
           <nz-icon nzType="menu" />
         </button>
+        <af-icon name="plane" [size]="20" class="text-brand-500" />
         <strong>{{ title() }}</strong>
       </header>
       <nz-drawer

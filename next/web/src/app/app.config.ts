@@ -20,7 +20,7 @@ import { Subject } from 'rxjs';
 import { routes } from './app.routes';
 import { alpenflightOidcConfig } from './core/auth/auth.config';
 import { OidcSessionBridge } from './core/auth/oidc-session-bridge';
-import { ICON_PROVIDERS } from './core/icons/icon-registry';
+import { provideAlpenflightIcons } from './core/icons/icon-registry';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
 
 export const appConfig: ApplicationConfig = {
@@ -29,7 +29,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([authInterceptor()])),
     provideAnimationsAsync(),
     provideNzI18n(de_DE),
-    ICON_PROVIDERS,
+    provideAlpenflightIcons(),
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
     // Refresh-token + claim state die with the tab, not the browser

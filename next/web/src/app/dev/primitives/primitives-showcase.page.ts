@@ -98,14 +98,10 @@ const COUNTRIES: readonly AfSelectOption<string>[] = [
           <af-icon name="plane" [strokeWidth]="2" />
         </div>
         <div class="af-row">
-          <span style="color: var(--ant-text-color-secondary, #595959)">
-            <af-icon name="search" />
-          </span>
-          <span style="color: var(--color-brand-500)"><af-icon name="check" /></span>
-          <span style="color: var(--ant-error-color)"><af-icon name="x" /></span>
-          <span style="color: var(--ant-text-color-secondary, #595959)">
-            <af-icon name="calendar" />
-          </span>
+          <af-icon name="search" class="text-slate-500" />
+          <af-icon name="check" class="text-brand-500" />
+          <af-icon name="x" class="text-red-600" />
+          <af-icon name="calendar" class="text-slate-500" />
         </div>
         <div class="af-row">
           <af-icon name="pencil" label="Edit" />

@@ -190,7 +190,7 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 - **Radius:** sharp. `--radius-md: 0` in `src/styles.css`; 2px is the maximum tolerated exception.
 - **Elevation:** flat — author code uses 1px slate-200 borders for separation, no shadows. Drop-shadow reserved for the active-modal overlay. ng-zorro defaults (dropdown shadows etc.) are accepted as a deliberate scope cap.
 - **Typography:** Roboto. Body 400 / headings 500 (no Bold). Scale 1.125 (minor third). **Sentence case everywhere** — buttons, nav, labels. Apply the `.tabular` utility on numeric data columns.
-- **Icons:** Lucide via `<af-icon name="…" />`. Registry at `core/icons/icon-registry.ts`; feature stories add named imports there. ng-zorro internal icons (chevrons, X, ✓) stay untouched.
+- **Icons:** Lucide via `<af-icon name="…" />`. Registry at `core/icons/icon-registry.ts`; feature stories add named imports there. ng-zorro internal icons (chevrons, X, ✓) stay untouched. Directional glyphs (chevron-\*, arrow-\*) are not auto-mirrored for RTL — AlpenFlight ships DE / FR / IT (all LTR); first RTL locale will need a per-icon swap.
 - **Motion:** restrained — `opacity 120ms ease-out` only. No slide-in, no spring, no pulsing skeletons. Hover/focus state changes are instant.
 - **State personality:** terse + functional. One-line empty states, no illustrations. Inline red helper for field errors, dismissable toast for global errors. Spinner only after 300ms.
 - **Voice:** terse Swiss-impersonal. Short declarative + imperative. No "we". Past-tense done states. German-shaped economy; cheap to translate to DE / FR / IT.
