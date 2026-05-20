@@ -137,8 +137,8 @@ Pyramid: 2–3 vitest · 1 e2e file · ~4 e2e cases · 0 integration · 0 parity
 
 ## Open design questions
 
-1. **Locale count: 3 (AC3 `de/en/fr`) or 4 (add `it` — S-002 reserved the slot; multilingual-CH market posture per amendment 2026-05-15b)?**
-2. **ICU plugin (`@jsverse/transloco-messageformat`) now, or defer to S-057?** Legacy `flsweb` uses `angular-translate-messageformat-interpolation`, so some legacy keys are ICU. Wire now = S-057 inherits cleanly; defer = smaller S-005.
-3. **AC-DIR-1 / AC-DIR-2 promotion** to first-class ACs — refine can't edit ACs; operator promotes via `/modernize-decompose` or leaves the implementer to treat them as load-bearing from the amendment text.
+1. ~~Locale count: 3 or 4?~~ — **Resolved at implement-time: 4 (`de / fr / it / en`).** S-097's landing + nav-bar already shipped 4 locales before S-005; AC3's "en + fr" text is stale.
+2. **ICU plugin (`@jsverse/transloco-messageformat`) now, or defer to S-057?** Deferred — no S-005 key needs ICU; legacy `flsweb` uses `angular-translate-messageformat-interpolation`, so S-057 may need it.
+3. **AC-DIR-1 / AC-DIR-2 promotion** to first-class ACs — refine can't edit ACs; both are covered in code + the landing e2e but live in amendment text.
 
 <!-- modernize-refine: end -->

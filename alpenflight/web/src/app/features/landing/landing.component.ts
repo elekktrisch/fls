@@ -2,16 +2,10 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
-import { type AppLocale, LocaleService } from '@shared/ui/locale';
+import { LocaleService } from '@shared/ui/locale';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
-
-const LOCALE_LABELS: Record<AppLocale, string> = {
-  de: 'DE',
-  fr: 'FR',
-  it: 'IT',
-  en: 'EN',
-};
+import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
 /**
  * Public landing — sign-in CTA + brand identity. The actual credentials
@@ -23,10 +17,10 @@ const LOCALE_LABELS: Record<AppLocale, string> = {
   selector: 'af-landing',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AfButtonComponent, AfIconComponent, TranslocoDirective],
+  imports: [AfButtonComponent, AfIconComponent, AfLangPickerComponent, TranslocoDirective],
   host: { class: 'block' },
   template: `
-    <ng-container *transloco="let t">
+    <ng-container *transloco="let t; read: 'landing'">
       <main
         class="min-h-screen bg-gradient-to-b from-slate-50 to-white grid grid-rows-[1fr_auto] place-items-center px-4"
         data-testid="landing"
@@ -43,7 +37,7 @@ const LOCALE_LABELS: Record<AppLocale, string> = {
           </div>
 
           <p class="m-0 text-center text-base leading-normal text-slate-500 max-w-[22rem]">
-            {{ t('landing.tagline') }}
+            {{ t('tagline') }}
           </p>
 
           <div class="flex flex-col items-stretch gap-3 w-full max-w-[18rem]">
@@ -53,34 +47,18 @@ const LOCALE_LABELS: Record<AppLocale, string> = {
               data-testid="landing-sign-in"
               (clicked)="signIn()"
             >
-              {{ t('landing.actions.signIn') }}
+              {{ t('actions.signIn') }}
             </af-button>
             <button
               type="button"
-              class="bg-transparent border-0 p-2 text-brand-700 underline underline-offset-2 cursor-pointer text-sm hover:text-brand-500"
+              class="bg-transparent border-0 p-2 text-brand-700 underline underline-offset-2 cursor-pointer text-sm hover:text-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
               (click)="tryDemo()"
             >
-              {{ t('landing.actions.tryDemo') }}
+              {{ t('actions.tryDemo') }}
             </button>
           </div>
 
-          <nav class="flex gap-1 mt-2" [attr.aria-label]="t('landing.language')">
-            @for (loc of locales; track loc) {
-              <button
-                type="button"
-                class="bg-transparent border px-2.5 py-1 text-sm tracking-wide cursor-pointer"
-                [class.border-transparent]="loc !== locale()"
-                [class.text-slate-500]="loc !== locale()"
-                [class.hover:text-slate-900]="loc !== locale()"
-                [class.text-slate-900]="loc === locale()"
-                [class.border-slate-200]="loc === locale()"
-                [attr.aria-pressed]="loc === locale()"
-                (click)="setLocale(loc)"
-              >
-                {{ localeLabel(loc) }}
-              </button>
-            }
-          </nav>
+          <af-lang-picker class="mt-2" [ariaLabel]="t('language')" />
         </section>
 
         <footer
@@ -91,13 +69,13 @@ const LOCALE_LABELS: Record<AppLocale, string> = {
           <a
             href="/legal/privacy"
             class="text-inherit no-underline hover:text-slate-900 hover:underline"
-            >{{ t('landing.footer.privacy') }}</a
+            >{{ t('footer.privacy') }}</a
           >
           <span aria-hidden="true">·</span>
           <a
             href="/legal/imprint"
             class="text-inherit no-underline hover:text-slate-900 hover:underline"
-            >{{ t('landing.footer.imprint') }}</a
+            >{{ t('footer.imprint') }}</a
           >
         </footer>
       </main>
@@ -108,21 +86,12 @@ export class LandingComponent {
   readonly #oidc = inject(OidcSecurityService);
   readonly #localeService = inject(LocaleService);
 
-  protected readonly locale = this.#localeService.current;
-  protected readonly locales: readonly AppLocale[] = ['de', 'fr', 'it', 'en'];
-
-  protected localeLabel(loc: AppLocale): string {
-    return LOCALE_LABELS[loc];
-  }
-
-  protected setLocale(loc: AppLocale): void {
-    this.#localeService.set(loc);
-  }
-
   protected signIn(): void {
     // Keycloak hosts the credentials form. ui_locales hints Keycloak's UI
     // language; the server picks it up via the OIDC ui_locales parameter.
-    this.#oidc.authorize(undefined, { customParams: { ui_locales: this.locale() } });
+    this.#oidc.authorize(undefined, {
+      customParams: { ui_locales: this.#localeService.current() },
+    });
   }
 
   protected tryDemo(): void {
@@ -131,7 +100,7 @@ export class LandingComponent {
     // standard sign-in flow with a demo hint that's ignored until the
     // demo realm lands.
     this.#oidc.authorize(undefined, {
-      customParams: { ui_locales: this.locale(), login_hint: 'demo' },
+      customParams: { ui_locales: this.#localeService.current(), login_hint: 'demo' },
     });
   }
 }

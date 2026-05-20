@@ -1,14 +1,7 @@
-import { TestBed } from '@angular/core/testing';
-
 import { TranslocoBundledLoader } from './transloco-loader';
 
 describe('TranslocoBundledLoader', () => {
-  let loader: TranslocoBundledLoader;
-
-  beforeEach(() => {
-    TestBed.configureTestingModule({});
-    loader = TestBed.inject(TranslocoBundledLoader);
-  });
+  const loader = new TranslocoBundledLoader();
 
   it('loads de translations from the bundled chunk', async () => {
     const t = await loader.getTranslation('de');

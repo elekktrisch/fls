@@ -21,7 +21,7 @@ test.describe('landing — i18n + locale switch', () => {
     page.on('framenavigated', () => navigations++);
     const startUrl = page.url();
 
-    await page.getByRole('button', { name: 'EN', exact: true }).click();
+    await page.getByTestId('af-lang-en').click();
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('p').first()).toContainText(/Flight logging/);
@@ -34,13 +34,13 @@ test.describe('landing — i18n + locale switch', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 
     const cases = [
-      { btn: 'FR', lang: 'fr', match: /Carnet de vol/ },
-      { btn: 'IT', lang: 'it', match: /Diario di volo/ },
-      { btn: 'EN', lang: 'en', match: /Flight logging/ },
-      { btn: 'DE', lang: 'de', match: /Flugbuch/ },
+      { testId: 'af-lang-fr', lang: 'fr', match: /Carnet de vol/ },
+      { testId: 'af-lang-it', lang: 'it', match: /Diario di volo/ },
+      { testId: 'af-lang-en', lang: 'en', match: /Flight logging/ },
+      { testId: 'af-lang-de', lang: 'de', match: /Flugbuch/ },
     ];
     for (const c of cases) {
-      await page.getByRole('button', { name: c.btn, exact: true }).click();
+      await page.getByTestId(c.testId).click();
       await expect(page.locator('html')).toHaveAttribute('lang', c.lang);
       await expect(page.locator('p').first()).toContainText(c.match);
     }
@@ -50,8 +50,8 @@ test.describe('landing — i18n + locale switch', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/?lang=de');
 
-    for (const code of ['DE', 'FR', 'IT', 'EN']) {
-      const btn = page.getByRole('button', { name: code, exact: true });
+    for (const id of ['af-lang-de', 'af-lang-fr', 'af-lang-it', 'af-lang-en']) {
+      const btn = page.getByTestId(id);
       await expect(btn).toBeVisible();
       const box = await btn.boundingBox();
       expect(box).not.toBeNull();
@@ -59,7 +59,7 @@ test.describe('landing — i18n + locale switch', () => {
       expect(box!.height).toBeGreaterThan(0);
     }
 
-    await page.getByRole('button', { name: 'FR', exact: true }).click();
+    await page.getByTestId('af-lang-fr').click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
   });
 
@@ -72,7 +72,7 @@ test.describe('landing — i18n + locale switch', () => {
     await page.goto('/?lang=de');
 
     await expect(page.locator('p').first()).toContainText(/Flugbuch/);
-    await page.getByRole('button', { name: 'FR', exact: true }).click();
+    await page.getByTestId('af-lang-fr').click();
     await expect(page.locator('p').first()).toContainText(/Carnet de vol/);
   });
 });

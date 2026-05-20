@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { runInInjectionContext, Injector } from '@angular/core';
 import { TranslocoService } from '@jsverse/transloco';
 import { vi } from 'vitest';
 
@@ -7,21 +7,22 @@ import { TranslocoTranslationAdapter } from './transloco-translation-adapter';
 describe('TranslocoTranslationAdapter', () => {
   const setActiveLang = vi.fn();
 
-  beforeEach(() => {
-    setActiveLang.mockClear();
-    TestBed.configureTestingModule({
+  const make = (): TranslocoTranslationAdapter => {
+    const injector = Injector.create({
       providers: [{ provide: TranslocoService, useValue: { setActiveLang } }],
     });
-  });
+    return runInInjectionContext(injector, () => new TranslocoTranslationAdapter());
+  };
+
+  beforeEach(() => setActiveLang.mockClear());
 
   it('delegates setActiveLang to TranslocoService', () => {
-    const adapter = TestBed.inject(TranslocoTranslationAdapter);
-    adapter.setActiveLang('fr');
+    make().setActiveLang('fr');
     expect(setActiveLang).toHaveBeenCalledExactlyOnceWith('fr');
   });
 
   it('forwards every supported locale unchanged', () => {
-    const adapter = TestBed.inject(TranslocoTranslationAdapter);
+    const adapter = make();
     for (const loc of ['de', 'fr', 'it', 'en'] as const) {
       adapter.setActiveLang(loc);
     }

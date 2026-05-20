@@ -74,10 +74,11 @@ function mockAuthBootstrap(): void {
 // redirect; under mock-auth there's no Keycloak, so we stub the service.
 // `authorize()` is a no-op — the landing's sign-in / try-demo buttons
 // are clickable but don't navigate out. Real-OIDC e2e lives in the
-// separate Keycloak-up project (S-021 follow-up).
-const MOCK_OIDC_SECURITY_SERVICE = {
+// separate Keycloak-up project (S-021 follow-up). Narrow stub shape
+// guards against a future OidcSecurityService API drift going silent.
+const MOCK_OIDC_SECURITY_SERVICE: Pick<OidcSecurityService, 'authorize'> = {
   authorize: () => undefined,
-} as unknown as OidcSecurityService;
+};
 
 export const appConfig: ApplicationConfig = {
   providers: [

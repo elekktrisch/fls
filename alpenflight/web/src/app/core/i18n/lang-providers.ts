@@ -31,6 +31,10 @@ export function provideAlpenflightI18n(): EnvironmentProviders {
         defaultLang: initialLang,
         fallbackLang: DEFAULT_LOCALE,
         reRenderOnLangChange: true,
+        // Transloco's prodMode silences missing-key console warnings.
+        // Tied to Angular isDevMode() so `mock-auth` (a dev config via
+        // fileReplacements) still surfaces missing keys to operators
+        // running Playwright.
         prodMode: !isDevMode(),
         missingHandler: {
           useFallbackTranslation: true,
