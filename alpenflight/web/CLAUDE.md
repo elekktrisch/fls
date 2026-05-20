@@ -161,6 +161,18 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 - **Coverage targets:** not enforced by CI; coverage accumulates per feature story.
 - **Acceptable vitest specs today:** anything that asserts behavior without rendering a template — e.g. a `FlightStore` reducer / selector test, a `dateRange.spec.ts` for a pure helper, a guard's URL-building. **Not acceptable today:** `*.component.spec.ts` files that assert on rendered output. (Files predating this convention stay until their next touch; new specs follow the rule.)
 
+## 8b. i18n conventions
+
+Transloco + per-locale TypeScript modules (`src/i18n/{de,fr,it,en}.ts`). Wiring: ADR 0004 + S-005 / S-057.
+
+- **Add a key in `de.ts` first.** `de.ts` exports `type Translations = typeof de`; the other three locales import the type, so a missing key in any of them is a `tsc` error. The German source counts as the implicit translation until a translator replaces it.
+- **Key naming: flat-dotted lowercase, domain-first.** `flight.edit.save`, `person.list.firstName`. Single-token keys land at the tree root only when truly global (`common.cancel`); prefer a domain bucket. No `ALL_CAPS_UNDERSCORE` — the legacy naming was migrated once via `scripts/migrate-translations/`.
+- **Templates use `*transloco="let t; read: '<scope>'"` + `t('foo.bar')`.** Bare `t('foo')` inside a scoped block reads as `<scope>.foo`. Never inject `TranslocoService` and call `.translate(...)` imperatively — it bypasses `reRenderOnLangChange`.
+- **No HTML in translation values.** Angular interpolation auto-escapes, so an HTML tag renders as literal text. Split into multiple keys + interpolate; do not reach for `[innerHTML]` / `bypassSecurityTrust*` (forbidden by §6 / §10). `core/i18n/no-html-in-translations.spec.ts` is the lint-style guard.
+- **No `localStorage` for the active locale.** Cold-start order: `?lang=` query param → `navigator.language` → `de`. In-memory thereafter. `transloco-persist-lang` is deliberately not installed.
+- **CI gates** (run automatically on every PR): `i18n-key-coverage.spec.ts` (every `t('key')` reference resolves) + `no-html-in-translations.spec.ts` (no tag / entity content) + the `Translations` compile-time parity gate (every key in `de.ts` exists in all four locales).
+- **Key order in the locale files is alphabetical.** `scripts/migrate-translations/` emits keys sorted at every level; hand-edits should follow the same order so re-runs produce zero diff. Don't fight the sort.
+
 ## 9. Local-environment quirks (sandbox)
 
 The mounted Windows host FS at `/c/Users/...` can't reliably `rmdir` deeply-nested directories — this bites `pnpm install` and Angular CLI's `.angular/cache` cache resets. Both `node_modules` and `.angular/cache` therefore live on the Linux-local FS in the sandbox, exposed to the project as symlinks.
@@ -178,7 +190,7 @@ The mounted Windows host FS at `/c/Users/...` can't reliably `rmdir` deeply-nest
 **Other sandbox conventions:**
 
 - pnpm is configured project-wide with `nodeLinker: hoisted` + `packageImportMethod: copy` (see `pnpm-workspace.yaml`). Don't switch to symlinked layout — that retriggers the cross-FS issue.
-- **Install scripts are globally disabled** (`pnpm config set ignore-scripts true`, `npm config set ignore-scripts true`). esbuild's platform binary is selected via the `ESBUILD_BINARY_PATH` env var (persisted in `/etc/sandbox-persistent.sh`) — no postinstall needed.
+- **Install scripts are mostly disabled** (`pnpm config set ignore-scripts true`, `npm config set ignore-scripts true`). `pnpm-workspace.yaml` allowlists `esbuild` / `lmdb` / `msgpackr-extract` / `@parcel/watcher` to run their postinstall, which selects the platform binary for each install of those packages. Do **not** export a global `ESBUILD_BINARY_PATH` — the sandbox once did this to bypass postinstall, but with multiple esbuild versions in the dep tree (each via its own `@angular/build` / `tsx` / etc. nested copy) the single-binary pin causes a host-vs-binary version mismatch.
 - `build:sandbox` additionally rsyncs sources to a Linux-local working dir before `ng build` (esbuild has concurrent-read deadlock on the Windows FS); the bootstrap step is a prerequisite.
 
 ## 10. Don't list

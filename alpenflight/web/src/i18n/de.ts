@@ -6,16 +6,16 @@
  */
 const de = {
   landing: {
-    tagline: 'Flugbuch, Reservationen und Mitglieder — für Schweizer Vereine.',
     actions: {
       signIn: 'Anmelden',
       tryDemo: 'Demo ausprobieren',
     },
-    language: 'Sprache',
     footer: {
-      privacy: 'Datenschutz',
       imprint: 'Impressum',
+      privacy: 'Datenschutz',
     },
+    language: 'Sprache',
+    tagline: 'Flugbuch, Reservationen und Mitglieder — für Schweizer Vereine.',
   },
 };
 

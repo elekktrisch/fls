@@ -13,7 +13,8 @@
     "build:prod": "ng build --configuration production",
     "build:mock-auth": "ng build --configuration mock-auth",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
+    "test": "ng test && pnpm test:scripts",
+    "test:scripts": "vitest run --root scripts --config vitest.config.ts",
     "lint": "ng lint",
     "format": "prettier --check \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "format:fix": "prettier --write \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
@@ -78,6 +79,7 @@
     "postcss": "^8.5.14",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.3.0",
+    "tsx": "^4.22.2",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.59.3",
     "vitest": "^4.0.8"
