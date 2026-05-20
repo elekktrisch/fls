@@ -8,28 +8,21 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
-import ch.alpenflight.server.testsupport.SharedPostgresContainer;
-import com.fasterxml.jackson.databind.JsonNode;
+import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -40,14 +33,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
  * (ICAO regex, blank name) belong in {@code LocationDomainTest}; per-tenant
  * data isolation lives in {@code LocationsTenantIsolationIT}.
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
-@EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
-        disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
-class LocationsAuthorizationIT {
+class LocationsAuthorizationIT extends PostgresIntegrationTest {
 
-    private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final String CLUB_A = "019e30c3-2c00-7001-8000-0000000000a1";
@@ -55,16 +43,6 @@ class LocationsAuthorizationIT {
 
     private static final String NAME_PREFIX = "IT_LA_";
     private static final String KEY_PREFIX = "IT_A_";
-
-    @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", POSTGRES::jdbcUrl);
-        r.add("spring.datasource.username", POSTGRES::username);
-        r.add("spring.datasource.password", POSTGRES::password);
-        r.add("spring.flyway.url", POSTGRES::jdbcUrl);
-        r.add("spring.flyway.user", POSTGRES::username);
-        r.add("spring.flyway.password", POSTGRES::password);
-    }
 
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
@@ -138,21 +116,36 @@ class LocationsAuthorizationIT {
         // 404 (not 403) is structural: the row simply doesn't exist for B.
         String externalId = createUnderClub(CLUB_A, "ROLE_SYSTEM_ADMINISTRATOR",
                 LocationsControllerIT.uniqueIcao());
-        for (var perform : java.util.List.<Runnable>of(
-                () -> safe(() -> mvc.perform(get("/api/v1/locations/" + externalId)
-                                .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
-                        .andExpect(status().isNotFound())),
-                () -> safe(() -> mvc.perform(put("/api/v1/locations/" + externalId)
-                                .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(toJson(LocationsControllerIT.updatePayload(
-                                        "Cross-tenant hijack", LocationsControllerIT.uniqueIcao()))))
-                        .andExpect(status().isNotFound())),
-                () -> safe(() -> mvc.perform(delete("/api/v1/locations/" + externalId)
-                                .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
-                        .andExpect(status().isNotFound())))) {
-            perform.run();
-        }
+        mvc.perform(get("/api/v1/locations/" + externalId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                .andExpect(status().isNotFound());
+        mvc.perform(put("/api/v1/locations/" + externalId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(LocationsControllerIT.updatePayload(
+                                "Cross-tenant hijack", LocationsControllerIT.uniqueIcao()))))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/locations/" + externalId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void body_with_stray_clubId_is_rejected_400_by_jackson() throws Exception {
+        // Mass-assignment guard: the create DTO has no `clubId` field, and
+        // Jackson's `FAIL_ON_UNKNOWN_PROPERTIES=true` (application.yml) makes
+        // an attacker-supplied `"clubId"` a hard 400 at deserialization —
+        // stronger than the typical "silently ignored" pattern. The resolver
+        // stays the sole source of tenant truth.
+        Map<String, Object> body = LocationsControllerIT.createPayload(
+                "No mass-assign " + LocationsControllerIT.suffix(),
+                LocationsControllerIT.uniqueIcao());
+        body.put("clubId", CLUB_B);
+        mvc.perform(post("/api/v1/locations")
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(body)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -223,29 +216,11 @@ class LocationsAuthorizationIT {
                 NAME_PREFIX + slug);
     }
 
-    @SuppressWarnings("unused")
-    private static JsonNode parse(String body) throws Exception {
-        return MAPPER.readTree(body);
-    }
-
     private static String toJson(Map<String, Object> body) {
         try {
             return MAPPER.writeValueAsString(body);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialise payload", e);
-        }
-    }
-
-    @FunctionalInterface
-    private interface CheckedRunnable {
-        void run() throws Exception;
-    }
-
-    private static void safe(CheckedRunnable r) {
-        try {
-            r.run();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
         }
     }
 }

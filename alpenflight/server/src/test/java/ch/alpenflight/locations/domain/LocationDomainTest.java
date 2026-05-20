@@ -91,6 +91,20 @@ class LocationDomainTest {
         assertThat(loc.isDeleted()).isTrue();
     }
 
+    @Test
+    void softDelete_preservesIcaoForAuditTrail() {
+        // S-049b retired the S-049 workaround of nulling icao_code on
+        // soft-delete; the V7 partial UNIQUE excludes deleted_on IS NOT NULL,
+        // so the ICAO survives for forensic value while same-club recreation
+        // still works.
+        Location loc = newLoc();
+        loc.setIcao("LSZH");
+        loc.softDelete(null, Clock.systemUTC());
+        assertThat(loc.getIcaoCode())
+                .as("ICAO must survive soft-delete for the audit trail S-027 will surface")
+                .isEqualTo("LSZH");
+    }
+
     private static Location newLoc() {
         return Location.create(
                 "Test Loc", null,

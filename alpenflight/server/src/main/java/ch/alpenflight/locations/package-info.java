@@ -4,8 +4,9 @@
  * reference data through S-049): the discriminator column {@code club_id}
  * wears {@code @TenantId}, so Hibernate appends the per-tenant predicate on
  * every JPA query. Writes open to CLUB_ADMINISTRATOR (own club, structurally
- * via the tenant filter) + SYSTEM_ADMINISTRATOR (any club, by claim or by
- * the {@code Tenants.runAs(...)} escape hatch).
+ * via the tenant filter) + SYSTEM_ADMINISTRATOR (acts within the club its
+ * JWT claim points at; an unscoped cross-club escape hatch is an ADR 0008
+ * follow-up).
  *
  * <p>Layered per ADR 0023 into four sub-packages:
  * <ul>

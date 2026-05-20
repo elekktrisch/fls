@@ -16,6 +16,10 @@
 -- =============================================================================
 
 -- 1. Add club_id (nullable for backfill), backfill, promote to NOT NULL, FK.
+--    The backfill UUID references the V5 dev-seed club
+--    (V5__clubs_walking_skeleton.sql:32) — the only club row that may exist
+--    pre-S-049b. The branch is defensive: V3 does not seed location rows,
+--    so a fresh deployment hits zero affected rows.
 ALTER TABLE location ADD COLUMN club_id UUID;
 UPDATE location SET club_id = '019e30c3-2c00-7001-8000-000000000001' WHERE club_id IS NULL;
 ALTER TABLE location ALTER COLUMN club_id SET NOT NULL;

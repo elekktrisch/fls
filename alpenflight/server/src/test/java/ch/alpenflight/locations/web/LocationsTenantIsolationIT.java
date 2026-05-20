@@ -100,13 +100,19 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void no_tenant_context_yields_empty_reads_and_fk_rejected_writes() {
-        // No @WithTenant — resolver returns NO_TENANT (nil UUID). Reads filter
-        // to zero rows; writes fail at fk_location_club_id (nil UUID is absent
-        // from `club`). Both halves are the @TenantId fail-closed contract.
+    void no_tenant_context_yields_empty_reads() {
+        // Resolver returns NO_TENANT (nil UUID) when no @WithTenant. Hibernate
+        // appends WHERE club_id = nil-UUID → zero rows.
         TenantTestContext.runAs(CLUB_A, () ->
                 locations.createLocation(payload("Hidden A", "AE55")));
         assertThat(locations.listLocations()).isEmpty();
+    }
+
+    @Test
+    void no_tenant_context_writes_fail_at_fk_constraint() {
+        // No real row carries the nil UUID, so the FK constraint
+        // fk_location_club_id rejects the write — the fail-closed half of
+        // the @TenantId contract.
         assertThatThrownBy(() -> locations.createLocation(payload("would-poison", "AF66")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }

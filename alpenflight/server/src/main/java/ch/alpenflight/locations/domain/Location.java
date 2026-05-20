@@ -20,10 +20,10 @@ import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Location aggregate root. Mapped to the V3 {@code location} table. Per ADR
- * 0022 directive 2 business rules (ICAO format, blank-name rejection,
- * soft-delete) live on the aggregate; the schema enforces only structure
- * (PKs, FKs, NOT NULL, partial UNIQUE on {@code icao_code}).
+ * Location aggregate root. Per ADR 0022 directive 2 business rules
+ * (ICAO format, blank-name rejection, soft-delete) live on the aggregate;
+ * the schema enforces only structure (PKs, FKs, NOT NULL, per-club partial
+ * UNIQUE on {@code (club_id, icao_code)} where {@code deleted_on IS NULL}).
  *
  * <p>TENANT_SCOPED masterdata since S-049b. The discriminator column
  * {@code club_id} wears {@link TenantId}; Hibernate appends
@@ -53,9 +53,11 @@ public class Location {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
+    // Populated reflectively by Hibernate from the resolver. Never read by
+    // domain or service code — the discriminator filter rides on every JPA
+    // query implicitly.
     @TenantId
     @Column(nullable = false, updatable = false)
-    @SuppressWarnings("UnusedVariable")
     private @Nullable UUID clubId;
 
     @Column(nullable = false, length = MAX_NAME_LENGTH)

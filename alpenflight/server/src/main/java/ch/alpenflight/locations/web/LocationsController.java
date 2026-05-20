@@ -31,17 +31,19 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * REST surface for the Locations aggregate. Per ADR 0005 the path is plural
  * {@code /api/v1/locations}. Since S-049b Locations are TENANT_SCOPED
- * masterdata: reads return only the caller's own club's Locations (Hibernate's
- * {@code @TenantId} discriminator filter); writes open to CLUB_ADMINISTRATOR
- * (own club, resolved structurally from {@code @TenantId}) and
- * SYSTEM_ADMINISTRATOR (any club whose {@code clubId} claim the JWT carries,
- * or any club via the {@code Tenants.runAs(...)} escape hatch from ADR 0008).
+ * masterdata: reads return only the caller's own club's Locations
+ * (Hibernate's {@code @TenantId} discriminator filter); writes open to
+ * CLUB_ADMINISTRATOR (own club, structural via {@code @TenantId}) and
+ * SYSTEM_ADMINISTRATOR (acts within whichever club its JWT {@code clubId}
+ * claim asserts; cross-club operations need explicit impersonation today,
+ * with a future {@code Tenants.runAs(...)} escape hatch tracked under ADR
+ * 0008 follow-ups).
  *
  * <p>{@code @PathVariable LocationId id} resolves through
  * {@code LocationIdPathConverter} so callers send the prefixed external form
- * {@code loc-<uuid>}. A CLUB_ADMIN of A POSTing an id owned by club B receives
- * a {@code 404 Not Found} — the row is invisible under A's tenant scope, not
- * a {@code 403}. This is the IDOR gate, and it is structural.
+ * {@code loc-<uuid>}. A CLUB_ADMIN of A targeting an id owned by club B
+ * receives a {@code 404 Not Found} — the row is invisible under A's tenant
+ * scope, not a {@code 403}. This is the IDOR gate, and it is structural.
  */
 @RestController
 @RequestMapping(path = "/api/v1/locations", produces = MediaType.APPLICATION_JSON_VALUE)
