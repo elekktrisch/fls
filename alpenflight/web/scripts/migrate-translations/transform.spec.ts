@@ -77,4 +77,38 @@ describe('mapLegacyToBundles', () => {
     expect(droppedAsOrphan).toEqual([]);
     expect((bundles.de as { orphan: { key: string } }).orphan.key).toBe('kein Konsument');
   });
+
+  it('preserves screen-author content from existing bundles on re-runs', () => {
+    const existing = {
+      de: { landing: { hello: 'Hallo' } },
+      fr: { landing: { hello: 'Bonjour' } },
+      it: { landing: { hello: 'Ciao' } },
+      en: { landing: { hello: 'Hello' } },
+    };
+    const { bundles } = mapLegacyToBundles(rows, referenced, existing);
+
+    const get = (loc: 'de' | 'fr' | 'it' | 'en') =>
+      (bundles[loc] as { landing: { hello: string } }).landing.hello;
+
+    expect(get('de')).toBe('Hallo');
+    expect(get('fr')).toBe('Bonjour');
+    expect(get('it')).toBe('Ciao');
+    expect(get('en')).toBe('Hello');
+    expect((bundles.de as { aircraft: { model: string } }).aircraft.model).toBe('Modell');
+  });
+
+  it('reports key collisions instead of throwing mid-walk', () => {
+    const collisionRow = [
+      { key: 'AIRCRAFT', languageId: 1, value: 'Flugzeug' },
+      // Renames to `aircraft` (string at root), then `AIRCRAFT_MODEL`
+      // renames to `aircraft.model` and tries to nest under the string.
+      { key: 'AIRCRAFT_MODEL', languageId: 1, value: 'Modell' },
+    ];
+    const { keyCollisions } = mapLegacyToBundles(
+      collisionRow,
+      new Set(['aircraft', 'aircraft.model']),
+    );
+    expect(keyCollisions.length).toBe(1);
+    expect(keyCollisions[0]?.path).toBe('aircraft.model');
+  });
 });

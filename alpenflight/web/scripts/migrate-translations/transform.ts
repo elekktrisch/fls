@@ -9,11 +9,22 @@ export interface TranslationTree {
   [key: string]: string | TranslationTree;
 }
 
+export interface KeyCollision {
+  readonly path: string;
+  readonly conflict: string;
+}
+
 export interface MigrationResult {
   readonly bundles: Record<LocaleCode, TranslationTree>;
   readonly droppedAsOrphan: readonly string[];
-  readonly htmlStripped: ReadonlyArray<{ key: string; locale: LocaleCode; before: string; after: string }>;
+  readonly htmlStripped: ReadonlyArray<{
+    key: string;
+    locale: LocaleCode;
+    before: string;
+    after: string;
+  }>;
   readonly survivingHtml: ReadonlyArray<{ key: string; locale: LocaleCode; value: string }>;
+  readonly keyCollisions: readonly KeyCollision[];
 }
 
 /**
@@ -25,14 +36,18 @@ export function renameKey(legacyKey: string): string {
   return legacyKey.toLowerCase().split('_').filter(Boolean).join('.');
 }
 
-const HTML_TAG = /<[a-z][^>]*>|<\/[a-z][^>]*>/i;
-const HTML_TAG_GLOBAL = /<[a-z][^>]*>|<\/[a-z][^>]*>/gi;
-const HTML_ENTITY = /&(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi;
+// Catches plain tags, HTML comments, CDATA, processing instructions,
+// doctype declarations, and self-closing pseudo-tags. Anything starting
+// with `<` followed by a letter, `/`, `!`, or `?` and continuing until
+// the next `>` is removed.
+const HTML_TAG_GLOBAL = /<[a-z!?/][^>]*>/gi;
+// Same shape as HTML_TAG_GLOBAL but non-global so `.test()` is stateless.
+const HTML_TAG_TEST = /<[a-z!?/][^>]*>/i;
+const HTML_ENTITY_GLOBAL = /&(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi;
+const HTML_ENTITY_TEST = /&(?:[a-z]+|#\d+|#x[0-9a-f]+);/i;
 
-// Named-entity table covering the accented characters that appear in
-// the legacy translation seed (DE / FR / IT / EN). The full HTML5 entity
-// set isn't needed — the legacy DB is tiny + manually authored. Unknown
-// entities decode to themselves so a future operator notices.
+const MAX_CODEPOINT = 0x10ffff;
+
 const NAMED_ENTITIES: Record<string, string> = {
   '&amp;': '&',
   '&lt;': '<',
@@ -67,14 +82,35 @@ const NAMED_ENTITIES: Record<string, string> = {
 function decodeEntity(entity: string): string {
   if (entity in NAMED_ENTITIES) return NAMED_ENTITIES[entity]!;
   const numeric = /^&#(\d+);$/.exec(entity);
-  if (numeric) return String.fromCodePoint(Number.parseInt(numeric[1]!, 10));
+  if (numeric) {
+    const cp = Number.parseInt(numeric[1]!, 10);
+    return cp <= MAX_CODEPOINT ? String.fromCodePoint(cp) : entity;
+  }
   const hex = /^&#x([0-9a-f]+);$/i.exec(entity);
-  if (hex) return String.fromCodePoint(Number.parseInt(hex[1]!, 16));
+  if (hex) {
+    const cp = Number.parseInt(hex[1]!, 16);
+    return cp <= MAX_CODEPOINT ? String.fromCodePoint(cp) : entity;
+  }
   return entity;
 }
 
+function stripHtmlOnce(value: string): string {
+  return value.replace(HTML_TAG_GLOBAL, '').replace(HTML_ENTITY_GLOBAL, decodeEntity);
+}
+
+/**
+ * Iteratively strip until a fixed point. Defends against partial-overlap
+ * tag tricks (`<scr<b>ipt>` etc.) and lets the result of a decode pass
+ * trigger a second tag-strip (`&lt;script&gt;` → `<script>` → ``).
+ */
 function stripHtml(value: string): string {
-  return value.replace(HTML_TAG_GLOBAL, '').replace(HTML_ENTITY, decodeEntity);
+  let prev: string;
+  let cur = value;
+  do {
+    prev = cur;
+    cur = stripHtmlOnce(cur);
+  } while (cur !== prev);
+  return cur;
 }
 
 function flattenPaths(tree: TranslationTree | undefined, prefix = ''): string[] {
@@ -100,7 +136,11 @@ function cloneTree(source?: TranslationTree): TranslationTree {
   return out;
 }
 
-function setAtPath(tree: TranslationTree, path: string, value: string): void {
+function trySetAtPath(
+  tree: TranslationTree,
+  path: string,
+  value: string,
+): KeyCollision | null {
   const segments = path.split('.');
   let node: TranslationTree = tree;
   for (let i = 0; i < segments.length - 1; i++) {
@@ -111,20 +151,17 @@ function setAtPath(tree: TranslationTree, path: string, value: string): void {
       node[seg] = fresh;
       node = fresh;
     } else if (typeof next === 'string') {
-      throw new Error(
-        `Key collision: '${path}' tries to nest under '${segments.slice(0, i + 1).join('.')}', which is already a string value. Likely a legacy-key naming conflict.`,
-      );
+      return { path, conflict: segments.slice(0, i + 1).join('.') };
     } else {
       node = next;
     }
   }
   const leaf = segments[segments.length - 1]!;
   if (typeof node[leaf] === 'object') {
-    throw new Error(
-      `Key collision: '${path}' tries to set a string where a nested tree already exists.`,
-    );
+    return { path, conflict: `${path} (existing nested tree)` };
   }
   node[leaf] = value;
+  return null;
 }
 
 /**
@@ -152,12 +189,17 @@ export function mapLegacyToBundles(
     en: cloneTree(existingBundles?.en),
   };
   const droppedAsOrphan: string[] = [];
-  const htmlStripped: Array<{ key: string; locale: LocaleCode; before: string; after: string }> = [];
+  const htmlStripped: Array<{
+    key: string;
+    locale: LocaleCode;
+    before: string;
+    after: string;
+  }> = [];
   const survivingHtml: Array<{ key: string; locale: LocaleCode; value: string }> = [];
+  const keyCollisions: KeyCollision[] = [];
 
   const skipOrphanFiltering = referencedKeys.size === 0;
-  const seenKeys = new Set<string>();
-  const existingPaths = flattenPaths(existingBundles?.[CANONICAL_LOCALE]);
+  const existingPaths = flattenPaths(bundles[CANONICAL_LOCALE]);
 
   for (const row of rows) {
     const locale = LEGACY_LANG_ID_TO_LOCALE[row.languageId] as LocaleCode | undefined;
@@ -165,7 +207,6 @@ export function mapLegacyToBundles(
     if (!row.value || row.value.length === 0) continue;
 
     const renamed = renameKey(row.key);
-    seenKeys.add(renamed);
 
     if (!skipOrphanFiltering) {
       // A legacy key is REDUNDANT if its renamed path is already a path-
@@ -183,15 +224,19 @@ export function mapLegacyToBundles(
     }
 
     let value = row.value;
-    if (HTML_TAG.test(value) || HTML_ENTITY.test(value)) {
+    if (HTML_TAG_TEST.test(value) || HTML_ENTITY_TEST.test(value)) {
       const before = value;
       value = stripHtml(value);
       htmlStripped.push({ key: renamed, locale, before, after: value });
     }
 
-    setAtPath(bundles[locale], renamed, value);
+    const collision = trySetAtPath(bundles[locale], renamed, value);
+    if (collision) {
+      keyCollisions.push(collision);
+      continue;
+    }
 
-    if (HTML_TAG.test(value)) {
+    if (HTML_TAG_TEST.test(value) || HTML_ENTITY_TEST.test(value)) {
       survivingHtml.push({ key: renamed, locale, value });
     }
   }
@@ -210,10 +255,14 @@ export function mapLegacyToBundles(
     droppedAsOrphan: [...new Set(droppedAsOrphan)].sort(),
     htmlStripped,
     survivingHtml,
+    keyCollisions,
   };
 }
 
-function mirrorMissingFromCanonical(canonical: TranslationTree, target: TranslationTree): void {
+function mirrorMissingFromCanonical(
+  canonical: TranslationTree,
+  target: TranslationTree,
+): void {
   for (const [key, value] of Object.entries(canonical)) {
     if (typeof value === 'string') {
       if (target[key] === undefined) {

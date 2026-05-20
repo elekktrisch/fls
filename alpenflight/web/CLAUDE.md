@@ -170,7 +170,8 @@ Transloco + per-locale TypeScript modules (`src/i18n/{de,fr,it,en}.ts`). Wiring:
 - **Templates use `*transloco="let t; read: '<scope>'"` + `t('foo.bar')`.** Bare `t('foo')` inside a scoped block reads as `<scope>.foo`. Never inject `TranslocoService` and call `.translate(...)` imperatively — it bypasses `reRenderOnLangChange`.
 - **No HTML in translation values.** Angular interpolation auto-escapes, so an HTML tag renders as literal text. Split into multiple keys + interpolate; do not reach for `[innerHTML]` / `bypassSecurityTrust*` (forbidden by §6 / §10). `core/i18n/no-html-in-translations.spec.ts` is the lint-style guard.
 - **No `localStorage` for the active locale.** Cold-start order: `?lang=` query param → `navigator.language` → `de`. In-memory thereafter. `transloco-persist-lang` is deliberately not installed.
-- **CI gates** (run automatically on every PR): `i18n-key-coverage.spec.ts` (every `t('key')` reference resolves) + the `Translations` compile-time parity gate (every key in `de.ts` exists in all four locales).
+- **CI gates** (run automatically on every PR): `i18n-key-coverage.spec.ts` (every `t('key')` reference resolves) + `no-html-in-translations.spec.ts` (no tag / entity content) + the `Translations` compile-time parity gate (every key in `de.ts` exists in all four locales).
+- **Key order in the locale files is alphabetical.** `scripts/migrate-translations/` emits keys sorted at every level; hand-edits should follow the same order so re-runs produce zero diff. Don't fight the sort.
 
 ## 9. Local-environment quirks (sandbox)
 

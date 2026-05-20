@@ -6,6 +6,7 @@ status: in_progress
 started_at: 2026-05-20
 depends_on: [S-005]
 github_issue: 86
+github_pr: 87
 acceptance:
   - All translation keys/values from legacy `LanguageTranslation` table exported into per-locale TypeScript modules at `alpenflight/web/src/i18n/<locale>.ts` — one entry per locale, all conforming to the shared `Translations` type derived from `de.ts` (S-005). A missing key in any other locale is a `tsc` compile error.
   - The new server **does not** implement `/api/v1/translations` (closes C15).
