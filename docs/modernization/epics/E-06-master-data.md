@@ -23,10 +23,10 @@ Port the CRUD-shaped admin surface (clubs, aircraft, persons, users, locations, 
 - [ ] S-054 — Articles CRUD
 - [ ] S-055 — Email templates CRUD
 - [ ] S-056 — System data + system-logs view
-- [ ] S-057 — Translations migrated to bundled JSON (closes C15; removes `/api/v1/translations`)
+- [ ] S-057 — Translations migrated to bundled TS modules (closes C15; removes `/api/v1/translations`)
 - [ ] S-158 — Tenant-branding seven-surface preview component (ADR 0024 follow-up)
 
 ## Done when
 - Every master-data CRUD spec in `e2e/tests/` (specs `12`, `13`, `26`, `27`, `28`, `29`, `30`, `31`) passes against the new stack with parity-equivalent screens.
-- The `/api/v1/translations` endpoint is gone on the new server; the SPA loads translations from bundled JSON via the i18n library chosen in S-005.
+- The `/api/v1/translations` endpoint is gone on the new server; the SPA loads translations from per-locale TypeScript modules bundled into the JS via the i18n library chosen in S-005.
 - A cross-tenant leakage attempt against any master-data list endpoint returns empty / 404 (S-024 test guards this).

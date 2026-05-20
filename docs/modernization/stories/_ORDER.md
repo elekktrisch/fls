@@ -115,7 +115,7 @@ Rest of the master-data CRUD plus the Phase-C items deferred until their first c
 **Deferred-from-old-C items land here as needed:**
 
 - S-027 — L — Audit-log infrastructure (deps S-020, S-022) — *was Phase C; defer until just before the first audit-sensitive mutation. Lands before S-048 Clubs (per S-048 acceptance: "Audit-log entries fire on every mutation").*
-- S-057 — M — Translations migrated to bundled JSON (deps S-005) — *was Phase C; defer until first multi-locale screen ships. Lands before S-051 Persons (first parity-translated form).*
+- S-057 — M — Translations migrated to bundled TS modules (deps S-005) — *was Phase C; defer until first multi-locale screen ships. Lands before S-051 Persons (first parity-translated form).*
 - S-005 — S — Pick + wire i18n (deps S-002) — *was Phase B; defer to Phase E since walking-skeleton ships in German only. Block S-057.*
 
 **Master-data CRUD (in dep order):**
@@ -332,7 +332,7 @@ Previous ordering (2026-05-15) bundled all of auth + tenancy + audit + machine c
 | S-025 (Tenant-from-URL) | Phase C | Phase I (before S-098/S-099) | Only needed by public flows |
 | S-027 (Audit-log infra) | Phase C | Phase E (before S-048 Clubs) | First audit-required mutation is on Clubs |
 | S-029 (Proffix machine client) | Phase C | Phase H (before S-080) | Only consumed by Proffix verification |
-| S-057 (Bundled JSON translations) | Phase C | Phase E (before S-051 Persons) | Walking skeleton runs single-locale |
+| S-057 (Bundled TS translations) | Phase C | Phase E (before S-051 Persons) | Walking skeleton runs single-locale |
 
 **Pulled IN to Phase D (immediately with walking skeleton):**
 
