@@ -73,6 +73,8 @@ class TenantCatalogConsistencyTest {
 
     @Test
     void every_s013_reference_table_has_no_operating_club_id() throws Exception {
+        // S-049b removed `location` from this list: now tenant-scoped.
+        // `location_type` stays reference data (categorical code).
         List<String> refs = List.of(
                 "aircraft_type", "aircraft_state", "location_type",
                 "flight_crew_type", "flight_process_state", "flight_air_state",
@@ -95,17 +97,69 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /** Sacred cow: location is cross-tenant shared; no club_id / operating_club_id. */
+    /**
+     * S-049b reclassification: location flipped CROSS_TENANT → TENANT_SCOPED.
+     * Same physical airport may exist in multiple clubs (once per club);
+     * Hibernate's {@code @TenantId} discriminator on {@code club_id} appends
+     * the per-tenant predicate on every JPA query.
+     */
     @Test
-    void location_has_no_club_id() throws Exception {
+    void location_has_club_id_uuid_not_null() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
             assertTableExists(conn, "location");
+            try (var stmt = conn.prepareStatement(
+                    "SELECT data_type, is_nullable FROM information_schema.columns "
+                            + "WHERE table_schema='public' AND table_name='location' "
+                            + "AND column_name='club_id'")) {
+                try (ResultSet rs = stmt.executeQuery()) {
+                    assertThat(rs.next()).as("location must carry club_id (S-049b)").isTrue();
+                    assertThat(rs.getString("data_type")).isEqualTo("uuid");
+                    assertThat(rs.getString("is_nullable"))
+                            .as("location.club_id must be NOT NULL")
+                            .isEqualTo("NO");
+                }
+            }
+        }
+    }
+
+    /**
+     * S-049b: per-club ICAO uniqueness — the same ICAO across two clubs must
+     * coexist, but a duplicate within one club's catalog is rejected. Tested
+     * structurally by the partial UNIQUE on (club_id, icao_code).
+     */
+    @Test
+    void location_icao_is_unique_per_club_not_globally() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT indexdef FROM pg_indexes "
+                                + "WHERE schemaname='public' AND tablename='location' "
+                                + "AND indexname='ux_location_club_icao'")) {
+            assertThat(rs.next())
+                    .as("ux_location_club_icao partial UNIQUE must exist (S-049b)")
+                    .isTrue();
+            String def = rs.getString("indexdef");
+            assertThat(def)
+                    .as("partial UNIQUE keys on (club_id, icao_code) WHERE icao_code IS NOT NULL")
+                    .contains("club_id")
+                    .contains("icao_code");
+        }
+    }
+
+    /**
+     * S-049b: InOutboundPoint inherits tenancy through its parent Location's
+     * FK chain. The IOP row itself does NOT carry club_id — same pattern as
+     * flight_crew under flight.
+     */
+    @Test
+    void inoutbound_point_has_no_own_club_id() throws Exception {
+        try (Connection conn = dataSource.getConnection()) {
+            assertTableExists(conn, "inoutbound_point");
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT 1 FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='location' "
+                            + "WHERE table_schema='public' AND table_name='inoutbound_point' "
                             + "AND column_name IN ('club_id', 'operating_club_id')")) {
                 assertThat(rs.next())
-                        .as("location must NOT carry a club_id / operating_club_id (sacred cow)")
+                        .as("inoutbound_point inherits tenancy via parent Location — no own club_id")
                         .isFalse();
             }
         }
