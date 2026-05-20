@@ -85,14 +85,14 @@ type LocationForm = FormGroup<{
     <af-page>
       <af-page-header [title]="isCreate() ? 'New location' : 'Edit location'" />
 
-      <div
-        class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
-        data-testid="locations-blast-radius-banner"
-      >
-        Reference data — changes apply to all clubs.
-      </div>
-
-      @if (!canMutate()) {
+      @if (canMutate()) {
+        <div
+          class="mb-4 px-3 py-2 text-sm text-slate-600 border-l-2 border-l-amber-500 border border-slate-200 bg-slate-50"
+          data-testid="locations-blast-radius-banner"
+        >
+          Reference data — changes apply to all clubs.
+        </div>
+      } @else {
         <div
           class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
           data-testid="locations-readonly-banner"
@@ -237,7 +237,9 @@ type LocationForm = FormGroup<{
         @if (showIopSection()) {
           <section class="mt-2 pt-3 border-t border-slate-200" data-testid="locations-iop-section">
             <header class="flex items-center justify-between mb-2">
-              <h2 class="text-base font-medium text-slate-900 m-0">In/outbound points</h2>
+              <h2 class="text-base font-medium text-slate-900 m-0">
+                Approach and departure points
+              </h2>
               @if (canMutate()) {
                 <af-button htmlType="button" (clicked)="addIop()" data-testid="locations-iop-add">
                   Add point
@@ -252,7 +254,7 @@ type LocationForm = FormGroup<{
             <ul class="list-none m-0 p-0 flex flex-col gap-2" formArrayName="inOutboundPoints">
               @for (iop of iopArray.controls; let i = $index; track i) {
                 <li
-                  class="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end p-3 border border-slate-200 bg-white"
+                  class="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end p-3 border border-slate-200 bg-white"
                   [formGroupName]="i"
                   [attr.data-testid]="'locations-iop-row-' + i"
                 >
@@ -275,6 +277,13 @@ type LocationForm = FormGroup<{
                       formControlName="direction"
                       autocomplete="off"
                       [attr.data-testid]="'locations-iop-direction-' + i"
+                    />
+                  </af-form-field>
+                  <af-form-field label="Description">
+                    <af-input
+                      formControlName="description"
+                      autocomplete="off"
+                      [attr.data-testid]="'locations-iop-description-' + i"
                     />
                   </af-form-field>
                   @if (canMutate()) {
@@ -405,13 +414,22 @@ export class LocationsEditPage {
       const err = this.store.saveError();
       if (!err) return;
       this.saveSubmitted.set(false);
-      if (err.includes('already in use')) {
+      if (this.store.saveErrorKind() === 'icao-duplicate') {
         this.form.controls.icaoCode.setErrors({ duplicate: true });
         this.form.controls.icaoCode.markAsTouched();
       }
     });
 
     const destroyRef = inject(DestroyRef);
+    // Clear the synthetic `duplicate` flag the moment the user retypes the
+    // ICAO so Save re-enables without a tab-out/tab-back blur dance.
+    this.form.controls.icaoCode.valueChanges.pipe(takeUntilDestroyed(destroyRef)).subscribe(() => {
+      if (this.form.controls.icaoCode.hasError('duplicate')) {
+        const errs = { ...this.form.controls.icaoCode.errors };
+        delete errs['duplicate'];
+        this.form.controls.icaoCode.setErrors(Object.keys(errs).length ? errs : null);
+      }
+    });
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
       if (evt.kind === 'location.created' || evt.kind === 'location.updated') {

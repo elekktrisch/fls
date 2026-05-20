@@ -294,7 +294,9 @@ test('locations: 409 on duplicate ICAO surfaces inline', async ({ page }) => {
   await expect(page.getByTestId('locations-save-error')).toContainText('already in use');
 });
 
-test('locations: invalid ICAO pattern shows an inline error before submit', async ({ page }) => {
+test('locations: invalid ICAO pattern keeps Save disabled with an inline error', async ({
+  page,
+}) => {
   const locations: MockLocation[] = [{ ...seedLocation, inOutboundPoints: [] }];
   await stubReferenceData(page);
   await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
@@ -307,25 +309,100 @@ test('locations: invalid ICAO pattern shows an inline error before submit', asyn
   await icao.blur();
 
   await expect(page.getByTestId('locations-save-button').locator('button')).toBeDisabled();
-  await expect(page.locator('af-field-errors').filter({ hasText: 'pattern' })).toBeVisible();
+  // Assert the user sees an inline error for the ICAO field. The exact error
+  // key may shift when transloco wires up (S-057); the user-visible contract
+  // here is "an error renders" — not the literal token text.
+  await expect(
+    page
+      .locator('af-form-field')
+      .filter({ has: page.locator('#IcaoCode') })
+      .locator('af-field-errors'),
+  ).toBeVisible();
 });
 
-test('locations: nested in/outbound points round-trip via the edit form', async ({ page }) => {
+test('locations: lowercase ICAO is uppercased on save', async ({ page }) => {
+  const locations: MockLocation[] = [];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
+
+  await page.goto('/locations/new');
+  await page.locator('#LocationName').fill('Saanen');
+  await page.locator('#IcaoCode').fill('lsgk');
+  await page.getByTestId('locations-country-select').locator('nz-select').click();
+  await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();
+  await page.getByTestId('locations-type-select').locator('nz-select').click();
+  await page.locator('nz-option-item').filter({ hasText: 'Airport' }).click();
+  await page.getByTestId('locations-save-button').click();
+
+  await expect(page).toHaveURL('/locations');
+  const created = locations.find((l) => l.locationName === 'Saanen');
+  expect(created?.icaoCode).toBe('LSGK');
+});
+
+test('locations: list ordering follows sortIndicator then name (NULLS LAST)', async ({ page }) => {
+  // Mock backend doesn't sort — return rows pre-sorted to lock the SPA's
+  // binding-order to the server's ORDER BY contract.
+  const sortedSeed: MockLocation[] = [
+    {
+      ...seedLocation,
+      id: 'loc-019e30c3-2c00-7001-8000-000000000010',
+      locationName: 'Alpha',
+      icaoCode: 'LSAA',
+    },
+    {
+      ...seedLocation,
+      id: 'loc-019e30c3-2c00-7001-8000-000000000011',
+      locationName: 'Zulu',
+      icaoCode: 'LSZZ',
+    },
+  ];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend(sortedSeed));
+
+  await page.goto('/locations');
+  await expect(page.getByTestId('locations-table')).toBeVisible();
+  const rendered = await page.locator('[data-testid^="location-row-"]').allTextContents();
+  expect(rendered.map((t) => t.trim())).toEqual(['Alpha', 'Zulu']);
+});
+
+test('locations: soft-delete removes the row from the rendered list', async ({ page }) => {
+  const locations: MockLocation[] = [{ ...seedLocation, inOutboundPoints: [] }];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
+
+  await page.goto('/locations');
+  await expect(page.getByTestId(`location-row-${seedLocation.id}`)).toBeVisible();
+
+  page.once('dialog', (d) => d.accept());
+  await page.getByTestId(`location-kebab-${seedLocation.id}`).click();
+  await page.getByTestId(`location-delete-${seedLocation.id}`).click();
+
+  await expect(page.getByTestId(`location-row-${seedLocation.id}`)).toHaveCount(0);
+});
+
+test('locations: nested in/outbound points — add 2, remove 1, round-trip', async ({ page }) => {
   const locations: MockLocation[] = [{ ...seedLocation, inOutboundPoints: [] }];
   await stubReferenceData(page);
   await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
 
   await page.goto(`/locations/${seedLocation.id}/edit`);
   await page.getByTestId('locations-iop-add').click();
+  await page.getByTestId('locations-iop-add').click();
 
   await page.getByTestId('locations-iop-name-0').locator('input').fill('Echo');
   await page.getByTestId('locations-iop-type-0').locator('input').fill('VFR');
   await page.getByTestId('locations-iop-direction-0').locator('input').fill('N');
+
+  await page.getByTestId('locations-iop-name-1').locator('input').fill('Foxtrot');
+  await page.getByTestId('locations-iop-direction-1').locator('input').fill('S');
+
+  await page.getByTestId('locations-iop-remove-0').click();
 
   await page.getByTestId('locations-save-button').click();
   await expect(page).toHaveURL('/locations');
 
   const saved = locations.find((l) => l.id === seedLocation.id);
   expect(saved?.inOutboundPoints).toHaveLength(1);
-  expect(saved?.inOutboundPoints[0]?.pointName).toBe('Echo');
+  expect(saved?.inOutboundPoints[0]?.pointName).toBe('Foxtrot');
+  expect(saved?.inOutboundPoints[0]?.direction).toBe('S');
 });

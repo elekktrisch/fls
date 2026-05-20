@@ -139,10 +139,25 @@ describe('LocationsStore', () => {
       locationName: 'Schaenis',
       icaoCode: 'LSZX',
     };
+    const newListItem: LocationListItem = {
+      id: created.id!,
+      locationName: 'Schaenis',
+      icaoCode: 'LSZX',
+      locationTypeCode: 'AIRPORT',
+      isAirfield: true,
+      isFastEntryRecord: false,
+    };
+    // Server reflects the new row on the next listLocations() so the
+    // post-mutation refresh resolves with both seed + created. Without this
+    // the post-mutation `loadAll` resets entities back to the seed only.
+    let listState: LocationListItem[] = [sampleListItem];
     const bus = configure(
       locationsServiceStub({
-        list: () => of([sampleListItem]),
-        create: () => of(created),
+        list: () => of(listState),
+        create: () => {
+          listState = [sampleListItem, newListItem];
+          return of(created);
+        },
       }),
     );
     const events: MutationEvent[] = [];
@@ -156,7 +171,7 @@ describe('LocationsStore', () => {
     expect(events).toEqual([{ kind: 'location.created', id: created.id }]);
   });
 
-  it('create surfaces 409 with the ICAO code in the saveError', () => {
+  it('create surfaces 409 with the ICAO code in the saveError + icao-duplicate kind', () => {
     const err = new HttpErrorResponse({ status: 409, statusText: 'Conflict' });
     configure(
       locationsServiceStub({
@@ -168,14 +183,20 @@ describe('LocationsStore', () => {
     store.create({ ...baseCreateReq, icaoCode: 'LSZF' });
     expect(store.saveError()).toContain('LSZF');
     expect(store.saveError()).toContain('already in use');
+    expect(store.saveErrorKind()).toBe('icao-duplicate');
   });
 
   it('update patches the matching entity and emits location.updated', () => {
     const renamed: LocationDetail = { ...sampleDetail, locationName: 'Renamed' };
+    const renamedListItem: LocationListItem = { ...sampleListItem, locationName: 'Renamed' };
+    let listState: LocationListItem[] = [sampleListItem];
     const bus = configure(
       locationsServiceStub({
-        list: () => of([sampleListItem]),
-        update: () => of(renamed),
+        list: () => of(listState),
+        update: () => {
+          listState = [renamedListItem];
+          return of(renamed);
+        },
       }),
     );
     const events: MutationEvent[] = [];

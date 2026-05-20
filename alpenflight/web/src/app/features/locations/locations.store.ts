@@ -33,6 +33,8 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 export type LocationItem = LocationListItem & { id: string };
 export type LocationDetailLoaded = LocationDetail & { id: string };
 
+export type SaveErrorKind = 'icao-duplicate' | 'other';
+
 interface LocationsExtraState {
   selectedId: string | null;
   selectedDetail: LocationDetailLoaded | null;
@@ -40,6 +42,7 @@ interface LocationsExtraState {
   isLoadingDetail: boolean;
   loadError: string | null;
   saveError: string | null;
+  saveErrorKind: SaveErrorKind | null;
   lastRefreshedAt: number | null;
 }
 
@@ -50,6 +53,7 @@ const initialExtra: LocationsExtraState = {
   isLoadingDetail: false,
   loadError: null,
   saveError: null,
+  saveErrorKind: null,
   lastRefreshedAt: null,
 };
 
@@ -68,6 +72,11 @@ function withDetailId(d: LocationDetail): LocationDetailLoaded {
 }
 
 function listItemFromDetail(d: LocationDetailLoaded): LocationItem {
+  // The list projection's `locationTypeCode` / `isAirfield` columns derive
+  // from the LocationType join on the server. The detail payload only
+  // carries `locationTypeId`, so the optimistic patch deliberately omits
+  // the joined columns — `loadAll()` refreshes them after the mutation
+  // round-trip so the list reflects the authoritative server projection.
   const item: LocationItem = {
     id: d.id,
     locationName: d.locationName,
@@ -88,14 +97,8 @@ export const LocationsStore = signalStore(
     hasError: computed(() => loadError() !== null || saveError() !== null),
     selectedLocation: computed(() => selectedDetail()),
   })),
-  withMethods((store, locationsApi = inject(LocationsService), bus = inject(MUTATION_BUS)) => ({
-    select(id: string | null): void {
-      patchState(store, { selectedId: id, selectedDetail: null });
-    },
-    clearSaveError(): void {
-      patchState(store, { saveError: null });
-    },
-    loadAll: rxMethod<void>(
+  withMethods((store, locationsApi = inject(LocationsService), bus = inject(MUTATION_BUS)) => {
+    const loadAll = rxMethod<void>(
       pipe(
         tap(() => patchState(store, { isLoading: true, loadError: null })),
         switchMap(() =>
@@ -112,82 +115,94 @@ export const LocationsStore = signalStore(
           ),
         ),
       ),
-    ),
-    loadOne: rxMethod<string>(
-      pipe(
-        tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),
-        switchMap((id) =>
-          locationsApi.getLocation(id).pipe(
-            tapResponse({
-              next: (d: LocationDetail) =>
-                patchState(store, {
-                  selectedDetail: withDetailId(d),
-                  isLoadingDetail: false,
-                }),
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { saveError: e.message, isLoadingDetail: false }),
-            }),
+    );
+    return {
+      select(id: string | null): void {
+        patchState(store, { selectedId: id, selectedDetail: null });
+      },
+      clearSaveError(): void {
+        patchState(store, { saveError: null, saveErrorKind: null });
+      },
+      loadAll,
+      loadOne: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),
+          switchMap((id) =>
+            locationsApi.getLocation(id).pipe(
+              tapResponse({
+                next: (d: LocationDetail) =>
+                  patchState(store, {
+                    selectedDetail: withDetailId(d),
+                    isLoadingDetail: false,
+                  }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { saveError: e.message, isLoadingDetail: false }),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-    create: rxMethod<LocationCreateRequest>(
-      pipe(
-        tap(() => patchState(store, { saveError: null })),
-        switchMap((req) =>
-          locationsApi.createLocation(req).pipe(
-            tapResponse({
-              next: (d: LocationDetail) => {
-                const detail = withDetailId(d);
-                patchState(store, addEntity(listItemFromDetail(detail)), {
-                  selectedDetail: detail,
-                });
-                bus.next({ kind: 'location.created', id: detail.id });
-              },
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { saveError: errorMessage(e, req.icaoCode) }),
-            }),
+      create: rxMethod<LocationCreateRequest>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap((req) =>
+            locationsApi.createLocation(req).pipe(
+              tapResponse({
+                next: (d: LocationDetail) => {
+                  const detail = withDetailId(d);
+                  patchState(store, addEntity(listItemFromDetail(detail)), {
+                    selectedDetail: detail,
+                  });
+                  bus.next({ kind: 'location.created', id: detail.id });
+                  // Refresh from the server so the joined `locationTypeCode`
+                  // / `isAirfield` columns settle to the authoritative values.
+                  loadAll();
+                },
+                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, req.icaoCode)),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-    update: rxMethod<{ id: string; req: LocationUpdateRequest }>(
-      pipe(
-        tap(() => patchState(store, { saveError: null })),
-        switchMap(({ id, req }) =>
-          locationsApi.updateLocation(id, req).pipe(
-            tapResponse({
-              next: (d: LocationDetail) => {
-                const detail = withDetailId(d);
-                patchState(store, setEntity(listItemFromDetail(detail)), {
-                  selectedDetail: detail,
-                });
-                bus.next({ kind: 'location.updated', id: detail.id });
-              },
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { saveError: errorMessage(e, req.icaoCode) }),
-            }),
+      update: rxMethod<{ id: string; req: LocationUpdateRequest }>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap(({ id, req }) =>
+            locationsApi.updateLocation(id, req).pipe(
+              tapResponse({
+                next: (d: LocationDetail) => {
+                  const detail = withDetailId(d);
+                  patchState(store, setEntity(listItemFromDetail(detail)), {
+                    selectedDetail: detail,
+                  });
+                  bus.next({ kind: 'location.updated', id: detail.id });
+                  loadAll();
+                },
+                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, req.icaoCode)),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-    delete: rxMethod<string>(
-      pipe(
-        tap(() => patchState(store, { saveError: null })),
-        switchMap((id) =>
-          locationsApi.deleteLocation(id).pipe(
-            tapResponse({
-              next: () => {
-                patchState(store, removeEntity(id), { selectedDetail: null });
-                bus.next({ kind: 'location.deleted', id });
-              },
-              error: (e: HttpErrorResponse) => patchState(store, { saveError: e.message }),
-            }),
+      delete: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap((id) =>
+            locationsApi.deleteLocation(id).pipe(
+              tapResponse({
+                next: () => {
+                  patchState(store, removeEntity(id), { selectedDetail: null });
+                  bus.next({ kind: 'location.deleted', id });
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { saveError: e.message, saveErrorKind: 'other' }),
+              }),
+            ),
           ),
         ),
       ),
-    ),
-  })),
+    };
+  }),
   withHooks({
     onInit(store) {
       const bus = inject(MUTATION_BUS);
@@ -206,13 +221,24 @@ export const LocationsStore = signalStore(
   }),
 );
 
-function errorMessage(e: HttpErrorResponse, icaoCode: string | null | undefined): string {
+function errorPatch(
+  e: HttpErrorResponse,
+  icaoCode: string | null | undefined,
+): { saveError: string; saveErrorKind: SaveErrorKind } {
   if (e.status === 409) {
-    return icaoCode ? `ICAO code "${icaoCode}" is already in use.` : 'ICAO code is already in use.';
+    return {
+      saveError: icaoCode
+        ? `ICAO code "${icaoCode}" is already in use.`
+        : 'ICAO code is already in use.',
+      saveErrorKind: 'icao-duplicate',
+    };
   }
   const body = e.error as { field?: string; message?: string } | null;
   if (body && typeof body.message === 'string' && body.message.length > 0) {
-    return body.field ? `${body.field}: ${body.message}` : body.message;
+    return {
+      saveError: body.field ? `${body.field}: ${body.message}` : body.message,
+      saveErrorKind: 'other',
+    };
   }
-  return e.message;
+  return { saveError: e.message, saveErrorKind: 'other' };
 }

@@ -103,15 +103,19 @@ public class LocationsController {
     }
 
     private static @Nullable UUID principalUserId(@Nullable Jwt jwt) {
+        // The IdP-portable contract (see ADR 0026) keys actor identity off the
+        // standard `sub` claim — `userId` is not minted by Google / Ory / Auth0.
+        // Translation from `sub` to the internal user id is a S-022 follow-up;
+        // until then the soft-delete trail records the Keycloak sub.
         if (jwt == null) {
             return null;
         }
-        Object claim = jwt.getClaims().get("userId");
-        if (claim == null) {
+        String sub = jwt.getSubject();
+        if (sub == null) {
             return null;
         }
         try {
-            return UUID.fromString(claim.toString());
+            return UUID.fromString(sub);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
