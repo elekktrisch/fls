@@ -103,10 +103,9 @@ public class LocationsController {
     }
 
     private static @Nullable UUID principalUserId(@Nullable Jwt jwt) {
-        // The IdP-portable contract (see ADR 0026) keys actor identity off the
-        // standard `sub` claim — `userId` is not minted by Google / Ory / Auth0.
-        // Translation from `sub` to the internal user id is a S-022 follow-up;
-        // until then the soft-delete trail records the Keycloak sub.
+        // Actor identity keys off the standard OIDC `sub` claim (ADR 0026 — IdP
+        // portable). Translation from `sub` to the internal user id is a S-022
+        // follow-up; until then the soft-delete trail records the raw OIDC sub.
         if (jwt == null) {
             return null;
         }

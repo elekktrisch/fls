@@ -42,7 +42,14 @@ import { LocationsStore } from '../locations.store';
         }
       </af-page-header>
 
-      @if (!canMutate()) {
+      @if (canMutate()) {
+        <div
+          class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
+          data-testid="locations-blast-radius-banner"
+        >
+          Reference data — changes apply to all clubs.
+        </div>
+      } @else {
         <div
           class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
           data-testid="locations-readonly-banner"

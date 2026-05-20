@@ -87,7 +87,7 @@ type LocationForm = FormGroup<{
 
       @if (canMutate()) {
         <div
-          class="mb-4 px-3 py-2 text-sm text-slate-600 border-l-2 border-l-amber-500 border border-slate-200 bg-slate-50"
+          class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
           data-testid="locations-blast-radius-banner"
         >
           Reference data — changes apply to all clubs.
@@ -97,7 +97,7 @@ type LocationForm = FormGroup<{
           class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
           data-testid="locations-readonly-banner"
         >
-          Read-only. Managed by the system administrator.
+          Reference data — changes apply to all clubs and are managed by the system administrator.
         </div>
       }
 
@@ -429,6 +429,11 @@ export class LocationsEditPage {
         delete errs['duplicate'];
         this.form.controls.icaoCode.setErrors(Object.keys(errs).length ? errs : null);
       }
+      // Drop the page-level save banner too so the user isn't reading a stale
+      // "already in use" prompt while already retyping the value.
+      if (this.store.saveErrorKind() === 'icao-duplicate') {
+        this.store.clearSaveError();
+      }
     });
     this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
       if (!this.saveSubmitted()) return;
@@ -471,7 +476,7 @@ export class LocationsEditPage {
       ]),
       pointType: this.fb.nonNullable.control(value.pointType, [Validators.maxLength(50)]),
       direction: this.fb.nonNullable.control(value.direction, [Validators.maxLength(50)]),
-      description: this.fb.nonNullable.control(value.description),
+      description: this.fb.nonNullable.control(value.description, [Validators.maxLength(500)]),
     });
   }
 }

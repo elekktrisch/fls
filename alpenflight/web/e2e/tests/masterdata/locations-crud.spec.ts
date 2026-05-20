@@ -310,13 +310,14 @@ test('locations: invalid ICAO pattern keeps Save disabled with an inline error',
 
   await expect(page.getByTestId('locations-save-button').locator('button')).toBeDisabled();
   // Assert the user sees an inline error for the ICAO field. The exact error
-  // key may shift when transloco wires up (S-057); the user-visible contract
-  // here is "an error renders" — not the literal token text.
+  // key may shift when transloco wires up (S-057); pin to the inner role=alert
+  // span so the assertion fails if no error span is emitted — `af-field-errors`
+  // host stays in the DOM even with zero keys.
   await expect(
     page
       .locator('af-form-field')
       .filter({ has: page.locator('#IcaoCode') })
-      .locator('af-field-errors'),
+      .locator('af-field-errors [role="alert"]'),
   ).toBeVisible();
 });
 
