@@ -2,8 +2,10 @@ package ch.alpenflight.referencedata.application;
 
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.ClubStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CountryResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.LocationTypeResponse;
 import ch.alpenflight.referencedata.domain.ClubState;
 import ch.alpenflight.referencedata.domain.Country;
+import ch.alpenflight.referencedata.domain.LocationType;
 import java.util.Objects;
 
 final class ReferenceDataMapper {
@@ -22,5 +24,13 @@ final class ReferenceDataMapper {
                 Objects.requireNonNull(clubState.getId(), "Cannot map a ClubState without id"),
                 clubState.getCode(),
                 clubState.getName());
+    }
+
+    static LocationTypeResponse toLocationTypeResponse(LocationType type) {
+        return new LocationTypeResponse(
+                Objects.requireNonNull(type.getId(), "Cannot map a LocationType without id"),
+                type.getCode(),
+                type.getDescription(),
+                type.isAirfield());
     }
 }
