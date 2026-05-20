@@ -21,6 +21,7 @@ import { routes } from './app.routes';
 import { alpenflightOidcConfig } from './core/auth/auth.config';
 import { OidcSessionBridge } from './core/auth/oidc-session-bridge';
 import { provideAlpenflightIcons } from './core/icons/icon-registry';
+import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
 
 export const appConfig: ApplicationConfig = {
@@ -29,6 +30,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([authInterceptor()])),
     provideAnimationsAsync(),
     provideNzI18n(de_DE),
+    provideAlpenflightI18n(),
     provideAlpenflightIcons(),
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },

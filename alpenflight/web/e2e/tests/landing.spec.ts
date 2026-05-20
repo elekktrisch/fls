@@ -1,18 +1,78 @@
 import { test, expect } from '@playwright/test';
 
-test('landing page renders + carries tailwind class + computed style', async ({ page }) => {
-  await page.goto('/');
+// `?lang=` query param pins the cold-start locale so tests don't depend on
+// the test browser's Accept-Language (Chromium defaults to en-US, which
+// the resolver correctly maps to `en`). See `core/i18n/lang-resolver.ts`.
 
-  await expect(page).toHaveTitle(/AlpenFlight/i);
+test.describe('landing — i18n + locale switch', () => {
+  test('renders the German tagline when ?lang=de and html[lang=de]', async ({ page }) => {
+    await page.goto('/?lang=de');
 
-  const heading = page.locator('h1');
-  await expect(heading).toBeVisible();
-  await expect(heading).toHaveText(/Hello AlpenFlight/i);
-  await expect(heading).toHaveClass(/text-blue-600/);
+    await expect(page).toHaveTitle(/AlpenFlight/i);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await expect(page.locator('p').first()).toContainText(/Flugbuch/);
+  });
 
-  // Tailwind v4 emits the OKLCH form of blue-600; modern browsers report
-  // the same OKLCH triple in getComputedStyle (no sRGB conversion). This
-  // asserts Tailwind processed the entry CSS — anything but the default
-  // black would be sufficient, but pinning the exact value catches drift.
-  await expect(heading).toHaveCSS('color', 'oklch(0.546 0.245 262.881)');
+  test('switches locale to English without reloading the page', async ({ page }) => {
+    await page.goto('/?lang=de');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+
+    let navigations = 0;
+    page.on('framenavigated', () => navigations++);
+    const startUrl = page.url();
+
+    await page.getByTestId('af-lang-en').click();
+
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('p').first()).toContainText(/Flight logging/);
+    expect(page.url()).toBe(startUrl);
+    expect(navigations).toBe(0);
+  });
+
+  test('cycles through all four locales (de → fr → it → en → de)', async ({ page }) => {
+    await page.goto('/?lang=de');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+
+    const cases = [
+      { testId: 'af-lang-fr', lang: 'fr', match: /Carnet de vol/ },
+      { testId: 'af-lang-it', lang: 'it', match: /Diario di volo/ },
+      { testId: 'af-lang-en', lang: 'en', match: /Flight logging/ },
+      { testId: 'af-lang-de', lang: 'de', match: /Flugbuch/ },
+    ];
+    for (const c of cases) {
+      await page.getByTestId(c.testId).click();
+      await expect(page.locator('html')).toHaveAttribute('lang', c.lang);
+      await expect(page.locator('p').first()).toContainText(c.match);
+    }
+  });
+
+  test('AC-DIR-1: locale picker is reachable at a mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/?lang=de');
+
+    for (const id of ['af-lang-de', 'af-lang-fr', 'af-lang-it', 'af-lang-en']) {
+      const btn = page.getByTestId(id);
+      await expect(btn).toBeVisible();
+      const box = await btn.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThan(0);
+      expect(box!.height).toBeGreaterThan(0);
+    }
+
+    await page.getByTestId('af-lang-fr').click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+  });
+
+  test('C15: no /api/v1/translations and no /i18n/* fetches — translations ride the JS bundle', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/translations**', (route) => route.abort());
+    await page.route('**/i18n/**', (route) => route.abort());
+
+    await page.goto('/?lang=de');
+
+    await expect(page.locator('p').first()).toContainText(/Flugbuch/);
+    await page.getByTestId('af-lang-fr').click();
+    await expect(page.locator('p').first()).toContainText(/Carnet de vol/);
+  });
 });

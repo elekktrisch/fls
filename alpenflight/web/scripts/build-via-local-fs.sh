@@ -23,10 +23,10 @@ rsync -a --delete \
   --exclude='build.out' --exclude='build.err' \
   "$PROJECT_DIR/" "$LOCAL_BUILD_DIR/"
 
-# Reuse the project's node_modules symlink target
-if [ ! -L "$LOCAL_BUILD_DIR/node_modules" ]; then
-  ln -sf /home/agent/fls-build/alpenflight/node_modules "$LOCAL_BUILD_DIR/node_modules"
-fi
+# Reuse the project's node_modules symlink target. `-fn` overwrites a stale
+# symlink (e.g. one left behind by the pre-rename next-web path) instead of
+# silently keeping a broken pointer.
+ln -sfn /home/agent/fls-build/alpenflight/node_modules "$LOCAL_BUILD_DIR/node_modules"
 
 cd "$LOCAL_BUILD_DIR"
 node node_modules/@angular/cli/bin/ng build --configuration="$CONFIG"

@@ -1,15 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
 import { SessionStore } from './core/session/session.store';
-import {
-  AfNavBarComponent,
-  type Locale,
-  type NavItem,
-  type UserSummary,
-} from '@ui/organisms/af-nav-bar';
+import { type AppLocale, LocaleService } from '@shared/ui/locale';
+import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
 
 const SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
@@ -27,7 +23,7 @@ const SECTIONS: readonly NavItem[] = [
         [items]="sections"
         [user]="userSummary()"
         [locale]="locale()"
-        (localeChange)="locale.set($event)"
+        (localeChange)="setLocale($event)"
       />
     }
     <router-outlet />
@@ -37,10 +33,15 @@ const SECTIONS: readonly NavItem[] = [
 export class AppComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly localeService = inject(LocaleService);
   protected readonly session = inject(SessionStore);
 
   protected readonly sections = SECTIONS;
-  protected readonly locale = signal<Locale>('de');
+  protected readonly locale = this.localeService.current;
+
+  protected setLocale(loc: AppLocale): void {
+    this.localeService.set(loc);
+  }
 
   protected readonly userSummary = computed<UserSummary | null>(() => {
     const u = this.session.authenticatedUser();

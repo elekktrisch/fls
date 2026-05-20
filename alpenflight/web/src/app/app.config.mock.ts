@@ -12,11 +12,13 @@ import {
 } from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
 import { Subject } from 'rxjs';
 
 import { routes } from './app.routes';
 import { provideAlpenflightIcons } from './core/icons/icon-registry';
+import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
 import { SessionStore, type User } from './core/session/session.store';
 
@@ -68,15 +70,27 @@ function mockAuthBootstrap(): void {
   inject(SessionStore).login(MOCK_USER, MOCK_CLUB_ID);
 }
 
+// LandingComponent injects OidcSecurityService to drive the sign-in
+// redirect; under mock-auth there's no Keycloak, so we stub the service.
+// `authorize()` is a no-op — the landing's sign-in / try-demo buttons
+// are clickable but don't navigate out. Real-OIDC e2e lives in the
+// separate Keycloak-up project (S-021 follow-up). Narrow stub shape
+// guards against a future OidcSecurityService API drift going silent.
+const MOCK_OIDC_SECURITY_SERVICE: Pick<OidcSecurityService, 'authorize'> = {
+  authorize: () => undefined,
+};
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideHttpClient(withFetch(), withInterceptors([mockAuthInterceptor])),
     provideAnimationsAsync(),
     provideNzI18n(de_DE),
+    provideAlpenflightI18n(),
     provideAlpenflightIcons(),
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
+    { provide: OidcSecurityService, useValue: MOCK_OIDC_SECURITY_SERVICE },
     provideAppInitializer(mockAuthBootstrap),
   ],
 };
