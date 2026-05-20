@@ -16,16 +16,23 @@ import { catchError } from 'rxjs/operators';
 
 import { ClubStatesService } from '@api/generated/club-states/club-states.service';
 import { CountriesService } from '@api/generated/countries/countries.service';
-import type { ClubStateResponse, CountryResponse } from '@api/generated/model';
+import { LocationTypesService } from '@api/generated/location-types/location-types.service';
+import type {
+  ClubStateResponse,
+  CountryResponse,
+  LocationTypeResponse,
+} from '@api/generated/model';
 
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
 
 export type Country = CountryResponse & { id: string };
 export type ClubState = ClubStateResponse & { id: string };
+export type LocationType = LocationTypeResponse & { id: string };
 
 interface ReferenceDataState {
   countries: readonly Country[];
   clubStates: readonly ClubState[];
+  locationTypes: readonly LocationType[];
   isLoading: boolean;
   loadError: string | null;
   lastRefreshedAt: number | null;
@@ -34,6 +41,7 @@ interface ReferenceDataState {
 const initial: ReferenceDataState = {
   countries: [],
   clubStates: [],
+  locationTypes: [],
   isLoading: false,
   loadError: null,
   lastRefreshedAt: null,
@@ -53,8 +61,10 @@ function withId<T extends { id?: string }>(r: T, label: string): T & { id: strin
 export const ReferenceDataStore = signalStore(
   { providedIn: 'root' },
   withState<ReferenceDataState>(initial),
-  withComputed(({ countries, clubStates, lastRefreshedAt }) => ({
-    isEmpty: computed(() => countries().length === 0 && clubStates().length === 0),
+  withComputed(({ countries, clubStates, locationTypes, lastRefreshedAt }) => ({
+    isEmpty: computed(
+      () => countries().length === 0 && clubStates().length === 0 && locationTypes().length === 0,
+    ),
     countryById: computed(() => {
       const map = new Map<string, Country>();
       for (const c of countries()) {
@@ -69,6 +79,13 @@ export const ReferenceDataStore = signalStore(
       }
       return map;
     }),
+    locationTypeById: computed(() => {
+      const map = new Map<string, LocationType>();
+      for (const t of locationTypes()) {
+        map.set(t.id, t);
+      }
+      return map;
+    }),
     needsRefresh: computed(() => {
       const at = lastRefreshedAt();
       return at === null || Date.now() - at > TTL_MS;
@@ -79,6 +96,7 @@ export const ReferenceDataStore = signalStore(
       store,
       countriesApi = inject(CountriesService),
       clubStatesApi = inject(ClubStatesService),
+      locationTypesApi = inject(LocationTypesService),
     ) => ({
       clear(): void {
         patchState(store, initial);
@@ -95,12 +113,16 @@ export const ReferenceDataStore = signalStore(
             forkJoin({
               countries: countriesApi.listCountries().pipe(catchError(() => of(null))),
               clubStates: clubStatesApi.listClubStates().pipe(catchError(() => of(null))),
+              locationTypes: locationTypesApi.listLocationTypes().pipe(catchError(() => of(null))),
             }).pipe(
               tapResponse({
-                next: ({ countries, clubStates }) => {
+                next: ({ countries, clubStates, locationTypes }) => {
                   patchState(store, {
                     countries: (countries ?? []).map((c) => withId(c, 'CountryResponse')),
                     clubStates: (clubStates ?? []).map((s) => withId(s, 'ClubStateResponse')),
+                    locationTypes: (locationTypes ?? []).map((t) =>
+                      withId(t, 'LocationTypeResponse'),
+                    ),
                     isLoading: false,
                     lastRefreshedAt: Date.now(),
                   });

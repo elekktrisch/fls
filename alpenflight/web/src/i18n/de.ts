@@ -17,6 +17,33 @@ const de = {
     language: 'Sprache',
     tagline: 'Flugbuch, Reservationen und Mitglieder — für Schweizer Vereine.',
   },
+  locations: {
+    blastRadiusBanner: 'Referenzdaten — Änderungen wirken für alle Vereine.',
+    errors: {
+      icaoDuplicate: 'ICAO-Code wird bereits verwendet.',
+    },
+    fields: {
+      country: 'Land',
+      description: 'Beschreibung',
+      fastEntryRecord: 'Schnellerfassung',
+      icao: 'ICAO-Code',
+      inboundRouteRequired: 'Anflug-Route erforderlich',
+      latitude: 'Breitengrad',
+      longitude: 'Längengrad',
+      name: 'Name',
+      outboundRouteRequired: 'Abflug-Route erforderlich',
+      shortName: 'Kürzel',
+      type: 'Typ',
+    },
+    inOutboundPoints: {
+      add: 'Punkt hinzufügen',
+      empty: 'Keine An-/Abflugpunkte.',
+      title: 'An-/Abflugpunkte',
+    },
+    new: 'Neuer Flugplatz',
+    readonlyBanner: 'Schreibgeschützt. Wird vom Systemadministrator verwaltet.',
+    title: 'Flugplätze',
+  },
 };
 
 export type Translations = typeof de;

@@ -256,8 +256,3 @@ export class ClubsService {
   }
 };
 
-export type GetClubClientResult = NonNullable<ClubResponse>
-export type UpdateClubClientResult = NonNullable<ClubResponse>
-export type DeleteClubClientResult = NonNullable<void>
-export type ListClubsClientResult = NonNullable<ClubResponse[]>
-export type CreateClubClientResult = NonNullable<ClubResponse>

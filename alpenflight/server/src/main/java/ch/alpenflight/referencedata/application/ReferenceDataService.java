@@ -2,8 +2,10 @@ package ch.alpenflight.referencedata.application;
 
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.ClubStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CountryResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.LocationTypeResponse;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
+import ch.alpenflight.referencedata.domain.LocationTypeRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +22,14 @@ public class ReferenceDataService {
 
     private final CountryRepository countries;
     private final ClubStateRepository clubStates;
+    private final LocationTypeRepository locationTypes;
 
-    public ReferenceDataService(CountryRepository countries, ClubStateRepository clubStates) {
+    public ReferenceDataService(CountryRepository countries,
+                                ClubStateRepository clubStates,
+                                LocationTypeRepository locationTypes) {
         this.countries = countries;
         this.clubStates = clubStates;
+        this.locationTypes = locationTypes;
     }
 
     public List<CountryResponse> listCountries() {
@@ -32,5 +38,11 @@ public class ReferenceDataService {
 
     public List<ClubStateResponse> listClubStates() {
         return clubStates.findAllOrdered().stream().map(ReferenceDataMapper::toResponse).toList();
+    }
+
+    public List<LocationTypeResponse> listLocationTypes() {
+        return locationTypes.findAllByOrderByDescriptionAsc().stream()
+                .map(ReferenceDataMapper::toLocationTypeResponse)
+                .toList();
     }
 }

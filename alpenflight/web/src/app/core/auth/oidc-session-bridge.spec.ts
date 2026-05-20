@@ -27,11 +27,13 @@ function fakeSession(opts: { authenticated?: boolean; loading?: boolean } = {}):
   loginCalls: { user: User; clubId: string | null }[];
   logoutCalls: number;
   markUnauthenticatedCalls: number;
+  bootstrapPrefetchCalls: number;
 } {
   const port = {
     loginCalls: [] as { user: User; clubId: string | null }[],
     logoutCalls: 0,
     markUnauthenticatedCalls: 0,
+    bootstrapPrefetchCalls: 0,
     login(user: User, clubId: string | null) {
       port.loginCalls.push({ user, clubId });
     },
@@ -40,6 +42,9 @@ function fakeSession(opts: { authenticated?: boolean; loading?: boolean } = {}):
     },
     markUnauthenticated() {
       port.markUnauthenticatedCalls += 1;
+    },
+    bootstrapPrefetch() {
+      port.bootstrapPrefetchCalls += 1;
     },
     isAuthenticated: () => opts.authenticated ?? false,
     isLoadingSession: () => opts.loading ?? false,
@@ -59,6 +64,7 @@ describe('applyClaimsToSession', () => {
     expect(call.clubId).toBe(sampleClaims.clubId);
     expect(session.logoutCalls).toBe(0);
     expect(session.markUnauthenticatedCalls).toBe(0);
+    expect(session.bootstrapPrefetchCalls).toBe(1);
   });
 
   it('passes clubId === null through to login when the claim is absent', () => {
@@ -115,6 +121,7 @@ describe('handleSilentRenewFailed', () => {
       login: () => undefined,
       logout: () => order.push('session.logout'),
       markUnauthenticated: () => undefined,
+      bootstrapPrefetch: () => undefined,
       isAuthenticated: () => true,
       isLoadingSession: () => false,
     };

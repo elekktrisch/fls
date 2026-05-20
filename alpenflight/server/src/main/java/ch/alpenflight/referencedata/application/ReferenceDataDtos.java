@@ -2,6 +2,7 @@ package ch.alpenflight.referencedata.application;
 
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
+import ch.alpenflight.platform.id.LocationTypeId;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -23,4 +24,11 @@ public final class ReferenceDataDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) ClubStateId id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name) {}
+
+    @Schema(description = "LocationType listitem projection — dropdown fuel.")
+    public record LocationTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocationTypeId id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isAirfield) {}
 }
