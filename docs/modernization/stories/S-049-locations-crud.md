@@ -1,6 +1,6 @@
 ---
 id: S-049
-title: Locations CRUD (shared data + per-tenant visibility)
+title: Locations CRUD (reference data)
 epic: E-06
 status: in_progress
 started_at: 2026-05-20
@@ -8,13 +8,13 @@ depends_on: [S-047, S-022, S-026]
 github_issue: 88
 acceptance:
   - `Location` + `LocationType` + `InOutboundPoint` ported as shared reference data — no `@TenantId`. Mutation gated by `@PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")`.
-  - Per-tenant Location visibility — new `club_location_visibility` join table (`PK(club_id, location_id)`, `@TenantId` on `club_id`). Editable by `CLUB_ADMINISTRATOR` for own club + `SYSTEM_ADMINISTRATOR` for any club. List endpoint enriches each Location with `isVisibleHere` for the caller's tenant.
   - `InOutboundPoint` lives as a child of Location's aggregate; managed via Location's edit screen only (no top-level CRUD endpoint).
   - ICAO code validated server-side against `^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$` (legacy was lax — flagged in `## Assumptions made`).
   - List/edit screens use the kit components from S-008.
   - `e2e/tests/masterdata/locations-crud.spec.ts` parity (port semantics, not legacy URL shape).
   - LocationType admin CRUD UI is **deferred** to a follow-up; S-049 ships LocationType as a Flyway-seeded read-only dropdown.
-estimate: L
+  - **Per-tenant visibility deferred to S-049b** — operator confirmed the data shape (shared `Location` + per-tenant visibility join), but the visibility join + endpoint + UI is filed as a follow-up to keep this PR reviewable.
+estimate: M
 adr_refs: [0005, 0008, 0018, 0019, 0022, 0023, 0026]
 parity_test: e2e/tests/masterdata/locations-crud.spec.ts
 refined: true
