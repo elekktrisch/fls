@@ -14,9 +14,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -30,22 +34,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * Role-gate + tenant-isolation matrix for Locations. After S-049b Locations
- * are TENANT_SCOPED via {@code @TenantId}: writes open to {@code CLUB_ADMIN}
- * (own club only) + {@code SYSTEM_ADMIN} (any club, by claim or runAs);
- * reads are tenant-filtered.
- *
- * <p>Coverage:
- * <ul>
- *   <li>anonymous → 401 on read + write.</li>
- *   <li>CLUB_ADMIN → 200/201/204 on own-club CRUD; 404 (row invisible) on
- *       another club's Location id.</li>
- *   <li>SYSTEM_ADMIN → 200/201/204 on whichever club its {@code clubId} claim
- *       points at.</li>
- *   <li>FLIGHT_OPERATOR / OFFICE_USER → 200 on read, 403 on every write
- *       (not in the writer roster).</li>
- *   <li>Cross-tenant isolation: CLUB_A's list and CLUB_B's list are disjoint.</li>
- * </ul>
+ * Role-gate + tenant-isolation matrix for the Locations REST surface, slim
+ * per CONVENTIONS.md §"Test pyramid". Each test proves one cross-layer
+ * property; matrix coverage is parameterised. Domain-level rules
+ * (ICAO regex, blank name) belong in {@code LocationDomainTest}; per-tenant
+ * data isolation lives in {@code LocationsTenantIsolationIT}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -83,154 +76,95 @@ class LocationsAuthorizationIT {
         seedClub(CLUB_B, "bravo");
     }
 
-    // ----- Anonymous -----
-
     @Test
-    void list_anonymous_returns_401() throws Exception {
+    void anonymous_returns_401_on_read_and_write() throws Exception {
         mvc.perform(get("/api/v1/locations")).andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void post_anonymous_returns_401() throws Exception {
         mvc.perform(post("/api/v1/locations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.createPayload(
-                                "Anon " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
+                                "Anon", LocationsControllerIT.uniqueIcao()))))
                 .andExpect(status().isUnauthorized());
     }
 
-    // ----- SYSTEM_ADMINISTRATOR (write-allowed under whichever club its claim asserts) -----
-
-    @Test
-    void post_sysadmin_under_clubA_returns_201() throws Exception {
+    @ParameterizedTest(name = "{0} writing under own club returns {1}")
+    @MethodSource("ownClubWriteMatrix")
+    void own_club_write_status(String authority, int expectedStatus) throws Exception {
         mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A))
+                        .with(role("ROLE_" + authority, CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.createPayload(
-                                "Sysadmin " + LocationsControllerIT.suffix(),
+                                authority + " " + LocationsControllerIT.suffix(),
                                 LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isCreated());
+                .andExpect(status().is(expectedStatus));
+    }
+
+    static Stream<Arguments> ownClubWriteMatrix() {
+        return Stream.of(
+                // Writer roster — opens to CLUB_ADMIN (own club via @TenantId) +
+                // SYSTEM_ADMIN (any club).
+                Arguments.of("SYSTEM_ADMINISTRATOR", 201),
+                Arguments.of("CLUB_ADMINISTRATOR", 201),
+                // Read-only roster — 403 on every write verb (rebuked at the
+                // @PreAuthorize gate, not by tenancy).
+                Arguments.of("FLIGHT_OPERATOR", 403),
+                Arguments.of("OFFICE_USER", 403));
     }
 
     @Test
-    void delete_sysadmin_returns_204() throws Exception {
-        String externalId = createUnder(CLUB_A);
-        mvc.perform(delete("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A)))
-                .andExpect(status().isNoContent());
-    }
-
-    // ----- CLUB_ADMINISTRATOR — full own-club CRUD allowed -----
-
-    @Test
-    void list_clubadmin_returns_200() throws Exception {
-        mvc.perform(get("/api/v1/locations").with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void post_clubadmin_own_club_returns_201() throws Exception {
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Club admin own " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isCreated());
-    }
-
-    @Test
-    void put_clubadmin_own_club_returns_200() throws Exception {
+    void club_admin_full_crud_own_club() throws Exception {
         String icao = LocationsControllerIT.uniqueIcao();
-        String externalId = createUnder(CLUB_A, icao);
-        mvc.perform(put("/api/v1/locations/" + externalId)
+        String createdId = createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", icao);
+        // Read
+        mvc.perform(get("/api/v1/locations/" + createdId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
+                .andExpect(status().isOk());
+        // Update
+        mvc.perform(put("/api/v1/locations/" + createdId)
                         .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.updatePayload(
-                                "Renamed by club admin", icao))))
+                        .content(toJson(LocationsControllerIT.updatePayload("Renamed", icao))))
                 .andExpect(status().isOk());
-    }
-
-    @Test
-    void delete_clubadmin_own_club_returns_204() throws Exception {
-        String externalId = createUnder(CLUB_A);
-        mvc.perform(delete("/api/v1/locations/" + externalId)
+        // Delete
+        mvc.perform(delete("/api/v1/locations/" + createdId)
                         .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    void put_clubadmin_other_club_returns_404() throws Exception {
-        // CLUB_A creates a row; CLUB_B's admin tries to update it. The row is
-        // invisible under CLUB_B's tenant scope, so the service throws
-        // LocationNotFoundException → controller maps to 404. NOT 403 — the
-        // tenant filter is structural, the row simply does not exist for B.
-        String externalId = createUnder(CLUB_A);
-        mvc.perform(put("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.updatePayload(
-                                "Cross-tenant hijack", LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isNotFound());
+    void club_admin_cross_tenant_sees_404_not_403() throws Exception {
+        // CLUB_A creates a row; CLUB_B's admin cannot see or mutate it —
+        // Hibernate's @TenantId filter makes the row invisible under B's
+        // scope, so the service throws LocationNotFoundException → 404.
+        // 404 (not 403) is structural: the row simply doesn't exist for B.
+        String externalId = createUnderClub(CLUB_A, "ROLE_SYSTEM_ADMINISTRATOR",
+                LocationsControllerIT.uniqueIcao());
+        for (var perform : java.util.List.<Runnable>of(
+                () -> safe(() -> mvc.perform(get("/api/v1/locations/" + externalId)
+                                .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                        .andExpect(status().isNotFound())),
+                () -> safe(() -> mvc.perform(put("/api/v1/locations/" + externalId)
+                                .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(toJson(LocationsControllerIT.updatePayload(
+                                        "Cross-tenant hijack", LocationsControllerIT.uniqueIcao()))))
+                        .andExpect(status().isNotFound())),
+                () -> safe(() -> mvc.perform(delete("/api/v1/locations/" + externalId)
+                                .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                        .andExpect(status().isNotFound())))) {
+            perform.run();
+        }
     }
 
     @Test
-    void delete_clubadmin_other_club_returns_404() throws Exception {
-        String externalId = createUnder(CLUB_A);
-        mvc.perform(delete("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void get_clubadmin_other_club_returns_404() throws Exception {
-        String externalId = createUnder(CLUB_A);
-        mvc.perform(get("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
-                .andExpect(status().isNotFound());
-    }
-
-    // ----- FLIGHT_OPERATOR (read OK, write FORBIDDEN — not in the writer roster) -----
-
-    @Test
-    void list_flightoperator_returns_200() throws Exception {
-        mvc.perform(get("/api/v1/locations").with(role("ROLE_FLIGHT_OPERATOR", CLUB_A)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void post_flightoperator_returns_403() throws Exception {
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_FLIGHT_OPERATOR", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Flight op try " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isForbidden());
-    }
-
-    // ----- OFFICE_USER (read OK, write FORBIDDEN — not in the writer roster) -----
-
-    @Test
-    void post_office_user_returns_403() throws Exception {
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_OFFICE_USER", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Office try " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isForbidden());
-    }
-
-    // ----- Cross-tenant isolation -----
-
-    @Test
-    void clubA_and_clubB_lists_are_disjoint() throws Exception {
+    void lists_for_two_clubs_are_disjoint_and_same_icao_coexists() throws Exception {
         String aIcao = LocationsControllerIT.uniqueIcao();
         String bIcao = LocationsControllerIT.uniqueIcao();
-        createUnder(CLUB_A, aIcao);
-        createUnder(CLUB_B, bIcao);
+        createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", aIcao);
+        createUnderClub(CLUB_B, "ROLE_CLUB_ADMINISTRATOR", bIcao);
+        // Same ICAO across clubs coexists at the HTTP layer (proves the
+        // per-club partial UNIQUE replaced the global one).
+        createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", "SH99");
+        createUnderClub(CLUB_B, "ROLE_CLUB_ADMINISTRATOR", "SH99");
 
         String aList = mvc.perform(get("/api/v1/locations")
                         .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
@@ -241,27 +175,8 @@ class LocationsAuthorizationIT {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        assertThat(aList).as("A's list must contain A's ICAO").contains(aIcao);
-        assertThat(aList).as("A's list must NOT contain B's ICAO").doesNotContain(bIcao);
-        assertThat(bList).as("B's list must contain B's ICAO").contains(bIcao);
-        assertThat(bList).as("B's list must NOT contain A's ICAO").doesNotContain(aIcao);
-    }
-
-    @Test
-    void same_icao_in_two_different_clubs_succeeds_at_http_layer() throws Exception {
-        String icao = LocationsControllerIT.uniqueIcao();
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Shared ICAO A", icao))))
-                .andExpect(status().isCreated());
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Shared ICAO B", icao))))
-                .andExpect(status().isCreated());
+        assertThat(aList).contains(aIcao).doesNotContain(bIcao);
+        assertThat(bList).contains(bIcao).doesNotContain(aIcao);
     }
 
     // ----- helpers -----
@@ -272,15 +187,11 @@ class LocationsAuthorizationIT {
                 .authorities(new SimpleGrantedAuthority(authority));
     }
 
-    private String createUnder(String clubId) throws Exception {
-        return createUnder(clubId, LocationsControllerIT.uniqueIcao());
-    }
-
-    private String createUnder(String clubId, String icao) throws Exception {
+    private String createUnderClub(String clubId, String authority, String icao) throws Exception {
         Map<String, Object> body = LocationsControllerIT.createPayload(
                 "Authz fixture " + LocationsControllerIT.suffix(), icao);
         String responseBody = mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", clubId))
+                        .with(role(authority, clubId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(body)))
                 .andExpect(status().isCreated())
@@ -312,11 +223,29 @@ class LocationsAuthorizationIT {
                 NAME_PREFIX + slug);
     }
 
+    @SuppressWarnings("unused")
+    private static JsonNode parse(String body) throws Exception {
+        return MAPPER.readTree(body);
+    }
+
     private static String toJson(Map<String, Object> body) {
         try {
             return MAPPER.writeValueAsString(body);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to serialise payload", e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface CheckedRunnable {
+        void run() throws Exception;
+    }
+
+    private static void safe(CheckedRunnable r) {
+        try {
+            r.run();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
         }
     }
 }

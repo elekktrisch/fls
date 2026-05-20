@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.locations.application.LocationDtos.LocationCreateRequest;
 import ch.alpenflight.locations.application.LocationDtos.LocationDetail;
-import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.locations.domain.IcaoCodeAlreadyExistsException;
 import ch.alpenflight.locations.domain.LocationNotFoundException;
+import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.platform.id.CountryId;
 import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.LocationTypeId;
@@ -16,6 +16,7 @@ import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,12 +24,23 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Per-tenant Locations: same ICAO can exist in multiple clubs (once per club);
- * a Location written under tenant A is invisible to tenant B; the {@code
- * @TenantId} discriminator filter rides every read; the per-club partial
- * UNIQUE rejects same-club duplicates.
+ * Cross-layer tenancy properties for the Locations aggregate:
  *
- * <p>Mirrors {@code MemberStateTenantIsolationIT} for the seed/cleanup pattern.
+ * <ul>
+ *   <li>The {@code @TenantId} discriminator filters reads (list + getById)
+ *       under the current tenant.</li>
+ *   <li>Per-club partial UNIQUE on {@code (club_id, icao_code)} rejects
+ *       same-club ICAO collisions but accepts cross-club coexistence.</li>
+ *   <li>The {@code NO_TENANT} sentinel yields empty reads and FK-rejected
+ *       writes.</li>
+ *   <li>Writes persist the resolved {@code club_id} to the row.</li>
+ * </ul>
+ *
+ * <p>Per CONVENTIONS.md §"Test pyramid", these are the cross-layer
+ * properties that can only be proved with a live Hibernate + Postgres
+ * stack. Aggregate-level rules (ICAO regex, blank-name rejection) live in
+ * {@code LocationDomainTest}; HTTP routing + authz live in
+ * {@code LocationsControllerIT} / {@code LocationsAuthorizationIT}.
  */
 class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
@@ -52,84 +64,58 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     @WithTenant(CLUB_A_LITERAL)
-    void list_under_A_returns_only_A_rows() {
-        LocationDetail aRow = locations.createLocation(payload("Field A " + suffix(), "AA01"));
-        TenantTestContext.runAs(CLUB_B, () -> locations.createLocation(payload("Field B " + suffix(), "AA01")));
+    void tenant_filter_isolates_reads_and_persists_club_id() {
+        LocationDetail aRow = locations.createLocation(payload("Field A", "AA01"));
+        AtomicReference<LocationDetail> bRowRef = new AtomicReference<>();
+        TenantTestContext.runAs(CLUB_B, () ->
+                bRowRef.set(locations.createLocation(payload("Field B", "AB02"))));
 
-        List<String> aSeen = locations.listLocations().stream()
-                .map(li -> li.id().toString())
-                .toList();
+        // A's list contains A's row; getById of B's row throws (invisible to A).
+        assertThat(locations.listLocations())
+                .extracting(li -> li.id().toString())
+                .contains(aRow.id().toString())
+                .doesNotContain(bRowRef.get().id().toString());
+        LocationId bExternal = bRowRef.get().id();
+        assertThatThrownBy(() -> locations.getLocation(bExternal))
+                .isInstanceOf(LocationNotFoundException.class);
 
-        assertThat(aSeen).contains(aRow.id().toString());
-        TenantTestContext.runAs(CLUB_B, () -> {
-            List<String> bSeen = locations.listLocations().stream()
-                    .map(li -> li.id().toString())
-                    .toList();
-            assertThat(bSeen).doesNotContain(aRow.id().toString());
-        });
+        // The persisted row carries A's club_id (not B's, not nil).
+        Integer matches = jdbc.queryForObject(
+                "SELECT count(*) FROM location WHERE id = ?::uuid AND club_id = ?::uuid",
+                Integer.class, aRow.id().value().toString(), CLUB_A.toString());
+        assertThat(matches).isEqualTo(1);
     }
 
     @Test
     @WithTenant(CLUB_A_LITERAL)
-    void same_icao_in_two_different_clubs_succeeds() {
-        String icao = "AB22";
-        LocationDetail a = locations.createLocation(payload("LSZH A", icao));
+    void same_icao_coexists_across_clubs_but_collides_within_one_club() {
+        String icao = "AC33";
+        locations.createLocation(payload("Same ICAO A", icao));
         TenantTestContext.runAs(CLUB_B, () -> {
-            LocationDetail b = locations.createLocation(payload("LSZH B", icao));
-            assertThat(b.id()).isNotEqualTo(a.id());
+            LocationDetail b = locations.createLocation(payload("Same ICAO B", icao));
             assertThat(b.icaoCode()).isEqualTo(icao);
         });
-    }
-
-    @Test
-    @WithTenant(CLUB_A_LITERAL)
-    void same_icao_within_one_club_fails_with_409_signal() {
-        String icao = "AC33";
-        locations.createLocation(payload("First", icao));
-        assertThatThrownBy(() -> locations.createLocation(payload("Second", icao)))
+        assertThatThrownBy(() -> locations.createLocation(payload("Dup in A", icao)))
                 .isInstanceOf(IcaoCodeAlreadyExistsException.class);
     }
 
     @Test
-    @WithTenant(CLUB_A_LITERAL)
-    void location_from_other_club_is_invisible_via_get_by_id() {
-        java.util.concurrent.atomic.AtomicReference<LocationDetail> bRowRef = new java.util.concurrent.atomic.AtomicReference<>();
-        TenantTestContext.runAs(CLUB_B, () ->
-                bRowRef.set(locations.createLocation(payload("B-only", "AD44"))));
-        LocationId externalId = bRowRef.get().id();
-        assertThatThrownBy(() -> locations.getLocation(externalId))
-                .isInstanceOf(LocationNotFoundException.class);
-    }
-
-    @Test
-    void no_tenant_context_yields_empty_list() {
-        // No @WithTenant on this method: resolver returns NO_TENANT (nil UUID).
-        // Hibernate appends WHERE club_id = nil → zero rows.
-        TenantTestContext.runAs(CLUB_A, () -> locations.createLocation(payload("Hidden A", "AE55")));
+    void no_tenant_context_yields_empty_reads_and_fk_rejected_writes() {
+        // No @WithTenant — resolver returns NO_TENANT (nil UUID). Reads filter
+        // to zero rows; writes fail at fk_location_club_id (nil UUID is absent
+        // from `club`). Both halves are the @TenantId fail-closed contract.
+        TenantTestContext.runAs(CLUB_A, () ->
+                locations.createLocation(payload("Hidden A", "AE55")));
         assertThat(locations.listLocations()).isEmpty();
-    }
-
-    @Test
-    void no_tenant_context_inserts_fail_at_fk_constraint() {
         assertThatThrownBy(() -> locations.createLocation(payload("would-poison", "AF66")))
-                .isInstanceOfAny(DataIntegrityViolationException.class);
-    }
-
-    @Test
-    @WithTenant(CLUB_A_LITERAL)
-    void write_persists_the_correct_club_id_to_db() {
-        LocationDetail saved = locations.createLocation(payload("Persisted", "AG77"));
-        Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM location WHERE id = ?::uuid AND club_id = ?::uuid",
-                Integer.class, saved.id().value().toString(), CLUB_A.toString());
-        assertThat(matches).isEqualTo(1);
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private LocationCreateRequest payload(String name, String icaoCode) {
         UUID countryId = UUID.fromString(LocationsTestFixtures.SEED_COUNTRY_ID);
         UUID typeId = UUID.fromString(LocationsTestFixtures.SEED_LOCATION_TYPE_GRASS_RUNWAY);
         return new LocationCreateRequest(
-                name,
+                name + " " + Long.toString(System.nanoTime(), 36),
                 null,
                 CountryId.of(countryId),
                 LocationTypeId.of(typeId),
@@ -167,9 +153,5 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
                 countryId.toString(),
                 clubStateId.toString(),
                 TEST_NAME_PREFIX + slug);
-    }
-
-    private static String suffix() {
-        return Long.toString(System.nanoTime(), 36);
     }
 }
