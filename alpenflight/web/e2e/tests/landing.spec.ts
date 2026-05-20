@@ -16,9 +16,12 @@ test.describe('landing — i18n + locale switch', () => {
   test('switches locale to English without reloading the page', async ({ page }) => {
     await page.goto('/?lang=de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await expect(page.locator('p').first()).toContainText(/Flugbuch/);
 
-    let navigations = 0;
-    page.on('framenavigated', () => navigations++);
+    // Stamp a witness on the live document; if the locale switch caused
+    // a full reload, the stamped attribute would disappear when the new
+    // document loads. SPA-internal route/state changes preserve it.
+    await page.evaluate(() => document.documentElement.setAttribute('data-reload-witness', 'kept'));
     const startUrl = page.url();
 
     await page.getByTestId('af-lang-en').click();
@@ -26,7 +29,7 @@ test.describe('landing — i18n + locale switch', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('p').first()).toContainText(/Flight logging/);
     expect(page.url()).toBe(startUrl);
-    expect(navigations).toBe(0);
+    await expect(page.locator('html')).toHaveAttribute('data-reload-witness', 'kept');
   });
 
   test('cycles through all four locales (de → fr → it → en → de)', async ({ page }) => {

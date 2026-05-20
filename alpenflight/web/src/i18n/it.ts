@@ -2,16 +2,16 @@ import type { Translations } from './de';
 
 const it: Translations = {
   landing: {
-    tagline: 'Diario di volo, prenotazioni e soci — per i club svizzeri.',
     actions: {
       signIn: 'Accedi',
       tryDemo: 'Prova la demo',
     },
-    language: 'Lingua',
     footer: {
-      privacy: 'Privacy',
       imprint: 'Note legali',
+      privacy: 'Privacy',
     },
+    language: 'Lingua',
+    tagline: 'Diario di volo, prenotazioni e soci — per i club svizzeri.',
   },
 };
 
