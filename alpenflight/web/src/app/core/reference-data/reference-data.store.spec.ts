@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest';
 
 import { ClubStatesService } from '@api/generated/club-states/club-states.service';
 import { CountriesService } from '@api/generated/countries/countries.service';
-import type { ClubStateResponse, CountryResponse } from '@api/generated/model';
+import { LocationTypesService } from '@api/generated/location-types/location-types.service';
+import type {
+  ClubStateResponse,
+  CountryResponse,
+  LocationTypeResponse,
+} from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
 import { ReferenceDataStore } from './reference-data.store';
@@ -23,6 +28,13 @@ const sampleClubState: ClubStateResponse = {
   name: 'Active',
 };
 
+const sampleLocationType: LocationTypeResponse = {
+  id: '019e2e15-2c00-7110-8000-000000001110',
+  code: 'AIRPORT',
+  description: 'Airport',
+  isAirfield: true,
+};
+
 function countriesStub(impl: () => Observable<CountryResponse[]>): CountriesService {
   return {
     listCountries: (() => impl()) as CountriesService['listCountries'],
@@ -35,9 +47,18 @@ function clubStatesStub(impl: () => Observable<ClubStateResponse[]>): ClubStates
   } as unknown as ClubStatesService;
 }
 
+function locationTypesStub(
+  impl: () => Observable<LocationTypeResponse[]>,
+): LocationTypesService {
+  return {
+    listLocationTypes: (() => impl()) as LocationTypesService['listLocationTypes'],
+  } as unknown as LocationTypesService;
+}
+
 function configure(opts: {
   countries?: () => Observable<CountryResponse[]>;
   clubStates?: () => Observable<ClubStateResponse[]>;
+  locationTypes?: () => Observable<LocationTypeResponse[]>;
 }): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
   TestBed.configureTestingModule({
@@ -51,6 +72,10 @@ function configure(opts: {
       {
         provide: ClubStatesService,
         useValue: clubStatesStub(opts.clubStates ?? (() => of([sampleClubState]))),
+      },
+      {
+        provide: LocationTypesService,
+        useValue: locationTypesStub(opts.locationTypes ?? (() => of([sampleLocationType]))),
       },
     ],
   });
@@ -71,16 +96,18 @@ describe('ReferenceDataStore', () => {
     expect(store.needsRefresh()).toBe(true);
   });
 
-  it('loadAll happy path fills both collections + clears needsRefresh', () => {
+  it('loadAll happy path fills all collections + clears needsRefresh', () => {
     configure({});
     const store = TestBed.inject(ReferenceDataStore);
     store.loadAll();
     expect(store.countries().map((c) => c.id)).toEqual([sampleCountry.id]);
     expect(store.clubStates().map((s) => s.id)).toEqual([sampleClubState.id]);
+    expect(store.locationTypes().map((t) => t.id)).toEqual([sampleLocationType.id]);
     expect(store.isLoading()).toBe(false);
     expect(store.needsRefresh()).toBe(false);
     expect(store.countryById().get(sampleCountry.id!)?.iso2Code).toBe('CH');
     expect(store.clubStateById().get(sampleClubState.id!)?.code).toBe('ACTIVE');
+    expect(store.locationTypeById().get(sampleLocationType.id!)?.code).toBe('AIRPORT');
   });
 
   it('loadAll keeps both partial — one endpoint failing does not stall the other', () => {

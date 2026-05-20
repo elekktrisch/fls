@@ -9,7 +9,10 @@ export type MutationEvent =
   | { kind: 'flight.booked'; flightId: string }
   | { kind: 'club.created'; id: string }
   | { kind: 'club.updated'; id: string }
-  | { kind: 'club.deleted'; id: string };
+  | { kind: 'club.deleted'; id: string }
+  | { kind: 'location.created'; id: string }
+  | { kind: 'location.updated'; id: string }
+  | { kind: 'location.deleted'; id: string };
 
 export const MUTATION_BUS = new InjectionToken<Subject<MutationEvent>>('MUTATION_BUS', {
   providedIn: 'root',

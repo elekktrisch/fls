@@ -26,9 +26,10 @@ import {
 } from 'rxjs';
 
 import type {
-  ClubCreateRequest,
-  ClubResponse,
-  ClubUpdateRequest
+  LocationCreateRequest,
+  LocationDetail,
+  LocationListItem,
+  LocationUpdateRequest
 } from '../model';
 
 
@@ -77,19 +78,19 @@ type HttpClientObserveOptions = HttpClientOptions & {
 
 
 @Injectable({ providedIn: 'root' })
-export class ClubsService {
+export class LocationsService {
   private readonly http = inject(HttpClient);
 /**
- * @summary Read a single club by id.
+ * @summary Read a single Location by id (includes nested IOPs).
  */
- getClub<TData = ClubResponse>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
- getClub<TData = ClubResponse>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- getClub<TData = ClubResponse>(id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  getClub<TData = ClubResponse>(
+ getLocation<TData = LocationDetail>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
+ getLocation<TData = LocationDetail>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getLocation<TData = LocationDetail>(id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getLocation<TData = LocationDetail>(
     id: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.get<TData>(
-      `/api/v1/clubs/${id}`,{
+      `/api/v1/locations/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -98,7 +99,7 @@ export class ClubsService {
 
     if (options?.observe === 'response') {
       return this.http.get<TData>(
-      `/api/v1/clubs/${id}`,{
+      `/api/v1/locations/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -106,28 +107,28 @@ export class ClubsService {
     }
 
     return this.http.get<TData>(
-      `/api/v1/clubs/${id}`,{
+      `/api/v1/locations/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
     );
   }
 /**
- * @summary Update an existing club. `clubKey` is immutable post-create.
+ * @summary Update a Location. PUT body replaces the full IOP list.
  */
- updateClub<TData = ClubResponse>(id: string,
-    clubUpdateRequest: ClubUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
- updateClub<TData = ClubResponse>(id: string,
-    clubUpdateRequest: ClubUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- updateClub<TData = ClubResponse>(id: string,
-    clubUpdateRequest: ClubUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  updateClub<TData = ClubResponse>(
+ updateLocation<TData = LocationDetail>(id: string,
+    locationUpdateRequest: LocationUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateLocation<TData = LocationDetail>(id: string,
+    locationUpdateRequest: LocationUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateLocation<TData = LocationDetail>(id: string,
+    locationUpdateRequest: LocationUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateLocation<TData = LocationDetail>(
     id: string,
-    clubUpdateRequest: ClubUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    locationUpdateRequest: LocationUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.put<TData>(
-      `/api/v1/clubs/${id}`,
-      clubUpdateRequest,{
+      `/api/v1/locations/${id}`,
+      locationUpdateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -136,8 +137,8 @@ export class ClubsService {
 
     if (options?.observe === 'response') {
       return this.http.put<TData>(
-      `/api/v1/clubs/${id}`,
-      clubUpdateRequest,{
+      `/api/v1/locations/${id}`,
+      locationUpdateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -145,24 +146,24 @@ export class ClubsService {
     }
 
     return this.http.put<TData>(
-      `/api/v1/clubs/${id}`,
-      clubUpdateRequest,{
+      `/api/v1/locations/${id}`,
+      locationUpdateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
     );
   }
 /**
- * @summary Soft-delete a club.
+ * @summary Soft-delete a Location.
  */
- deleteClub<TData = void>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
- deleteClub<TData = void>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- deleteClub<TData = void>(id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  deleteClub<TData = void>(
+ deleteLocation<TData = void>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
+ deleteLocation<TData = void>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ deleteLocation<TData = void>(id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  deleteLocation<TData = void>(
     id: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.delete<TData>(
-      `/api/v1/clubs/${id}`,{
+      `/api/v1/locations/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -171,7 +172,7 @@ export class ClubsService {
 
     if (options?.observe === 'response') {
       return this.http.delete<TData>(
-      `/api/v1/clubs/${id}`,{
+      `/api/v1/locations/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -179,23 +180,23 @@ export class ClubsService {
     }
 
     return this.http.delete<TData>(
-      `/api/v1/clubs/${id}`,{
+      `/api/v1/locations/${id}`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
     );
   }
 /**
- * @summary List all clubs (active, sorted by name).
+ * @summary List all locations (active, sorted by sort_indicator + name).
  */
- listClubs<TData = ClubResponse[]>( options?: HttpClientBodyOptions): Observable<TData>;
- listClubs<TData = ClubResponse[]>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- listClubs<TData = ClubResponse[]>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  listClubs<TData = ClubResponse[]>(
+ listLocations<TData = LocationListItem[]>( options?: HttpClientBodyOptions): Observable<TData>;
+ listLocations<TData = LocationListItem[]>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ listLocations<TData = LocationListItem[]>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  listLocations<TData = LocationListItem[]>(
      options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.get<TData>(
-      `/api/v1/clubs`,{
+      `/api/v1/locations`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -204,7 +205,7 @@ export class ClubsService {
 
     if (options?.observe === 'response') {
       return this.http.get<TData>(
-      `/api/v1/clubs`,{
+      `/api/v1/locations`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -212,24 +213,24 @@ export class ClubsService {
     }
 
     return this.http.get<TData>(
-      `/api/v1/clubs`,{
+      `/api/v1/locations`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
     );
   }
 /**
- * @summary Create a new club. Slug must be unique.
+ * @summary Create a new Location. ICAO code must be unique among active rows.
  */
- createClub<TData = ClubResponse>(clubCreateRequest: ClubCreateRequest, options?: HttpClientBodyOptions): Observable<TData>;
- createClub<TData = ClubResponse>(clubCreateRequest: ClubCreateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- createClub<TData = ClubResponse>(clubCreateRequest: ClubCreateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  createClub<TData = ClubResponse>(
-    clubCreateRequest: ClubCreateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+ createLocation<TData = LocationDetail>(locationCreateRequest: LocationCreateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ createLocation<TData = LocationDetail>(locationCreateRequest: LocationCreateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ createLocation<TData = LocationDetail>(locationCreateRequest: LocationCreateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  createLocation<TData = LocationDetail>(
+    locationCreateRequest: LocationCreateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.post<TData>(
-      `/api/v1/clubs`,
-      clubCreateRequest,{
+      `/api/v1/locations`,
+      locationCreateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
       }
@@ -238,8 +239,8 @@ export class ClubsService {
 
     if (options?.observe === 'response') {
       return this.http.post<TData>(
-      `/api/v1/clubs`,
-      clubCreateRequest,{
+      `/api/v1/locations`,
+      locationCreateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
       }
@@ -247,8 +248,8 @@ export class ClubsService {
     }
 
     return this.http.post<TData>(
-      `/api/v1/clubs`,
-      clubCreateRequest,{
+      `/api/v1/locations`,
+      locationCreateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
@@ -256,3 +257,8 @@ export class ClubsService {
   }
 };
 
+export type GetLocationClientResult = NonNullable<LocationDetail>
+export type UpdateLocationClientResult = NonNullable<LocationDetail>
+export type DeleteLocationClientResult = NonNullable<void>
+export type ListLocationsClientResult = NonNullable<LocationListItem[]>
+export type CreateLocationClientResult = NonNullable<LocationDetail>
