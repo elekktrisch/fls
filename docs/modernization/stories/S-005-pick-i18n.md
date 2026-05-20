@@ -6,6 +6,7 @@ status: in_progress
 started_at: 2026-05-19
 depends_on: [S-002]
 github_issue: 84
+github_pr: 85
 acceptance:
   - i18n library chosen: `@angular/localize` (built-in) or transloco. Decision documented.
   - Translation files live as bundled JSON under `alpenflight/web/src/i18n/<locale>.json` — *not* loaded from the server (C15).

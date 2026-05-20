@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// `?lang=` query param pins the cold-start locale so tests don't depend on
+// the test browser's Accept-Language (Chromium defaults to en-US, which
+// the resolver correctly maps to `en`). See `core/i18n/lang-resolver.ts`.
+
 test.describe('landing — i18n + locale switch', () => {
-  test('renders the German tagline by default and html[lang=de]', async ({ page }) => {
-    await page.goto('/');
+  test('renders the German tagline when ?lang=de and html[lang=de]', async ({ page }) => {
+    await page.goto('/?lang=de');
 
     await expect(page).toHaveTitle(/AlpenFlight/i);
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
@@ -10,13 +14,14 @@ test.describe('landing — i18n + locale switch', () => {
   });
 
   test('switches locale to English without reloading the page', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?lang=de');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 
     let navigations = 0;
     page.on('framenavigated', () => navigations++);
     const startUrl = page.url();
 
-    await page.getByRole('button', { name: 'EN' }).click();
+    await page.getByRole('button', { name: 'EN', exact: true }).click();
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('p').first()).toContainText(/Flight logging/);
@@ -25,7 +30,8 @@ test.describe('landing — i18n + locale switch', () => {
   });
 
   test('cycles through all four locales (de → fr → it → en → de)', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?lang=de');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 
     const cases = [
       { btn: 'FR', lang: 'fr', match: /Carnet de vol/ },
@@ -34,7 +40,7 @@ test.describe('landing — i18n + locale switch', () => {
       { btn: 'DE', lang: 'de', match: /Flugbuch/ },
     ];
     for (const c of cases) {
-      await page.getByRole('button', { name: c.btn }).click();
+      await page.getByRole('button', { name: c.btn, exact: true }).click();
       await expect(page.locator('html')).toHaveAttribute('lang', c.lang);
       await expect(page.locator('p').first()).toContainText(c.match);
     }
@@ -42,10 +48,10 @@ test.describe('landing — i18n + locale switch', () => {
 
   test('AC-DIR-1: locale picker is reachable at a mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
+    await page.goto('/?lang=de');
 
     for (const code of ['DE', 'FR', 'IT', 'EN']) {
-      const btn = page.getByRole('button', { name: code });
+      const btn = page.getByRole('button', { name: code, exact: true });
       await expect(btn).toBeVisible();
       const box = await btn.boundingBox();
       expect(box).not.toBeNull();
@@ -53,7 +59,7 @@ test.describe('landing — i18n + locale switch', () => {
       expect(box!.height).toBeGreaterThan(0);
     }
 
-    await page.getByRole('button', { name: 'FR' }).click();
+    await page.getByRole('button', { name: 'FR', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
   });
 
@@ -63,10 +69,10 @@ test.describe('landing — i18n + locale switch', () => {
     await page.route('**/api/v1/translations**', (route) => route.abort());
     await page.route('**/i18n/**', (route) => route.abort());
 
-    await page.goto('/');
+    await page.goto('/?lang=de');
 
     await expect(page.locator('p').first()).toContainText(/Flugbuch/);
-    await page.getByRole('button', { name: 'FR' }).click();
+    await page.getByRole('button', { name: 'FR', exact: true }).click();
     await expect(page.locator('p').first()).toContainText(/Carnet de vol/);
   });
 });
