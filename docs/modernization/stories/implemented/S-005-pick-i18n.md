@@ -2,8 +2,9 @@
 id: S-005
 title: Pick + wire i18n library + bundled JSON shape
 epic: E-01
-status: in_progress
+status: done
 started_at: 2026-05-19
+done_at: 2026-05-20
 depends_on: [S-002]
 github_issue: 84
 github_pr: 85
