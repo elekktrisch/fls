@@ -47,9 +47,7 @@ function clubStatesStub(impl: () => Observable<ClubStateResponse[]>): ClubStates
   } as unknown as ClubStatesService;
 }
 
-function locationTypesStub(
-  impl: () => Observable<LocationTypeResponse[]>,
-): LocationTypesService {
+function locationTypesStub(impl: () => Observable<LocationTypeResponse[]>): LocationTypesService {
   return {
     listLocationTypes: (() => impl()) as LocationTypesService['listLocationTypes'],
   } as unknown as LocationTypesService;

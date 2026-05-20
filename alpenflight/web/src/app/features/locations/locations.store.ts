@@ -139,11 +139,9 @@ export const LocationsStore = signalStore(
             tapResponse({
               next: (d: LocationDetail) => {
                 const detail = withDetailId(d);
-                patchState(
-                  store,
-                  addEntity(listItemFromDetail(detail)),
-                  { selectedDetail: detail },
-                );
+                patchState(store, addEntity(listItemFromDetail(detail)), {
+                  selectedDetail: detail,
+                });
                 bus.next({ kind: 'location.created', id: detail.id });
               },
               error: (e: HttpErrorResponse) =>
@@ -161,11 +159,9 @@ export const LocationsStore = signalStore(
             tapResponse({
               next: (d: LocationDetail) => {
                 const detail = withDetailId(d);
-                patchState(
-                  store,
-                  setEntity(listItemFromDetail(detail)),
-                  { selectedDetail: detail },
-                );
+                patchState(store, setEntity(listItemFromDetail(detail)), {
+                  selectedDetail: detail,
+                });
                 bus.next({ kind: 'location.updated', id: detail.id });
               },
               error: (e: HttpErrorResponse) =>
@@ -212,9 +208,7 @@ export const LocationsStore = signalStore(
 
 function errorMessage(e: HttpErrorResponse, icaoCode: string | null | undefined): string {
   if (e.status === 409) {
-    return icaoCode
-      ? `ICAO code "${icaoCode}" is already in use.`
-      : 'ICAO code is already in use.';
+    return icaoCode ? `ICAO code "${icaoCode}" is already in use.` : 'ICAO code is already in use.';
   }
   const body = e.error as { field?: string; message?: string } | null;
   if (body && typeof body.message === 'string' && body.message.length > 0) {

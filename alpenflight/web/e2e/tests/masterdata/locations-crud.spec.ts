@@ -244,9 +244,7 @@ test('locations: editing the seeded row updates the list (UI round-trip)', async
   await page.getByTestId('locations-save-button').click();
 
   await expect(page).toHaveURL('/locations');
-  await expect(page.getByTestId(`location-row-${seedLocation.id}`)).toHaveText(
-    'Birrfeld Renamed',
-  );
+  await expect(page.getByTestId(`location-row-${seedLocation.id}`)).toHaveText('Birrfeld Renamed');
 
   // Persistence round-trip — reload tears down the providedIn:root store,
   // forcing it to refetch from the mock backend.

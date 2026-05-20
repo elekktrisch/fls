@@ -63,8 +63,7 @@ export const ReferenceDataStore = signalStore(
   withState<ReferenceDataState>(initial),
   withComputed(({ countries, clubStates, locationTypes, lastRefreshedAt }) => ({
     isEmpty: computed(
-      () =>
-        countries().length === 0 && clubStates().length === 0 && locationTypes().length === 0,
+      () => countries().length === 0 && clubStates().length === 0 && locationTypes().length === 0,
     ),
     countryById: computed(() => {
       const map = new Map<string, Country>();
@@ -114,9 +113,7 @@ export const ReferenceDataStore = signalStore(
             forkJoin({
               countries: countriesApi.listCountries().pipe(catchError(() => of(null))),
               clubStates: clubStatesApi.listClubStates().pipe(catchError(() => of(null))),
-              locationTypes: locationTypesApi
-                .listLocationTypes()
-                .pipe(catchError(() => of(null))),
+              locationTypes: locationTypesApi.listLocationTypes().pipe(catchError(() => of(null))),
             }).pipe(
               tapResponse({
                 next: ({ countries, clubStates, locationTypes }) => {

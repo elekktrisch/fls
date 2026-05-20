@@ -123,24 +123,16 @@ type LocationForm = FormGroup<{
           label="Name"
           for="LocationName"
           [required]="true"
-          [errors]="
-            form.controls.locationName.touched ? form.controls.locationName.errors : null
-          "
+          [errors]="form.controls.locationName.touched ? form.controls.locationName.errors : null"
         >
-          <af-input
-            inputId="LocationName"
-            formControlName="locationName"
-            autocomplete="off"
-          />
+          <af-input inputId="LocationName" formControlName="locationName" autocomplete="off" />
         </af-form-field>
 
         <af-form-field
           label="Short name"
           for="LocationShortName"
           [errors]="
-            form.controls.locationShortName.touched
-              ? form.controls.locationShortName.errors
-              : null
+            form.controls.locationShortName.touched ? form.controls.locationShortName.errors : null
           "
         >
           <af-input
@@ -214,11 +206,7 @@ type LocationForm = FormGroup<{
         </div>
 
         <af-form-field label="Description" for="Description">
-          <af-input
-            inputId="Description"
-            formControlName="description"
-            autocomplete="off"
-          />
+          <af-input inputId="Description" formControlName="description" autocomplete="off" />
         </af-form-field>
 
         <label class="flex items-center gap-2 cursor-pointer select-none mt-2">
@@ -247,18 +235,11 @@ type LocationForm = FormGroup<{
         </label>
 
         @if (showIopSection()) {
-          <section
-            class="mt-2 pt-3 border-t border-slate-200"
-            data-testid="locations-iop-section"
-          >
+          <section class="mt-2 pt-3 border-t border-slate-200" data-testid="locations-iop-section">
             <header class="flex items-center justify-between mb-2">
               <h2 class="text-base font-medium text-slate-900 m-0">In/outbound points</h2>
               @if (canMutate()) {
-                <af-button
-                  htmlType="button"
-                  (clicked)="addIop()"
-                  data-testid="locations-iop-add"
-                >
+                <af-button htmlType="button" (clicked)="addIop()" data-testid="locations-iop-add">
                   Add point
                 </af-button>
               }
@@ -358,17 +339,11 @@ export class LocationsEditPage {
   );
 
   protected readonly form: LocationForm = this.fb.group({
-    locationName: this.fb.nonNullable.control('', [
-      Validators.required,
-      Validators.maxLength(100),
-    ]),
+    locationName: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(100)]),
     locationShortName: this.fb.nonNullable.control('', [Validators.maxLength(50)]),
     countryId: this.fb.nonNullable.control('', [Validators.required]),
     locationTypeId: this.fb.nonNullable.control('', [Validators.required]),
-    icaoCode: this.fb.nonNullable.control('', [
-      Validators.maxLength(10),
-      icaoFormatValidator(),
-    ]),
+    icaoCode: this.fb.nonNullable.control('', [Validators.maxLength(10), icaoFormatValidator()]),
     latitude: this.fb.nonNullable.control('', [Validators.maxLength(10)]),
     longitude: this.fb.nonNullable.control('', [Validators.maxLength(10)]),
     description: this.fb.nonNullable.control(''),
