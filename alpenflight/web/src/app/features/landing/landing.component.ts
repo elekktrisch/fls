@@ -31,7 +31,10 @@ import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
         >
           <div class="inline-flex items-center gap-2.5">
             <af-icon name="plane" [size]="40" class="text-brand-500" />
-            <h1 id="af-landing-title" class="text-2xl font-medium tracking-tight text-slate-900 m-0">
+            <h1
+              id="af-landing-title"
+              class="text-2xl font-medium tracking-tight text-slate-900 m-0"
+            >
               AlpenFlight
             </h1>
           </div>
