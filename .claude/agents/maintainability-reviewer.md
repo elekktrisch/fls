@@ -45,7 +45,7 @@ Read-only. Categorised finding list goes back to the synthesis step.
 - **Style nits the formatter fixes.** `spotlessApply` / equivalent — operator runs it.
 - **Personal preference.** "I'd have named this `flightId` instead of `flightUuid`" — not a finding unless codebase convention exists.
 - **Hypothetical futures.** "What if we ever need multi-currency?" — out of scope.
-- **Other reviewers' lanes.** Security = `security-reviewer`. i18n / a11y = `usability-reviewer`. Test-code maintainability IS yours (test code is code).
+- **Other reviewers' lanes.** Security = `security-reviewer`. i18n / touch-targets / keyboard reachability = `usability-reviewer`. Test-code maintainability IS yours (test code is code).
 - **Doc-drift unless it actively misleads.** Per Directive 1, doc-drift defaults to improvement/nudge.
 
 ## Output

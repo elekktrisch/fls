@@ -35,7 +35,7 @@ Vision-doc amendment 2026-05-15b (§2 NFR "responsive breakpoints") makes Playwr
 
 - **AC-DIR-1 (viewport-parametrized projects).** `playwright.config.next.ts` defines four projects representing the breakpoint set: `mobile` (360 × 640), `tablet` (768 × 1024), `desktop` (1280 × 800), `desktop-dense` (1920 × 1080). Each spec runs against all four unless explicitly opted out via test metadata.
 - **AC-DIR-2 (per-spec viewport selection).** Specs that are inherently single-viewport (e.g. a dense-desktop keyboard-only flow) opt in via `test.use({ project: 'desktop-dense' })`. Specs that exercise the mobile / tablet layouts of the same page run on `mobile` / `tablet` / `desktop`. The matrix is explicit, not implicit.
-- **AC-DIR-3 (axe-core a11y check per viewport).** Every page-load spec runs an axe-core scan at the active viewport and fails on any "serious" or "critical" finding. The touch-target rule (§2 NFR) is part of this scan.
+- **AC-DIR-3 (touch-target check per viewport).** Every page-load spec runs a Playwright bounding-rect assertion on primary actions to enforce the touch-target NFR (≥ 44 × 44 px mobile, ≥ 28 × 28 px dense desktop icon-only). Axe-core a11y scanning was rescinded by vision amendment 2026-05-20d; only the touch-target part of the original AC survives.
 - **AC-DIR-4 (network-throttling profile).** A reusable `marginalConnectivity` NetworkConditions profile (200 ms RTT + 5% packet loss) ships with the config; specs that exercise offline / poor-coverage UX consume it.
 - **AC-DIR-5 (CI matrix expansion).** CI runs all four viewport projects on the new-stack workflow. Legacy-stack workflow remains single-viewport (legacy is laptop-only territory).
 

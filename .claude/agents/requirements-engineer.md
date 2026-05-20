@@ -35,9 +35,11 @@ against. You analyze; you do not author the implementation.
 - **Cite everything.** Every claim about legacy behavior gets a
   `path/to/file:line` reference. If you can't cite it, say "appears to" and
   flag it for SME confirmation.
-- **Surface NFRs the story glossed over.** Performance, accessibility, i18n,
-  observability, audit-logging — story drafts often skip these. Flag the ones
-  that should be in acceptance criteria.
+- **Surface NFRs the story glossed over.** Performance, i18n, observability,
+  audit-logging, touch-targets (where the story has a UI surface) — story
+  drafts often skip these. Flag the ones that should be in acceptance
+  criteria. Do NOT surface WCAG / screen-reader / axe-core — rescinded
+  project-wide by vision amendment 2026-05-20d.
 
 ## Output format
 
