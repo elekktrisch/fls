@@ -466,29 +466,31 @@ class FlightBaselineIntegrationTest {
     // ============================================================================
 
     @Test
-    void location_has_no_operating_club_id_column() throws Exception {
-        try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "location");
-            try (ResultSet rs = conn.createStatement().executeQuery(
-                    "SELECT 1 FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='location' "
-                            + "AND column_name IN ('operating_club_id', 'club_id')")) {
-                assertThat(rs.next())
-                        .as("location must NOT carry an operating_club_id / club_id column (sacred cow shared)")
-                        .isFalse();
-            }
-        }
+    void location_has_club_id_uuid_not_null() throws Exception {
+        // S-049b reclassified Locations from CROSS_TENANT reference data to
+        // TENANT_SCOPED masterdata. Same physical airport may exist N times
+        // across clubs but only once per club. Sister assertion in
+        // TenantCatalogConsistencyTest#location_has_club_id_uuid_not_null.
+        assertColumnNotNull("location", "club_id", "uuid");
+        assertFkDeleteRule("location", "club_id", "RESTRICT");
     }
 
     @Test
-    void location_icao_unique_partial() throws Exception {
+    void location_icao_unique_partial_per_club() throws Exception {
+        // S-049b: V7 dropped ux_location_icao (global) and replaced with
+        // ux_location_club_icao (per-club). The partial predicate also
+        // excludes soft-deleted rows so recreate-after-soft-delete-same-club
+        // no longer needs the S-049 "null out icao_code" workaround.
         List<String> defs = indexDefs("location");
         assertThat(defs)
-                .as("partial UNIQUE on location.icao_code WHERE icao_code IS NOT NULL")
+                .as("partial UNIQUE on (club_id, icao_code) WHERE icao_code IS NOT NULL AND deleted_on IS NULL")
                 .anyMatch(d -> {
                     String lc = d.toLowerCase(Locale.ROOT);
-                    return lc.contains("unique") && lc.contains("icao_code")
-                            && lc.contains("icao_code is not null");
+                    return lc.contains("unique")
+                            && lc.contains("club_id")
+                            && lc.contains("icao_code")
+                            && lc.contains("icao_code is not null")
+                            && lc.contains("deleted_on is null");
                 });
     }
 

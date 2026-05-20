@@ -1,9 +1,11 @@
 /**
- * Locations module — reference-data aggregate root for airfields, waypoints,
- * and outlanding fields. Cross-tenant by construction (sacred-cow shared
- * resource per {@code alpenflight/database/tenant-rules.yaml}); not
- * {@code @TenantId}-annotated. SYSTEM_ADMINISTRATOR-only mutation; reads
- * open to authenticated callers.
+ * Locations module — per-club masterdata aggregate root for airfields,
+ * waypoints, and outlanding fields. TENANT_SCOPED since S-049b (was
+ * reference data through S-049): the discriminator column {@code club_id}
+ * wears {@code @TenantId}, so Hibernate appends the per-tenant predicate on
+ * every JPA query. Writes open to CLUB_ADMINISTRATOR (own club, structurally
+ * via the tenant filter) + SYSTEM_ADMINISTRATOR (any club, by claim or by
+ * the {@code Tenants.runAs(...)} escape hatch).
  *
  * <p>Layered per ADR 0023 into four sub-packages:
  * <ul>

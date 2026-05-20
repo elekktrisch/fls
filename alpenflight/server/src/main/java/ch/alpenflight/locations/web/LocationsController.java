@@ -30,18 +30,22 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * REST surface for the Locations aggregate. Per ADR 0005 the path is plural
- * {@code /api/v1/locations}. Per S-049 design notes Locations are reference
- * data (cross-tenant by construction): reads open to authenticated callers,
- * mutations gated SYSTEM_ADMINISTRATOR-only (cross-tenant blast radius — a
- * rename shifts every flight log in every club).
+ * {@code /api/v1/locations}. Since S-049b Locations are TENANT_SCOPED
+ * masterdata: reads return only the caller's own club's Locations (Hibernate's
+ * {@code @TenantId} discriminator filter); writes open to CLUB_ADMINISTRATOR
+ * (own club, resolved structurally from {@code @TenantId}) and
+ * SYSTEM_ADMINISTRATOR (any club whose {@code clubId} claim the JWT carries,
+ * or any club via the {@code Tenants.runAs(...)} escape hatch from ADR 0008).
  *
  * <p>{@code @PathVariable LocationId id} resolves through
  * {@code LocationIdPathConverter} so callers send the prefixed external form
- * {@code loc-<uuid>}.
+ * {@code loc-<uuid>}. A CLUB_ADMIN of A POSTing an id owned by club B receives
+ * a {@code 404 Not Found} — the row is invisible under A's tenant scope, not
+ * a {@code 403}. This is the IDOR gate, and it is structural.
  */
 @RestController
 @RequestMapping(path = "/api/v1/locations", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Locations", description = "Locations CRUD (reference data).")
+@Tag(name = "Locations", description = "Locations CRUD (per-club masterdata).")
 public class LocationsController {
 
     private final LocationsService service;
@@ -72,7 +76,7 @@ public class LocationsController {
     @ApiResponse(responseCode = "400", description = "Validation failed (ICAO format or unknown reference).")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use.")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
     public ResponseEntity<LocationDetail> createLocation(
             @Valid @RequestBody LocationCreateRequest req) {
         LocationDetail created = service.createLocation(req);
@@ -85,7 +89,7 @@ public class LocationsController {
     @ApiResponse(responseCode = "404", description = "No active location with that id.")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use by another Location.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
     public LocationDetail updateLocation(@PathVariable LocationId id,
                                          @Valid @RequestBody LocationUpdateRequest req) {
         return service.updateLocation(id, req);
@@ -95,7 +99,7 @@ public class LocationsController {
     @ApiResponse(responseCode = "204", description = "Deleted.")
     @ApiResponse(responseCode = "404", description = "No active location with that id.")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
     public ResponseEntity<Void> deleteLocation(@PathVariable LocationId id,
                                                @AuthenticationPrincipal @Nullable Jwt jwt) {
         service.softDeleteLocation(id, principalUserId(jwt));
@@ -103,7 +107,7 @@ public class LocationsController {
     }
 
     private static @Nullable UUID principalUserId(@Nullable Jwt jwt) {
-        // Actor identity keys off the standard OIDC `sub` claim (ADR 0026 — IdP
+        // Actor identity keys off the standard OIDC `sub` claim (ADR 0007 — IdP
         // portable). Translation from `sub` to the internal user id is a S-022
         // follow-up; until then the soft-delete trail records the raw OIDC sub.
         if (jwt == null) {

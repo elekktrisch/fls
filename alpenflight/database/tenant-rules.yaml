@@ -191,20 +191,25 @@ overrides:
     # is the per-club payload (auto-classified as tenant-scoped if it carries
     # a ClubId column).
   Locations:
-    kind: reference
+    kind: tenant-scoped
     target_entity: Location
+    tenant_column: club_id
     rationale_ref: tenant-catalog.md#reference-data
     pii_columns: [description]
-    # Sacred-cow: shared airports (LSZH used by multiple clubs). Reference data,
-    # not tenant-scoped. Note: if a future schema adds club-private waypoints,
-    # split into Location (reference) + ClubLocation (tenant-scoped).
-    # SYSTEM_ADMIN-only mutation (cross-tenant impact); S-013 column comment on
-    # location.id pins the contract.
+    # S-049b reclassified Locations from reference → tenant-scoped. The
+    # "shared airports" framing (LSZH used by N clubs) was operator-retracted:
+    # each club maintains its own catalog of airfields / waypoints with its
+    # own naming and routing. The same physical airport may appear as N
+    # independent rows, keyed (club_id, icao_code). Cutover (S-028) fans
+    # legacy shared rows out per referencing club, mapping (legacy_id,
+    # club_id) → new_id for downstream FK rewrites.
   InOutboundPoints:
-    kind: reference
+    kind: tenant-scoped
     target_entity: InOutboundPoint
     rationale_ref: tenant-catalog.md#reference-data
-    # Airport routing waypoints — shared like Locations.
+    # S-049b: airport routing waypoints inherit tenancy through the parent
+    # Location's FK (the table itself does not carry club_id — same pattern
+    # as flight_crew under flight).
   PersonFlightTimeCredits:
     kind: cross-tenant
     target_entity: PersonFlightTimeCredit

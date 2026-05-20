@@ -49,6 +49,7 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
     @BeforeEach
     void mintSysadminToken() {
         sysadminToken = jwts.mint(c -> c
+                .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
     }
 

@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -24,13 +25,16 @@ import org.jspecify.annotations.Nullable;
  * soft-delete) live on the aggregate; the schema enforces only structure
  * (PKs, FKs, NOT NULL, partial UNIQUE on {@code icao_code}).
  *
- * <p>Reference data — cross-tenant by construction per
- * {@code alpenflight/database/tenant-rules.yaml}. No {@code @TenantId}.
- * SYSTEM_ADMINISTRATOR-only mutation gate lives at the controller level.
+ * <p>TENANT_SCOPED masterdata since S-049b. The discriminator column
+ * {@code club_id} wears {@link TenantId}; Hibernate appends
+ * {@code WHERE club_id = ?} on every read and write driven by the
+ * {@code ClubTenantIdentifierResolver}. The same physical airport may exist
+ * multiple times across clubs (once per club).
  *
- * <p>{@link InOutboundPoint} children are managed inside the aggregate;
- * {@link #replaceInOutboundPoints(List)} is the only mutator that replaces
- * the full list, exploiting the {@code orphanRemoval=true} mapping for
+ * <p>{@link InOutboundPoint} children inherit tenancy through the parent's
+ * FK — no own {@code @TenantId} column. Aggregate-internal mutators are
+ * package-private; {@link #replaceInOutboundPoints(List)} is the only
+ * external mutator, exploiting {@code orphanRemoval=true} for
  * upsert-with-orphan-cleanup semantics on PUT.
  */
 @Entity
@@ -49,49 +53,54 @@ public class Location {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
-    @Column(name = "location_name", nullable = false, length = MAX_NAME_LENGTH)
+    @TenantId
+    @Column(nullable = false, updatable = false)
+    @SuppressWarnings("UnusedVariable")
+    private @Nullable UUID clubId;
+
+    @Column(nullable = false, length = MAX_NAME_LENGTH)
     private String locationName = "";
 
-    @Column(name = "location_short_name", length = MAX_SHORT_NAME_LENGTH)
+    @Column(length = MAX_SHORT_NAME_LENGTH)
     private @Nullable String locationShortName;
 
-    @Column(name = "country_id", nullable = false)
+    @Column(nullable = false)
     private @Nullable UUID countryId;
 
-    @Column(name = "location_type_id", nullable = false)
+    @Column(nullable = false)
     private @Nullable UUID locationTypeId;
 
-    @Column(name = "icao_code", length = MAX_ICAO_LENGTH)
+    @Column(length = MAX_ICAO_LENGTH)
     private @Nullable String icaoCode;
 
-    @Column(name = "latitude", length = MAX_COORD_LENGTH)
+    @Column(length = MAX_COORD_LENGTH)
     private @Nullable String latitude;
 
-    @Column(name = "longitude", length = MAX_COORD_LENGTH)
+    @Column(length = MAX_COORD_LENGTH)
     private @Nullable String longitude;
 
-    @Column(name = "elevation")
+    @Column
     private @Nullable Integer elevation;
 
-    @Column(name = "elevation_unit_type_id")
+    @Column
     private @Nullable UUID elevationUnitTypeId;
 
-    @Column(name = "runway_direction", length = MAX_RUNWAY_DIRECTION_LENGTH)
+    @Column(length = MAX_RUNWAY_DIRECTION_LENGTH)
     private @Nullable String runwayDirection;
 
-    @Column(name = "runway_length")
+    @Column
     private @Nullable Integer runwayLength;
 
-    @Column(name = "runway_length_unit_type_id")
+    @Column
     private @Nullable UUID runwayLengthUnitTypeId;
 
-    @Column(name = "airport_frequency", length = MAX_FREQUENCY_LENGTH)
+    @Column(length = MAX_FREQUENCY_LENGTH)
     private @Nullable String airportFrequency;
 
-    @Column(name = "description")
+    @Column
     private @Nullable String description;
 
-    @Column(name = "sort_indicator")
+    @Column
     private @Nullable Integer sortIndicator;
 
     @Column(name = "is_inbound_route_required", nullable = false)
@@ -103,10 +112,13 @@ public class Location {
     @Column(name = "is_fast_entry_record", nullable = false)
     private boolean fastEntryRecord;
 
-    @Column(name = "deleted_on")
+    @Column
     private @Nullable Instant deletedOn;
 
-    @Column(name = "deleted_by_user_id")
+    // Set on soft-delete; never read by domain or service code — kept for the
+    // forensic trail S-027 will surface via the audit log.
+    @Column
+    @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
     @OneToMany(mappedBy = "location",
@@ -247,14 +259,6 @@ public class Location {
         if (this.deletedOn == null) {
             this.deletedOn = Instant.now(clock);
             this.deletedByUserId = userId;
-            // Release the partial-UNIQUE slot held by icao_code so a
-            // replacement Location can be created with the same code. The
-            // partial index is scoped WHERE icao_code IS NOT NULL — nulling
-            // here is the cleanest way to honor the AC "recreate after
-            // soft-delete must succeed" without an audit-fidelity loss
-            // (the original icao still lives in the audit / history once
-            // S-027 ships).
-            this.icaoCode = null;
         }
     }
 
