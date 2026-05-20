@@ -2,8 +2,9 @@
 id: S-057
 title: Translations migrated to bundled TS modules
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-05-20
+done_at: 2026-05-20
 depends_on: [S-005]
 github_issue: 86
 github_pr: 87
