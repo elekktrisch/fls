@@ -6,6 +6,7 @@ status: in_progress
 started_at: 2026-05-20
 depends_on: [S-047, S-022, S-026]
 github_issue: 88
+github_pr: 89
 acceptance:
   - `Location` + `LocationType` + `InOutboundPoint` ported as shared reference data — no `@TenantId`. Mutation gated by `@PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")`.
   - `InOutboundPoint` lives as a child of Location's aggregate; managed via Location's edit screen only (no top-level CRUD endpoint).

@@ -15,6 +15,7 @@ export interface SessionPort {
   markUnauthenticated(): void;
   isAuthenticated(): boolean;
   isLoadingSession(): boolean;
+  bootstrapPrefetch(): void;
 }
 
 /**
@@ -32,6 +33,7 @@ export function applyClaimsToSession(claims: unknown, session: SessionPort): voi
   const user = mapClaimsToUser(claims);
   if (user) {
     session.login(user, user.clubId);
+    session.bootstrapPrefetch();
     return;
   }
   if (session.isAuthenticated()) {

@@ -61,6 +61,12 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
       body: JSON.stringify(mockClubStates),
     }),
   );
+  // The session-bootstrap forkJoin pulls all reference catalogs in parallel
+  // (S-049). Stubbing this empty here keeps the clubs spec self-contained
+  // — the dropdown values we care about live in countries / club-states.
+  await page.route('**/api/v1/location-types**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
 }
 
 function setupClubsBackend(clubs: MockClub[]) {
@@ -188,9 +194,9 @@ test('clubs: creating a new club appears in the list', async ({ page }) => {
   await page.locator('#clubSlug').fill('alps-gliding');
   await page.locator('#clubKey').fill('ALP');
   await page.getByTestId('clubs-country-select').locator('nz-select').click();
-  await page.getByRole('option', { name: 'Switzerland' }).click();
+  await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();
   await page.getByTestId('clubs-club-state-select').locator('nz-select').click();
-  await page.getByRole('option', { name: 'Active' }).click();
+  await page.locator('nz-option-item').filter({ hasText: 'Active' }).click();
   await page.getByTestId('clubs-save-button').click();
 
   await expect(page).toHaveURL('/clubs');
@@ -212,12 +218,12 @@ test('clubs: country picker is populated and a non-default country persists', as
 
   // Country picker is populated from the seed (CH + DE both visible).
   await page.getByTestId('clubs-country-select').locator('nz-select').click();
-  await expect(page.getByRole('option', { name: 'Switzerland' })).toBeVisible();
-  await expect(page.getByRole('option', { name: 'Germany' })).toBeVisible();
-  await page.getByRole('option', { name: 'Germany' }).click();
+  await expect(page.locator('nz-option-item').filter({ hasText: 'Switzerland' })).toBeVisible();
+  await expect(page.locator('nz-option-item').filter({ hasText: 'Germany' })).toBeVisible();
+  await page.locator('nz-option-item').filter({ hasText: 'Germany' }).click();
 
   await page.getByTestId('clubs-club-state-select').locator('nz-select').click();
-  await page.getByRole('option', { name: 'Active' }).click();
+  await page.locator('nz-option-item').filter({ hasText: 'Active' }).click();
 
   await page.getByTestId('clubs-save-button').click();
   await expect(page).toHaveURL('/clubs');
@@ -238,9 +244,9 @@ test('clubs: 409 on duplicate slug surfaces as a save error', async ({ page }) =
   await page.locator('#clubSlug').fill(seedClub.slug);
   await page.locator('#clubKey').fill('DUP');
   await page.getByTestId('clubs-country-select').locator('nz-select').click();
-  await page.getByRole('option', { name: 'Switzerland' }).click();
+  await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();
   await page.getByTestId('clubs-club-state-select').locator('nz-select').click();
-  await page.getByRole('option', { name: 'Active' }).click();
+  await page.locator('nz-option-item').filter({ hasText: 'Active' }).click();
   await page.getByTestId('clubs-save-button').click();
 
   await expect(page.getByTestId('clubs-save-error')).toBeVisible();
@@ -268,7 +274,7 @@ test('clubs: invalid slug shows an inline field error before submit', async ({ p
   await slug.blur();
 
   // Submit must be disabled while the form is invalid.
-  await expect(page.getByTestId('clubs-save-button')).toBeDisabled();
+  await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
 
   // The inline error renders next to the field via <af-field-errors>; the
   // mapped error key is `common.errors.pattern` (the canonical placeholder
@@ -300,6 +306,6 @@ test('clubs: client-side async validator flags a duplicate slug before submit', 
   await slug.blur();
 
   // Save button disabled because async validator flagged duplicate.
-  await expect(page.getByTestId('clubs-save-button')).toBeDisabled();
+  await expect(page.getByTestId('clubs-save-button').locator('button')).toBeDisabled();
   await expect(page.locator('af-field-errors').filter({ hasText: 'duplicate' })).toBeVisible();
 });

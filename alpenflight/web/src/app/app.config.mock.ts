@@ -67,7 +67,9 @@ const mockAuthInterceptor: HttpInterceptorFn = (req, next) => {
 };
 
 function mockAuthBootstrap(): void {
-  inject(SessionStore).login(MOCK_USER, MOCK_CLUB_ID);
+  const session = inject(SessionStore);
+  session.login(MOCK_USER, MOCK_CLUB_ID);
+  session.bootstrapPrefetch();
 }
 
 // LandingComponent injects OidcSecurityService to drive the sign-in

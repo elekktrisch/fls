@@ -276,13 +276,25 @@ type LocationForm = FormGroup<{
                   [attr.data-testid]="'locations-iop-row-' + i"
                 >
                   <af-form-field label="Name" [required]="true">
-                    <af-input formControlName="pointName" autocomplete="off" />
+                    <af-input
+                      formControlName="pointName"
+                      autocomplete="off"
+                      [attr.data-testid]="'locations-iop-name-' + i"
+                    />
                   </af-form-field>
                   <af-form-field label="Type">
-                    <af-input formControlName="pointType" autocomplete="off" />
+                    <af-input
+                      formControlName="pointType"
+                      autocomplete="off"
+                      [attr.data-testid]="'locations-iop-type-' + i"
+                    />
                   </af-form-field>
                   <af-form-field label="Direction">
-                    <af-input formControlName="direction" autocomplete="off" />
+                    <af-input
+                      formControlName="direction"
+                      autocomplete="off"
+                      [attr.data-testid]="'locations-iop-direction-' + i"
+                    />
                   </af-form-field>
                   @if (canMutate()) {
                     <button
