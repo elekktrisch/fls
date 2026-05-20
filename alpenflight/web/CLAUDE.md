@@ -163,10 +163,23 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 
 ## 9. Local-environment quirks (sandbox)
 
-- `node_modules/` in this folder is a **symlink** to `/home/agent/fls-build/alpenflight/node_modules/`. The mounted Windows host FS at `/c/Users/...` cannot reliably `rmdir` deeply-nested directories during `pnpm install`, so the store + the live `node_modules` both live on the Linux-local FS. Don't `rm -rf` the symlink target without recreating it.
-- **If the symlink is missing**, recreate it directly — do NOT run `pnpm install` first. `ng build` triggers an automatic deps-status check that will try to materialize `node_modules` on the Windows FS and fail with `EACCES` partway through, leaving a corrupt real directory behind. Recovery: `rm -rf alpenflight/web/node_modules && ln -s /home/agent/fls-build/alpenflight/node_modules alpenflight/web/node_modules`.
+The mounted Windows host FS at `/c/Users/...` can't reliably `rmdir` deeply-nested directories — this bites `pnpm install` and Angular CLI's `.angular/cache` cache resets. Both `node_modules` and `.angular/cache` therefore live on the Linux-local FS in the sandbox, exposed to the project as symlinks.
+
+**Dual-mode setup** (sandbox + Windows-native in parallel on the same checkout):
+
+- `node_modules_sandbox` — a stable named symlink → `/home/agent/fls-build/alpenflight/node_modules/`. Always present in the sandbox; harmless on Windows (broken symlink ignored).
+- `node_modules` — points at `node_modules_sandbox` in sandbox mode; a real directory in Windows-native mode. A backup at `node_modules.windows/` holds whichever side isn't active.
+- `.angular/cache` — symlink to `/home/agent/fls-build/alpenflight/.angular-cache/` so the Angular CLI / Vite dep-optimizer never touch the Windows FS.
+
+**Running from the sandbox:** use the `*:sandbox` scripts (`pnpm test:sandbox`, `pnpm lint:sandbox`, `pnpm build:sandbox`, `pnpm e2e:sandbox`, `pnpm start:sandbox`). Each prefixes the underlying command with `pnpm sandbox:setup`, which idempotently installs the symlinks. Run `pnpm sandbox:setup` standalone the first time on a fresh checkout.
+
+**Switching to Windows-native:** `pnpm sandbox:restore-windows` — removes the symlinks and restores `node_modules.windows/` → `node_modules/` if the backup is present. Then `pnpm install` + the un-suffixed scripts work normally.
+
+**Other sandbox conventions:**
+
 - pnpm is configured project-wide with `nodeLinker: hoisted` + `packageImportMethod: copy` (see `pnpm-workspace.yaml`). Don't switch to symlinked layout — that retriggers the cross-FS issue.
 - **Install scripts are globally disabled** (`pnpm config set ignore-scripts true`, `npm config set ignore-scripts true`). esbuild's platform binary is selected via the `ESBUILD_BINARY_PATH` env var (persisted in `/etc/sandbox-persistent.sh`) — no postinstall needed.
+- `build:sandbox` additionally rsyncs sources to a Linux-local working dir before `ng build` (esbuild has concurrent-read deadlock on the Windows FS); the bootstrap step is a prerequisite.
 
 ## 10. Don't list
 

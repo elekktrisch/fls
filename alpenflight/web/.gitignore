@@ -8,6 +8,8 @@
 
 # Node
 /node_modules
+/node_modules_sandbox
+/node_modules.windows
 npm-debug.log
 yarn-error.log
 

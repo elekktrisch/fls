@@ -12,7 +12,6 @@
     "build": "ng build",
     "build:prod": "ng build --configuration production",
     "build:mock-auth": "ng build --configuration mock-auth",
-    "build:sandbox": "bash scripts/build-via-local-fs.sh production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
@@ -20,7 +19,16 @@
     "format:fix": "prettier --write \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "e2e": "playwright test --config=e2e/playwright.config.ts",
     "e2e:install": "playwright install --with-deps chromium",
-    "generate-api": "orval --config ./orval.config.ts"
+    "generate-api": "orval --config ./orval.config.ts",
+    "sandbox:setup": "bash scripts/sandbox-bootstrap.sh",
+    "sandbox:restore-windows": "bash scripts/sandbox-restore-windows.sh",
+    "start:sandbox": "pnpm sandbox:setup && pnpm start:mock-auth",
+    "lint:sandbox": "pnpm sandbox:setup && pnpm lint",
+    "test:sandbox": "pnpm sandbox:setup && pnpm test",
+    "format:sandbox": "pnpm sandbox:setup && pnpm format",
+    "format:fix:sandbox": "pnpm sandbox:setup && pnpm format:fix",
+    "build:sandbox": "pnpm sandbox:setup && bash scripts/build-via-local-fs.sh production",
+    "e2e:sandbox": "pnpm sandbox:setup && playwright test --config=e2e/playwright.config.ts --output=/home/agent/fls-build/playwright-test-results"
   },
   "packageManager": "pnpm@11.1.2",
   "pnpm": {
