@@ -3,15 +3,34 @@ import type { Translations } from './de';
 const fr: Translations = {
   landing: {
     actions: {
+      requestAccess: 'Demander un accès',
       signIn: 'Se connecter',
       tryDemo: 'Essayer la démo',
     },
+    eyebrow: 'Opérations de club · Suisse',
     footer: {
+      documentation: 'Documentation',
       imprint: 'Mentions légales',
       privacy: 'Confidentialité',
+      status: 'État',
     },
+    headline: 'Enregistrer les vols. Réserver les aéronefs. Faire vivre l’aérodrome.',
     language: 'Langue',
-    tagline: 'Carnet de vol, réservations et membres — pour les clubs suisses.',
+    splashLabel: 'Aérodrome du club',
+    stats: {
+      clubs: 'clubs',
+      flights: 'vols enregistrés',
+      pilots: 'pilotes',
+    },
+    tagline:
+      'Pensé pour les clubs aéronautiques qui existent déjà et volent déjà. Un outil discret pour le carnet de vol, le calendrier des réservations et le registre des membres.',
+  },
+  publicStub: {
+    back: 'Retour à la page d’accueil',
+    body: 'La réservation publique est en préparation. En attendant, contactez directement votre club.',
+    discoveryFlight: 'Vol de découverte',
+    scenicFlight: 'Vol panoramique',
+    title: 'Bientôt disponible',
   },
   locations: {
     admin: {

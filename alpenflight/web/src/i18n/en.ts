@@ -3,15 +3,34 @@ import type { Translations } from './de';
 const en: Translations = {
   landing: {
     actions: {
+      requestAccess: 'Request access',
       signIn: 'Sign in',
       tryDemo: 'Try the demo',
     },
+    eyebrow: 'Club operations · Switzerland',
     footer: {
+      documentation: 'Documentation',
       imprint: 'Imprint',
       privacy: 'Privacy',
+      status: 'Status',
     },
+    headline: 'Log flights. Reserve aircraft. Run the airfield.',
     language: 'Language',
-    tagline: 'Flight logging, reservations, members — for Swiss clubs.',
+    splashLabel: 'Club airfield',
+    stats: {
+      clubs: 'clubs',
+      flights: 'flights logged',
+      pilots: 'pilots',
+    },
+    tagline:
+      'Built for flying clubs that already exist and already fly. One quiet tool for the logbook, the reservation calendar, and the member roster.',
+  },
+  publicStub: {
+    back: 'Back to the landing page',
+    body: 'Public booking is on the way. In the meantime, contact your club directly.',
+    discoveryFlight: 'Discovery flight',
+    scenicFlight: 'Scenic flight',
+    title: 'Coming soon',
   },
   locations: {
     admin: {
