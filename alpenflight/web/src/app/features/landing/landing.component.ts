@@ -52,7 +52,7 @@ const SPLASH_DEFAULT_SVG = "splash.jpg";
           data-testid="landing"
         >
           <div
-            class="flex flex-col justify-center px-6 py-16 md:py-20 md:px-8 max-w-xl md:ml-auto md:mr-0 w-full"
+            class="flex flex-col justify-center px-6 py-16 md:py-20 md:px-8 max-w-xl md:m-auto w-full"
           >
             <p class="m-0 mb-4 text-sm font-medium text-slate-500" data-testid="landing-eyebrow">
               {{ t('eyebrow') }}
