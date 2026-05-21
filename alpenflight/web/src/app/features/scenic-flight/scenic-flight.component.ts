@@ -19,7 +19,7 @@ import { AfIconComponent } from '@ui/atoms/af-icon';
     <ng-container *transloco="let t; read: 'publicStub'">
       <main class="min-h-screen flex items-center justify-center px-4 py-12 bg-white">
         <section class="w-full max-w-md flex flex-col items-center gap-4 text-center">
-          <p class="m-0 text-xs font-medium uppercase tracking-[0.06em] text-slate-500">
+          <p class="m-0 text-sm font-medium text-slate-500">
             {{ t('scenicFlight') }}
           </p>
           <h1 class="m-0 text-2xl font-medium tracking-tight text-slate-900">

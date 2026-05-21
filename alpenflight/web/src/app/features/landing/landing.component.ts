@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
@@ -8,18 +8,9 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
 import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 
-/**
- * Public landing — sign-in CTA + brand identity. The actual credentials
- * form is hosted by Keycloak; clicking "Sign in" calls
- * `OidcSecurityService.authorize()` which redirects out to Keycloak's
- * hosted UI. See `project-login-in-keycloak.md` (auto-memory).
- *
- * Single `<af-lang-picker>` per surface (AC-DIR-5): the inline picker
- * lives below the CTAs on the landing; the nav-bar picker is rendered
- * only when `data: { showNavBar: true }` (landing opts out via
- * `data: { showNavBar: false }` in `landing.routes.ts`), so the
- * conflict cannot occur today.
- */
+// Splash placeholder — slate-tinted diagonal-stripes pattern with a
+// brand-500 tint, 1600×1200 aspect. The `splashUrl` input accepts a
+// per-club override once the whitelabel store lands (AC-DIR-3 follow-up).
 const SPLASH_DEFAULT_SVG =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1200' preserveAspectRatio='xMidYMid slice'>" +
   "<defs><pattern id='af-splash-stripes' x='0' y='0' width='32' height='32' patternTransform='rotate(45)' patternUnits='userSpaceOnUse'>" +
@@ -71,10 +62,7 @@ const SPLASH_DEFAULT_SVG =
           <div
             class="flex flex-col justify-center px-6 py-16 md:py-20 md:px-8 max-w-xl md:ml-auto md:mr-0 w-full"
           >
-            <p
-              class="m-0 mb-4 text-xs font-medium uppercase tracking-[0.06em] text-slate-500"
-              data-testid="landing-eyebrow"
-            >
+            <p class="m-0 mb-4 text-sm font-medium text-slate-500" data-testid="landing-eyebrow">
               {{ t('eyebrow') }}
             </p>
             <h1
@@ -112,13 +100,16 @@ const SPLASH_DEFAULT_SVG =
               </af-button>
             </div>
 
-            <button
-              type="button"
-              class="self-start mt-4 bg-transparent border-0 p-2 -ml-2 text-sm text-brand-700 underline underline-offset-2 cursor-pointer hover:text-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
-              (click)="tryDemo()"
+            <!-- AC-DIR-5: inline picker below is the sole landing picker;
+              landing.routes.ts opts out of the nav-bar (showNavBar false). -->
+            <af-button
+              type="link"
+              htmlType="button"
+              data-testid="landing-try-demo"
+              (clicked)="tryDemo()"
             >
               {{ t('actions.tryDemo') }}
-            </button>
+            </af-button>
 
             <div
               class="mt-10 pt-5 border-t border-slate-200 grid grid-cols-3 gap-5"
@@ -143,7 +134,7 @@ const SPLASH_DEFAULT_SVG =
 
           <div class="hidden md:block relative border-l border-slate-200 bg-slate-50 min-h-[30rem]">
             <img
-              [src]="splashUrl"
+              [src]="effectiveSplashUrl()"
               [alt]="t('splashLabel')"
               data-testid="landing-splash"
               class="absolute inset-0 w-full h-full object-cover object-[center_35%]"
@@ -154,7 +145,7 @@ const SPLASH_DEFAULT_SVG =
         <footer
           class="border-t border-slate-200 px-6 py-4 flex flex-wrap justify-between gap-3 text-xs text-slate-500"
         >
-          <span>© 2026 AlpenFlight</span>
+          <span>© {{ year }} AlpenFlight</span>
           <span class="inline-flex flex-wrap gap-4">
             <a
               href="/status"
@@ -186,7 +177,11 @@ export class LandingComponent {
   readonly #oidc = inject(OidcSecurityService);
   readonly #localeService = inject(LocaleService);
 
-  protected readonly splashUrl = SPLASH_DEFAULT_SVG;
+  readonly splashUrl = input<string | null>(null);
+  protected readonly effectiveSplashUrl = computed(
+    () => this.splashUrl() ?? SPLASH_DEFAULT_SVG,
+  );
+  protected readonly year = new Date().getFullYear();
 
   protected signIn(): void {
     // Keycloak hosts the credentials form. ui_locales hints Keycloak's UI

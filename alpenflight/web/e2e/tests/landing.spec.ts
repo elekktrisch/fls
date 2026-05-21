@@ -79,11 +79,16 @@ test.describe('landing — i18n + locale switch', () => {
     await expect(page.getByTestId('landing-tagline')).toContainText(/carnet de vol/);
   });
 
-  test('AC-DIR-2: primary CTAs hit >= 44 x 44 CSS px at <md', async ({ page }) => {
+  test('AC-DIR-2: every landing CTA hits >= 44 x 44 CSS px at <md', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/?lang=de');
 
-    for (const testId of ['landing-sign-in', 'landing-request-access']) {
+    for (const testId of [
+      'landing-topbar-sign-in',
+      'landing-sign-in',
+      'landing-request-access',
+      'landing-try-demo',
+    ]) {
       const btn = page.getByTestId(testId);
       await expect(btn).toBeVisible();
       const box = await btn.boundingBox();

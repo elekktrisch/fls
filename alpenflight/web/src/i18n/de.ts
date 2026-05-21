@@ -29,13 +29,6 @@ const de = {
     tagline:
       'Für Flugvereine, die schon bestehen und schon fliegen. Ein leises Werkzeug für Flugbuch, Reservationskalender und Mitgliederverwaltung.',
   },
-  publicStub: {
-    back: 'Zurück zur Startseite',
-    body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',
-    discoveryFlight: 'Schnupperflug',
-    scenicFlight: 'Mitflug',
-    title: 'Demnächst verfügbar',
-  },
   locations: {
     admin: {
       banner:
@@ -79,6 +72,13 @@ const de = {
     readonlyBanner:
       'Schreibgeschützt. Die Flugplätze deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     title: 'Flugplätze',
+  },
+  publicStub: {
+    back: 'Zurück zur Startseite',
+    body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',
+    discoveryFlight: 'Schnupperflug',
+    scenicFlight: 'Mitflug',
+    title: 'Demnächst verfügbar',
   },
 };
 

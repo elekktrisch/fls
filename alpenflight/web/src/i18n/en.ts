@@ -25,13 +25,6 @@ const en: Translations = {
     tagline:
       'Built for flying clubs that already exist and already fly. One quiet tool for the logbook, the reservation calendar, and the member roster.',
   },
-  publicStub: {
-    back: 'Back to the landing page',
-    body: 'Public booking is on the way. In the meantime, contact your club directly.',
-    discoveryFlight: 'Discovery flight',
-    scenicFlight: 'Scenic flight',
-    title: 'Coming soon',
-  },
   locations: {
     admin: {
       banner:
@@ -73,6 +66,13 @@ const en: Translations = {
     new: 'New location',
     readonlyBanner: "Read-only. Your club's Locations are managed by your club administrator.",
     title: 'Locations',
+  },
+  publicStub: {
+    back: 'Back to the landing page',
+    body: 'Public booking is on the way. In the meantime, contact your club directly.',
+    discoveryFlight: 'Discovery flight',
+    scenicFlight: 'Scenic flight',
+    title: 'Coming soon',
   },
 };
 

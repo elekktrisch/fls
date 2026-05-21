@@ -25,13 +25,6 @@ const it: Translations = {
     tagline:
       'Pensato per i club di volo che già esistono e già volano. Uno strumento discreto per diario di volo, calendario delle prenotazioni e registro dei soci.',
   },
-  publicStub: {
-    back: 'Torna alla pagina iniziale',
-    body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',
-    discoveryFlight: 'Volo di scoperta',
-    scenicFlight: 'Volo panoramico',
-    title: 'Disponibile a breve',
-  },
   locations: {
     admin: {
       banner:
@@ -74,6 +67,13 @@ const it: Translations = {
     readonlyBanner:
       'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
+  },
+  publicStub: {
+    back: 'Torna alla pagina iniziale',
+    body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',
+    discoveryFlight: 'Volo di scoperta',
+    scenicFlight: 'Volo panoramico',
+    title: 'Disponibile a breve',
   },
 };
 
