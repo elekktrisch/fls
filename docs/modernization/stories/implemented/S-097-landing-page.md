@@ -2,8 +2,9 @@
 id: S-097
 title: Landing page port + nav-bar mechanism (closes R12)
 epic: E-12
-status: in_progress
+status: done
 started_at: 2026-05-21
+done_at: 2026-05-21
 depends_on: [S-002, S-008]
 acceptance:
   - `/` renders the public landing without authentication.
