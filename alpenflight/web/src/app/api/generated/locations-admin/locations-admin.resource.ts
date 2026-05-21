@@ -30,13 +30,13 @@ export type OrvalHttpResourceOptions<TValue, TRaw = unknown, TOmitParse extends 
 /**
  * @experimental httpResource is experimental (Angular v19.2+)
  */
-export function getLocation1Resource(clubId: Signal<string>,
+export function adminGetLocationResource(clubId: Signal<string>,
     id: Signal<string>,
   options: OrvalHttpResourceOptions<LocationDetail, unknown> & { defaultValue: NoInfer<LocationDetail> }): HttpResourceRef<LocationDetail>;
-export function getLocation1Resource(clubId: Signal<string>,
+export function adminGetLocationResource(clubId: Signal<string>,
     id: Signal<string>,
   options?: OrvalHttpResourceOptions<LocationDetail, unknown>): HttpResourceRef<LocationDetail | undefined>;
-export function getLocation1Resource(clubId: Signal<string>,
+export function adminGetLocationResource(clubId: Signal<string>,
     id: Signal<string>,
   options?: OrvalHttpResourceOptions<LocationDetail, unknown>): HttpResourceRef<LocationDetail | undefined> {
   return httpResource<LocationDetail>(() => `/api/v1/admin/locations/${clubId()}/${id()}`, options);
@@ -45,17 +45,17 @@ export function getLocation1Resource(clubId: Signal<string>,
 /**
  * @experimental httpResource is experimental (Angular v19.2+)
  */
-export function listLocations1Resource(clubId: Signal<string>,
+export function adminListLocationsResource(clubId: Signal<string>,
   options: OrvalHttpResourceOptions<LocationListItem[], unknown> & { defaultValue: NoInfer<LocationListItem[]> }): HttpResourceRef<LocationListItem[]>;
-export function listLocations1Resource(clubId: Signal<string>,
+export function adminListLocationsResource(clubId: Signal<string>,
   options?: OrvalHttpResourceOptions<LocationListItem[], unknown>): HttpResourceRef<LocationListItem[] | undefined>;
-export function listLocations1Resource(clubId: Signal<string>,
+export function adminListLocationsResource(clubId: Signal<string>,
   options?: OrvalHttpResourceOptions<LocationListItem[], unknown>): HttpResourceRef<LocationListItem[] | undefined> {
   return httpResource<LocationListItem[]>(() => `/api/v1/admin/locations/${clubId()}`, options);
 }
 
-export type GetLocation1ResourceResult = NonNullable<LocationDetail>
-export type ListLocations1ResourceResult = NonNullable<LocationListItem[]>
+export type AdminGetLocationResourceResult = NonNullable<LocationDetail>
+export type AdminListLocationsResourceResult = NonNullable<LocationListItem[]>
 
 /**
  * Utility type for httpResource results with status tracking.

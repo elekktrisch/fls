@@ -282,7 +282,7 @@
       "get" : {
         "tags" : [ "Locations Admin" ],
         "summary" : "Read a single Location under {clubId}.",
-        "operationId" : "getLocation_1",
+        "operationId" : "adminGetLocation",
         "parameters" : [ {
           "name" : "clubId",
           "in" : "path",
@@ -328,7 +328,7 @@
       "put" : {
         "tags" : [ "Locations Admin" ],
         "summary" : "Update a Location under {clubId}.",
-        "operationId" : "updateLocation_1",
+        "operationId" : "adminUpdateLocation",
         "parameters" : [ {
           "name" : "clubId",
           "in" : "path",
@@ -394,7 +394,7 @@
       "delete" : {
         "tags" : [ "Locations Admin" ],
         "summary" : "Soft-delete a Location under {clubId}.",
-        "operationId" : "deleteLocation_1",
+        "operationId" : "adminDeleteLocation",
         "parameters" : [ {
           "name" : "clubId",
           "in" : "path",
@@ -556,7 +556,7 @@
       "get" : {
         "tags" : [ "Locations Admin" ],
         "summary" : "List locations for {clubId}.",
-        "operationId" : "listLocations_1",
+        "operationId" : "adminListLocations",
         "parameters" : [ {
           "name" : "clubId",
           "in" : "path",
@@ -586,7 +586,7 @@
       "post" : {
         "tags" : [ "Locations Admin" ],
         "summary" : "Create a new Location under {clubId}.",
-        "operationId" : "createLocation_1",
+        "operationId" : "adminCreateLocation",
         "parameters" : [ {
           "name" : "clubId",
           "in" : "path",

@@ -47,7 +47,15 @@ public final class Tenants {
     /** Runs {@code body} with {@code clubId} as the effective tenant; returns its result. */
     public static <T> T runAs(UUID clubId, Supplier<T> body) {
         if (clubId == null) {
-            throw new IllegalArgumentException("clubId must not be null — use UnscopedTenantContext for unscoped paths");
+            throw new IllegalArgumentException("clubId must not be null");
+        }
+        if (ClubTenantIdentifierResolver.NO_TENANT.equals(clubId)) {
+            // Silent fail-closed (reads → empty, writes → FK violation) is too
+            // quiet for a deliberate caller. The nil-UUID sentinel is the
+            // resolver's "no tenant" marker; rebuking it loud at the entry
+            // point catches "forgot to derive clubId from a path variable"
+            // bugs before they ship.
+            throw new IllegalArgumentException("clubId must not be the NO_TENANT sentinel");
         }
         Optional<UUID> prior = TenantTestContextAccess.current();
         TenantTestContextAccess.set(clubId);

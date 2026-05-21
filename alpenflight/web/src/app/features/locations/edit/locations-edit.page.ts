@@ -334,9 +334,7 @@ export class LocationsEditPage {
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly locationId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.locationId() === null);
-  protected readonly canMutate = computed(
-    () => this.session.isSystemAdmin() || this.session.isClubAdmin(),
-  );
+  protected readonly canMutate = this.session.isAnyAdmin;
   protected readonly showIopSection = computed(() => !this.isCreate());
 
   protected readonly countryOptions = computed<readonly AfSelectOption<string>[]>(() =>

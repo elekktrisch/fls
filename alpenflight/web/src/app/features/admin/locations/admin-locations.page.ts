@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 import type { ClubResponse, LocationListItem } from '@core/../api/generated/model';
 import { ClubsService } from '@core/../api/generated/clubs/clubs.service';
@@ -37,8 +39,8 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
       <af-page-header title="Locations admin (cross-tenant)" />
 
       <div class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50">
-        Cross-tenant view — pick a club to fix its Locations. Every action is
-        audited; standard CLUB_ADMIN management is at <code>/locations</code>.
+        Cross-tenant view — pick a club to operate on its Locations. Standard
+        per-club management is at /locations.
       </div>
 
       <div class="mb-4 max-w-md">
@@ -49,7 +51,8 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
           [options]="clubOptions()"
           [value]="selectedClubId()"
           (valueChange)="onClubPicked($event)"
-          placeholder="Pick a club to view its Locations"
+          [placeholder]="clubsLoading() ? 'Loading clubs…' : 'Pick a club to view its Locations'"
+          [disabled]="clubsLoading()"
           [allowClear]="true"
         />
       </div>
@@ -107,13 +110,18 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 export class AdminLocationsPage {
   private readonly clubsApi = inject(ClubsService);
   private readonly adminApi = inject(LocationsAdminService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   private readonly clubs = signal<readonly ClubResponse[]>([]);
+  protected readonly clubsLoading = signal(false);
   protected readonly clubsError = signal<string | null>(null);
-  protected readonly selectedClubId = signal<string | null>(null);
   protected readonly locations = signal<readonly LocationListItem[]>([]);
   protected readonly locationsLoading = signal(false);
   protected readonly locationsError = signal<string | null>(null);
+
+  private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
+  protected readonly selectedClubId = computed(() => this.queryParams().get('clubId'));
 
   protected readonly clubOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.clubs().map((c) => ({
@@ -124,18 +132,37 @@ export class AdminLocationsPage {
 
   constructor() {
     this.reloadClubs();
+    // Initial fetch when the route lands with ?clubId=… in the URL.
+    const initial = this.selectedClubId();
+    if (initial) {
+      this.fetchLocations(initial);
+    }
   }
 
   protected reloadClubs(): void {
+    this.clubsLoading.set(true);
     this.clubsError.set(null);
     this.clubsApi.listClubs().subscribe({
-      next: (items) => this.clubs.set(items),
-      error: () => this.clubsError.set('Failed to load clubs.'),
+      next: (items) => {
+        this.clubs.set(items);
+        this.clubsLoading.set(false);
+      },
+      error: () => {
+        this.clubsLoading.set(false);
+        this.clubsError.set('Failed to load clubs.');
+      },
     });
   }
 
   protected onClubPicked(clubId: string | null): void {
-    this.selectedClubId.set(clubId);
+    // Push the selection into the URL so a reload / shared link reproduces
+    // the view. The constructor + an inline subscription mirror the read back.
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { clubId: clubId ?? null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
     this.locations.set([]);
     this.locationsError.set(null);
     if (clubId) {
@@ -156,7 +183,7 @@ export class AdminLocationsPage {
     if (!window.confirm(`Delete "${loc.locationName}" from this club? This cannot be undone.`)) {
       return;
     }
-    this.adminApi.deleteLocation1(clubId, loc.id).subscribe({
+    this.adminApi.adminDeleteLocation(clubId, loc.id).subscribe({
       next: () => this.fetchLocations(clubId),
       error: () => this.locationsError.set('Failed to delete the Location.'),
     });
@@ -165,7 +192,7 @@ export class AdminLocationsPage {
   private fetchLocations(clubId: string): void {
     this.locationsLoading.set(true);
     this.locationsError.set(null);
-    this.adminApi.listLocations1(clubId).subscribe({
+    this.adminApi.adminListLocations(clubId).subscribe({
       next: (items) => {
         this.locations.set(items);
         this.locationsLoading.set(false);

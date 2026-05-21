@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 
@@ -148,9 +148,7 @@ export class LocationsListPage {
   protected readonly store = inject(LocationsStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
-  protected readonly canMutate = computed(
-    () => this.session.isSystemAdmin() || this.session.isClubAdmin(),
-  );
+  protected readonly canMutate = this.session.isAnyAdmin;
 
   protected confirmDelete(loc: LocationItem): void {
     if (typeof window === 'undefined' || !loc.id) return;

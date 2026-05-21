@@ -83,13 +83,13 @@ export class LocationsAdminService {
 /**
  * @summary Read a single Location under {clubId}.
  */
- getLocation1<TData = LocationDetail>(clubId: string,
+ adminGetLocation<TData = LocationDetail>(clubId: string,
     id: string, options?: HttpClientBodyOptions): Observable<TData>;
- getLocation1<TData = LocationDetail>(clubId: string,
+ adminGetLocation<TData = LocationDetail>(clubId: string,
     id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- getLocation1<TData = LocationDetail>(clubId: string,
+ adminGetLocation<TData = LocationDetail>(clubId: string,
     id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  getLocation1<TData = LocationDetail>(
+  adminGetLocation<TData = LocationDetail>(
     clubId: string,
     id: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
@@ -120,16 +120,16 @@ export class LocationsAdminService {
 /**
  * @summary Update a Location under {clubId}.
  */
- updateLocation1<TData = LocationDetail>(clubId: string,
+ adminUpdateLocation<TData = LocationDetail>(clubId: string,
     id: string,
     locationUpdateRequest: LocationUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
- updateLocation1<TData = LocationDetail>(clubId: string,
+ adminUpdateLocation<TData = LocationDetail>(clubId: string,
     id: string,
     locationUpdateRequest: LocationUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- updateLocation1<TData = LocationDetail>(clubId: string,
+ adminUpdateLocation<TData = LocationDetail>(clubId: string,
     id: string,
     locationUpdateRequest: LocationUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  updateLocation1<TData = LocationDetail>(
+  adminUpdateLocation<TData = LocationDetail>(
     clubId: string,
     id: string,
     locationUpdateRequest: LocationUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
@@ -164,13 +164,13 @@ export class LocationsAdminService {
 /**
  * @summary Soft-delete a Location under {clubId}.
  */
- deleteLocation1<TData = void>(clubId: string,
+ adminDeleteLocation<TData = void>(clubId: string,
     id: string, options?: HttpClientBodyOptions): Observable<TData>;
- deleteLocation1<TData = void>(clubId: string,
+ adminDeleteLocation<TData = void>(clubId: string,
     id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- deleteLocation1<TData = void>(clubId: string,
+ adminDeleteLocation<TData = void>(clubId: string,
     id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  deleteLocation1<TData = void>(
+  adminDeleteLocation<TData = void>(
     clubId: string,
     id: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
@@ -201,10 +201,10 @@ export class LocationsAdminService {
 /**
  * @summary List locations for {clubId}.
  */
- listLocations1<TData = LocationListItem[]>(clubId: string, options?: HttpClientBodyOptions): Observable<TData>;
- listLocations1<TData = LocationListItem[]>(clubId: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- listLocations1<TData = LocationListItem[]>(clubId: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  listLocations1<TData = LocationListItem[]>(
+ adminListLocations<TData = LocationListItem[]>(clubId: string, options?: HttpClientBodyOptions): Observable<TData>;
+ adminListLocations<TData = LocationListItem[]>(clubId: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ adminListLocations<TData = LocationListItem[]>(clubId: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  adminListLocations<TData = LocationListItem[]>(
     clubId: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.get<TData>(
@@ -234,13 +234,13 @@ export class LocationsAdminService {
 /**
  * @summary Create a new Location under {clubId}.
  */
- createLocation1<TData = LocationDetail>(clubId: string,
+ adminCreateLocation<TData = LocationDetail>(clubId: string,
     locationCreateRequest: LocationCreateRequest, options?: HttpClientBodyOptions): Observable<TData>;
- createLocation1<TData = LocationDetail>(clubId: string,
+ adminCreateLocation<TData = LocationDetail>(clubId: string,
     locationCreateRequest: LocationCreateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- createLocation1<TData = LocationDetail>(clubId: string,
+ adminCreateLocation<TData = LocationDetail>(clubId: string,
     locationCreateRequest: LocationCreateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  createLocation1<TData = LocationDetail>(
+  adminCreateLocation<TData = LocationDetail>(
     clubId: string,
     locationCreateRequest: LocationCreateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {

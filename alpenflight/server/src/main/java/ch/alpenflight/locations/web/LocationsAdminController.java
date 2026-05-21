@@ -60,51 +60,51 @@ public class LocationsAdminController {
         this.userLookup = userLookup;
     }
 
-    @Operation(summary = "List locations for {clubId}.")
+    @Operation(operationId = "adminListLocations", summary = "List locations for {clubId}.")
     @ApiResponse(responseCode = "200", description = "Array of location listitem projections.")
     @GetMapping
-    public List<LocationListItem> listLocations(@PathVariable ClubId clubId) {
+    public List<LocationListItem> adminListLocations(@PathVariable ClubId clubId) {
         return Tenants.runAs(clubId.value(), service::listLocations);
     }
 
-    @Operation(summary = "Read a single Location under {clubId}.")
+    @Operation(operationId = "adminGetLocation", summary = "Read a single Location under {clubId}.")
     @ApiResponse(responseCode = "200", description = "Location detail projection.")
     @ApiResponse(responseCode = "404", description = "No active location with that id under {clubId}.")
     @GetMapping("/{id}")
-    public LocationDetail getLocation(@PathVariable ClubId clubId, @PathVariable LocationId id) {
+    public LocationDetail adminGetLocation(@PathVariable ClubId clubId, @PathVariable LocationId id) {
         return Tenants.runAs(clubId.value(), () -> service.getLocation(id));
     }
 
-    @Operation(summary = "Create a new Location under {clubId}.")
+    @Operation(operationId = "adminCreateLocation", summary = "Create a new Location under {clubId}.")
     @ApiResponse(responseCode = "201", description = "Created; body is the new Location.")
     @ApiResponse(responseCode = "400", description = "Validation failed.")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use within {clubId}.")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<LocationDetail> createLocation(@PathVariable ClubId clubId,
-                                                         @Valid @RequestBody LocationCreateRequest req) {
+    public ResponseEntity<LocationDetail> adminCreateLocation(@PathVariable ClubId clubId,
+                                                              @Valid @RequestBody LocationCreateRequest req) {
         LocationDetail created = Tenants.runAs(clubId.value(), () -> service.createLocation(req));
         URI location = URI.create("/api/v1/admin/locations/" + clubId + "/" + created.id());
         return ResponseEntity.created(location).body(created);
     }
 
-    @Operation(summary = "Update a Location under {clubId}.")
+    @Operation(operationId = "adminUpdateLocation", summary = "Update a Location under {clubId}.")
     @ApiResponse(responseCode = "200", description = "Updated; body is the new state.")
     @ApiResponse(responseCode = "404", description = "No active location with that id under {clubId}.")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use by another Location.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public LocationDetail updateLocation(@PathVariable ClubId clubId,
-                                         @PathVariable LocationId id,
-                                         @Valid @RequestBody LocationUpdateRequest req) {
+    public LocationDetail adminUpdateLocation(@PathVariable ClubId clubId,
+                                              @PathVariable LocationId id,
+                                              @Valid @RequestBody LocationUpdateRequest req) {
         return Tenants.runAs(clubId.value(), () -> service.updateLocation(id, req));
     }
 
-    @Operation(summary = "Soft-delete a Location under {clubId}.")
+    @Operation(operationId = "adminDeleteLocation", summary = "Soft-delete a Location under {clubId}.")
     @ApiResponse(responseCode = "204", description = "Deleted.")
     @ApiResponse(responseCode = "404", description = "No active location with that id under {clubId}.")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteLocation(@PathVariable ClubId clubId,
-                                               @PathVariable LocationId id,
-                                               @AuthenticationPrincipal @Nullable Jwt jwt) {
+    public ResponseEntity<Void> adminDeleteLocation(@PathVariable ClubId clubId,
+                                                    @PathVariable LocationId id,
+                                                    @AuthenticationPrincipal @Nullable Jwt jwt) {
         UUID actorId = jwt == null ? null : userLookup.resolveUserIdFor(jwt).orElse(null);
         Tenants.runAs(clubId.value(), () -> service.softDeleteLocation(id, actorId));
         return ResponseEntity.noContent().build();

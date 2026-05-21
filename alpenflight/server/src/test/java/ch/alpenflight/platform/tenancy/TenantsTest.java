@@ -71,4 +71,15 @@ class TenantsTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("clubId");
     }
+
+    @Test
+    void runAs_rejects_NO_TENANT_sentinel() {
+        // The nil-UUID is the resolver's "no tenant" marker; runAs must rebuke
+        // it loud rather than silently degrade to empty-reads + FK-violation-
+        // on-write at the bottom of the stack.
+        assertThatThrownBy(() ->
+                Tenants.runAs(ClubTenantIdentifierResolver.NO_TENANT, () -> { /* no-op */ }))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("NO_TENANT");
+    }
 }

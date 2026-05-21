@@ -139,6 +139,37 @@ class LocationsAdminControllerIT extends PostgresIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void admin_write_to_B_is_invisible_to_A_via_the_regular_list() throws Exception {
+        // Inverted negative: a runAs(B) write must not bleed back into A's
+        // JWT-driven view. Confirms Tenants.runAs is strictly scoped — the
+        // counterpart to the cross-tenant leakage CI that S-024 will land.
+        String icao = LocationsControllerIT.uniqueIcao();
+        createUnder(CLUB_B, icao);
+        String aList = mvc.perform(get("/api/v1/locations")
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(aList)
+                .as("CLUB_ADMIN-of-A regular list must not see CLUB_B's admin-created row")
+                .doesNotContain(icao);
+    }
+
+    @Test
+    void unknown_clubId_on_post_returns_404_not_500() throws Exception {
+        // Path-variable clubId for a club row that does not exist hits the
+        // fk_location_club_id constraint. The handler translates that to
+        // 404 (Club not found) so the SPA + audit can surface it cleanly.
+        String ghostClub = ClubId.of(UUID.fromString("019e30c3-2c00-7001-8000-00000000ffff")).toString();
+        mvc.perform(post("/api/v1/admin/locations/" + ghostClub)
+                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(LocationsControllerIT.createPayload(
+                                "Ghost-club POST " + LocationsControllerIT.suffix(),
+                                LocationsControllerIT.uniqueIcao()))))
+                .andExpect(status().isNotFound());
+    }
+
     // ----- helpers -----
 
     private static String clubExternal(String clubUuid) {

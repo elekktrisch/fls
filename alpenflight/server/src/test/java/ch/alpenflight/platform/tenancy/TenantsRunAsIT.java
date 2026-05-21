@@ -12,7 +12,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -92,14 +91,15 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
 
     @Test
     @WithTenant(CLUB_A_LITERAL)
-    void runAs_with_nil_uuid_fails_at_fk_constraint() {
-        // The platform helper accepts any UUID; the FK constraint on club_id
-        // is the fail-closed gate for "tenant that doesn't exist". This is
-        // the same shape as the JWT-driven NO_TENANT contract.
+    void runAs_with_nil_uuid_is_rejected_at_entry_point() {
+        // The platform helper rebukes the NO_TENANT sentinel loud rather than
+        // letting it silently degrade to "reads return empty / writes hit FK".
+        // Catches "forgot to derive clubId from a path variable" at the seam.
         UUID nil = new UUID(0L, 0L);
         assertThatThrownBy(() ->
                 Tenants.runAs(nil, () -> memberStates.save(new MemberState("would-poison"))))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("NO_TENANT");
     }
 
     @Test
