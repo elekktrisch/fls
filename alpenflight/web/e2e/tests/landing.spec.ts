@@ -78,4 +78,33 @@ test.describe('landing — i18n + locale switch', () => {
     await page.getByTestId('af-lang-fr').click();
     await expect(page.locator('p').first()).toContainText(/Carnet de vol/);
   });
+
+  test('AC-DIR-2: primary CTAs hit >= 44 x 44 CSS px at <md', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/?lang=de');
+
+    for (const testId of ['landing-sign-in', 'landing-request-access']) {
+      const btn = page.getByTestId(testId);
+      await expect(btn).toBeVisible();
+      const box = await btn.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test('AC-DIR-3: splash slot renders with object-fit cover', async ({ page }) => {
+    await page.goto('/?lang=de');
+    const splash = page.getByTestId('landing-splash');
+    await expect(splash).toBeVisible();
+    const objectFit = await splash.evaluate(
+      (el) => window.getComputedStyle(el).getPropertyValue('object-fit'),
+    );
+    expect(objectFit).toBe('cover');
+  });
+
+  test('AC-DIR-5: landing has exactly one af-lang-picker (the inline one)', async ({ page }) => {
+    await page.goto('/?lang=de');
+    await expect(page.locator('af-lang-picker')).toHaveCount(1);
+  });
 });
