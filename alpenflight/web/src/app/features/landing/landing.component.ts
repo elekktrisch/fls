@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
@@ -12,82 +13,180 @@ import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
  * form is hosted by Keycloak; clicking "Sign in" calls
  * `OidcSecurityService.authorize()` which redirects out to Keycloak's
  * hosted UI. See `project-login-in-keycloak.md` (auto-memory).
+ *
+ * Single `<af-lang-picker>` per surface (AC-DIR-5): the inline picker
+ * lives below the CTAs on the landing; the nav-bar picker is rendered
+ * only when `data: { showNavBar: true }` (landing opts out via
+ * `data: { showNavBar: false }` in `landing.routes.ts`), so the
+ * conflict cannot occur today.
  */
+const SPLASH_DEFAULT_SVG =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1200' preserveAspectRatio='xMidYMid slice'>" +
+  "<defs><pattern id='af-splash-stripes' x='0' y='0' width='32' height='32' patternTransform='rotate(45)' patternUnits='userSpaceOnUse'>" +
+  "<rect width='16' height='32' fill='%23EEF2F6'/><rect x='16' width='16' height='32' fill='%23F7F9FB'/>" +
+  '</pattern></defs>' +
+  "<rect width='1600' height='1200' fill='%23F7F9FB'/>" +
+  "<rect width='1600' height='1200' fill='url(%23af-splash-stripes)'/>" +
+  "<rect width='1600' height='1200' fill='%231E5BB8' opacity='0.04'/>" +
+  '</svg>';
+
 @Component({
   selector: 'af-landing',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AfButtonComponent, AfIconComponent, AfLangPickerComponent, TranslocoDirective],
+  imports: [
+    AfButtonComponent,
+    AfIconComponent,
+    AfLangPickerComponent,
+    RouterLink,
+    TranslocoDirective,
+  ],
   host: { class: 'block' },
   template: `
     <ng-container *transloco="let t; read: 'landing'">
-      <main
-        class="min-h-screen bg-gradient-to-b from-slate-50 to-white grid grid-rows-[1fr_auto] place-items-center px-4"
-        data-testid="landing"
-      >
-        <section
-          class="w-full max-w-sm flex flex-col items-center gap-6 pt-12 pb-8 px-6"
-          aria-labelledby="af-landing-title"
+      <div class="min-h-screen bg-white grid grid-rows-[auto_1fr_auto]">
+        <header
+          class="h-14 px-6 flex items-center gap-3 border-b border-slate-200"
+          data-testid="landing-topbar"
         >
-          <div class="inline-flex items-center gap-2.5">
-            <af-icon name="plane" [size]="40" class="text-brand-500" />
+          <a routerLink="/" class="inline-flex items-center gap-2 text-slate-900 no-underline">
+            <af-icon name="plane" [size]="22" class="text-brand-500" />
+            <span class="text-lg font-medium tracking-tight">AlpenFlight</span>
+          </a>
+          <span class="flex-1"></span>
+          <af-button
+            type="default"
+            htmlType="button"
+            data-testid="landing-topbar-sign-in"
+            (clicked)="signIn()"
+          >
+            {{ t('actions.signIn') }}
+          </af-button>
+        </header>
+
+        <section
+          class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]"
+          data-testid="landing"
+        >
+          <div
+            class="flex flex-col justify-center px-6 py-16 md:py-20 md:px-8 max-w-xl md:ml-auto md:mr-0 w-full"
+          >
+            <p
+              class="m-0 mb-4 text-xs font-medium uppercase tracking-[0.06em] text-slate-500"
+              data-testid="landing-eyebrow"
+            >
+              {{ t('eyebrow') }}
+            </p>
             <h1
-              id="af-landing-title"
-              class="text-2xl font-medium tracking-tight text-slate-900 m-0"
+              class="m-0 mb-4 text-3xl md:text-4xl font-medium tracking-tight leading-[1.15] text-slate-900 text-pretty"
+              data-testid="landing-headline"
             >
-              AlpenFlight
+              {{ t('headline') }}
             </h1>
-          </div>
-
-          <p class="m-0 text-center text-base leading-normal text-slate-500 max-w-[22rem]">
-            {{ t('tagline') }}
-          </p>
-
-          <div class="flex flex-col items-stretch gap-3 w-full max-w-[18rem]">
-            <af-button
-              type="primary"
-              htmlType="button"
-              data-testid="landing-sign-in"
-              (clicked)="signIn()"
+            <p
+              class="m-0 mb-6 max-w-[30rem] text-base leading-normal text-slate-500"
+              data-testid="landing-tagline"
             >
-              {{ t('actions.signIn') }}
-            </af-button>
+              {{ t('tagline') }}
+            </p>
+
+            <div class="flex flex-wrap gap-3">
+              <af-button
+                type="primary"
+                htmlType="button"
+                data-testid="landing-sign-in"
+                (clicked)="signIn()"
+              >
+                <span class="inline-flex items-center gap-2">
+                  {{ t('actions.signIn') }}
+                  <af-icon name="arrow-right" [size]="16" />
+                </span>
+              </af-button>
+              <af-button
+                type="default"
+                htmlType="button"
+                data-testid="landing-request-access"
+                (clicked)="requestAccess()"
+              >
+                {{ t('actions.requestAccess') }}
+              </af-button>
+            </div>
+
             <button
               type="button"
-              class="bg-transparent border-0 p-2 text-brand-700 underline underline-offset-2 cursor-pointer text-sm hover:text-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
+              class="self-start mt-4 bg-transparent border-0 p-2 -ml-2 text-sm text-brand-700 underline underline-offset-2 cursor-pointer hover:text-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
               (click)="tryDemo()"
             >
               {{ t('actions.tryDemo') }}
             </button>
+
+            <div
+              class="mt-10 pt-5 border-t border-slate-200 grid grid-cols-3 gap-5"
+              data-testid="landing-stats"
+            >
+              <div>
+                <div class="tabular text-xl font-medium text-slate-900">34</div>
+                <div class="text-xs text-slate-500">{{ t('stats.clubs') }}</div>
+              </div>
+              <div>
+                <div class="tabular text-xl font-medium text-slate-900">1 870</div>
+                <div class="text-xs text-slate-500">{{ t('stats.pilots') }}</div>
+              </div>
+              <div>
+                <div class="tabular text-xl font-medium text-slate-900">184 002</div>
+                <div class="text-xs text-slate-500">{{ t('stats.flights') }}</div>
+              </div>
+            </div>
+
+            <af-lang-picker class="mt-8" [ariaLabel]="t('language')" />
           </div>
 
-          <af-lang-picker class="mt-2" [ariaLabel]="t('language')" />
+          <div class="hidden md:block relative border-l border-slate-200 bg-slate-50 min-h-[30rem]">
+            <img
+              [src]="splashUrl"
+              [alt]="t('splashLabel')"
+              data-testid="landing-splash"
+              class="absolute inset-0 w-full h-full object-cover object-[center_35%]"
+            />
+          </div>
         </section>
 
         <footer
-          class="inline-flex flex-wrap gap-2 py-6 px-4 text-sm text-slate-500 text-center justify-center"
+          class="border-t border-slate-200 px-6 py-4 flex flex-wrap justify-between gap-3 text-xs text-slate-500"
         >
-          <span>© AlpenFlight</span>
-          <span aria-hidden="true">·</span>
-          <a
-            href="/legal/privacy"
-            class="text-inherit no-underline hover:text-slate-900 hover:underline"
-            >{{ t('footer.privacy') }}</a
-          >
-          <span aria-hidden="true">·</span>
-          <a
-            href="/legal/imprint"
-            class="text-inherit no-underline hover:text-slate-900 hover:underline"
-            >{{ t('footer.imprint') }}</a
-          >
+          <span>© 2026 AlpenFlight</span>
+          <span class="inline-flex flex-wrap gap-4">
+            <a
+              href="/status"
+              class="text-inherit no-underline hover:text-slate-900 hover:underline"
+              >{{ t('footer.status') }}</a
+            >
+            <a
+              href="/docs"
+              class="text-inherit no-underline hover:text-slate-900 hover:underline"
+              >{{ t('footer.documentation') }}</a
+            >
+            <a
+              href="/legal/imprint"
+              class="text-inherit no-underline hover:text-slate-900 hover:underline"
+              >{{ t('footer.imprint') }}</a
+            >
+            <a
+              href="/legal/privacy"
+              class="text-inherit no-underline hover:text-slate-900 hover:underline"
+              >{{ t('footer.privacy') }}</a
+            >
+          </span>
         </footer>
-      </main>
+      </div>
     </ng-container>
   `,
 })
 export class LandingComponent {
   readonly #oidc = inject(OidcSecurityService);
   readonly #localeService = inject(LocaleService);
+
+  protected readonly splashUrl = SPLASH_DEFAULT_SVG;
 
   protected signIn(): void {
     // Keycloak hosts the credentials form. ui_locales hints Keycloak's UI
@@ -97,11 +196,21 @@ export class LandingComponent {
     });
   }
 
+  protected requestAccess(): void {
+    // SaaS self-service signup flow (vision §8 — separate track). Wired
+    // to the same OIDC `authorize()` for now; the dedicated signup route
+    // lands when the self-service onboarding story does. A `prompt=create`
+    // hint nudges a Keycloak realm that supports it; absent that, the
+    // standard login screen surfaces a "Register" link.
+    this.#oidc.authorize(undefined, {
+      customParams: { ui_locales: this.#localeService.current(), prompt: 'create' },
+    });
+  }
+
   protected tryDemo(): void {
-    // TODO(demo-mode): trigger a demo Keycloak realm or pre-baked guest
-    // session per vision §8. Stubbed for v1 — currently routes to the
-    // standard sign-in flow with a demo hint that's ignored until the
-    // demo realm lands.
+    // Demo-mode (vision §8) — stubbed until the demo realm lands. Routes
+    // to the standard sign-in flow with a demo hint that's ignored until
+    // the demo realm exists.
     this.#oidc.authorize(undefined, {
       customParams: { ui_locales: this.#localeService.current(), login_hint: 'demo' },
     });

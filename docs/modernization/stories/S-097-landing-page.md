@@ -17,6 +17,7 @@ refined: true
 refined_at: 2026-05-21
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer]
 github_issue: 96
+github_pr: 97
 ---
 
 ## Context
