@@ -33,7 +33,7 @@ export interface AfSelectOption<T> {
   host: { class: 'block w-full' },
   template: `
     <nz-select
-      class="w-full"
+      class="w-full focus:border-brand-500 focus:outline-hidden"
       [nzSize]="nzSize()"
       [nzPlaceHolder]="placeholder()"
       [nzShowSearch]="showSearch()"

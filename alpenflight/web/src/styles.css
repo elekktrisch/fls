@@ -120,10 +120,9 @@ body[data-density='comfortable']
     .ant-pagination-size-changer
   )
   .ant-select-selector {
-  border-color: var(--color-slate-300) !important;
+  border-color: var(--color-brand-500) !important;
   box-shadow: none !important;
-  outline: 2px solid var(--color-brand-500) !important;
-  outline-offset: 1px !important;
+  outline: hidden;
 }
 body[data-density='comfortable'] .ant-select-single .ant-select-selection-item,
 body[data-density='comfortable'] .ant-select-single .ant-select-selection-placeholder {
