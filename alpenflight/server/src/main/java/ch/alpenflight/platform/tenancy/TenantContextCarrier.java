@@ -4,8 +4,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Production-classpath hook the resolver consults as the first step of its
- * precedence chain. Two legitimate callers, both package-mates:
+ * Production-classpath ThreadLocal carrier the resolver consults as the first
+ * step of its precedence chain. Two legitimate callers, both package-mates:
  *
  * <ul>
  *   <li>{@link Tenants}{@code #runAs(...)} — the production escape hatch for
@@ -20,11 +20,11 @@ import java.util.UUID;
  * effective tenant. {@code TenantBypassGuardTest} enforces this with an
  * ArchUnit rule that carves out the {@code platform.tenancy} package only.
  */
-public final class TenantTestContextAccess {
+public final class TenantContextCarrier {
 
     private static final ThreadLocal<UUID> CURRENT = new ThreadLocal<>();
 
-    private TenantTestContextAccess() {}
+    private TenantContextCarrier() {}
 
     public static Optional<UUID> current() {
         return Optional.ofNullable(CURRENT.get());

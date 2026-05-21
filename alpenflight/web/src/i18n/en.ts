@@ -14,6 +14,21 @@ const en: Translations = {
     tagline: 'Flight logging, reservations, members — for Swiss clubs.',
   },
   locations: {
+    admin: {
+      banner:
+        'Cross-tenant view — pick a club to operate on its Locations. Standard per-club management is at /locations.',
+      clubLabel: 'Club',
+      clubPlaceholder: 'Pick a club to view its Locations',
+      clubPlaceholderLoading: 'Loading clubs…',
+      clubsError: 'Failed to load clubs.',
+      delete: 'Delete',
+      deleteConfirm: 'Delete "{{name}}" from this club? This cannot be undone.',
+      deleteError: 'Failed to delete the Location.',
+      edit: 'Edit',
+      locationsError: 'Failed to load Locations for the selected club.',
+      new: 'New location',
+      title: 'Locations admin (cross-tenant)',
+    },
     blastRadiusBanner: 'Per-club masterdata — changes apply only to your club.',
     errors: {
       icaoDuplicate: 'ICAO code is already in use.',

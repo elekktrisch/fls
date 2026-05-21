@@ -115,18 +115,29 @@ test.describe('Locations admin (cross-tenant)', () => {
     await expect(page.getByText('Alpha Airfield')).toHaveCount(0);
   });
 
+  test('exposes new + edit affordances once a club is picked', async ({ page }) => {
+    await page.goto('/admin/locations');
+    // No club picked yet → new button hidden (avoid the "create under no
+    // club" foot-gun that would 404 on submit).
+    await expect(page.getByTestId('admin-locations-new')).toHaveCount(0);
+
+    await page.getByTestId('admin-club-picker').click();
+    await page.getByText('Bravo Wings').click();
+    await expect(page.getByTestId('admin-locations-new')).toBeVisible();
+    await expect(
+      page.getByTestId(`admin-location-edit-${LOCATIONS_BY_CLUB[CLUB_B.id]![0]!.id}`),
+    ).toBeVisible();
+  });
+
   test('row delete fires admin DELETE and refreshes', async ({ page }) => {
     let deleteHits = 0;
-    await page.route(
-      /.*\/api\/v1\/admin\/locations\/[^/]+\/[^/]+$/,
-      async (route) => {
-        if (route.request().method() === 'DELETE') {
-          deleteHits += 1;
-          return route.fulfill({ status: 204, body: '' });
-        }
-        return route.continue();
-      },
-    );
+    await page.route(/.*\/api\/v1\/admin\/locations\/[^/]+\/[^/]+$/, async (route) => {
+      if (route.request().method() === 'DELETE') {
+        deleteHits += 1;
+        return route.fulfill({ status: 204, body: '' });
+      }
+      return route.continue();
+    });
     page.on('dialog', (dialog) => dialog.accept());
 
     await page.goto('/admin/locations');

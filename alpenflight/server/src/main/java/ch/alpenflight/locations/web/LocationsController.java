@@ -6,7 +6,7 @@ import ch.alpenflight.locations.application.LocationDtos.LocationListItem;
 import ch.alpenflight.locations.application.LocationDtos.LocationUpdateRequest;
 import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.platform.id.LocationId;
-import ch.alpenflight.platform.tenancy.UserTenantLookup;
+import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,9 +52,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class LocationsController {
 
     private final LocationsService service;
-    private final UserTenantLookup userLookup;
+    private final UserPrincipalLookup userLookup;
 
-    public LocationsController(LocationsService service, UserTenantLookup userLookup) {
+    public LocationsController(LocationsService service, UserPrincipalLookup userLookup) {
         this.service = service;
         this.userLookup = userLookup;
     }
@@ -114,7 +114,7 @@ public class LocationsController {
     /**
      * Resolves the internal {@code user.id} for the audit trail.
      * {@code jwt.getSubject()} (OIDC {@code sub}) maps to {@code user.id} via
-     * {@link UserTenantLookup#resolveUserIdFor(Jwt)}; federated subs that
+     * {@link UserPrincipalLookup#resolveUserIdFor(Jwt)}; federated subs that
      * don't match the {@code keycloak_sub} mapping yield null until those
      * IdPs onboard.
      */

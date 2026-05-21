@@ -17,7 +17,7 @@ import java.util.function.Supplier;
  *       endpoints / runners that write on behalf of many clubs in one pass.</li>
  * </ul>
  *
- * <p>Internally pushes {@code clubId} into {@link TenantTestContextAccess}
+ * <p>Internally pushes {@code clubId} into {@link TenantContextCarrier}
  * (the same package-mate carrier the test seam uses); the
  * {@link ClubTenantIdentifierResolver}'s precedence chain reads from this
  * carrier first. The {@code .platform.tenancy} package carve-out in
@@ -57,15 +57,15 @@ public final class Tenants {
             // bugs before they ship.
             throw new IllegalArgumentException("clubId must not be the NO_TENANT sentinel");
         }
-        Optional<UUID> prior = TenantTestContextAccess.current();
-        TenantTestContextAccess.set(clubId);
+        Optional<UUID> prior = TenantContextCarrier.current();
+        TenantContextCarrier.set(clubId);
         try {
             return body.get();
         } finally {
             if (prior.isPresent()) {
-                TenantTestContextAccess.set(prior.get());
+                TenantContextCarrier.set(prior.get());
             } else {
-                TenantTestContextAccess.clear();
+                TenantContextCarrier.clear();
             }
         }
     }

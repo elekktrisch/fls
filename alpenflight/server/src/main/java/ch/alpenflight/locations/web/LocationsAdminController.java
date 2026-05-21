@@ -8,7 +8,7 @@ import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.tenancy.Tenants;
-import ch.alpenflight.platform.tenancy.UserTenantLookup;
+import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -53,9 +53,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class LocationsAdminController {
 
     private final LocationsService service;
-    private final UserTenantLookup userLookup;
+    private final UserPrincipalLookup userLookup;
 
-    public LocationsAdminController(LocationsService service, UserTenantLookup userLookup) {
+    public LocationsAdminController(LocationsService service, UserPrincipalLookup userLookup) {
         this.service = service;
         this.userLookup = userLookup;
     }

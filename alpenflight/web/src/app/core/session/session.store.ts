@@ -68,7 +68,9 @@ export const SessionStore = signalStore(
       // 'SYSTEM_ADMINISTRATOR')") gate. Use this for "can mutate this club's
       // data via the UI" decisions; do not re-derive the disjunction per page.
       const roles = authenticatedUser()?.roles;
-      return roles?.includes('CLUB_ADMINISTRATOR') || roles?.includes('SYSTEM_ADMINISTRATOR') || false;
+      return (
+        roles?.includes('CLUB_ADMINISTRATOR') || roles?.includes('SYSTEM_ADMINISTRATOR') || false
+      );
     }),
   })),
   withMethods((store, bus = inject(MUTATION_BUS), refData = inject(ReferenceDataStore)) => ({

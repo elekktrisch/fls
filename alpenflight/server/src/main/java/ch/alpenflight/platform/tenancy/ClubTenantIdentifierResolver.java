@@ -19,9 +19,9 @@ import org.springframework.stereotype.Component;
  * <h2>Precedence</h2>
  *
  * <ol>
- *   <li>{@link TenantTestContextAccess} (test seam — S-015 {@code @WithTenant}).</li>
+ *   <li>{@link TenantContextCarrier} (production / test override carrier — S-015 {@code @WithTenant}, {@link Tenants#runAs}).</li>
  *   <li>JWT {@code clubId} claim when present + parseable.</li>
- *   <li>{@link UserTenantLookup} — covers federated users whose tokens
+ *   <li>{@link UserPrincipalLookup} — covers federated users whose tokens
  *       lack a {@code clubId} claim (Google / Auth0).</li>
  *   <li>{@link #NO_TENANT} — the nil UUID. Tenant-scoped reads filter to
  *       zero rows; writes fail at the FK constraint on {@code club_id}.</li>
@@ -45,17 +45,17 @@ public class ClubTenantIdentifierResolver implements CurrentTenantIdentifierReso
      */
     public static final UUID NO_TENANT = new UUID(0L, 0L);
 
-    private final Optional<UserTenantLookup> userTenantLookup;
+    private final Optional<UserPrincipalLookup> userPrincipalLookup;
 
-    public ClubTenantIdentifierResolver(Optional<UserTenantLookup> userTenantLookup) {
-        this.userTenantLookup = userTenantLookup;
+    public ClubTenantIdentifierResolver(Optional<UserPrincipalLookup> userPrincipalLookup) {
+        this.userPrincipalLookup = userPrincipalLookup;
     }
 
     @Override
     public UUID resolveCurrentTenantIdentifier() {
-        Optional<UUID> fromTest = TenantTestContextAccess.current();
-        if (fromTest.isPresent()) {
-            return fromTest.get();
+        Optional<UUID> override = TenantContextCarrier.current();
+        if (override.isPresent()) {
+            return override.get();
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -73,7 +73,7 @@ public class ClubTenantIdentifierResolver implements CurrentTenantIdentifierReso
             }
         }
 
-        return userTenantLookup
+        return userPrincipalLookup
                 .flatMap(lookup -> lookup.resolveTenantFor(jwt))
                 .orElse(NO_TENANT);
     }

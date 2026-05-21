@@ -1,13 +1,13 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
-import ch.alpenflight.platform.tenancy.TenantTestContextAccess;
+import ch.alpenflight.platform.tenancy.TenantContextCarrier;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Test-side carrier for the currently-active tenant identifier. Delegates
- * to {@link TenantTestContextAccess} (the production-classpath shim the
+ * to {@link TenantContextCarrier} (the production-classpath shim the
  * {@link ClubTenantIdentifierResolver} consults as the first step of its
  * precedence chain) — Maven test-scope hides this class from {@code src/main},
  * so the shim is the resolver's reachable hook.
@@ -38,15 +38,15 @@ public final class TenantTestContext {
     private TenantTestContext() {}
 
     public static void set(UUID tenantId) {
-        TenantTestContextAccess.set(tenantId);
+        TenantContextCarrier.set(tenantId);
     }
 
     public static Optional<UUID> current() {
-        return TenantTestContextAccess.current();
+        return TenantContextCarrier.current();
     }
 
     public static void clear() {
-        TenantTestContextAccess.clear();
+        TenantContextCarrier.clear();
     }
 
     /**
@@ -56,15 +56,15 @@ public final class TenantTestContext {
      * switch-back.
      */
     public static void runAs(UUID tenantId, Runnable body) {
-        Optional<UUID> prior = TenantTestContextAccess.current();
-        TenantTestContextAccess.set(tenantId);
+        Optional<UUID> prior = TenantContextCarrier.current();
+        TenantContextCarrier.set(tenantId);
         try {
             body.run();
         } finally {
             if (prior.isPresent()) {
-                TenantTestContextAccess.set(prior.get());
+                TenantContextCarrier.set(prior.get());
             } else {
-                TenantTestContextAccess.clear();
+                TenantContextCarrier.clear();
             }
         }
     }

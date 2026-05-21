@@ -20,47 +20,47 @@ class TenantsTest {
 
     @AfterEach
     void clearCarrier() {
-        TenantTestContextAccess.clear();
+        TenantContextCarrier.clear();
     }
 
     @Test
     void runAs_sets_carrier_for_the_duration_of_body() {
         AtomicReference<UUID> seen = new AtomicReference<>();
-        Tenants.runAs(CLUB_A, () -> seen.set(TenantTestContextAccess.current().orElse(null)));
+        Tenants.runAs(CLUB_A, () -> seen.set(TenantContextCarrier.current().orElse(null)));
         assertThat(seen.get()).isEqualTo(CLUB_A);
     }
 
     @Test
     void runAs_restores_prior_absence_after_body() {
-        assertThat(TenantTestContextAccess.current()).isEmpty();
+        assertThat(TenantContextCarrier.current()).isEmpty();
         Tenants.runAs(CLUB_A, () -> { /* no-op */ });
-        assertThat(TenantTestContextAccess.current())
+        assertThat(TenantContextCarrier.current())
                 .as("carrier returns to empty when there was no prior value")
                 .isEmpty();
     }
 
     @Test
     void runAs_restores_prior_value_after_nested_call() {
-        TenantTestContextAccess.set(CLUB_A);
-        Tenants.runAs(CLUB_B, () -> assertThat(TenantTestContextAccess.current()).contains(CLUB_B));
-        assertThat(TenantTestContextAccess.current())
+        TenantContextCarrier.set(CLUB_A);
+        Tenants.runAs(CLUB_B, () -> assertThat(TenantContextCarrier.current()).contains(CLUB_B));
+        assertThat(TenantContextCarrier.current())
                 .as("outer scope's tenant restored after nested runAs returns")
                 .contains(CLUB_A);
     }
 
     @Test
     void runAs_supplier_returns_body_result() {
-        String result = Tenants.runAs(CLUB_A, () -> "ok-" + TenantTestContextAccess.current().orElseThrow());
+        String result = Tenants.runAs(CLUB_A, () -> "ok-" + TenantContextCarrier.current().orElseThrow());
         assertThat(result).isEqualTo("ok-" + CLUB_A);
     }
 
     @Test
     void runAs_clears_carrier_even_if_body_throws() {
         assertThatThrownBy(() -> Tenants.runAs(CLUB_A, () -> {
-            assertThat(TenantTestContextAccess.current()).contains(CLUB_A);
+            assertThat(TenantContextCarrier.current()).contains(CLUB_A);
             throw new IllegalStateException("boom");
         })).isInstanceOf(IllegalStateException.class);
-        assertThat(TenantTestContextAccess.current())
+        assertThat(TenantContextCarrier.current())
                 .as("carrier is restored even on exceptional exit")
                 .isEmpty();
     }

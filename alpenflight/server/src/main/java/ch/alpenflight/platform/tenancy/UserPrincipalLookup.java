@@ -35,9 +35,9 @@ import org.springframework.stereotype.Component;
  * return empty; the lookup story for those IdPs ships when they onboard.
  */
 @Component
-public class UserTenantLookup {
+public class UserPrincipalLookup {
 
-    private static final Logger LOG = LoggerFactory.getLogger(UserTenantLookup.class);
+    private static final Logger LOG = LoggerFactory.getLogger(UserPrincipalLookup.class);
 
     private static final String SELECT_CLUB_ID = "SELECT club_id FROM \"user\" "
             + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
@@ -46,7 +46,7 @@ public class UserTenantLookup {
 
     private final JdbcTemplate jdbc;
 
-    public UserTenantLookup(JdbcTemplate jdbc) {
+    public UserPrincipalLookup(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 

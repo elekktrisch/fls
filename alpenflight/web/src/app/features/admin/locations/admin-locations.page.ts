@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 import type { ClubResponse, LocationListItem } from '@core/../api/generated/model';
 import { ClubsService } from '@core/../api/generated/clubs/clubs.service';
@@ -15,11 +16,13 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 /**
  * SYSTEM_ADMINISTRATOR cross-tenant Locations management. Pick a club from
- * the dropdown to load its Locations; per-row delete confirmation. Create
- * and edit affordances are deferred — sysadmins fix-up-only via this surface
- * today; full CRUD parity tracked as a follow-up. The route is gated by
- * {@code sysadminGuard}; the server also gates every call with
- * {@code @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")} (S-049c F3).
+ * the dropdown to load its Locations; per-row edit + delete with confirmation,
+ * plus a `New location` affordance once a club is picked. Edit / create open
+ * `AdminLocationsEditPage` which wires the regular Locations form to the
+ * admin endpoints (server wraps every call in `Tenants.runAs(clubId)`).
+ *
+ * The route is gated by {@code sysadminGuard}; the server also gates every
+ * call with {@code @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")} (S-049c F3).
  */
 @Component({
   selector: 'af-admin-locations',
@@ -33,78 +36,110 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
     AfPageErrorComponent,
     AfPageHeaderComponent,
     AfSelectComponent,
+    RouterLink,
+    TranslocoDirective,
   ],
   template: `
-    <af-page>
-      <af-page-header title="Locations admin (cross-tenant)" />
-
-      <div class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50">
-        Cross-tenant view — pick a club to operate on its Locations. Standard
-        per-club management is at /locations.
-      </div>
-
-      <div class="mb-4 max-w-md">
-        <label class="block text-sm text-slate-600 mb-1" for="admin-club-picker">Club</label>
-        <af-select
-          id="admin-club-picker"
-          data-testid="admin-club-picker"
-          [options]="clubOptions()"
-          [value]="selectedClubId()"
-          (valueChange)="onClubPicked($event)"
-          [placeholder]="clubsLoading() ? 'Loading clubs…' : 'Pick a club to view its Locations'"
-          [disabled]="clubsLoading()"
-          [allowClear]="true"
-        />
-      </div>
-
-      <af-page-error
-        [message]="clubsError()"
-        (retry)="reloadClubs()"
-        data-testid="admin-clubs-error"
-      />
-
-      @if (selectedClubId()) {
-        <af-page-error
-          [message]="locationsError()"
-          (retry)="reloadLocations()"
-          data-testid="admin-locations-error"
-        />
-
-        <af-data-table
-          data-testid="admin-locations-table"
-          [items]="locations()"
-          [loading]="locationsLoading()"
-        >
-          <ng-template #primary let-loc>
-            <span class="text-slate-900 font-medium" [attr.data-testid]="'admin-location-row-' + loc.id">
-              {{ loc.locationName }}
-            </span>
-          </ng-template>
-          <ng-template #secondary let-loc>
-            @if (loc.icaoCode) {
-              <span class="tabular">{{ loc.icaoCode }}</span>
-            }
-            @if (loc.icaoCode && loc.locationTypeCode) {
-              <span> · </span>
-            }
-            @if (loc.locationTypeCode) {
-              <span>{{ loc.locationTypeCode }}</span>
-            }
-          </ng-template>
-          <ng-template #meta let-loc>
+    <ng-container *transloco="let t; read: 'locations.admin'">
+      <af-page>
+        <af-page-header [title]="t('title')">
+          @if (selectedClubId()) {
             <af-button
-              type="default"
-              [danger]="true"
+              type="primary"
               htmlType="button"
-              [attr.data-testid]="'admin-location-delete-' + loc.id"
-              (clicked)="confirmDelete(loc)"
+              data-testid="admin-locations-new"
+              (clicked)="onNew()"
             >
-              Delete
+              {{ t('new') }}
             </af-button>
-          </ng-template>
-        </af-data-table>
-      }
-    </af-page>
+          }
+        </af-page-header>
+
+        <div
+          class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
+        >
+          {{ t('banner') }}
+        </div>
+
+        <div class="mb-4 max-w-md">
+          <label class="block text-sm text-slate-600 mb-1" for="admin-club-picker">
+            {{ t('clubLabel') }}
+          </label>
+          <af-select
+            id="admin-club-picker"
+            data-testid="admin-club-picker"
+            [options]="clubOptions()"
+            [value]="selectedClubId()"
+            (valueChange)="onClubPicked($event)"
+            [placeholder]="clubsLoading() ? t('clubPlaceholderLoading') : t('clubPlaceholder')"
+            [disabled]="clubsLoading()"
+            [allowClear]="true"
+          />
+        </div>
+
+        <af-page-error
+          [message]="clubsError() ? t('clubsError') : null"
+          (retry)="reloadClubs()"
+          data-testid="admin-clubs-error"
+        />
+
+        @if (selectedClubId()) {
+          <af-page-error
+            [message]="locationsErrorKind() ? t(locationsErrorKind()!) : null"
+            (retry)="reloadLocations()"
+            data-testid="admin-locations-error"
+          />
+
+          <af-data-table
+            data-testid="admin-locations-table"
+            [items]="locations()"
+            [loading]="locationsLoading()"
+          >
+            <ng-template #primary let-loc>
+              <a
+                class="text-slate-900 font-medium no-underline hover:text-brand-700"
+                [routerLink]="['/admin/locations', selectedClubId(), loc.id, 'edit']"
+                [attr.data-testid]="'admin-location-row-' + loc.id"
+              >
+                {{ loc.locationName }}
+              </a>
+            </ng-template>
+            <ng-template #secondary let-loc>
+              @if (loc.icaoCode) {
+                <span class="tabular">{{ loc.icaoCode }}</span>
+              }
+              @if (loc.icaoCode && loc.locationTypeCode) {
+                <span> · </span>
+              }
+              @if (loc.locationTypeCode) {
+                <span>{{ loc.locationTypeCode }}</span>
+              }
+            </ng-template>
+            <ng-template #meta let-loc>
+              <div class="flex gap-2">
+                <af-button
+                  type="default"
+                  htmlType="button"
+                  [attr.data-testid]="'admin-location-edit-' + loc.id"
+                  (clicked)="onEdit(loc)"
+                >
+                  {{ t('edit') }}
+                </af-button>
+                <af-button
+                  type="default"
+                  [danger]="true"
+                  htmlType="button"
+                  [attr.data-testid]="'admin-location-delete-' + loc.id"
+                  (clicked)="confirmDelete(loc, t('deleteConfirm', { name: loc.locationName }))"
+                >
+                  {{ t('delete') }}
+                </af-button>
+              </div>
+            </ng-template>
+          </af-data-table>
+        }
+      </af-page>
+    </ng-container>
   `,
 })
 export class AdminLocationsPage {
@@ -115,10 +150,13 @@ export class AdminLocationsPage {
 
   private readonly clubs = signal<readonly ClubResponse[]>([]);
   protected readonly clubsLoading = signal(false);
-  protected readonly clubsError = signal<string | null>(null);
+  protected readonly clubsError = signal<boolean>(false);
   protected readonly locations = signal<readonly LocationListItem[]>([]);
   protected readonly locationsLoading = signal(false);
-  protected readonly locationsError = signal<string | null>(null);
+  // Error state is a kind, not a literal — the template reads the localized
+  // copy via `t(<kind>)`. `locationsError` for the GET, `deleteError` for the
+  // failed mutation; both render through the same banner slot.
+  protected readonly locationsErrorKind = signal<'locationsError' | 'deleteError' | null>(null);
 
   private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
   protected readonly selectedClubId = computed(() => this.queryParams().get('clubId'));
@@ -126,13 +164,12 @@ export class AdminLocationsPage {
   protected readonly clubOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.clubs().map((c) => ({
       value: c.id ?? '',
-      label: c.name ?? c.clubKey ?? (c.id ?? ''),
+      label: c.name ?? c.clubKey ?? c.id ?? '',
     })),
   );
 
   constructor() {
     this.reloadClubs();
-    // Initial fetch when the route lands with ?clubId=… in the URL.
     const initial = this.selectedClubId();
     if (initial) {
       this.fetchLocations(initial);
@@ -141,7 +178,7 @@ export class AdminLocationsPage {
 
   protected reloadClubs(): void {
     this.clubsLoading.set(true);
-    this.clubsError.set(null);
+    this.clubsError.set(false);
     this.clubsApi.listClubs().subscribe({
       next: (items) => {
         this.clubs.set(items);
@@ -149,14 +186,12 @@ export class AdminLocationsPage {
       },
       error: () => {
         this.clubsLoading.set(false);
-        this.clubsError.set('Failed to load clubs.');
+        this.clubsError.set(true);
       },
     });
   }
 
   protected onClubPicked(clubId: string | null): void {
-    // Push the selection into the URL so a reload / shared link reproduces
-    // the view. The constructor + an inline subscription mirror the read back.
     this.router.navigate([], {
       relativeTo: this.route,
       queryParams: { clubId: clubId ?? null },
@@ -164,7 +199,7 @@ export class AdminLocationsPage {
       replaceUrl: true,
     });
     this.locations.set([]);
-    this.locationsError.set(null);
+    this.locationsErrorKind.set(null);
     if (clubId) {
       this.fetchLocations(clubId);
     }
@@ -177,21 +212,33 @@ export class AdminLocationsPage {
     }
   }
 
-  protected confirmDelete(loc: LocationListItem): void {
+  protected onNew(): void {
+    const clubId = this.selectedClubId();
+    if (!clubId) return;
+    this.router.navigate(['/admin/locations', clubId, 'new']);
+  }
+
+  protected onEdit(loc: LocationListItem): void {
+    const clubId = this.selectedClubId();
+    if (!clubId) return;
+    this.router.navigate(['/admin/locations', clubId, loc.id, 'edit']);
+  }
+
+  protected confirmDelete(loc: LocationListItem, message: string): void {
     const clubId = this.selectedClubId();
     if (!clubId || typeof window === 'undefined') return;
-    if (!window.confirm(`Delete "${loc.locationName}" from this club? This cannot be undone.`)) {
+    if (!window.confirm(message)) {
       return;
     }
     this.adminApi.adminDeleteLocation(clubId, loc.id).subscribe({
       next: () => this.fetchLocations(clubId),
-      error: () => this.locationsError.set('Failed to delete the Location.'),
+      error: () => this.locationsErrorKind.set('deleteError'),
     });
   }
 
   private fetchLocations(clubId: string): void {
     this.locationsLoading.set(true);
-    this.locationsError.set(null);
+    this.locationsErrorKind.set(null);
     this.adminApi.adminListLocations(clubId).subscribe({
       next: (items) => {
         this.locations.set(items);
@@ -199,7 +246,7 @@ export class AdminLocationsPage {
       },
       error: () => {
         this.locationsLoading.set(false);
-        this.locationsError.set('Failed to load Locations for the selected club.');
+        this.locationsErrorKind.set('locationsError');
       },
     });
   }

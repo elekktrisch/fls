@@ -120,7 +120,7 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
     @WithTenant(CLUB_A_LITERAL)
     void test_context_runAs_and_platform_runAs_share_a_carrier() {
         // Belt-and-braces: TenantTestContext.runAs and Tenants.runAs both
-        // push to TenantTestContextAccess. They must not double-stack or
+        // push to TenantContextCarrier. They must not double-stack or
         // produce inconsistent state.
         TenantTestContext.runAs(CLUB_B, () ->
                 Tenants.runAs(CLUB_B, () -> memberStates.save(new MemberState("dual-wrapper"))));

@@ -19,6 +19,7 @@ import {
   type FormGroup,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
@@ -79,27 +80,30 @@ type LocationForm = FormGroup<{
     AfPageComponent,
     AfPageHeaderComponent,
     AfPageErrorComponent,
+    TranslocoDirective,
   ],
   host: { class: 'block' },
   template: `
     <af-page>
       <af-page-header [title]="isCreate() ? 'New location' : 'Edit location'" />
 
-      @if (canMutate()) {
-        <div
-          class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
-          data-testid="locations-blast-radius-banner"
-        >
-          Per-club masterdata — changes apply only to your club.
-        </div>
-      } @else {
-        <div
-          class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
-          data-testid="locations-readonly-banner"
-        >
-          Read-only. Your club's Locations are managed by your club administrator.
-        </div>
-      }
+      <ng-container *transloco="let t; read: 'locations'">
+        @if (canMutate()) {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
+            data-testid="locations-blast-radius-banner"
+          >
+            {{ t('blastRadiusBanner') }}
+          </div>
+        } @else {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
+            data-testid="locations-readonly-banner"
+          >
+            {{ t('readonlyBanner') }}
+          </div>
+        }
+      </ng-container>
 
       <af-page-error
         [message]="store.saveError()"
