@@ -11,15 +11,7 @@ import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 // Splash placeholder — slate-tinted diagonal-stripes pattern with a
 // brand-500 tint, 1600×1200 aspect. The `splashUrl` input accepts a
 // per-club override once the whitelabel store lands (AC-DIR-3 follow-up).
-const SPLASH_DEFAULT_SVG =
-  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1200' preserveAspectRatio='xMidYMid slice'>" +
-  "<defs><pattern id='af-splash-stripes' x='0' y='0' width='32' height='32' patternTransform='rotate(45)' patternUnits='userSpaceOnUse'>" +
-  "<rect width='16' height='32' fill='%23EEF2F6'/><rect x='16' width='16' height='32' fill='%23F7F9FB'/>" +
-  '</pattern></defs>' +
-  "<rect width='1600' height='1200' fill='%23F7F9FB'/>" +
-  "<rect width='1600' height='1200' fill='url(%23af-splash-stripes)'/>" +
-  "<rect width='1600' height='1200' fill='%231E5BB8' opacity='0.04'/>" +
-  '</svg>';
+const SPLASH_DEFAULT_SVG = "splash.jpg";
 
 @Component({
   selector: 'af-landing',
@@ -80,17 +72,19 @@ const SPLASH_DEFAULT_SVG =
 
             <div class="flex flex-wrap gap-3">
               <af-button
+                class="flex-1 justify-center"
                 type="primary"
                 htmlType="button"
                 data-testid="landing-sign-in"
                 (clicked)="signIn()"
               >
-                <span class="inline-flex items-center gap-2">
+                <div class="flex flex-1 justify-center flex-nowrap items-center gap-2">
                   {{ t('actions.signIn') }}
                   <af-icon name="arrow-right" [size]="16" />
-                </span>
+                </div>
               </af-button>
               <af-button
+                class="flex-1"
                 type="default"
                 htmlType="button"
                 data-testid="landing-request-access"
