@@ -178,9 +178,7 @@ export class LandingComponent {
   readonly #localeService = inject(LocaleService);
 
   readonly splashUrl = input<string | null>(null);
-  protected readonly effectiveSplashUrl = computed(
-    () => this.splashUrl() ?? SPLASH_DEFAULT_SVG,
-  );
+  protected readonly effectiveSplashUrl = computed(() => this.splashUrl() ?? SPLASH_DEFAULT_SVG);
   protected readonly year = new Date().getFullYear();
 
   protected signIn(): void {
