@@ -47,14 +47,14 @@ import { LocationsStore } from '../locations.store';
           class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
           data-testid="locations-blast-radius-banner"
         >
-          Reference data — changes apply to all clubs.
+          Per-club masterdata — changes apply only to your club.
         </div>
       } @else {
         <div
           class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
           data-testid="locations-readonly-banner"
         >
-          Reference data — changes apply to all clubs and are managed by the system administrator.
+          Read-only. Your club's Locations are managed by your club administrator.
         </div>
       }
 
@@ -148,7 +148,9 @@ export class LocationsListPage {
   protected readonly store = inject(LocationsStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
-  protected readonly canMutate = computed(() => this.session.isSystemAdmin());
+  protected readonly canMutate = computed(
+    () => this.session.isSystemAdmin() || this.session.isClubAdmin(),
+  );
 
   protected confirmDelete(loc: LocationItem): void {
     if (typeof window === 'undefined' || !loc.id) return;

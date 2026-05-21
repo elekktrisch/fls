@@ -14,7 +14,7 @@ const it: Translations = {
     tagline: 'Diario di volo, prenotazioni e soci — per i club svizzeri.',
   },
   locations: {
-    blastRadiusBanner: 'Dati di riferimento — le modifiche si applicano a tutti i club.',
+    blastRadiusBanner: 'Dati specifici del club — le modifiche si applicano solo al tuo club.',
     errors: {
       icaoDuplicate: 'Codice ICAO già in uso.',
     },
@@ -37,7 +37,7 @@ const it: Translations = {
       title: 'Punti di entrata / uscita',
     },
     new: 'Nuovo aeroporto',
-    readonlyBanner: 'Sola lettura. Gestito dall’amministratore di sistema.',
+    readonlyBanner: 'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
   },
 };

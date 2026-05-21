@@ -17,6 +17,9 @@
     "name" : "Locations",
     "description" : "Locations CRUD (per-club masterdata)."
   }, {
+    "name" : "Locations Admin",
+    "description" : "SYSTEM_ADMINISTRATOR cross-tenant Locations management."
+  }, {
     "name" : "ClubStates",
     "description" : "Club lifecycle-state catalog."
   }, {
@@ -275,6 +278,152 @@
         }
       }
     },
+    "/api/v1/admin/locations/{clubId}/{id}" : {
+      "get" : {
+        "tags" : [ "Locations Admin" ],
+        "summary" : "Read a single Location under {clubId}.",
+        "operationId" : "getLocation_1",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Location detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active location with that id under {clubId}.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Locations Admin" ],
+        "summary" : "Update a Location under {clubId}.",
+        "operationId" : "updateLocation_1",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LocationUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated; body is the new state.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active location with that id under {clubId}.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "ICAO code already in use by another Location.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Locations Admin" ],
+        "summary" : "Soft-delete a Location under {clubId}.",
+        "operationId" : "deleteLocation_1",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }, {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active location with that id under {clubId}."
+          }
+        }
+      }
+    },
     "/api/v1/locations" : {
       "get" : {
         "tags" : [ "Locations" ],
@@ -396,6 +545,95 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/locations/{clubId}" : {
+      "get" : {
+        "tags" : [ "Locations Admin" ],
+        "summary" : "List locations for {clubId}.",
+        "operationId" : "listLocations_1",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Array of location listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/LocationListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Locations Admin" ],
+        "summary" : "Create a new Location under {clubId}.",
+        "operationId" : "createLocation_1",
+        "parameters" : [ {
+          "name" : "clubId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LocationCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created; body is the new Location.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "ICAO code already in use within {clubId}.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationDetail"
                 }
               }
             }

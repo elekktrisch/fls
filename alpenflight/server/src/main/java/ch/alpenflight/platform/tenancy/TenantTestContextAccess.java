@@ -5,17 +5,20 @@ import java.util.UUID;
 
 /**
  * Production-classpath hook the resolver consults as the first step of its
- * precedence chain. Production code MUST NEVER call {@link #set(UUID)} — the
- * carrier stays empty and the resolver falls through to its security-context
- * branches.
+ * precedence chain. Two legitimate callers, both package-mates:
  *
- * <p>Exists because Maven test-scope hides the S-015 {@code TenantTestContext}
- * from {@code src/main/java}; the resolver in main needs a reachable symbol
- * to consult during tests that override the JWT-based path. The {@code mutate}
- * surface is package-private + the {@code TestSupportPackageBoundaryTest}
- * forbids {@code src/main} from referencing the test-support package, so the
- * only legitimate caller of {@link #set(UUID)} is the test-side
- * {@code TenantTestContext} (which delegates here).
+ * <ul>
+ *   <li>{@link Tenants}{@code #runAs(...)} — the production escape hatch for
+ *       SYSTEM_ADMINISTRATOR cross-tenant operations + cross-tenant scheduled
+ *       jobs (ADR 0008 follow-up).</li>
+ *   <li>The test-side {@code TenantTestContext} (in {@code src/test/java/.../testsupport})
+ *       — delegates here because Maven test-scope hides it from {@code src/main}.</li>
+ * </ul>
+ *
+ * <p>Other production code MUST NEVER call {@link #set(UUID)}: an unguarded
+ * caller could bypass the JWT-driven resolver branch and silently set the
+ * effective tenant. {@code TenantBypassGuardTest} enforces this with an
+ * ArchUnit rule that carves out the {@code platform.tenancy} package only.
  */
 public final class TenantTestContextAccess {
 

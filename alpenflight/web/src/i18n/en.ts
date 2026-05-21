@@ -14,7 +14,7 @@ const en: Translations = {
     tagline: 'Flight logging, reservations, members — for Swiss clubs.',
   },
   locations: {
-    blastRadiusBanner: 'Reference data — changes apply to all clubs.',
+    blastRadiusBanner: 'Per-club masterdata — changes apply only to your club.',
     errors: {
       icaoDuplicate: 'ICAO code is already in use.',
     },
@@ -37,7 +37,7 @@ const en: Translations = {
       title: 'In/outbound points',
     },
     new: 'New location',
-    readonlyBanner: 'Read-only. Managed by the system administrator.',
+    readonlyBanner: "Read-only. Your club's Locations are managed by your club administrator.",
     title: 'Locations',
   },
 };

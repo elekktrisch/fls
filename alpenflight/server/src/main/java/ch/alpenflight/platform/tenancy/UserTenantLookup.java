@@ -10,10 +10,18 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 /**
- * Resolves a tenant by looking the authenticated user up by
- * {@code keycloak_sub}. Used by the resolver when the JWT lacks a
- * {@code clubId} claim — Keycloak realm tokens carry the claim, federated
- * (Google / Auth0) baseline tokens do not.
+ * Resolves the authenticated user's tenant ({@code club_id}) and internal
+ * user id ({@code user.id}) by looking them up on {@code keycloak_sub}.
+ * Used by:
+ *
+ * <ul>
+ *   <li>{@link ClubTenantIdentifierResolver} — when the JWT lacks a
+ *       {@code clubId} claim (Keycloak realm tokens carry the claim,
+ *       federated Google / Auth0 baseline tokens do not).</li>
+ *   <li>Audit-trail emitters — translating the JWT subject to the internal
+ *       {@code user.id} so the soft-delete / mutation trail records the
+ *       same identity across realm-token and federated-token paths.</li>
+ * </ul>
  *
  * <p>{@link JdbcTemplate}, not JPA — the calling resolver runs inside
  * Hibernate's session-open path, so opening another JPA session would
@@ -31,6 +39,11 @@ public class UserTenantLookup {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserTenantLookup.class);
 
+    private static final String SELECT_CLUB_ID = "SELECT club_id FROM \"user\" "
+            + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
+    private static final String SELECT_USER_ID = "SELECT id FROM \"user\" "
+            + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
+
     private final JdbcTemplate jdbc;
 
     public UserTenantLookup(JdbcTemplate jdbc) {
@@ -38,6 +51,21 @@ public class UserTenantLookup {
     }
 
     public Optional<UUID> resolveTenantFor(Jwt jwt) {
+        return querySingleUuid(jwt, SELECT_CLUB_ID, "club_id");
+    }
+
+    /**
+     * Returns the internal {@code user.id} for the JWT subject, or empty if
+     * no active {@code user} row matches the sub. Distinct from
+     * {@code jwt.getSubject()}: callers wanting "who did this" for audit
+     * should prefer this method so federated-IdP paths resolve consistently
+     * with realm-token paths.
+     */
+    public Optional<UUID> resolveUserIdFor(Jwt jwt) {
+        return querySingleUuid(jwt, SELECT_USER_ID, "user_id");
+    }
+
+    private Optional<UUID> querySingleUuid(Jwt jwt, String sql, String columnLabel) {
         String sub = jwt.getSubject();
         if (sub == null || sub.isBlank()) {
             return Optional.empty();
@@ -48,14 +76,12 @@ public class UserTenantLookup {
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
-        List<UUID> matches = jdbc.queryForList(
-                "SELECT club_id FROM \"user\" WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL",
-                UUID.class, parsed.toString());
+        List<UUID> matches = jdbc.queryForList(sql, UUID.class, parsed.toString());
         if (matches.size() == 1) {
-            LOG.debug("tenant-lookup sub-hit sub={}", sub);
+            LOG.debug("user-lookup hit sub={} column={}", sub, columnLabel);
             return Optional.of(matches.get(0));
         }
-        LOG.debug("tenant-lookup miss sub={} matches={}", sub, matches.size());
+        LOG.debug("user-lookup miss sub={} column={} matches={}", sub, columnLabel, matches.size());
         return Optional.empty();
     }
 }

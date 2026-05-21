@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.server.testsupport.SharedPostgresContainer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -69,5 +71,26 @@ class OpenApiSnapshotIT {
         assertThat(live)
                 .as("Committed OpenAPI snapshot is stale vs. live spec. Run ./gradlew generateOpenApiSnapshot and commit the refreshed file.")
                 .isEqualTo(committed);
+    }
+
+    /**
+     * One-shot regeneration path that writes the live spec to disk using the
+     * same Jackson pretty-printer the {@code generateOpenApiSnapshot} Gradle
+     * task uses. Gated by {@code OPENAPI_SNAPSHOT_WRITE=true} so the test is
+     * inert under normal {@code check} runs. Use when the snapshot has
+     * drifted and the Gradle task can't reach a live Postgres
+     * (testcontainer-only sandboxes).
+     */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "OPENAPI_SNAPSHOT_WRITE", matches = "true")
+    void regenerateSnapshot() throws Exception {
+        Path snapshot = Path.of("..", "web", "openapi", "openapi.json").toAbsolutePath().normalize();
+        ObjectMapper writer = new ObjectMapper();
+        writer.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+        writer.enable(SerializationFeature.INDENT_OUTPUT);
+        JsonNode live = writer.readTree(restTemplate.getForObject("/v3/api-docs", String.class));
+        OpenApiSnapshotNormalize.stripVolatile(live);
+        String formatted = writer.writerWithDefaultPrettyPrinter().writeValueAsString(live) + "\n";
+        Files.writeString(snapshot, formatted);
     }
 }

@@ -18,7 +18,7 @@ const de = {
     tagline: 'Flugbuch, Reservationen und Mitglieder — für Schweizer Vereine.',
   },
   locations: {
-    blastRadiusBanner: 'Referenzdaten — Änderungen wirken für alle Vereine.',
+    blastRadiusBanner: 'Vereinsstammdaten — Änderungen wirken nur für deinen Verein.',
     errors: {
       icaoDuplicate: 'ICAO-Code wird bereits verwendet.',
     },
@@ -41,7 +41,7 @@ const de = {
       title: 'An-/Abflugpunkte',
     },
     new: 'Neuer Flugplatz',
-    readonlyBanner: 'Schreibgeschützt. Wird vom Systemadministrator verwaltet.',
+    readonlyBanner: 'Schreibgeschützt. Die Flugplätze deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     title: 'Flugplätze',
   },
 };

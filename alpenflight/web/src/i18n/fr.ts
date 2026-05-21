@@ -14,7 +14,7 @@ const fr: Translations = {
     tagline: 'Carnet de vol, réservations et membres — pour les clubs suisses.',
   },
   locations: {
-    blastRadiusBanner: 'Données de référence — les modifications s’appliquent à tous les clubs.',
+    blastRadiusBanner: 'Données propres au club — les modifications ne s’appliquent qu’à votre club.',
     errors: {
       icaoDuplicate: 'Le code OACI est déjà utilisé.',
     },
@@ -37,7 +37,7 @@ const fr: Translations = {
       title: 'Points d’arrivée / de départ',
     },
     new: 'Nouvel emplacement',
-    readonlyBanner: 'Lecture seule. Géré par l’administrateur système.',
+    readonlyBanner: 'Lecture seule. Les emplacements de votre club sont gérés par votre administrateur de club.',
     title: 'Emplacements',
   },
 };

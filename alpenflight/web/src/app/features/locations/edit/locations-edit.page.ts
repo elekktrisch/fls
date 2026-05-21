@@ -90,14 +90,14 @@ type LocationForm = FormGroup<{
           class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
           data-testid="locations-blast-radius-banner"
         >
-          Reference data — changes apply to all clubs.
+          Per-club masterdata — changes apply only to your club.
         </div>
       } @else {
         <div
           class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
           data-testid="locations-readonly-banner"
         >
-          Reference data — changes apply to all clubs and are managed by the system administrator.
+          Read-only. Your club's Locations are managed by your club administrator.
         </div>
       }
 
@@ -334,7 +334,9 @@ export class LocationsEditPage {
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly locationId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.locationId() === null);
-  protected readonly canMutate = computed(() => this.session.isSystemAdmin());
+  protected readonly canMutate = computed(
+    () => this.session.isSystemAdmin() || this.session.isClubAdmin(),
+  );
   protected readonly showIopSection = computed(() => !this.isCreate());
 
   protected readonly countryOptions = computed<readonly AfSelectOption<string>[]>(() =>
