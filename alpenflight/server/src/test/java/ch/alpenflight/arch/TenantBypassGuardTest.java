@@ -2,7 +2,7 @@ package ch.alpenflight.arch;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-import ch.alpenflight.platform.tenancy.TenantTestContextAccess;
+import ch.alpenflight.platform.tenancy.TenantContextCarrier;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -10,10 +10,11 @@ import com.tngtech.archunit.lang.ArchRule;
 
 /**
  * Structural guard: production code must not call
- * {@link TenantTestContextAccess#set(java.util.UUID)} — that method exists
- * only so the resolver in {@code src/main/java} can be wired to a thread-
- * local seam the test support layer pushes into. A production caller
- * could bypass the JWT-driven resolver branch and silently set the
+ * {@link TenantContextCarrier#set(java.util.UUID)} from outside
+ * {@code platform.tenancy} — that method exists so the resolver in
+ * {@code src/main/java} can be wired to a thread-local carrier the test
+ * support layer + {@code Tenants.runAs} push into. An unscoped production
+ * caller could bypass the JWT-driven resolver branch and silently set the
  * effective tenant for the current thread.
  *
  * <p>The method is intentionally {@code public} (the test-side caller
@@ -31,11 +32,11 @@ import com.tngtech.archunit.lang.ArchRule;
 class TenantBypassGuardTest {
 
     @ArchTest
-    static final ArchRule production_must_not_call_tenant_test_context_set =
+    static final ArchRule production_must_not_call_tenant_context_carrier_set =
             noClasses()
                     .that().resideOutsideOfPackage("ch.alpenflight.platform.tenancy..")
-                    .should().callMethod(TenantTestContextAccess.class, "set", java.util.UUID.class)
-                    .as("Only the platform.tenancy package (test seam owner) may call "
-                            + "TenantTestContextAccess.set; production callers would bypass the JWT-driven "
+                    .should().callMethod(TenantContextCarrier.class, "set", java.util.UUID.class)
+                    .as("Only the platform.tenancy package (carrier owner + Tenants.runAs) may call "
+                            + "TenantContextCarrier.set; production callers would bypass the JWT-driven "
                             + "tenant resolver.");
 }

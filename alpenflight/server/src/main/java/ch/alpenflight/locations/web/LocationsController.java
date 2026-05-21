@@ -6,6 +6,7 @@ import ch.alpenflight.locations.application.LocationDtos.LocationListItem;
 import ch.alpenflight.locations.application.LocationDtos.LocationUpdateRequest;
 import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.platform.id.LocationId;
+import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -51,9 +52,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class LocationsController {
 
     private final LocationsService service;
+    private final UserPrincipalLookup userLookup;
 
-    public LocationsController(LocationsService service) {
+    public LocationsController(LocationsService service, UserPrincipalLookup userLookup) {
         this.service = service;
+        this.userLookup = userLookup;
     }
 
     @Operation(summary = "List all locations (active, sorted by sort_indicator + name).")
@@ -108,21 +111,17 @@ public class LocationsController {
         return ResponseEntity.noContent().build();
     }
 
-    private static @Nullable UUID principalUserId(@Nullable Jwt jwt) {
-        // Actor identity keys off the standard OIDC `sub` claim (ADR 0007 — IdP
-        // portable). Translation from `sub` to the internal user id is a S-022
-        // follow-up; until then the soft-delete trail records the raw OIDC sub.
+    /**
+     * Resolves the internal {@code user.id} for the audit trail.
+     * {@code jwt.getSubject()} (OIDC {@code sub}) maps to {@code user.id} via
+     * {@link UserPrincipalLookup#resolveUserIdFor(Jwt)}; federated subs that
+     * don't match the {@code keycloak_sub} mapping yield null until those
+     * IdPs onboard.
+     */
+    private @Nullable UUID principalUserId(@Nullable Jwt jwt) {
         if (jwt == null) {
             return null;
         }
-        String sub = jwt.getSubject();
-        if (sub == null) {
-            return null;
-        }
-        try {
-            return UUID.fromString(sub);
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
+        return userLookup.resolveUserIdFor(jwt).orElse(null);
     }
 }

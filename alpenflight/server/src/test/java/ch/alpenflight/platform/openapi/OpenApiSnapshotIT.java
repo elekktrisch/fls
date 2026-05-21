@@ -67,7 +67,7 @@ class OpenApiSnapshotIT {
         OpenApiSnapshotNormalize.stripVolatile(committed);
 
         assertThat(live)
-                .as("Committed OpenAPI snapshot is stale vs. live spec. Run ./gradlew generateOpenApiSnapshot and commit the refreshed file.")
+                .as("Committed OpenAPI snapshot is stale vs. live spec. Run with ALPENFLIGHT_OPENAPI_REFRESH=true to regenerate via OpenApiSnapshotRegenerationIT.")
                 .isEqualTo(committed);
     }
 }

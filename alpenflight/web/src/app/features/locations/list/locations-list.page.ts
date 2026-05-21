@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
@@ -27,6 +28,7 @@ import { LocationsStore } from '../locations.store';
     AfPageHeaderComponent,
     NzDropDownModule,
     RouterLink,
+    TranslocoDirective,
   ],
   template: `
     <af-page>
@@ -42,21 +44,23 @@ import { LocationsStore } from '../locations.store';
         }
       </af-page-header>
 
-      @if (canMutate()) {
-        <div
-          class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
-          data-testid="locations-blast-radius-banner"
-        >
-          Reference data — changes apply to all clubs.
-        </div>
-      } @else {
-        <div
-          class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
-          data-testid="locations-readonly-banner"
-        >
-          Reference data — changes apply to all clubs and are managed by the system administrator.
-        </div>
-      }
+      <ng-container *transloco="let t; read: 'locations'">
+        @if (canMutate()) {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
+            data-testid="locations-blast-radius-banner"
+          >
+            {{ t('blastRadiusBanner') }}
+          </div>
+        } @else {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
+            data-testid="locations-readonly-banner"
+          >
+            {{ t('readonlyBanner') }}
+          </div>
+        }
+      </ng-container>
 
       <af-page-error
         [message]="store.loadError()"
@@ -148,7 +152,7 @@ export class LocationsListPage {
   protected readonly store = inject(LocationsStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
-  protected readonly canMutate = computed(() => this.session.isSystemAdmin());
+  protected readonly canMutate = this.session.isAnyAdmin;
 
   protected confirmDelete(loc: LocationItem): void {
     if (typeof window === 'undefined' || !loc.id) return;

@@ -7,7 +7,7 @@ import { SessionStore } from './core/session/session.store';
 import { type AppLocale, LocaleService } from '@shared/ui/locale';
 import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
 
-const SECTIONS: readonly NavItem[] = [
+const BASE_SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
   // Future sections (Flights, Reservations, Members, Reports, Settings) land
   // here as their feature stories ship — kept inline so the nav-bar's input
@@ -20,7 +20,7 @@ const SECTIONS: readonly NavItem[] = [
   template: `
     @if (showNavBar()) {
       <af-nav-bar
-        [items]="sections"
+        [items]="sections()"
         [user]="userSummary()"
         [locale]="locale()"
         (localeChange)="setLocale($event)"
@@ -36,8 +36,23 @@ export class AppComponent {
   private readonly localeService = inject(LocaleService);
   protected readonly session = inject(SessionStore);
 
-  protected readonly sections = SECTIONS;
   protected readonly locale = this.localeService.current;
+
+  // Sysadmin gets an extra entry pointing at the cross-tenant admin surface.
+  // Gated on `session.isSystemAdmin` so the entry is hidden for everyone else
+  // (server also gates the route via `sysadminGuard` + `@PreAuthorize`). The
+  // label stays literal English to match the rest of `BASE_SECTIONS` — nav-bar
+  // i18n is tracked separately and lands when the rest of the sections are
+  // translated.
+  protected readonly sections = computed<readonly NavItem[]>(() => {
+    if (!this.session.isSystemAdmin()) {
+      return BASE_SECTIONS;
+    }
+    return [
+      ...BASE_SECTIONS,
+      { path: '/admin/locations', label: 'Locations admin', icon: 'shield' },
+    ];
+  });
 
   protected setLocale(loc: AppLocale): void {
     this.localeService.set(loc);

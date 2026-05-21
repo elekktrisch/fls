@@ -32,7 +32,7 @@ class ClubTenantIdentifierResolverUnitTest {
     private static final UUID TEST_CTX_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000012");
 
     @Mock
-    private UserTenantLookup userTenantLookup;
+    private UserPrincipalLookup userPrincipalLookup;
 
     private ClubTenantIdentifierResolver resolver;
 
@@ -40,7 +40,7 @@ class ClubTenantIdentifierResolverUnitTest {
     void wire() {
         TenantTestContext.clear();
         SecurityContextHolder.clearContext();
-        resolver = new ClubTenantIdentifierResolver(Optional.of(userTenantLookup));
+        resolver = new ClubTenantIdentifierResolver(Optional.of(userPrincipalLookup));
     }
 
     @AfterEach
@@ -55,7 +55,7 @@ class ClubTenantIdentifierResolverUnitTest {
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of("clubId", CLAIM_CLUB.toString())));
 
         assertThat(resolver.resolveCurrentTenantIdentifier()).isEqualTo(TEST_CTX_CLUB);
-        verify(userTenantLookup, never()).resolveTenantFor(any());
+        verify(userPrincipalLookup, never()).resolveTenantFor(any());
     }
 
     @Test
@@ -63,13 +63,13 @@ class ClubTenantIdentifierResolverUnitTest {
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of("clubId", CLAIM_CLUB.toString())));
 
         assertThat(resolver.resolveCurrentTenantIdentifier()).isEqualTo(CLAIM_CLUB);
-        verify(userTenantLookup, never()).resolveTenantFor(any());
+        verify(userPrincipalLookup, never()).resolveTenantFor(any());
     }
 
     @Test
     void claim_absent_falls_back_to_db_lookup() {
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of()));
-        when(userTenantLookup.resolveTenantFor(any(Jwt.class))).thenReturn(Optional.of(DB_CLUB));
+        when(userPrincipalLookup.resolveTenantFor(any(Jwt.class))).thenReturn(Optional.of(DB_CLUB));
 
         assertThat(resolver.resolveCurrentTenantIdentifier()).isEqualTo(DB_CLUB);
     }
@@ -77,7 +77,7 @@ class ClubTenantIdentifierResolverUnitTest {
     @Test
     void malformed_claim_falls_back_to_db_lookup() {
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of("clubId", "not-a-uuid")));
-        when(userTenantLookup.resolveTenantFor(any(Jwt.class))).thenReturn(Optional.of(DB_CLUB));
+        when(userPrincipalLookup.resolveTenantFor(any(Jwt.class))).thenReturn(Optional.of(DB_CLUB));
 
         assertThat(resolver.resolveCurrentTenantIdentifier()).isEqualTo(DB_CLUB);
     }
@@ -99,14 +99,14 @@ class ClubTenantIdentifierResolverUnitTest {
     @Test
     void db_miss_resolves_to_sentinel() {
         SecurityContextHolder.getContext().setAuthentication(jwtToken(Map.of()));
-        when(userTenantLookup.resolveTenantFor(any(Jwt.class))).thenReturn(Optional.empty());
+        when(userPrincipalLookup.resolveTenantFor(any(Jwt.class))).thenReturn(Optional.empty());
 
         assertThat(resolver.resolveCurrentTenantIdentifier()).isEqualTo(ClubTenantIdentifierResolver.NO_TENANT);
     }
 
     @Test
     void absent_lookup_with_claim_resolves_directly_via_claim() {
-        // Defensive: the constructor accepts Optional<UserTenantLookup> so a
+        // Defensive: the constructor accepts Optional<UserPrincipalLookup> so a
         // future deployment that excludes the lookup bean (e.g. minimal-mode)
         // still resolves the happy claim-present path.
         ClubTenantIdentifierResolver lookupless =

@@ -14,7 +14,22 @@ const it: Translations = {
     tagline: 'Diario di volo, prenotazioni e soci — per i club svizzeri.',
   },
   locations: {
-    blastRadiusBanner: 'Dati di riferimento — le modifiche si applicano a tutti i club.',
+    admin: {
+      banner:
+        'Vista trasversale — scegli un club per gestirne gli aeroporti. La gestione per club è in /locations.',
+      clubLabel: 'Club',
+      clubPlaceholder: 'Seleziona un club',
+      clubPlaceholderLoading: 'Caricamento club…',
+      clubsError: 'Caricamento dei club non riuscito.',
+      delete: 'Elimina',
+      deleteConfirm: 'Eliminare «{{name}}» da questo club? L’operazione non è reversibile.',
+      deleteError: 'Eliminazione dell’aeroporto non riuscita.',
+      edit: 'Modifica',
+      locationsError: 'Caricamento degli aeroporti del club selezionato non riuscito.',
+      new: 'Nuovo aeroporto',
+      title: 'Aeroporti – trasversale',
+    },
+    blastRadiusBanner: 'Dati specifici del club — le modifiche si applicano solo al tuo club.',
     errors: {
       icaoDuplicate: 'Codice ICAO già in uso.',
     },
@@ -37,7 +52,8 @@ const it: Translations = {
       title: 'Punti di entrata / uscita',
     },
     new: 'Nuovo aeroporto',
-    readonlyBanner: 'Sola lettura. Gestito dall’amministratore di sistema.',
+    readonlyBanner:
+      'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
   },
 };

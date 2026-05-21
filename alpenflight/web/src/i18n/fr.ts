@@ -14,7 +14,23 @@ const fr: Translations = {
     tagline: 'Carnet de vol, réservations et membres — pour les clubs suisses.',
   },
   locations: {
-    blastRadiusBanner: 'Données de référence — les modifications s’appliquent à tous les clubs.',
+    admin: {
+      banner:
+        'Vue inter-clubs — choisissez un club pour gérer ses emplacements. La gestion standard par club se trouve sous /locations.',
+      clubLabel: 'Club',
+      clubPlaceholder: 'Choisir un club',
+      clubPlaceholderLoading: 'Chargement des clubs…',
+      clubsError: 'Échec du chargement des clubs.',
+      delete: 'Supprimer',
+      deleteConfirm: 'Supprimer « {{name}} » de ce club ? Cette action est irréversible.',
+      deleteError: 'Échec de la suppression de l’emplacement.',
+      edit: 'Modifier',
+      locationsError: 'Échec du chargement des emplacements du club choisi.',
+      new: 'Nouvel emplacement',
+      title: 'Emplacements – inter-clubs',
+    },
+    blastRadiusBanner:
+      'Données propres au club — les modifications ne s’appliquent qu’à votre club.',
     errors: {
       icaoDuplicate: 'Le code OACI est déjà utilisé.',
     },
@@ -37,7 +53,8 @@ const fr: Translations = {
       title: 'Points d’arrivée / de départ',
     },
     new: 'Nouvel emplacement',
-    readonlyBanner: 'Lecture seule. Géré par l’administrateur système.',
+    readonlyBanner:
+      'Lecture seule. Les emplacements de votre club sont gérés par votre administrateur de club.',
     title: 'Emplacements',
   },
 };
