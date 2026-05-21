@@ -63,7 +63,7 @@ See frontmatter.
 
 **Why this is M not L**: the field rules are dense but mechanical — the coordinator is one class with one `valueChanges` subscription per rule. The risk surface is well-bounded (the parity specs catch behavioral drift end-to-end). Bumps to L only if the architect's "no DI in the coordinator" recipe turns out to fight Angular ergonomics.
 
-**Open risk — selectize replacement.** Legacy specs inject directly on `$scope` to bypass selectize widgets (`04-flights-create.spec.ts:109-138`). The new SPA uses native `<fls-select>` (S-008); spec adaptation goes through `data-testid` instead of `angular.element(form).scope()`. If the replacement primitive isn't a11y/Playwright-friendly, this story balloons.
+**Open risk — selectize replacement.** Legacy specs inject directly on `$scope` to bypass selectize widgets (`04-flights-create.spec.ts:109-138`). The new SPA uses native `<fls-select>` (S-008); spec adaptation goes through `data-testid` instead of `angular.element(form).scope()`. If the replacement primitive isn't Playwright-friendly, this story balloons.
 
 **Out of scope:**
 - Motor-flight form — S-064 owns `/airmovements/*`. The shell here redirects motor flights to that route.
@@ -184,7 +184,7 @@ S-062a owns the API. This story only consumes it.
 
 - **Performance**: form-load p95 < 3s on Fast 3G (page-load) + fan-out of ~5 master-data GETs. Master-data caching per S-006 makes the second open near-instant.
 - **Security**: `canUpdateRecord` disables the whole form; server (S-062a) is the authoritative gate.
-- **Accessibility**: selectize is hostile to assistive tech (and to Playwright — `04-flights-create.spec.ts:64`). New form uses `<fls-select>` (S-008) — a11y-tested. WCAG 2.1 AA for the form.
+- **Keyboard navigation** (operator-velocity, not WCAG — that target was rescinded by vision amendment 2026-05-20d): selectize was hostile to Playwright (`04-flights-create.spec.ts:64`); the new `<fls-select>` (S-008) is Playwright-friendly and `Tab`-reachable, which is enough for the keyboard-only completion NFR (§2). No screen-reader / ARIA obligations beyond kit defaults.
 - **i18n**: every label, hint, validation message via i18n key.
 
 ## Security plan
@@ -615,7 +615,7 @@ The vision-doc amendment 2026-05-15b (see [`02-vision-and-constraints.md`](../02
 - **AC-DIR-7 (inline validation, not on-blur).** Errors pin next to the offending field; update as the user types / moves focus. Soft pref §4. Supersedes legacy on-blur + top-message-bar pattern. (§F9.)
 - **AC-DIR-8 (native input types).** `<input type="time">` (native mobile picker); `<input type="date">`; `inputmode="numeric"` for counters / nrOfLdgs. The `<fls-time-now-button>` primitive (S-008) wraps the legacy "Set Now" semantics on top of native time inputs. No text-with-format-on-blur. (§F10, §F14.)
 - **AC-DIR-9 (auto-save draft to IndexedDB).** Form debounce-saves (500 ms) the in-progress draft to IndexedDB on every field change. On connection loss, queued via PWA service worker (C18 / ADR 0014). On reload, draft restored with "continue from draft / start fresh" prompt. (§F12.)
-- **AC-DIR-10 (touch-target compliance).** Primary actions on mobile viewports ≥ 44 × 44 CSS px hit area; on dense desktop, ≥ 28 × 28 px for icon-only secondary actions. Enforced by primitives kit (S-008); verified by axe-core in Playwright. (§2 NFR "touch targets".)
+- **AC-DIR-10 (touch-target compliance).** Primary actions on mobile viewports ≥ 44 × 44 CSS px hit area; on dense desktop, ≥ 28 × 28 px for icon-only secondary actions. Enforced by primitives kit (S-008); verified by Playwright bounding-rect assertion (axe-core rescinded per vision amendment 2026-05-20d). (§2 NFR "touch targets".)
 - **AC-DIR-11 (time-to-log benchmark).** Scripted Playwright "stopwatch" test logs a typical glider-with-tow flight on dense desktop in ≤ 60 s and on phone viewport (360 × 640) in ≤ 90 s. Recorded per release; informational, not a blocking gate. (§2 NFR "time-to-log".)
 - **AC-DIR-12 (online 409 conflict UX).** When a `PUT` returns 409 (via the `@Version` check from S-067), the form shows the diff inline with per-field "keep mine / keep theirs", keeps the draft visible, and never auto-retries. Applies in addition to the existing AC-9 412 toast. (§F13, soft pref §4 "optimistic-concurrency UX".)
 - **AC-DIR-13 (smooth conditional sections).** Dependent fields (e.g. tow block when StartType=Towing; instructor when `InstructorRequired`) appear/disappear via Signal-Store render control; 150 ms slide-in; focus moves to first new field. No layout jank. (§F15.)

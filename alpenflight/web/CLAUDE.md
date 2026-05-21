@@ -120,20 +120,15 @@ Every domain store MUST subscribe to `session.logout` + `session.tenantSwitch` o
 
 Public flows skip prefetch via `data: { publicAccess: true }` on the route (or `data: { skipPrefetch: true }` on a private route that needs to bypass). See `src/app/auth/README.md`.
 
-## 5. Accessibility (WCAG 2.1 AA target)
+## 5. UI conventions (touch targets + practical patterns)
 
-Lint-enforced baseline (deeper a11y testing — axe-core / visual contrast / manual checklists — is a follow-up story; don't preemptively scaffold it).
+The project-wide WCAG 2.1 AA target and axe-core gating were rescinded by vision amendment 2026-05-20d. The items below are kept as plain engineering practice — not accessibility compliance — for the practical reasons noted.
 
-- ESLint: `@angular-eslint/template/recommended-extra` rules are on; do not weaken.
-- Every interactive element has a name (visible label, `aria-label`, or `aria-labelledby`). Icon-only buttons require `aria-label`.
-- Forms: every input is paired with a `<label for>` or wrapped in `<af-form-field>` (which handles label association).
-- Keyboard: every interactive control is reachable via `Tab`; visible focus state is never removed (do not write `outline: none` without a replacement focus ring).
-- Headings: one `<h1>` per route; no skipped levels.
-- Color: never convey state by color alone — pair with icon, text, or aria attribute.
-- Modals + popovers (organisms): use Angular CDK `Overlay` + `FocusTrap` — they handle focus capture, escape-to-close, and ARIA roles correctly out of the box. Do not roll your own.
-- `[innerHTML]` is forbidden in templates without a code-review approval comment.
-
-When unsure about a specific ARIA pattern, check the latest WAI-ARIA Authoring Practices via Context7 (see §7) before guessing.
+- **Touch targets** — primary actions meet ≥ 44 × 44 CSS px on mobile, ≥ 28 × 28 px (icon-only secondary) on dense-desktop. Retained on the gloves / dirty-hands rationale (vision §2 NFR). Verified by primitives kit (S-008) lint rule + Playwright bounding-rect assertion. Not by axe-core.
+- **Forms** — every input is paired with a `<label for>` or wrapped in `<af-form-field>` (which handles label association). Keeps form spec authoring sane and avoids click-target ambiguity.
+- **Keyboard reachability** — every interactive control is reachable via `Tab`; do not write `outline: none` without a replacement focus ring. Retained on the operator-velocity rationale (vision §2 "Flight-edit — keyboard-only completion").
+- **Modals + popovers (organisms)** — use Angular CDK `Overlay` + `FocusTrap`. Not for ARIA; for the focus-capture and escape-to-close ergonomics that prevent broken modal-dismissal bugs. Do not roll your own.
+- **`[innerHTML]`** is forbidden in templates without a code-review approval comment. XSS prevention, not a11y.
 
 ## 6. Templates, structure, and naming
 

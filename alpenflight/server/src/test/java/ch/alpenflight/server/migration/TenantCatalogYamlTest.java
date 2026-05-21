@@ -169,6 +169,29 @@ class TenantCatalogYamlTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void s049b_locations_reclassified_to_tenant_scoped() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> locations = (Map<String, Object>) overrides.get("Locations");
+        assertThat(locations.get("kind"))
+                .as("S-049b: Locations reclassified from reference → tenant-scoped")
+                .isEqualTo("tenant-scoped");
+        assertThat(locations.get("tenant_column"))
+                .as("tenant column on location is club_id (not operating_club_id)")
+                .isEqualTo("club_id");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void s049b_inoutbound_points_reclassified_to_tenant_scoped() {
+        Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
+        Map<String, Object> iops = (Map<String, Object>) overrides.get("InOutboundPoints");
+        assertThat(iops.get("kind"))
+                .as("S-049b: InOutboundPoints flip to tenant-scoped (via parent Location's FK)")
+                .isEqualTo("tenant-scoped");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void article_classified_as_tenant_scoped() {
         Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
         Map<String, Object> articles = (Map<String, Object>) overrides.get("Articles");

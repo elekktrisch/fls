@@ -32,20 +32,20 @@ public class InOutboundPoint {
 
     /** Owning aggregate root; populated by Hibernate via {@code @ManyToOne}. */
     @ManyToOne(optional = false)
-    @JoinColumn(name = "location_id", nullable = false)
+    @JoinColumn(nullable = false)
     @SuppressWarnings("UnusedVariable")
     private @Nullable Location location;
 
-    @Column(name = "point_name", nullable = false, length = 100)
+    @Column(nullable = false, length = 100)
     private String pointName = "";
 
-    @Column(name = "point_type", length = 50)
+    @Column(length = 50)
     private @Nullable String pointType;
 
-    @Column(name = "direction", length = 50)
+    @Column(length = 50)
     private @Nullable String direction;
 
-    @Column(name = "description")
+    @Column
     private @Nullable String description;
 
     protected InOutboundPoint() {

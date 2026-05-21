@@ -108,6 +108,20 @@ Promote the picked answer to this section + the corresponding canonical example.
   Ship SQL by default; reach for Java only when SQL genuinely won't fit.
 - **Canonical example:** `src/main/resources/db/migration/V1__baseline.sql`.
 
+## Test pyramid — what goes where
+
+Mirror of `alpenflight/web/CLAUDE.md` §8 (the FE side): pick the cheapest layer that proves the property; never duplicate across layers.
+
+- **Unit (plain JUnit, no Spring).** Aggregate behaviour (state transitions, invariants, validators), mappers, value-object parsing, controller-bean validation (`@Valid`-shape tests via the `Validator` API), domain exceptions. **The bulk.** No `@SpringBootTest`, no Testcontainers, no Postgres. Canonical example: `LocationDomainTest`, `ClubDomainTest`.
+- **Integration (`@SpringBootTest` + shared Postgres testcontainer).** Reserved for behaviour that only emerges across layers: JPA mapping correctness, `@TenantId` discriminator semantics, Spring Security `@PreAuthorize` matrix, controller routing + exception mapping, Flyway migration shape, ArchUnit / Modulith rules. **Slim.** One IT proves one cross-layer property. If the same scenario can be proved at the unit layer (e.g. ICAO-format rejection), do NOT duplicate it as an HTTP IT. Parameterise role matrices over `(role, expected_status)` rather than emitting one `@Test` per cell.
+- **E2E (Playwright against the real `alpenflight-dev` stack).** "Humiliating-if-broken" user journeys — sign-in, flight-edit happy path, the per-tenant data-isolation user perceives. One spec per humiliating journey; not exhaustive.
+
+Heuristics:
+
+- A new feature defaults to **N unit tests + 1-3 thin ITs + 0-1 Playwright specs**. Inverted pyramids (HTTP IT for every CRUD verb + zero unit tests) are a self-review blocker.
+- When you reach for a new `@SpringBootTest`, ask: "does this prove a cross-layer property?" If the answer is "happy-path domain behaviour through the HTTP veneer," push down to unit.
+- IT method count per controller: small. The Clubs controller's authz matrix is parameterised; new controllers copy that shape.
+
 ## Test infrastructure for DB-touching tests — S-009 / S-012 / S-015
 
 - **Real DB only, no mocking.** Every `@SpringBootTest` shares a single

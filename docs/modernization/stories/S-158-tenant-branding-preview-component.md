@@ -43,7 +43,7 @@ The component is **independent of the branding admin form** — it's a controlle
 - [ ] Layout works at all four ADR 0017 breakpoints — collapses cleanly under 360px (stacks the seven surfaces vertically); shows 2×4 or 3×3 grid at md+.
 - [ ] Surface placeholders use slate-* neutrals per ADR 0024 — no actual data, no actual nav state, no actual progress. Purely visual.
 - [ ] Reactive: changing `primaryColor` input updates all seven surfaces synchronously (signal-driven, no manual re-render).
-- [ ] Contrast hint (optional, scope-cap): a small WCAG-AA contrast indicator under the primary-button surface signals "Low contrast vs. white text" if the input color fails the 4.5:1 ratio against white. Implementation: a 10-line OKLCH luminance check. Defer if it bloats the story; mark as JIT.
+<!-- Contrast hint AC removed by vision amendment 2026-05-20d (WCAG rescinded project-wide). -->
 
 ## Tasks
 

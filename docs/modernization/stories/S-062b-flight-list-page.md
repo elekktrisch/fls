@@ -195,7 +195,7 @@ No raw `$http` style calls. All list traffic goes through this wrapper.
 
 - **Performance**: list page-load p95 < 3s on Fast 3G; server p95 < 250ms; k6 verification (see Performance plan).
 - **Security**: `@TenantId` filtering is automatic server-side; client doesn't need to send `clubId` (it comes from the bearer). Cache **must** be wiped on `clubId` switch — silent cross-tenant cache bleed is the worst class of bug.
-- **Accessibility**: WCAG 2.1 AA on the table + filter bar. Native semantics for sort headers (`<th aria-sort="ascending">`). Filter dropdowns keyboard-navigable.
+- **Keyboard navigation** (operator-velocity, not WCAG — that target was rescinded by vision amendment 2026-05-20d): filter dropdowns reachable via `Tab`; sort headers operable via `Enter` / `Space`. No screen-reader / ARIA obligations beyond what the kit primitives ship with by default.
 - **i18n**: column headers, badge labels, filter placeholders, empty-state — all i18n keys.
 
 ## Security plan

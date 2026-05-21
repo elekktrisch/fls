@@ -1,5 +1,6 @@
 package ch.alpenflight.locations.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -7,226 +8,168 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ch.alpenflight.server.testsupport.PostgresTestContainerLifecycle;
-import ch.alpenflight.server.testsupport.SharedPostgresContainer;
-import com.fasterxml.jackson.databind.JsonNode;
+import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * Role-gate matrix evidence for the Locations surface. Locations are
- * reference data (cross-tenant) — reads open to {@code isAuthenticated()},
- * writes gated SYSTEM_ADMINISTRATOR-only.
- *
- * <p>Coverage:
- * <ul>
- *   <li>anonymous → 401 on read + write (chain-level).</li>
- *   <li>SYSTEM_ADMINISTRATOR → 200/201/204 on read + write.</li>
- *   <li>CLUB_ADMINISTRATOR / FLIGHT_OPERATOR / OFFICE_USER → 200 on read,
- *       403 on every write (no own-club SpEL gate — reference data is
- *       cross-tenant; no `clubId` claim is dereferenced).</li>
- *   <li>Cross-tenant read identity — two clubId-claimed tokens see the
- *       same row, proving no {@code @TenantId} filter is applied.</li>
- * </ul>
+ * Role-gate + tenant-isolation matrix for the Locations REST surface, slim
+ * per CONVENTIONS.md §"Test pyramid". Each test proves one cross-layer
+ * property; matrix coverage is parameterised. Domain-level rules
+ * (ICAO regex, blank name) belong in {@code LocationDomainTest}; per-tenant
+ * data isolation lives in {@code LocationsTenantIsolationIT}.
  */
-@SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
-@EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
-        disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
-class LocationsAuthorizationIT {
+class LocationsAuthorizationIT extends PostgresIntegrationTest {
 
-    private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final String CLUB_A = "019e30c3-2c00-7001-8000-0000000000a1";
     private static final String CLUB_B = "019e30c3-2c00-7001-8000-0000000000a2";
 
-    @DynamicPropertySource
-    static void datasourceProps(DynamicPropertyRegistry r) {
-        r.add("spring.datasource.url", POSTGRES::jdbcUrl);
-        r.add("spring.datasource.username", POSTGRES::username);
-        r.add("spring.datasource.password", POSTGRES::password);
-        r.add("spring.flyway.url", POSTGRES::jdbcUrl);
-        r.add("spring.flyway.user", POSTGRES::username);
-        r.add("spring.flyway.password", POSTGRES::password);
-    }
+    private static final String NAME_PREFIX = "IT_LA_";
+    private static final String KEY_PREFIX = "IT_A_";
 
     @Autowired MockMvc mvc;
+    @Autowired JdbcTemplate jdbc;
 
-    // ----- Anonymous -----
-
-    @Test
-    void list_anonymous_returns_401() throws Exception {
-        mvc.perform(get("/api/v1/locations")).andExpect(status().isUnauthorized());
+    @BeforeEach
+    void seedTwoClubs() {
+        cleanupPreviousRun();
+        seedClub(CLUB_A, "alpha");
+        seedClub(CLUB_B, "bravo");
     }
 
     @Test
-    void post_anonymous_returns_401() throws Exception {
+    void anonymous_returns_401_on_read_and_write() throws Exception {
+        mvc.perform(get("/api/v1/locations")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/locations")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.createPayload(
-                                "Anon " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
+                                "Anon", LocationsControllerIT.uniqueIcao()))))
                 .andExpect(status().isUnauthorized());
     }
 
-    // ----- SYSTEM_ADMINISTRATOR (write-allowed) -----
-
-    @Test
-    void post_sysadmin_returns_201() throws Exception {
+    @ParameterizedTest(name = "{0} writing under own club returns {1}")
+    @MethodSource("ownClubWriteMatrix")
+    void own_club_write_status(String authority, int expectedStatus) throws Exception {
         mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A))
+                        .with(role("ROLE_" + authority, CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.createPayload(
-                                "Sysadmin " + LocationsControllerIT.suffix(),
+                                authority + " " + LocationsControllerIT.suffix(),
                                 LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isCreated());
+                .andExpect(status().is(expectedStatus));
+    }
+
+    static Stream<Arguments> ownClubWriteMatrix() {
+        return Stream.of(
+                // Writer roster — opens to CLUB_ADMIN (own club via @TenantId) +
+                // SYSTEM_ADMIN (any club).
+                Arguments.of("SYSTEM_ADMINISTRATOR", 201),
+                Arguments.of("CLUB_ADMINISTRATOR", 201),
+                // Read-only roster — 403 on every write verb (rebuked at the
+                // @PreAuthorize gate, not by tenancy).
+                Arguments.of("FLIGHT_OPERATOR", 403),
+                Arguments.of("OFFICE_USER", 403));
     }
 
     @Test
-    void list_sysadmin_returns_200() throws Exception {
-        mvc.perform(get("/api/v1/locations").with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A)))
+    void club_admin_full_crud_own_club() throws Exception {
+        String icao = LocationsControllerIT.uniqueIcao();
+        String createdId = createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", icao);
+        // Read
+        mvc.perform(get("/api/v1/locations/" + createdId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
                 .andExpect(status().isOk());
-    }
-
-    @Test
-    void delete_sysadmin_returns_204() throws Exception {
-        String externalId = createAsSysadmin();
-        mvc.perform(delete("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A)))
+        // Update
+        mvc.perform(put("/api/v1/locations/" + createdId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(toJson(LocationsControllerIT.updatePayload("Renamed", icao))))
+                .andExpect(status().isOk());
+        // Delete
+        mvc.perform(delete("/api/v1/locations/" + createdId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    void put_sysadmin_returns_200() throws Exception {
-        String icao = LocationsControllerIT.uniqueIcao();
-        String externalId = createAsSysadminWithIcao(icao);
+    void club_admin_cross_tenant_sees_404_not_403() throws Exception {
+        // CLUB_A creates a row; CLUB_B's admin cannot see or mutate it —
+        // Hibernate's @TenantId filter makes the row invisible under B's
+        // scope, so the service throws LocationNotFoundException → 404.
+        // 404 (not 403) is structural: the row simply doesn't exist for B.
+        String externalId = createUnderClub(CLUB_A, "ROLE_SYSTEM_ADMINISTRATOR",
+                LocationsControllerIT.uniqueIcao());
+        mvc.perform(get("/api/v1/locations/" + externalId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                .andExpect(status().isNotFound());
         mvc.perform(put("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A))
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(LocationsControllerIT.updatePayload(
-                                "Renamed by sysadmin", icao))))
-                .andExpect(status().isOk());
-    }
-
-    // ----- CLUB_ADMINISTRATOR (read OK, write FORBIDDEN) -----
-
-    @Test
-    void list_clubadmin_returns_200() throws Exception {
-        mvc.perform(get("/api/v1/locations").with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
-                .andExpect(status().isOk());
+                                "Cross-tenant hijack", LocationsControllerIT.uniqueIcao()))))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete("/api/v1/locations/" + externalId)
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    void post_clubadmin_returns_403() throws Exception {
+    void body_with_stray_clubId_is_rejected_400_by_jackson() throws Exception {
+        // Mass-assignment guard: the create DTO has no `clubId` field, and
+        // Jackson's `FAIL_ON_UNKNOWN_PROPERTIES=true` (application.yml) makes
+        // an attacker-supplied `"clubId"` a hard 400 at deserialization —
+        // stronger than the typical "silently ignored" pattern. The resolver
+        // stays the sole source of tenant truth.
+        Map<String, Object> body = LocationsControllerIT.createPayload(
+                "No mass-assign " + LocationsControllerIT.suffix(),
+                LocationsControllerIT.uniqueIcao());
+        body.put("clubId", CLUB_B);
         mvc.perform(post("/api/v1/locations")
                         .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Club admin try " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isForbidden());
+                        .content(toJson(body)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
-    void put_clubadmin_returns_403() throws Exception {
-        String icao = LocationsControllerIT.uniqueIcao();
-        String externalId = createAsSysadminWithIcao(icao);
-        mvc.perform(put("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.updatePayload(
-                                "Hijack attempt", icao))))
-                .andExpect(status().isForbidden());
-    }
+    void lists_for_two_clubs_are_disjoint_and_same_icao_coexists() throws Exception {
+        String aIcao = LocationsControllerIT.uniqueIcao();
+        String bIcao = LocationsControllerIT.uniqueIcao();
+        createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", aIcao);
+        createUnderClub(CLUB_B, "ROLE_CLUB_ADMINISTRATOR", bIcao);
+        // Same ICAO across clubs coexists at the HTTP layer (proves the
+        // per-club partial UNIQUE replaced the global one).
+        createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR", "SH99");
+        createUnderClub(CLUB_B, "ROLE_CLUB_ADMINISTRATOR", "SH99");
 
-    @Test
-    void delete_clubadmin_returns_403() throws Exception {
-        String externalId = createAsSysadmin();
-        mvc.perform(delete("/api/v1/locations/" + externalId)
+        String aList = mvc.perform(get("/api/v1/locations")
                         .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_A)))
-                .andExpect(status().isForbidden());
-    }
-
-    // ----- FLIGHT_OPERATOR (read OK, write FORBIDDEN) -----
-
-    @Test
-    void list_flightoperator_returns_200() throws Exception {
-        mvc.perform(get("/api/v1/locations").with(role("ROLE_FLIGHT_OPERATOR", CLUB_A)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void post_flightoperator_returns_403() throws Exception {
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_FLIGHT_OPERATOR", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Flight op try " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isForbidden());
-    }
-
-    // ----- OFFICE_USER (read OK, write FORBIDDEN) -----
-
-    @Test
-    void list_office_user_returns_200() throws Exception {
-        mvc.perform(get("/api/v1/locations").with(role("ROLE_OFFICE_USER", CLUB_A)))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void post_office_user_returns_403() throws Exception {
-        mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_OFFICE_USER", CLUB_A))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(toJson(LocationsControllerIT.createPayload(
-                                "Office try " + LocationsControllerIT.suffix(),
-                                LocationsControllerIT.uniqueIcao()))))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void delete_office_user_returns_403() throws Exception {
-        String externalId = createAsSysadmin();
-        mvc.perform(delete("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_OFFICE_USER", CLUB_A)))
-                .andExpect(status().isForbidden());
-    }
-
-    // ----- Cross-tenant read identity -----
-
-    @Test
-    void get_clubA_and_clubB_see_the_same_row() throws Exception {
-        String externalId = createAsSysadmin();
-        String pathA = mvc.perform(get("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_FLIGHT_OPERATOR", CLUB_A)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        String pathB = mvc.perform(get("/api/v1/locations/" + externalId)
-                        .with(role("ROLE_FLIGHT_OPERATOR", CLUB_B)))
+        String bList = mvc.perform(get("/api/v1/locations")
+                        .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
 
-        JsonNode a = MAPPER.readTree(pathA);
-        JsonNode b = MAPPER.readTree(pathB);
-        org.assertj.core.api.Assertions.assertThat(a.get("id").asText())
-                .as("Reference-data reads must surface the IDENTICAL row across tenant claims "
-                        + "— proves Location is not @TenantId-filtered")
-                .isEqualTo(b.get("id").asText());
+        assertThat(aList).contains(aIcao).doesNotContain(bIcao);
+        assertThat(bList).contains(bIcao).doesNotContain(aIcao);
     }
 
     // ----- helpers -----
@@ -237,21 +180,40 @@ class LocationsAuthorizationIT {
                 .authorities(new SimpleGrantedAuthority(authority));
     }
 
-    private String createAsSysadmin() throws Exception {
-        return createAsSysadminWithIcao(LocationsControllerIT.uniqueIcao());
-    }
-
-    private String createAsSysadminWithIcao(String icao) throws Exception {
+    private String createUnderClub(String clubId, String authority, String icao) throws Exception {
         Map<String, Object> body = LocationsControllerIT.createPayload(
                 "Authz fixture " + LocationsControllerIT.suffix(), icao);
         String responseBody = mvc.perform(post("/api/v1/locations")
-                        .with(role("ROLE_SYSTEM_ADMINISTRATOR", CLUB_A))
+                        .with(role(authority, clubId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(toJson(body)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        JsonNode node = MAPPER.readTree(responseBody);
-        return node.get("id").asText();
+        return MAPPER.readTree(responseBody).get("id").asText();
+    }
+
+    private void cleanupPreviousRun() {
+        jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
+                        + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
+                CLUB_A, CLUB_B);
+        jdbc.update("DELETE FROM location WHERE club_id IN (?::uuid, ?::uuid)",
+                CLUB_A, CLUB_B);
+        jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)", CLUB_A, CLUB_B);
+    }
+
+    private void seedClub(String id, String slug) {
+        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        jdbc.update("""
+                INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
+                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
+                """,
+                id,
+                NAME_PREFIX + slug,
+                KEY_PREFIX + slug.charAt(0),
+                countryId.toString(),
+                clubStateId.toString(),
+                NAME_PREFIX + slug);
     }
 
     private static String toJson(Map<String, Object> body) {

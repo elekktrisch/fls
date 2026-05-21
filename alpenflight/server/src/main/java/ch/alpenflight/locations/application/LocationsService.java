@@ -22,15 +22,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Transactional service for the {@link Location} aggregate. ICAO uniqueness
- * is enforced by:
+ * is per-club since S-049b, enforced by:
  *
  * <ol>
  *   <li>service-layer pre-check (UX optimization — cleaner 409 mapping for
- *       the non-race case);
- *   <li>partial UNIQUE index {@code ux_location_icao} on
- *       {@code location(icao_code) WHERE icao_code IS NOT NULL} (source of
- *       truth — wins races, and partial scope means recreating a Location
- *       with the same ICAO after soft-delete succeeds).
+ *       the non-race case). The lookup itself is tenant-scoped via Hibernate's
+ *       {@code @TenantId} discriminator, so a duplicate ICAO in <em>another</em>
+ *       club is invisible to this check and proceeds to insert;
+ *   <li>partial UNIQUE index {@code ux_location_club_icao} on
+ *       {@code location(club_id, icao_code) WHERE icao_code IS NOT NULL AND
+ *       deleted_on IS NULL} (source of truth — wins races, scopes uniqueness
+ *       to the active per-tenant catalog and lets soft-delete-then-recreate
+ *       reuse the ICAO within the same club).
  * </ol>
  *
  * <p>External signatures speak {@link LocationId} so the controller can't
