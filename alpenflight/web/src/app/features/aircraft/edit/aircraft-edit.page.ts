@@ -28,6 +28,7 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
+import { AfInputGroupComponent } from '@ui/molecules/af-input-group';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
@@ -79,6 +80,7 @@ type AircraftForm = FormGroup<{
   imports: [
     ReactiveFormsModule,
     AfFormFieldComponent,
+    AfInputGroupComponent,
     AfInputComponent,
     AfSelectComponent,
     AfButtonComponent,
@@ -257,24 +259,22 @@ type AircraftForm = FormGroup<{
               for="SpotLink"
               [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
             >
-              <div class="flex">
+              <af-input-group>
                 <af-input
                   inputId="SpotLink"
                   formControlName="spotLink"
                   autocomplete="off"
                   placeholder="https://share.findmespot.com/…"
-                  class="flex-1 min-w-0"
                 />
                 <af-button
                   htmlType="button"
                   [disabled]="!canTestSpotLink()"
                   (clicked)="openSpotLink()"
                   data-testid="aircraft-spotlink-test"
-                  class="-ml-px"
                 >
                   Test link
                 </af-button>
-              </div>
+              </af-input-group>
             </af-form-field>
             <div class="flex flex-col gap-1 mt-1">
               <label class="flex items-center gap-2 cursor-pointer select-none">
