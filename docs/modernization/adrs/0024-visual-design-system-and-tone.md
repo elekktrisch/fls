@@ -85,3 +85,11 @@ Driven by criterion 7 (a quiet austere system is the cheapest path to consistenc
   - **Story:** add §"Visual conventions" to `alpenflight/web/CLAUDE.md` pointing to this ADR; mark it as the source of truth for aesthetic decisions.
   - **Story:** tenant-theming admin UI ([ADR 0014](0014-per-tenant-theming.md) follow-up): the color-picker preview must show all seven brand-color surfaces so an admin can spot a bad color pick before committing it. Contrast check against slate-50 + slate-900 (no dark yet, but pre-staged).
   - **Note for review panel:** maintainability-reviewer + usability-reviewer should cite this ADR when checking layout / typography / motion / state-personality / nav-pattern conformance on story implementations. Touch-target enforcement still cites ADR 0017.
+
+## Amendment 2026-05-22a — pixel-level reference vendored
+
+A Claude Design handoff bundle dated 2026-05-21 operationalises Option A as a working React + vanilla-CSS prototype: full token set (slate-50→900, brand-50→800, status/danger/warn/ok), concrete component CSS (topbar, nav drawer, page header, buttons, table, card, form), and prototype screens (home, logbook, flight-log entry, reservations, public flows, empty states). It is **vendored under [`docs/modernization/design-reference/`](../design-reference/)** so the reference survives the Claude Design URL expiring.
+
+**The vendored bundle is now the canonical pixel-level reference for Option A** — when implementing a new feature screen, match the closest prototype (`screens-home.jsx`, `screens-logbook.jsx`, `screens-entry.jsx`, etc.). Token names in `docs/modernization/design-reference/tokens.css` are the API any new semantic token must align with; any gap between that file and `alpenflight/web/src/styles.css` is a boyscout closing-the-loop opportunity (per [ADR 0022](0022-modernization-primary-directives.md) directive 1).
+
+The earlier directive ("Any customization that is look-and-feel related has to be based on the documentation https://ng.ant.design/llms.txt") still holds for *ng-zorro internals* the bridge doesn't reach. The vendored prototype governs *author code* — the chrome, atoms, molecules, and feature screens written in `alpenflight/web/src/app/`.
