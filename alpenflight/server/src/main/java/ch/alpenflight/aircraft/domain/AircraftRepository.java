@@ -54,9 +54,13 @@ public interface AircraftRepository {
     Aircraft save(Aircraft aircraft);
 
     /**
-     * Save + flush. Used after state-change / counter-record so the
-     * cascaded child entity's generated UUID is populated before the
-     * controller maps the response.
+     * Flushes the persistence context. Used after {@code changeState} /
+     * {@code recordCounter} so cascade-PERSIST runs against the still-managed
+     * parent and the new child entity's generated UUID is populated in place
+     * (the service holds the original transient reference). Calling
+     * {@code save} on a managed parent would route through {@code em.merge},
+     * which cascades by copying transient children — leaving the original
+     * reference unpopulated.
      */
-    Aircraft saveAndFlush(Aircraft aircraft);
+    void flush();
 }

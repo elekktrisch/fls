@@ -271,33 +271,67 @@ public class Aircraft {
     }
 
     /**
-     * Records a new airworthiness state. Closes the existing open state row
-     * (if any) by setting its {@code validTo} to the new {@code validFrom},
-     * then opens a new row.
+     * Closes the currently-open state period (if any) by setting its
+     * {@code validTo} to {@code closingValidTo}. Idempotent when no period
+     * is open. Split out from {@link #openStatePeriod} so the service can
+     * flush the UPDATE before the next INSERT — the partial-unique
+     * {@code ux_aas_current_state_per_aircraft} would otherwise reject the
+     * new row, since Hibernate's default flush order is insert-before-update
+     * (PostgreSQL doesn't support DEFERRABLE on partial unique indexes).
      */
-    public AircraftStateHistoryEntry changeState(UUID newAircraftStateId,
-                                                 Instant validFrom,
-                                                 @Nullable UUID noticedByPersonId,
-                                                 @Nullable String remarks) {
+    public void closeCurrentStatePeriodAt(Instant closingValidTo) {
+        if (closingValidTo == null) {
+            throw new IllegalArgumentException("closingValidTo must not be null");
+        }
+        Optional<AircraftStateHistoryEntry> existing = currentOpenStateEntry();
+        if (existing.isEmpty()) {
+            return;
+        }
+        AircraftStateHistoryEntry current = existing.get();
+        Instant currentFrom = current.getValidFrom();
+        if (currentFrom != null && !closingValidTo.isAfter(currentFrom)) {
+            throw new AircraftStateConflictException(
+                    "New state's valid_from (" + closingValidTo
+                            + ") must be strictly after the open state's valid_from (" + currentFrom + ")");
+        }
+        current.closeAt(closingValidTo);
+    }
+
+    /**
+     * Opens a new airworthiness state period. Requires that no other period
+     * is currently open — call {@link #closeCurrentStatePeriodAt} first.
+     */
+    public AircraftStateHistoryEntry openStatePeriod(UUID newAircraftStateId,
+                                                     Instant validFrom,
+                                                     @Nullable UUID noticedByPersonId,
+                                                     @Nullable String remarks) {
         if (validFrom == null) {
             throw new IllegalArgumentException("validFrom must not be null");
         }
-        Optional<AircraftStateHistoryEntry> existing = currentOpenStateEntry();
-        if (existing.isPresent()) {
-            AircraftStateHistoryEntry current = existing.get();
-            Instant currentFrom = current.getValidFrom();
-            if (currentFrom != null && !validFrom.isAfter(currentFrom)) {
-                throw new AircraftStateConflictException(
-                        "New state's valid_from (" + validFrom
-                                + ") must be strictly after the open state's valid_from (" + currentFrom + ")");
-            }
-            current.closeAt(validFrom);
+        if (currentOpenStateEntry().isPresent()) {
+            throw new AircraftStateConflictException(
+                    "An open state period already exists; close it before opening a new one");
         }
         AircraftStateHistoryEntry entry = AircraftStateHistoryEntry.open(
                 newAircraftStateId, validFrom, noticedByPersonId, remarks);
         entry.attachTo(this);
         stateHistory.add(entry);
         return entry;
+    }
+
+    /**
+     * Convenience facade for unit tests and in-memory callers: close the
+     * existing period (if any) and open a new one in one call. Persistence
+     * callers should use {@link #closeCurrentStatePeriodAt} +
+     * {@link #openStatePeriod} with a flush between to satisfy the partial
+     * unique invariant at the schema level.
+     */
+    public AircraftStateHistoryEntry changeState(UUID newAircraftStateId,
+                                                 Instant validFrom,
+                                                 @Nullable UUID noticedByPersonId,
+                                                 @Nullable String remarks) {
+        closeCurrentStatePeriodAt(validFrom);
+        return openStatePeriod(newAircraftStateId, validFrom, noticedByPersonId, remarks);
     }
 
     /**

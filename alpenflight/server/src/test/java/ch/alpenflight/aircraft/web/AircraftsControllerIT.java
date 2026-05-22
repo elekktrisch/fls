@@ -242,7 +242,8 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
 
         int openCount = 0;
         for (JsonNode entry : entries) {
-            if (entry.get("validTo").isNull()) {
+            JsonNode validTo = entry.get("validTo");
+            if (validTo == null || validTo.isNull()) {
                 openCount++;
             }
         }

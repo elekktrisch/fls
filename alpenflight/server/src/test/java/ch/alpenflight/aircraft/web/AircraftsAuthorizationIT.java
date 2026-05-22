@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -27,6 +28,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Asserts the cross-tenant authz matrix for {@code AircraftAccess}:
@@ -57,6 +59,30 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
 
     @Autowired TestRestTemplate rest;
     @Autowired JwtTestFixture jwts;
+    @Autowired JdbcTemplate jdbc;
+
+    /**
+     * CLUB_A is seeded by V5 (walking skeleton). CLUB_B isn't, so the
+     * transfer-ownership matrix needs to ensure the FK target exists.
+     * Idempotent via {@code ON CONFLICT DO NOTHING}; other tests can run
+     * before / after without interference.
+     */
+    @BeforeEach
+    void seedClubB() {
+        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        jdbc.update("""
+                INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
+                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                CLUB_B,
+                "Aircraft IT Test Club B",
+                "ACIT_B",
+                countryId.toString(),
+                clubStateId.toString(),
+                "aircraft-it-test-b");
+    }
 
     @Test
     void clubAdminOfOtherClub_cannotMutate_ownedAircraft() {

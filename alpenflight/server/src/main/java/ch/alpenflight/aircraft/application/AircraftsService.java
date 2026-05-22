@@ -182,12 +182,18 @@ public class AircraftsService {
         validateAircraftState(req.aircraftStateId().value());
         AircraftStateHistoryEntry entry;
         try {
-            entry = a.changeState(
+            // Close-then-flush-then-open: the partial-unique index
+            // ux_aas_current_state_per_aircraft rejects two open rows, and
+            // Hibernate's default flush order inserts before updating —
+            // so the close must be flushed before the new INSERT.
+            a.closeCurrentStatePeriodAt(req.validFrom());
+            aircrafts.flush();
+            entry = a.openStatePeriod(
                     req.aircraftStateId().value(),
                     req.validFrom(),
                     req.noticedByPersonId(),
                     req.remarks());
-            aircrafts.saveAndFlush(a);
+            aircrafts.flush();
         } catch (DataIntegrityViolationException e) {
             // ux_aas_current_state_per_aircraft race — concurrent write closed
             // the open period under us. Surface as a typed domain conflict.
@@ -211,7 +217,7 @@ public class AircraftsService {
                     req.engineOperatingCounterInSeconds(),
                     req.nextMaintenanceAtFlightOperatingCounterInSeconds(),
                     req.nextMaintenanceAtEngineOperatingCounterInSeconds());
-            aircrafts.saveAndFlush(a);
+            aircrafts.flush();
         } catch (DataIntegrityViolationException e) {
             // ux_aoc_aircraft_at_date_time race — duplicate at_date_time.
             throw new CounterMonotonicityException(
