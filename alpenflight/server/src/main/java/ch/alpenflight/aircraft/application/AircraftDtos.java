@@ -132,7 +132,10 @@ public final class AircraftDtos {
             @Nullable UUID flightOperatingCounterUnitTypeId,
             @Nullable UUID engineOperatingCounterUnitTypeId,
             @Nullable LocationId homebaseId,
-            @Nullable @Size(max = 250) String spotLink,
+            @Nullable @Size(max = 250)
+                    @Pattern(regexp = "^https://.*", flags = Pattern.Flag.CASE_INSENSITIVE,
+                            message = "spotLink must start with https:// (A10 SSRF defense-in-depth)")
+                    String spotLink,
             boolean isTowingOrWinchRequired,
             boolean isTowingStartAllowed,
             boolean isWinchStartAllowed,
@@ -161,7 +164,10 @@ public final class AircraftDtos {
             @Nullable UUID flightOperatingCounterUnitTypeId,
             @Nullable UUID engineOperatingCounterUnitTypeId,
             @Nullable LocationId homebaseId,
-            @Nullable @Size(max = 250) String spotLink,
+            @Nullable @Size(max = 250)
+                    @Pattern(regexp = "^https://.*", flags = Pattern.Flag.CASE_INSENSITIVE,
+                            message = "spotLink must start with https:// (A10 SSRF defense-in-depth)")
+                    String spotLink,
             boolean isTowingOrWinchRequired,
             boolean isTowingStartAllowed,
             boolean isWinchStartAllowed,

@@ -25,6 +25,7 @@ import ch.alpenflight.aircraft.domain.InvalidAircraftReferenceException;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.referencedata.domain.AircraftStateRepository;
 import ch.alpenflight.referencedata.domain.AircraftTypeRepository;
+import ch.alpenflight.referencedata.domain.CounterUnitTypeRepository;
 import java.time.Clock;
 import java.util.List;
 import java.util.Set;
@@ -58,17 +59,20 @@ public class AircraftsService {
     private final AircraftRepository aircrafts;
     private final AircraftTypeRepository aircraftTypes;
     private final AircraftStateRepository aircraftStates;
+    private final CounterUnitTypeRepository counterUnitTypes;
     private final AircraftAccess access;
     private final Clock clock;
 
     public AircraftsService(AircraftRepository aircrafts,
                             AircraftTypeRepository aircraftTypes,
                             AircraftStateRepository aircraftStates,
+                            CounterUnitTypeRepository counterUnitTypes,
                             AircraftAccess access,
                             Clock clock) {
         this.aircrafts = aircrafts;
         this.aircraftTypes = aircraftTypes;
         this.aircraftStates = aircraftStates;
+        this.counterUnitTypes = counterUnitTypes;
         this.access = access;
         this.clock = clock;
     }
@@ -111,6 +115,8 @@ public class AircraftsService {
     public AircraftDetail registerAircraft(AircraftCreateRequest req) {
         // TODO(S-027): emit AIRCRAFT_REGISTERED audit event.
         validateAircraftType(req.aircraftTypeId().value());
+        validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
+        validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
         String normalized = Immatriculation.of(req.immatriculation()).normalized();
         aircrafts.findActiveByImmatriculation(normalized)
                 .ifPresent(existing -> {
@@ -151,6 +157,8 @@ public class AircraftsService {
     public AircraftDetail updateAircraft(AircraftId id, AircraftUpdateRequest req) {
         // TODO(S-027): emit AIRCRAFT_UPDATED audit event.
         validateAircraftType(req.aircraftTypeId().value());
+        validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
+        validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
         Aircraft a = loadOrThrow(id);
 
         String normalized = Immatriculation.of(req.immatriculation()).normalized();
@@ -291,6 +299,15 @@ public class AircraftsService {
     private void validateAircraftState(UUID aircraftStateId) {
         if (!aircraftStates.existsById(aircraftStateId)) {
             throw new InvalidAircraftReferenceException("aircraftStateId");
+        }
+    }
+
+    private void validateCounterUnitType(@Nullable UUID counterUnitTypeId) {
+        if (counterUnitTypeId == null) {
+            return;
+        }
+        if (!counterUnitTypes.existsById(counterUnitTypeId)) {
+            throw new InvalidAircraftReferenceException("counterUnitTypeId");
         }
     }
 

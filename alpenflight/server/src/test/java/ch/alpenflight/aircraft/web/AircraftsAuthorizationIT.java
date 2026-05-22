@@ -299,6 +299,8 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         payload.put("comment", "secret maintenance notes");
         payload.put("flarmId", "DDAABB");
         payload.put("mtom", 750);
+        payload.put("noiseClass", "A");
+        payload.put("noiseLevel", 60);
         payload.put("spotLink", "https://share.findmespot.com/abc123");
         ResponseEntity<String> created = post("/api/v1/aircraft", payload, sysToken);
         String id = readJson(created).get("id").asText();
@@ -310,6 +312,8 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         assertThat(body.has("comment")).as("comment omitted for non-owner").isFalse();
         assertThat(body.has("flarmId")).as("flarmId omitted for non-owner").isFalse();
         assertThat(body.has("mtom")).as("mtom omitted for non-owner").isFalse();
+        assertThat(body.has("noiseClass")).as("noiseClass omitted for non-owner").isFalse();
+        assertThat(body.has("noiseLevel")).as("noiseLevel omitted for non-owner").isFalse();
         assertThat(body.has("spotLink")).as("spotLink omitted for non-owner").isFalse();
         assertThat(body.get("immatriculation").asText())
                 .as("immatriculation visible to any reader")

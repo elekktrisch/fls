@@ -90,6 +90,14 @@ const mockAircraftTypes: MockAircraftType[] = [
     requiresTowingInfo: true,
   },
   {
+    id: '019e2e15-2c00-7afa-8000-000000002afa',
+    code: 'GLIDER_WITH_MOTOR',
+    description: 'Glider with motor',
+    hasEngine: true,
+    mayBeTowingAircraft: false,
+    requiresTowingInfo: true,
+  },
+  {
     id: MOTOR_TYPE_ID,
     code: 'MOTOR_AIRCRAFT',
     description: 'Motor aircraft',
@@ -154,6 +162,21 @@ const towingSeed: MockAircraftDetail = {
   isFastEntryRecord: false,
 };
 
+const GLIDER_WITH_MOTOR_TYPE_ID = '019e2e15-2c00-7afa-8000-000000002afa';
+const gliderWithMotorSeed: MockAircraftDetail = {
+  id: 'ac-019e30c3-2c00-7001-8000-000000000004',
+  ownerClubId: CLUB_A_ID,
+  aircraftTypeId: GLIDER_WITH_MOTOR_TYPE_ID,
+  immatriculation: 'HB-GWM',
+  manufacturerName: 'DG',
+  aircraftModel: 'DG-1000T',
+  isTowingOrWinchRequired: false,
+  isTowingStartAllowed: false,
+  isWinchStartAllowed: true,
+  isTowingAircraft: false,
+  isFastEntryRecord: false,
+};
+
 function toListItem(a: MockAircraftDetail): MockAircraftListItem {
   const type = mockAircraftTypes.find((t) => t.id === a.aircraftTypeId)!;
   const item: MockAircraftListItem = {
@@ -168,6 +191,27 @@ function toListItem(a: MockAircraftDetail): MockAircraftListItem {
   if (a.competitionSign !== undefined) item.competitionSign = a.competitionSign;
   return item;
 }
+
+const mockCounterUnitTypes = [
+  {
+    id: '019e2e15-2c00-7b58-8000-000000001b58',
+    code: 'HOURS_DECIMAL',
+    name: 'Hours (decimal)',
+    shortName: 'h',
+  },
+  {
+    id: '019e2e15-2c00-7b59-8000-000000001b59',
+    code: 'HOURS_MINUTES',
+    name: 'Hours (HH:MM)',
+    shortName: 'h',
+  },
+  {
+    id: '019e2e15-2c00-7b5a-8000-000000001b5a',
+    code: 'LANDINGS',
+    name: 'Landings',
+    shortName: 'ldg',
+  },
+];
 
 async function stubReferenceData(page: import('@playwright/test').Page): Promise<void> {
   await page.route('**/api/v1/countries**', (route) =>
@@ -205,6 +249,13 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
       body: JSON.stringify(mockAircraftStates),
     }),
   );
+  await page.route('**/api/v1/counter-unit-types**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockCounterUnitTypes),
+    }),
+  );
   await page.route('**/api/v1/clubs**', (route) =>
     route.fulfill({
       status: 200,
@@ -238,10 +289,36 @@ function setupAircraftBackend(aircraft: MockAircraftDetail[]) {
     const idMatch = path.match(/^\/api\/v1\/aircraft\/(ac-[^/]+)$/);
 
     if (method === 'GET' && path === '/api/v1/aircraft') {
+      // Honor the `?type=GLIDER|TOWING|MOTOR` query param the way the server
+      // does (AircraftService.listAircraft / AircraftTypeSlice). Membership
+      // preserves legacy AircraftService.cs:303-304 (GLIDER includes
+      // GLIDER_WITH_MOTOR) and :96 (MOTOR excludes GLIDER_WITH_MOTOR).
+      const typeParam = url.searchParams.get('type');
+      const filtered = aircraft.filter((a) => {
+        const items = toListItem(a);
+        switch (typeParam) {
+          case null:
+            return true;
+          case 'GLIDER':
+            return (
+              items.aircraftTypeCode === 'GLIDER' || items.aircraftTypeCode === 'GLIDER_WITH_MOTOR'
+            );
+          case 'MOTOR':
+            return (
+              items.aircraftTypeCode !== 'GLIDER' &&
+              items.aircraftTypeCode !== 'GLIDER_WITH_MOTOR' &&
+              items.hasEngine === true
+            );
+          case 'TOWING':
+            return items.isTowingAircraft === true;
+          default:
+            return true;
+        }
+      });
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(aircraft.map(toListItem)),
+        body: JSON.stringify(filtered.map(toListItem)),
       });
       return;
     }
@@ -350,8 +427,20 @@ test('aircraft: lists the seeded row at /aircraft', async ({ page }) => {
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toContainText('HB-GLI');
 });
 
-test('aircraft: type-filter slices GLIDER / TOWING / MOTOR', async ({ page }) => {
-  const aircraft: MockAircraftDetail[] = [{ ...gliderSeed }, { ...motorSeed }, { ...towingSeed }];
+test('aircraft: type-filter slices GLIDER / TOWING / MOTOR preserving legacy membership', async ({
+  page,
+}) => {
+  // Seeds include a glider-with-motor — the membership invariant from
+  // AircraftService.cs:303-304 (GLIDER includes GLIDER_WITH_MOTOR) and :96
+  // (MOTOR excludes GLIDER_WITH_MOTOR) is what the parity reviewer flagged
+  // as the highest-impact regression risk if filtering goes client-side
+  // by hasEngine.
+  const aircraft: MockAircraftDetail[] = [
+    { ...gliderSeed },
+    { ...motorSeed },
+    { ...towingSeed },
+    { ...gliderWithMotorSeed },
+  ];
   await stubReferenceData(page);
   await page.route('**/api/v1/aircraft**', setupAircraftBackend(aircraft));
 
@@ -361,11 +450,13 @@ test('aircraft: type-filter slices GLIDER / TOWING / MOTOR', async ({ page }) =>
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toBeVisible();
+  await expect(page.getByTestId(`aircraft-row-${gliderWithMotorSeed.id}`)).toBeVisible();
 
-  // Filter to GLIDER.
+  // Filter to GLIDER — pure glider + glider-with-motor (per legacy).
   await page.getByTestId('aircraft-type-filter').locator('nz-select').click();
   await page.locator('nz-option-item').filter({ hasText: 'Gliders' }).click();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toBeVisible();
+  await expect(page.getByTestId(`aircraft-row-${gliderWithMotorSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toHaveCount(0);
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toHaveCount(0);
 
@@ -375,13 +466,16 @@ test('aircraft: type-filter slices GLIDER / TOWING / MOTOR', async ({ page }) =>
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toHaveCount(0);
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`aircraft-row-${gliderWithMotorSeed.id}`)).toHaveCount(0);
 
-  // Filter to MOTOR (hasEngine=true → motor + towing).
+  // Filter to MOTOR — pure motor + towing-motor; explicitly NOT
+  // glider-with-motor (legacy excluded it).
   await page.getByTestId('aircraft-type-filter').locator('nz-select').click();
   await page.locator('nz-option-item').filter({ hasText: 'Motor aircraft' }).click();
   await expect(page.getByTestId(`aircraft-row-${motorSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${towingSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`aircraft-row-${gliderWithMotorSeed.id}`)).toHaveCount(0);
 });
 
 test('aircraft: editing the seeded row updates the list (UI round-trip)', async ({ page }) => {
