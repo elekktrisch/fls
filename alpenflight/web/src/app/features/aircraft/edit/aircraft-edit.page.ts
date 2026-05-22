@@ -1,0 +1,611 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  type AbstractControl,
+  FormBuilder,
+  FormControl,
+  ReactiveFormsModule,
+  type ValidatorFn,
+  Validators,
+  type FormGroup,
+} from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+
+import type {
+  AircraftCreateRequest,
+  AircraftDetail,
+  AircraftUpdateRequest,
+} from '@api/generated/model';
+import { AfButtonComponent } from '@ui/atoms/af-button';
+import { AfInputComponent } from '@ui/atoms/af-input';
+import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
+import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
+import { AfPageComponent } from '@ui/molecules/af-page';
+import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
+import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
+
+import { ClubsStore } from '../../clubs/clubs.store';
+import { LocationsStore } from '../../locations/locations.store';
+import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
+import { SessionStore } from '../../../core/session/session.store';
+import { AircraftStore } from '../aircraft.store';
+
+const IMMAT_PATTERN = /^[A-Z0-9-]{2,15}$/;
+const FLARM_PATTERN = /^[A-Fa-f0-9]{6}$/;
+const COMP_SIGN_PATTERN = /^[A-Za-z0-9]{1,5}$/;
+
+type AircraftForm = FormGroup<{
+  aircraftTypeId: FormControl<string>;
+  immatriculation: FormControl<string>;
+  ownerClubId: FormControl<string>;
+  manufacturerName: FormControl<string>;
+  aircraftModel: FormControl<string>;
+  competitionSign: FormControl<string>;
+  flarmId: FormControl<string>;
+  aircraftSerialNumber: FormControl<string>;
+  yearOfManufacture: FormControl<string>;
+  noiseClass: FormControl<string>;
+  noiseLevel: FormControl<number | null>;
+  mtom: FormControl<number | null>;
+  nrOfSeats: FormControl<number | null>;
+  homebaseId: FormControl<string>;
+  spotLink: FormControl<string>;
+  isTowingOrWinchRequired: FormControl<boolean>;
+  isTowingStartAllowed: FormControl<boolean>;
+  isWinchStartAllowed: FormControl<boolean>;
+  isTowingAircraft: FormControl<boolean>;
+  isFastEntryRecord: FormControl<boolean>;
+  comment: FormControl<string>;
+}>;
+
+@Component({
+  selector: 'af-aircraft-edit',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    ReactiveFormsModule,
+    AfFormFieldComponent,
+    AfInputComponent,
+    AfSelectComponent,
+    AfButtonComponent,
+    AfPageComponent,
+    AfPageHeaderComponent,
+    AfPageErrorComponent,
+  ],
+  host: { class: 'block' },
+  template: `
+    <af-page>
+      <af-page-header [title]="isCreate() ? 'New aircraft' : 'Edit aircraft'" />
+
+      <af-page-error
+        [message]="store.saveError()"
+        [retryLabel]="null"
+        data-testid="aircraft-save-error"
+      />
+      <af-page-error
+        [message]="referenceData.loadError() ? 'Reference data unavailable.' : null"
+        (retry)="referenceData.loadAll()"
+        data-testid="aircraft-ref-data-error"
+      />
+
+      @if (!isCreate() && currentState(); as state) {
+        <div
+          class="mb-3 px-3 py-2 text-sm border border-slate-200 bg-slate-50"
+          data-testid="aircraft-current-state"
+        >
+          <span class="text-slate-500">Current state:</span>
+          <span class="ml-1 font-medium text-slate-900">{{ state.aircraftStateCode }}</span>
+          <span class="ml-2 text-slate-500">since {{ state.validFromDisplay }}</span>
+        </div>
+      }
+      @if (!isCreate() && latestCounter(); as counter) {
+        <div
+          class="mb-4 px-3 py-2 text-sm border border-slate-200 bg-slate-50 tabular"
+          data-testid="aircraft-latest-counter"
+        >
+          <span class="text-slate-500">Latest counter:</span>
+          <span class="ml-1 text-slate-900">{{ counter }}</span>
+        </div>
+      }
+
+      <form
+        [formGroup]="form"
+        (ngSubmit)="onSubmit()"
+        data-testid="aircraft-edit-form"
+        class="flex flex-col gap-2"
+        novalidate
+      >
+        <af-form-field
+          label="Immatriculation"
+          for="Immatriculation"
+          [required]="true"
+          [errors]="
+            form.controls.immatriculation.touched ? form.controls.immatriculation.errors : null
+          "
+        >
+          <af-input
+            inputId="Immatriculation"
+            formControlName="immatriculation"
+            autocomplete="off"
+            placeholder="HB-3000"
+          />
+        </af-form-field>
+
+        <af-form-field
+          label="Type"
+          for="AircraftTypeId"
+          [required]="true"
+          [errors]="
+            form.controls.aircraftTypeId.touched ? form.controls.aircraftTypeId.errors : null
+          "
+        >
+          <af-select
+            inputId="AircraftTypeId"
+            formControlName="aircraftTypeId"
+            placeholder="Select type"
+            [options]="typeOptions()"
+            data-testid="aircraft-type-select"
+          />
+        </af-form-field>
+
+        @if (isCreate() && showOwnerSelect()) {
+          <af-form-field label="Owner club" for="OwnerClubId">
+            <af-select
+              inputId="OwnerClubId"
+              formControlName="ownerClubId"
+              placeholder="Charter (no owner)"
+              [options]="ownerClubOptions()"
+              data-testid="aircraft-owner-select"
+            />
+          </af-form-field>
+        }
+
+        <div class="grid grid-cols-2 gap-2">
+          <af-form-field label="Manufacturer" for="ManufacturerName">
+            <af-input
+              inputId="ManufacturerName"
+              formControlName="manufacturerName"
+              autocomplete="off"
+            />
+          </af-form-field>
+          <af-form-field label="Model" for="AircraftModel">
+            <af-input inputId="AircraftModel" formControlName="aircraftModel" autocomplete="off" />
+          </af-form-field>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <af-form-field
+            label="Competition sign"
+            for="CompetitionSign"
+            [errors]="
+              form.controls.competitionSign.touched ? form.controls.competitionSign.errors : null
+            "
+          >
+            <af-input
+              inputId="CompetitionSign"
+              formControlName="competitionSign"
+              autocomplete="off"
+              placeholder="A123"
+            />
+          </af-form-field>
+          <af-form-field
+            label="FLARM ID"
+            for="FlarmId"
+            [errors]="form.controls.flarmId.touched ? form.controls.flarmId.errors : null"
+          >
+            <af-input
+              inputId="FlarmId"
+              formControlName="flarmId"
+              autocomplete="off"
+              placeholder="DDAABB"
+            />
+          </af-form-field>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <af-form-field label="Serial number" for="SerialNumber">
+            <af-input
+              inputId="SerialNumber"
+              formControlName="aircraftSerialNumber"
+              autocomplete="off"
+            />
+          </af-form-field>
+          <af-form-field label="Year of manufacture" for="YearOfManufacture">
+            <af-input
+              inputId="YearOfManufacture"
+              formControlName="yearOfManufacture"
+              autocomplete="off"
+              placeholder="YYYY-MM-DD"
+            />
+          </af-form-field>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <af-form-field label="MTOM (kg)" for="Mtom">
+            <af-input inputId="Mtom" type="number" formControlName="mtom" autocomplete="off" />
+          </af-form-field>
+          <af-form-field label="Seats" for="NrOfSeats">
+            <af-input
+              inputId="NrOfSeats"
+              type="number"
+              formControlName="nrOfSeats"
+              autocomplete="off"
+            />
+          </af-form-field>
+          <af-form-field label="Noise class" for="NoiseClass">
+            <af-input
+              inputId="NoiseClass"
+              formControlName="noiseClass"
+              autocomplete="off"
+              placeholder="A"
+            />
+          </af-form-field>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <af-form-field label="Noise level (dB)" for="NoiseLevel">
+            <af-input
+              inputId="NoiseLevel"
+              type="number"
+              formControlName="noiseLevel"
+              autocomplete="off"
+            />
+          </af-form-field>
+          <af-form-field label="Homebase" for="HomebaseId">
+            <af-select
+              inputId="HomebaseId"
+              formControlName="homebaseId"
+              placeholder="No homebase"
+              [options]="homebaseOptions()"
+              data-testid="aircraft-homebase-select"
+            />
+          </af-form-field>
+        </div>
+
+        <af-form-field
+          label="SPOT tracker link"
+          for="SpotLink"
+          [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
+        >
+          <af-input
+            inputId="SpotLink"
+            formControlName="spotLink"
+            autocomplete="off"
+            placeholder="https://share.findmespot.com/…"
+          />
+        </af-form-field>
+
+        <label class="flex items-center gap-2 cursor-pointer select-none mt-2">
+          <input
+            type="checkbox"
+            formControlName="isTowingOrWinchRequired"
+            class="w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <span>Towing or winch required</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            formControlName="isTowingStartAllowed"
+            class="w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <span>Towing start allowed</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            formControlName="isWinchStartAllowed"
+            class="w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <span>Winch start allowed</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            formControlName="isTowingAircraft"
+            class="w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <span>This aircraft is a towing aircraft</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer select-none mb-4">
+          <input
+            type="checkbox"
+            formControlName="isFastEntryRecord"
+            class="w-4 h-4 accent-brand-500 cursor-pointer"
+          />
+          <span>Fast-entry record</span>
+        </label>
+
+        <af-form-field label="Comment" for="Comment">
+          <af-input inputId="Comment" formControlName="comment" autocomplete="off" />
+        </af-form-field>
+
+        <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200">
+          <af-button htmlType="button" (clicked)="router.navigateByUrl('/aircraft')">
+            Cancel
+          </af-button>
+          @if (canMutate()) {
+            <af-button
+              type="primary"
+              htmlType="submit"
+              [disabled]="form.invalid || saveSubmitted()"
+              data-testid="aircraft-save-button"
+            >
+              Save
+            </af-button>
+          }
+        </div>
+      </form>
+    </af-page>
+  `,
+})
+export class AircraftEditPage {
+  protected readonly store = inject(AircraftStore);
+  protected readonly referenceData = inject(ReferenceDataStore);
+  protected readonly clubs = inject(ClubsStore);
+  protected readonly locations = inject(LocationsStore);
+  protected readonly session = inject(SessionStore);
+  protected readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly fb = inject(FormBuilder);
+
+  private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
+  protected readonly aircraftId = computed(() => this.routeId().get('id'));
+  protected readonly isCreate = computed(() => this.aircraftId() === null);
+  protected readonly canMutate = this.session.isAnyAdmin;
+  // Only SYSTEM_ADMIN can pick the owner; CLUB_ADMIN's aircraft are auto-owned
+  // by their own club server-side (the controller fills it in from the JWT).
+  protected readonly showOwnerSelect = this.session.isSystemAdmin;
+
+  protected readonly typeOptions = computed<readonly AfSelectOption<string>[]>(() =>
+    this.referenceData.aircraftTypes().map((t) => ({
+      value: t.id,
+      label: t.description ?? t.code ?? t.id,
+    })),
+  );
+
+  protected readonly homebaseOptions = computed<readonly AfSelectOption<string>[]>(() => [
+    { value: '', label: '— No homebase —' },
+    ...this.locations.entities().map((l) => ({ value: l.id, label: l.locationName })),
+  ]);
+
+  protected readonly ownerClubOptions = computed<readonly AfSelectOption<string>[]>(() => [
+    { value: '', label: '— Charter (no owner) —' },
+    ...this.clubs.entities().map((c) => ({ value: c.id, label: c.name ?? c.id })),
+  ]);
+
+  protected readonly currentState = computed(() => {
+    const detail = this.store.selectedAircraft();
+    if (!detail?.currentState) return null;
+    const stateById = this.referenceData.aircraftStateById();
+    const state = stateById.get(detail.currentState.aircraftStateId);
+    return {
+      aircraftStateCode: state?.code ?? detail.currentState.aircraftStateId,
+      validFromDisplay: detail.currentState.validFrom,
+    };
+  });
+
+  protected readonly latestCounter = computed(() => {
+    const detail = this.store.selectedAircraft();
+    const c = detail?.latestCounter;
+    if (!c) return null;
+    const parts: string[] = [];
+    if (c.atDateTime) parts.push(`recorded ${c.atDateTime}`);
+    if (c.flightOperatingCounterInSeconds != null) {
+      parts.push(`flight ${formatHours(c.flightOperatingCounterInSeconds)}h`);
+    }
+    if (c.engineOperatingCounterInSeconds != null) {
+      parts.push(`engine ${formatHours(c.engineOperatingCounterInSeconds)}h`);
+    }
+    return parts.length === 0 ? null : parts.join(' · ');
+  });
+
+  protected readonly form: AircraftForm = this.fb.group({
+    aircraftTypeId: this.fb.nonNullable.control('', [Validators.required]),
+    immatriculation: this.fb.nonNullable.control('', [
+      Validators.required,
+      Validators.minLength(2),
+      Validators.maxLength(15),
+      Validators.pattern(IMMAT_PATTERN),
+    ]),
+    ownerClubId: this.fb.nonNullable.control(''),
+    manufacturerName: this.fb.nonNullable.control('', [Validators.maxLength(100)]),
+    aircraftModel: this.fb.nonNullable.control('', [Validators.maxLength(50)]),
+    competitionSign: this.fb.nonNullable.control('', [
+      Validators.maxLength(5),
+      patternOrEmpty(COMP_SIGN_PATTERN),
+    ]),
+    flarmId: this.fb.nonNullable.control('', [
+      Validators.maxLength(50),
+      patternOrEmpty(FLARM_PATTERN),
+    ]),
+    aircraftSerialNumber: this.fb.nonNullable.control('', [Validators.maxLength(20)]),
+    yearOfManufacture: this.fb.nonNullable.control(''),
+    noiseClass: this.fb.nonNullable.control('', [Validators.maxLength(1)]),
+    noiseLevel: this.fb.control<number | null>(null),
+    mtom: this.fb.control<number | null>(null, [Validators.min(0)]),
+    nrOfSeats: this.fb.control<number | null>(null, [Validators.min(0)]),
+    homebaseId: this.fb.nonNullable.control(''),
+    spotLink: this.fb.nonNullable.control('', [Validators.maxLength(250), httpsOrEmpty()]),
+    isTowingOrWinchRequired: this.fb.nonNullable.control(false),
+    isTowingStartAllowed: this.fb.nonNullable.control(false),
+    isWinchStartAllowed: this.fb.nonNullable.control(false),
+    isTowingAircraft: this.fb.nonNullable.control(false),
+    isFastEntryRecord: this.fb.nonNullable.control(false),
+    comment: this.fb.nonNullable.control('', [Validators.maxLength(250)]),
+  });
+
+  protected readonly saveSubmitted = signal(false);
+
+  constructor() {
+    // Load reference data + clubs + locations once on entry. The stores are
+    // TTL-gated so this is cheap on re-entry.
+    this.referenceData.loadAll();
+
+    effect(() => {
+      const id = this.aircraftId();
+      if (!id) {
+        this.store.select(null);
+        return;
+      }
+      this.store.select(id);
+      this.store.loadOne(id);
+    });
+
+    effect(() => {
+      const detail = this.store.selectedAircraft();
+      if (!detail) return;
+      this.form.patchValue(detailToFormValue(detail), { emitEvent: false });
+    });
+  }
+
+  protected onSubmit(): void {
+    this.form.markAllAsTouched();
+    if (this.form.invalid) return;
+    this.saveSubmitted.set(true);
+    const id = this.aircraftId();
+    if (id === null) {
+      this.store.create(formToCreateRequest(this.form));
+    } else {
+      this.store.update({ id, req: formToUpdateRequest(this.form) });
+    }
+    // Listen once for save-error / save-success to navigate back or stay.
+    queueMicrotask(() => {
+      if (this.store.saveError() === null) {
+        this.router.navigateByUrl('/aircraft');
+      } else {
+        this.saveSubmitted.set(false);
+      }
+    });
+  }
+}
+
+function formatHours(seconds: number): string {
+  return (seconds / 3600).toFixed(1);
+}
+
+function patternOrEmpty(p: RegExp): ValidatorFn {
+  return (c: AbstractControl) => {
+    const v = (c.value ?? '') as string;
+    if (v === '') return null;
+    return p.test(v) ? null : { pattern: { requiredPattern: p.source, actualValue: v } };
+  };
+}
+
+function httpsOrEmpty(): ValidatorFn {
+  return (c: AbstractControl) => {
+    const v = (c.value ?? '') as string;
+    if (v === '') return null;
+    return v.toLowerCase().startsWith('https://') ? null : { https: true };
+  };
+}
+
+function detailToFormValue(d: AircraftDetail): Partial<{
+  aircraftTypeId: string;
+  immatriculation: string;
+  ownerClubId: string;
+  manufacturerName: string;
+  aircraftModel: string;
+  competitionSign: string;
+  flarmId: string;
+  aircraftSerialNumber: string;
+  yearOfManufacture: string;
+  noiseClass: string;
+  noiseLevel: number | null;
+  mtom: number | null;
+  nrOfSeats: number | null;
+  homebaseId: string;
+  spotLink: string;
+  isTowingOrWinchRequired: boolean;
+  isTowingStartAllowed: boolean;
+  isWinchStartAllowed: boolean;
+  isTowingAircraft: boolean;
+  isFastEntryRecord: boolean;
+  comment: string;
+}> {
+  return {
+    aircraftTypeId: d.aircraftTypeId,
+    immatriculation: d.immatriculation,
+    ownerClubId: d.ownerClubId ?? '',
+    manufacturerName: d.manufacturerName ?? '',
+    aircraftModel: d.aircraftModel ?? '',
+    competitionSign: d.competitionSign ?? '',
+    flarmId: d.flarmId ?? '',
+    aircraftSerialNumber: d.aircraftSerialNumber ?? '',
+    yearOfManufacture: d.yearOfManufacture ?? '',
+    noiseClass: d.noiseClass ?? '',
+    noiseLevel: d.noiseLevel ?? null,
+    mtom: d.mtom ?? null,
+    nrOfSeats: d.nrOfSeats ?? null,
+    homebaseId: d.homebaseId ?? '',
+    spotLink: d.spotLink ?? '',
+    isTowingOrWinchRequired: d.isTowingOrWinchRequired,
+    isTowingStartAllowed: d.isTowingStartAllowed,
+    isWinchStartAllowed: d.isWinchStartAllowed,
+    isTowingAircraft: d.isTowingAircraft,
+    isFastEntryRecord: d.isFastEntryRecord,
+    comment: d.comment ?? '',
+  };
+}
+
+function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
+  const v = form.getRawValue();
+  const req: AircraftCreateRequest = {
+    aircraftTypeId: v.aircraftTypeId,
+    immatriculation: v.immatriculation.toUpperCase(),
+    isTowingOrWinchRequired: v.isTowingOrWinchRequired,
+    isTowingStartAllowed: v.isTowingStartAllowed,
+    isWinchStartAllowed: v.isWinchStartAllowed,
+    isTowingAircraft: v.isTowingAircraft,
+    isFastEntryRecord: v.isFastEntryRecord,
+  };
+  if (v.ownerClubId !== '') req.ownerClubId = v.ownerClubId;
+  if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
+  if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
+  if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
+  if (v.flarmId !== '') req.flarmId = v.flarmId;
+  if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
+  if (v.yearOfManufacture !== '') req.yearOfManufacture = v.yearOfManufacture;
+  if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
+  if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
+  if (v.mtom !== null) req.mtom = v.mtom;
+  if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
+  if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
+  if (v.spotLink !== '') req.spotLink = v.spotLink;
+  if (v.comment !== '') req.comment = v.comment;
+  return req;
+}
+
+function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
+  const v = form.getRawValue();
+  const req: AircraftUpdateRequest = {
+    aircraftTypeId: v.aircraftTypeId,
+    immatriculation: v.immatriculation.toUpperCase(),
+    isTowingOrWinchRequired: v.isTowingOrWinchRequired,
+    isTowingStartAllowed: v.isTowingStartAllowed,
+    isWinchStartAllowed: v.isWinchStartAllowed,
+    isTowingAircraft: v.isTowingAircraft,
+    isFastEntryRecord: v.isFastEntryRecord,
+  };
+  if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
+  if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
+  if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
+  if (v.flarmId !== '') req.flarmId = v.flarmId;
+  if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
+  if (v.yearOfManufacture !== '') req.yearOfManufacture = v.yearOfManufacture;
+  if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
+  if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
+  if (v.mtom !== null) req.mtom = v.mtom;
+  if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
+  if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
+  if (v.spotLink !== '') req.spotLink = v.spotLink;
+  if (v.comment !== '') req.comment = v.comment;
+  return req;
+}

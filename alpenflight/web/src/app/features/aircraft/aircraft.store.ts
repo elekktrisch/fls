@@ -1,0 +1,281 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { DestroyRef, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { tapResponse } from '@ngrx/operators';
+import {
+  patchState,
+  signalStore,
+  withComputed,
+  withHooks,
+  withMethods,
+  withState,
+} from '@ngrx/signals';
+import {
+  addEntity,
+  removeEntity,
+  setAllEntities,
+  setEntity,
+  withEntities,
+} from '@ngrx/signals/entities';
+import { rxMethod } from '@ngrx/signals/rxjs-interop';
+import { pipe, switchMap, tap } from 'rxjs';
+
+import { AircraftService } from '@api/generated/aircraft/aircraft.service';
+import type {
+  AircraftCreateRequest,
+  AircraftDetail,
+  AircraftListItem,
+  AircraftUpdateRequest,
+} from '@api/generated/model';
+
+import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
+
+export type AircraftItem = AircraftListItem & { id: string };
+export type AircraftDetailLoaded = AircraftDetail & { id: string };
+
+export type AircraftTypeFilter = 'ALL' | 'GLIDER' | 'TOWING' | 'MOTOR';
+
+export type SaveErrorKind = 'immatriculation-duplicate' | 'forbidden' | 'other';
+
+interface AircraftsExtraState {
+  selectedId: string | null;
+  selectedDetail: AircraftDetailLoaded | null;
+  typeFilter: AircraftTypeFilter;
+  isLoading: boolean;
+  isLoadingDetail: boolean;
+  loadError: string | null;
+  saveError: string | null;
+  saveErrorKind: SaveErrorKind | null;
+  lastRefreshedAt: number | null;
+}
+
+const initialExtra: AircraftsExtraState = {
+  selectedId: null,
+  selectedDetail: null,
+  typeFilter: 'ALL',
+  isLoading: false,
+  isLoadingDetail: false,
+  loadError: null,
+  saveError: null,
+  saveErrorKind: null,
+  lastRefreshedAt: null,
+};
+
+function withListItemId(a: AircraftListItem): AircraftItem {
+  if (!a.id) {
+    throw new Error('AircraftListItem without id — server contract violation');
+  }
+  return a as AircraftItem;
+}
+
+function withDetailId(d: AircraftDetail): AircraftDetailLoaded {
+  if (!d.id) {
+    throw new Error('AircraftDetail without id — server contract violation');
+  }
+  return d as AircraftDetailLoaded;
+}
+
+/**
+ * Project the detail payload onto the list-row shape for optimistic post-save
+ * updates. Joined columns (`aircraftTypeCode`, `currentStateCode`,
+ * `currentStateFlyable`) come from server-side joins, so the optimistic patch
+ * omits them — `loadAll()` after the mutation refreshes to authoritative values.
+ */
+function listItemFromDetail(d: AircraftDetailLoaded): AircraftItem {
+  const item: AircraftItem = {
+    id: d.id,
+    aircraftTypeId: d.aircraftTypeId,
+    aircraftTypeCode: '',
+    hasEngine: false,
+    immatriculation: d.immatriculation,
+    isTowingAircraft: d.isTowingAircraft,
+  };
+  if (d.ownerClubId !== undefined) item.ownerClubId = d.ownerClubId;
+  if (d.competitionSign !== undefined) item.competitionSign = d.competitionSign;
+  return item;
+}
+
+/**
+ * Type-filter slice. GLIDER = no engine; TOWING = is_towing_aircraft;
+ * MOTOR = has engine. Collapses the legacy
+ * GetGliderAircraftListItems / GetTowingAircraftListItems /
+ * GetMotorAircraftListItems endpoints into a single client-side filter
+ * over the unified list (the server returns the unfiltered set; the index
+ * scan is cheap and the result set is small).
+ */
+function matchesFilter(a: AircraftItem, filter: AircraftTypeFilter): boolean {
+  switch (filter) {
+    case 'ALL':
+      return true;
+    case 'GLIDER':
+      return a.hasEngine === false;
+    case 'TOWING':
+      return a.isTowingAircraft === true;
+    case 'MOTOR':
+      return a.hasEngine === true;
+  }
+}
+
+export const AircraftStore = signalStore(
+  { providedIn: 'root' },
+  withEntities<AircraftItem>(),
+  withState<AircraftsExtraState>(initialExtra),
+  withComputed(({ entities, loadError, saveError, selectedDetail, typeFilter }) => ({
+    isEmpty: computed(() => entities().length === 0),
+    hasError: computed(() => loadError() !== null || saveError() !== null),
+    selectedAircraft: computed(() => selectedDetail()),
+    filteredAircraft: computed(() => entities().filter((a) => matchesFilter(a, typeFilter()))),
+  })),
+  withMethods((store, aircraftsApi = inject(AircraftService), bus = inject(MUTATION_BUS)) => {
+    const loadAll = rxMethod<void>(
+      pipe(
+        tap(() => patchState(store, { isLoading: true, loadError: null })),
+        switchMap(() =>
+          aircraftsApi.listAircraft().pipe(
+            tapResponse({
+              next: (items: AircraftListItem[]) =>
+                patchState(store, setAllEntities(items.map(withListItemId)), {
+                  isLoading: false,
+                  lastRefreshedAt: Date.now(),
+                }),
+              error: (e: HttpErrorResponse) =>
+                patchState(store, { loadError: e.message, isLoading: false }),
+            }),
+          ),
+        ),
+      ),
+    );
+    return {
+      select(id: string | null): void {
+        patchState(store, { selectedId: id, selectedDetail: null });
+      },
+      setTypeFilter(filter: AircraftTypeFilter): void {
+        patchState(store, { typeFilter: filter });
+      },
+      clearSaveError(): void {
+        patchState(store, { saveError: null, saveErrorKind: null });
+      },
+      loadAll,
+      loadOne: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),
+          switchMap((id) =>
+            aircraftsApi.getAircraft(id).pipe(
+              tapResponse({
+                next: (d: AircraftDetail) =>
+                  patchState(store, {
+                    selectedDetail: withDetailId(d),
+                    isLoadingDetail: false,
+                  }),
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, { saveError: e.message, isLoadingDetail: false }),
+              }),
+            ),
+          ),
+        ),
+      ),
+      create: rxMethod<AircraftCreateRequest>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap((req) =>
+            aircraftsApi.registerAircraft(req).pipe(
+              tapResponse({
+                next: (d: AircraftDetail) => {
+                  const detail = withDetailId(d);
+                  patchState(store, addEntity(listItemFromDetail(detail)), {
+                    selectedDetail: detail,
+                  });
+                  bus.next({ kind: 'aircraft.created', aircraftId: detail.id });
+                  loadAll();
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, errorPatch(e, req.immatriculation)),
+              }),
+            ),
+          ),
+        ),
+      ),
+      update: rxMethod<{ id: string; req: AircraftUpdateRequest }>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap(({ id, req }) =>
+            aircraftsApi.updateAircraft(id, req).pipe(
+              tapResponse({
+                next: (d: AircraftDetail) => {
+                  const detail = withDetailId(d);
+                  patchState(store, setEntity(listItemFromDetail(detail)), {
+                    selectedDetail: detail,
+                  });
+                  bus.next({ kind: 'aircraft.updated', aircraftId: detail.id });
+                  loadAll();
+                },
+                error: (e: HttpErrorResponse) =>
+                  patchState(store, errorPatch(e, req.immatriculation)),
+              }),
+            ),
+          ),
+        ),
+      ),
+      delete: rxMethod<string>(
+        pipe(
+          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+          switchMap((id) =>
+            aircraftsApi.deleteAircraft(id).pipe(
+              tapResponse({
+                next: () => {
+                  patchState(store, removeEntity(id), { selectedDetail: null });
+                  bus.next({ kind: 'aircraft.deleted', aircraftId: id });
+                },
+                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, null)),
+              }),
+            ),
+          ),
+        ),
+      ),
+    };
+  }),
+  withHooks({
+    onInit(store) {
+      const bus = inject(MUTATION_BUS);
+      const destroyRef = inject(DestroyRef);
+      store.loadAll();
+      bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
+        if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
+          patchState(store, setAllEntities<AircraftItem>([]), {
+            selectedId: null,
+            selectedDetail: null,
+            lastRefreshedAt: null,
+          });
+        }
+      });
+    },
+  }),
+);
+
+function errorPatch(
+  e: HttpErrorResponse,
+  immatriculation: string | null | undefined,
+): { saveError: string; saveErrorKind: SaveErrorKind } {
+  if (e.status === 409) {
+    return {
+      saveError: immatriculation
+        ? `Immatriculation "${immatriculation}" is already in use.`
+        : 'Immatriculation is already in use.',
+      saveErrorKind: 'immatriculation-duplicate',
+    };
+  }
+  if (e.status === 403) {
+    return {
+      saveError: 'You are not authorized to perform this action on the selected aircraft.',
+      saveErrorKind: 'forbidden',
+    };
+  }
+  const body = e.error as { field?: string; message?: string } | null;
+  if (body && typeof body.message === 'string' && body.message.length > 0) {
+    return {
+      saveError: body.field ? `${body.field}: ${body.message}` : body.message,
+      saveErrorKind: 'other',
+    };
+  }
+  return { saveError: e.message, saveErrorKind: 'other' };
+}

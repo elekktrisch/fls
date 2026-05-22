@@ -8,6 +8,7 @@ import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms
 
 const BASE_SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
+  { path: '/aircraft', label: 'Aircraft', icon: 'plane' },
   // Future sections (Flights, Reservations, Members, Reports, Settings) land
   // here as their feature stories ship — kept inline so the nav-bar's input
   // surface stays a pure data shape.
