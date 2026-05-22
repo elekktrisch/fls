@@ -5,6 +5,7 @@ epic: E-06
 status: in_progress
 started_at: 2026-05-22
 github_issue: 98
+github_pr: 99
 depends_on: [S-049, S-047, S-026, S-022]
 acceptance:
   - `Aircraft`, `AircraftType`, `AircraftState`, `AircraftAircraftState`, `AircraftOperatingCounter` ported.
@@ -143,6 +144,47 @@ Hot path: aircraft picker (every Flight create / Reservation create / Planning s
 - **Aircraft tenancy reshape (2026-05-16).** Aircraft + AircraftAircraftState + AircraftOperatingCounter are **cross-tenant** per `alpenflight/database/tenant-rules.yaml:275-313` — no `@TenantId`, `owner_club_id` nullable. The story's AC #2 ("Aircraft is `@TenantId`'d (per-club)") is stale; design notes record the contract and Open design questions recommends rewriting via `/modernize-decompose`.
 - **Authz model.** Hybrid SYSTEM_ADMIN-always + CLUB_ADMIN-of-owner-club (when non-null); FLIGHT_OPS for operational events (state, counter). Reads are unscoped. See Security plan.
 - **AC #5 (parity spec name)** is drift: real file is `e2e/tests/masterdata/aircrafts-crud.spec.ts`, not `26-aircraft-crud.spec.ts`. `parity_test:` frontmatter corrected.
+
+## Implementation status (paused 2026-05-22)
+
+**Done in this PR (#99 against #98):**
+
+- Backend module `ch.alpenflight.aircraft.{domain,application,web,infra}` (~22 Java files, 4-package hexagonal-lite per ADR 0023).
+- Aircraft AR with `AircraftStateHistoryEntry` + `AircraftOperatingCounter` aggregate-internals. All invariants on the AR per ADR 0022 §2 (immatriculation regex + length, state-history "one open period", counter monotonicity, FLARM-id / competition-sign / spot-link defenses).
+- Reference-data extension: `AircraftType` + `AircraftState` JPA entities + repositories + controllers + DTOs + mapper under `ch.alpenflight.referencedata.*` (read-only, V3-seeded).
+- Typed IDs: `AircraftId` (prefixed `ac-`), `AircraftTypeId`, `AircraftStateId`; Jackson + path-converter wired.
+- Authz model: `AircraftAccess` SpEL bean — SYSTEM_ADMIN always, CLUB_ADMIN of `owner_club_id` when set, FLIGHT_OPS for state / counter; null-owner = SYSTEM_ADMIN-only. `owner_club_id` / `aircraft_owner_person_id` excluded from `AircraftUpdateDto` (A04 defense); dedicated `POST /transfer-ownership` SYSTEM_ADMIN-only.
+- Endpoints: `GET / POST / PUT / DELETE /api/v1/aircraft`, `/picker` slim projection, `/{id}/states` (POST + GET history), `/{id}/counters` (POST + GET history), `/{id}/transfer-ownership`, `/api/v1/aircraft-types`, `/api/v1/aircraft-states`.
+- 21 domain unit tests passing (`AircraftDomainTest`).
+- ArchUnit + Spring Modulith inherit cleanly; cross-tenant marker is implicit (no `@TenantId` annotation on Aircraft or its internals).
+- Boyscout: ADR 0024 amendments 2026-05-22a + 2026-05-22b — vendored two design-system reference bundles under `docs/modernization/design-reference/` and `docs/modernization/design-system/`.
+
+**Open / TODO before mark-done:**
+
+1. **Fix `AircraftsControllerIT` 500s on state/counter endpoints (5 failing tests of 19).** Root cause diagnosed: `em.merge(aircraft)` cascades to transient child entities by COPYING them — the service holds the original transient `entry` / `counter` reference with `id = null`, and `AircraftMapper.toStateResponse` / `toCounterResponse` fails on the `Objects.requireNonNull(entry.getId(), ...)` check. `saveAndFlush` did not fix it because the in-memory reference held by the service is the transient pre-merge instance, not the managed copy.
+
+   **Fix options (pick one):**
+   - **Easiest** — assign UUIDs in the `AircraftStateHistoryEntry.open(...)` and `AircraftOperatingCounter.record(...)` factory methods upfront (`this.id = UuidV7.next()`). Aligns with ADR 0019 + the existing `FlsUuidV7Generator` pattern. Drop the `@GeneratedValue(strategy = UUID)` on the child entities.
+   - Alternative — after `saveAndFlush(a)`, look up the matching child in `a.getStateHistory()` / `a.getOperatingCounters()` by `(validFrom, aircraftStateId)` / `(atDateTime)` and map that. More fragile.
+   - Alternative — use the explicit `EntityManager.persist(entry)` before saving the parent, bypassing merge cascade. Breaks the AR encapsulation.
+
+2. **`AircraftsAuthorizationIT` not yet run.** Compiled, but blocked by the same merge-cascade bug for any state/counter assertion. Once #1 is fixed, run the suite.
+
+3. **Frontend slice not started.** Per the design-system reference bundle:
+   - `alpenflight/web/src/app/features/aircraft/aircraft.store.ts` — NgRx Signal Store (CRUD + state-change + counter actions + reference-data lookups). Mirror `locations.store.ts` shape (244 LOC reference).
+   - `aircraft-list.page.ts/html` — table page with type-filter dropdown (GLIDER / TOWING / MOTOR) + airworthiness column. Reference: `docs/modernization/design-system/reference/screens-logbook.jsx` for the table-of-aircraft pattern, `preview/components-table.html` for the kit primitive.
+   - `aircraft-edit.page.ts/html` — form with reference-data dropdowns + state-history "current state" embedded + read-only counter latest. Reference: `docs/modernization/design-system/reference/screens-entry.jsx` for the form pattern.
+   - Add nav-bar entry for "Aircraft" under Masterdata in the SPA shell.
+   - Vitest reducer test for `AircraftStore`.
+   - New Playwright spec `e2e/tests/masterdata-next/aircraft-crud.spec.ts` asserting observable behavior against the new stack (CRUD round-trip + type-filter slice + state transition).
+
+4. **AC #2 rewrite via `/modernize-decompose`.** Per the refined design, AC #2 ("Aircraft is `@TenantId`'d (per-club)") is stale and contradicts shipped tenant-rules. Run `/modernize-decompose` against S-050 to rewrite as: "Aircraft is cross-tenant — no `@TenantId`; per-flight tenancy lives on `Flight.operating_club_id`. Mutation authz is SYSTEM_ADMIN + CLUB_ADMIN-of-owner-club via the `AircraftAccess` SpEL bean."
+
+5. **Reviewer panel + auto-fix** (Step 7 of `/modernize-implement`). Spawn maintainability + security + parity + tech-writer reviewers against the diff once frontend is in.
+
+6. **Prune + mark-done** (Step 8).
+
+**Pickup command:** `git checkout story/S-050-aircraft-crud && /modernize-implement S-050` — the skill will see `status: in_progress` and `github_pr: 99` and resume rather than restart.
 
 ## Parity exclusions
 

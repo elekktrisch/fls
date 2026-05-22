@@ -187,7 +187,7 @@ public class AircraftsService {
                     req.validFrom(),
                     req.noticedByPersonId(),
                     req.remarks());
-            aircrafts.save(a);
+            aircrafts.saveAndFlush(a);
         } catch (DataIntegrityViolationException e) {
             // ux_aas_current_state_per_aircraft race — concurrent write closed
             // the open period under us. Surface as a typed domain conflict.
@@ -211,7 +211,7 @@ public class AircraftsService {
                     req.engineOperatingCounterInSeconds(),
                     req.nextMaintenanceAtFlightOperatingCounterInSeconds(),
                     req.nextMaintenanceAtEngineOperatingCounterInSeconds());
-            aircrafts.save(a);
+            aircrafts.saveAndFlush(a);
         } catch (DataIntegrityViolationException e) {
             // ux_aoc_aircraft_at_date_time race — duplicate at_date_time.
             throw new CounterMonotonicityException(

@@ -52,4 +52,11 @@ public interface AircraftRepository {
     Optional<Aircraft> findActiveByImmatriculation(String normalizedImmatriculation);
 
     Aircraft save(Aircraft aircraft);
+
+    /**
+     * Save + flush. Used after state-change / counter-record so the
+     * cascaded child entity's generated UUID is populated before the
+     * controller maps the response.
+     */
+    Aircraft saveAndFlush(Aircraft aircraft);
 }
