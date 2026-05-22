@@ -339,11 +339,12 @@ type AircraftForm = FormGroup<{
                     : null
                 "
               >
-                <af-input
+                <af-select
                   inputId="YearOfManufacture"
                   formControlName="yearOfManufacture"
-                  autocomplete="off"
-                  placeholder="YYYY-MM-DD (e.g. 2008-01-01)"
+                  placeholder="Select year"
+                  [options]="yearOfManufactureOptions()"
+                  data-testid="aircraft-year-select"
                 />
               </af-form-field>
             </div>
@@ -477,6 +478,17 @@ export class AircraftEditPage {
     ...this.clubs.entities().map((c) => ({ value: c.id, label: c.name ?? c.id })),
   ]);
 
+  // Year-only picker (legacy parity: stored as YYYY-01-01, displayed as year).
+  // Most recent first since the bulk of aircraft are post-2000.
+  protected readonly yearOfManufactureOptions = computed<readonly AfSelectOption<string>[]>(() => {
+    const current = new Date().getFullYear();
+    const years: AfSelectOption<string>[] = [{ value: '', label: '— Not set —' }];
+    for (let y = current; y >= 1900; y--) {
+      years.push({ value: String(y), label: String(y) });
+    }
+    return years;
+  });
+
   protected readonly currentState = computed(() => {
     const detail = this.store.selectedAircraft();
     if (!detail?.currentState) return null;
@@ -523,7 +535,7 @@ export class AircraftEditPage {
       patternOrEmpty(FLARM_PATTERN),
     ]),
     aircraftSerialNumber: this.fb.nonNullable.control('', [Validators.maxLength(20)]),
-    yearOfManufacture: this.fb.nonNullable.control('', [isoDateOrEmpty()]),
+    yearOfManufacture: this.fb.nonNullable.control('', [yearOrEmpty()]),
     noiseClass: this.fb.nonNullable.control('', [Validators.maxLength(1)]),
     noiseLevel: this.fb.control<number | null>(null),
     mtom: this.fb.control<number | null>(null, [Validators.min(0)]),
@@ -681,14 +693,30 @@ function httpsOrEmpty(): ValidatorFn {
   };
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const YEAR = /^\d{4}$/;
 
-function isoDateOrEmpty(): ValidatorFn {
+function yearOrEmpty(): ValidatorFn {
   return (c: AbstractControl) => {
     const v = (c.value ?? '') as string;
     if (v === '') return null;
-    return ISO_DATE.test(v) ? null : { isoDate: true };
+    if (!YEAR.test(v)) return { year: true };
+    const n = Number(v);
+    return n >= 1900 && n <= new Date().getFullYear() ? null : { year: true };
   };
+}
+
+// Legacy stored YearOfManufacture as a full date but only the year was ever
+// rendered/edited; the legacy form prepended "-01-01" on save
+// (flsweb/.../AircraftsEditController.js:33). We do the same on the wire and
+// strip back to year on load.
+function yearToIso(year: string): string {
+  return year === '' ? '' : `${year}-01-01`;
+}
+
+function isoToYear(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const m = /^(\d{4})/.exec(iso);
+  return m ? m[1] : '';
 }
 
 function detailToFormValue(d: AircraftDetail): Partial<{
@@ -725,7 +753,7 @@ function detailToFormValue(d: AircraftDetail): Partial<{
     competitionSign: d.competitionSign ?? '',
     flarmId: d.flarmId ?? '',
     aircraftSerialNumber: d.aircraftSerialNumber ?? '',
-    yearOfManufacture: d.yearOfManufacture ?? '',
+    yearOfManufacture: isoToYear(d.yearOfManufacture),
     noiseClass: d.noiseClass ?? '',
     noiseLevel: d.noiseLevel ?? null,
     mtom: d.mtom ?? null,
@@ -759,7 +787,7 @@ function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
   if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
   if (v.flarmId !== '') req.flarmId = v.flarmId;
   if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
-  if (v.yearOfManufacture !== '') req.yearOfManufacture = v.yearOfManufacture;
+  if (v.yearOfManufacture !== '') req.yearOfManufacture = yearToIso(v.yearOfManufacture);
   if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
   if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
   if (v.mtom !== null) req.mtom = v.mtom;
@@ -789,7 +817,7 @@ function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
   if (v.competitionSign !== '') req.competitionSign = v.competitionSign;
   if (v.flarmId !== '') req.flarmId = v.flarmId;
   if (v.aircraftSerialNumber !== '') req.aircraftSerialNumber = v.aircraftSerialNumber;
-  if (v.yearOfManufacture !== '') req.yearOfManufacture = v.yearOfManufacture;
+  if (v.yearOfManufacture !== '') req.yearOfManufacture = yearToIso(v.yearOfManufacture);
   if (v.noiseClass !== '') req.noiseClass = v.noiseClass;
   if (v.noiseLevel !== null) req.noiseLevel = v.noiseLevel;
   if (v.mtom !== null) req.mtom = v.mtom;
