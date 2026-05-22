@@ -10,13 +10,13 @@ test.describe('landing — i18n + locale switch', () => {
 
     await expect(page).toHaveTitle(/AlpenFlight/i);
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-    await expect(page.locator('p').first()).toContainText(/Flugbuch/);
+    await expect(page.getByTestId('landing-tagline')).toContainText(/Flugbuch/);
   });
 
   test('switches locale to English without reloading the page', async ({ page }) => {
     await page.goto('/?lang=de');
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-    await expect(page.locator('p').first()).toContainText(/Flugbuch/);
+    await expect(page.getByTestId('landing-tagline')).toContainText(/Flugbuch/);
 
     // Stamp a witness on the live document; if the locale switch caused
     // a full reload, the stamped attribute would disappear when the new
@@ -27,7 +27,7 @@ test.describe('landing — i18n + locale switch', () => {
     await page.getByTestId('af-lang-en').click();
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-    await expect(page.locator('p').first()).toContainText(/Flight logging/);
+    await expect(page.getByTestId('landing-tagline')).toContainText(/logbook/);
     expect(page.url()).toBe(startUrl);
     await expect(page.locator('html')).toHaveAttribute('data-reload-witness', 'kept');
   });
@@ -37,15 +37,15 @@ test.describe('landing — i18n + locale switch', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'de');
 
     const cases = [
-      { testId: 'af-lang-fr', lang: 'fr', match: /Carnet de vol/ },
-      { testId: 'af-lang-it', lang: 'it', match: /Diario di volo/ },
-      { testId: 'af-lang-en', lang: 'en', match: /Flight logging/ },
+      { testId: 'af-lang-fr', lang: 'fr', match: /carnet de vol/ },
+      { testId: 'af-lang-it', lang: 'it', match: /diario di volo/ },
+      { testId: 'af-lang-en', lang: 'en', match: /logbook/ },
       { testId: 'af-lang-de', lang: 'de', match: /Flugbuch/ },
     ];
     for (const c of cases) {
       await page.getByTestId(c.testId).click();
       await expect(page.locator('html')).toHaveAttribute('lang', c.lang);
-      await expect(page.locator('p').first()).toContainText(c.match);
+      await expect(page.getByTestId('landing-tagline')).toContainText(c.match);
     }
   });
 
@@ -74,8 +74,42 @@ test.describe('landing — i18n + locale switch', () => {
 
     await page.goto('/?lang=de');
 
-    await expect(page.locator('p').first()).toContainText(/Flugbuch/);
+    await expect(page.getByTestId('landing-tagline')).toContainText(/Flugbuch/);
     await page.getByTestId('af-lang-fr').click();
-    await expect(page.locator('p').first()).toContainText(/Carnet de vol/);
+    await expect(page.getByTestId('landing-tagline')).toContainText(/carnet de vol/);
+  });
+
+  test('AC-DIR-2: every landing CTA hits >= 44 x 44 CSS px at <md', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/?lang=de');
+
+    for (const testId of [
+      'landing-topbar-sign-in',
+      'landing-sign-in',
+      'landing-request-access',
+      'landing-try-demo',
+    ]) {
+      const btn = page.getByTestId(testId);
+      await expect(btn).toBeVisible();
+      const box = await btn.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test('AC-DIR-3: splash slot renders with object-fit cover', async ({ page }) => {
+    await page.goto('/?lang=de');
+    const splash = page.getByTestId('landing-splash');
+    await expect(splash).toBeVisible();
+    const objectFit = await splash.evaluate((el) =>
+      window.getComputedStyle(el).getPropertyValue('object-fit'),
+    );
+    expect(objectFit).toBe('cover');
+  });
+
+  test('AC-DIR-5: landing has exactly one af-lang-picker (the inline one)', async ({ page }) => {
+    await page.goto('/?lang=de');
+    await expect(page.locator('af-lang-picker')).toHaveCount(1);
   });
 });

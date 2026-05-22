@@ -4,7 +4,6 @@ import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/ro
 import { filter, map, startWith } from 'rxjs';
 
 import { SessionStore } from './core/session/session.store';
-import { type AppLocale, LocaleService } from '@shared/ui/locale';
 import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
 
 const BASE_SECTIONS: readonly NavItem[] = [
@@ -19,12 +18,7 @@ const BASE_SECTIONS: readonly NavItem[] = [
   imports: [RouterOutlet, AfNavBarComponent],
   template: `
     @if (showNavBar()) {
-      <af-nav-bar
-        [items]="sections()"
-        [user]="userSummary()"
-        [locale]="locale()"
-        (localeChange)="setLocale($event)"
-      />
+      <af-nav-bar [items]="sections()" [user]="userSummary()" />
     }
     <router-outlet />
   `,
@@ -33,10 +27,7 @@ const BASE_SECTIONS: readonly NavItem[] = [
 export class AppComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly localeService = inject(LocaleService);
   protected readonly session = inject(SessionStore);
-
-  protected readonly locale = this.localeService.current;
 
   // Sysadmin gets an extra entry pointing at the cross-tenant admin surface.
   // Gated on `session.isSystemAdmin` so the entry is hidden for everyone else
@@ -53,10 +44,6 @@ export class AppComponent {
       { path: '/admin/locations', label: 'Locations admin', icon: 'shield' },
     ];
   });
-
-  protected setLocale(loc: AppLocale): void {
-    this.localeService.set(loc);
-  }
 
   protected readonly userSummary = computed<UserSummary | null>(() => {
     const u = this.session.authenticatedUser();

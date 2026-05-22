@@ -7,15 +7,27 @@
 const de = {
   landing: {
     actions: {
+      requestAccess: 'Zugang anfragen',
       signIn: 'Anmelden',
       tryDemo: 'Demo ausprobieren',
     },
+    eyebrow: 'Vereinsbetrieb · Schweiz',
     footer: {
+      documentation: 'Dokumentation',
       imprint: 'Impressum',
       privacy: 'Datenschutz',
+      status: 'Status',
     },
+    headline: 'Flüge protokollieren. Flugzeuge reservieren. Den Flugplatz führen.',
     language: 'Sprache',
-    tagline: 'Flugbuch, Reservationen und Mitglieder — für Schweizer Vereine.',
+    splashLabel: 'Vereinsflugplatz',
+    stats: {
+      clubs: 'Vereine',
+      flights: 'protokollierte Flüge',
+      pilots: 'Piloten',
+    },
+    tagline:
+      'Für Flugvereine, die schon bestehen und schon fliegen. Ein leises Werkzeug für Flugbuch, Reservationskalender und Mitgliederverwaltung.',
   },
   locations: {
     admin: {
@@ -60,6 +72,13 @@ const de = {
     readonlyBanner:
       'Schreibgeschützt. Die Flugplätze deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     title: 'Flugplätze',
+  },
+  publicStub: {
+    back: 'Zurück zur Startseite',
+    body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',
+    discoveryFlight: 'Schnupperflug',
+    scenicFlight: 'Mitflug',
+    title: 'Demnächst verfügbar',
   },
 };
 

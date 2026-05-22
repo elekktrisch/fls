@@ -1,17 +1,10 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  input,
-  output,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { NzDrawerModule } from 'ng-zorro-antd/drawer';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 
 import { AfIconComponent } from '../../atoms/af-icon';
+import { AfLangPickerComponent } from '../../molecules/af-lang-picker';
 import { ViewportService } from '../../viewport';
 
 export interface NavItem {
@@ -24,15 +17,6 @@ export interface UserSummary {
   readonly displayName: string;
   readonly initials: string;
 }
-
-export type Locale = 'de' | 'fr' | 'it' | 'en';
-
-const LOCALE_LABELS: Record<Locale, string> = {
-  de: 'Deutsch',
-  fr: 'Français',
-  it: 'Italiano',
-  en: 'English',
-};
 
 /**
  * Top-bar primary nav (ADR 0024 §Decision).
@@ -50,7 +34,14 @@ const LOCALE_LABELS: Record<Locale, string> = {
   selector: 'af-nav-bar',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NzDrawerModule, NzDropDownModule, RouterLink, RouterLinkActive, AfIconComponent],
+  imports: [
+    NzDrawerModule,
+    NzDropDownModule,
+    RouterLink,
+    RouterLinkActive,
+    AfIconComponent,
+    AfLangPickerComponent,
+  ],
   host: { class: 'block' },
   template: `
     <header
@@ -149,30 +140,9 @@ const LOCALE_LABELS: Record<Locale, string> = {
               </a>
             </li>
             <li role="presentation" class="h-px bg-slate-200 my-1" aria-hidden="true"></li>
-            <li
-              role="presentation"
-              class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-500"
-            >
-              <af-icon name="globe" [size]="16" />
-              <span>Language</span>
+            <li role="presentation" class="px-3 py-2">
+              <af-lang-picker ariaLabel="Language" />
             </li>
-            @for (loc of locales; track loc) {
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="flex items-center justify-between gap-2.5 w-full pl-8 pr-3 py-2 bg-transparent border-0 text-[15px] cursor-pointer text-left hover:bg-slate-50"
-                  [class.text-brand-700]="loc === locale()"
-                  [class.text-slate-900]="loc !== locale()"
-                  (click)="localeChange.emit(loc)"
-                >
-                  <span>{{ localeLabel(loc) }}</span>
-                  @if (loc === locale()) {
-                    <af-icon name="check" [size]="14" />
-                  }
-                </button>
-              </li>
-            }
             <li role="presentation" class="h-px bg-slate-200 my-1" aria-hidden="true"></li>
             <li role="none">
               <a
@@ -219,6 +189,8 @@ const LOCALE_LABELS: Record<Locale, string> = {
             }
           </ul>
         </nav>
+        <div class="h-px bg-slate-200 my-3" aria-hidden="true"></div>
+        <af-lang-picker ariaLabel="Language" />
       </ng-container>
     </nz-drawer>
   `,
@@ -231,14 +203,6 @@ export class AfNavBarComponent {
   readonly title = input<string>('AlpenFlight');
   readonly brandHref = input<string>('/');
   readonly user = input<UserSummary | null>(null);
-  readonly locale = input<Locale>('de');
-
-  readonly localeChange = output<Locale>();
-
-  protected readonly locales: readonly Locale[] = ['de', 'fr', 'it', 'en'];
-  protected localeLabel(loc: Locale): string {
-    return LOCALE_LABELS[loc];
-  }
 
   readonly #drawerOpen = signal(false);
   protected readonly drawerOpen = this.#drawerOpen.asReadonly();

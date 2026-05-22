@@ -1,10 +1,11 @@
 import type { Provider } from '@angular/core';
 import {
   LucideAlertTriangle,
+  LucideArrowLeft,
+  LucideArrowRight,
   LucideCalendar,
   LucideCheck,
   LucideChevronDown,
-  LucideGlobe,
   LucideLogOut,
   LucideMenu,
   LucideMoreVertical,
@@ -41,10 +42,11 @@ export function provideAlpenflightIcons(): Provider[] {
     }),
     provideLucideIcons(
       LucideAlertTriangle,
+      LucideArrowLeft,
+      LucideArrowRight,
       LucideCalendar,
       LucideCheck,
       LucideChevronDown,
-      LucideGlobe,
       LucideLogOut,
       LucideMenu,
       LucideMoreVertical,

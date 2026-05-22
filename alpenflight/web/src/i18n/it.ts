@@ -3,15 +3,27 @@ import type { Translations } from './de';
 const it: Translations = {
   landing: {
     actions: {
+      requestAccess: 'Richiedi l’accesso',
       signIn: 'Accedi',
       tryDemo: 'Prova la demo',
     },
+    eyebrow: 'Operazioni del club · Svizzera',
     footer: {
+      documentation: 'Documentazione',
       imprint: 'Note legali',
       privacy: 'Privacy',
+      status: 'Stato',
     },
+    headline: 'Registrare i voli. Prenotare gli aeromobili. Gestire l’aerodromo.',
     language: 'Lingua',
-    tagline: 'Diario di volo, prenotazioni e soci — per i club svizzeri.',
+    splashLabel: 'Aerodromo del club',
+    stats: {
+      clubs: 'club',
+      flights: 'voli registrati',
+      pilots: 'piloti',
+    },
+    tagline:
+      'Pensato per i club di volo che già esistono e già volano. Uno strumento discreto per diario di volo, calendario delle prenotazioni e registro dei soci.',
   },
   locations: {
     admin: {
@@ -55,6 +67,13 @@ const it: Translations = {
     readonlyBanner:
       'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
+  },
+  publicStub: {
+    back: 'Torna alla pagina iniziale',
+    body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',
+    discoveryFlight: 'Volo di scoperta',
+    scenicFlight: 'Volo panoramico',
+    title: 'Disponibile a breve',
   },
 };
 

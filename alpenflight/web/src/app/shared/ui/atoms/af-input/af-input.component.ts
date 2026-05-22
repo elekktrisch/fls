@@ -33,7 +33,7 @@ import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
   template: `
     <input
       #inputEl
-      class="w-full h-11 px-3 bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-[1px] aria-invalid:border-red-600 disabled:bg-slate-50 disabled:text-slate-400"
+      class="w-full h-11 px-3 bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-hidden aria-invalid:border-red-600 disabled:bg-slate-50 disabled:text-slate-400"
       [attr.id]="inputId() || null"
       [type]="type()"
       [attr.inputmode]="inputmode()"
