@@ -145,7 +145,7 @@ class AircraftDomainTest {
         Aircraft a = registered("HB-300");
         a.updateMasterdata(null, null, "az1", null, null, null, null, null,
                 null, null, null, null, null, null, null,
-                false, false, false, false, false, null, null);
+                false, false, false, false, null, null);
         assertThat(a.getCompetitionSign()).isEqualTo("AZ1");
     }
 
@@ -155,7 +155,7 @@ class AircraftDomainTest {
         assertThatThrownBy(() ->
                 a.updateMasterdata(null, null, "ABCDEF", null, null, null, null, null,
                         null, null, null, null, null, null, null,
-                        false, false, false, false, false, null, null))
+                        false, false, false, false, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("competitionSign");
     }
@@ -165,7 +165,7 @@ class AircraftDomainTest {
         Aircraft a = registered("HB-302");
         a.updateMasterdata(null, null, null, "deadbe", null, null, null, null,
                 null, null, null, null, null, null, null,
-                false, false, false, false, false, null, null);
+                false, false, false, false, null, null);
         assertThat(a.getFlarmId()).isEqualTo("DEADBE");
     }
 
@@ -175,7 +175,7 @@ class AircraftDomainTest {
         assertThatThrownBy(() ->
                 a.updateMasterdata(null, null, null, "notHex", null, null, null, null,
                         null, null, null, null, null, null, null,
-                        false, false, false, false, false, null, null))
+                        false, false, false, false, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("flarmId");
     }
@@ -187,7 +187,7 @@ class AircraftDomainTest {
                 a.updateMasterdata(null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null,
                         "http://example.com/spot",
-                        false, false, false, false, false, null, null))
+                        false, false, false, false, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("https://");
     }
@@ -198,7 +198,7 @@ class AircraftDomainTest {
         assertThatThrownBy(() ->
                 a.updateMasterdata(null, null, null, null, null, null, null, null,
                         -1, null, null, null, null, null, null,
-                        false, false, false, false, false, null, null))
+                        false, false, false, false, null, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("mtom");
     }
@@ -233,6 +233,6 @@ class AircraftDomainTest {
         return Aircraft.register(CLUB_A, GLIDER_TYPE, immatriculation,
                 null, null, null, null, null, LocalDate.of(2020, 1, 1),
                 null, null, null, null, null, null, null, null, null,
-                false, false, false, false, false, null, null);
+                false, false, false, false, null, null);
     }
 }

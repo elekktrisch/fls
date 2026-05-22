@@ -1595,9 +1595,6 @@
           "isTowingAircraft" : {
             "type" : "boolean"
           },
-          "isFastEntryRecord" : {
-            "type" : "boolean"
-          },
           "comment" : {
             "type" : "string",
             "maxLength" : 250,
@@ -2022,9 +2019,6 @@
             "type" : "boolean"
           },
           "isTowingAircraft" : {
-            "type" : "boolean"
-          },
-          "isFastEntryRecord" : {
             "type" : "boolean"
           },
           "comment" : {

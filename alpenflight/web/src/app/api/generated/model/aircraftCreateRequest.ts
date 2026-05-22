@@ -65,7 +65,6 @@ export type AircraftCreateRequest = {
   isTowingStartAllowed?: boolean;
   isWinchStartAllowed?: boolean;
   isTowingAircraft?: boolean;
-  isFastEntryRecord?: boolean;
   /**
      * @minLength 0
      * @maxLength 250

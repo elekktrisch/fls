@@ -565,3 +565,90 @@ test('aircraft: soft-delete removes the row from the rendered list', async ({ pa
 
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toHaveCount(0);
 });
+
+// Screenshot-oracle parity: the legacy aircraft master-data form is captured
+// at `e2e/screenshots/masterdata-aircrafts-form.png` (S-050 ref). The list of
+// visible fields + section grouping below is the parity claim — silent drift
+// here (e.g. adding a checkbox for an internal back-end marker like
+// `isFastEntryRecord`) is what this test exists to catch. Update both the
+// expected list and the reference screenshot together when the form changes
+// intentionally.
+test('aircraft form: field inventory matches legacy reference screenshot (parity oracle: masterdata-aircrafts-form.png)', async ({
+  page,
+}) => {
+  const aircraft: MockAircraftDetail[] = [];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/aircraft**', setupAircraftBackend(aircraft));
+
+  await page.goto('/aircraft/new');
+
+  // 3 sections must be present (legacy: Stammdaten / Betriebliche Daten /
+  // Technische Daten — translated 1:1).
+  await expect(page.getByTestId('aircraft-section-masterdata')).toBeVisible();
+  await expect(page.getByTestId('aircraft-section-operational')).toBeVisible();
+  await expect(page.getByTestId('aircraft-section-technical')).toBeVisible();
+
+  // Visible section titles (legacy: Stammdaten / Betriebliche Daten /
+  // Technische Daten — translated 1:1).
+  await expect(page.getByRole('heading', { name: 'Master data' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operational data' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Technical data' })).toBeVisible();
+
+  // Section 1: Master data fields. Inputs use af-input (id-bearing label
+  // associations work); selects use af-select which doesn't propagate the
+  // form-field's id to the underlying nz-select, so we locate by testId.
+  await expect(page.getByLabel('Immatriculation')).toBeVisible();
+  await expect(page.getByLabel('Competition sign')).toBeVisible();
+  await expect(page.getByTestId('aircraft-type-select')).toBeVisible();
+  await expect(page.getByLabel('Manufacturer')).toBeVisible();
+  await expect(page.getByLabel('Model')).toBeVisible();
+  await expect(page.getByLabel('Seats')).toBeVisible();
+
+  // Section 2: Operational fields + SPOT link's Test-link button +
+  // 4 towing/winch checkboxes (legacy showed all four; the legacy form
+  // gates the two sub-checkboxes via UI affordance, not server validation —
+  // parity for now keeps them flat, no hide/show).
+  await expect(page.getByTestId('aircraft-owner-select')).toBeVisible(); // mock-auth principal is SYSTEM_ADMIN.
+  await expect(page.getByTestId('aircraft-homebase-select')).toBeVisible();
+  await expect(page.getByLabel('SPOT tracker link')).toBeVisible();
+  await expect(page.getByTestId('aircraft-spotlink-test')).toBeVisible();
+  await expect(page.getByLabel('This aircraft is a towing aircraft')).toBeVisible();
+  await expect(page.getByLabel('Towing or winch required')).toBeVisible();
+  await expect(page.getByLabel('Towing start allowed')).toBeVisible();
+  await expect(page.getByLabel('Winch start allowed')).toBeVisible();
+
+  // Section 3: Technical fields.
+  await expect(page.getByLabel('MTOM (kg)')).toBeVisible();
+  await expect(page.getByLabel('Serial number')).toBeVisible();
+  await expect(page.getByLabel('Year of manufacture')).toBeVisible();
+  await expect(page.getByLabel('FLARM ID')).toBeVisible();
+  await expect(page.getByLabel('DAEC index')).toBeVisible();
+  await expect(page.getByLabel('Noise class')).toBeVisible();
+  await expect(page.getByLabel('Noise level (dB)')).toBeVisible();
+  await expect(page.getByLabel('Comment')).toBeVisible();
+
+  // Absences — fields that legacy does NOT expose on the master-data form
+  // (internal markers or fields set elsewhere). Adding these silently is the
+  // parity violation this test guards against.
+  await expect(page.getByLabel(/fast.entry/i)).toHaveCount(0);
+  await expect(page.getByText('Flight counter unit')).toHaveCount(0);
+});
+
+// Engine counter unit is conditionally rendered — legacy
+// `aircraft-form-fields.html:237` gates it on `selectedAircraftType.HasEngine`.
+// Glider (no engine) → hidden. Motor (has engine) → visible.
+test('aircraft form: engine counter unit dropdown is hidden for engineless types, visible for engine types', async ({
+  page,
+}) => {
+  const aircraft: MockAircraftDetail[] = [{ ...gliderSeed }, { ...motorSeed }];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/aircraft**', setupAircraftBackend(aircraft));
+
+  await page.goto(`/aircraft/${gliderSeed.id}/edit`);
+  await expect(page.getByLabel('Immatriculation')).toHaveValue('HB-GLI');
+  await expect(page.getByTestId('aircraft-engine-counter-unit-select')).toHaveCount(0);
+
+  await page.goto(`/aircraft/${motorSeed.id}/edit`);
+  await expect(page.getByLabel('Immatriculation')).toHaveValue('HB-MOT');
+  await expect(page.getByTestId('aircraft-engine-counter-unit-select')).toBeVisible();
+});

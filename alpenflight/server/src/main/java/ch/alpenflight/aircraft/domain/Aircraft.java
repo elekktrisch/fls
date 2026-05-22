@@ -185,7 +185,6 @@ public class Aircraft {
                                     boolean towingStartAllowed,
                                     boolean winchStartAllowed,
                                     boolean towingAircraft,
-                                    boolean fastEntryRecord,
                                     @Nullable String comment,
                                     @Nullable Integer daecIndex) {
         Aircraft a = new Aircraft();
@@ -198,7 +197,7 @@ public class Aircraft {
                 flightOperatingCounterUnitTypeId, engineOperatingCounterUnitTypeId,
                 homebaseId, spotLink,
                 towingOrWinchRequired, towingStartAllowed, winchStartAllowed,
-                towingAircraft, fastEntryRecord, comment, daecIndex);
+                towingAircraft, comment, daecIndex);
         return a;
     }
 
@@ -229,7 +228,6 @@ public class Aircraft {
                                  boolean newTowingStartAllowed,
                                  boolean newWinchStartAllowed,
                                  boolean newTowingAircraft,
-                                 boolean newFastEntryRecord,
                                  @Nullable String newComment,
                                  @Nullable Integer newDaecIndex) {
         this.manufacturerName = capLength(blankToNull(newManufacturerName),
@@ -264,7 +262,6 @@ public class Aircraft {
         this.towingStartAllowed = newTowingStartAllowed;
         this.winchStartAllowed = newWinchStartAllowed;
         this.towingAircraft = newTowingAircraft;
-        this.fastEntryRecord = newFastEntryRecord;
         this.comment = capLength(blankToNull(newComment),
                 MAX_COMMENT_LENGTH, "comment");
         this.daecIndex = newDaecIndex;

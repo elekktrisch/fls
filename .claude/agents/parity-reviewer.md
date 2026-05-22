@@ -37,6 +37,12 @@ into the story file.
     `parity_test` frontmatter value.
   - The originating-story references for harness/baseline (the FLS project's
     S-010 for schema, S-079 for delivery, S-096 for excel — the harnesses).
+  - **`e2e/screenshots/`** — legacy UI captures (form layouts, list pages,
+    modals). For any story that ships or restructures a UI surface, check
+    for a matching reference (e.g. `masterdata-aircrafts-form.png` for an
+    aircraft-form story, `auth-flights-list.png` for the flights-list story).
+    The image is the oracle for field inventory, section grouping, and
+    visible toggles. See dimension 11 below for how to apply it.
 - **Read the diff in full.** Pay particular attention to:
   - **New tests** — do they assert behavior or do they pin legacy URL shape
     / response envelope / verb? The implement skill's "parity tests assert
@@ -132,6 +138,36 @@ exists at all. In both cases:
     relevant because external systems depend on it. The legacy contract
     is the contract; flag any divergence as a blocker unless the design
     notes explicitly renegotiated the interface.
+11. **Screenshot oracle (UI surface).** For stories that ship a new UI
+    page or restructure an existing one, check `e2e/screenshots/` for a
+    matching legacy reference (filename usually mirrors the route or
+    feature — `masterdata-aircrafts-form.png`, `auth-flights-list.png`,
+    `13-persons-add-modal-01.png`, etc.). The image is the parity oracle
+    for visible fields, section grouping, conditional rendering, and
+    labels — silent additions of internal markers to the user-facing form
+    are a recurring parity miss (the `isFastEntryRecord` checkbox on the
+    aircraft form in S-050 is the canonical example: the column exists
+    in legacy DB but the legacy form never exposed it).
+    - **Field present in the new UI but NOT in the screenshot → blocker.**
+      The new UI is leaking an internal marker or back-end-only field that
+      legacy never surfaced. **Fix:** remove from the form (and from the
+      create/update DTOs if it's a write field — A04 mass-assignment hygiene).
+    - **Field present in the screenshot but NOT in the new UI → improvement
+      with rationale.** The data may still be set elsewhere (auto-populated,
+      separate admin flow). Flag so the operator can confirm intentional
+      vs. drift; if drift, become a blocker.
+    - **No e2e assertion on the rendered field inventory** for a story that
+      has a matching reference screenshot → improvement. **Fix:** add an
+      assertion (typically a single `test('form field inventory matches
+      legacy reference screenshot …')` block in the feature's e2e spec) that
+      enumerates the expected labels against the screenshot — the canonical
+      example is the field-inventory test in
+      `alpenflight/web/e2e/tests/masterdata/aircraft-crud.spec.ts`. The test
+      doesn't pixel-diff the screenshot; it asserts the *inventory* (which
+      labels render, which are absent), which is what catches silent drift.
+    - If `e2e/screenshots/` has no matching reference for the touched
+      surface, report `(N/A — no screenshot oracle for this surface)` and
+      move on. Don't fabricate.
 
 ## What you do not flag
 

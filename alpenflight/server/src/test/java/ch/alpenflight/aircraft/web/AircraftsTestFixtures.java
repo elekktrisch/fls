@@ -51,7 +51,6 @@ final class AircraftsTestFixtures {
         n.put("isTowingStartAllowed", true);
         n.put("isWinchStartAllowed", true);
         n.put("isTowingAircraft", false);
-        n.put("isFastEntryRecord", false);
         return n;
     }
 
@@ -66,7 +65,6 @@ final class AircraftsTestFixtures {
         n.put("isTowingStartAllowed", true);
         n.put("isWinchStartAllowed", true);
         n.put("isTowingAircraft", false);
-        n.put("isFastEntryRecord", false);
         n.put("comment", "edited by IT");
         return n;
     }

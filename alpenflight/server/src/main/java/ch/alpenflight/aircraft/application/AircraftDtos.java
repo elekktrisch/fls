@@ -29,6 +29,13 @@ import org.jspecify.annotations.Nullable;
  * transfer goes through a dedicated SYSTEM_ADMIN-only endpoint (A04
  * mass-assignment defense — a CLUB_ADMIN of club A could otherwise rewrite
  * an aircraft to club B silently).
+ *
+ * <p>{@code isFastEntryRecord} is intentionally absent from both
+ * {@link AircraftCreateRequest} and {@link AircraftUpdateRequest}: it is an
+ * internal marker the system sets when an aircraft is auto-drafted from the
+ * flight-entry form, never a user-editable flag (legacy parity — the legacy
+ * master-data form never exposed it either). The field stays on
+ * {@link AircraftDetail} as a read-only signal.
  */
 public final class AircraftDtos {
 
@@ -140,7 +147,6 @@ public final class AircraftDtos {
             boolean isTowingStartAllowed,
             boolean isWinchStartAllowed,
             boolean isTowingAircraft,
-            boolean isFastEntryRecord,
             @Nullable @Size(max = 250) String comment,
             @Nullable Integer daecIndex) {}
 
@@ -172,7 +178,6 @@ public final class AircraftDtos {
             boolean isTowingStartAllowed,
             boolean isWinchStartAllowed,
             boolean isTowingAircraft,
-            boolean isFastEntryRecord,
             @Nullable @Size(max = 250) String comment,
             @Nullable Integer daecIndex) {}
 

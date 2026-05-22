@@ -146,7 +146,6 @@ public class AircraftsService {
                 req.isTowingStartAllowed(),
                 req.isWinchStartAllowed(),
                 req.isTowingAircraft(),
-                req.isFastEntryRecord(),
                 req.comment(),
                 req.daecIndex());
         // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
@@ -190,7 +189,6 @@ public class AircraftsService {
                 req.isTowingStartAllowed(),
                 req.isWinchStartAllowed(),
                 req.isTowingAircraft(),
-                req.isFastEntryRecord(),
                 req.comment(),
                 req.daecIndex());
         // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
