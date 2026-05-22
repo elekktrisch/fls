@@ -58,6 +58,7 @@ export type AircraftCreateRequest = {
   /**
      * @minLength 0
      * @maxLength 250
+     * @pattern ^https://.*
      */
   spotLink?: string;
   isTowingOrWinchRequired?: boolean;
