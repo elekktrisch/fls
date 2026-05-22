@@ -716,7 +716,7 @@ function yearToIso(year: string): string {
 function isoToYear(iso: string | null | undefined): string {
   if (!iso) return '';
   const m = /^(\d{4})/.exec(iso);
-  return m ? m[1] : '';
+  return m?.[1] ?? '';
 }
 
 function detailToFormValue(d: AircraftDetail): Partial<{
