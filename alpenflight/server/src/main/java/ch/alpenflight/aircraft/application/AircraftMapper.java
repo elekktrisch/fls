@@ -19,8 +19,6 @@ import ch.alpenflight.platform.id.LocationId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 
 final class AircraftMapper {
 
@@ -48,7 +46,15 @@ final class AircraftMapper {
                 row.towingAircraft());
     }
 
-    static AircraftDetail toDetail(Aircraft a) {
+    /**
+     * Build a detail projection for the given principal. {@code ownerVisible}
+     * == false drops fields the Security plan flags as owner-only / PII:
+     * {@code comment} (FADP PII), {@code flarmId} + {@code mtom} +
+     * {@code noiseClass} + {@code noiseLevel} + {@code spotLink}
+     * (sensitive-not-PII). {@code immatriculation} stays — it's a regulator-
+     * public identifier and appears in the list projection anyway.
+     */
+    static AircraftDetail toDetail(Aircraft a, boolean ownerVisible) {
         return new AircraftDetail(
                 Objects.requireNonNull(a.getId(), "Cannot map an unpersisted Aircraft"),
                 ClubId.ofNullable(a.getOwnerClubId()),
@@ -58,24 +64,24 @@ final class AircraftMapper {
                 a.getManufacturerName(),
                 a.getAircraftModel(),
                 a.getCompetitionSign(),
-                a.getFlarmId(),
+                ownerVisible ? a.getFlarmId() : null,
                 a.getAircraftSerialNumber(),
                 a.getYearOfManufacture(),
-                a.getNoiseClass(),
-                a.getNoiseLevel(),
-                a.getMtom(),
+                ownerVisible ? a.getNoiseClass() : null,
+                ownerVisible ? a.getNoiseLevel() : null,
+                ownerVisible ? a.getMtom() : null,
                 a.getNrOfSeats(),
                 a.getAircraftOwnerPersonId(),
                 a.getFlightOperatingCounterUnitTypeId(),
                 a.getEngineOperatingCounterUnitTypeId(),
                 LocationId.ofNullable(a.getHomebaseId()),
-                a.getSpotLink(),
+                ownerVisible ? a.getSpotLink() : null,
                 a.isTowingOrWinchRequired(),
                 a.isTowingStartAllowed(),
                 a.isWinchStartAllowed(),
                 a.isTowingAircraft(),
                 a.isFastEntryRecord(),
-                a.getComment(),
+                ownerVisible ? a.getComment() : null,
                 a.getDaecIndex(),
                 a.getCurrentStateEntry().map(AircraftMapper::toStateResponse).orElse(null),
                 a.getLatestCounter().map(AircraftMapper::toCounterResponse).orElse(null));
@@ -138,11 +144,6 @@ final class AircraftMapper {
         if (v == null) {
             throw new IllegalStateException("Persisted counter has null atDateTime");
         }
-        return v;
-    }
-
-    @SuppressWarnings("unused")
-    private static @Nullable UUID rawUuid(@Nullable UUID v) {
         return v;
     }
 }

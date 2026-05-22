@@ -14,5 +14,9 @@ export type AircraftStateChangeRequest = {
   aircraftStateId: string;
   validFrom: string;
   noticedByPersonId?: string;
+  /**
+     * @minLength 0
+     * @maxLength 500
+     */
   remarks?: string;
 };

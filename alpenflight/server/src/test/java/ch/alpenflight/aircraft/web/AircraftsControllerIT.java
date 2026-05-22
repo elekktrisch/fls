@@ -87,9 +87,10 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     void registerAircraft_lowercaseImmatriculation_isUppercased() {
         String imm = "hb-x999";
         ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
-        // Bean-Validation pattern rejects lowercase — covered in
-        // registerAircraft_lowercaseImmatriculation_rejectsAtBoundary.
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // Bean-Validation pattern is case-insensitive (parity with legacy's
+        // .ToUpper() normalize-on-read); VO uppercases at the domain boundary.
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(readJson(res).get("immatriculation").asText()).isEqualTo("HB-X999");
     }
 
     @Test
@@ -241,13 +242,84 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
         assertThat(entries.size()).isEqualTo(2);
 
         int openCount = 0;
+        JsonNode closedEntry = null;
         for (JsonNode entry : entries) {
             JsonNode validTo = entry.get("validTo");
             if (validTo == null || validTo.isNull()) {
                 openCount++;
+            } else {
+                closedEntry = entry;
             }
         }
         assertThat(openCount).as("exactly one open state").isEqualTo(1);
+        // The previously-open period must close at the new period's validFrom,
+        // so the two periods are temporally contiguous (no gap, no overlap).
+        assertThat(closedEntry).as("exactly one closed state").isNotNull();
+        assertThat(closedEntry.get("validTo").asText())
+                .as("closed state's validTo equals the new state's validFrom")
+                .isEqualTo("2026-02-01T08:00:00Z");
+    }
+
+    @Test
+    void registerAircraft_sameImmatriculation_acrossDifferentOwners_returns_409() {
+        // Immatriculation is GLOBALLY unique by regulator convention, not
+        // per-owner — the partial unique index ux_aircraft_immatriculation
+        // covers `WHERE deleted_on IS NULL` over the whole table.
+        String imm = uniqueImmatriculation();
+        ResponseEntity<String> firstOwner = post("/api/v1/aircraft",
+                createPayload(imm, SYSADMIN_CLUB_ID));
+        assertThat(firstOwner.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // Same immat, different owner (charter / null) — must still 409.
+        ResponseEntity<String> charter = post("/api/v1/aircraft", createPayload(imm, null));
+        assertThat(charter.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void listAircraft_typeGlider_includesGliderWithMotor() {
+        // Legacy AircraftService.cs:303-304: Glider slice = Type ∈ {Glider,
+        // GliderWithMotor}. The server-side filter preserves this membership.
+        String gliderImm = uniqueImmatriculation();
+        post("/api/v1/aircraft", createPayload(gliderImm, SYSADMIN_CLUB_ID));
+
+        Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        gwmPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_GLIDER_WITH_MOTOR);
+        post("/api/v1/aircraft", gwmPayload);
+
+        ResponseEntity<String> res = get("/api/v1/aircraft?type=GLIDER");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode arr = readJson(res);
+        boolean hasGlider = false;
+        boolean hasGliderWithMotor = false;
+        for (JsonNode item : arr) {
+            String code = item.get("aircraftTypeCode").asText();
+            if ("GLIDER".equals(code)) hasGlider = true;
+            if ("GLIDER_WITH_MOTOR".equals(code)) hasGliderWithMotor = true;
+        }
+        assertThat(hasGlider).as("GLIDER appears in GLIDER slice").isTrue();
+        assertThat(hasGliderWithMotor).as("GLIDER_WITH_MOTOR appears in GLIDER slice").isTrue();
+    }
+
+    @Test
+    void listAircraft_typeMotor_excludesGliderWithMotor() {
+        // Legacy AircraftService.cs:96: AircraftTypeId >= MotorGlider (i.e.
+        // legacy_int_id >= 4). GLIDER_WITH_MOTOR (legacy_int_id = 2) is
+        // intentionally excluded from the MOTOR slice.
+        Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        gwmPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_GLIDER_WITH_MOTOR);
+        post("/api/v1/aircraft", gwmPayload);
+
+        Map<String, Object> motorPayload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        motorPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_MOTOR_AIRCRAFT);
+        post("/api/v1/aircraft", motorPayload);
+
+        ResponseEntity<String> res = get("/api/v1/aircraft?type=MOTOR");
+        JsonNode arr = readJson(res);
+        for (JsonNode item : arr) {
+            assertThat(item.get("aircraftTypeCode").asText())
+                    .as("MOTOR slice excludes GLIDER_WITH_MOTOR")
+                    .isNotEqualTo("GLIDER_WITH_MOTOR");
+        }
     }
 
     @Test

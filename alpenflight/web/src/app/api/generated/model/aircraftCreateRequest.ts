@@ -30,17 +30,9 @@ export type AircraftCreateRequest = {
      * @maxLength 50
      */
   aircraftModel?: string;
-  /**
-     * @minLength 0
-     * @maxLength 5
-     * @pattern ^[A-Za-z0-9]{1,5}$
-     */
+  /** @pattern ^[A-Za-z0-9]{1,5}$ */
   competitionSign?: string;
-  /**
-     * @minLength 0
-     * @maxLength 50
-     * @pattern ^[A-Fa-f0-9]{6}$
-     */
+  /** @pattern ^[A-Fa-f0-9]{6}$ */
   flarmId?: string;
   /**
      * @minLength 0

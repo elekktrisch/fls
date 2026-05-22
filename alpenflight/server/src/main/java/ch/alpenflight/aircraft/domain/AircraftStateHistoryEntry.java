@@ -27,6 +27,8 @@ import org.jspecify.annotations.Nullable;
 @Table(name = "aircraft_aircraft_state")
 public class AircraftStateHistoryEntry {
 
+    private static final int MAX_REMARKS_LENGTH = 500;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
@@ -76,8 +78,16 @@ public class AircraftStateHistoryEntry {
         e.aircraftStateId = aircraftStateId;
         e.validFrom = validFrom;
         e.noticedByPersonId = noticedByPersonId;
-        e.remarks = blankToNull(remarks);
+        e.remarks = capRemarks(blankToNull(remarks));
         return e;
+    }
+
+    private static @Nullable String capRemarks(@Nullable String value) {
+        if (value != null && value.length() > MAX_REMARKS_LENGTH) {
+            throw new IllegalArgumentException(
+                    "remarks exceeds " + MAX_REMARKS_LENGTH + " characters");
+        }
+        return value;
     }
 
     void attachTo(Aircraft parent) {

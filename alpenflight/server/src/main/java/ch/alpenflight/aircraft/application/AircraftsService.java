@@ -27,9 +27,12 @@ import ch.alpenflight.referencedata.domain.AircraftStateRepository;
 import ch.alpenflight.referencedata.domain.AircraftTypeRepository;
 import java.time.Clock;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,24 +58,41 @@ public class AircraftsService {
     private final AircraftRepository aircrafts;
     private final AircraftTypeRepository aircraftTypes;
     private final AircraftStateRepository aircraftStates;
+    private final AircraftAccess access;
     private final Clock clock;
 
     public AircraftsService(AircraftRepository aircrafts,
                             AircraftTypeRepository aircraftTypes,
                             AircraftStateRepository aircraftStates,
+                            AircraftAccess access,
                             Clock clock) {
         this.aircrafts = aircrafts;
         this.aircraftTypes = aircraftTypes;
         this.aircraftStates = aircraftStates;
+        this.access = access;
         this.clock = clock;
     }
 
     @Transactional(readOnly = true)
-    public List<AircraftListItem> listAircraft() {
-        return aircrafts.findAllActiveListRows().stream()
-                .map(AircraftMapper::toListItem)
-                .toList();
+    public List<AircraftListItem> listAircraft(@Nullable AircraftTypeSlice slice) {
+        List<AircraftRepository.ListRow> rows = switch (slice == null ? null : slice) {
+            case null -> aircrafts.findAllActiveListRows();
+            case GLIDER -> aircrafts.findActiveListRowsByTypeCodeIn(GLIDER_CODES);
+            case MOTOR -> aircrafts.findActiveListRowsByTypeCodeIn(MOTOR_CODES);
+            case TOWING -> aircrafts.findActiveTowingListRows();
+        };
+        return rows.stream().map(AircraftMapper::toListItem).toList();
     }
+
+    // Preserves legacy AircraftService.cs:303-304 membership: a glider with
+    // motor still flies as a glider, so it stays in the glider slice.
+    private static final Set<String> GLIDER_CODES = Set.of("GLIDER", "GLIDER_WITH_MOTOR");
+
+    // Preserves legacy AircraftService.cs:96 (AircraftTypeId >= MotorGlider)
+    // — pure-motor types from legacy_int_id >= 4. GLIDER_WITH_MOTOR is
+    // intentionally excluded (legacy_int_id = 2).
+    private static final Set<String> MOTOR_CODES = Set.of(
+            "MOTOR_GLIDER", "MOTOR_AIRCRAFT", "MULTI_ENGINE", "JET", "HELICOPTER");
 
     @Transactional(readOnly = true)
     public List<AircraftPickerItem> listAircraftForPicker() {
@@ -83,10 +103,13 @@ public class AircraftsService {
 
     @Transactional(readOnly = true)
     public AircraftDetail getAircraft(AircraftId id) {
-        return AircraftMapper.toDetail(loadOrThrow(id));
+        Aircraft a = loadOrThrow(id);
+        boolean ownerVisible = access.canSeeOwnerOnlyFields(currentAuth(), a.getOwnerClubId());
+        return AircraftMapper.toDetail(a, ownerVisible);
     }
 
     public AircraftDetail registerAircraft(AircraftCreateRequest req) {
+        // TODO(S-027): emit AIRCRAFT_REGISTERED audit event.
         validateAircraftType(req.aircraftTypeId().value());
         String normalized = Immatriculation.of(req.immatriculation()).normalized();
         aircrafts.findActiveByImmatriculation(normalized)
@@ -120,10 +143,13 @@ public class AircraftsService {
                 req.isFastEntryRecord(),
                 req.comment(),
                 req.daecIndex());
-        return AircraftMapper.toDetail(persist(a, normalized));
+        // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
+        // (gated at the controller); they may see owner-only fields.
+        return AircraftMapper.toDetail(persist(a, normalized), true);
     }
 
     public AircraftDetail updateAircraft(AircraftId id, AircraftUpdateRequest req) {
+        // TODO(S-027): emit AIRCRAFT_UPDATED audit event.
         validateAircraftType(req.aircraftTypeId().value());
         Aircraft a = loadOrThrow(id);
 
@@ -159,25 +185,31 @@ public class AircraftsService {
                 req.isFastEntryRecord(),
                 req.comment(),
                 req.daecIndex());
-        return AircraftMapper.toDetail(persist(a, normalized));
+        // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
+        // (gated at the controller); they may see owner-only fields.
+        return AircraftMapper.toDetail(persist(a, normalized), true);
     }
 
     public void softDeleteAircraft(AircraftId id, @Nullable UUID userId) {
+        // TODO(S-027): emit AIRCRAFT_DELETED audit event.
         Aircraft a = loadOrThrow(id);
         a.softDelete(userId, clock);
         aircrafts.save(a);
     }
 
     public AircraftDetail transferOwnership(AircraftId id, AircraftTransferOwnershipRequest req) {
+        // TODO(S-027): emit AIRCRAFT_OWNERSHIP_TRANSFERRED audit event.
         Aircraft a = loadOrThrow(id);
         a.transferOwnership(
                 req.newOwnerClubId() == null ? null : req.newOwnerClubId().value(),
                 req.newOwnerPersonId());
-        return AircraftMapper.toDetail(aircrafts.save(a));
+        // Transfer endpoint is SYS_ADMIN-only; owner-only fields visible.
+        return AircraftMapper.toDetail(aircrafts.save(a), true);
     }
 
     public AircraftStateHistoryEntryResponse changeAircraftState(AircraftId id,
                                                                  AircraftStateChangeRequest req) {
+        // TODO(S-027): emit AIRCRAFT_STATE_CHANGED audit event.
         Aircraft a = loadOrThrow(id);
         validateAircraftState(req.aircraftStateId().value());
         AircraftStateHistoryEntry entry;
@@ -205,6 +237,7 @@ public class AircraftsService {
 
     public AircraftOperatingCounterResponse recordAircraftCounter(AircraftId id,
                                                                   AircraftCounterRecordRequest req) {
+        // TODO(S-027): emit AIRCRAFT_COUNTER_RECORDED audit event.
         Aircraft a = loadOrThrow(id);
         AircraftOperatingCounter counter;
         try {
@@ -264,5 +297,9 @@ public class AircraftsService {
     private static boolean sameRow(Aircraft other, AircraftId id) {
         AircraftId otherId = other.getId();
         return otherId != null && otherId.value().equals(id.value());
+    }
+
+    private static @Nullable Authentication currentAuth() {
+        return SecurityContextHolder.getContext().getAuthentication();
     }
 }

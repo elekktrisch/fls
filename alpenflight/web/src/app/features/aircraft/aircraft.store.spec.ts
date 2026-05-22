@@ -5,11 +5,13 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { AircraftService } from '@api/generated/aircraft/aircraft.service';
+import { ListAircraftType } from '@api/generated/model';
 import type {
   AircraftCreateRequest,
   AircraftDetail,
   AircraftListItem,
   AircraftUpdateRequest,
+  ListAircraftParams,
 } from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
@@ -59,7 +61,7 @@ const sampleDetail: AircraftDetail = {
 };
 
 interface ApiStubs {
-  list: () => Observable<AircraftListItem[]>;
+  list: (params?: ListAircraftParams) => Observable<AircraftListItem[]>;
   get: (id: string) => Observable<AircraftDetail>;
   create: (req: AircraftCreateRequest) => Observable<AircraftDetail>;
   update: (id: string, req: AircraftUpdateRequest) => Observable<AircraftDetail>;
@@ -68,9 +70,9 @@ interface ApiStubs {
 
 function aircraftServiceStub(stubs: Partial<ApiStubs>): AircraftService {
   const api = {
-    listAircraft: ((options?: unknown) => {
+    listAircraft: ((params?: ListAircraftParams, options?: unknown) => {
       void options;
-      return (stubs.list ?? (() => of([])))();
+      return (stubs.list ?? (() => of([])))(params);
     }) as AircraftService['listAircraft'],
     getAircraft: ((id: string, options?: unknown) => {
       void options;
@@ -148,36 +150,81 @@ describe('AircraftStore', () => {
     expect(store.selectedAircraft()?.immatriculation).toBe('HB-ABC');
   });
 
-  it('typeFilter ALL returns every entity', () => {
-    configure(aircraftServiceStub({ list: () => of([gliderItem, motorItem, towingItem]) }));
+  it('setTypeFilter ALL omits the type query param (server returns full set)', () => {
+    const calls: (ListAircraftType | undefined)[] = [];
+    configure(
+      aircraftServiceStub({
+        list: (params) => {
+          calls.push(params?.type);
+          return of([gliderItem, motorItem, towingItem]);
+        },
+      }),
+    );
     const store = TestBed.inject(AircraftStore);
-    expect(store.filteredAircraft().length).toBe(3);
+    store.setTypeFilter('ALL');
+    expect(calls).toEqual([undefined, undefined]);
+    expect(store.entities().length).toBe(3);
   });
 
-  it('typeFilter GLIDER slices to hasEngine=false rows', () => {
-    configure(aircraftServiceStub({ list: () => of([gliderItem, motorItem, towingItem]) }));
+  it('setTypeFilter GLIDER issues the GLIDER server slice', () => {
+    const calls: (ListAircraftType | undefined)[] = [];
+    configure(
+      aircraftServiceStub({
+        list: (params) => {
+          calls.push(params?.type);
+          // Server returns only the GLIDER + GLIDER_WITH_MOTOR rows per
+          // AircraftService.cs:303-304 membership.
+          return params?.type === ListAircraftType.GLIDER
+            ? of([gliderItem])
+            : of([gliderItem, motorItem, towingItem]);
+        },
+      }),
+    );
     const store = TestBed.inject(AircraftStore);
     store.setTypeFilter('GLIDER');
-    expect(store.filteredAircraft().map((a) => a.id)).toEqual([gliderItem.id]);
+    expect(calls.at(-1)).toBe(ListAircraftType.GLIDER);
+    expect(store.entities().map((a) => a.id)).toEqual([gliderItem.id]);
   });
 
-  it('typeFilter MOTOR slices to hasEngine=true rows', () => {
-    configure(aircraftServiceStub({ list: () => of([gliderItem, motorItem, towingItem]) }));
+  it('setTypeFilter MOTOR issues the MOTOR server slice', () => {
+    const calls: (ListAircraftType | undefined)[] = [];
+    configure(
+      aircraftServiceStub({
+        list: (params) => {
+          calls.push(params?.type);
+          return params?.type === ListAircraftType.MOTOR
+            ? of([motorItem, towingItem])
+            : of([gliderItem, motorItem, towingItem]);
+        },
+      }),
+    );
     const store = TestBed.inject(AircraftStore);
     store.setTypeFilter('MOTOR');
+    expect(calls.at(-1)).toBe(ListAircraftType.MOTOR);
     expect(
       store
-        .filteredAircraft()
+        .entities()
         .map((a) => a.id)
         .sort(),
     ).toEqual([motorItem.id, towingItem.id].sort());
   });
 
-  it('typeFilter TOWING slices to isTowingAircraft=true rows', () => {
-    configure(aircraftServiceStub({ list: () => of([gliderItem, motorItem, towingItem]) }));
+  it('setTypeFilter TOWING issues the TOWING server slice', () => {
+    const calls: (ListAircraftType | undefined)[] = [];
+    configure(
+      aircraftServiceStub({
+        list: (params) => {
+          calls.push(params?.type);
+          return params?.type === ListAircraftType.TOWING
+            ? of([towingItem])
+            : of([gliderItem, motorItem, towingItem]);
+        },
+      }),
+    );
     const store = TestBed.inject(AircraftStore);
     store.setTypeFilter('TOWING');
-    expect(store.filteredAircraft().map((a) => a.id)).toEqual([towingItem.id]);
+    expect(calls.at(-1)).toBe(ListAircraftType.TOWING);
+    expect(store.entities().map((a) => a.id)).toEqual([towingItem.id]);
   });
 
   it('create adds a list entity, sets selectedAircraft, and emits aircraft.created', () => {

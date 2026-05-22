@@ -12,6 +12,8 @@ import org.jspecify.annotations.Nullable;
 final class AircraftsTestFixtures {
 
     static final String SEED_AIRCRAFT_TYPE_GLIDER = "019e2e15-2c00-7af9-8000-000000002af9";
+    static final String SEED_AIRCRAFT_TYPE_GLIDER_WITH_MOTOR =
+            "019e2e15-2c00-7afa-8000-000000002afa";
     static final String SEED_AIRCRAFT_TYPE_MOTOR_AIRCRAFT = "019e2e15-2c00-7afc-8000-000000002afc";
     static final String SEED_AIRCRAFT_STATE_OK = "019e2e15-2c00-7ee0-8000-000000002ee0";
     static final String SEED_AIRCRAFT_STATE_MAINTENANCE = "019e2e15-2c00-7ee4-8000-000000002ee4";

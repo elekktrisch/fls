@@ -17,12 +17,14 @@ import { catchError } from 'rxjs/operators';
 import { AircraftStatesService } from '@api/generated/aircraft-states/aircraft-states.service';
 import { AircraftTypesService } from '@api/generated/aircraft-types/aircraft-types.service';
 import { ClubStatesService } from '@api/generated/club-states/club-states.service';
+import { CounterUnitTypesService } from '@api/generated/counter-unit-types/counter-unit-types.service';
 import { CountriesService } from '@api/generated/countries/countries.service';
 import { LocationTypesService } from '@api/generated/location-types/location-types.service';
 import type {
   AircraftStateResponse,
   AircraftTypeResponse,
   ClubStateResponse,
+  CounterUnitTypeResponse,
   CountryResponse,
   LocationTypeResponse,
 } from '@api/generated/model';
@@ -34,6 +36,7 @@ export type ClubState = ClubStateResponse & { id: string };
 export type LocationType = LocationTypeResponse & { id: string };
 export type AircraftType = AircraftTypeResponse & { id: string };
 export type AircraftState = AircraftStateResponse & { id: string };
+export type CounterUnitType = CounterUnitTypeResponse & { id: string };
 
 interface ReferenceDataState {
   countries: readonly Country[];
@@ -41,6 +44,7 @@ interface ReferenceDataState {
   locationTypes: readonly LocationType[];
   aircraftTypes: readonly AircraftType[];
   aircraftStates: readonly AircraftState[];
+  counterUnitTypes: readonly CounterUnitType[];
   isLoading: boolean;
   loadError: string | null;
   lastRefreshedAt: number | null;
@@ -52,6 +56,7 @@ const initial: ReferenceDataState = {
   locationTypes: [],
   aircraftTypes: [],
   aircraftStates: [],
+  counterUnitTypes: [],
   isLoading: false,
   loadError: null,
   lastRefreshedAt: null,
@@ -72,14 +77,23 @@ export const ReferenceDataStore = signalStore(
   { providedIn: 'root' },
   withState<ReferenceDataState>(initial),
   withComputed(
-    ({ countries, clubStates, locationTypes, aircraftTypes, aircraftStates, lastRefreshedAt }) => ({
+    ({
+      countries,
+      clubStates,
+      locationTypes,
+      aircraftTypes,
+      aircraftStates,
+      counterUnitTypes,
+      lastRefreshedAt,
+    }) => ({
       isEmpty: computed(
         () =>
           countries().length === 0 &&
           clubStates().length === 0 &&
           locationTypes().length === 0 &&
           aircraftTypes().length === 0 &&
-          aircraftStates().length === 0,
+          aircraftStates().length === 0 &&
+          counterUnitTypes().length === 0,
       ),
       countryById: computed(() => {
         const map = new Map<string, Country>();
@@ -116,6 +130,13 @@ export const ReferenceDataStore = signalStore(
         }
         return map;
       }),
+      counterUnitTypeById: computed(() => {
+        const map = new Map<string, CounterUnitType>();
+        for (const u of counterUnitTypes()) {
+          map.set(u.id, u);
+        }
+        return map;
+      }),
       needsRefresh: computed(() => {
         const at = lastRefreshedAt();
         return at === null || Date.now() - at > TTL_MS;
@@ -130,6 +151,7 @@ export const ReferenceDataStore = signalStore(
       locationTypesApi = inject(LocationTypesService),
       aircraftTypesApi = inject(AircraftTypesService),
       aircraftStatesApi = inject(AircraftStatesService),
+      counterUnitTypesApi = inject(CounterUnitTypesService),
     ) => ({
       clear(): void {
         patchState(store, initial);
@@ -151,9 +173,19 @@ export const ReferenceDataStore = signalStore(
               aircraftStates: aircraftStatesApi
                 .listAircraftStates()
                 .pipe(catchError(() => of(null))),
+              counterUnitTypes: counterUnitTypesApi
+                .listCounterUnitTypes()
+                .pipe(catchError(() => of(null))),
             }).pipe(
               tapResponse({
-                next: ({ countries, clubStates, locationTypes, aircraftTypes, aircraftStates }) => {
+                next: ({
+                  countries,
+                  clubStates,
+                  locationTypes,
+                  aircraftTypes,
+                  aircraftStates,
+                  counterUnitTypes,
+                }) => {
                   patchState(store, {
                     countries: (countries ?? []).map((c) => withId(c, 'CountryResponse')),
                     clubStates: (clubStates ?? []).map((s) => withId(s, 'ClubStateResponse')),
@@ -165,6 +197,9 @@ export const ReferenceDataStore = signalStore(
                     ),
                     aircraftStates: (aircraftStates ?? []).map((s) =>
                       withId(s, 'AircraftStateResponse'),
+                    ),
+                    counterUnitTypes: (counterUnitTypes ?? []).map((u) =>
+                      withId(u, 'CounterUnitTypeResponse'),
                     ),
                     isLoading: false,
                     lastRefreshedAt: Date.now(),

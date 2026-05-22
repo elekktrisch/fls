@@ -85,10 +85,11 @@ public class AircraftAccess {
     }
 
     /**
-     * True iff the current principal may record a counter / change state on
+     * True iff the current principal may change the airworthiness state of
      * the aircraft. FLIGHT_OPS / CLUB_ADMIN of {@code owner_club_id} may
      * operate; SYSTEM_ADMIN may operate regardless; null-owner falls to
-     * SYSTEM_ADMIN-only.
+     * SYSTEM_ADMIN-only. Airworthiness ties to the owning club's maintenance
+     * regime, so cross-club state-change is denied.
      */
     @Transactional(readOnly = true)
     public boolean canOperateAircraft(Authentication authentication, AircraftId id) {
@@ -111,6 +112,45 @@ public class AircraftAccess {
         }
         return hasRole(authentication, "FLIGHT_OPS")
                 || hasRole(authentication, "CLUB_ADMINISTRATOR");
+    }
+
+    /**
+     * True iff the current principal may record an operating-counter snapshot
+     * against any aircraft. Counter totals are airframe-lifetime and
+     * accumulate across operating clubs (a tow pilot at club B can record
+     * hours flown for a charter aircraft owned by club A), so the role gate
+     * is "FLIGHT_OPS / CLUB_ADMIN / SYSTEM_ADMIN" with no owner-club match.
+     * Charter (null-owner) aircraft fall under the same rule.
+     */
+    public boolean canRecordCounter(Authentication authentication) {
+        if (authentication == null) {
+            return false;
+        }
+        return hasRole(authentication, "SYSTEM_ADMINISTRATOR")
+                || hasRole(authentication, "CLUB_ADMINISTRATOR")
+                || hasRole(authentication, "FLIGHT_OPS");
+    }
+
+    /**
+     * True iff the current principal may see owner-only fields ({@code comment},
+     * {@code flarmId}, {@code mtom}, {@code noiseClass}, {@code noiseLevel},
+     * {@code spotLink}) on the {@code GET /aircraft/{id}} detail payload.
+     * SYSTEM_ADMIN always; club members of the owning club; null-owner aircraft
+     * are SYSTEM_ADMIN-only for the sensitive fields (charter PII is opaque to
+     * any operating club).
+     */
+    public boolean canSeeOwnerOnlyFields(@Nullable Authentication authentication,
+                                         @Nullable UUID ownerClubId) {
+        if (authentication == null) {
+            return false;
+        }
+        if (hasRole(authentication, "SYSTEM_ADMINISTRATOR")) {
+            return true;
+        }
+        if (ownerClubId == null) {
+            return false;
+        }
+        return ownerClubId.equals(principalClubId(authentication));
     }
 
     private static boolean hasRole(Authentication authentication, String role) {

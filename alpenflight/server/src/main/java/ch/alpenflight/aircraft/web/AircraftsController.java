@@ -12,6 +12,7 @@ import ch.alpenflight.aircraft.application.AircraftDtos.AircraftStateHistory;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftStateHistoryEntryResponse;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftTransferOwnershipRequest;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftUpdateRequest;
+import ch.alpenflight.aircraft.application.AircraftTypeSlice;
 import ch.alpenflight.aircraft.application.AircraftsService;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -67,12 +69,15 @@ public class AircraftsController {
         this.userLookup = userLookup;
     }
 
-    @Operation(summary = "List all active aircraft, sorted by immatriculation.")
+    @Operation(summary = "List all active aircraft, sorted by immatriculation. "
+            + "Optional `type` query param slices the list per legacy semantics: "
+            + "GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).")
     @ApiResponse(responseCode = "200", description = "Array of aircraft listitem projections.")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public List<AircraftListItem> listAircraft() {
-        return service.listAircraft();
+    public List<AircraftListItem> listAircraft(
+            @RequestParam(name = "type", required = false) @Nullable AircraftTypeSlice type) {
+        return service.listAircraft(type);
     }
 
     @Operation(summary = "Slim picker list (id + immatriculation + type + isTowingAircraft).")
@@ -162,7 +167,11 @@ public class AircraftsController {
     @ApiResponse(responseCode = "201", description = "Counter recorded.")
     @ApiResponse(responseCode = "409", description = "Non-monotonic totals or duplicate at_date_time.")
     @PostMapping(path = "/{id}/counters", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@aircraftAccess.canOperateAircraft(authentication, #id)")
+    // Counters are airframe-lifetime + cross-club, so the role gate is
+    // SYSTEM_ADMIN / CLUB_ADMIN / FLIGHT_OPS without owner-club match
+    // (a tow pilot at club B can record hours for a charter aircraft
+    // owned by club A).
+    @PreAuthorize("@aircraftAccess.canRecordCounter(authentication)")
     public ResponseEntity<AircraftOperatingCounterResponse> recordCounter(
             @PathVariable AircraftId id,
             @Valid @RequestBody AircraftCounterRecordRequest req) {

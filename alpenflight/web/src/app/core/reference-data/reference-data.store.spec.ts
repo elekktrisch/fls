@@ -7,12 +7,14 @@ import { describe, expect, it } from 'vitest';
 import { AircraftStatesService } from '@api/generated/aircraft-states/aircraft-states.service';
 import { AircraftTypesService } from '@api/generated/aircraft-types/aircraft-types.service';
 import { ClubStatesService } from '@api/generated/club-states/club-states.service';
+import { CounterUnitTypesService } from '@api/generated/counter-unit-types/counter-unit-types.service';
 import { CountriesService } from '@api/generated/countries/countries.service';
 import { LocationTypesService } from '@api/generated/location-types/location-types.service';
 import type {
   AircraftStateResponse,
   AircraftTypeResponse,
   ClubStateResponse,
+  CounterUnitTypeResponse,
   CountryResponse,
   LocationTypeResponse,
 } from '@api/generated/model';
@@ -55,6 +57,13 @@ const sampleAircraftState: AircraftStateResponse = {
   isAircraftFlyable: true,
 };
 
+const sampleCounterUnitType: CounterUnitTypeResponse = {
+  id: '019e2e15-2c00-7b58-8000-000000001b58',
+  code: 'HOURS_DECIMAL',
+  name: 'Hours (decimal)',
+  shortName: 'h',
+};
+
 function countriesStub(impl: () => Observable<CountryResponse[]>): CountriesService {
   return {
     listCountries: (() => impl()) as CountriesService['listCountries'],
@@ -87,12 +96,21 @@ function aircraftStatesStub(
   } as unknown as AircraftStatesService;
 }
 
+function counterUnitTypesStub(
+  impl: () => Observable<CounterUnitTypeResponse[]>,
+): CounterUnitTypesService {
+  return {
+    listCounterUnitTypes: (() => impl()) as CounterUnitTypesService['listCounterUnitTypes'],
+  } as unknown as CounterUnitTypesService;
+}
+
 function configure(opts: {
   countries?: () => Observable<CountryResponse[]>;
   clubStates?: () => Observable<ClubStateResponse[]>;
   locationTypes?: () => Observable<LocationTypeResponse[]>;
   aircraftTypes?: () => Observable<AircraftTypeResponse[]>;
   aircraftStates?: () => Observable<AircraftStateResponse[]>;
+  counterUnitTypes?: () => Observable<CounterUnitTypeResponse[]>;
 }): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
   TestBed.configureTestingModule({
@@ -118,6 +136,12 @@ function configure(opts: {
       {
         provide: AircraftStatesService,
         useValue: aircraftStatesStub(opts.aircraftStates ?? (() => of([sampleAircraftState]))),
+      },
+      {
+        provide: CounterUnitTypesService,
+        useValue: counterUnitTypesStub(
+          opts.counterUnitTypes ?? (() => of([sampleCounterUnitType])),
+        ),
       },
     ],
   });

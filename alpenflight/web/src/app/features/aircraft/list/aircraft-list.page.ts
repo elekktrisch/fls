@@ -68,13 +68,13 @@ const TYPE_FILTER_OPTIONS: readonly AfSelectOption<AircraftTypeFilter>[] = [
 
       <af-page-error
         [message]="store.loadError()"
-        (retry)="store.loadAll()"
+        (retry)="store.loadAll(store.typeFilter())"
         data-testid="aircraft-error"
       />
 
       <af-data-table
         data-testid="aircraft-table"
-        [items]="store.filteredAircraft()"
+        [items]="store.entities()"
         [loading]="store.isLoading()"
       >
         <ng-template #primary let-ac>

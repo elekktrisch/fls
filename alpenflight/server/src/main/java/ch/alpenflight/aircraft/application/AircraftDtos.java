@@ -115,12 +115,13 @@ public final class AircraftDtos {
             @Nullable ClubId ownerClubId,
             @NotNull AircraftTypeId aircraftTypeId,
             @NotBlank @Size(min = 2, max = 15)
-                    @Pattern(regexp = IMMAT_REGEX, message = "immatriculation must match ^[A-Z0-9-]{2,15}$ (case folded)")
+                    @Pattern(regexp = IMMAT_REGEX, flags = Pattern.Flag.CASE_INSENSITIVE,
+                            message = "immatriculation must match ^[A-Z0-9-]{2,15}$ (case-folded server-side)")
                     String immatriculation,
             @Nullable @Size(max = 100) String manufacturerName,
             @Nullable @Size(max = 50) String aircraftModel,
-            @Nullable @Size(max = 5) @Pattern(regexp = COMP_SIGN_REGEX) String competitionSign,
-            @Nullable @Size(max = 50) @Pattern(regexp = FLARM_REGEX) String flarmId,
+            @Nullable @Pattern(regexp = COMP_SIGN_REGEX) String competitionSign,
+            @Nullable @Pattern(regexp = FLARM_REGEX) String flarmId,
             @Nullable @Size(max = 20) String aircraftSerialNumber,
             @Nullable LocalDate yearOfManufacture,
             @Nullable @Size(max = 1) String noiseClass,
@@ -144,12 +145,13 @@ public final class AircraftDtos {
     public record AircraftUpdateRequest(
             @NotNull AircraftTypeId aircraftTypeId,
             @NotBlank @Size(min = 2, max = 15)
-                    @Pattern(regexp = IMMAT_REGEX, message = "immatriculation must match ^[A-Z0-9-]{2,15}$ (case folded)")
+                    @Pattern(regexp = IMMAT_REGEX, flags = Pattern.Flag.CASE_INSENSITIVE,
+                            message = "immatriculation must match ^[A-Z0-9-]{2,15}$ (case-folded server-side)")
                     String immatriculation,
             @Nullable @Size(max = 100) String manufacturerName,
             @Nullable @Size(max = 50) String aircraftModel,
-            @Nullable @Size(max = 5) @Pattern(regexp = COMP_SIGN_REGEX) String competitionSign,
-            @Nullable @Size(max = 50) @Pattern(regexp = FLARM_REGEX) String flarmId,
+            @Nullable @Pattern(regexp = COMP_SIGN_REGEX) String competitionSign,
+            @Nullable @Pattern(regexp = FLARM_REGEX) String flarmId,
             @Nullable @Size(max = 20) String aircraftSerialNumber,
             @Nullable LocalDate yearOfManufacture,
             @Nullable @Size(max = 1) String noiseClass,
@@ -173,7 +175,7 @@ public final class AircraftDtos {
             @NotNull AircraftStateId aircraftStateId,
             @NotNull Instant validFrom,
             @Nullable UUID noticedByPersonId,
-            @Nullable String remarks) {}
+            @Nullable @Size(max = 500) String remarks) {}
 
     @Schema(description = "Payload to record a new operating-counter snapshot.")
     public record AircraftCounterRecordRequest(

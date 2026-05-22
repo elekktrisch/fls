@@ -1,12 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   type AbstractControl,
   FormBuilder,
@@ -31,6 +32,7 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { ClubsStore } from '../../clubs/clubs.store';
 import { LocationsStore } from '../../locations/locations.store';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
@@ -56,6 +58,8 @@ type AircraftForm = FormGroup<{
   mtom: FormControl<number | null>;
   nrOfSeats: FormControl<number | null>;
   homebaseId: FormControl<string>;
+  flightOperatingCounterUnitTypeId: FormControl<string>;
+  engineOperatingCounterUnitTypeId: FormControl<string>;
   spotLink: FormControl<string>;
   isTowingOrWinchRequired: FormControl<boolean>;
   isTowingStartAllowed: FormControl<boolean>;
@@ -115,6 +119,17 @@ type AircraftForm = FormGroup<{
         </div>
       }
 
+      @if (store.isLoadingDetail() && !isCreate()) {
+        <div
+          class="px-3 py-2 text-sm text-slate-500 border border-slate-200 bg-slate-50"
+          data-testid="aircraft-loading"
+          role="status"
+          aria-live="polite"
+        >
+          Loading aircraft…
+        </div>
+      }
+
       <form
         [formGroup]="form"
         (ngSubmit)="onSubmit()"
@@ -167,7 +182,7 @@ type AircraftForm = FormGroup<{
           </af-form-field>
         }
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <af-form-field label="Manufacturer" for="ManufacturerName">
             <af-input
               inputId="ManufacturerName"
@@ -180,7 +195,7 @@ type AircraftForm = FormGroup<{
           </af-form-field>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <af-form-field
             label="Competition sign"
             for="CompetitionSign"
@@ -209,7 +224,7 @@ type AircraftForm = FormGroup<{
           </af-form-field>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <af-form-field label="Serial number" for="SerialNumber">
             <af-input
               inputId="SerialNumber"
@@ -217,17 +232,25 @@ type AircraftForm = FormGroup<{
               autocomplete="off"
             />
           </af-form-field>
-          <af-form-field label="Year of manufacture" for="YearOfManufacture">
+          <af-form-field
+            label="Year of manufacture"
+            for="YearOfManufacture"
+            [errors]="
+              form.controls.yearOfManufacture.touched
+                ? form.controls.yearOfManufacture.errors
+                : null
+            "
+          >
             <af-input
               inputId="YearOfManufacture"
               formControlName="yearOfManufacture"
               autocomplete="off"
-              placeholder="YYYY-MM-DD"
+              placeholder="YYYY-MM-DD (e.g. 2008-01-01)"
             />
           </af-form-field>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <af-form-field label="MTOM (kg)" for="Mtom">
             <af-input inputId="Mtom" type="number" formControlName="mtom" autocomplete="off" />
           </af-form-field>
@@ -249,7 +272,7 @@ type AircraftForm = FormGroup<{
           </af-form-field>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <af-form-field label="Noise level (dB)" for="NoiseLevel">
             <af-input
               inputId="NoiseLevel"
@@ -265,6 +288,27 @@ type AircraftForm = FormGroup<{
               placeholder="No homebase"
               [options]="homebaseOptions()"
               data-testid="aircraft-homebase-select"
+            />
+          </af-form-field>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <af-form-field label="Flight counter unit" for="FlightCounterUnitTypeId">
+            <af-select
+              inputId="FlightCounterUnitTypeId"
+              formControlName="flightOperatingCounterUnitTypeId"
+              placeholder="Select unit"
+              [options]="counterUnitTypeOptions()"
+              data-testid="aircraft-flight-counter-unit-select"
+            />
+          </af-form-field>
+          <af-form-field label="Engine counter unit" for="EngineCounterUnitTypeId">
+            <af-select
+              inputId="EngineCounterUnitTypeId"
+              formControlName="engineOperatingCounterUnitTypeId"
+              placeholder="Select unit"
+              [options]="counterUnitTypeOptions()"
+              data-testid="aircraft-engine-counter-unit-select"
             />
           </af-form-field>
         </div>
@@ -355,6 +399,7 @@ export class AircraftEditPage {
   protected readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder);
+  private readonly bus = inject(MUTATION_BUS);
 
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly aircraftId = computed(() => this.routeId().get('id'));
@@ -374,6 +419,14 @@ export class AircraftEditPage {
   protected readonly homebaseOptions = computed<readonly AfSelectOption<string>[]>(() => [
     { value: '', label: '— No homebase —' },
     ...this.locations.entities().map((l) => ({ value: l.id, label: l.locationName })),
+  ]);
+
+  protected readonly counterUnitTypeOptions = computed<readonly AfSelectOption<string>[]>(() => [
+    { value: '', label: '— Not set —' },
+    ...this.referenceData.counterUnitTypes().map((u) => ({
+      value: u.id,
+      label: u.shortName ? `${u.name} (${u.shortName})` : u.name,
+    })),
   ]);
 
   protected readonly ownerClubOptions = computed<readonly AfSelectOption<string>[]>(() => [
@@ -427,12 +480,14 @@ export class AircraftEditPage {
       patternOrEmpty(FLARM_PATTERN),
     ]),
     aircraftSerialNumber: this.fb.nonNullable.control('', [Validators.maxLength(20)]),
-    yearOfManufacture: this.fb.nonNullable.control(''),
+    yearOfManufacture: this.fb.nonNullable.control('', [isoDateOrEmpty()]),
     noiseClass: this.fb.nonNullable.control('', [Validators.maxLength(1)]),
     noiseLevel: this.fb.control<number | null>(null),
     mtom: this.fb.control<number | null>(null, [Validators.min(0)]),
     nrOfSeats: this.fb.control<number | null>(null, [Validators.min(0)]),
     homebaseId: this.fb.nonNullable.control(''),
+    flightOperatingCounterUnitTypeId: this.fb.nonNullable.control(''),
+    engineOperatingCounterUnitTypeId: this.fb.nonNullable.control(''),
     spotLink: this.fb.nonNullable.control('', [Validators.maxLength(250), httpsOrEmpty()]),
     isTowingOrWinchRequired: this.fb.nonNullable.control(false),
     isTowingStartAllowed: this.fb.nonNullable.control(false),
@@ -464,11 +519,53 @@ export class AircraftEditPage {
       if (!detail) return;
       this.form.patchValue(detailToFormValue(detail), { emitEvent: false });
     });
+
+    // Save-error effect: reset the submitted flag so the user can retry, and
+    // hoist the typed save-error onto the offending field for inline visibility
+    // (mirrors LocationsEditPage; replaces the old queueMicrotask race that
+    // navigated unconditionally before the HTTP response landed).
+    effect(() => {
+      const err = this.store.saveError();
+      if (!err) return;
+      this.saveSubmitted.set(false);
+      if (this.store.saveErrorKind() === 'immatriculation-duplicate') {
+        this.form.controls.immatriculation.setErrors({ duplicate: true });
+        this.form.controls.immatriculation.markAsTouched();
+      }
+    });
+
+    const destroyRef = inject(DestroyRef);
+    // Clear the synthetic `duplicate` flag the moment the user retypes the
+    // immatriculation so Save re-enables without a blur dance.
+    this.form.controls.immatriculation.valueChanges
+      .pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(() => {
+        if (this.form.controls.immatriculation.hasError('duplicate')) {
+          const errs = { ...this.form.controls.immatriculation.errors };
+          delete errs['duplicate'];
+          this.form.controls.immatriculation.setErrors(Object.keys(errs).length ? errs : null);
+        }
+        if (this.store.saveErrorKind() === 'immatriculation-duplicate') {
+          this.store.clearSaveError();
+        }
+      });
+
+    // Navigate on the mutation-bus event — guaranteed-post-response, no race.
+    this.bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
+      if (!this.saveSubmitted()) return;
+      if (evt.kind === 'aircraft.created' || evt.kind === 'aircraft.updated') {
+        this.saveSubmitted.set(false);
+        this.router.navigateByUrl('/aircraft');
+      }
+    });
   }
 
   protected onSubmit(): void {
-    this.form.markAllAsTouched();
-    if (this.form.invalid) return;
+    if (!this.canMutate()) return;
+    if (this.form.invalid || this.saveSubmitted()) {
+      this.form.markAllAsTouched();
+      return;
+    }
     this.saveSubmitted.set(true);
     const id = this.aircraftId();
     if (id === null) {
@@ -476,14 +573,6 @@ export class AircraftEditPage {
     } else {
       this.store.update({ id, req: formToUpdateRequest(this.form) });
     }
-    // Listen once for save-error / save-success to navigate back or stay.
-    queueMicrotask(() => {
-      if (this.store.saveError() === null) {
-        this.router.navigateByUrl('/aircraft');
-      } else {
-        this.saveSubmitted.set(false);
-      }
-    });
   }
 }
 
@@ -507,6 +596,16 @@ function httpsOrEmpty(): ValidatorFn {
   };
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isoDateOrEmpty(): ValidatorFn {
+  return (c: AbstractControl) => {
+    const v = (c.value ?? '') as string;
+    if (v === '') return null;
+    return ISO_DATE.test(v) ? null : { isoDate: true };
+  };
+}
+
 function detailToFormValue(d: AircraftDetail): Partial<{
   aircraftTypeId: string;
   immatriculation: string;
@@ -522,6 +621,8 @@ function detailToFormValue(d: AircraftDetail): Partial<{
   mtom: number | null;
   nrOfSeats: number | null;
   homebaseId: string;
+  flightOperatingCounterUnitTypeId: string;
+  engineOperatingCounterUnitTypeId: string;
   spotLink: string;
   isTowingOrWinchRequired: boolean;
   isTowingStartAllowed: boolean;
@@ -545,6 +646,8 @@ function detailToFormValue(d: AircraftDetail): Partial<{
     mtom: d.mtom ?? null,
     nrOfSeats: d.nrOfSeats ?? null,
     homebaseId: d.homebaseId ?? '',
+    flightOperatingCounterUnitTypeId: d.flightOperatingCounterUnitTypeId ?? '',
+    engineOperatingCounterUnitTypeId: d.engineOperatingCounterUnitTypeId ?? '',
     spotLink: d.spotLink ?? '',
     isTowingOrWinchRequired: d.isTowingOrWinchRequired,
     isTowingStartAllowed: d.isTowingStartAllowed,
@@ -578,6 +681,12 @@ function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
   if (v.mtom !== null) req.mtom = v.mtom;
   if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
   if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
+  if (v.flightOperatingCounterUnitTypeId !== '') {
+    req.flightOperatingCounterUnitTypeId = v.flightOperatingCounterUnitTypeId;
+  }
+  if (v.engineOperatingCounterUnitTypeId !== '') {
+    req.engineOperatingCounterUnitTypeId = v.engineOperatingCounterUnitTypeId;
+  }
   if (v.spotLink !== '') req.spotLink = v.spotLink;
   if (v.comment !== '') req.comment = v.comment;
   return req;
@@ -605,6 +714,12 @@ function formToUpdateRequest(form: AircraftForm): AircraftUpdateRequest {
   if (v.mtom !== null) req.mtom = v.mtom;
   if (v.nrOfSeats !== null) req.nrOfSeats = v.nrOfSeats;
   if (v.homebaseId !== '') req.homebaseId = v.homebaseId;
+  if (v.flightOperatingCounterUnitTypeId !== '') {
+    req.flightOperatingCounterUnitTypeId = v.flightOperatingCounterUnitTypeId;
+  }
+  if (v.engineOperatingCounterUnitTypeId !== '') {
+    req.engineOperatingCounterUnitTypeId = v.engineOperatingCounterUnitTypeId;
+  }
   if (v.spotLink !== '') req.spotLink = v.spotLink;
   if (v.comment !== '') req.comment = v.comment;
   return req;

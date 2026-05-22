@@ -6,6 +6,7 @@ import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
 import ch.alpenflight.platform.id.LocationTypeId;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -50,4 +51,13 @@ public final class ReferenceDataDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isAircraftFlyable) {}
+
+    @Schema(description = "CounterUnitType listitem projection — drives the operating-counter "
+            + "unit dropdowns on the Aircraft form.")
+    public record CounterUnitTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
+            @Nullable String shortName,
+            @Nullable String comment) {}
 }

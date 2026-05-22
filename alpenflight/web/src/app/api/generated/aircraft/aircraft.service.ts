@@ -37,7 +37,8 @@ import type {
   AircraftStateHistory,
   AircraftStateHistoryEntryResponse,
   AircraftTransferOwnershipRequest,
-  AircraftUpdateRequest
+  AircraftUpdateRequest,
+  ListAircraftParams
 } from '../model';
 
 
@@ -79,7 +80,54 @@ type HttpClientObserveOptions = HttpClientOptions & {
   readonly observe?: 'body' | 'events' | 'response';
 };
 
+type AngularHttpParamValue = string | number | boolean | Array<string | number | boolean>;
+type AngularHttpParamValueWithNullable = AngularHttpParamValue | null;
 
+function filterParams(
+  params: Record<string, unknown>,
+  requiredNullableKeys?: ReadonlySet<string>,
+  preserveRequiredNullables?: false,
+): Record<string, AngularHttpParamValue>;
+function filterParams(
+  params: Record<string, unknown>,
+  requiredNullableKeys: ReadonlySet<string> | undefined,
+  preserveRequiredNullables: true,
+): Record<string, AngularHttpParamValueWithNullable>;
+function filterParams(
+  params: Record<string, unknown>,
+  requiredNullableKeys: ReadonlySet<string> = new Set(),
+  preserveRequiredNullables = false,
+): Record<string, AngularHttpParamValueWithNullable> {
+  const filteredParams: Record<string, AngularHttpParamValueWithNullable> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      const filtered = value.filter(
+        (item) =>
+          item != null &&
+          (typeof item === 'string' ||
+            typeof item === 'number' ||
+            typeof item === 'boolean'),
+      ) as Array<string | number | boolean>;
+      if (filtered.length) {
+        filteredParams[key] = filtered;
+      }
+    } else if (
+      preserveRequiredNullables &&
+      value === null &&
+      requiredNullableKeys.has(key)
+    ) {
+      filteredParams[key] = null;
+    } else if (
+      value != null &&
+      (typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean')
+    ) {
+      filteredParams[key] = value;
+    }
+  }
+  return filteredParams;
+}
 
 
 
@@ -195,36 +243,38 @@ export class AircraftService {
     );
   }
 /**
- * @summary List all active aircraft, sorted by immatriculation.
+ * @summary List all active aircraft, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).
  */
- listAircraft<TData = AircraftListItem[]>( options?: HttpClientBodyOptions): Observable<TData>;
- listAircraft<TData = AircraftListItem[]>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- listAircraft<TData = AircraftListItem[]>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+ listAircraft<TData = AircraftListItem[]>(params?: ListAircraftParams, options?: HttpClientBodyOptions): Observable<TData>;
+ listAircraft<TData = AircraftListItem[]>(params?: ListAircraftParams, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ listAircraft<TData = AircraftListItem[]>(params?: ListAircraftParams, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
   listAircraft<TData = AircraftListItem[]>(
-     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    params?: ListAircraftParams, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    const filteredParams = filterParams({...params, ...options?.params}, new Set<string>([]));
+
     if (options?.observe === 'events') {
       return this.http.get<TData>(
       `/api/v1/aircraft`,{
-        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'events',
-      }
+        params: filteredParams,}
     );
     }
 
     if (options?.observe === 'response') {
       return this.http.get<TData>(
       `/api/v1/aircraft`,{
-        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'response',
-      }
+        params: filteredParams,}
     );
     }
 
     return this.http.get<TData>(
       `/api/v1/aircraft`,{
-        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
-      }
+        params: filteredParams,}
     );
   }
 /**

@@ -4,6 +4,7 @@ import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -40,6 +41,36 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
             + "where a.deletedOn is null "
             + "order by a.immatriculation asc")
     List<AircraftRepository.ListRow> findAllActiveListRows();
+
+    @Override
+    @Query("select new ch.alpenflight.aircraft.domain.AircraftRepository$ListRow("
+            + "a.id, a.ownerClubId, a.immatriculation, a.competitionSign, "
+            + "a.aircraftTypeId, t.code, t.hasEngine, a.towingAircraft, "
+            + "s.code, s.isAircraftFlyable) "
+            + "from Aircraft a "
+            + "join ch.alpenflight.referencedata.domain.AircraftType t on a.aircraftTypeId = t.id "
+            + "left join ch.alpenflight.aircraft.domain.AircraftStateHistoryEntry h "
+            + "  on h.aircraft = a and h.validTo is null and h.deletedOn is null "
+            + "left join ch.alpenflight.referencedata.domain.AircraftState s "
+            + "  on h.aircraftStateId = s.id "
+            + "where a.deletedOn is null and t.code in :codes "
+            + "order by a.immatriculation asc")
+    List<AircraftRepository.ListRow> findActiveListRowsByTypeCodeIn(@Param("codes") Set<String> typeCodes);
+
+    @Override
+    @Query("select new ch.alpenflight.aircraft.domain.AircraftRepository$ListRow("
+            + "a.id, a.ownerClubId, a.immatriculation, a.competitionSign, "
+            + "a.aircraftTypeId, t.code, t.hasEngine, a.towingAircraft, "
+            + "s.code, s.isAircraftFlyable) "
+            + "from Aircraft a "
+            + "join ch.alpenflight.referencedata.domain.AircraftType t on a.aircraftTypeId = t.id "
+            + "left join ch.alpenflight.aircraft.domain.AircraftStateHistoryEntry h "
+            + "  on h.aircraft = a and h.validTo is null and h.deletedOn is null "
+            + "left join ch.alpenflight.referencedata.domain.AircraftState s "
+            + "  on h.aircraftStateId = s.id "
+            + "where a.deletedOn is null and a.towingAircraft = true "
+            + "order by a.immatriculation asc")
+    List<AircraftRepository.ListRow> findActiveTowingListRows();
 
     @Override
     @Query("select new ch.alpenflight.aircraft.domain.AircraftRepository$PickerRow("

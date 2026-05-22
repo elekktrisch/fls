@@ -218,6 +218,110 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void flightOps_cannotChangeState_onNullOwnerAircraft() {
+        // Charter aircraft (owner_club_id = NULL) — only SYSTEM_ADMIN may
+        // operate. Even FLIGHT_OPS of a recognized club is denied.
+        String sysToken = mintToken(CLUB_A, "SYSTEM_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation(), null), sysToken);
+        String id = readJson(created).get("id").asText();
+
+        String opsA = mintToken(CLUB_A, "FLIGHT_OPS");
+        ResponseEntity<String> res = post("/api/v1/aircraft/" + id + "/states",
+                Map.of(
+                        "aircraftStateId", SEED_AIRCRAFT_STATE_OK,
+                        "validFrom", "2026-01-01T08:00:00Z"),
+                opsA);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void sysAdmin_canChangeState_onNullOwnerAircraft() {
+        String sysToken = mintToken(CLUB_A, "SYSTEM_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation(), null), sysToken);
+        String id = readJson(created).get("id").asText();
+
+        ResponseEntity<String> res = post("/api/v1/aircraft/" + id + "/states",
+                Map.of(
+                        "aircraftStateId", SEED_AIRCRAFT_STATE_OK,
+                        "validFrom", "2026-01-01T08:00:00Z"),
+                sysToken);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test
+    void flightOpsOfDifferentClub_canRecordCounter() {
+        // Counters are airframe-lifetime + cross-club. A FLIGHT_OPS pilot at
+        // club B may record hours for an aircraft owned by club A — the role
+        // gate is the only check; no owner-club match.
+        String sysToken = mintToken(CLUB_A, "SYSTEM_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation(), CLUB_A), sysToken);
+        String id = readJson(created).get("id").asText();
+
+        String opsB = mintToken(CLUB_B, "FLIGHT_OPS");
+        ResponseEntity<String> res = post("/api/v1/aircraft/" + id + "/counters",
+                Map.of(
+                        "atDateTime", "2026-01-01T10:00:00Z",
+                        "flightOperatingCounterInSeconds", 3600,
+                        "engineOperatingCounterInSeconds", 3600),
+                opsB);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test
+    void officeUser_cannotRecordCounter() {
+        // Counter recording requires FLIGHT_OPS / CLUB_ADMIN / SYSTEM_ADMIN;
+        // an OFFICE_USER (read-only) is denied even for their own club.
+        String sysToken = mintToken(CLUB_A, "SYSTEM_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation(), CLUB_A), sysToken);
+        String id = readJson(created).get("id").asText();
+
+        String officeA = mintToken(CLUB_A, "OFFICE_USER");
+        ResponseEntity<String> res = post("/api/v1/aircraft/" + id + "/counters",
+                Map.of(
+                        "atDateTime", "2026-01-01T10:00:00Z",
+                        "flightOperatingCounterInSeconds", 3600),
+                officeA);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void nonOwningClubReader_doesNotSeeOwnerOnlyFields() {
+        // Security plan: GET /aircraft/{id} hides comment + flarmId + mtom +
+        // noise_* + spot_link from any reader who isn't SYSTEM_ADMIN or
+        // CLUB_ADMIN-of-owner. immatriculation stays (regulator-public).
+        String sysToken = mintToken(CLUB_A, "SYSTEM_ADMINISTRATOR");
+        Map<String, Object> payload = createPayload(uniqueImmatriculation(), CLUB_A);
+        payload.put("comment", "secret maintenance notes");
+        payload.put("flarmId", "DDAABB");
+        payload.put("mtom", 750);
+        payload.put("spotLink", "https://share.findmespot.com/abc123");
+        ResponseEntity<String> created = post("/api/v1/aircraft", payload, sysToken);
+        String id = readJson(created).get("id").asText();
+
+        String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> read = get("/api/v1/aircraft/" + id, adminB);
+        JsonNode body = readJson(read);
+        assertThat(read.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(body.has("comment")).as("comment omitted for non-owner").isFalse();
+        assertThat(body.has("flarmId")).as("flarmId omitted for non-owner").isFalse();
+        assertThat(body.has("mtom")).as("mtom omitted for non-owner").isFalse();
+        assertThat(body.has("spotLink")).as("spotLink omitted for non-owner").isFalse();
+        assertThat(body.get("immatriculation").asText())
+                .as("immatriculation visible to any reader")
+                .isEqualTo(payload.get("immatriculation"));
+
+        // SYSTEM_ADMIN reader sees everything.
+        ResponseEntity<String> sysRead = get("/api/v1/aircraft/" + id, sysToken);
+        JsonNode sysBody = readJson(sysRead);
+        assertThat(sysBody.get("comment").asText()).isEqualTo("secret maintenance notes");
+        assertThat(sysBody.get("flarmId").asText()).isEqualTo("DDAABB");
+    }
+
     // ----- helpers -----
 
     private String mintToken(String clubId, String role) {
@@ -259,10 +363,5 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse response: " + res.getBody(), e);
         }
-    }
-
-    @SuppressWarnings("unused")
-    private static UUID asUuid(String s) {
-        return UUID.fromString(s);
     }
 }

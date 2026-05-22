@@ -45,6 +45,10 @@ public interface AircraftRepository {
 
     List<ListRow> findAllActiveListRows();
 
+    List<ListRow> findActiveListRowsByTypeCodeIn(java.util.Set<String> typeCodes);
+
+    List<ListRow> findActiveTowingListRows();
+
     List<PickerRow> findAllActivePickerRows();
 
     Optional<Aircraft> findActiveById(UUID id);

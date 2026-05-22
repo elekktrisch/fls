@@ -17,6 +17,9 @@
     "name" : "Locations",
     "description" : "Locations CRUD (per-club masterdata)."
   }, {
+    "name" : "CounterUnitTypes",
+    "description" : "Counter-unit-type reference catalog."
+  }, {
     "name" : "AircraftTypes",
     "description" : "Aircraft-type reference catalog."
   }, {
@@ -683,8 +686,17 @@
     "/api/v1/aircraft" : {
       "get" : {
         "tags" : [ "Aircraft" ],
-        "summary" : "List all active aircraft, sorted by immatriculation.",
+        "summary" : "List all active aircraft, sorted by immatriculation. Optional `type` query param slices the list per legacy semantics: GLIDER (pure + with-motor), MOTOR (excludes glider-with-motor), TOWING (any type).",
         "operationId" : "listAircraft",
+        "parameters" : [ {
+          "name" : "type",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "GLIDER", "MOTOR", "TOWING" ]
+          }
+        } ],
         "responses" : {
           "200" : {
             "description" : "Array of aircraft listitem projections.",
@@ -1075,6 +1087,28 @@
                   "type" : "array",
                   "items" : {
                     "$ref" : "#/components/schemas/CountryResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/counter-unit-types" : {
+      "get" : {
+        "tags" : [ "CounterUnitTypes" ],
+        "summary" : "List all counter unit types, ordered by code.",
+        "operationId" : "listCounterUnitTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of counter-unit-type listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CounterUnitTypeResponse"
                   }
                 }
               }
@@ -1497,14 +1531,10 @@
           },
           "competitionSign" : {
             "type" : "string",
-            "maxLength" : 5,
-            "minLength" : 0,
             "pattern" : "^[A-Za-z0-9]{1,5}$"
           },
           "flarmId" : {
             "type" : "string",
-            "maxLength" : 50,
-            "minLength" : 0,
             "pattern" : "^[A-Fa-f0-9]{6}$"
           },
           "aircraftSerialNumber" : {
@@ -1925,14 +1955,10 @@
           },
           "competitionSign" : {
             "type" : "string",
-            "maxLength" : 5,
-            "minLength" : 0,
             "pattern" : "^[A-Za-z0-9]{1,5}$"
           },
           "flarmId" : {
             "type" : "string",
-            "maxLength" : 50,
-            "minLength" : 0,
             "pattern" : "^[A-Fa-f0-9]{6}$"
           },
           "aircraftSerialNumber" : {
@@ -2045,7 +2071,9 @@
             "format" : "uuid"
           },
           "remarks" : {
-            "type" : "string"
+            "type" : "string",
+            "maxLength" : 500,
+            "minLength" : 0
           }
         },
         "required" : [ "aircraftStateId", "validFrom" ]
@@ -2166,6 +2194,29 @@
           }
         },
         "required" : [ "id", "iso2Code", "name" ]
+      },
+      "CounterUnitTypeResponse" : {
+        "type" : "object",
+        "description" : "CounterUnitType listitem projection — drives the operating-counter unit dropdowns on the Aircraft form.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "shortName" : {
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "id", "name" ]
       },
       "ClubStateResponse" : {
         "type" : "object",

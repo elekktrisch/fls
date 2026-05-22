@@ -21,6 +21,7 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
 import { AircraftService } from '@api/generated/aircraft/aircraft.service';
+import { ListAircraftType } from '@api/generated/model';
 import type {
   AircraftCreateRequest,
   AircraftDetail,
@@ -33,6 +34,10 @@ import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 export type AircraftItem = AircraftListItem & { id: string };
 export type AircraftDetailLoaded = AircraftDetail & { id: string };
 
+// `ALL` is a UI-only sentinel — the server defaults to no filter when the
+// `type` query param is omitted. The other three values map 1:1 to
+// `ListAircraftType` from the generated OpenAPI client and correspond to the
+// server-side slice contract in `AircraftTypeSlice.java`.
 export type AircraftTypeFilter = 'ALL' | 'GLIDER' | 'TOWING' | 'MOTOR';
 
 export type SaveErrorKind = 'immatriculation-duplicate' | 'forbidden' | 'other';
@@ -96,23 +101,23 @@ function listItemFromDetail(d: AircraftDetailLoaded): AircraftItem {
 }
 
 /**
- * Type-filter slice. GLIDER = no engine; TOWING = is_towing_aircraft;
- * MOTOR = has engine. Collapses the legacy
- * GetGliderAircraftListItems / GetTowingAircraftListItems /
- * GetMotorAircraftListItems endpoints into a single client-side filter
- * over the unified list (the server returns the unfiltered set; the index
- * scan is cheap and the result set is small).
+ * Maps the UI-only `AircraftTypeFilter` to the server-side `ListAircraftType`
+ * query param. `ALL` returns `null` (no `type=` in the URL — server returns
+ * the full set). Membership semantics live on the server in
+ * `AircraftTypeSlice.java` (preserves legacy `AircraftService.cs:303-304` for
+ * GLIDER and `AircraftService.cs:96` for MOTOR — a glider-with-motor stays in
+ * the glider slice, MOTOR excludes glider-with-motor).
  */
-function matchesFilter(a: AircraftItem, filter: AircraftTypeFilter): boolean {
+function toServerSlice(filter: AircraftTypeFilter): ListAircraftType | null {
   switch (filter) {
     case 'ALL':
-      return true;
+      return null;
     case 'GLIDER':
-      return a.hasEngine === false;
+      return ListAircraftType.GLIDER;
     case 'TOWING':
-      return a.isTowingAircraft === true;
+      return ListAircraftType.TOWING;
     case 'MOTOR':
-      return a.hasEngine === true;
+      return ListAircraftType.MOTOR;
   }
 }
 
@@ -120,18 +125,19 @@ export const AircraftStore = signalStore(
   { providedIn: 'root' },
   withEntities<AircraftItem>(),
   withState<AircraftsExtraState>(initialExtra),
-  withComputed(({ entities, loadError, saveError, selectedDetail, typeFilter }) => ({
+  withComputed(({ entities, loadError, saveError, selectedDetail }) => ({
     isEmpty: computed(() => entities().length === 0),
     hasError: computed(() => loadError() !== null || saveError() !== null),
     selectedAircraft: computed(() => selectedDetail()),
-    filteredAircraft: computed(() => entities().filter((a) => matchesFilter(a, typeFilter()))),
   })),
   withMethods((store, aircraftsApi = inject(AircraftService), bus = inject(MUTATION_BUS)) => {
-    const loadAll = rxMethod<void>(
+    const loadAll = rxMethod<AircraftTypeFilter>(
       pipe(
         tap(() => patchState(store, { isLoading: true, loadError: null })),
-        switchMap(() =>
-          aircraftsApi.listAircraft().pipe(
+        switchMap((filter) => {
+          const slice = toServerSlice(filter);
+          const params = slice === null ? undefined : { type: slice };
+          return aircraftsApi.listAircraft(params).pipe(
             tapResponse({
               next: (items: AircraftListItem[]) =>
                 patchState(store, setAllEntities(items.map(withListItemId)), {
@@ -141,8 +147,8 @@ export const AircraftStore = signalStore(
               error: (e: HttpErrorResponse) =>
                 patchState(store, { loadError: e.message, isLoading: false }),
             }),
-          ),
-        ),
+          );
+        }),
       ),
     );
     return {
@@ -151,6 +157,7 @@ export const AircraftStore = signalStore(
       },
       setTypeFilter(filter: AircraftTypeFilter): void {
         patchState(store, { typeFilter: filter });
+        loadAll(filter);
       },
       clearSaveError(): void {
         patchState(store, { saveError: null, saveErrorKind: null });
@@ -186,7 +193,11 @@ export const AircraftStore = signalStore(
                     selectedDetail: detail,
                   });
                   bus.next({ kind: 'aircraft.created', aircraftId: detail.id });
-                  loadAll();
+                  // Refresh so the joined `aircraftTypeCode` / `hasEngine` /
+                  // `currentStateCode` columns settle to authoritative values;
+                  // pass the active filter so the post-mutation reload stays
+                  // consistent with the user's current slice.
+                  loadAll(store.typeFilter());
                 },
                 error: (e: HttpErrorResponse) =>
                   patchState(store, errorPatch(e, req.immatriculation)),
@@ -207,7 +218,7 @@ export const AircraftStore = signalStore(
                     selectedDetail: detail,
                   });
                   bus.next({ kind: 'aircraft.updated', aircraftId: detail.id });
-                  loadAll();
+                  loadAll(store.typeFilter());
                 },
                 error: (e: HttpErrorResponse) =>
                   patchState(store, errorPatch(e, req.immatriculation)),
@@ -238,7 +249,7 @@ export const AircraftStore = signalStore(
     onInit(store) {
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
-      store.loadAll();
+      store.loadAll(store.typeFilter());
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
           patchState(store, setAllEntities<AircraftItem>([]), {
