@@ -252,29 +252,30 @@ type AircraftForm = FormGroup<{
                 />
               </af-form-field>
             </div>
-            <div class="flex items-end gap-2">
-              <af-form-field
-                label="SPOT tracker link"
-                for="SpotLink"
-                class="flex-1"
-                [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
-              >
+            <af-form-field
+              label="SPOT tracker link"
+              for="SpotLink"
+              [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
+            >
+              <div class="flex">
                 <af-input
                   inputId="SpotLink"
                   formControlName="spotLink"
                   autocomplete="off"
                   placeholder="https://share.findmespot.com/…"
+                  class="flex-1 min-w-0"
                 />
-              </af-form-field>
-              <af-button
-                htmlType="button"
-                [disabled]="!canTestSpotLink()"
-                (clicked)="openSpotLink()"
-                data-testid="aircraft-spotlink-test"
-              >
-                Test link
-              </af-button>
-            </div>
+                <af-button
+                  htmlType="button"
+                  [disabled]="!canTestSpotLink()"
+                  (clicked)="openSpotLink()"
+                  data-testid="aircraft-spotlink-test"
+                  class="-ml-px"
+                >
+                  Test link
+                </af-button>
+              </div>
+            </af-form-field>
             <div class="flex flex-col gap-1 mt-1">
               <label class="flex items-center gap-2 cursor-pointer select-none">
                 <input
