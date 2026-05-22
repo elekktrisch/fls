@@ -1,8 +1,12 @@
 package ch.alpenflight.referencedata.application;
 
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftStateResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.ClubStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CountryResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.LocationTypeResponse;
+import ch.alpenflight.referencedata.domain.AircraftStateRepository;
+import ch.alpenflight.referencedata.domain.AircraftTypeRepository;
 import ch.alpenflight.referencedata.domain.ClubStateRepository;
 import ch.alpenflight.referencedata.domain.CountryRepository;
 import ch.alpenflight.referencedata.domain.LocationTypeRepository;
@@ -23,13 +27,19 @@ public class ReferenceDataService {
     private final CountryRepository countries;
     private final ClubStateRepository clubStates;
     private final LocationTypeRepository locationTypes;
+    private final AircraftTypeRepository aircraftTypes;
+    private final AircraftStateRepository aircraftStates;
 
     public ReferenceDataService(CountryRepository countries,
                                 ClubStateRepository clubStates,
-                                LocationTypeRepository locationTypes) {
+                                LocationTypeRepository locationTypes,
+                                AircraftTypeRepository aircraftTypes,
+                                AircraftStateRepository aircraftStates) {
         this.countries = countries;
         this.clubStates = clubStates;
         this.locationTypes = locationTypes;
+        this.aircraftTypes = aircraftTypes;
+        this.aircraftStates = aircraftStates;
     }
 
     public List<CountryResponse> listCountries() {
@@ -43,6 +53,18 @@ public class ReferenceDataService {
     public List<LocationTypeResponse> listLocationTypes() {
         return locationTypes.findAllByOrderByDescriptionAsc().stream()
                 .map(ReferenceDataMapper::toLocationTypeResponse)
+                .toList();
+    }
+
+    public List<AircraftTypeResponse> listAircraftTypes() {
+        return aircraftTypes.findAllByOrderByLegacyIntIdAsc().stream()
+                .map(ReferenceDataMapper::toAircraftTypeResponse)
+                .toList();
+    }
+
+    public List<AircraftStateResponse> listAircraftStates() {
+        return aircraftStates.findAllByOrderByLegacyIntIdAsc().stream()
+                .map(ReferenceDataMapper::toAircraftStateResponse)
                 .toList();
     }
 }

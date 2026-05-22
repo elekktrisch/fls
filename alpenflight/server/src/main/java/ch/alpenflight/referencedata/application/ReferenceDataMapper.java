@@ -1,8 +1,12 @@
 package ch.alpenflight.referencedata.application;
 
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftStateResponse;
+import ch.alpenflight.referencedata.application.ReferenceDataDtos.AircraftTypeResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.ClubStateResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.CountryResponse;
 import ch.alpenflight.referencedata.application.ReferenceDataDtos.LocationTypeResponse;
+import ch.alpenflight.referencedata.domain.AircraftState;
+import ch.alpenflight.referencedata.domain.AircraftType;
 import ch.alpenflight.referencedata.domain.ClubState;
 import ch.alpenflight.referencedata.domain.Country;
 import ch.alpenflight.referencedata.domain.LocationType;
@@ -32,5 +36,23 @@ final class ReferenceDataMapper {
                 type.getCode(),
                 type.getDescription(),
                 type.isAirfield());
+    }
+
+    static AircraftTypeResponse toAircraftTypeResponse(AircraftType type) {
+        return new AircraftTypeResponse(
+                Objects.requireNonNull(type.getId(), "Cannot map an AircraftType without id"),
+                type.getCode(),
+                type.getDescription(),
+                type.getHasEngine(),
+                type.getRequiresTowingInfo(),
+                type.getMayBeTowingAircraft());
+    }
+
+    static AircraftStateResponse toAircraftStateResponse(AircraftState state) {
+        return new AircraftStateResponse(
+                Objects.requireNonNull(state.getId(), "Cannot map an AircraftState without id"),
+                state.getCode(),
+                state.getDescription(),
+                state.isAircraftFlyable());
     }
 }
