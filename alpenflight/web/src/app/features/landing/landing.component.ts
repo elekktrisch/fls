@@ -11,7 +11,7 @@ import { AfLangPickerComponent } from '@ui/molecules/af-lang-picker';
 // Splash placeholder — slate-tinted diagonal-stripes pattern with a
 // brand-500 tint, 1600×1200 aspect. The `splashUrl` input accepts a
 // per-club override once the whitelabel store lands (AC-DIR-3 follow-up).
-const SPLASH_DEFAULT_SVG = "splash.jpg";
+const SPLASH_DEFAULT_SVG = 'splash.jpg';
 
 @Component({
   selector: 'af-landing',
