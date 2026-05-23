@@ -9,7 +9,6 @@ import ch.alpenflight.server.testsupport.TenantTestContext;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Witness implementation of {@link CrossTenantNotFoundContract} against the
@@ -21,7 +20,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class LocationsCrossTenantNotFoundIT extends CrossTenantNotFoundContract {
 
     @Autowired private LocationsService locations;
-    @Autowired private JdbcTemplate jdbc2;
 
     @Override
     protected String pathToReadById(String externalId) {
@@ -30,8 +28,8 @@ class LocationsCrossTenantNotFoundIT extends CrossTenantNotFoundContract {
 
     @Override
     protected String createUnderTenant(UUID clubId) {
-        UUID countryId = jdbc2.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID typeId = jdbc2.queryForObject("SELECT id FROM location_type LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
+        UUID typeId = jdbc.queryForObject("SELECT id FROM location_type LIMIT 1", UUID.class);
         String unique = Long.toString(System.nanoTime(), 36);
         LocationCreateRequest req = new LocationCreateRequest(
                 "IT_XTNF_LOC_" + unique,

@@ -1,7 +1,7 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.locations.domain.Location;
-import jakarta.persistence.EntityManager;
+import ch.alpenflight.server.testsupport.TenantScopedRowBuilders.SweepFixtureContext;
 import java.util.UUID;
 
 /**
@@ -18,9 +18,9 @@ final class LocationSweepFactory {
 
     private LocationSweepFactory() {}
 
-    static Location build(EntityManager em) {
-        UUID countryId = firstId(em, "country");
-        UUID locationTypeId = firstId(em, "location_type");
+    static Location build(SweepFixtureContext ctx) {
+        UUID countryId = firstId(ctx, "country");
+        UUID locationTypeId = firstId(ctx, "location_type");
         String unique = Long.toString(System.nanoTime(), 36);
         return Location.create(
                 TenantScopedRowBuilders.SWEEP_PREFIX + "LOC_" + unique,
@@ -37,13 +37,12 @@ final class LocationSweepFactory {
                 false, false, false);
     }
 
-    private static UUID firstId(EntityManager em, String table) {
-        Object result = em.createNativeQuery("SELECT id FROM " + table + " LIMIT 1")
-                .getSingleResultOrNull();
-        if (result == null) {
+    private static UUID firstId(SweepFixtureContext ctx, String table) {
+        UUID id = ctx.jdbc().queryForObject("SELECT id FROM " + table + " LIMIT 1", UUID.class);
+        if (id == null) {
             throw new IllegalStateException(
                     "No row in " + table + " — V3 seed must populate at least one reference row");
         }
-        return (UUID) result;
+        return id;
     }
 }

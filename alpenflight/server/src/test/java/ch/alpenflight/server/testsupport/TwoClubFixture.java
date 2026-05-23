@@ -12,6 +12,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p>Per ADR 0021 — pre-clean by stable test-name keys at seed time, no
  * {@code @AfterEach}. Per-class instances pick their own UUID pair + prefix
  * so multiple {@code IT}s coexist in the JVM without colliding.
+ *
+ * <p>{@link #seed()} also clears tenant-scoped child rows under the two
+ * clubs via {@link #deleteTenantScopedRows()} — driven by
+ * {@link TenantScopedEntityCatalog} so a new {@code @TenantId} entity lands
+ * its cleanup automatically. Aggregate-internal child tables that lack a
+ * direct {@code club_id} (today: {@code inoutbound_point}) are handled by
+ * an explicit reverse-dependency delete.
  */
 public final class TwoClubFixture {
 
@@ -33,7 +40,9 @@ public final class TwoClubFixture {
     public UUID clubA() { return clubA; }
     public UUID clubB() { return clubB; }
 
+    /** Wipes prior tenant rows + clubs, then inserts the two test clubs. */
     public void seed() {
+        deleteTenantScopedRows();
         deleteClubs();
         insertClub(clubA, "alpha");
         insertClub(clubB, "bravo");
@@ -42,6 +51,21 @@ public final class TwoClubFixture {
     public void deleteClubs() {
         jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
+    }
+
+    /** Deletes every tenant-scoped row under the two seed clubs. */
+    public void deleteTenantScopedRows() {
+        // Aggregate-internal child via parent FK chain — handled before
+        // location's own delete. Today's only such case; future stories add
+        // siblings here as they land.
+        jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
+                        + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
+                clubA.toString(), clubB.toString());
+        for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
+            String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
+            jdbc.update("DELETE FROM " + table + " WHERE club_id IN (?::uuid, ?::uuid)",
+                    clubA.toString(), clubB.toString());
+        }
     }
 
     private void insertClub(UUID id, String slug) {
