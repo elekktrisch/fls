@@ -69,18 +69,29 @@ audit:
     deny-all:
       - Person
     entities:
+      # Names below are the entity field names (what reflection sees), NOT
+      # the JSON-serialized property names — the redactor walks @Entity
+      # fields directly. Coverage is enforced by AuditRedactionCoverageTest;
+      # a new field that's neither here nor @AuditRedact-annotated fails CI.
       Club:
+        # `name` matches the ClubResponse DTO field; `clubname` matches the
+        # Club entity field. Service-layer callers may pass either shape;
+        # both are safe to log.
         allow:
           - id
           - name
+          - clubname
           - slug
           - clubKey
           - countryId
           - clubStateId
           - publicRegistrationEnabled
+          - deletedOn
       Location:
+        # Lists both DTO field names and entity field names — see Club above.
         allow:
           - id
+          - clubId
           - locationName
           - locationShortName
           - countryId
@@ -99,8 +110,28 @@ audit:
           - isInboundRouteRequired
           - isOutboundRouteRequired
           - isFastEntryRecord
+          - inboundRouteRequired
+          - outboundRouteRequired
+          - fastEntryRecord
           - inOutboundPoints
+          - deletedOn
+          - deletedByUserId
+      InOutboundPoint:
+        allow:
+          - id
+          - location
+          - pointName
+          - pointType
+          - direction
+          - description
+      MemberState:
+        allow:
+          - id
+          - clubId
+          - name
       Aircraft:
+        # Lists both DTO field names (`isXxx`-prefixed by Jackson convention)
+        # and entity field names. Service-layer callers may pass either.
         allow:
           - id
           - ownerClubId
@@ -126,15 +157,35 @@ audit:
           - isWinchStartAllowed
           - isTowingAircraft
           - isFastEntryRecord
+          - towingOrWinchRequired
+          - towingStartAllowed
+          - winchStartAllowed
+          - towingAircraft
+          - fastEntryRecord
           - comment
           - daecIndex
           - currentState
           - latestCounter
+          - deletedOn
+          - deletedByUserId
+          - stateHistory
+          - operatingCounters
+      AircraftStateHistoryEntry:
+        # `noticedByPersonId` + `remarks` carry @AuditRedact on the field
+        # (PII-adjacent / free text); reflection redacts them regardless of
+        # this list. Keeping the rest explicit means coverage gaps surface.
+        allow:
+          - id
+          - aircraft
           - aircraftStateId
           - validFrom
           - validTo
-          - noticedByPersonId
-          - remarks
+          - deletedOn
+          - deletedByUserId
+      AircraftOperatingCounter:
+        allow:
+          - id
+          - aircraft
           - atDateTime
           - totalTowedGliderStarts
           - totalWinchLaunchStarts
@@ -143,6 +194,8 @@ audit:
           - engineOperatingCounterInSeconds
           - nextMaintenanceAtFlightOperatingCounterInSeconds
           - nextMaintenanceAtEngineOperatingCounterInSeconds
+          - deletedOn
+          - deletedByUserId
 
 server:
   port: 8080

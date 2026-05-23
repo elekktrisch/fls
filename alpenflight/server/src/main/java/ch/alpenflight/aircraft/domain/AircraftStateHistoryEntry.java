@@ -1,5 +1,6 @@
 package ch.alpenflight.aircraft.domain;
 
+import ch.alpenflight.audit.domain.AuditRedact;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -48,9 +49,11 @@ public class AircraftStateHistoryEntry {
     private @Nullable Instant validTo;
 
     @Column(name = "noticed_by_person_id")
+    @AuditRedact
     private @Nullable UUID noticedByPersonId;
 
     @Column(name = "remarks")
+    @AuditRedact
     private @Nullable String remarks;
 
     @Column(name = "deleted_on")
