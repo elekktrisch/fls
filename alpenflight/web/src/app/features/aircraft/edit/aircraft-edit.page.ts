@@ -34,7 +34,6 @@ import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
-import { ClubsStore } from '../../clubs/clubs.store';
 import { LocationsStore } from '../../locations/locations.store';
 import { ReferenceDataStore } from '../../../core/reference-data/reference-data.store';
 import { SessionStore } from '../../../core/session/session.store';
@@ -47,7 +46,6 @@ const COMP_SIGN_PATTERN = /^[A-Za-z0-9]{1,5}$/;
 type AircraftForm = FormGroup<{
   aircraftTypeId: FormControl<string>;
   immatriculation: FormControl<string>;
-  ownerClubId: FormControl<string>;
   manufacturerName: FormControl<string>;
   aircraftModel: FormControl<string>;
   competitionSign: FormControl<string>;
@@ -233,17 +231,6 @@ type AircraftForm = FormGroup<{
               Operational data
             </h2>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              @if (isCreate() && showOwnerSelect()) {
-                <af-form-field label="Owner club" for="OwnerClubId">
-                  <af-select
-                    inputId="OwnerClubId"
-                    formControlName="ownerClubId"
-                    placeholder="Charter (no owner)"
-                    [options]="ownerClubOptions()"
-                    data-testid="aircraft-owner-select"
-                  />
-                </af-form-field>
-              }
               <af-form-field label="Homebase" for="HomebaseId">
                 <af-select
                   inputId="HomebaseId"
@@ -427,7 +414,6 @@ type AircraftForm = FormGroup<{
 export class AircraftEditPage {
   protected readonly store = inject(AircraftStore);
   protected readonly referenceData = inject(ReferenceDataStore);
-  protected readonly clubs = inject(ClubsStore);
   protected readonly locations = inject(LocationsStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
@@ -438,10 +424,7 @@ export class AircraftEditPage {
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
   protected readonly aircraftId = computed(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.aircraftId() === null);
-  protected readonly canMutate = this.session.isAnyAdmin;
-  // Only SYSTEM_ADMIN can pick the owner; CLUB_ADMIN's aircraft are auto-owned
-  // by their own club server-side (the controller fills it in from the JWT).
-  protected readonly showOwnerSelect = this.session.isSystemAdmin;
+  protected readonly canMutate = this.session.isClubAdmin;
 
   protected readonly typeOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.referenceData.aircraftTypes().map((t) => ({
@@ -471,11 +454,6 @@ export class AircraftEditPage {
         value: u.id,
         label: u.shortName ? `${u.name} (${u.shortName})` : u.name,
       })),
-  ]);
-
-  protected readonly ownerClubOptions = computed<readonly AfSelectOption<string>[]>(() => [
-    { value: '', label: '— Charter (no owner) —' },
-    ...this.clubs.entities().map((c) => ({ value: c.id, label: c.name ?? c.id })),
   ]);
 
   // Year-only picker (legacy parity: stored as YYYY-01-01, displayed as year).
@@ -523,7 +501,6 @@ export class AircraftEditPage {
       Validators.maxLength(15),
       Validators.pattern(IMMAT_PATTERN),
     ]),
-    ownerClubId: this.fb.nonNullable.control(''),
     manufacturerName: this.fb.nonNullable.control('', [Validators.maxLength(100)]),
     aircraftModel: this.fb.nonNullable.control('', [Validators.maxLength(50)]),
     competitionSign: this.fb.nonNullable.control('', [
@@ -722,7 +699,6 @@ function isoToYear(iso: string | null | undefined): string {
 function detailToFormValue(d: AircraftDetail): Partial<{
   aircraftTypeId: string;
   immatriculation: string;
-  ownerClubId: string;
   manufacturerName: string;
   aircraftModel: string;
   competitionSign: string;
@@ -747,7 +723,6 @@ function detailToFormValue(d: AircraftDetail): Partial<{
   return {
     aircraftTypeId: d.aircraftTypeId,
     immatriculation: d.immatriculation,
-    ownerClubId: d.ownerClubId ?? '',
     manufacturerName: d.manufacturerName ?? '',
     aircraftModel: d.aircraftModel ?? '',
     competitionSign: d.competitionSign ?? '',
@@ -781,7 +756,6 @@ function formToCreateRequest(form: AircraftForm): AircraftCreateRequest {
     isWinchStartAllowed: v.isWinchStartAllowed,
     isTowingAircraft: v.isTowingAircraft,
   };
-  if (v.ownerClubId !== '') req.ownerClubId = v.ownerClubId;
   if (v.manufacturerName !== '') req.manufacturerName = v.manufacturerName;
   if (v.aircraftModel !== '') req.aircraftModel = v.aircraftModel;
   if (v.competitionSign !== '') req.competitionSign = v.competitionSign;

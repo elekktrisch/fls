@@ -7,7 +7,7 @@
  */
 
 /**
- * Payload to update an Aircraft. ownerClubId / aircraftOwnerPersonId are NOT settable here — use the transfer-ownership endpoint (A04 defense).
+ * Payload to update an Aircraft. Ownership fields are not settable here — use the transfer-ownership endpoint (A04 defense).
  */
 export type AircraftUpdateRequest = {
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */

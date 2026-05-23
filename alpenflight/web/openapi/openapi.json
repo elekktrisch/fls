@@ -23,11 +23,11 @@
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
+    "name" : "Aircraft",
+    "description" : "Aircraft CRUD (per-club tenant-scoped masterdata)."
+  }, {
     "name" : "AircraftTypes",
     "description" : "Aircraft-type reference catalog."
-  }, {
-    "name" : "Locations Admin",
-    "description" : "SYSTEM_ADMINISTRATOR cross-tenant Locations management."
   }, {
     "name" : "ClubStates",
     "description" : "Club lifecycle-state catalog."
@@ -40,9 +40,6 @@
   }, {
     "name" : "Clubs",
     "description" : "Clubs CRUD."
-  }, {
-    "name" : "Aircraft",
-    "description" : "Aircraft CRUD (cross-tenant masterdata)."
   } ],
   "paths" : {
     "/api/v1/locations/{id}" : {
@@ -412,152 +409,6 @@
         }
       }
     },
-    "/api/v1/admin/locations/{clubId}/{id}" : {
-      "get" : {
-        "tags" : [ "Locations Admin" ],
-        "summary" : "Read a single Location under {clubId}.",
-        "operationId" : "adminGetLocation",
-        "parameters" : [ {
-          "name" : "clubId",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        }, {
-          "name" : "id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Location detail projection.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          },
-          "404" : {
-            "description" : "No active location with that id under {clubId}.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put" : {
-        "tags" : [ "Locations Admin" ],
-        "summary" : "Update a Location under {clubId}.",
-        "operationId" : "adminUpdateLocation",
-        "parameters" : [ {
-          "name" : "clubId",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        }, {
-          "name" : "id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/LocationUpdateRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "description" : "Updated; body is the new state.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          },
-          "404" : {
-            "description" : "No active location with that id under {clubId}.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          },
-          "409" : {
-            "description" : "ICAO code already in use by another Location.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete" : {
-        "tags" : [ "Locations Admin" ],
-        "summary" : "Soft-delete a Location under {clubId}.",
-        "operationId" : "adminDeleteLocation",
-        "parameters" : [ {
-          "name" : "clubId",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        }, {
-          "name" : "id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        } ],
-        "responses" : {
-          "204" : {
-            "description" : "Deleted."
-          },
-          "404" : {
-            "description" : "No active location with that id under {clubId}."
-          }
-        }
-      }
-    },
     "/api/v1/locations" : {
       "get" : {
         "tags" : [ "Locations" ],
@@ -767,7 +618,7 @@
     "/api/v1/aircraft/{id}/transfer-ownership" : {
       "post" : {
         "tags" : [ "Aircraft" ],
-        "summary" : "Transfer ownership of an Aircraft (SYSTEM_ADMINISTRATOR-only).",
+        "summary" : "Transfer ownership of an Aircraft (CLUB_ADMINISTRATOR of the managing club).",
         "operationId" : "transferOwnership",
         "parameters" : [ {
           "name" : "id",
@@ -958,95 +809,6 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AircraftOperatingCounterResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/admin/locations/{clubId}" : {
-      "get" : {
-        "tags" : [ "Locations Admin" ],
-        "summary" : "List locations for {clubId}.",
-        "operationId" : "adminListLocations",
-        "parameters" : [ {
-          "name" : "clubId",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Array of location listitem projections.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/LocationListItem"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post" : {
-        "tags" : [ "Locations Admin" ],
-        "summary" : "Create a new Location under {clubId}.",
-        "operationId" : "adminCreateLocation",
-        "parameters" : [ {
-          "name" : "clubId",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/LocationCreateRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "201" : {
-            "description" : "Created; body is the new Location.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          },
-          "400" : {
-            "description" : "Validation failed.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
-                }
-              }
-            }
-          },
-          "409" : {
-            "description" : "ICAO code already in use within {clubId}.",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/LocationDetail"
                 }
               }
             }
@@ -2002,13 +1764,8 @@
       },
       "AircraftCreateRequest" : {
         "type" : "object",
-        "description" : "Payload to register a new Aircraft. ownerClubId is settable at create time only.",
+        "description" : "Payload to register a new Aircraft. Ownership defaults to the managing club; change via transfer-ownership.",
         "properties" : {
-          "ownerClubId" : {
-            "type" : "string",
-            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
-            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-          },
           "aircraftTypeId" : {
             "type" : "string",
             "format" : "uuid",
@@ -2065,10 +1822,6 @@
             "type" : "integer",
             "format" : "int32",
             "minimum" : 0
-          },
-          "aircraftOwnerPersonId" : {
-            "type" : "string",
-            "format" : "uuid"
           },
           "flightOperatingCounterUnitTypeId" : {
             "type" : "string",
@@ -2291,6 +2044,261 @@
           "comment" : {
             "type" : "string"
           }
+        },
+        "required" : [ "code", "id", "name" ]
+      },
+      "ClubStateResponse" : {
+        "type" : "object",
+        "description" : "ClubState listitem projection — dropdown fuel.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7bb8-8000-000000000bb8",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "id", "name" ]
+      },
+      "AircraftListItem" : {
+        "type" : "object",
+        "description" : "Aircraft listitem projection — sorted by immatriculation.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "ownerClubId" : {
+            "type" : "string",
+            "example" : "clb-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "immatriculation" : {
+            "type" : "string"
+          },
+          "competitionSign" : {
+            "type" : "string"
+          },
+          "aircraftTypeId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7af9-8000-000000002af9",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "aircraftTypeCode" : {
+            "type" : "string"
+          },
+          "hasEngine" : {
+            "type" : "boolean"
+          },
+          "isTowingAircraft" : {
+            "type" : "boolean"
+          },
+          "currentStateCode" : {
+            "type" : "string"
+          },
+          "currentStateFlyable" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "aircraftTypeCode", "aircraftTypeId", "hasEngine", "id", "immatriculation", "isTowingAircraft" ]
+      },
+      "AircraftStateHistory" : {
+        "type" : "object",
+        "description" : "Paginated list of state-history entries (newest first).",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AircraftStateHistoryEntryResponse"
+            }
+          }
+        },
+        "required" : [ "entries" ]
+      },
+      "AircraftCounterHistory" : {
+        "type" : "object",
+        "description" : "Paginated list of operating-counter entries (newest first).",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AircraftOperatingCounterResponse"
+            }
+          }
+        },
+        "required" : [ "entries" ]
+      },
+      "AircraftPickerItem" : {
+        "type" : "object",
+        "description" : "Aircraft picker projection — slim shape for FE pickers on Flight / Reservation forms.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "immatriculation" : {
+            "type" : "string"
+          },
+          "aircraftTypeId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7af9-8000-000000002af9",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "isTowingAircraft" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "aircraftTypeId", "id", "immatriculation", "isTowingAircraft" ]
+      },
+      "AircraftTypeResponse" : {
+        "type" : "object",
+        "description" : "AircraftType listitem projection — drives the type-discriminator dropdown + filter slices.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7af9-8000-000000002af9",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "hasEngine" : {
+            "type" : "boolean"
+          },
+          "requiresTowingInfo" : {
+            "type" : "boolean"
+          },
+          "mayBeTowingAircraft" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "code", "description", "id" ]
+      },
+      "AircraftStateResponse" : {
+        "type" : "object",
+        "description" : "AircraftState listitem projection — drives the airworthiness dropdown.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e2e15-2c00-7ee0-8000-000000002ee0",
+            "pattern" : "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "isAircraftFlyable" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "code", "description", "id", "isAircraftFlyable" ]
+      },
+      "AuditEventPage" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AuditEventRow"
+            }
+          },
+          "hasMore" : {
+            "type" : "boolean"
+          },
+          "nextOffset" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "AuditEventRow" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "actorUserId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "actorKeycloakSub" : {
+            "type" : "string"
+          },
+          "tenantClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "action" : {
+            "type" : "string",
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT" ]
+          },
+          "targetEntityType" : {
+            "type" : "string"
+          },
+          "targetEntityId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "requestId" : {
+            "type" : "string"
+          },
+          "beforeState" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "afterState" : {
+            "type" : "object",
+            "additionalProperties" : { }
+          },
+          "failed" : {
+            "type" : "boolean"
+          },
+          "systemActor" : {
+            "type" : "boolean"
+          },
+          "httpStatus" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "failureReason" : {
+            "type" : "string"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "type" : "http",
+        "description" : "OIDC bearer token (Keycloak in dev, hosted IdP TBD in prod).",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  }
+}
+}
         },
         "required" : [ "code", "id", "name" ]
       },

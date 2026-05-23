@@ -6,13 +6,18 @@ import { filter, map, startWith } from 'rxjs';
 import { SessionStore } from './core/session/session.store';
 import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
 
-const BASE_SECTIONS: readonly NavItem[] = [
-  { path: '/clubs', label: 'Clubs', icon: 'plane' },
+// Tenant-scoped nav (require a managing club; hidden for sysadmin).
+const TENANT_SECTIONS: readonly NavItem[] = [
   { path: '/aircraft', label: 'Aircraft', icon: 'plane' },
   { path: '/locations', label: 'Locations', icon: 'map-pin' },
   // Future sections (Flights, Reservations, Members, Reports, Settings) land
   // here as their feature stories ship — kept inline so the nav-bar's input
   // surface stays a pure data shape.
+];
+
+// Cross-cutting nav (available to every authenticated principal).
+const CROSS_CUTTING_SECTIONS: readonly NavItem[] = [
+  { path: '/clubs', label: 'Clubs', icon: 'plane' },
 ];
 
 @Component({
@@ -31,20 +36,15 @@ export class AppComponent {
   private readonly route = inject(ActivatedRoute);
   protected readonly session = inject(SessionStore);
 
-  // Sysadmin gets an extra entry pointing at the cross-tenant admin surface.
-  // Gated on `session.isSystemAdmin` so the entry is hidden for everyone else
-  // (server also gates the route via `sysadminGuard` + `@PreAuthorize`). The
-  // label stays literal English to match the rest of `BASE_SECTIONS` — nav-bar
-  // i18n is tracked separately and lands when the rest of the sections are
-  // translated.
+  // Per S-159: sysadmin has no managing tenant (no clubId claim), so the
+  // tenant-scoped pages render empty. Hide those nav entries entirely for
+  // sysadmin; the remaining cross-cutting entries (Clubs today, sysadmin
+  // user mgmt later) are what they can actually act on.
   protected readonly sections = computed<readonly NavItem[]>(() => {
-    if (!this.session.isSystemAdmin()) {
-      return BASE_SECTIONS;
+    if (this.session.isSystemAdmin()) {
+      return CROSS_CUTTING_SECTIONS;
     }
-    return [
-      ...BASE_SECTIONS,
-      { path: '/admin/locations', label: 'Locations admin', icon: 'shield' },
-    ];
+    return [...CROSS_CUTTING_SECTIONS, ...TENANT_SECTIONS];
   });
 
   protected readonly userSummary = computed<UserSummary | null>(() => {

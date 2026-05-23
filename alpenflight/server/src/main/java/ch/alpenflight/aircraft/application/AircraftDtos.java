@@ -150,7 +150,7 @@ public final class AircraftDtos {
             @Nullable @Size(max = 250) String comment,
             @Nullable Integer daecIndex) {}
 
-    @Schema(description = "Payload to update an Aircraft. ownerClubId / aircraftOwnerPersonId are NOT settable here — use the transfer-ownership endpoint (A04 defense).")
+    @Schema(description = "Payload to update an Aircraft. Ownership fields are not settable here — use the transfer-ownership endpoint (A04 defense).")
     public record AircraftUpdateRequest(
             @NotNull AircraftTypeId aircraftTypeId,
             @NotBlank @Size(min = 2, max = 15)

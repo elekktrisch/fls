@@ -35,13 +35,6 @@ export const routes: Routes = [
     loadChildren: () => import('@features/aircraft/aircraft.routes').then((m) => m.AIRCRAFT_ROUTES),
   },
   {
-    path: 'admin/locations',
-    loadChildren: () =>
-      import('@features/admin/locations/admin-locations.routes').then(
-        (m) => m.ADMIN_LOCATIONS_ROUTES,
-      ),
-  },
-  {
     path: 'dev/primitives',
     loadChildren: () =>
       import('./dev/primitives/primitives.routes').then((m) => m.PRIMITIVES_ROUTES),
