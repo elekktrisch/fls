@@ -2,7 +2,8 @@
 id: S-027
 title: Audit-log infrastructure (every mutating endpoint emits an event)
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-23
 depends_on: [S-020, S-022]
 acceptance:
   - An `audit_event` table (in V1__baseline — add via new V*__ migration if baseline already shipped) captures: `id`, `timestamp`, `actor_user_id` (nullable for anonymous), `actor_keycloak_sub`, `tenant_club_id`, `event_type`, `target_entity_type`, `target_entity_id`, `request_id`, `before_state` (jsonb, nullable), `after_state` (jsonb).
@@ -17,6 +18,7 @@ refined: true
 refined_at: 2026-05-22
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
 context7_last_checked: 2026-05-22
+github_issue: 104
 ---
 
 ## Context
