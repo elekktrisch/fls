@@ -1273,14 +1273,11 @@
         } ],
         "responses" : {
           "200" : {
-            "description" : "Page of audit-event projections.",
+            "description" : "Page of audit-event projections + cursor metadata.",
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/AuditEventRow"
-                  }
+                  "$ref" : "#/components/schemas/AuditEventPage"
                 }
               }
             }
@@ -2460,6 +2457,24 @@
         },
         "required" : [ "code", "description", "id", "isAircraftFlyable" ]
       },
+      "AuditEventPage" : {
+        "type" : "object",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AuditEventRow"
+            }
+          },
+          "hasMore" : {
+            "type" : "boolean"
+          },
+          "nextOffset" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
       "AuditEventRow" : {
         "type" : "object",
         "properties" : {
@@ -2476,8 +2491,7 @@
             "format" : "uuid"
           },
           "actorKeycloakSub" : {
-            "type" : "string",
-            "format" : "uuid"
+            "type" : "string"
           },
           "tenantClubId" : {
             "type" : "string",
@@ -2498,10 +2512,12 @@
             "type" : "string"
           },
           "beforeState" : {
-            "type" : "string"
+            "type" : "object",
+            "additionalProperties" : { }
           },
           "afterState" : {
-            "type" : "string"
+            "type" : "object",
+            "additionalProperties" : { }
           },
           "failed" : {
             "type" : "boolean"
@@ -2515,6 +2531,84 @@
           },
           "failureReason" : {
             "type" : "string"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "type" : "http",
+        "description" : "OIDC bearer token (Keycloak in dev, hosted IdP TBD in prod).",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  }
+}
+t" : {
+            "type" : "boolean"
+          },
+          "float" : {
+            "type" : "boolean"
+          },
+          "string" : {
+            "type" : "boolean"
+          },
+          "pojo" : {
+            "type" : "boolean"
+          },
+          "floatingPointNumber" : {
+            "type" : "boolean"
+          },
+          "short" : {
+            "type" : "boolean"
+          },
+          "valueNode" : {
+            "type" : "boolean"
+          },
+          "missingNode" : {
+            "type" : "boolean"
+          },
+          "nodeType" : {
+            "type" : "string",
+            "enum" : [ "ARRAY", "BINARY", "BOOLEAN", "MISSING", "NULL", "NUMBER", "OBJECT", "POJO", "STRING" ]
+          },
+          "integralNumber" : {
+            "type" : "boolean"
+          },
+          "int" : {
+            "type" : "boolean"
+          },
+          "long" : {
+            "type" : "boolean"
+          },
+          "double" : {
+            "type" : "boolean"
+          },
+          "bigDecimal" : {
+            "type" : "boolean"
+          },
+          "bigInteger" : {
+            "type" : "boolean"
+          },
+          "textual" : {
+            "type" : "boolean",
+            "deprecated" : true
+          },
+          "boolean" : {
+            "type" : "boolean"
+          },
+          "binary" : {
+            "type" : "boolean"
+          },
+          "container" : {
+            "type" : "boolean"
+          },
+          "number" : {
+            "type" : "boolean"
+          },
+          "embeddedValue" : {
+            "type" : "boolean"
           }
         }
       }

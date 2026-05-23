@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.audit.application.AuditRedactionProperties.EntityPolicy;
 import ch.alpenflight.audit.domain.AuditRedact;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Drives the {@link PiiRedactor} contract:
@@ -110,7 +110,7 @@ class PiiRedactorTest {
     }
 
     private static PiiRedactor redactorFor(Map<String, EntityPolicy> entities, List<String> denyAll) {
-        return new PiiRedactor(new AuditRedactionProperties(entities, denyAll));
+        return new PiiRedactor(new AuditRedactionProperties(entities, denyAll), JSON);
     }
 
     private static JsonNode parse(String json) {

@@ -1,14 +1,14 @@
 package ch.alpenflight.audit.web;
 
+import ch.alpenflight.audit.application.AuditEventDtos.AuditEventPage;
+import ch.alpenflight.audit.application.AuditEventDtos.AuditEventQuery;
+import ch.alpenflight.audit.application.AuditQueryService;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
-import ch.alpenflight.audit.domain.MutationAuditEventRepository;
-import ch.alpenflight.audit.web.AuditEventDtos.AuditEventRow;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
@@ -19,16 +19,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Admin read surface for the mutation-audit trail. Per-tenant scoping is
- * structural — Hibernate's {@code @TenantId} discriminator on
- * {@link MutationAuditEvent} filters every query to the caller's tenant.
- * Cross-tenant access (a SYSTEM_ADMINISTRATOR auditing another club) is
- * deferred to S-023's {@code UnscopedTenantContext}; until that lands,
- * SYSTEM_ADMINISTRATOR sees only their own JWT-claimed tenant, identical
- * to CLUB_ADMINISTRATOR.
- *
- * <p>S-056 (admin UI) consumes this endpoint through the generated TS
- * client.
+ * Admin read surface for the mutation-audit trail. Thin shim — delegates
+ * to {@link AuditQueryService} for the query + DTO mapping. Per-tenant
+ * scoping is structural via Hibernate's {@code @TenantId} discriminator
+ * on {@link MutationAuditEvent}; cross-tenant SYSTEM_ADMINISTRATOR access
+ * is deferred to S-023's {@code UnscopedTenantContext}.
  */
 @RestController
 @RequestMapping(path = "/api/v1/admin/audit-events", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -38,17 +33,17 @@ class AuditAdminController {
 
     private static final int DEFAULT_PAGE_SIZE = 50;
 
-    private final MutationAuditEventRepository repository;
+    private final AuditQueryService queryService;
 
-    AuditAdminController(MutationAuditEventRepository repository) {
-        this.repository = repository;
+    AuditAdminController(AuditQueryService queryService) {
+        this.queryService = queryService;
     }
 
     @Operation(operationId = "listAuditEvents",
             summary = "List audit events for the caller's tenant. All filters are optional.")
-    @ApiResponse(responseCode = "200", description = "Page of audit-event projections.")
+    @ApiResponse(responseCode = "200", description = "Page of audit-event projections + cursor metadata.")
     @GetMapping
-    List<AuditEventRow> listAuditEvents(
+    AuditEventPage listAuditEvents(
             @RequestParam(required = false) @Nullable Instant occurredFrom,
             @RequestParam(required = false) @Nullable Instant occurredTo,
             @RequestParam(required = false) @Nullable AuditAction action,
@@ -56,38 +51,8 @@ class AuditAdminController {
             @RequestParam(required = false) @Nullable UUID actorUserId,
             @RequestParam(required = false, defaultValue = "" + DEFAULT_PAGE_SIZE) int pageSize,
             @RequestParam(required = false, defaultValue = "0") int pageOffset) {
-        return repository.findPage(occurredFrom, occurredTo, action, targetEntityType,
-                        actorUserId, pageSize, pageOffset)
-                .stream()
-                .map(AuditAdminController::toRow)
-                .toList();
-    }
-
-    private static AuditEventRow toRow(MutationAuditEvent e) {
-        UUID id = e.getId();
-        Instant occurredAt = e.getOccurredAt();
-        AuditAction action = e.getAction();
-        String type = e.getTargetEntityType();
-        if (id == null || occurredAt == null || action == null || type == null) {
-            throw new IllegalStateException(
-                    "Loaded audit row is missing required fields (id/occurredAt/action/type)");
-        }
-        Short status = e.getHttpStatus();
-        return new AuditEventRow(
-                id,
-                occurredAt,
-                e.getActorUserId(),
-                e.getActorKeycloakSub(),
-                e.getTenantClubId(),
-                action,
-                type,
-                e.getTargetEntityId(),
-                e.getRequestId(),
-                e.getBeforeState(),
-                e.getAfterState(),
-                e.isFailed(),
-                e.isSystemActor(),
-                status == null ? null : status.intValue(),
-                e.getFailureReason());
+        return queryService.findPage(new AuditEventQuery(
+                occurredFrom, occurredTo, action, targetEntityType,
+                actorUserId, pageSize, pageOffset));
     }
 }

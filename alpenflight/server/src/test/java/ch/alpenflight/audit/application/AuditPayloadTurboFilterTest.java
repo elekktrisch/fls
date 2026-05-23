@@ -58,12 +58,28 @@ class AuditPayloadTurboFilterTest {
     }
 
     @Test
-    void denies_message_referencing_before_state_field() {
-        LOG.info("debug dump before_state: {}", "{\"name\":\"x\"}");
+    void denies_message_carrying_explicit_audit_payload_marker() {
+        LOG.info("debug dump {} {}",
+                AuditPayloadTurboFilter.AUDIT_PAYLOAD_MARKER,
+                "{\"name\":\"x\"}");
 
         assertThat(appender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
-                .noneMatch(m -> m.contains("before_state"));
+                .noneMatch(m -> m.contains(AuditPayloadTurboFilter.AUDIT_PAYLOAD_MARKER));
+    }
+
+    @Test
+    void allows_log_referencing_before_state_column_name_only() {
+        // Earlier revisions denied any line containing the literal string
+        // "before_state" — too broad. Operational logs (e.g.
+        // "fetched mutation_audit_event.before_state") were unintentionally
+        // suppressed. The narrowed rule reserves the deny for actual payload
+        // markers (sentinel + AUDIT_PAYLOAD_MARKER).
+        LOG.info("repository hit before_state column count={}", 12);
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anyMatch(m -> m.contains("before_state"));
     }
 
     @Test

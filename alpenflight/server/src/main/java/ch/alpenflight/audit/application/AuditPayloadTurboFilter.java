@@ -13,24 +13,36 @@ import org.springframework.stereotype.Component;
 
 /**
  * Logback {@code TurboFilter} that drops any log statement whose formatted
- * message contains an audit-payload marker (the redactor's
- * {@code [redacted]} sentinel) or shows other signs of carrying the
- * {@code before_state} / {@code after_state} jsonb. Defends the audit
- * perimeter from PII bleed: even a {@code log.info("audit row: {}", event)}
- * accidentally inlining the snapshot becomes a silent {@link FilterReply#DENY}
- * instead of a permanent log-file leak.
+ * message carries audit-payload jsonb. Two narrow signals trigger the
+ * deny: the redactor's {@code [redacted]} sentinel (a serialised snapshot
+ * is the only place that string legitimately appears) and the explicit
+ * {@link #AUDIT_PAYLOAD_MARKER} marker — code that needs to log the
+ * payload deliberately must opt out by NOT including the marker.
  *
- * <p>Application logs reference {@code mutation_audit_event.id} only
- * (the operator clicks through to the row in S-056). This filter is the
+ * <p>Application logs reference {@code mutation_audit_event.id} only; the
+ * operator clicks through to the row in S-056. This filter is the
  * structural guard against drift from that convention.
+ *
+ * <p>Earlier revisions also denied any line containing the literal
+ * strings {@code "before_state"} / {@code "after_state"} — too broad
+ * (a normal "fetched mutation_audit_event" entry mentioning the column
+ * name was suppressed). The narrowed rule keeps the leak-prevention
+ * scope intact while leaving operational logs untouched.
  */
 @Component
 public class AuditPayloadTurboFilter extends TurboFilter {
 
+    /**
+     * Marker substring code uses to mark a log payload as carrying audit
+     * jsonb (and therefore PII-suspect). Include it in any log format
+     * that intentionally serialises an audit snapshot — the filter then
+     * suppresses the line.
+     */
+    public static final String AUDIT_PAYLOAD_MARKER = "[audit-payload]";
+
     private static final String[] FORBIDDEN_TOKENS = {
             PiiRedactor.REDACTED_SENTINEL,
-            "before_state",
-            "after_state",
+            AUDIT_PAYLOAD_MARKER,
     };
 
     @PostConstruct

@@ -79,10 +79,12 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = JSON.readTree(res.getBody());
-        assertThat(body.isArray()).isTrue();
-        assertThat(body.size()).isGreaterThanOrEqualTo(1);
-        assertThat(body.get(0).get("action").asText()).isEqualTo("CREATE");
-        assertThat(body.get(0).get("targetEntityType").asText()).isEqualTo("Club");
+        JsonNode items = body.get("items");
+        assertThat(items.isArray()).as("response is paginated; items is the array").isTrue();
+        assertThat(items.size()).isGreaterThanOrEqualTo(1);
+        assertThat(items.get(0).get("action").asText()).isEqualTo("CREATE");
+        assertThat(items.get(0).get("targetEntityType").asText()).isEqualTo("Club");
+        assertThat(body.has("hasMore")).as("cursor-pagination metadata").isTrue();
     }
 
     @Test
@@ -105,7 +107,7 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = JSON.readTree(res.getBody());
-        for (JsonNode row : body) {
+        for (JsonNode row : body.get("items")) {
             assertThat(row.get("action").asText()).isEqualTo("UPDATE");
         }
     }
@@ -148,7 +150,7 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = JSON.readTree(res.getBody());
-        assertThat(body.isArray()).isTrue();
+        assertThat(body.get("items").isArray()).isTrue();
     }
 
     private ResponseEntity<String> post(String path, Map<String, Object> body, String token) {

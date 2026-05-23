@@ -2,14 +2,14 @@ package ch.alpenflight.audit.application;
 
 import ch.alpenflight.audit.application.AuditRedactionProperties.EntityPolicy;
 import ch.alpenflight.audit.domain.AuditRedact;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * Default-deny serializer that walks the snapshot reflectively and emits
@@ -37,11 +37,17 @@ public class PiiRedactor {
             "{\"_audit\":\"[oversize-snapshot-elided]\"}";
 
     private final AuditRedactionProperties policy;
-    private final ObjectMapper mapper = new ObjectMapper();
+    // Spring-injected ObjectMapper carries the TypedIdJacksonModule and the
+    // project's Jackson tuning (default-property-inclusion: non_null, ISO-8601
+    // dates, etc.). Constructing a fresh ObjectMapper bypassed both — typed
+    // ids serialised as raw UUIDs and date fields differed from the API
+    // contract. Reuse the configured bean instead.
+    private final ObjectMapper mapper;
     private final Set<String> denyAllSet;
 
-    public PiiRedactor(AuditRedactionProperties policy) {
+    public PiiRedactor(AuditRedactionProperties policy, ObjectMapper mapper) {
         this.policy = policy;
+        this.mapper = mapper;
         this.denyAllSet = Set.copyOf(policy.denyAll());
     }
 
@@ -61,7 +67,7 @@ public class PiiRedactor {
                 return OVERSIZE_FALLBACK_JSON;
             }
             return json;
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             // Serialization failure is itself signal. Surface a stub so the
             // audit row commits — the gap is observable, not silent.
             return "{\"_audit\":\"[serialize-failed]\"}";
