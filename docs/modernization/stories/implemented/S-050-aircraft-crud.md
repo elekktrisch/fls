@@ -7,6 +7,8 @@ started_at: 2026-05-22
 done_at: 2026-05-22
 github_issue: 98
 github_pr: 99
+merged: true
+merged_at: 2026-05-23
 depends_on: [S-049, S-047, S-026, S-022]
 acceptance:
   - `Aircraft`, `AircraftType`, `AircraftState`, `AircraftAircraftState`, `AircraftOperatingCounter` ported.

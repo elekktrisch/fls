@@ -16,9 +16,9 @@ can be diff'd against `tokens.css` here as the source of truth.
 ## What's in here
 
 - `AlpenFlight.html` — entry shell (React + ES modules via Babel-in-browser).
-- `tokens.css` — semantic + raw design tokens (the API). 149 LOC.
+- `tokens.css` — semantic + raw design tokens (the API).
 - `app.css` — component styles (`.af-topbar`, `.af-page`, `.af-btn`,
-  `.af-table`, `.af-card`, etc.). 563 LOC. Author-code only; no antd overrides.
+  `.af-table`, `.af-card`, etc.). Author-code only; no antd overrides.
 - `shell.jsx` — top-bar + nav-drawer + page chrome.
 - `screens-home.jsx` — dashboard / next-flight / quick-actions.
 - `screens-logbook.jsx` — flight log list (mobile card + desktop table).

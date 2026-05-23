@@ -7,18 +7,11 @@
  * private ownership). Per-flight tenancy lives on
  * {@code Flight.operating_club_id}, set per-flight by the operator.
  *
- * <p>Layered per ADR 0023 into four sub-packages:
- * <ul>
- *   <li>{@code aircraft.domain} — {@link ch.alpenflight.aircraft.domain.Aircraft}
- *       aggregate root, {@link ch.alpenflight.aircraft.domain.AircraftStateHistoryEntry}
- *       + {@link ch.alpenflight.aircraft.domain.AircraftOperatingCounter}
- *       aggregate-internal entities, {@link ch.alpenflight.aircraft.domain.AircraftRepository}
- *       port, domain exceptions, value objects.</li>
- *   <li>{@code aircraft.application} — {@code AircraftsService}, DTOs,
- *       mapper, {@code AircraftAccess} SpEL bean.</li>
- *   <li>{@code aircraft.web} — REST controller + exception handler.</li>
- *   <li>{@code aircraft.infra} — Spring Data JPA implementation.</li>
- * </ul>
+ * <p>Layered per ADR 0023 into four sub-packages: {@code domain} (aggregate
+ * root + aggregate-internal entities + repository port + value objects +
+ * domain exceptions), {@code application} (orchestration service + DTOs +
+ * mapper + authz SpEL bean), {@code web} (REST adapter), {@code infra}
+ * (Spring Data JPA adapter).
  *
  * <p>Authz model: read open to any authenticated principal (full-fleet
  * visibility is intentional for charter / loan use cases). Write gated to
