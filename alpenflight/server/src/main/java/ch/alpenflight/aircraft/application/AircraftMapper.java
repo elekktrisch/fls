@@ -47,14 +47,12 @@ final class AircraftMapper {
     }
 
     /**
-     * Build a detail projection for the given principal. {@code ownerVisible}
-     * == false drops fields the Security plan flags as owner-only / PII:
-     * {@code comment} (FADP PII), {@code flarmId} + {@code mtom} +
-     * {@code noiseClass} + {@code noiseLevel} + {@code spotLink}
-     * (sensitive-not-PII). {@code immatriculation} stays — it's a regulator-
-     * public identifier and appears in the list projection anyway.
+     * Build the detail projection. Aircraft is tenant-scoped via
+     * {@code managing_club_id} (S-159), so any caller who sees the row
+     * belongs to the managing tenant — owner-only field redaction is no
+     * longer needed (the {@code @TenantId} discriminator did the work).
      */
-    static AircraftDetail toDetail(Aircraft a, boolean ownerVisible) {
+    static AircraftDetail toDetail(Aircraft a) {
         return new AircraftDetail(
                 Objects.requireNonNull(a.getId(), "Cannot map an unpersisted Aircraft"),
                 ClubId.ofNullable(a.getOwnerClubId()),
@@ -64,24 +62,24 @@ final class AircraftMapper {
                 a.getManufacturerName(),
                 a.getAircraftModel(),
                 a.getCompetitionSign(),
-                ownerVisible ? a.getFlarmId() : null,
+                a.getFlarmId(),
                 a.getAircraftSerialNumber(),
                 a.getYearOfManufacture(),
-                ownerVisible ? a.getNoiseClass() : null,
-                ownerVisible ? a.getNoiseLevel() : null,
-                ownerVisible ? a.getMtom() : null,
+                a.getNoiseClass(),
+                a.getNoiseLevel(),
+                a.getMtom(),
                 a.getNrOfSeats(),
                 a.getAircraftOwnerPersonId(),
                 a.getFlightOperatingCounterUnitTypeId(),
                 a.getEngineOperatingCounterUnitTypeId(),
                 LocationId.ofNullable(a.getHomebaseId()),
-                ownerVisible ? a.getSpotLink() : null,
+                a.getSpotLink(),
                 a.isTowingOrWinchRequired(),
                 a.isTowingStartAllowed(),
                 a.isWinchStartAllowed(),
                 a.isTowingAircraft(),
                 a.isFastEntryRecord(),
-                ownerVisible ? a.getComment() : null,
+                a.getComment(),
                 a.getDaecIndex(),
                 a.getCurrentStateEntry().map(AircraftMapper::toStateResponse).orElse(null),
                 a.getLatestCounter().map(AircraftMapper::toCounterResponse).orElse(null));

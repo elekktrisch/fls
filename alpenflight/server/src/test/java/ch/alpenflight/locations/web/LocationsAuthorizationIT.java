@@ -78,9 +78,9 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
 
     static Stream<Arguments> ownClubWriteMatrix() {
         return Stream.of(
-                // Writer roster — opens to CLUB_ADMIN (own club via @TenantId) +
-                // SYSTEM_ADMIN (any club).
-                Arguments.of("SYSTEM_ADMINISTRATOR", 201),
+                // Writer roster — CLUB_ADMIN only. SYSTEM_ADMINISTRATOR has
+                // no rights on tenant-scoped surfaces (S-159 strip).
+                Arguments.of("SYSTEM_ADMINISTRATOR", 403),
                 Arguments.of("CLUB_ADMINISTRATOR", 201),
                 // Read-only roster — 403 on every write verb (rebuked at the
                 // @PreAuthorize gate, not by tenancy).
@@ -114,7 +114,7 @@ class LocationsAuthorizationIT extends PostgresIntegrationTest {
         // Hibernate's @TenantId filter makes the row invisible under B's
         // scope, so the service throws LocationNotFoundException → 404.
         // 404 (not 403) is structural: the row simply doesn't exist for B.
-        String externalId = createUnderClub(CLUB_A, "ROLE_SYSTEM_ADMINISTRATOR",
+        String externalId = createUnderClub(CLUB_A, "ROLE_CLUB_ADMINISTRATOR",
                 LocationsControllerIT.uniqueIcao());
         mvc.perform(get("/api/v1/locations/" + externalId)
                         .with(role("ROLE_CLUB_ADMINISTRATOR", CLUB_B)))

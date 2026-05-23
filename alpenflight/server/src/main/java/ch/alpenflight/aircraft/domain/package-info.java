@@ -9,10 +9,12 @@
  * {@link ch.alpenflight.aircraft.domain.AircraftRepository} port is the
  * persistence boundary.
  *
- * <p>Cross-tenant per tenant-rules.yaml (2026-05-16 reclassification): no
- * {@code @TenantId} on Aircraft or its aggregate internals. Tenancy / authz
- * lives at the application-service seam via
- * {@code ch.alpenflight.aircraft.application.AircraftAccess}.
+ * <p>Tenant-scoped via {@link ch.alpenflight.aircraft.domain.Aircraft#managingClubId}
+ * (S-159 reclassification): the {@code @TenantId} discriminator filters
+ * reads + writes by the resolved managing tenant. Aggregate-internal
+ * entities ({@code AircraftStateHistoryEntry}, {@code AircraftOperatingCounter})
+ * ride through the parent via FK chain; they do not carry their own
+ * {@code @TenantId}.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.aircraft.domain;

@@ -273,23 +273,25 @@ overrides:
     # The tenant identity row itself. Each Club row IS a tenant.
 
   Aircrafts:
-    kind: cross-tenant   # reclassified 2026-05-16 per operator: aircraft has no @TenantId
+    kind: tenant-scoped   # reclassified 2026-05-23 (S-159): managing_club_id is @TenantId; owner_club_id is independent ownership metadata
     target_entity: Aircraft
     rationale_ref: tenant-catalog.md#aircraft
-    tenant_column_legacy: OwnerClubId  # legacy column; in new schema renamed `owner_club_id` and made NULLABLE
-    owner_column: owner_club_id        # uuid NULL → club(id) ON DELETE SET NULL; aircraft may be Person-owned (private) or cross-club shared (charter / rental)
+    tenant_column_legacy: OwnerId  # legacy BaseEntity column = managing tenant; maps to new managing_club_id
+    owner_column: managing_club_id  # uuid NOT NULL → club(id) ON DELETE RESTRICT; the tenant that registered + operates this aircraft
     emits_audit: true
     pii_columns: [comment]
     sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
     pii_ride_through: [aircraft_owner_person_id]
-    # Reclassification rationale (2026-05-16): Charter / loan / private ownership cases mean
-    # the aircraft has no inherent tenant scope. Each Flight on the aircraft carries its own
-    # `operating_club_id` (set per-flight by the operator, NOT denormalized from aircraft).
-    # Service layer (S-026) enforces "may this club use this aircraft?" via owner_club_id +
-    # charter agreement + public-rental checks. Sacred-cow parallel to Person + Location.
+    # Reclassification rationale (2026-05-23, S-159): supersedes the 2026-05-16
+    # cross-tenant amendment. Every aircraft is registered by exactly one tenant
+    # (managing_club_id, the @TenantId discriminator). Physical ownership is
+    # independent — own-club (owner_club_id == managing_club_id), other
+    # organisation (owner_club_id != managing_club_id, or NULL when external),
+    # or private person (aircraft_owner_person_id). Ownership data does NOT
+    # cross @TenantId boundaries; only the managing club sees the row.
 
   AircraftAircraftStates:
-    kind: cross-tenant
+    kind: tenant-scoped
     target_entity: AircraftAircraftState
     rationale_ref: tenant-catalog.md#aircraft
     emits_audit: true
@@ -297,20 +299,19 @@ overrides:
     pii_ride_through: [noticed_by_person_id]
     ride_through_targets: [Persons]
     # Per-aircraft state history (FK: AircraftId; ValidFrom / ValidTo / NoticedByPersonId).
-    # Inherits Aircrafts' cross-tenant classification (2026-05-16 amendment): airworthiness
-    # state is a property of the physical aircraft, not of any one operating club. A grounded
-    # aircraft is grounded for every club that uses it. Service layer reads via the Aircraft
-    # aggregate; tenancy is enforced at the parent.
+    # Inherits Aircrafts' tenant-scoped classification (2026-05-23, S-159): airworthiness
+    # state rides with the managing tenant; the parent aircraft's @TenantId
+    # discriminator covers the child via FK chain — no separate column needed.
 
   AircraftOperatingCounters:
-    kind: cross-tenant
+    kind: tenant-scoped
     target_entity: AircraftOperatingCounter
     rationale_ref: tenant-catalog.md#aircraft
     emits_audit: true
     # Per-aircraft engine / flight-hour counter history (FK: AircraftId; AtDateTime, totals,
-    # next-maintenance thresholds). Inherits Aircrafts' cross-tenant classification: counters
-    # measure the physical aircraft's lifetime and accumulate across every operating club.
-    # Maintenance triggers (NextMaintenanceAt*) are airframe-level, not club-level.
+    # next-maintenance thresholds). Inherits Aircrafts' tenant-scoped classification: the
+    # managing tenant's FLIGHT_OPERATOR / CLUB_ADMIN record + read counters.
+    # Maintenance triggers (NextMaintenanceAt*) are airframe-level, scoped per tenant.
 
   AuditLogs:
     kind: tenant-scoped

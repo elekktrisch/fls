@@ -25,10 +25,12 @@ import org.jspecify.annotations.Nullable;
  * aggregate.
  *
  * <p>{@code ownerClubId} and {@code aircraftOwnerPersonId} are intentionally
- * <strong>absent</strong> from {@link AircraftUpdateRequest}: ownership
- * transfer goes through a dedicated SYSTEM_ADMIN-only endpoint (A04
- * mass-assignment defense — a CLUB_ADMIN of club A could otherwise rewrite
- * an aircraft to club B silently).
+ * <strong>absent</strong> from {@link AircraftCreateRequest} and
+ * {@link AircraftUpdateRequest}: a newly-registered aircraft defaults to
+ * "owned by the managing club" (own-club case), and ownership changes go
+ * through a dedicated transfer endpoint (A04 mass-assignment defense — a
+ * caller could otherwise re-key ownership silently via PUT). The managing
+ * club is the JWT-resolved tenant; not user-settable.
  *
  * <p>{@code isFastEntryRecord} is intentionally absent from both
  * {@link AircraftCreateRequest} and {@link AircraftUpdateRequest}: it is an
@@ -117,9 +119,8 @@ public final class AircraftDtos {
             @Nullable AircraftStateHistoryEntryResponse currentState,
             @Nullable AircraftOperatingCounterResponse latestCounter) {}
 
-    @Schema(description = "Payload to register a new Aircraft. ownerClubId is settable at create time only.")
+    @Schema(description = "Payload to register a new Aircraft. Ownership defaults to the managing club; change via transfer-ownership.")
     public record AircraftCreateRequest(
-            @Nullable ClubId ownerClubId,
             @NotNull AircraftTypeId aircraftTypeId,
             @NotBlank @Size(min = 2, max = 15)
                     @Pattern(regexp = IMMAT_REGEX, flags = Pattern.Flag.CASE_INSENSITIVE,
@@ -135,7 +136,6 @@ public final class AircraftDtos {
             @Nullable BigDecimal noiseLevel,
             @Nullable @Min(0) Integer mtom,
             @Nullable @Min(0) Integer nrOfSeats,
-            @Nullable UUID aircraftOwnerPersonId,
             @Nullable UUID flightOperatingCounterUnitTypeId,
             @Nullable UUID engineOperatingCounterUnitTypeId,
             @Nullable LocationId homebaseId,

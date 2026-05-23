@@ -18,14 +18,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * exception types themselves stay in {@code locations.domain} free of
  * {@code @ResponseStatus} per ADR 0023.
  *
- * <p>{@code assignableTypes} pins the advice to the two Locations
- * controllers ({@link LocationsController} for the per-tenant CRUD,
- * {@link LocationsAdminController} for SYSTEM_ADMIN cross-tenant CRUD) so a
- * future module that throws the same exception type by mistake does not
- * inherit Locations' HTTP status mapping. Module-local error vocabulary,
+ * <p>{@code assignableTypes} pins the advice to {@link LocationsController}
+ * so a future module that throws the same exception type by mistake does
+ * not inherit Locations' HTTP status mapping. Module-local error vocabulary,
  * module-local advice.
  */
-@RestControllerAdvice(assignableTypes = {LocationsController.class, LocationsAdminController.class})
+@RestControllerAdvice(assignableTypes = {LocationsController.class})
 class LocationsExceptionHandler {
 
     private static final URI TYPE_NOT_FOUND = URI.create("urn:alpenflight:problem:location-not-found");
@@ -76,10 +74,10 @@ class LocationsExceptionHandler {
 
     /**
      * Translate a foreign-key violation on {@code fk_location_club_id} (the
-     * tenant FK) to a 404 — the admin surface accepts an arbitrary
-     * path-variable {@code clubId} and the FK is the structural gate for
-     * "club does not exist." Other FK violations propagate as 500 (genuine
-     * server bugs).
+     * tenant FK) to a 404 — surfaces the rare case where the {@code @TenantId}
+     * resolver returns a {@code club_id} that does not have a {@code club}
+     * row (e.g. a stale JWT after a club was deleted). Other FK violations
+     * propagate as 500 (genuine server bugs).
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {

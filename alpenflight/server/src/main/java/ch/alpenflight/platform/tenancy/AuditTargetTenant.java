@@ -17,10 +17,12 @@ import java.lang.annotation.Target;
  * {@link Tenants#runAs}, which only fires after the controller body
  * executes — too late for the failure paths that never reach the body.
  *
- * <p>Apply alongside {@code @PathVariable} on {@code LocationsAdminController}-
- * style admin endpoints. Regular tenant-scoped endpoints don't need it:
- * the operating tenant comes from the JWT and is already on the request
- * via the standard resolver chain.
+ * <p>Apply alongside {@code @PathVariable} on future cutover / bulk-import
+ * admin endpoints that explicitly act on a target tenant other than the
+ * caller's. Regular tenant-scoped endpoints don't need it: the operating
+ * tenant comes from the JWT and is already on the request via the standard
+ * resolver chain. The S-049c admin-impersonation surface was withdrawn in
+ * S-159; this annotation remains as an unused hook for future admin paths.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)

@@ -43,22 +43,27 @@ import org.springframework.web.bind.annotation.RestController;
  * REST surface for the Aircraft aggregate. Per ADR 0005 the path is plural
  * {@code /api/v1/aircraft} (mass noun — no plural form).
  *
- * <p>Aircraft is <strong>cross-tenant</strong> per tenant-rules.yaml
- * (2026-05-16 reclassification): no {@code @TenantId}. Read is open to any
- * authenticated principal (full-fleet visibility for charter / loan).
- * Mutation is gated by {@code AircraftAccess}: SYSTEM_ADMINISTRATOR
- * always; CLUB_ADMINISTRATOR of {@code owner_club_id} when set;
- * null-owner aircraft are SYSTEM_ADMINISTRATOR-only. State change +
- * counter record drop to FLIGHT_OPS of the owner club.
+ * <p>Aircraft is <strong>tenant-scoped</strong> via Hibernate's
+ * {@code @TenantId} discriminator on {@code Aircraft.managingClubId}
+ * (S-159). Reads and writes are filtered structurally to the caller's
+ * managing tenant; a CLUB_ADMIN of A asking for B's aircraft receives a
+ * {@code 404 Not Found} — the row is invisible under A's tenant scope, not
+ * a {@code 403}. This is the IDOR gate, and it is structural.
+ *
+ * <p>Role gates: CLUB_ADMINISTRATOR for register / update / soft-delete /
+ * transfer-ownership; CLUB_ADMINISTRATOR or FLIGHT_OPERATOR for state
+ * changes and counter recording (operational events).
  *
  * <p>{@code owner_club_id} / {@code aircraft_owner_person_id} are NOT
- * settable via {@link AircraftUpdateRequest} (A04 mass-assignment defense);
- * ownership transfer goes through {@code POST /transfer-ownership}
- * (SYSTEM_ADMINISTRATOR-only).
+ * settable via {@link AircraftCreateRequest} or {@link AircraftUpdateRequest}
+ * (A04 mass-assignment defense). Newly-registered aircraft default to
+ * own-club ownership; later changes go through
+ * {@code POST /transfer-ownership} (CLUB_ADMINISTRATOR; ownership only,
+ * managing tenant unchanged).
  */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Aircraft", description = "Aircraft CRUD (cross-tenant masterdata).")
+@Tag(name = "Aircraft", description = "Aircraft CRUD (per-club tenant-scoped masterdata).")
 public class AircraftsController {
 
     private final AircraftsService service;
@@ -102,8 +107,7 @@ public class AircraftsController {
     @ApiResponse(responseCode = "400", description = "Validation failed.")
     @ApiResponse(responseCode = "409", description = "Immatriculation already in use.")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR') "
-            + "or @aircraftAccess.canRegisterAircraft(authentication, #req.ownerClubId)")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public ResponseEntity<AircraftDetail> registerAircraft(
             @Valid @RequestBody AircraftCreateRequest req) {
         AircraftDetail created = service.registerAircraft(req);
@@ -115,7 +119,7 @@ public class AircraftsController {
     @ApiResponse(responseCode = "404", description = "No active aircraft with that id.")
     @ApiResponse(responseCode = "409", description = "Immatriculation already in use.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@aircraftAccess.canMutateAircraft(authentication, #id)")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public AircraftDetail updateAircraft(@PathVariable AircraftId id,
                                          @Valid @RequestBody AircraftUpdateRequest req) {
         return service.updateAircraft(id, req);
@@ -125,18 +129,18 @@ public class AircraftsController {
     @ApiResponse(responseCode = "204", description = "Deleted.")
     @ApiResponse(responseCode = "404", description = "No active aircraft with that id.")
     @DeleteMapping("/{id}")
-    @PreAuthorize("@aircraftAccess.canMutateAircraft(authentication, #id)")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public ResponseEntity<Void> deleteAircraft(@PathVariable AircraftId id,
                                                @AuthenticationPrincipal @Nullable Jwt jwt) {
         service.softDeleteAircraft(id, principalUserId(jwt));
         return ResponseEntity.noContent().build();
     }
 
-    @Operation(summary = "Transfer ownership of an Aircraft (SYSTEM_ADMINISTRATOR-only).")
+    @Operation(summary = "Transfer ownership of an Aircraft (CLUB_ADMINISTRATOR of the managing club).")
     @ApiResponse(responseCode = "200", description = "Ownership transferred.")
     @ApiResponse(responseCode = "404", description = "No active aircraft with that id.")
     @PostMapping(path = "/{id}/transfer-ownership", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public AircraftDetail transferOwnership(@PathVariable AircraftId id,
                                             @Valid @RequestBody AircraftTransferOwnershipRequest req) {
         return service.transferOwnership(id, req);
@@ -146,7 +150,7 @@ public class AircraftsController {
     @ApiResponse(responseCode = "201", description = "State change recorded.")
     @ApiResponse(responseCode = "409", description = "Concurrent modification or invalid validFrom.")
     @PostMapping(path = "/{id}/states", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@aircraftAccess.canOperateAircraft(authentication, #id)")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
     public ResponseEntity<AircraftStateHistoryEntryResponse> changeState(
             @PathVariable AircraftId id,
             @Valid @RequestBody AircraftStateChangeRequest req) {
@@ -167,11 +171,7 @@ public class AircraftsController {
     @ApiResponse(responseCode = "201", description = "Counter recorded.")
     @ApiResponse(responseCode = "409", description = "Non-monotonic totals or duplicate at_date_time.")
     @PostMapping(path = "/{id}/counters", consumes = MediaType.APPLICATION_JSON_VALUE)
-    // Counters are airframe-lifetime + cross-club, so the role gate is
-    // SYSTEM_ADMIN / CLUB_ADMIN / FLIGHT_OPS without owner-club match
-    // (a tow pilot at club B can record hours for a charter aircraft
-    // owned by club A).
-    @PreAuthorize("@aircraftAccess.canRecordCounter(authentication)")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
     public ResponseEntity<AircraftOperatingCounterResponse> recordCounter(
             @PathVariable AircraftId id,
             @Valid @RequestBody AircraftCounterRecordRequest req) {
