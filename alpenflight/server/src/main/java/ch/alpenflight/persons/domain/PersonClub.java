@@ -1,0 +1,247 @@
+package ch.alpenflight.persons.domain;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.UUID;
+import org.hibernate.annotations.TenantId;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Aggregate-internal child of {@link Person}: a single club-membership row.
+ * Tenant-scoped via Hibernate's {@code @TenantId} discriminator on
+ * {@link #clubId} — even though the parent {@link Person} is cross-tenant,
+ * Hibernate automatically restricts the {@code personClubs} collection to
+ * rows whose {@code club_id} matches the caller's tenant.
+ *
+ * <p>Surrogate-PK reshape (V2): legacy carried a composite PK
+ * ({@code person_id}, {@code club_id}); the new schema gives every row a UUID
+ * surrogate {@code id} plus partial UNIQUE {@code ux_person_club_alive} on
+ * ({@code person_id}, {@code club_id}) WHERE {@code deleted_on IS NULL} —
+ * which is the structural safety net for the "max one alive membership per
+ * pair" invariant {@link Person#joinClub} enforces in the aggregate.
+ *
+ * <p>No top-level CRUD endpoint exists. Mutators are package-private; only
+ * {@link Person} drives them via {@code joinClub} / {@code leaveClub} /
+ * {@code updateClubMembership}.
+ */
+@Entity
+@Table(name = "person_club")
+public class PersonClub {
+
+    private static final int MAX_MEMBER_NUMBER_LENGTH = 20;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private @Nullable UUID id;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "person_id", nullable = false)
+    @SuppressWarnings("UnusedVariable")
+    private @Nullable Person person;
+
+    @TenantId
+    @Column(name = "club_id", nullable = false, updatable = false)
+    private @Nullable UUID clubId;
+
+    @Column(name = "member_number", length = MAX_MEMBER_NUMBER_LENGTH)
+    private @Nullable String memberNumber;
+
+    @Column(name = "member_state_id")
+    private @Nullable UUID memberStateId;
+
+    @Column(name = "is_motor_pilot", nullable = false)
+    private boolean motorPilot;
+
+    @Column(name = "is_tow_pilot", nullable = false)
+    private boolean towPilot;
+
+    @Column(name = "is_glider_instructor", nullable = false)
+    private boolean gliderInstructor;
+
+    @Column(name = "is_glider_pilot", nullable = false)
+    private boolean gliderPilot;
+
+    @Column(name = "is_glider_trainee", nullable = false)
+    private boolean gliderTrainee;
+
+    @Column(name = "is_passenger", nullable = false)
+    private boolean passenger;
+
+    @Column(name = "is_winch_operator", nullable = false)
+    private boolean winchOperator;
+
+    @Column(name = "is_motor_instructor", nullable = false)
+    private boolean motorInstructor;
+
+    @Column(name = "receive_flight_reports", nullable = false)
+    private boolean receiveFlightReports;
+
+    @Column(name = "receive_aircraft_reservation_notifications", nullable = false)
+    private boolean receiveAircraftReservationNotifications;
+
+    @Column(name = "receive_planning_day_role_reminder", nullable = false)
+    private boolean receivePlanningDayRoleReminder;
+
+    @Column(name = "is_active", nullable = false)
+    private boolean active;
+
+    @Column(name = "deleted_on")
+    private @Nullable Instant deletedOn;
+
+    @Column(name = "deleted_by_user_id")
+    @SuppressWarnings("UnusedVariable")
+    private @Nullable UUID deletedByUserId;
+
+    protected PersonClub() {
+        // JPA.
+    }
+
+    static PersonClub open(UUID clubId,
+                           @Nullable String memberNumber,
+                           @Nullable UUID memberStateId,
+                           PersonRoleFlags roles,
+                           PersonNotificationPrefs prefs,
+                           boolean active) {
+        if (clubId == null) {
+            throw new IllegalArgumentException("clubId must not be null");
+        }
+        PersonClub pc = new PersonClub();
+        pc.clubId = clubId;
+        pc.applyMembership(memberNumber, memberStateId, roles, prefs, active);
+        return pc;
+    }
+
+    void attachTo(Person parent) {
+        this.person = parent;
+    }
+
+    void applyMembership(@Nullable String newMemberNumber,
+                         @Nullable UUID newMemberStateId,
+                         PersonRoleFlags roles,
+                         PersonNotificationPrefs prefs,
+                         boolean newActive) {
+        if (roles == null) {
+            throw new IllegalArgumentException("roles must not be null");
+        }
+        if (prefs == null) {
+            throw new IllegalArgumentException("prefs must not be null");
+        }
+        this.memberNumber = capMemberNumber(blankToNull(newMemberNumber));
+        this.memberStateId = newMemberStateId;
+        this.motorPilot = roles.motorPilot();
+        this.towPilot = roles.towPilot();
+        this.gliderInstructor = roles.gliderInstructor();
+        this.gliderPilot = roles.gliderPilot();
+        this.gliderTrainee = roles.gliderTrainee();
+        this.passenger = roles.passenger();
+        this.winchOperator = roles.winchOperator();
+        this.motorInstructor = roles.motorInstructor();
+        this.receiveFlightReports = prefs.receiveFlightReports();
+        this.receiveAircraftReservationNotifications = prefs.receiveAircraftReservationNotifications();
+        this.receivePlanningDayRoleReminder = prefs.receivePlanningDayRoleReminder();
+        this.active = newActive;
+    }
+
+    void softDelete(@Nullable UUID userId, Instant at) {
+        if (this.deletedOn == null) {
+            this.deletedOn = at;
+            this.deletedByUserId = userId;
+        }
+    }
+
+    void reactivate() {
+        this.deletedOn = null;
+        this.deletedByUserId = null;
+    }
+
+    public @Nullable UUID getId() {
+        return id;
+    }
+
+    public @Nullable UUID getClubId() {
+        return clubId;
+    }
+
+    public @Nullable String getMemberNumber() {
+        return memberNumber;
+    }
+
+    public @Nullable UUID getMemberStateId() {
+        return memberStateId;
+    }
+
+    public boolean isMotorPilot() {
+        return motorPilot;
+    }
+
+    public boolean isTowPilot() {
+        return towPilot;
+    }
+
+    public boolean isGliderInstructor() {
+        return gliderInstructor;
+    }
+
+    public boolean isGliderPilot() {
+        return gliderPilot;
+    }
+
+    public boolean isGliderTrainee() {
+        return gliderTrainee;
+    }
+
+    public boolean isPassenger() {
+        return passenger;
+    }
+
+    public boolean isWinchOperator() {
+        return winchOperator;
+    }
+
+    public boolean isMotorInstructor() {
+        return motorInstructor;
+    }
+
+    public boolean isReceiveFlightReports() {
+        return receiveFlightReports;
+    }
+
+    public boolean isReceiveAircraftReservationNotifications() {
+        return receiveAircraftReservationNotifications;
+    }
+
+    public boolean isReceivePlanningDayRoleReminder() {
+        return receivePlanningDayRoleReminder;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public boolean isDeleted() {
+        return deletedOn != null;
+    }
+
+    private static @Nullable String blankToNull(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.strip();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static @Nullable String capMemberNumber(@Nullable String value) {
+        if (value != null && value.length() > MAX_MEMBER_NUMBER_LENGTH) {
+            throw new IllegalArgumentException(
+                    "memberNumber exceeds " + MAX_MEMBER_NUMBER_LENGTH + " characters");
+        }
+        return value;
+    }
+}

@@ -139,6 +139,31 @@ audit:
           - id
           - clubId
           - name
+      PersonClub:
+        # S-051 — aggregate-internal child of the cross-tenant Person root.
+        # Member number is identity-bearing but not PII (legacy parity: it's
+        # the club-issued ID, not a national identifier); role flags and
+        # notification prefs are non-PII boolean operational fields.
+        allow:
+          - id
+          - person
+          - clubId
+          - memberNumber
+          - memberStateId
+          - motorPilot
+          - towPilot
+          - gliderInstructor
+          - gliderPilot
+          - gliderTrainee
+          - passenger
+          - winchOperator
+          - motorInstructor
+          - receiveFlightReports
+          - receiveAircraftReservationNotifications
+          - receivePlanningDayRoleReminder
+          - active
+          - deletedOn
+          - deletedByUserId
       Aircraft:
         # Lists both DTO field names (`isXxx`-prefixed by Jackson convention)
         # and entity field names. Service-layer callers may pass either.

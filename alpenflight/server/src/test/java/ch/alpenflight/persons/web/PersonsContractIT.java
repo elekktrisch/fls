@@ -69,7 +69,10 @@ class PersonsContractIT extends PostgresIntegrationTest {
     void createPerson_endpoint_is_wired() {
         Map<String, Object> body = Map.of(
                 "firstname", "Ada",
-                "lastname", "Lovelace");
+                "lastname", "Lovelace",
+                "preferMailToBusinessMail", false,
+                "receiveOwnedAircraftStatisticReports", false,
+                "enableAddress", false);
         ResponseEntity<String> res = post("/api/v1/persons", body);
         assertThat(res.getStatusCode())
                 .as("POST /api/v1/persons must resolve")

@@ -48,7 +48,8 @@ class AuditRedactionCoverageTest {
     private static final Set<String> AUDITED_PACKAGE_ROOTS = Set.of(
             "ch.alpenflight.aircraft.domain",
             "ch.alpenflight.clubs.domain",
-            "ch.alpenflight.locations.domain"
+            "ch.alpenflight.locations.domain",
+            "ch.alpenflight.persons.domain"
     );
 
     /** Entity classes excluded because they're not subject to audit serialisation. */
