@@ -44,12 +44,14 @@ CREATE TABLE mutation_audit_event (
     CONSTRAINT fk_mutation_audit_event_actor_user_id
         FOREIGN KEY (actor_user_id) REFERENCES "user" (id) ON DELETE SET NULL,
     CONSTRAINT fk_mutation_audit_event_tenant_club_id
-        FOREIGN KEY (tenant_club_id) REFERENCES club (id) ON DELETE RESTRICT
+        FOREIGN KEY (tenant_club_id) REFERENCES club (id) ON DELETE CASCADE
 );
 
 COMMENT ON COLUMN mutation_audit_event.tenant_club_id IS
     'Per-row tenancy: the operating tenant of the audited mutation. @TenantId discriminator.'
-    ' NULL only for true cross-tenant system events (tenant-creation etc.); readable via S-023.';
+    ' NULL only for true cross-tenant system events (tenant-creation etc.); readable via S-023.'
+    ' ON DELETE CASCADE — when a tenant is offboarded (hard club delete), its audit history goes'
+    ' with it; same lifecycle attachment as the tenant''s domain rows.';
 COMMENT ON COLUMN mutation_audit_event.actor_user_id IS
     'Internal user.id for the JWT subject. ON DELETE SET NULL so GDPR/FADP erasure of the user row'
     ' does not orphan the audit history. PII inside before_state/after_state is scrubbed by a separate erasure job.';
@@ -69,17 +71,10 @@ CREATE INDEX ix_mutation_audit_event_request_id
     ON mutation_audit_event (request_id)
     WHERE request_id IS NOT NULL;
 
--- Defense-in-depth: revoke UPDATE/DELETE on the audit table from the app role
--- if a separate "alpenflight_app" role exists. In dev/test with a single
--- "alpenflight" user (which OWNS the table), this is a no-op — the owner
--- retains full privileges regardless. A future ops story splits migrator vs.
--- app roles; this DO block lights up automatically when the role appears,
--- closing the "tampering via app credentials" vector (threat-model row d).
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'alpenflight_app') THEN
-        REVOKE UPDATE, DELETE ON mutation_audit_event FROM alpenflight_app;
-        GRANT  INSERT, SELECT  ON mutation_audit_event TO   alpenflight_app;
-    END IF;
-END
-$$;
+-- NOTE: Defense-in-depth append-only via DB-role grant (refinement threat-
+-- model row d) is intentionally NOT shipped in this migration. The
+-- forbidden-migration-patterns list bans GRANT/REVOKE in migrations
+-- (current ops topology runs migrations + app on the same role; revoking
+-- privileges from that role is destructive). Splitting the migration
+-- role from the app role is a future ops story; this comment is the
+-- pointer back to S-027's design when that story lands.

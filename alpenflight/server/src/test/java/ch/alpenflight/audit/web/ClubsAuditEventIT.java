@@ -75,8 +75,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
         assertThat(row.get("action")).isEqualTo("CREATE");
         assertThat(row.get("target_entity_type")).isEqualTo("Club");
-        assertThat(row.get("failed")).isEqualTo(false);
-        assertThat(row.get("system_actor")).isEqualTo(false);
+        assertThat(row.get("failed")).as("row=%s", row).isEqualTo(false);
         assertThat(row.get("before_state"))
                 .as("CREATE has no before-state").isNull();
 
@@ -164,16 +163,29 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
     @Test
     void audit_row_captures_actor_keycloak_sub_from_jwt() {
+        UUID expectedSub = UUID.randomUUID();
+        String uuidSubToken = jwts.mint(c -> c
+                .subject(expectedSub.toString())
+                .claim("clubId", SYSADMIN_TENANT.toString())
+                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+
         String slug = "audit-actor-" + suffix();
-        ResponseEntity<String> res = post("/api/v1/clubs",
-                createPayload("ActorClub", slug, "ACT" + shortSuffix()));
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/clubs"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + uuidSubToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(createPayload("ActorClub", slug, "ACT" + shortSuffix())),
+                String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         UUID id = ClubId.parse(readJson(res).get("id").asText()).value();
 
         Map<String, Object> row = assertSingleEventForTarget(jdbc, SYSADMIN_TENANT, id);
         assertThat(row.get("actor_keycloak_sub"))
                 .as("JWT sub lands on the audit row as the immutable forensic key")
-                .isNotNull();
+                .isEqualTo(expectedSub);
+        assertThat(row.get("system_actor"))
+                .as("Authenticated JWT principal → system_actor=false")
+                .isEqualTo(false);
     }
 
     @Test
@@ -202,7 +214,8 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         assertThat(failedRows)
                 .as("409 conflict should produce one synthetic failure row")
                 .hasSize(1);
-        assertThat(failedRows.get(0).get("http_status")).isEqualTo((short) 409);
+        // pg JDBC maps SMALLINT to Integer in queryForList default mapping
+        assertThat(failedRows.get(0).get("http_status")).isEqualTo(409);
         assertThat(failedRows.get(0).get("target_entity_type")).isEqualTo("Club");
     }
 

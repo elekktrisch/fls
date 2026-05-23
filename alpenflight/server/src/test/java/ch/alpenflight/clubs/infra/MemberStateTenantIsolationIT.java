@@ -100,6 +100,15 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
     private void cleanupPreviousRun() {
         jdbc.update("DELETE FROM member_state WHERE club_id IN (?::uuid, ?::uuid)",
                 CLUB_A.toString(), CLUB_B.toString());
+        // LocationsAuthorizationIT shares the same CLUB_A / CLUB_B UUIDs and may
+        // leave location + inoutbound_point rows under those clubs (its cleanup
+        // runs pre-test, not post). Drop them here so the trailing club delete
+        // doesn't trip fk_location_club_id.
+        jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
+                        + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
+                CLUB_A.toString(), CLUB_B.toString());
+        jdbc.update("DELETE FROM location WHERE club_id IN (?::uuid, ?::uuid)",
+                CLUB_A.toString(), CLUB_B.toString());
         jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)",
                 CLUB_A.toString(), CLUB_B.toString());
     }

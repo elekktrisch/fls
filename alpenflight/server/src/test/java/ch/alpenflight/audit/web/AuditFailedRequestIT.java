@@ -75,7 +75,8 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         Map<String, Object> row = failedRows.get(0);
         assertThat(row.get("action")).isEqualTo("CREATE");
         assertThat(row.get("target_entity_type")).isEqualTo("Club");
-        assertThat(row.get("http_status")).isEqualTo((short) 400);
+        // pg JDBC maps SMALLINT to Integer in queryForList default mapping
+        assertThat(row.get("http_status")).isEqualTo(400);
         assertThat(row.get("after_state")).isNull();
         assertThat(row.get("failure_reason")).isNotNull();
     }

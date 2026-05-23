@@ -17,6 +17,9 @@
     "name" : "Locations",
     "description" : "Locations CRUD (per-club masterdata)."
   }, {
+    "name" : "Audit Events",
+    "description" : "Mutation-audit trail (per-tenant, admin-only)."
+  }, {
     "name" : "Locations Admin",
     "description" : "SYSTEM_ADMINISTRATOR cross-tenant Locations management."
   }, {
@@ -706,6 +709,86 @@
           }
         }
       }
+    },
+    "/api/v1/admin/audit-events" : {
+      "get" : {
+        "tags" : [ "Audit Events" ],
+        "summary" : "List audit events for the caller's tenant. All filters are optional.",
+        "operationId" : "listAuditEvents",
+        "parameters" : [ {
+          "name" : "occurredFrom",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }, {
+          "name" : "occurredTo",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }, {
+          "name" : "action",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT" ]
+          }
+        }, {
+          "name" : "targetEntityType",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "actorUserId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "name" : "pageSize",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        }, {
+          "name" : "pageOffset",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Page of audit-event projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AuditEventRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components" : {
@@ -1225,6 +1308,64 @@
           }
         },
         "required" : [ "code", "id", "name" ]
+      },
+      "AuditEventRow" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "actorUserId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "actorKeycloakSub" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "tenantClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "action" : {
+            "type" : "string",
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT" ]
+          },
+          "targetEntityType" : {
+            "type" : "string"
+          },
+          "targetEntityId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "requestId" : {
+            "type" : "string"
+          },
+          "beforeState" : {
+            "type" : "string"
+          },
+          "afterState" : {
+            "type" : "string"
+          },
+          "failed" : {
+            "type" : "boolean"
+          },
+          "systemActor" : {
+            "type" : "boolean"
+          },
+          "httpStatus" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "failureReason" : {
+            "type" : "string"
+          }
+        }
       }
     },
     "securitySchemes" : {
