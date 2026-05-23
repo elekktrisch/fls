@@ -11,6 +11,9 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 
 /**
@@ -70,7 +73,12 @@ public class AuditTrailService implements AuditTrail {
                                        @Nullable Integer httpStatus,
                                        @Nullable String failureReason) {
         ActorResolver.Actor actor = actorResolver.resolve();
-        boolean systemActor = actor.keycloakSub() == null;
+        // The system-actor flag is driven by the authentication TYPE, not by
+        // the shape of the sub claim — federated IdPs hand us non-UUID subs
+        // (Google numeric, Auth0 custom) and would otherwise be silently
+        // misclassified as scheduled-job / OGN writes.
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean systemActor = !(auth instanceof JwtAuthenticationToken && auth.isAuthenticated());
         UUID tenant = resolvedTenant();
         Instant occurredAt = Instant.now(clock);
         // MDC key set by RequestIdFilter; null in non-HTTP origins (jobs,

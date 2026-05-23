@@ -162,7 +162,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void audit_row_captures_actor_keycloak_sub_from_jwt() {
+    void audit_row_captures_actor_keycloak_sub_from_jwt_uuid_sub() {
         UUID expectedSub = UUID.randomUUID();
         String uuidSubToken = jwts.mint(c -> c
                 .subject(expectedSub.toString())
@@ -181,10 +181,40 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
         Map<String, Object> row = assertSingleEventForTarget(jdbc, SYSADMIN_TENANT, id);
         assertThat(row.get("actor_keycloak_sub"))
-                .as("JWT sub lands on the audit row as the immutable forensic key")
-                .isEqualTo(expectedSub);
+                .as("JWT sub lands on the audit row as the immutable forensic key (raw string)")
+                .isEqualTo(expectedSub.toString());
         assertThat(row.get("system_actor"))
                 .as("Authenticated JWT principal → system_actor=false")
+                .isEqualTo(false);
+    }
+
+    @Test
+    void audit_row_captures_actor_keycloak_sub_from_federated_non_uuid_sub() {
+        // Google's numeric IDs / Auth0 custom subs are non-UUID strings.
+        // The audit trail records them verbatim and still classifies the
+        // row as a human actor (system_actor=false).
+        String federatedSub = "google-oauth2|108426310582738501";
+        String federatedToken = jwts.mint(c -> c
+                .subject(federatedSub)
+                .claim("clubId", SYSADMIN_TENANT.toString())
+                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+
+        String slug = "audit-fed-" + suffix();
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/clubs"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + federatedToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(createPayload("FedClub", slug, "FED" + shortSuffix())),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        UUID id = ClubId.parse(readJson(res).get("id").asText()).value();
+
+        Map<String, Object> row = assertSingleEventForTarget(jdbc, SYSADMIN_TENANT, id);
+        assertThat(row.get("actor_keycloak_sub"))
+                .as("Federated non-UUID sub recorded verbatim")
+                .isEqualTo(federatedSub);
+        assertThat(row.get("system_actor"))
+                .as("Federated authenticated principal still has system_actor=false")
                 .isEqualTo(false);
     }
 

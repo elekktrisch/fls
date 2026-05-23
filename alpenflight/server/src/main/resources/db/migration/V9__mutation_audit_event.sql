@@ -29,7 +29,7 @@ CREATE TABLE mutation_audit_event (
     id                  UUID         NOT NULL PRIMARY KEY,
     occurred_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
     actor_user_id       UUID,
-    actor_keycloak_sub  UUID,
+    actor_keycloak_sub  TEXT,
     tenant_club_id      UUID,
     action              VARCHAR(32)  NOT NULL,
     target_entity_type  VARCHAR(64)  NOT NULL,
@@ -56,7 +56,9 @@ COMMENT ON COLUMN mutation_audit_event.actor_user_id IS
     'Internal user.id for the JWT subject. ON DELETE SET NULL so GDPR/FADP erasure of the user row'
     ' does not orphan the audit history. PII inside before_state/after_state is scrubbed by a separate erasure job.';
 COMMENT ON COLUMN mutation_audit_event.actor_keycloak_sub IS
-    'Immutable forensic key. Survives actor_user_id being nulled by erasure.';
+    'Immutable forensic key — raw JWT subject string. Survives actor_user_id being nulled by erasure.'
+    ' TEXT (not UUID) because federated IdPs (Google numeric, Auth0 custom) hand us non-UUID subjects;'
+    ' the audit trail records the principal''s identity verbatim and lets S-056 / forensics handle parsing.';
 COMMENT ON COLUMN mutation_audit_event.action IS
     'AuditAction enum (CREATE, UPDATE, DELETE, STATE_TRANSITION, BULK_IMPORT). Pinned in Java per ADR 0022 directive 2.';
 
@@ -76,5 +78,5 @@ CREATE INDEX ix_mutation_audit_event_request_id
 -- forbidden-migration-patterns list bans GRANT/REVOKE in migrations
 -- (current ops topology runs migrations + app on the same role; revoking
 -- privileges from that role is destructive). Splitting the migration
--- role from the app role is a future ops story; this comment is the
--- pointer back to S-027's design when that story lands.
+-- role from the app role is tracked in S-160 (split migration + app DB
+-- roles; grant audit table INSERT,SELECT-only to the app role).

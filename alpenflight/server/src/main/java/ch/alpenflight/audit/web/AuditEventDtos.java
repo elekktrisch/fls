@@ -22,7 +22,7 @@ final class AuditEventDtos {
     record AuditEventRow(UUID id,
                          Instant occurredAt,
                          @Nullable UUID actorUserId,
-                         @Nullable UUID actorKeycloakSub,
+                         @Nullable String actorKeycloakSub,
                          @Nullable UUID tenantClubId,
                          AuditAction action,
                          String targetEntityType,

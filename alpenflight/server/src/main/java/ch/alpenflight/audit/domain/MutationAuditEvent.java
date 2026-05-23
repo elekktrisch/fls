@@ -45,8 +45,8 @@ public class MutationAuditEvent {
     @Column(name = "actor_user_id", updatable = false)
     private @Nullable UUID actorUserId;
 
-    @Column(name = "actor_keycloak_sub", updatable = false)
-    private @Nullable UUID actorKeycloakSub;
+    @Column(name = "actor_keycloak_sub", updatable = false, length = 255)
+    private @Nullable String actorKeycloakSub;
 
     @TenantId
     @Column(name = "tenant_club_id", updatable = false)
@@ -122,7 +122,7 @@ public class MutationAuditEvent {
         return actorUserId;
     }
 
-    public @Nullable UUID getActorKeycloakSub() {
+    public @Nullable String getActorKeycloakSub() {
         return actorKeycloakSub;
     }
 
@@ -177,7 +177,7 @@ public class MutationAuditEvent {
     public static final class Builder {
         private @Nullable Instant occurredAt;
         private @Nullable UUID actorUserId;
-        private @Nullable UUID actorKeycloakSub;
+        private @Nullable String actorKeycloakSub;
         private @Nullable UUID tenantClubId;
         private @Nullable AuditAction action;
         private @Nullable String targetEntityType;
@@ -194,7 +194,7 @@ public class MutationAuditEvent {
 
         public Builder occurredAt(Instant v) { this.occurredAt = v; return this; }
         public Builder actorUserId(@Nullable UUID v) { this.actorUserId = v; return this; }
-        public Builder actorKeycloakSub(@Nullable UUID v) { this.actorKeycloakSub = v; return this; }
+        public Builder actorKeycloakSub(@Nullable String v) { this.actorKeycloakSub = v; return this; }
         public Builder tenantClubId(@Nullable UUID v) { this.tenantClubId = v; return this; }
         public Builder action(AuditAction v) { this.action = v; return this; }
         public Builder targetEntityType(String v) { this.targetEntityType = v; return this; }
