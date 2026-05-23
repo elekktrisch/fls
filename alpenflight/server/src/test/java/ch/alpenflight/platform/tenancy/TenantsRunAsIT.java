@@ -7,6 +7,7 @@ import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.clubs.infra.MemberStateRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
+import ch.alpenflight.server.testsupport.TwoClubFixture;
 import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,9 +41,7 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        cleanupPreviousRun();
-        seedClub(CLUB_A, "alpha");
-        seedClub(CLUB_B, "bravo");
+        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
     }
 
     @Test
@@ -130,25 +129,4 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
                         .contains("dual-wrapper"));
     }
 
-    private void cleanupPreviousRun() {
-        jdbc.update("DELETE FROM member_state WHERE club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-    }
-
-    private void seedClub(UUID id, String slug) {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
-        jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
-                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
-                """,
-                id.toString(),
-                NAME_PREFIX + slug,
-                KEY_PREFIX + slug.charAt(0),
-                countryId.toString(),
-                clubStateId.toString(),
-                NAME_PREFIX + slug);
-    }
 }
