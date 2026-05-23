@@ -2,7 +2,7 @@
 id: S-159
 title: Strip SYSTEM_ADMINISTRATOR from tenant-scoped ops; make Aircraft tenant-scoped via managing club
 epic: E-06
-status: in_progress
+status: done
 estimate: M
 depends_on: [S-049c, S-050]
 origin: rework
@@ -13,6 +13,7 @@ refined: true
 refined_at: 2026-05-23
 refined_specialists: [requirements, solution, qa, security]
 started_at: 2026-05-23
+done_at: 2026-05-23
 github_issue: 105
 github_pr: 102
 ---
