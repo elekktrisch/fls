@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -46,6 +48,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 10)
 class RequestAuditFilter extends OncePerRequestFilter {
+
+    private static final Logger LOG = LoggerFactory.getLogger(RequestAuditFilter.class);
 
     private static final String API_PREFIX = "/api/v1/";
     private static final Set<String> MUTATING_METHODS = Set.of("POST", "PUT", "PATCH", "DELETE");
@@ -125,9 +129,12 @@ class RequestAuditFilter extends OncePerRequestFilter {
                         status,
                         reason);
             }
-        } catch (RuntimeException ignored) {
-            // The audit trail's own failure must not turn a 4xx into a 500.
-            // Already-set status / exception propagates unchanged.
+        } catch (RuntimeException e) {
+            // The audit trail's own failure must not turn a 4xx into a 500 —
+            // already-set status / exception propagates unchanged. Log the
+            // gap so OWASP A09 monitoring catches the audit infra failing.
+            LOG.error("audit-filter failed to record synthetic failure uri={} status={} reason={}",
+                    request.getRequestURI(), status, reason, e);
         }
     }
 

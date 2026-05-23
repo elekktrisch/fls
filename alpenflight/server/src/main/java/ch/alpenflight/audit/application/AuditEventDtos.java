@@ -14,9 +14,10 @@ import org.jspecify.annotations.Nullable;
  *   <li>{@link AuditEventQuery} — the filter parameters the controller
  *       passes into the service; immutable carrier.</li>
  *   <li>{@link AuditEventRow} — a single row projection. {@code beforeState}
- *       / {@code afterState} are typed as {@link JsonNode} (not raw
- *       strings) so OpenAPI codegen surfaces them as JSON objects in the
- *       generated client.</li>
+ *       / {@code afterState} are typed as {@code Map<String, Object>}
+ *       (not raw strings) so OpenAPI codegen surfaces them as free-form
+ *       JSON objects ({@code type: object, additionalProperties: {}}) in
+ *       the generated client.</li>
  *   <li>{@link AuditEventPage} — paginated wrapper with {@code hasMore} /
  *       {@code nextOffset} cursor metadata; the admin UI uses these to
  *       drive infinite-scroll without a separate count query.</li>

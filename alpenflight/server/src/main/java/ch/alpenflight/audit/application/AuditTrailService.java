@@ -3,7 +3,6 @@ package ch.alpenflight.audit.application;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
-import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.platform.tenancy.TenantContextCarrier;
 import java.time.Clock;
 import java.time.Instant;
@@ -113,7 +112,4 @@ public class AuditTrailService implements AuditTrail {
         // DB column null (forensic "no tenant" semantics).
         return null;
     }
-
-    /** Test-visible NO_TENANT sentinel reference. */
-    static final UUID NO_TENANT_SENTINEL = ClubTenantIdentifierResolver.NO_TENANT;
 }

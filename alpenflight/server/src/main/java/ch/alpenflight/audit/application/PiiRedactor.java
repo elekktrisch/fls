@@ -3,9 +3,17 @@ package ch.alpenflight.audit.application;
 import ch.alpenflight.audit.application.AuditRedactionProperties.EntityPolicy;
 import ch.alpenflight.audit.domain.AuditRedact;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.temporal.Temporal;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
@@ -19,8 +27,15 @@ import tools.jackson.databind.ObjectMapper;
  *
  * <p>Field-level {@link AuditRedact} annotations redact unconditionally,
  * even when the central policy would otherwise allow the field. That's
- * the drift-resistance escape for a fresh entity field that should be
- * redacted but hasn't been added to the yaml yet.
+ * the drift-resistance escape for a fresh field that should be redacted
+ * but hasn't been added to the policy yet.
+ *
+ * <p>The walk recurses into nested object / record / collection fields:
+ * an allow-listed field whose value is itself an aggregate (e.g.
+ * {@code AircraftDetail.currentState}) is re-walked under the nested
+ * type's simple-name key, so a stray PII field on the nested type still
+ * lands as {@code "[redacted]"}. Leaf types (numbers, strings, UUIDs,
+ * dates, enums) pass through as-is.
  *
  * <p>Returns a JSON string suitable for the {@code jsonb} column on
  * {@link ch.alpenflight.audit.domain.MutationAuditEvent}. Output is
@@ -92,13 +107,58 @@ public class PiiRedactor {
                     out.put(name, REDACTED_SENTINEL);
                 } else {
                     Object value = f.get(snapshot);
-                    out.put(name, value);
+                    out.put(name, processValue(value));
                 }
             } catch (IllegalAccessException ignored) {
                 out.put(name, REDACTED_SENTINEL);
             }
         }
         return out;
+    }
+
+    /**
+     * Recursively redact a field value. Leaf types pass through; nested
+     * aggregates re-enter {@link #walk} under the runtime type's simple
+     * name (so a {@code Person} field on a nested record still hits the
+     * deny-all policy). Collections become lists of recursively-processed
+     * elements; maps are conservatively redacted (unknown shape).
+     */
+    private @Nullable Object processValue(@Nullable Object value) {
+        if (value == null || isLeafType(value)) {
+            return value;
+        }
+        if (value instanceof Collection<?> coll) {
+            List<Object> mapped = new ArrayList<>(coll.size());
+            for (Object element : coll) {
+                mapped.add(processValue(element));
+            }
+            return mapped;
+        }
+        if (value instanceof Map<?, ?>) {
+            // Unknown key/value shapes can't be matched against the policy;
+            // redacting is the safe default. Hit this only if a snapshot
+            // exposes a Map (none today; flag if the future changes that).
+            return REDACTED_SENTINEL;
+        }
+        return walk(value.getClass().getSimpleName(), value);
+    }
+
+    private static boolean isLeafType(Object value) {
+        Class<?> cls = value.getClass();
+        if (cls.isPrimitive() || cls.isEnum()) {
+            return true;
+        }
+        return value instanceof CharSequence
+                || value instanceof Number
+                || value instanceof Boolean
+                || value instanceof Character
+                || value instanceof BigDecimal
+                || value instanceof BigInteger
+                || value instanceof UUID
+                || value instanceof Temporal
+                || value instanceof java.util.Date
+                || value instanceof Locale
+                || value instanceof Class<?>;
     }
 
     private static java.util.List<Field> collectFields(Class<?> type) {

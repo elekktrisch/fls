@@ -35,6 +35,16 @@ class PiiRedactorTest {
         String hiddenField = "should-be-redacted-default-deny";
     }
 
+    static class ChildSnap {
+        String safe = "ok-to-log";
+        String sensitive = "secret-data";
+    }
+
+    static class OuterSnap {
+        String topField = "outer-value";
+        ChildSnap child = new ChildSnap();
+    }
+
     @Test
     void allow_listed_fields_emit_verbatim() {
         PiiRedactor redactor = redactorFor(
@@ -91,6 +101,44 @@ class PiiRedactorTest {
         assertThat(out.get("firstName").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
         assertThat(out.get("lastName").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
         assertThat(out.get("email").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
+    }
+
+    @Test
+    void nested_field_recurses_under_runtime_type_simple_name() {
+        // Outer snapshot's "child" field holds a nested record. Without
+        // recursion, the nested record's fields would land in jsonb
+        // verbatim — bypassing the redactor. The recursion uses the
+        // child's runtime type's simple-name as the policy key.
+        PiiRedactor redactor = redactorFor(
+                Map.of(
+                        "Outer", new EntityPolicy(List.of("topField", "child")),
+                        "ChildSnap", new EntityPolicy(List.of("safe"))),
+                List.of());
+
+        JsonNode out = parse(redactor.serialize("Outer", new OuterSnap()));
+
+        // Nested redaction applied: safe field passes through, sensitive
+        // field becomes the sentinel even though the outer policy allows
+        // "child" wholesale.
+        JsonNode child = out.get("child");
+        assertThat(child.get("safe").asText()).isEqualTo("ok-to-log");
+        assertThat(child.get("sensitive").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
+    }
+
+    @Test
+    void unknown_nested_type_defaults_to_full_deny() {
+        // Outer allows "child", but no policy entry exists for ChildSnap.
+        // The recursion then has an empty allow-list → every field of the
+        // nested record lands as "[redacted]".
+        PiiRedactor redactor = redactorFor(
+                Map.of("Outer", new EntityPolicy(List.of("topField", "child"))),
+                List.of());
+
+        JsonNode out = parse(redactor.serialize("Outer", new OuterSnap()));
+
+        JsonNode child = out.get("child");
+        assertThat(child.get("safe").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
+        assertThat(child.get("sensitive").asText()).isEqualTo(PiiRedactor.REDACTED_SENTINEL);
     }
 
     @Test

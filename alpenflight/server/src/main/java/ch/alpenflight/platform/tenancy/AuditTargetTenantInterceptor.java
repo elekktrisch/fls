@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.lang.reflect.Parameter;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.MethodParameter;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,6 +29,8 @@ import org.springframework.web.servlet.HandlerMapping;
  */
 @Component
 public class AuditTargetTenantInterceptor implements HandlerInterceptor {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AuditTargetTenantInterceptor.class);
 
     @Override
     public boolean preHandle(HttpServletRequest request,
@@ -51,9 +55,15 @@ public class AuditTargetTenantInterceptor implements HandlerInterceptor {
                         try {
                             ClubId clubId = ClubId.parse(s);
                             RequestTenantHint.recordIfHttp(clubId.value());
-                        } catch (IllegalArgumentException ignored) {
-                            // Malformed path variable becomes a 4xx via the
-                            // normal converter chain; nothing to hint with.
+                        } catch (IllegalArgumentException e) {
+                            // Malformed path variable normally produces a 4xx
+                            // via the path converter chain BEFORE this
+                            // interceptor; arriving here means the ordering
+                            // shifted. Log at WARN so the gap is visible
+                            // (otherwise synthetic-failure rows would silently
+                            // fall back to the actor's home tenant).
+                            LOG.warn("Could not parse path-variable {} = '{}' as ClubId: {}",
+                                    name, s, e.getMessage());
                         }
                     }
                 }

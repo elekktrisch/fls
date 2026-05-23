@@ -14,8 +14,10 @@ import org.jspecify.annotations.Nullable;
  * {@code where tenant_club_id = ?} stanza needed.
  *
  * <p>{@link #append} is the only write surface; nothing in this port
- * exposes update or delete because the table is append-only by design
- * (defended by the DB-role grant in {@code V8}).
+ * exposes update or delete because the table is append-only by design.
+ * Structural append-only via DB-role grant is deferred to S-160; today's
+ * guard is convention (only this port writes; no UPDATE/DELETE methods
+ * exist).
  */
 public interface MutationAuditEventRepository {
 

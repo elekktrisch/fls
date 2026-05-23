@@ -29,8 +29,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The aggregate is intentionally minimal — fields are set once by the
  * listener and never mutated. No domain methods (per ADR 0018 audit rows
- * are not aggregates with invariants; they are append-only events
- * structurally enforced by the DB-role grant in {@code V8}).
+ * are not aggregates with invariants; they are append-only by convention.
+ * Structural append-only via DB-role grant is deferred to S-160).
  */
 @Entity
 @Table(name = "mutation_audit_event")
@@ -46,7 +46,9 @@ public class MutationAuditEvent {
     @Column(name = "actor_user_id", updatable = false)
     private @Nullable UUID actorUserId;
 
-    @Column(name = "actor_keycloak_sub", updatable = false, length = 255)
+    // No length — the underlying TEXT column accepts arbitrary-length JWT
+    // subjects from federated IdPs (Auth0 custom subs can exceed 255 chars).
+    @Column(name = "actor_keycloak_sub", updatable = false, columnDefinition = "text")
     private @Nullable String actorKeycloakSub;
 
     @TenantId

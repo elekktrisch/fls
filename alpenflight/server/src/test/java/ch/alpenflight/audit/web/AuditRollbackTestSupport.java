@@ -8,6 +8,7 @@ import ch.alpenflight.clubs.domain.ClubRepository;
 import io.swagger.v3.oas.annotations.Hidden;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,6 +41,7 @@ final class AuditRollbackTestSupport {
     @RestController
     @RequestMapping("/api/v1/__test__/audit-rollback")
     @Hidden
+    @Profile("test")
     static class AuditRollbackTestController {
 
         private final AuditRollbackTestService service;
@@ -55,6 +57,7 @@ final class AuditRollbackTestSupport {
     }
 
     @Service
+    @Profile("test")
     static class AuditRollbackTestService {
 
         private final AuditTrail auditTrail;

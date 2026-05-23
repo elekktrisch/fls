@@ -124,6 +124,16 @@ audit:
           - pointType
           - direction
           - description
+      InOutboundPointResponse:
+        # Nested under LocationDetail.inOutboundPoints. The redactor recurses
+        # into nested aggregates under the runtime type's simple name; this
+        # mirrors InOutboundPoint, minus the back-reference to Location.
+        allow:
+          - id
+          - pointName
+          - pointType
+          - direction
+          - description
       MemberState:
         allow:
           - id
@@ -182,6 +192,17 @@ audit:
           - validTo
           - deletedOn
           - deletedByUserId
+      AircraftStateHistoryEntryResponse:
+        # Nested under AircraftDetail.currentState. PII-adjacent fields
+        # noticedByPersonId / remarks are NOT in the allow list — they
+        # default-deny to "[redacted]" on the recursed walk. (The entity
+        # mirror already has @AuditRedact on the same fields, which gates
+        # the entity-path too.)
+        allow:
+          - id
+          - aircraftStateId
+          - validFrom
+          - validTo
       AircraftOperatingCounter:
         allow:
           - id
@@ -196,6 +217,18 @@ audit:
           - nextMaintenanceAtEngineOperatingCounterInSeconds
           - deletedOn
           - deletedByUserId
+      AircraftOperatingCounterResponse:
+        # Nested under AircraftDetail.latestCounter.
+        allow:
+          - id
+          - atDateTime
+          - totalTowedGliderStarts
+          - totalWinchLaunchStarts
+          - totalSelfStarts
+          - flightOperatingCounterInSeconds
+          - engineOperatingCounterInSeconds
+          - nextMaintenanceAtFlightOperatingCounterInSeconds
+          - nextMaintenanceAtEngineOperatingCounterInSeconds
 
 server:
   port: 8080

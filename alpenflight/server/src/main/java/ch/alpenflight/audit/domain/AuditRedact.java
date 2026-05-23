@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 /**
  * Field-level redaction marker. The default-deny audit serializer emits
  * {@code "[redacted]"} for any field carrying this annotation, regardless
- * of the central {@code audit-redaction.yml} policy. Sits next to the
+ * of the central {@code audit.redaction} policy in {@code application.yml}. Sits next to the
  * field so a future field addition that should be redacted gets the
  * annotation in the same diff (drift-resistance — code review surfaces
  * the omission immediately).

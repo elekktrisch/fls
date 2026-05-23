@@ -107,7 +107,7 @@ class AuditRedactionCoverageTest {
 
         assertThat(uncoveredFields)
                 .as("Every audited @Entity field must have an explicit redaction decision — "
-                        + "either added to audit-redaction.yml allow-list, added to deny-all, "
+                        + "either added to application.yml audit.redaction allow-list, added to deny-all, "
                         + "or annotated @AuditRedact. Uncovered: %s", uncoveredFields)
                 .isEmpty();
     }
