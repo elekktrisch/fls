@@ -4,6 +4,7 @@ import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.platform.tenancy.TenantContextCarrier;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
  * Test-side carrier for the currently-active tenant identifier. Delegates
@@ -56,10 +57,18 @@ public final class TenantTestContext {
      * switch-back.
      */
     public static void runAs(UUID tenantId, Runnable body) {
+        runAs(tenantId, () -> {
+            body.run();
+            return null;
+        });
+    }
+
+    /** Supplier variant of {@link #runAs(UUID, Runnable)} — returns the body's result. */
+    public static <T> T runAs(UUID tenantId, Supplier<T> body) {
         Optional<UUID> prior = TenantContextCarrier.current();
         TenantContextCarrier.set(tenantId);
         try {
-            body.run();
+            return body.get();
         } finally {
             if (prior.isPresent()) {
                 TenantContextCarrier.set(prior.get());

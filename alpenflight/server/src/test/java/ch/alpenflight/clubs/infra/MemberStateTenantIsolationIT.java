@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
+import ch.alpenflight.server.testsupport.TwoClubFixture;
 import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,9 +41,7 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        cleanupPreviousRun();
-        seedClub(CLUB_A, "alpha");
-        seedClub(CLUB_B, "bravo");
+        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NAME_PREFIX, TEST_KEY_PREFIX).seed();
         TenantTestContext.runAs(CLUB_A, () -> memberStates.save(new MemberState("Active member")));
         TenantTestContext.runAs(CLUB_A, () -> memberStates.save(new MemberState("Suspended")));
         TenantTestContext.runAs(CLUB_B, () -> memberStates.save(new MemberState("Trial flight")));
@@ -97,34 +96,4 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
                         .hasMessageContaining("fk_member_state_club_id"));
     }
 
-    private void cleanupPreviousRun() {
-        jdbc.update("DELETE FROM member_state WHERE club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        // LocationsAuthorizationIT shares the same CLUB_A / CLUB_B UUIDs and may
-        // leave location + inoutbound_point rows under those clubs (its cleanup
-        // runs pre-test, not post). Drop them here so the trailing club delete
-        // doesn't trip fk_location_club_id.
-        jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
-                        + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
-                CLUB_A.toString(), CLUB_B.toString());
-        jdbc.update("DELETE FROM location WHERE club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-    }
-
-    private void seedClub(UUID id, String slug) {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
-        jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
-                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
-                """,
-                id.toString(),
-                TEST_NAME_PREFIX + slug,
-                TEST_KEY_PREFIX + slug.charAt(0),
-                countryId.toString(),
-                clubStateId.toString(),
-                TEST_NAME_PREFIX + slug);
-    }
 }

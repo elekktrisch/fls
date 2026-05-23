@@ -6,6 +6,7 @@ export type MutationEvent =
   | { kind: 'session.tenantSwitch'; clubId: string }
   | { kind: 'aircraft.created'; aircraftId: string }
   | { kind: 'aircraft.updated'; aircraftId: string }
+  | { kind: 'aircraft.deleted'; aircraftId: string }
   | { kind: 'flight.booked'; flightId: string }
   | { kind: 'club.created'; id: string }
   | { kind: 'club.updated'; id: string }
