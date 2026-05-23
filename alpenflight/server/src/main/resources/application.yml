@@ -59,6 +59,48 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
+# S-027: default-deny audit serialization. Entries here whitelist fields that
+# may land verbatim in `mutation_audit_event.before_state` / `after_state`;
+# everything else is replaced by the `[redacted]` sentinel. `deny-all` is the
+# central kill-switch for known-PII entities — Person stays out of the trail
+# entirely until a GDPR/FADP-reviewed allow-list lands.
+audit:
+  redaction:
+    deny-all:
+      - Person
+    entities:
+      Club:
+        allow:
+          - id
+          - name
+          - slug
+          - clubKey
+          - countryId
+          - clubStateId
+          - publicRegistrationEnabled
+      Location:
+        allow:
+          - id
+          - locationName
+          - locationShortName
+          - countryId
+          - locationTypeId
+          - icaoCode
+          - latitude
+          - longitude
+          - elevation
+          - elevationUnitTypeId
+          - runwayDirection
+          - runwayLength
+          - runwayLengthUnitTypeId
+          - airportFrequency
+          - description
+          - sortIndicator
+          - isInboundRouteRequired
+          - isOutboundRouteRequired
+          - isFastEntryRecord
+          - inOutboundPoints
+
 server:
   port: 8080
   http2:

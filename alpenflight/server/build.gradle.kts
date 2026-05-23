@@ -112,6 +112,16 @@ dependencies {
     // inserts which matters for S-028's bulk cutover; gen_random_uuid()
     // default values on PKs are forbidden by `forbidden-migration-patterns.txt`.
     implementation("com.github.f4b6a3:uuid-creator:6.0.0")
+    // S-027: bounded TTL cache for the JWT sub → user.id lookup that fires
+    // on every authenticated request before the audit row is written.
+    // Spring Boot BOM manages the Caffeine version. Excluded transitive
+    // error-prone annotations — Caffeine's 3.2 line bumps them past the
+    // version Spring's `errorprone` configuration already brings, which
+    // trips `failOnVersionConflict()`. The annotations are compile-only
+    // markers (@CheckReturnValue etc.) and unused at runtime.
+    implementation("com.github.ben-manes.caffeine:caffeine") {
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+    }
     // Boot 4 modularized: FlywayAutoConfiguration moved out of
     // spring-boot-autoconfigure into spring-boot-flyway. flyway-core alone
     // does NOT bring it in — explicit declaration needed.
