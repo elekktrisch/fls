@@ -2,7 +2,8 @@
 id: S-024
 title: Cross-tenant leakage CI test (per-repository)
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-23
 depends_on: [S-022, S-011]
 acceptance:
   - A property-based test under CI exercises every repository: create data in tenant A; attempt to read it while tenant context is B; assert empty result (or 404 from a controller-level test).
@@ -15,6 +16,7 @@ parity_test: tests/multi-tenant/leakage-property-test.kt (or .java)
 refined: true
 refined_at: 2026-05-22
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer]
+github_issue: 103
 ---
 
 ## Context
