@@ -6,7 +6,7 @@ status: todo
 depends_on: [S-027]
 acceptance:
   - System-admin-only `SystemData` (key/value config) entity ported with edit UI.
-  - System-logs view (legacy `flsweb/src/system/logs/`) ported and reads from the new `audit_event` table (S-027), filterable by tenant, actor, event type, time range.
+  - System-logs view (legacy `flsweb/src/system/logs/`) ported and reads from the new `mutation_audit_event` table (S-027) via `GET /api/v1/admin/audit-events`, filterable by tenant, actor, action, target entity type, time range.
   - Spec `19-audit-logs.spec.ts` passes.
 estimate: M
 adr_refs: [0007]

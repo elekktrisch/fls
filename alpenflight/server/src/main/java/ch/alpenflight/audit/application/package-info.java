@@ -3,8 +3,11 @@
  * ch.alpenflight.audit.application.AuditTrailService} (the
  * {@link ch.alpenflight.audit.domain.AuditTrail} adapter), the
  * {@code @TransactionalEventListener AFTER_COMMIT REQUIRES_NEW} writer,
- * the default-deny snapshot serializer, the redaction policy loader, the
- * JWT-sub → user-id resolver, and Caffeine cache.
+ * the default-deny snapshot serializer + redaction policy loader, the
+ * JWT-sub → user-id resolver with Caffeine cache, and the
+ * {@link ch.alpenflight.audit.application.AuditQueryService} that backs
+ * the admin read endpoint ({@code AuditEventDtos} carries the wire
+ * shapes — paged response with cursor metadata).
  *
  * <p>Per ADR 0023 this layer depends on the domain port + adapters in
  * {@code platform.*}; never on {@code audit.web} or {@code audit.infra}

@@ -5,6 +5,8 @@ epic: E-03
 status: done
 started_at: 2026-05-23
 done_at: 2026-05-23
+merged: true
+merged_at: 2026-05-23
 depends_on: [S-020, S-022]
 acceptance:
   - The `mutation_audit_event` table captures `id`, `occurred_at`, `actor_user_id` (nullable), `actor_keycloak_sub` (TEXT — raw JWT subject), `tenant_club_id` (per-row operating tenant, nullable for system events), `action`, `target_entity_type`, `target_entity_id`, `request_id`, `before_state` / `after_state` (jsonb, nullable), `failed`, `system_actor`, `http_status`, `failure_reason`.
