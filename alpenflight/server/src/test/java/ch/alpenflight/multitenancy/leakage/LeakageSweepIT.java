@@ -135,7 +135,8 @@ class LeakageSweepIT extends PostgresIntegrationTest {
         JpaRepository<E, UUID> repo = repositoryFor(entityClass);
         Function<SweepFixtureContext, E> builder = builderFor(entityClass);
         String tableName = TenantScopedEntityCatalog.resolveTableName(entityClass);
-        String expectedFkName = "fk_" + tableName + "_club_id";
+        String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);
+        String expectedFkName = "fk_" + tableName + "_" + tenantCol;
 
         // Pin to the FK breach specifically — not "any DataIntegrityViolation".
         // If a future regression made the resolver return null instead of the
