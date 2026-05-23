@@ -7,7 +7,7 @@
  */
 
 /**
- * SYSTEM_ADMIN-only payload to transfer ownership.
+ * CLUB_ADMINISTRATOR-only payload to transfer ownership metadata. Managing tenant is unchanged.
  */
 export type AircraftTransferOwnershipRequest = {
   /** @pattern ^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */

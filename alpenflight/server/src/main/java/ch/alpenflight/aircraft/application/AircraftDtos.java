@@ -29,8 +29,12 @@ import org.jspecify.annotations.Nullable;
  * {@link AircraftUpdateRequest}: a newly-registered aircraft defaults to
  * "owned by the managing club" (own-club case), and ownership changes go
  * through a dedicated transfer endpoint (A04 mass-assignment defense — a
- * caller could otherwise re-key ownership silently via PUT). The managing
- * club is the JWT-resolved tenant; not user-settable.
+ * caller could otherwise re-key ownership silently via PUT).
+ *
+ * <p>The managing tenant is set by Hibernate's {@code @TenantId} resolver
+ * from the JWT on persist — never on the wire. Do NOT re-introduce a
+ * {@code managingClubId} or {@code ownerClubId} field on create/update
+ * without security review (A04).
  *
  * <p>{@code isFastEntryRecord} is intentionally absent from both
  * {@link AircraftCreateRequest} and {@link AircraftUpdateRequest}: it is an
@@ -199,7 +203,7 @@ public final class AircraftDtos {
             @Nullable @Min(0) Long nextMaintenanceAtFlightOperatingCounterInSeconds,
             @Nullable @Min(0) Long nextMaintenanceAtEngineOperatingCounterInSeconds) {}
 
-    @Schema(description = "SYSTEM_ADMIN-only payload to transfer ownership.")
+    @Schema(description = "CLUB_ADMINISTRATOR-only payload to transfer ownership metadata. Managing tenant is unchanged.")
     public record AircraftTransferOwnershipRequest(
             @Nullable ClubId newOwnerClubId,
             @Nullable UUID newOwnerPersonId) {}

@@ -172,6 +172,13 @@ public class Aircraft {
         // JPA.
     }
 
+    /**
+     * Factory for a new Aircraft. The managing tenant
+     * ({@link #managingClubId}) is set by Hibernate's {@code @TenantId}
+     * resolver on persist — do NOT pass it here. {@code ownerClubId} is
+     * independent ownership metadata; the service layer defaults it to the
+     * managing tenant (own-club case).
+     */
     public static Aircraft register(@Nullable UUID ownerClubId,
                                     UUID aircraftTypeId,
                                     String immatriculation,

@@ -25,6 +25,7 @@ import ch.alpenflight.aircraft.domain.CounterMonotonicityException;
 import ch.alpenflight.aircraft.domain.DuplicateImmatriculationException;
 import ch.alpenflight.aircraft.domain.Immatriculation;
 import ch.alpenflight.aircraft.domain.InvalidAircraftReferenceException;
+import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.referencedata.domain.AircraftStateRepository;
@@ -65,6 +66,7 @@ public class AircraftsService {
     private final AircraftTypeRepository aircraftTypes;
     private final AircraftStateRepository aircraftStates;
     private final CounterUnitTypeRepository counterUnitTypes;
+    private final ClubRepository clubs;
     private final ClubTenantIdentifierResolver tenantResolver;
     private final Clock clock;
     private final AuditTrail auditTrail;
@@ -73,6 +75,7 @@ public class AircraftsService {
                             AircraftTypeRepository aircraftTypes,
                             AircraftStateRepository aircraftStates,
                             CounterUnitTypeRepository counterUnitTypes,
+                            ClubRepository clubs,
                             ClubTenantIdentifierResolver tenantResolver,
                             Clock clock,
                             AuditTrail auditTrail) {
@@ -80,6 +83,7 @@ public class AircraftsService {
         this.aircraftTypes = aircraftTypes;
         this.aircraftStates = aircraftStates;
         this.counterUnitTypes = counterUnitTypes;
+        this.clubs = clubs;
         this.tenantResolver = tenantResolver;
         this.clock = clock;
         this.auditTrail = auditTrail;
@@ -222,10 +226,16 @@ public class AircraftsService {
 
     public AircraftDetail transferOwnership(AircraftId id, AircraftTransferOwnershipRequest req) {
         Aircraft a = loadOrThrow(id);
+        UUID newOwnerClubId = req.newOwnerClubId() == null ? null : req.newOwnerClubId().value();
+        if (newOwnerClubId != null && clubs.findActiveById(newOwnerClubId).isEmpty()) {
+            // Owner-club may be a foreign club (other-organisation case).
+            // Club itself is the tenant root (not @TenantId-scoped), so the
+            // existence check runs against the full Clubs catalog regardless
+            // of the caller's managing tenant.
+            throw new InvalidAircraftReferenceException("newOwnerClubId");
+        }
         AircraftDetail before = AircraftMapper.toDetail(a);
-        a.transferOwnership(
-                req.newOwnerClubId() == null ? null : req.newOwnerClubId().value(),
-                req.newOwnerPersonId());
+        a.transferOwnership(newOwnerClubId, req.newOwnerPersonId());
         AircraftDetail after = AircraftMapper.toDetail(aircrafts.save(a));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));

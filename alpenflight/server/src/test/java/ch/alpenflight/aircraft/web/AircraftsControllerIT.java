@@ -263,16 +263,15 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerAircraft_sameImmatriculation_acrossDifferentOwners_returns_409() {
-        // Immatriculation is GLOBALLY unique by regulator convention, not
-        // per-owner — the partial unique index ux_aircraft_immatriculation
-        // covers `WHERE deleted_on IS NULL` over the whole table.
+    void registerAircraft_sameImmatriculation_sameTenant_returns_409() {
+        // Same-tenant immatriculation collision — the partial unique index
+        // ux_aircraft_immatriculation covers `WHERE deleted_on IS NULL`.
+        // Cross-tenant global uniqueness is covered by
+        // AircraftsTenantIsolationIT.immatriculation_uniqueness_is_global_across_tenants.
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> firstOwner = post("/api/v1/aircraft",
-                createPayload(imm));
-        assertThat(firstOwner.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ResponseEntity<String> first = post("/api/v1/aircraft", createPayload(imm));
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        // Same immat under same managing tenant — must still 409 (global uniqueness).
         ResponseEntity<String> dup = post("/api/v1/aircraft", createPayload(imm));
         assertThat(dup.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }

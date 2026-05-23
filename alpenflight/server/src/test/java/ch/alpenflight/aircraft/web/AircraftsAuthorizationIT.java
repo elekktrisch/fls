@@ -111,10 +111,11 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void sysAdmin_cannotRegister_lacksTenant() {
-        // Sysadmin has no clubId claim in the production realm; the
-        // @TenantId resolver returns NO_TENANT and writes FK-fail at
-        // managing_club_id. CLUB_ADMINISTRATOR is the only writer.
+    void sysAdmin_cannotRegister_lacksClubAdminRole() {
+        // Sysadmin is rejected at the @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+        // gate before reaching the persistence layer. The NO_TENANT / FK-fail
+        // path on `managing_club_id` is unreachable from HTTP but covered
+        // directly in AircraftsTenantIsolationIT.no_tenant_context_writes_fail_at_fk_constraint.
         String sysToken = mintToken(null, "SYSTEM_ADMINISTRATOR");
         ResponseEntity<String> res = post("/api/v1/aircraft",
                 createPayload(uniqueImmatriculation()), sysToken);

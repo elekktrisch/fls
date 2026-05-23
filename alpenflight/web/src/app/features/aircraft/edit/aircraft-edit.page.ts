@@ -230,7 +230,7 @@ type AircraftForm = FormGroup<{
             >
               Operational data
             </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <af-form-field label="Homebase" for="HomebaseId">
                 <af-select
                   inputId="HomebaseId"

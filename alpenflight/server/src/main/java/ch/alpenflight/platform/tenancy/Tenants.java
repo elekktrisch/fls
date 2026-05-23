@@ -16,9 +16,9 @@ import org.jspecify.annotations.Nullable;
  *   <li><strong>OGN ingestion + cross-tenant scheduled jobs</strong> —
  *       endpoints / runners that write on behalf of many clubs in one pass
  *       (S-023 territory; not wired yet).</li>
- *   <li><strong>Cutover / bulk-import</strong> — S-028+ admin-only operations
- *       that import legacy data on behalf of multiple clubs. Bound to a
- *       sysadmin-only HTTP entry point.</li>
+ *   <li><strong>Cutover / bulk-import</strong> — admin-only operations that
+ *       import legacy data on behalf of multiple clubs. Bound to a
+ *       sysadmin-only HTTP entry point when wired.</li>
  * </ul>
  *
  * <p>The HTTP-exposed {@code /api/v1/admin/locations/{clubId}} impersonation
