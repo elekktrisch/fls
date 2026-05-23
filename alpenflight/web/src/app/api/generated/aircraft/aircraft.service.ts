@@ -314,7 +314,7 @@ export class AircraftService {
     );
   }
 /**
- * @summary Transfer ownership of an Aircraft (SYSTEM_ADMINISTRATOR-only).
+ * @summary Transfer ownership of an Aircraft (CLUB_ADMINISTRATOR of the managing club).
  */
  transferOwnership<TData = AircraftDetail>(id: string,
     aircraftTransferOwnershipRequest: AircraftTransferOwnershipRequest, options?: HttpClientBodyOptions): Observable<TData>;
