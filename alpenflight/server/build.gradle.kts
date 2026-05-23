@@ -274,6 +274,18 @@ flyway {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Optional Gradle-layer fork parallelism for the test task. Each fork's
+    // SharedPostgresContainer is its own JVM singleton — separate Postgres
+    // container per fork — so TenantTestContext's ThreadLocal carrier never
+    // aliases (forks don't share memory). Sequential per-JVM JUnit execution
+    // stays on (junit-platform.properties); only the Gradle layer parallelises.
+    //
+    // Default is 1 because the dev sandbox has ~4 GiB RAM and two forks (each
+    // boots Spring + Postgres + an idle Hikari pool) blow the budget. CI
+    // runners with ≥8 GiB headroom can opt in via:
+    //     ALPENFLIGHT_TEST_FORKS=2 ./gradlew test
+    // Expected wall-time reduction at N=2 on the ~50-class suite: ~40-50 %.
+    maxParallelForks = (System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 1).coerceAtLeast(1)
 }
 
 // S-155: runs `LayeringRulesDemoTest` (in the archDemo source set) which

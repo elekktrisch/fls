@@ -15,6 +15,16 @@ spring:
       # without a cap each acquires Hikari's default 10 connections and the
       # shared testcontainer exhausts PG's max_connections.
       maximum-pool-size: 4
+  jpa:
+    properties:
+      hibernate:
+        # Hibernate Statistics on by default in `test` so LocationsN1GuardIT
+        # and any future query-count guard can share the standard
+        # @SpringBootTest(RANDOM_PORT)+@Import(JwtTestFixture.class) cached
+        # context — without this, those classes needed their own
+        # @TestPropertySource and forked a separate context (~15 s boot).
+        # Perf cost is sub-microsecond per query; unmeasurable in suite.
+        generate_statistics: true
   flyway:
     # Eliminates container-readiness flake in integration tests without
     # touching prod startup. Per S-009 performance plan.

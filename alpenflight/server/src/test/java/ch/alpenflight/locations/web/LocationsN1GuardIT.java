@@ -25,7 +25,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * Hibernate-Statistics-driven N+1 guard. Confirms:
@@ -39,14 +38,14 @@ import org.springframework.test.context.TestPropertySource;
  *       collection in the same round-trip as the parent row.</li>
  * </ul>
  *
- * <p>Sets {@code spring.jpa.properties.hibernate.generate_statistics=true}
- * via {@link TestPropertySource} so the {@link Statistics} hook is wired
- * (default-off in production for perf reasons).
+ * <p>{@code spring.jpa.properties.hibernate.generate_statistics=true} is
+ * pinned in {@code application-test.yml} so every RANDOM_PORT IT shares a
+ * single cached Spring context — this class used to declare it via
+ * {@code @TestPropertySource}, forking a separate context (~15 s boot).
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
-@TestPropertySource(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 class LocationsN1GuardIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
