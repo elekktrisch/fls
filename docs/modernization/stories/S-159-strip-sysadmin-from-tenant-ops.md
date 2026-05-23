@@ -1,8 +1,8 @@
 ---
 id: S-159
-title: Strip SYSTEM_ADMINISTRATOR from tenant-scoped ops; make Aircraft tenant-scoped
+title: Strip SYSTEM_ADMINISTRATOR from tenant-scoped ops; make Aircraft tenant-scoped via managing club
 epic: E-06
-status: todo
+status: in_progress
 estimate: M
 depends_on: [S-049c, S-050]
 origin: rework
@@ -12,6 +12,9 @@ parity_test: none
 refined: true
 refined_at: 2026-05-23
 refined_specialists: [requirements, solution, qa, security]
+started_at: 2026-05-23
+github_issue: 105
+github_pr: 102
 ---
 
 ## Context
@@ -39,116 +42,106 @@ right thing for free, like Locations / Persons / Flights.
 
 ### Server
 
-- [ ] **Strip `SYSTEM_ADMINISTRATOR` from tenant-scoped `@PreAuthorize`** on:
-  - `LocationsController` POST/PUT/DELETE (currently `hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')` → `hasRole('CLUB_ADMINISTRATOR')`).
-  - `AircraftsController` POST/PUT (likewise) + the create-flow co-allow in `AircraftAccess` for null-owner aircraft.
+- [ ] **Strip `SYSTEM_ADMINISTRATOR` from tenant-scoped `@PreAuthorize`** on `LocationsController` POST/PUT/DELETE and `AircraftsController` POST/PUT/DELETE/state/counter/transferOwnership.
 - [ ] **Delete `LocationsAdminController` + its IT.** No replacement; sysadmin doesn't act on tenant data.
-- [ ] **Aircraft `@TenantId` discriminator.** Add `@TenantId` to `Aircraft.ownerClubId`. Update repo doc-comments (`AircraftRepository`, `Aircraft.java:42`, `AircraftAccess`, the two `package-info.java` mentions of "cross-tenant"). Drop `AircraftAccess` checks that the discriminator now enforces structurally.
-- [ ] **Charter (null-owner) aircraft + ownership transfer — design decision.** Two flows currently sysadmin-only and structurally cross-club. Pick one and capture in this story body before implement:
-  - **(a)** Require `ownerClubId` on every aircraft (drop the charter concept; cutover migration assigns a synthetic "CHARTER" club per legacy host if needed).
-  - **(b)** Keep them sysadmin-only via dedicated cross-club endpoints (e.g. `POST /api/v1/aircraft/charter`, `PUT /api/v1/aircraft/{id}/owner`) that **don't** filter by `@TenantId` — explicitly cross-tenant, not impersonation.
-  Default lean: **(a)** — keeps the model uniform; ownership transfer becomes a one-off sysadmin endpoint that doesn't pretend to be tenant-scoped.
-- [ ] **ADR 0008 amendment.** Strike "sysadmin acts within whichever club its JWT `clubId` asserts; cross-club operations need explicit impersonation today, with a future `Tenants.runAs(...)` escape hatch". Replace with: sysadmin has rights only on cross-cutting resources (Clubs catalog, sysadmin user mgmt, cutover import). `Tenants.runAs` stays as a production seam for cutover / scheduled jobs, but the HTTP-exposed `/admin/*` impersonation path is gone.
-- [ ] **Realm seed unchanged.** `sysadmin` keeps SYSTEM_ADMINISTRATOR; no clubId needed (correct now — was correct before too).
-- [ ] **Cross-tenant leakage test (S-024) extended to Aircraft.** Now that aircraft is `@TenantId`-scoped, the parity test should cover it.
+- [ ] **Aircraft tenant scoping via new `managing_club_id`.** Add `Aircraft.managingClubId` `@TenantId`, NOT NULL, FK to club. Backfill `managing_club_id = COALESCE(owner_club_id, seed-club-1)`. `owner_club_id` + `aircraft_owner_person_id` remain nullable ownership metadata, not @TenantId.
+- [ ] **transferOwnership becomes CLUB_ADMIN-only** (managing tenant unchanged → no `Tenants.runAs` needed; cross-tenant managing-club move is a deferred sysadmin op).
+- [ ] **Drop `AircraftCreateRequest.ownerClubId`** (A04 mass-assignment — service defaults `owner_club_id = managing_club_id`).
+- [ ] **AircraftAccess collapses.** Delete `canMutateAircraft` / `canRegisterAircraft` / `canOperateAircraft` / `canRecordCounter` / `canSeeOwnerOnlyFields` — all subsumed by `@TenantId` + role gates. Update controller `@PreAuthorize` to plain role expressions.
+- [ ] **Cross-tenant leakage test (S-024) extended to Aircraft.** Aircraft becomes a row in the per-repository parity matrix.
 
 ### SPA
 
-- [ ] **Delete `/admin/locations` route + `AdminLocationsListPage` + `AdminLocationsEditPage`** under `features/admin/locations/`.
-- [ ] **Drop the "Locations admin" sysadmin-only nav entry** in `app.component.ts`. ("Locations" stays — visible to any authenticated user; mutations gated by `isAnyAdmin`. Added in S-050 boyscout.)
-- [ ] **Aircraft-edit ownerClub picker** — review `showOwnerSelect = session.isSystemAdmin` (`aircraft-edit.page.ts:444`). If (a): sysadmin doesn't create aircraft anymore (CLUB_ADMIN always picks own club implicitly) → remove the gate. If (b): keep the gate but route through the dedicated cross-club endpoint.
-- [ ] **Aircraft store `canMutate`** — drop sysadmin from any role checks; CLUB_ADMINISTRATOR only.
-- [ ] **Verify pilot1 can browse `/locations`** (read-only — no New/Edit/Delete affordances). Already gated; just confirm.
+- [ ] **Delete `/admin/locations` route + `AdminLocationsListPage` + `AdminLocationsEditPage`** under `features/admin/locations/`; remove the OpenAPI-generated `api/generated/locations-admin/`.
+- [ ] **Drop the "Locations admin" sysadmin-only nav entry** in `app.component.ts`.
+- [ ] **Hide `/locations` + `/aircraft` nav entries when `isSystemAdmin`** (Q3 — sysadmin has no tenant; list pages would render empty).
+- [ ] **Aircraft-edit ownerClub picker** — drop `showOwnerSelect` (managing club is implicit).
+- [ ] **`canMutate` flips `isAnyAdmin` → `isClubAdmin`** on aircraft + locations list/edit pages so sysadmin doesn't see Save buttons that 403 on submit.
 
 ### Tests
 
-- [ ] `LocationsControllerIT` — remove the SYSTEM_ADMINISTRATOR cases for POST/PUT/DELETE; add 403 cases.
+- [ ] `LocationsControllerIT` — remove SYSTEM_ADMINISTRATOR cases for POST/PUT/DELETE; add 403 cases.
 - [ ] `LocationsAdminControllerIT` — deleted.
-- [ ] `AircraftsControllerIT` — same shape. Add `@TenantId` cross-tenant test (CLUB_ADMIN of A cannot see/edit B's aircraft).
-- [ ] SPA: remove `admin-locations.spec.ts` (if exists); add Playwright spec for clubadmin1 creating a location + assigning it as homebase on an aircraft (the original UX flow that surfaced this story).
+- [ ] `AircraftsControllerIT` — rebaseline from `sysadminToken` → `clubAdminToken` (seed-club-1).
+- [ ] `AircraftsAuthorizationIT` — drop full-fleet read + null-owner-SYSADMIN tests; flip cross-club mutation FORBIDDEN → NOT_FOUND; transferOwnership matrix → CLUB_ADMIN of managing club.
+- [ ] New `AircraftsTenantIsolationIT` — mirror `LocationsTenantIsolationIT` (filter isolates, no-tenant empty + FK-fail, global immatriculation uniqueness across tenants).
+- [ ] `AircraftCrossTenantGuardTest` — inverted to assert `@TenantId` is present.
 
 ## Out of scope
 
-- Cutover / bulk-import endpoints. Tracked separately; still sysadmin-only and explicitly cross-club. `Tenants.runAs` stays as the in-process seam.
+- Cutover / bulk-import endpoints. Tracked separately; still sysadmin-only and explicitly cross-club. `Tenants.runAs` stays as the in-process seam (audit listener + RequestAuditFilter).
 - Sysadmin user-management UI. Not yet built.
+- "External organisation owns this aircraft" picker (other club from catalog / external org entity). Today every new aircraft is implicitly owned by its managing club; this story doesn't add a cross-club ownership UI.
+- "Re-register aircraft under different managing club" — a future sysadmin-only cross-tenant op (would re-key `managing_club_id`); not in S-159.
 - Scheduled-job tenant context (`UnscopedTenantContext`, S-023). Orthogonal — that's about *no* tenant context, not impersonation.
 
 <!-- modernize-refine: start -->
 
 ## Design notes
 
-**Working assumption: option (a) — charter dropped, `ownerClubId` mandatory.** Deferring `@TenantId` leaves Aircraft as the only structurally-unscoped tenant aggregate for another sprint and forces a second pass on `AircraftAccess`. Implementer proceeds on (a); if operator later picks (b), a follow-up adds a synthetic CHARTER club or dedicated cross-club endpoints.
+**Operator-chosen schema (2026-05-23): managing-club + ownership split.** Every aircraft is registered by exactly one tenant — the *managing club*. Ownership is independent metadata with three derived cases: own-club (`owner_club_id == managing_club_id`), other organisation (`owner_club_id != managing_club_id`, or `NULL` if not in the Clubs catalog), private person (`aircraft_owner_person_id != null`). `@TenantId` lives on `managing_club_id` (NEW, NOT NULL). `owner_club_id` + `aircraft_owner_person_id` remain nullable, neither is `@TenantId`. transferOwnership changes ownership only, not the managing tenant — so it collapses to a regular CLUB_ADMIN endpoint. "Re-register under a different managing club" is a separate sysadmin-only cross-tenant operation, deferred (no UI today).
 
 **Module impact (one line each):**
-- `aircraft/domain/Aircraft.java` — `@TenantId` on `ownerClubId`; field becomes `@NotNull` in Java.
-- `aircraft/application/AircraftAccess.java` — delete `canMutateAircraft` + `canRegisterAircraft` + `canSeeOwnerOnlyFields` (now structural via discriminator); keep `canRecordCounter` (genuinely cross-role); trim `canOperateAircraft` to role-only (owner-club equality is structural).
-- `aircraft/web/AircraftsController.java` — POST/PUT/DELETE drop SYSADMIN co-allow; PUT/DELETE collapse to `hasRole('CLUB_ADMINISTRATOR')`. `transferOwnership` keeps `hasRole('SYSTEM_ADMINISTRATOR')` and runs **inside `Tenants.runAs(currentOwnerClubId, …)`** to load the source row before re-issuing under the new owner (Hibernate forbids mutating `@TenantId` columns on managed entities).
-- New Flyway `V9__aircraft_tenant_id.sql` — backfill `owner_club_id = '<seed-club-1>'` for NULLs, `ALTER COLUMN SET NOT NULL`, drop `ix_aircraft_owner_club` partial predicate (column is non-null), drop legacy `ck_aircraft_owner_xor` invariant (no charter case under (a)).
-- `locations/web/LocationsAdminController.java` + `LocationsAdminControllerIT.java` — delete.
+- `aircraft/domain/Aircraft.java` — NEW field `managingClubId` (`@TenantId`, `@NotNull`); `register(...)` takes it as first arg. `ownerClubId` stays as ownership metadata. Add `transferOwnership(...)` overload signature unchanged.
+- `aircraft/application/AircraftAccess.java` — delete `canMutateAircraft` + `canRegisterAircraft` + `canSeeOwnerOnlyFields` (now structural via `managing_club_id` discriminator); delete `canOperateAircraft` (collapses to role gate — owner-club equality is structural via @TenantId); delete `canRecordCounter` cross-club affordance (charter regression accepted per Q2 (i)).
+- `aircraft/web/AircraftsController.java` — POST/PUT/DELETE/state/counter collapse to `hasRole('CLUB_ADMINISTRATOR')` (PUT/DELETE) / `hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')` (state + counter). `transferOwnership` becomes CLUB_ADMIN-only (no longer sysadmin; no `Tenants.runAs` needed — managing club stays).
+- `aircraft/application/AircraftDtos.java` — drop `ownerClubId` from `AircraftCreateRequest` (derived from JWT; A04 mass-assignment defense). Keep `aircraftOwnerPersonId`; add to `AircraftTransferOwnershipRequest` as before.
+- `aircraft/application/AircraftsService.java` — `registerAircraft` reads `managingClubId` from `Tenants.current()` (or the resolver's view); writes `owner_club_id = managing_club_id` by default (own-club case). DTO mappers pass through both fields.
+- New Flyway `V10__aircraft_managing_club_id.sql` — `ALTER TABLE aircraft ADD COLUMN managing_club_id UUID`; backfill `managing_club_id = COALESCE(owner_club_id, '019e30c3-2c00-7001-8000-000000000001')` (seed-club-1); `SET NOT NULL`; FK to club; `CREATE INDEX ix_aircraft_managing_club ON aircraft (managing_club_id)`.
+- `locations/web/LocationsAdminController.java` + `LocationsAdminControllerIT.java` — delete (story core).
 - `locations/web/LocationsController.java` POST/PUT/DELETE — drop SYSADMIN from `@PreAuthorize`.
-- `database/tenant-rules.yaml` — flip Aircraft + aircraft-state-history + aircraft-operating-counter from `cross-tenant` to `tenant-scoped`. **Load-bearing for S-024** — must ship in same commit as the `@TenantId` annotation or the leakage CI asserts the old contract.
-- `arch/AircraftCrossTenantGuardTest.java` — invert (assert `@TenantId` IS present) or delete.
-- `Tenants.java` Javadoc + ArchUnit — `Tenants.runAs` keeps the seam (cutover / OGN / scheduled jobs) but only `transferOwnership` still uses it from `main/`. Add a `TenantBypassGuardTest` rule: "no production class outside `platform.tenancy` may call `Tenants.runAs` except `transferOwnership`" — makes the carve-out structural.
-- `web/src/app/features/admin/locations/**` — delete folder. SPA + server delete + OpenAPI regen + generated `api/generated/locations-admin/` cleanup must land in **one commit** (partial state breaks SPA build or 404s silently).
-- `web/src/app/core/session/session.store.ts` — add `isClubAdmin` computed. `locations-edit.page.ts:341` + `aircraft-edit.page.ts:441` flip from `isAnyAdmin` → `isClubAdmin` so sysadmin doesn't see Save buttons that 403 on submit.
-- `web/src/app/app.component.ts` — drop `/admin/locations` nav entry; hide `/locations` + `/aircraft` entries when `isSystemAdmin` (sysadmin has no tenant context, list-pages would render empty — see open question 3).
-- `V8__dev_user_seed.sql` — update comment block (drop the "S-159 design pivot, sysadmin operates only on cross-cutting resources" phrasing — the JWT-minimal pivot was rejected; the seed itself stays correct).
+- `database/tenant-rules.yaml` — flip `Aircrafts` + `AircraftAircraftStates` + `AircraftOperatingCounters` from `cross-tenant` to `tenant-scoped`; rename `tenant_column_legacy` → `OwnerId` (the legacy managing-club column, mapped to `managing_club_id`). Load-bearing for S-024 — must ship in same commit as the `@TenantId` annotation.
+- `arch/AircraftCrossTenantGuardTest.java` — invert: assert that `Aircraft` is annotated; child entities transitively scoped via FK.
+- `Tenants.java` Javadoc — drop the LocationsAdminController bullet from "anticipates" since the only main/ caller of runAs becomes the audit-listener + RequestAuditFilter.
+- `web/src/app/features/admin/locations/**` — delete folder + route. SPA + server delete + OpenAPI regen + generated `api/generated/locations-admin/` cleanup land in **one commit**.
+- `web/src/app/core/session/session.store.ts` — `isClubAdmin` computed already exists (line 62); switch `canMutate` consumers from `isAnyAdmin` → `isClubAdmin` so sysadmin doesn't see Save buttons that 403 on submit. Keep `isAnyAdmin` for any caller that still wants the disjunction.
+- `web/src/app/features/aircraft/edit/aircraft-edit.page.ts:444` — drop `showOwnerSelect` (no cross-club registration; managing club is implicit).
+- `web/src/app/features/locations/{list,edit}/*.page.ts` + `features/aircraft/{list,edit}/*.page.ts` — flip `canMutate = session.isAnyAdmin` → `session.isClubAdmin`.
+- `web/src/app/app.component.ts` — drop `/admin/locations` nav entry; hide `/locations` + `/aircraft` entries when `isSystemAdmin` (sysadmin has no tenant; list pages would render empty).
+- E2E: delete `admin/locations-admin.spec.ts` if present; existing `masterdata/aircraft-crud.spec.ts:611` drops the `aircraft-owner-select` visibility check.
 
-**ADR 0008 amendment (2026-05-23, S-159):**
-> SYSTEM_ADMINISTRATOR is no longer co-allowed on tenant-scoped HTTP endpoints. Sysadmin's HTTP rights are limited to cross-cutting resources (Clubs catalog, sysadmin user mgmt, cutover / bulk import). The `/api/v1/admin/locations/{clubId}` impersonation pattern introduced in S-049c is withdrawn; `Tenants.runAs(...)` survives only as an in-process seam for scheduled jobs, OGN ingestion, cutover import, and the cross-tenant `transferOwnership` endpoint — never wired through to an HTTP path that exists to "act as a club from the outside." Tenant data is acted on by members of that tenant; nothing else. Reclassify the `tenant-rules.yaml` 2026-05-16 Aircraft-cross-tenant amendment as superseded.
+**ADR 0008 amendment (2026-05-23, S-159) — proposed (operator decides at finalize):**
+> SYSTEM_ADMINISTRATOR is no longer co-allowed on tenant-scoped HTTP endpoints. Sysadmin's HTTP rights are limited to cross-cutting resources (Clubs catalog, sysadmin user mgmt, cutover / bulk import). The `/api/v1/admin/locations/{clubId}` impersonation pattern introduced in S-049c is withdrawn. Aircraft becomes tenant-scoped via a NEW `managing_club_id` `@TenantId` column; `owner_club_id` + `aircraft_owner_person_id` stay as ownership metadata (independent of tenancy). `Tenants.runAs(...)` survives only as an in-process seam for scheduled jobs, OGN ingestion, cutover import, and the audit listener — never wired through to an HTTP path that exists to "act as a club from the outside." Tenant data is acted on by members of that tenant; nothing else. Reclassify the `tenant-rules.yaml` 2026-05-16 Aircraft-cross-tenant amendment as superseded.
 
-**Per ADR 0022 directive 2:** the V9 migration adds only NOT NULL + FK + index (all structural). No CHECK constraints, no triggers, no generated columns; the dropped `ck_aircraft_owner_xor` was a charter-era guard that the operator-chosen schema invalidates anyway.
+**Per ADR 0022 directive 2:** the V10 migration adds only NOT NULL + FK + index (all structural). No CHECK constraints / triggers / generated columns. The owner-kind discriminator (own-club / other-org / person) is a domain-layer derivation, not a schema enum.
 
 ## Edge cases & hidden requirements
 
-- **`Flight` / `AircraftReservation` cross-club FK survival under `@TenantId`.** ADR 0008 §A says "FK loads by id are not tenant-filtered" — but that only holds for `find`/`getReference`. `@ManyToOne` traversal from a Flight in club B to a club-A-owned aircraft WILL append the discriminator and return null. `V4__reservations_planning_accounting.sql:628` currently promises cross-tenant survival; that promise breaks under (a) unless the operator confirms charter is gone and operator-club always equals owner-club at the per-flight level. **Reverse the V4:628 + V3:672 + tenant-rules.yaml:343-347 rationale paragraphs** in the same migration commit. S-058 (Flight) + S-068 (Reservation) inherit the new contract.
-- **`canRecordCounter` cross-club regression.** `AircraftsController.java:170-173` documents "a tow pilot at club B records hours for a club-A charter aircraft." Under (a) + `@TenantId`, club-B FLIGHT_OPS can no longer load the aircraft. Either delete the comment + accept the regression (charter is gone), or load via `Tenants.runAs(ownerClubId, …)` after a one-shot unscoped lookup. **Surfaced as open question 2.**
 - **Cross-tenant mutation behavior flips 403 → 404.** Per the established IDOR pattern (`LocationsController.java:43-47`): a CLUB_ADMIN of A asking for B's aircraft no longer gets 403; the row is invisible → 404. `AircraftsAuthorizationIT.clubAdminOfOtherClub_cannotMutate_ownedAircraft` flips assertion from FORBIDDEN to NOT_FOUND.
-- **`AircraftCrossTenantGuardTest` contradicts the new direction.** Invert or delete; story AC didn't call it out and the implementer will discover the failing build mid-flight.
-- **SPA `LocationsStore` + `AircraftStore` bootstrap behavior for sysadmin.** Both stores `loadAll()` on `onInit`. Sysadmin's `NO_TENANT` context → server returns `[]`, no error. Lists render empty. Either hide the nav entries for sysadmin (recommended) or render the empty state — see open question 3.
-- **`AircraftCreateRequest.ownerClubId` becomes a mass-assignment vector.** Under (a), `ownerClubId` should be derived from the principal's `clubId` claim at the controller, not read from the request body. Drop the field from the DTO; the discriminator + JWT-derived tenant write it for free.
+- **Full-fleet visibility goes away.** `anyAuthenticatedUser_canReadAnyAircraft` (`AircraftsAuthorizationIT.java:157`) gets deleted — under @TenantId on managing_club_id, club B can no longer see club A's aircraft. The "tow pilot of B sees A's charter" use case is intentionally regressed (Q2 (i) — accept the charter-era regression).
+- **`AircraftCreateRequest.ownerClubId` becomes mass-assignment vector.** Drop from the DTO; the discriminator + JWT-derived tenant write `managing_club_id` for free. The service defaults `owner_club_id = managing_club_id` (own-club case) — future stories may add an "external organisation owns this aircraft" picker that points at another club in the Clubs catalog or at a private-person.
 - **Test fixtures mint sysadmin WITH `clubId` today.** `AircraftsControllerIT:63` + `LocationsControllerIT:57` give sysadmin a `clubId` claim the production realm doesn't carry. After S-159, mint sysadmin **without** `clubId` so the IT matches production token shape and catches any latent resolver code that reads the claim unconditionally.
-- **Proffix machine client unaffected.** `realm-export.json:2406` — service account has empty role list (`"alpenflight-proffix": []`); Proffix uses scope-gated reads, not role-gated writes. No regression risk on the integration path.
+- **Realm seed unchanged.** `sysadmin` keeps SYSTEM_ADMINISTRATOR; still no clubId claim (correct now — was correct before too).
+- **`AircraftCrossTenantGuardTest` contradicts the new direction.** Invert (assert `@TenantId` IS present on `Aircraft.managingClubId`) and drop the field-level "no @TenantId on aggregate internals" rule (the parent's discriminator carries them).
+- **Proffix machine client unaffected.** `realm-export.json:2406` — service account has empty role list; Proffix uses scope-gated reads, not role-gated writes. No regression risk.
 
 ## Security plan
 
-**Authz delta** (the actual change):
+**Authz delta:**
 - `LocationsController` POST/PUT/DELETE: `hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')` → `hasRole('CLUB_ADMINISTRATOR')`. Intentional 403 for sysadmin.
-- `AircraftsController` POST: drop the sysadmin co-allow at line 105. POST/PUT/DELETE collapse to `hasRole('CLUB_ADMINISTRATOR')`. `transferOwnership` (line 139) keeps `hasRole('SYSTEM_ADMINISTRATOR')` and is the **only** production caller of `Tenants.runAs` after S-159.
-- `AircraftAccess.canSeeOwnerOnlyFields` collapses to `isAuthenticated()` (every visible aircraft now belongs to the caller's club; DTO field-hiding is moot).
+- `AircraftsController` POST/PUT/DELETE collapse to `hasRole('CLUB_ADMINISTRATOR')`. State change + counter → `hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')`. `transferOwnership` becomes `hasRole('CLUB_ADMINISTRATOR')` (no longer sysadmin; managing tenant unchanged, only ownership metadata flips).
+- `LocationsAdminController` — deleted (no impersonation path).
+- Service-layer SpEL helpers (`AircraftAccess`) — deleted; `@TenantId` carries the tenant-equality check structurally.
 
 **Residual checks `@TenantId` does NOT subsume:**
-- Role-within-tenant (CLUB_ADMIN required to delete; FLIGHT_OPS required for counters) — keep `@PreAuthorize("hasRole(...)")` on every mutation.
-- `canRecordCounter` — see open question 2.
-- Audit-trail `userLookup.resolveUserIdFor(jwt)` — still needed for CLUB_ADMIN soft-delete actor recording (Locations + Aircraft).
+- Role-within-tenant (CLUB_ADMIN to mutate; FLIGHT_OPERATOR to record counters) — keep `@PreAuthorize("hasRole(...)")` on every mutation.
+- Audit-trail `userLookup.resolveUserIdFor(jwt)` — still needed for CLUB_ADMIN soft-delete actor recording.
 
 **Operational consequences:**
-- 404 not 403 on cross-tenant — document in IT + `AircraftsController` class Javadoc; this is the IDOR contract.
-- `Tenants.runAs` ArchUnit guard prevents the seam from being re-introduced ad-hoc post-`LocationsAdminController` deletion.
-- Generated TS `locations-admin/*` client + e2e spec + SPA pages — coordinated delete in one commit (sequencing surfaced in design notes).
+- 404 not 403 on cross-tenant — IDOR contract documented in `AircraftsController` Javadoc.
+- Generated TS `locations-admin/*` client + e2e spec + SPA pages — coordinated delete in one commit.
 
 ## Test plan
 
 **Pyramid:**
-- **Unit (Vitest, alpenflight/web):** 1–2 — `aircraft.store.canMutate` shrinks to CLUB_ADMIN-only; `aircraft-edit.page.ts:444` `showOwnerSelect` collapses to `false`. No DOM specs.
-- **Integration (Spring `@SpringBootTest`):** new `AircraftsTenantIsolationIT` mirroring `LocationsTenantIsolationIT.java:65` (4 cases: filter-isolates, no-tenant-empty, no-tenant-FK-fail, global-immat-uniqueness-across-tenants — immatriculation stays regulator-global unlike ICAO). `LocationsAuthorizationIT` matrix flip (SYSADMIN row → 403). `LocationsAdminControllerIT` **deleted**. `AircraftsControllerIT` re-baselined from `sysadminToken` → `clubAdminToken` (CLUB_ADMIN of seed-club-1). `AircraftsAuthorizationIT` rewrite (sysadmin rows → 403 or DELETE; cross-club mutation FORBIDDEN → NOT_FOUND). `AircraftCrossTenantGuardTest` inverted or deleted.
-- **E2E (Playwright):** 1 deleted (`admin/locations-admin.spec.ts`), 1 added (`masterdata/aircraft-homebase-assignment.spec.ts` — clubadmin1 creates location → assigns as homebase → reload → persists). Existing `masterdata/aircraft-crud.spec.ts:611` drops `aircraft-owner-select` from visible-field inventory.
+- **Unit (Vitest, alpenflight/web):** flip `canMutate` consumers from `isAnyAdmin` → `isClubAdmin` and adjust the existing aircraft.store specs.
+- **Integration (Spring `@SpringBootTest`):** new `AircraftsTenantIsolationIT` mirroring `LocationsTenantIsolationIT.java:65` (4 cases: filter-isolates, no-tenant-empty, no-tenant-FK-fail, global-immat-uniqueness-across-tenants — immatriculation stays regulator-global). `LocationsAuthorizationIT` matrix flip (SYSADMIN row → 403). `LocationsAdminControllerIT` **deleted**. `AircraftsControllerIT` re-baselined from `sysadminToken` → `clubAdminToken`. `AircraftsAuthorizationIT` rewrite: drop full-fleet read; cross-club mutation FORBIDDEN → NOT_FOUND; drop sysadmin-only mutation tests; transfer-ownership becomes CLUB_ADMIN.
+- **E2E (Playwright):** if `admin/locations-admin.spec.ts` exists, delete; `aircraft-crud.spec.ts:611` drops the owner-select inventory check.
 
-**Non-obvious cases:**
-- **Behavior removal:** `anyAuthenticatedUser_canReadAnyAircraft` (`AircraftsAuthorizationIT.java:157`) gets **deleted** — full-fleet visibility is gone by construction once `@TenantId` lands. Document the contract change in the test deletion commit.
-- **Charter test sweep:** under (a), 5 tests reference null-owner / SYSADMIN-only mutation paths (`clubAdmin_cannotRegisterAircraft_withNullOwner`, etc.). Drop with the schema change.
-- **Pilot1 read-only browse:** extend existing locations-crud spec (don't add a new file) — switch principal to FLIGHT_OPERATOR, assert `locations-new-button` count(0) and per-row edit/delete icons absent.
-
-**Fixture notes:** mock-auth (per FE CLAUDE.md §8); V8 seeds clubadmin1/pilot1 ready to use. `JwtTestFixture` shape change is load-bearing — mint sysadmin **without** `clubId` (matches production). S-024's parameterised property-based gate is still todo; the new `AircraftsTenantIsolationIT` becomes one row in that matrix when S-024 lands.
+**Fixture notes:** mock-auth per `next/web/CLAUDE.md` §8; V8 seeds clubadmin1/pilot1. Mint sysadmin **without** `clubId` (matches production realm).
 
 ## Performance plan
 
-(N/A — story removes role co-allows + adds one Hibernate discriminator filter. The discriminator runs on an already-indexed column (`ix_aircraft_owner_club_active` from V3, now non-partial post-V9). No hot paths added; no new caches; no new queries.)
-
-## Open design questions
-
-1. **Charter / null-owner aircraft + ownership transfer.** Working assumption is (a) — drop charter, `ownerClubId` mandatory, transfer-ownership becomes a sysadmin-only cross-tenant endpoint wrapped in `Tenants.runAs`. Alternative (b): keep null-owner + add dedicated `POST /aircraft/charter` + `PUT /aircraft/{id}/owner` endpoints that don't filter by `@TenantId`. **Recommend (a)** (uniform model, smaller seam; (b) introduces a second authz regime). Operator confirms before implement starts — affects schema migration shape.
-2. **Counter recording cross-club case.** `canRecordCounter` today allows club-B FLIGHT_OPS to record hours for a club-A charter aircraft. Under (a) + `@TenantId`, club-B can't load the aircraft. Two options: **(i)** delete the comment + accept the regression (charter is gone under (a) anyway); **(ii)** unscoped lookup wrapped in `Tenants.runAs(ownerClubId)`. **Recommend (i)** — the charter case dies with (a); cross-club counter recording was a charter-era affordance with no analog in a uniform-ownership world.
-3. **SPA chrome for sysadmin** (no `clubId` → tenant-scoped list-pages render empty). Three options: **redirect** to `/clubs` with a toast, **404**, or **render empty-state**. **Recommend hide the nav entries entirely for sysadmin** (combining solution-architect's "redirect" with requirements-engineer's surfacing of the same problem on `/aircraft`): sysadmin's nav becomes `Clubs` + future sysadmin user mgmt only; no broken-looking empty pages. Direct URL navigation by sysadmin still works — page shows the empty state. Operator confirms.
+(N/A — adds one `@TenantId` discriminator on an already-indexed column. No hot paths added; no new caches; no new queries.)
 
 <!-- modernize-refine: end -->
