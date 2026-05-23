@@ -305,7 +305,15 @@ public class AircraftsService {
 
     private Aircraft persist(Aircraft a, String normalizedImmatriculation) {
         try {
-            return aircrafts.save(a);
+            Aircraft saved = aircrafts.save(a);
+            // Immatriculation uniqueness is regulator-GLOBAL (partial UNIQUE on
+            // immatriculation WHERE deleted_on IS NULL). The application
+            // pre-check only sees the caller's tenant under @TenantId scoping —
+            // so a cross-tenant collision needs the DB to surface the violation
+            // synchronously. Flush before returning so the IIE → typed exception
+            // mapping fires from this catch, not at tx commit.
+            aircrafts.flush();
+            return saved;
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateImmatriculationException(normalizedImmatriculation);
         }
