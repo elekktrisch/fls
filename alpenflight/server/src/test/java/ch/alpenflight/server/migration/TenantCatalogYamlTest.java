@@ -227,20 +227,21 @@ class TenantCatalogYamlTest {
     }
 
     /**
-     * 2026-05-16 Aircraft-cross-tenant amendment hand-off to S-014:
-     * AircraftReservations.ride_through_targets must list both Persons and
-     * Aircrafts. S-024 leakage CI reads this to parameterize the cross-tenant
-     * FK roster.
+     * S-159 amendment to the 2026-05-16 ride-through addition: with Aircraft
+     * now tenant-scoped (via {@code managing_club_id}), the aircraft_id FK
+     * on aircraft_reservation is a same-tenant FK by construction — not a
+     * cross-tenant ride-through. AircraftReservations.ride_through_targets
+     * keeps only Persons (the genuinely cross-tenant ride-through).
      */
     @Test
     @SuppressWarnings("unchecked")
-    void s014_aircraft_reservations_ride_through_includes_aircrafts() {
+    void s014_aircraft_reservations_ride_through_is_persons_only_post_s159() {
         Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
         Map<String, Object> arv = (Map<String, Object>) overrides.get("AircraftReservations");
         List<String> rideThrough = (List<String>) arv.get("ride_through_targets");
         assertThat(rideThrough)
-                .as("AircraftReservations.ride_through_targets must include both Persons and Aircrafts (2026-05-16 amendment)")
-                .containsExactlyInAnyOrder("Persons", "Aircrafts");
+                .as("AircraftReservations.ride_through_targets is Persons-only after S-159 (Aircraft tenant-scoped)")
+                .containsExactly("Persons");
     }
 
     /** S-014 PII catalog extension: 9 frozen recipient snapshot cols + 2 free-text quasi-PII. */
