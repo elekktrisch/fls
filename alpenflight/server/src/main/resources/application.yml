@@ -59,6 +59,177 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
+# S-027: default-deny audit serialization. Entries here whitelist fields that
+# may land verbatim in `mutation_audit_event.before_state` / `after_state`;
+# everything else is replaced by the `[redacted]` sentinel. `deny-all` is the
+# central kill-switch for known-PII entities — Person stays out of the trail
+# entirely until a GDPR/FADP-reviewed allow-list lands.
+audit:
+  redaction:
+    deny-all:
+      - Person
+    entities:
+      # Names below are the entity field names (what reflection sees), NOT
+      # the JSON-serialized property names — the redactor walks @Entity
+      # fields directly. Coverage is enforced by AuditRedactionCoverageTest;
+      # a new field that's neither here nor @AuditRedact-annotated fails CI.
+      Club:
+        # `name` matches the ClubResponse DTO field; `clubname` matches the
+        # Club entity field. Service-layer callers may pass either shape;
+        # both are safe to log.
+        allow:
+          - id
+          - name
+          - clubname
+          - slug
+          - clubKey
+          - countryId
+          - clubStateId
+          - publicRegistrationEnabled
+          - deletedOn
+      Location:
+        # Lists both DTO field names and entity field names — see Club above.
+        allow:
+          - id
+          - clubId
+          - locationName
+          - locationShortName
+          - countryId
+          - locationTypeId
+          - icaoCode
+          - latitude
+          - longitude
+          - elevation
+          - elevationUnitTypeId
+          - runwayDirection
+          - runwayLength
+          - runwayLengthUnitTypeId
+          - airportFrequency
+          - description
+          - sortIndicator
+          - isInboundRouteRequired
+          - isOutboundRouteRequired
+          - isFastEntryRecord
+          - inboundRouteRequired
+          - outboundRouteRequired
+          - fastEntryRecord
+          - inOutboundPoints
+          - deletedOn
+          - deletedByUserId
+      InOutboundPoint:
+        allow:
+          - id
+          - location
+          - pointName
+          - pointType
+          - direction
+          - description
+      InOutboundPointResponse:
+        # Nested under LocationDetail.inOutboundPoints. The redactor recurses
+        # into nested aggregates under the runtime type's simple name; this
+        # mirrors InOutboundPoint, minus the back-reference to Location.
+        allow:
+          - id
+          - pointName
+          - pointType
+          - direction
+          - description
+      MemberState:
+        allow:
+          - id
+          - clubId
+          - name
+      Aircraft:
+        # Lists both DTO field names (`isXxx`-prefixed by Jackson convention)
+        # and entity field names. Service-layer callers may pass either.
+        allow:
+          - id
+          - ownerClubId
+          - aircraftTypeId
+          - immatriculation
+          - manufacturerName
+          - aircraftModel
+          - competitionSign
+          - flarmId
+          - aircraftSerialNumber
+          - yearOfManufacture
+          - noiseClass
+          - noiseLevel
+          - mtom
+          - nrOfSeats
+          - aircraftOwnerPersonId
+          - flightOperatingCounterUnitTypeId
+          - engineOperatingCounterUnitTypeId
+          - homebaseId
+          - spotLink
+          - isTowingOrWinchRequired
+          - isTowingStartAllowed
+          - isWinchStartAllowed
+          - isTowingAircraft
+          - isFastEntryRecord
+          - towingOrWinchRequired
+          - towingStartAllowed
+          - winchStartAllowed
+          - towingAircraft
+          - fastEntryRecord
+          - comment
+          - daecIndex
+          - currentState
+          - latestCounter
+          - deletedOn
+          - deletedByUserId
+          - stateHistory
+          - operatingCounters
+      AircraftStateHistoryEntry:
+        # `noticedByPersonId` + `remarks` carry @AuditRedact on the field
+        # (PII-adjacent / free text); reflection redacts them regardless of
+        # this list. Keeping the rest explicit means coverage gaps surface.
+        allow:
+          - id
+          - aircraft
+          - aircraftStateId
+          - validFrom
+          - validTo
+          - deletedOn
+          - deletedByUserId
+      AircraftStateHistoryEntryResponse:
+        # Nested under AircraftDetail.currentState. PII-adjacent fields
+        # noticedByPersonId / remarks are NOT in the allow list — they
+        # default-deny to "[redacted]" on the recursed walk. (The entity
+        # mirror already has @AuditRedact on the same fields, which gates
+        # the entity-path too.)
+        allow:
+          - id
+          - aircraftStateId
+          - validFrom
+          - validTo
+      AircraftOperatingCounter:
+        allow:
+          - id
+          - aircraft
+          - atDateTime
+          - totalTowedGliderStarts
+          - totalWinchLaunchStarts
+          - totalSelfStarts
+          - flightOperatingCounterInSeconds
+          - engineOperatingCounterInSeconds
+          - nextMaintenanceAtFlightOperatingCounterInSeconds
+          - nextMaintenanceAtEngineOperatingCounterInSeconds
+          - deletedOn
+          - deletedByUserId
+      AircraftOperatingCounterResponse:
+        # Nested under AircraftDetail.latestCounter.
+        allow:
+          - id
+          - atDateTime
+          - totalTowedGliderStarts
+          - totalWinchLaunchStarts
+          - totalSelfStarts
+          - flightOperatingCounterInSeconds
+          - engineOperatingCounterInSeconds
+          - nextMaintenanceAtFlightOperatingCounterInSeconds
+          - nextMaintenanceAtEngineOperatingCounterInSeconds
+
 server:
   port: 8080
   http2:

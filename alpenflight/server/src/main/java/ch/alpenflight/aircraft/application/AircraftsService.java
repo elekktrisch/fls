@@ -13,6 +13,9 @@ import ch.alpenflight.aircraft.application.AircraftDtos.AircraftStateHistoryEntr
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftTransferOwnershipRequest;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftUpdateRequest;
 import ch.alpenflight.aircraft.domain.Aircraft;
+import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.AuditTrail;
+import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.aircraft.domain.AircraftNotFoundException;
 import ch.alpenflight.aircraft.domain.AircraftOperatingCounter;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
@@ -47,14 +50,17 @@ import org.springframework.transaction.annotation.Transactional;
  * UNIQUE {@code ux_aircraft_immatriculation} WHERE {@code deleted_on IS
  * NULL}). The service does a UX pre-check + relies on the index for races.
  *
- * <p>TODO(S-027): emit {@code AIRCRAFT_REGISTERED} / {@code AIRCRAFT_UPDATED}
- * / {@code AIRCRAFT_DELETED} / {@code AIRCRAFT_STATE_CHANGED} /
- * {@code AIRCRAFT_COUNTER_RECORDED} / {@code AIRCRAFT_OWNERSHIP_TRANSFERRED}
- * audit events once the unified audit emitter ships.
+ * <p>Mutations emit {@link AuditAction#CREATE} / {@link AuditAction#UPDATE} /
+ * {@link AuditAction#DELETE} via {@link AuditTrail}; state transitions and
+ * counter records emit {@link AuditAction#STATE_TRANSITION} /
+ * {@link AuditAction#UPDATE} respectively. The before-snapshot is the
+ * response DTO of the prior state; the after-snapshot is the persisted DTO.
  */
 @Service
 @Transactional
 public class AircraftsService {
+
+    private static final String AUDIT_ENTITY_TYPE = "Aircraft";
 
     private final AircraftRepository aircrafts;
     private final AircraftTypeRepository aircraftTypes;
@@ -62,19 +68,22 @@ public class AircraftsService {
     private final CounterUnitTypeRepository counterUnitTypes;
     private final AircraftAccess access;
     private final Clock clock;
+    private final AuditTrail auditTrail;
 
     public AircraftsService(AircraftRepository aircrafts,
                             AircraftTypeRepository aircraftTypes,
                             AircraftStateRepository aircraftStates,
                             CounterUnitTypeRepository counterUnitTypes,
                             AircraftAccess access,
-                            Clock clock) {
+                            Clock clock,
+                            AuditTrail auditTrail) {
         this.aircrafts = aircrafts;
         this.aircraftTypes = aircraftTypes;
         this.aircraftStates = aircraftStates;
         this.counterUnitTypes = counterUnitTypes;
         this.access = access;
         this.clock = clock;
+        this.auditTrail = auditTrail;
     }
 
     @Transactional(readOnly = true)
@@ -113,7 +122,6 @@ public class AircraftsService {
     }
 
     public AircraftDetail registerAircraft(AircraftCreateRequest req) {
-        // TODO(S-027): emit AIRCRAFT_REGISTERED audit event.
         validateAircraftType(req.aircraftTypeId().value());
         validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
         validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
@@ -150,15 +158,18 @@ public class AircraftsService {
                 req.daecIndex());
         // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
         // (gated at the controller); they may see owner-only fields.
-        return AircraftMapper.toDetail(persist(a, normalized), true);
+        AircraftDetail created = AircraftMapper.toDetail(persist(a, normalized), true);
+        auditTrail.record(AuditAction.CREATE,
+                AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
+        return created;
     }
 
     public AircraftDetail updateAircraft(AircraftId id, AircraftUpdateRequest req) {
-        // TODO(S-027): emit AIRCRAFT_UPDATED audit event.
         validateAircraftType(req.aircraftTypeId().value());
         validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
         validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
         Aircraft a = loadOrThrow(id);
+        AircraftDetail before = AircraftMapper.toDetail(a, true);
 
         String normalized = Immatriculation.of(req.immatriculation()).normalized();
         aircrafts.findActiveByImmatriculation(normalized)
@@ -193,29 +204,36 @@ public class AircraftsService {
                 req.daecIndex());
         // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
         // (gated at the controller); they may see owner-only fields.
-        return AircraftMapper.toDetail(persist(a, normalized), true);
+        AircraftDetail after = AircraftMapper.toDetail(persist(a, normalized), true);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
+        return after;
     }
 
     public void softDeleteAircraft(AircraftId id, @Nullable UUID userId) {
-        // TODO(S-027): emit AIRCRAFT_DELETED audit event.
         Aircraft a = loadOrThrow(id);
+        AircraftDetail before = AircraftMapper.toDetail(a, true);
         a.softDelete(userId, clock);
         aircrafts.save(a);
+        auditTrail.record(AuditAction.DELETE,
+                AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id.value(), before));
     }
 
     public AircraftDetail transferOwnership(AircraftId id, AircraftTransferOwnershipRequest req) {
-        // TODO(S-027): emit AIRCRAFT_OWNERSHIP_TRANSFERRED audit event.
         Aircraft a = loadOrThrow(id);
+        AircraftDetail before = AircraftMapper.toDetail(a, true);
         a.transferOwnership(
                 req.newOwnerClubId() == null ? null : req.newOwnerClubId().value(),
                 req.newOwnerPersonId());
         // Transfer endpoint is SYS_ADMIN-only; owner-only fields visible.
-        return AircraftMapper.toDetail(aircrafts.save(a), true);
+        AircraftDetail after = AircraftMapper.toDetail(aircrafts.save(a), true);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
+        return after;
     }
 
     public AircraftStateHistoryEntryResponse changeAircraftState(AircraftId id,
                                                                  AircraftStateChangeRequest req) {
-        // TODO(S-027): emit AIRCRAFT_STATE_CHANGED audit event.
         Aircraft a = loadOrThrow(id);
         validateAircraftState(req.aircraftStateId().value());
         AircraftStateHistoryEntry entry;
@@ -238,12 +256,14 @@ public class AircraftsService {
             throw new AircraftStateConflictException(
                     "Aircraft state was concurrently modified; retry the request", e);
         }
-        return AircraftMapper.toStateResponse(entry);
+        AircraftStateHistoryEntryResponse stateResponse = AircraftMapper.toStateResponse(entry);
+        auditTrail.record(AuditAction.STATE_TRANSITION,
+                AuditedTarget.created(AUDIT_ENTITY_TYPE, id.value(), stateResponse));
+        return stateResponse;
     }
 
     public AircraftOperatingCounterResponse recordAircraftCounter(AircraftId id,
                                                                   AircraftCounterRecordRequest req) {
-        // TODO(S-027): emit AIRCRAFT_COUNTER_RECORDED audit event.
         Aircraft a = loadOrThrow(id);
         AircraftOperatingCounter counter;
         try {
@@ -262,7 +282,10 @@ public class AircraftsService {
             throw new CounterMonotonicityException(
                     "Counter at_date_time collides with an existing entry", e);
         }
-        return AircraftMapper.toCounterResponse(counter);
+        AircraftOperatingCounterResponse counterResponse = AircraftMapper.toCounterResponse(counter);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.created(AUDIT_ENTITY_TYPE, id.value(), counterResponse));
+        return counterResponse;
     }
 
     @Transactional(readOnly = true)

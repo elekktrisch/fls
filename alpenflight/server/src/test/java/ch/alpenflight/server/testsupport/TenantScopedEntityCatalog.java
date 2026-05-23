@@ -1,5 +1,6 @@
 package ch.alpenflight.server.testsupport;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import java.lang.reflect.Field;
@@ -73,6 +74,28 @@ public final class TenantScopedEntityCatalog {
             return table.name();
         }
         return camelToSnake(entityClass.getSimpleName());
+    }
+
+    /**
+     * Returns the DB column name backing the {@code @TenantId} field. Most
+     * tenant-scoped entities use {@code club_id}; the audit-trail entity
+     * uses {@code tenant_club_id} to emphasise per-row "operating tenant"
+     * semantics distinct from a domain FK. Resolution: {@code @Column(name=…)}
+     * if present; otherwise snake_case of the field name.
+     */
+    public static String resolveTenantColumnName(Class<?> entityClass) {
+        for (Field f : entityClass.getDeclaredFields()) {
+            if (!f.isAnnotationPresent(TenantId.class)) {
+                continue;
+            }
+            Column column = f.getAnnotation(Column.class);
+            if (column != null && !column.name().isEmpty()) {
+                return column.name();
+            }
+            return camelToSnake(f.getName());
+        }
+        throw new IllegalStateException(
+                "No @TenantId field on " + entityClass.getName());
     }
 
     private static boolean hasTenantIdField(Class<?> clazz) {

@@ -1,7 +1,10 @@
 package ch.alpenflight.server.testsupport;
 
+import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.locations.domain.Location;
+import java.time.Instant;
 import java.util.Map;
 import java.util.function.Function;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,7 +43,15 @@ public final class TenantScopedRowBuilders {
 
     private static final Map<Class<?>, Function<SweepFixtureContext, ?>> BUILDERS = Map.of(
             MemberState.class, ctx -> new MemberState(uniqueName("MS")),
-            Location.class, LocationSweepFactory::build
+            Location.class, LocationSweepFactory::build,
+            // Save bypasses the AuditTrailService / listener so the sweep
+            // exercises Hibernate's @TenantId resolver directly — same
+            // discriminator-filter contract as the other tenant-scoped rows.
+            MutationAuditEvent.class, ctx -> MutationAuditEvent.builder()
+                    .action(AuditAction.CREATE)
+                    .targetEntityType("LeakageSweep")
+                    .occurredAt(Instant.now())
+                    .build()
     );
 
     private static String uniqueName(String label) {

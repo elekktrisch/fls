@@ -1,5 +1,8 @@
 package ch.alpenflight.locations.application;
 
+import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.AuditTrail;
+import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.locations.application.LocationDtos.LocationCreateRequest;
 import ch.alpenflight.locations.application.LocationDtos.LocationDetail;
 import ch.alpenflight.locations.application.LocationDtos.LocationListItem;
@@ -42,29 +45,35 @@ import org.springframework.transaction.annotation.Transactional;
  * Hibernate prefer it that way); the service is the seam where the type
  * narrows.
  *
- * <p>TODO(S-027): emit {@code LOCATION_CREATED} / {@code LOCATION_UPDATED} /
- * {@code LOCATION_DELETED} audit events with {@code {actor, role, target_id,
- * before, after}} once the unified audit emitter ships. The Clubs slice has
- * no emitter today either; matching that gap keeps the cross-aggregate audit
- * story consistent.
+ * <p>Mutations emit a {@link ch.alpenflight.audit.domain.AuditAction
+ * AuditAction.CREATE/UPDATE/DELETE} row via {@link AuditTrail} — the
+ * before-snapshot is captured before mutation; the after-snapshot is the
+ * persisted state. Failed mutations (validation, FK, race) emit no
+ * success row — the {@code RequestAuditFilter} synthesises a
+ * {@code failed=true} row from the HTTP layer instead.
  */
 @Service
 @Transactional
 public class LocationsService {
 
+    private static final String AUDIT_ENTITY_TYPE = "Location";
+
     private final LocationRepository locations;
     private final LocationTypeRepository locationTypes;
     private final CountryRepository countries;
     private final Clock clock;
+    private final AuditTrail auditTrail;
 
     public LocationsService(LocationRepository locations,
                             LocationTypeRepository locationTypes,
                             CountryRepository countries,
-                            Clock clock) {
+                            Clock clock,
+                            AuditTrail auditTrail) {
         this.locations = locations;
         this.locationTypes = locationTypes;
         this.countries = countries;
         this.clock = clock;
+        this.auditTrail = auditTrail;
     }
 
     @Transactional(readOnly = true)
@@ -110,13 +119,17 @@ public class LocationsService {
                 req.isOutboundRouteRequired(),
                 req.isFastEntryRecord());
         loc.replaceInOutboundPoints(LocationMapper.toDomainPoints(req.inOutboundPoints()));
-        return LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        LocationDetail created = LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        auditTrail.record(AuditAction.CREATE,
+                AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
+        return created;
     }
 
     public LocationDetail updateLocation(LocationId id, LocationUpdateRequest req) {
         validateReferences(req.countryId().value(), req.locationTypeId().value());
         Location loc = locations.findActiveByIdWithPoints(id.value())
                 .orElseThrow(() -> new LocationNotFoundException(id));
+        LocationDetail before = LocationMapper.toDetail(loc);
         String icao = req.icaoCode();
         if (icao != null) {
             locations.findActiveByIcaoCodeIgnoreCase(icao)
@@ -143,14 +156,20 @@ public class LocationsService {
                 req.isOutboundRouteRequired(),
                 req.isFastEntryRecord());
         loc.replaceInOutboundPoints(LocationMapper.toDomainPoints(req.inOutboundPoints()));
-        return LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        LocationDetail after = LocationMapper.toDetail(persist(loc, req.icaoCode()));
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
+        return after;
     }
 
     public void softDeleteLocation(LocationId id, @Nullable UUID userId) {
-        Location loc = locations.findActiveById(id.value())
+        Location loc = locations.findActiveByIdWithPoints(id.value())
                 .orElseThrow(() -> new LocationNotFoundException(id));
+        LocationDetail before = LocationMapper.toDetail(loc);
         loc.softDelete(userId, clock);
         locations.save(loc);
+        auditTrail.record(AuditAction.DELETE,
+                AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id.value(), before));
     }
 
     private Location persist(Location loc, @Nullable String icaoCode) {

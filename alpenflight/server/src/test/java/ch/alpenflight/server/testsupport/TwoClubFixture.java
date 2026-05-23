@@ -63,7 +63,8 @@ public final class TwoClubFixture {
                 clubA.toString(), clubB.toString());
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
-            jdbc.update("DELETE FROM " + table + " WHERE club_id IN (?::uuid, ?::uuid)",
+            String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);
+            jdbc.update("DELETE FROM " + table + " WHERE " + tenantCol + " IN (?::uuid, ?::uuid)",
                     clubA.toString(), clubB.toString());
         }
     }

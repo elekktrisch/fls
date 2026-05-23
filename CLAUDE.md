@@ -53,3 +53,14 @@ If the task doesn't fit a lane, ask. Don't guess.
 - Legacy web semantics → `docs/legacy/web.md`
 - ADR decisions → `docs/modernization/adrs/`
 - A specific story's contract → `docs/modernization/stories/S-NNN-*.md`
+
+## Sandbox memory bootstrap
+
+`.claude/memory/` carries the project's accumulated auto-memory (user preferences, feedback, project context). When a fresh sandbox container is created, the auto-memory dir at `/home/agent/.claude/projects/-c-Users-roman-IdeaProjects-fls/memory/` is empty. To restore:
+
+```bash
+mkdir -p /home/agent/.claude/projects/-c-Users-roman-IdeaProjects-fls/memory/
+cp .claude/memory/*.md /home/agent/.claude/projects/-c-Users-roman-IdeaProjects-fls/memory/
+```
+
+Then your next prompt re-loads `MEMORY.md` automatically. Outside the sandbox path varies — adjust accordingly.
