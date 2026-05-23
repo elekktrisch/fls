@@ -13,6 +13,7 @@ import ch.alpenflight.platform.id.LocationId;
 import ch.alpenflight.platform.id.LocationTypeId;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
+import ch.alpenflight.server.testsupport.TwoClubFixture;
 import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.List;
 import java.util.UUID;
@@ -57,9 +58,7 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seedTwoClubs() {
-        cleanupPreviousRun();
-        seedClub(CLUB_A, "alpha");
-        seedClub(CLUB_B, "bravo");
+        new TwoClubFixture(jdbc, CLUB_A, CLUB_B, TEST_NAME_PREFIX, TEST_KEY_PREFIX).seed();
     }
 
     @Test
@@ -136,28 +135,4 @@ class LocationsTenantIsolationIT extends PostgresIntegrationTest {
                 List.of());
     }
 
-    private void cleanupPreviousRun() {
-        jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
-                        + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
-                CLUB_A.toString(), CLUB_B.toString());
-        jdbc.update("DELETE FROM location WHERE club_id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-        jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)",
-                CLUB_A.toString(), CLUB_B.toString());
-    }
-
-    private void seedClub(UUID id, String slug) {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
-        jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
-                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
-                """,
-                id.toString(),
-                TEST_NAME_PREFIX + slug,
-                TEST_KEY_PREFIX + slug.charAt(0),
-                countryId.toString(),
-                clubStateId.toString(),
-                TEST_NAME_PREFIX + slug);
-    }
 }
