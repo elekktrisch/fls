@@ -47,37 +47,39 @@ class NativeSqlRegisterTest {
 
     private static final Pattern NATIVE_CALL_PATTERN = Pattern.compile(
             "nativeQuery\\s*=\\s*true|createNativeQuery\\s*\\(|"
-                    + "JdbcTemplate\\b.*?\\b(query|update|execute)|"
-                    + "NamedParameterJdbcTemplate\\b.*?\\b(query|update|execute)");
+                    + "JdbcTemplate\\b|NamedParameterJdbcTemplate\\b");
 
     private static final Pattern REGISTER_ENTRY_HEADER = Pattern.compile("^###\\s+`([^`]+)`");
     private static final Pattern REGISTER_FIELD = Pattern.compile(
             "^-\\s+\\*\\*([A-Za-z][A-Za-z ]*?)(?:\\:)?\\*\\*\\s*:?\\s*(.*?)$");
-    private static final Pattern STRING_LITERAL = Pattern.compile("\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)\"");
+    /** Java string literal OR text block; group(1) holds the body in either form. */
+    private static final Pattern STRING_LITERAL = Pattern.compile(
+            "\"\"\"([\\s\\S]*?)\"\"\"|\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)\"");
 
     @Test
     void no_native_sql_hits_tenant_scoped_table_outside_register() throws IOException {
         Set<String> tenantScopedTables = tenantScopedTableNames();
-        Map<String, RegisterEntry> register = parseRegister();
+        Map<String, Set<String>> register = parseRegisterAsCallerToTables();
+        Path srcMain = locateServerSrcMain();
 
         List<String> violations = new ArrayList<>();
-        for (Path javaFile : collectMainJavaFiles()) {
+        for (Path javaFile : collectMainJavaFiles(srcMain)) {
             String body = Files.readString(javaFile, StandardCharsets.UTF_8);
             if (!NATIVE_CALL_PATTERN.matcher(body).find()) {
                 continue;
             }
-            // Native-SQL primitive used in this file — scan string literals
-            // for tenant-scoped table names.
+            String relPath = relativize(srcMain, javaFile);
             Matcher lit = STRING_LITERAL.matcher(body);
             while (lit.find()) {
-                String sql = lit.group(1).toLowerCase(Locale.ROOT);
+                String literal = lit.group(1) != null ? lit.group(1) : lit.group(2);
+                String sql = literal.toLowerCase(Locale.ROOT);
                 for (String table : tenantScopedTables) {
-                    if (containsWholeWord(sql, table.toLowerCase(Locale.ROOT))) {
-                        String relPath = javaFile.toString().replace('\\', '/');
-                        String key = relPath + " → " + table;
-                        if (!register.containsKey(key)) {
-                            violations.add(key);
-                        }
+                    if (!containsTableReference(sql, table)) {
+                        continue;
+                    }
+                    Set<String> approvedTables = register.get(relPath);
+                    if (approvedTables == null || !approvedTables.contains(table)) {
+                        violations.add(relPath + " → " + table);
                     }
                 }
             }
@@ -91,9 +93,9 @@ class NativeSqlRegisterTest {
 
     @Test
     void no_register_entries_past_expires_date() throws IOException {
-        Map<String, RegisterEntry> register = parseRegister();
-        LocalDate today = LocalDate.now();
-        List<String> expired = register.values().stream()
+        List<RegisterEntry> entries = parseRegisterEntries();
+        LocalDate today = LocalDate.now(java.time.ZoneOffset.UTC);
+        List<String> expired = entries.stream()
                 .filter(e -> e.expires != null && e.expires.isBefore(today))
                 .map(e -> e.id + " expired " + e.expires)
                 .toList();
@@ -110,28 +112,63 @@ class NativeSqlRegisterTest {
         return out;
     }
 
-    private static List<Path> collectMainJavaFiles() throws IOException {
-        Path root = locateServerSrcMain();
-        try (var stream = Files.walk(root)) {
+    private static List<Path> collectMainJavaFiles(Path srcMainRoot) throws IOException {
+        try (var stream = Files.walk(srcMainRoot)) {
             return stream
                     .filter(p -> p.toString().endsWith(".java"))
                     .toList();
         }
     }
 
-    private static Map<String, RegisterEntry> parseRegister() throws IOException {
+    /**
+     * The whole word check would catch the table name appearing as a column
+     * or alias; require an adjacent SQL keyword (FROM / JOIN / INTO / UPDATE /
+     * DELETE FROM) to narrow to real table references.
+     */
+    private static boolean containsTableReference(String sql, String tableLowercase) {
+        Pattern p = Pattern.compile(
+                "\\b(from|join|into|update|delete\\s+from)\\s+\""
+                        + Pattern.quote(tableLowercase) + "\"|"
+                        + "\\b(from|join|into|update|delete\\s+from)\\s+"
+                        + Pattern.quote(tableLowercase) + "\\b");
+        return p.matcher(sql).find();
+    }
+
+    /**
+     * Returns relPath → set-of-tenant-scoped-tables-approved-for-that-file.
+     * A single register entry may list multiple tables; each is allow-listed
+     * for the entry's caller path.
+     */
+    private static Map<String, Set<String>> parseRegisterAsCallerToTables() throws IOException {
+        Map<String, Set<String>> out = new java.util.LinkedHashMap<>();
+        for (RegisterEntry entry : parseRegisterEntries()) {
+            int colon = entry.caller.indexOf(':');
+            String path = colon > 0 ? entry.caller.substring(0, colon) : entry.caller;
+            path = normalizeRelativePath(path);
+            Set<String> tables = out.computeIfAbsent(path, k -> new HashSet<>());
+            for (String t : entry.tables.split(",")) {
+                String trimmed = t.trim();
+                if (!trimmed.isEmpty()) {
+                    tables.add(trimmed);
+                }
+            }
+        }
+        return out;
+    }
+
+    private static List<RegisterEntry> parseRegisterEntries() throws IOException {
         Path register = locateNativeSqlRegister();
-        Map<String, RegisterEntry> entries = new java.util.LinkedHashMap<>();
+        List<RegisterEntry> entries = new ArrayList<>();
         if (!Files.exists(register)) {
             return entries;
         }
         String body = Files.readString(register, StandardCharsets.UTF_8);
         RegisterEntry current = null;
-        for (String line : body.split("\n")) {
+        for (String line : body.split("\\R")) {
             Matcher header = REGISTER_ENTRY_HEADER.matcher(line);
             if (header.find()) {
                 if (current != null) {
-                    entries.put(current.callerKey(), current);
+                    entries.add(current);
                 }
                 current = new RegisterEntry();
                 current.id = header.group(1);
@@ -145,31 +182,52 @@ class NativeSqlRegisterTest {
             switch (key) {
                 case "caller" -> current.caller = value;
                 case "tenant-scoped tables touched" -> current.tables = value;
-                case "expires" -> {
-                    try {
-                        current.expires = LocalDate.parse(value);
-                    } catch (DateTimeParseException ex) {
-                        // tolerate "YYYY-MM-DD (12 months from Approved by default)" comment
-                        String first = value.split("\\s+")[0];
-                        try {
-                            current.expires = LocalDate.parse(first);
-                        } catch (DateTimeParseException ignored) {
-                            current.expires = null;
-                        }
-                    }
-                }
+                case "expires" -> current.expires = parseExpiryDate(value);
                 default -> { /* ignored fields */ }
             }
         }
         if (current != null) {
-            entries.put(current.callerKey(), current);
+            entries.add(current);
         }
         return entries;
     }
 
-    private static boolean containsWholeWord(String haystack, String word) {
-        Pattern p = Pattern.compile("\\b" + Pattern.quote(word) + "\\b");
-        return p.matcher(haystack).find();
+    private static LocalDate parseExpiryDate(String value) {
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException ex) {
+            // tolerate "YYYY-MM-DD (12 months from Approved by default)" comment
+            int space = value.indexOf(' ');
+            String head = space > 0 ? value.substring(0, space) : value;
+            try {
+                return LocalDate.parse(head);
+            } catch (DateTimeParseException ignored) {
+                return null;
+            }
+        }
+    }
+
+    /** Drop a leading `./`, normalize Windows separators. */
+    private static String normalizeRelativePath(String path) {
+        String normalized = path.replace('\\', '/');
+        if (normalized.startsWith("./")) {
+            normalized = normalized.substring(2);
+        }
+        // Strip a leading `alpenflight/server/` if the register entry includes it
+        // — both forms refer to the same file.
+        if (normalized.startsWith("alpenflight/server/")) {
+            normalized = normalized.substring("alpenflight/server/".length());
+        }
+        return normalized;
+    }
+
+    /** Project-relative path from server/ — matches the form a register entry uses. */
+    private static String relativize(Path srcMainRoot, Path javaFile) {
+        // srcMainRoot is `<repo>/alpenflight/server/src/main/java`; relativize
+        // against server/ so the key is `src/main/java/...` — what a contributor
+        // copies from their IDE's file tree.
+        Path serverRoot = srcMainRoot.getParent().getParent().getParent();
+        return serverRoot.relativize(javaFile).toString().replace('\\', '/');
     }
 
     private static String stripBackticks(String value) {
@@ -210,14 +268,5 @@ class NativeSqlRegisterTest {
         String caller = "";
         String tables = "";
         LocalDate expires;
-
-        /** Stable key used to look up the entry from a (file, table) violation. */
-        String callerKey() {
-            // Caller format: "path:line" — keep just the path part for the lookup.
-            int colon = caller.indexOf(':');
-            String path = colon > 0 ? caller.substring(0, colon) : caller;
-            String firstTable = tables.split(",")[0].trim();
-            return path + " → " + firstTable;
-        }
     }
 }

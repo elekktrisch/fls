@@ -134,12 +134,20 @@ class LeakageSweepIT extends PostgresIntegrationTest {
     <E> void tenant_scoped_no_tenant_sentinel_insert_fails_on_fk(Class<E> entityClass) {
         JpaRepository<E, UUID> repo = repositoryFor(entityClass);
         Function<SweepFixtureContext, E> builder = builderFor(entityClass);
+        String tableName = TenantScopedEntityCatalog.resolveTableName(entityClass);
+        String expectedFkName = "fk_" + tableName + "_club_id";
 
+        // Pin to the FK breach specifically — not "any DataIntegrityViolation".
+        // If a future regression made the resolver return null instead of the
+        // sentinel, Hibernate could trip a different constraint (NOT NULL on
+        // club_id, a CHECK, a trigger). Asserting the FK name keeps the test
+        // load-bearing for the specific resolver-drift threat row (d).
         assertThatThrownBy(() -> TenantTestContext.runUnscoped(() ->
                 repo.save(builder.apply(ctx))))
-                .as("Save under NO_TENANT on %s must fail at fk_<table>_club_id",
-                        entityClass.getSimpleName())
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .as("Save under NO_TENANT on %s must fail at %s", entityClass.getSimpleName(),
+                        expectedFkName)
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining(expectedFkName);
     }
 
     private <E> E saveAs(Class<E> entityClass, JpaRepository<E, UUID> repo, UUID clubId) {
