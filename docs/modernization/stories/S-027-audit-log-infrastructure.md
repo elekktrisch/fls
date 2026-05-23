@@ -19,6 +19,7 @@ refined_at: 2026-05-22
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
 context7_last_checked: 2026-05-22
 github_issue: 104
+github_pr: 101
 ---
 
 ## Context

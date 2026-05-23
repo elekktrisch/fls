@@ -100,6 +100,49 @@ audit:
           - isOutboundRouteRequired
           - isFastEntryRecord
           - inOutboundPoints
+      Aircraft:
+        allow:
+          - id
+          - ownerClubId
+          - aircraftTypeId
+          - immatriculation
+          - manufacturerName
+          - aircraftModel
+          - competitionSign
+          - flarmId
+          - aircraftSerialNumber
+          - yearOfManufacture
+          - noiseClass
+          - noiseLevel
+          - mtom
+          - nrOfSeats
+          - aircraftOwnerPersonId
+          - flightOperatingCounterUnitTypeId
+          - engineOperatingCounterUnitTypeId
+          - homebaseId
+          - spotLink
+          - isTowingOrWinchRequired
+          - isTowingStartAllowed
+          - isWinchStartAllowed
+          - isTowingAircraft
+          - isFastEntryRecord
+          - comment
+          - daecIndex
+          - currentState
+          - latestCounter
+          - aircraftStateId
+          - validFrom
+          - validTo
+          - noticedByPersonId
+          - remarks
+          - atDateTime
+          - totalTowedGliderStarts
+          - totalWinchLaunchStarts
+          - totalSelfStarts
+          - flightOperatingCounterInSeconds
+          - engineOperatingCounterInSeconds
+          - nextMaintenanceAtFlightOperatingCounterInSeconds
+          - nextMaintenanceAtEngineOperatingCounterInSeconds
 
 server:
   port: 8080
