@@ -3,12 +3,16 @@ package ch.alpenflight.audit.web;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
+import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
+import ch.alpenflight.platform.tenancy.RequestTenantHint;
+import ch.alpenflight.platform.tenancy.Tenants;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Set;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -78,12 +82,29 @@ class RequestAuditFilter extends OncePerRequestFilter {
                 ? thrown.getClass().getSimpleName()
                 : "http-" + status;
         AuditAction action = inferAction(request.getMethod());
+        // Admin cross-tenant paths (LocationsAdminController etc.) wrap the
+        // controller call in Tenants.runAs(targetClubId, ...), which has
+        // already unwound by the time we reach this finally block. The hint
+        // is published as a request attribute that survives the unwind, so
+        // the synthetic failure row lands on the target tenant — not the
+        // sysadmin's home tenant resolved from the JWT.
+        UUID hint = RequestTenantHint.currentForRequest(request);
         try {
-            auditTrail.recordFailed(
-                    action,
-                    new AuditedTarget(entityType, null, null, null),
-                    status,
-                    reason);
+            if (hint != null && !ClubTenantIdentifierResolver.NO_TENANT.equals(hint)) {
+                Tenants.runAs(hint, () -> {
+                    auditTrail.recordFailed(
+                            action,
+                            new AuditedTarget(entityType, null, null, null),
+                            status,
+                            reason);
+                });
+            } else {
+                auditTrail.recordFailed(
+                        action,
+                        new AuditedTarget(entityType, null, null, null),
+                        status,
+                        reason);
+            }
         } catch (RuntimeException ignored) {
             // The audit trail's own failure must not turn a 4xx into a 500.
             // Already-set status / exception propagates unchanged.

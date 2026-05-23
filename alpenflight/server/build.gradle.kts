@@ -280,12 +280,12 @@ tasks.withType<Test> {
     // aliases (forks don't share memory). Sequential per-JVM JUnit execution
     // stays on (junit-platform.properties); only the Gradle layer parallelises.
     //
-    // Default is 1 because the dev sandbox has ~4 GiB RAM and two forks (each
-    // boots Spring + Postgres + an idle Hikari pool) blow the budget. CI
-    // runners with ≥8 GiB headroom can opt in via:
-    //     ALPENFLIGHT_TEST_FORKS=2 ./gradlew test
+    // Default is 2 (dev sandbox ≥ 11 GiB; CI runners similar). Two forks each
+    // boot Spring + Postgres + an idle Hikari pool — fits comfortably.
+    // Constrained environments can pin a smaller value via:
+    //     ALPENFLIGHT_TEST_FORKS=1 ./gradlew test
     // Expected wall-time reduction at N=2 on the ~50-class suite: ~40-50 %.
-    maxParallelForks = (System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 1).coerceAtLeast(1)
+    maxParallelForks = (System.getenv("ALPENFLIGHT_TEST_FORKS")?.toIntOrNull() ?: 2).coerceAtLeast(1)
 }
 
 // S-155: runs `LayeringRulesDemoTest` (in the archDemo source set) which

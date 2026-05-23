@@ -3,6 +3,7 @@ package ch.alpenflight.platform.tenancy;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Production-facing escape hatch for code that legitimately needs to operate
@@ -58,6 +59,7 @@ public final class Tenants {
             throw new IllegalArgumentException("clubId must not be the NO_TENANT sentinel");
         }
         Optional<UUID> prior = TenantContextCarrier.current();
+        @Nullable Object priorRequestHint = RequestTenantHint.recordIfHttp(clubId);
         TenantContextCarrier.set(clubId);
         try {
             return body.get();
@@ -67,6 +69,7 @@ public final class Tenants {
             } else {
                 TenantContextCarrier.clear();
             }
+            RequestTenantHint.restoreIfHttp(priorRequestHint);
         }
     }
 }

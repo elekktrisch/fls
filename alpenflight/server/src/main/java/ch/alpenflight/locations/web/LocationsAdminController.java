@@ -7,6 +7,7 @@ import ch.alpenflight.locations.application.LocationDtos.LocationUpdateRequest;
 import ch.alpenflight.locations.application.LocationsService;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.id.LocationId;
+import ch.alpenflight.platform.tenancy.AuditTargetTenant;
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,7 +64,7 @@ public class LocationsAdminController {
     @Operation(operationId = "adminListLocations", summary = "List locations for {clubId}.")
     @ApiResponse(responseCode = "200", description = "Array of location listitem projections.")
     @GetMapping
-    public List<LocationListItem> adminListLocations(@PathVariable ClubId clubId) {
+    public List<LocationListItem> adminListLocations(@PathVariable @AuditTargetTenant ClubId clubId) {
         return Tenants.runAs(clubId.value(), service::listLocations);
     }
 
@@ -71,7 +72,7 @@ public class LocationsAdminController {
     @ApiResponse(responseCode = "200", description = "Location detail projection.")
     @ApiResponse(responseCode = "404", description = "No active location with that id under {clubId}.")
     @GetMapping("/{id}")
-    public LocationDetail adminGetLocation(@PathVariable ClubId clubId, @PathVariable LocationId id) {
+    public LocationDetail adminGetLocation(@PathVariable @AuditTargetTenant ClubId clubId, @PathVariable LocationId id) {
         return Tenants.runAs(clubId.value(), () -> service.getLocation(id));
     }
 
@@ -80,7 +81,7 @@ public class LocationsAdminController {
     @ApiResponse(responseCode = "400", description = "Validation failed.")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use within {clubId}.")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<LocationDetail> adminCreateLocation(@PathVariable ClubId clubId,
+    public ResponseEntity<LocationDetail> adminCreateLocation(@PathVariable @AuditTargetTenant ClubId clubId,
                                                               @Valid @RequestBody LocationCreateRequest req) {
         LocationDetail created = Tenants.runAs(clubId.value(), () -> service.createLocation(req));
         URI location = URI.create("/api/v1/admin/locations/" + clubId + "/" + created.id());
@@ -92,7 +93,7 @@ public class LocationsAdminController {
     @ApiResponse(responseCode = "404", description = "No active location with that id under {clubId}.")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use by another Location.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public LocationDetail adminUpdateLocation(@PathVariable ClubId clubId,
+    public LocationDetail adminUpdateLocation(@PathVariable @AuditTargetTenant ClubId clubId,
                                               @PathVariable LocationId id,
                                               @Valid @RequestBody LocationUpdateRequest req) {
         return Tenants.runAs(clubId.value(), () -> service.updateLocation(id, req));
@@ -102,7 +103,7 @@ public class LocationsAdminController {
     @ApiResponse(responseCode = "204", description = "Deleted.")
     @ApiResponse(responseCode = "404", description = "No active location with that id under {clubId}.")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> adminDeleteLocation(@PathVariable ClubId clubId,
+    public ResponseEntity<Void> adminDeleteLocation(@PathVariable @AuditTargetTenant ClubId clubId,
                                                     @PathVariable LocationId id,
                                                     @AuthenticationPrincipal @Nullable Jwt jwt) {
         UUID actorId = jwt == null ? null : userLookup.resolveUserIdFor(jwt).orElse(null);
