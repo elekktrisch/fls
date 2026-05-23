@@ -124,6 +124,40 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void auth_failure_does_not_emit_mutation_event() {
+        // No Authorization header → Spring Security 401. Auth events are
+        // Actuator's surface (S-020 already feeds them via
+        // Authentication{Success,Failure}Event); the mutation-audit trail
+        // must not duplicate them. Story design pin under
+        // §"Auth events stay in Actuator".
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("name", "AuthFail");
+        payload.put("slug", "auth-fail-" + suffix());
+        payload.put("clubKey", "AFL" + shortSuffix());
+        payload.put("publicRegistrationEnabled", false);
+        payload.put("countryId", SEED_COUNTRY_ID);
+        payload.put("clubStateId", SEED_CLUB_STATE_ID);
+
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/clubs"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(payload),
+                String.class);
+        assertThat(res.getStatusCode().value()).isIn(401, 403);
+
+        // No row landed on the sysadmin tenant — the filter recognised
+        // 401/403 as an auth surface and stayed out of the mutation trail.
+        // (setUp truncated this tenant; if a row appears it can only be
+        // from this request.)
+        long onSysadmin = jdbc.queryForObject(
+                "SELECT count(*) FROM mutation_audit_event WHERE tenant_club_id = ?::uuid",
+                Long.class, SYSADMIN_TENANT.toString());
+        assertThat(onSysadmin)
+                .as("Auth-failure 401/403 must NOT emit a row into mutation_audit_event")
+                .isZero();
+    }
+
+    @Test
     void failure_row_carries_request_id_from_inbound_header() {
         String correlation = "fail-trace-" + suffix();
         Map<String, Object> badPayload = new LinkedHashMap<>();

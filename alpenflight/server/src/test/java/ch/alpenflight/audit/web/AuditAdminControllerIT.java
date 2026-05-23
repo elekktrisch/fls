@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -131,6 +132,22 @@ class AuditAdminControllerIT extends PostgresIntegrationTest {
                 RequestEntity.get(URI.create("/api/v1/admin/audit-events")).build(),
                 String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    @Disabled("S-023 — UnscopedTenantContext not yet shipped; "
+            + "until then SYSTEM_ADMINISTRATOR sees only its own JWT-claimed tenant, "
+            + "identical to CLUB_ADMINISTRATOR. When S-023 lands, this test pins "
+            + "that cross-tenant access requires the explicit unscoped context "
+            + "(otherwise 403, even for SYSADMIN).")
+    void cross_tenant_admin_read_blocked() {
+        // Placeholder per S-027 Test plan. Implementation when S-023 lands:
+        //   1. Mint sysadmin token claiming tenant A.
+        //   2. Run a Tenants.runAs(B, ...) write to plant audit rows on B.
+        //   3. GET /api/v1/admin/audit-events with sysadmin token + an
+        //      explicit "tenant=B" query parameter.
+        //   4. Expect 403 unless an UnscopedTenantContext.runAs(...) frame
+        //      is active on the controller side.
     }
 
     @Test

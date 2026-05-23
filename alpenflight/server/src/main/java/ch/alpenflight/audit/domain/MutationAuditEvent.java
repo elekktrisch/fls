@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.TenantId;
@@ -110,12 +111,20 @@ public class MutationAuditEvent {
         return new Builder();
     }
 
-    public @Nullable UUID getId() {
-        return id;
+    // Getters: fields are @Nullable in source because JPA's no-args
+    // constructor builds an empty instance before hydration. Once Hibernate
+    // has loaded a row from the table, the @Column(nullable=false) columns
+    // — id, occurredAt, action, targetEntityType, failed, systemActor —
+    // are guaranteed populated. Getter signatures reflect the loaded
+    // contract; the only @Nullable that survives is for columns that ARE
+    // legitimately nullable (actor/tenant/state/status/etc.).
+
+    public UUID getId() {
+        return Objects.requireNonNull(id, "id is non-null on loaded rows");
     }
 
-    public @Nullable Instant getOccurredAt() {
-        return occurredAt;
+    public Instant getOccurredAt() {
+        return Objects.requireNonNull(occurredAt, "occurredAt is non-null on loaded rows");
     }
 
     public @Nullable UUID getActorUserId() {
@@ -130,12 +139,12 @@ public class MutationAuditEvent {
         return tenantClubId;
     }
 
-    public @Nullable AuditAction getAction() {
-        return action;
+    public AuditAction getAction() {
+        return Objects.requireNonNull(action, "action is non-null on loaded rows");
     }
 
-    public @Nullable String getTargetEntityType() {
-        return targetEntityType;
+    public String getTargetEntityType() {
+        return Objects.requireNonNull(targetEntityType, "targetEntityType is non-null on loaded rows");
     }
 
     public @Nullable UUID getTargetEntityId() {

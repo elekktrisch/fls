@@ -4,9 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.RequestEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -23,9 +27,47 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 final class AuditTestSupport {
 
+    /** Canonical seeded reference IDs used by the audit ITs. */
+    static final String SEED_COUNTRY_ID = "019e2e15-2c00-74be-8000-0000000004be";
+    static final String SEED_CLUB_STATE_ID = "019e2e15-2c00-7bb8-8000-000000000bb8";
+
     static final ObjectMapper JSON = new ObjectMapper();
 
     private AuditTestSupport() {}
+
+    /** Per-test unique suffix; avoids slug / clubKey collisions across runs. */
+    static String suffix() {
+        return Long.toString(System.nanoTime(), 36);
+    }
+
+    /** Six-char uppercase suffix for fixed-width keys (e.g. clubKey). */
+    static String shortSuffix() {
+        String s = Long.toString(System.nanoTime(), 36).toUpperCase(Locale.ROOT);
+        return s.length() > 6 ? s.substring(s.length() - 6) : s;
+    }
+
+    /** Standard Clubs CRUD POST payload. */
+    static Map<String, Object> clubCreatePayload(String name, String slug, String clubKey) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", name);
+        body.put("slug", slug);
+        body.put("clubKey", clubKey);
+        body.put("publicRegistrationEnabled", false);
+        body.put("countryId", SEED_COUNTRY_ID);
+        body.put("clubStateId", SEED_CLUB_STATE_ID);
+        return body;
+    }
+
+    /** Add a Bearer token header to a {@link RequestEntity.BodyBuilder}. */
+    static <T extends RequestEntity.BodyBuilder> T withBearer(T builder, String token) {
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        return builder;
+    }
+
+    /** Add a Bearer token header to a {@link RequestEntity.HeadersBuilder}. */
+    static RequestEntity.HeadersBuilder<?> withBearer(RequestEntity.HeadersBuilder<?> builder, String token) {
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    }
 
     /** Delete every audit row for {@code tenantClubId}. Run as a per-test pre-clean. */
     static void truncateForTenant(JdbcTemplate jdbc, UUID tenantClubId) {

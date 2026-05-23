@@ -3,14 +3,10 @@ package ch.alpenflight.audit.application;
 import ch.alpenflight.audit.application.AuditEventDtos.AuditEventPage;
 import ch.alpenflight.audit.application.AuditEventDtos.AuditEventQuery;
 import ch.alpenflight.audit.application.AuditEventDtos.AuditEventRow;
-import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.audit.domain.MutationAuditEventRepository;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
@@ -61,23 +57,15 @@ public class AuditQueryService {
     }
 
     private AuditEventRow toRow(MutationAuditEvent e) {
-        UUID id = Objects.requireNonNull(e.getId(),
-                "audit row missing required id");
-        Instant occurredAt = Objects.requireNonNull(e.getOccurredAt(),
-                "audit row missing required occurredAt");
-        AuditAction action = Objects.requireNonNull(e.getAction(),
-                "audit row missing required action");
-        String type = Objects.requireNonNull(e.getTargetEntityType(),
-                "audit row missing required targetEntityType");
         Short status = e.getHttpStatus();
         return new AuditEventRow(
-                id,
-                occurredAt,
+                e.getId(),
+                e.getOccurredAt(),
                 e.getActorUserId(),
                 e.getActorKeycloakSub(),
                 e.getTenantClubId(),
-                action,
-                type,
+                e.getAction(),
+                e.getTargetEntityType(),
                 e.getTargetEntityId(),
                 e.getRequestId(),
                 parseJsonOrSentinel(e.getBeforeState()),

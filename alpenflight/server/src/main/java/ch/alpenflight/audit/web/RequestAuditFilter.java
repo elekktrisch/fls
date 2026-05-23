@@ -67,10 +67,30 @@ class RequestAuditFilter extends OncePerRequestFilter {
             thrown = e;
             throw e;
         } finally {
-            if (isMutatingApiCall(request) && (thrown != null || isFailureStatus(response.getStatus()))) {
+            int status = thrown != null ? 500 : response.getStatus();
+            if (isMutatingApiCall(request) && shouldRecordFailure(thrown, status)) {
                 recordSyntheticFailure(request, response, thrown);
             }
         }
+    }
+
+    /**
+     * Auth events (401 / 403) are NOT duplicated into
+     * {@code mutation_audit_event} — Spring Boot Actuator's
+     * {@code AuditEventRepository} is the canonical surface for those, and
+     * S-020's {@code Authentication{Success,Failure}Event}s already feed
+     * it. Duplicating risks divergence between the two trails and
+     * conflates "failed business operation" with "failed authentication"
+     * during incident response. Other 4xx + 5xx still emit.
+     */
+    private static boolean shouldRecordFailure(@Nullable Throwable thrown, int status) {
+        if (thrown != null) {
+            return true;
+        }
+        if (status == 401 || status == 403) {
+            return false;
+        }
+        return isFailureStatus(status);
     }
 
     private void recordSyntheticFailure(HttpServletRequest request,
