@@ -219,3 +219,88 @@ JMH on the AOP+listener overhead; k6 load test on S-056 list; `EXPLAIN ANALYZE` 
 3. **Redacted-value shape → literal `"[redacted]"` sentinel.** Conservative v1. Zero forensic leakage, no dictionary-attack surface on low-entropy fields. Promote to hashed-hint (SHA-256 + last-4) only if "did the same person edit this twice" queries become a documented operator need.
 
 <!-- modernize-refine: end -->
+
+## Pickup notes (paused 2026-05-23 — sandbox-memory reset)
+
+**Session interrupted** to grow the dev sandbox from 4 GiB → 12 GiB so
+`maxParallelForks=2` can be re-enabled without OOM-killing the build.
+Resume with `/modernize-implement S-027` from a fresh sandbox.
+
+**State on branch `story/S-027-audit-log-infrastructure`** (pushed):
+
+- Migration, audit module, ClubsService + LocationsService + AircraftsService
+  wiring, ArchUnit `ControllerAuditCoverageTest`, Logback turbo filter, admin
+  endpoint, unit + integration tests — all green locally (`./gradlew test`
+  passes; ~9 min wall, ~8m46 after context consolidation).
+- PR #101 open against main; title + body refreshed. CI workflow_dispatch
+  triggered at branch tip 325cfbc0.
+- Merge from `main` resolved (S-024 + S-050 + S-159 brought in; V8 migration
+  renamed to V9 to avoid collision with `V8__dev_user_seed.sql`).
+- `maxParallelForks` defaults to 1; opt-in via `ALPENFLIGHT_TEST_FORKS=2`.
+
+**Pending reviewer findings** (Step 7 panel ran; auto-fix loop interrupted):
+
+Round-1 blockers — must address before mark-done:
+- **Synthetic-failure rows charged to wrong tenant** for admin cross-tenant
+  paths. `LocationsAdminController.adminCreateLocation` etc. run inside
+  `Tenants.runAs(targetClubId, ...)`; the `RequestAuditFilter`'s
+  `recordFailed` fires AFTER `runAs` unwinds, so the resolver returns the
+  sysadmin's home tenant instead of the path-variable target. Fix:
+  capture the target tenant at controller entry (request attribute) and
+  have the filter prefer that over `TenantContextCarrier.current()`.
+- **Federated-IdP (non-UUID JWT sub) drops both forensic identifiers and
+  flips `system_actor=true`.** `ActorResolver.parseUuid` returns null for
+  Google numeric subs / Auth0 custom subs → `actor_keycloak_sub` is NULL
+  and the row mis-classifies as a scheduled-job write. Fix: store the raw
+  JWT subject string (DB column → `TEXT`, not `UUID`) and gate
+  `systemActor` on `auth instanceof JwtAuthenticationToken`, not on
+  UUID-parseability.
+- **Redaction-policy ArchUnit guard (Security plan threat row e) not
+  shipped.** Plan committed to an ArchUnit/reflection test asserting every
+  `@Entity` field is allow-listed, deny-listed, or carries `@AuditRedact`.
+  Add it or downgrade the plan.
+- **DB-role grant for append-only (threat row d) deferred without a named
+  follow-up.** V9 header comment defers to "a future ops story" with no
+  story id. File a story or mark the threat-model entry as deferred until
+  S-NNN in the story body.
+- **`failed_500_inside_tx_rolled_back_still_emits_event` test missing.**
+  Test plan's canonical pin for `REQUIRES_NEW` semantics. Add it.
+
+Improvements queued (non-blockers, batch together):
+- `AuditAdminController` should route through an `AuditQueryService` in
+  `audit.application` (current direct port injection breaks the
+  established `web → service → port` layering convention).
+- `PiiRedactor` should inject Spring's `ObjectMapper` (typed-ID Jackson
+  module + `application.yml` Jackson tuning are otherwise bypassed in
+  jsonb output — wire mismatch with API responses).
+- `ActorResolver` cache lacks the "invalidate on user deactivation" hook
+  the design pinned. Add `evict(sub)` or drop the promise.
+- `AuditPayloadTurboFilter` denies any log line containing `before_state`
+  or `after_state` literally — too broad; narrow to the redactor sentinel
+  + a clearly audit-specific marker.
+- `MutationAuditEvent` getters declared `@Nullable` on `NOT NULL`-on-read
+  columns, forcing dead defensive null guards in `AuditAdminController.toRow`.
+- `AuditAdminController` returns bare `List<AuditEventRow>` — no
+  `hasMore` / total / nextOffset for pagination.
+- `AuditEventDtos.AuditEventRow` exposes `beforeState`/`afterState` as
+  raw JSON strings; switch to `JsonNode` so OpenAPI codegen types them
+  as objects, not literal strings.
+- Story `## Test plan` lists ~14 named tests; only ~5 shipped, several
+  load-bearing (`auth_failure_does_not_emit_mutation_event`,
+  `actor_user_id_null_for_anonymous_public_flow`, the `@Disabled("S-023")`
+  placeholder). Add or amend the design notes.
+- Test helpers (`suffix()`, `shortSuffix()`, `createPayload()`, `authed()`)
+  duplicated across `ClubsAuditEventIT` / `AuditFailedRequestIT` /
+  `AuditAdminControllerIT`; hoist into `AuditTestSupport`.
+- Story body `## Test plan` schema-stub-synthesis paragraph references the
+  unbuilt OpenAPI tripwire; prune to load-bearing decisions.
+- `AddDelete` vs `SoftDelete` collapsed under a single `AuditAction.DELETE`;
+  legacy differentiated. Consider adding `SOFT_DELETE` + `RESTORE` or
+  modeling via `STATE_TRANSITION` with discriminator.
+
+Next action after sandbox bring-up:
+1. Verify fresh sandbox sees >4 GiB (`free -h` should show ~11 GiB).
+2. Flip `maxParallelForks` default 1 → 2 in `alpenflight/server/build.gradle.kts`.
+3. Address Round-1 blockers above.
+4. Re-run reviewer panel (Step 7 round 2).
+5. If round 2 returns ≤ nudges, proceed to Step 8 prune + mark-done.

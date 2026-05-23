@@ -88,6 +88,22 @@ Order:
 - **Don't push past red.** Don't `--no-verify` / `--no-gpg-sign`. Don't force-push.
 - **`ScheduleWakeup` hygiene.** If you schedule a long-fallback wakeup (`delaySeconds ≥ 1200`, `prompt: "/modernize-implement S-NNN"`) while a CI watch runs in the background, the harness's task-notification path will normally re-invoke you faster — the wakeup is just insurance against a hang. Don't schedule a fresh fallback after every CI watch completes; one outstanding fallback is enough. After the **final** push (Step 8 mark-done) returns green, you have no more work to babysit — do NOT schedule a fresh fallback there. A stale wakeup firing 30 min later will re-enter `/modernize-implement` on a `status: done` story and bounce off the precondition; cheap, but noisy.
 
+### Step 5.5 — Long-step wallclock tracking (≥ 5 min budget)
+
+Any local `./gradlew test`, `./gradlew build`, `./gradlew check`, `pnpm test`, `pnpm e2e`, or `pnpm build` invocation is a perf signal — burn-time on every iteration. Wrap each with `time` and record the wall result; when wall ≥ 5 min, **stop and surface mitigation options to the operator** before iterating further on the slow loop.
+
+Mitigation menu to present (multi-select):
+
+- **JVM/Gradle layer:** `maxParallelForks` (split suite across N JVM forks; verify host has memory for N × container + Spring context — sandbox needs ~3 GiB per fork), `org.gradle.parallel=true`, configuration cache, daemon warmup, build cache.
+- **Spring context layer:** consolidate `@SpringBootTest` shapes (every distinct `@Import` / `@TestPropertySource` / `@ActiveProfiles` combo costs ~10-15 s of context boot) — promote shared test properties to `application-test.yml`, hoist `@Import(JwtTestFixture.class)` onto a base class, or move test-only tweaks to a global profile flag. Goal: ≤ 3-4 distinct cached contexts across the suite.
+- **Test infra layer:** shared test container reuse (`SharedPostgresContainer` JVM singleton), `--tmpfs` / `fsync=off` on the container data dir, JUnit's `@TestMethodOrder` to keep cache-warm sequences contiguous, drop `@DirtiesContext` where it leaked in.
+- **Web / e2e layer:** Playwright sharding (`--shard`), per-feature project filtering, `pnpm install --frozen-lockfile` cache hits in CI, dev-server reuse.
+- **Skip the rerun:** if a single test is in a tight iterate loop, run only that test (`--tests 'pkg.Class.method'`) until green, then run the full suite once at the end.
+
+Surface a **one-line measurement** in the operator-facing update (e.g. `./gradlew test wall=8m46s — over 5m budget, options: …`). Don't silently re-run a slow step five times — the second run after a green diagnostic IS the moment to surface.
+
+Record the chosen mitigations on the story body as `## Pickup notes` so they survive a sandbox / session reset.
+
 ### Step 6 — Escalation triggers
 
 Stop and ask the operator (single precise question) when:

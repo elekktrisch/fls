@@ -14,10 +14,13 @@ e2e/playwright-report
 e2e/screenshots
 
 # Claude Code session state (per-process tasks, worktrees) — ignore the
-# whole .claude/ tree by default, but track deliberate artifacts like skills.
+# whole .claude/ tree by default, but track deliberate artifacts: skills,
+# agents, and the project's accumulated auto-memory (engineering notes
+# that survive a sandbox container reset; bootstrap procedure in CLAUDE.md).
 .claude/*
 !.claude/skills/
 !.claude/agents/
+!.claude/memory/
 alpenflight/server/build
 alpenflight/server/.gradle
 alpenflight/web/node_modules
