@@ -4,11 +4,17 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
+import { AircraftStatesService } from '@api/generated/aircraft-states/aircraft-states.service';
+import { AircraftTypesService } from '@api/generated/aircraft-types/aircraft-types.service';
 import { ClubStatesService } from '@api/generated/club-states/club-states.service';
+import { CounterUnitTypesService } from '@api/generated/counter-unit-types/counter-unit-types.service';
 import { CountriesService } from '@api/generated/countries/countries.service';
 import { LocationTypesService } from '@api/generated/location-types/location-types.service';
 import type {
+  AircraftStateResponse,
+  AircraftTypeResponse,
   ClubStateResponse,
+  CounterUnitTypeResponse,
   CountryResponse,
   LocationTypeResponse,
 } from '@api/generated/model';
@@ -35,6 +41,29 @@ const sampleLocationType: LocationTypeResponse = {
   isAirfield: true,
 };
 
+const sampleAircraftType: AircraftTypeResponse = {
+  id: '019e2e15-2c00-7af9-8000-000000002af9',
+  code: 'GLIDER',
+  description: 'Glider',
+  hasEngine: false,
+  mayBeTowingAircraft: false,
+  requiresTowingInfo: true,
+};
+
+const sampleAircraftState: AircraftStateResponse = {
+  id: '019e2e15-2c00-7ee0-8000-000000002ee0',
+  code: 'OK',
+  description: 'Airworthy',
+  isAircraftFlyable: true,
+};
+
+const sampleCounterUnitType: CounterUnitTypeResponse = {
+  id: '019e2e15-2c00-7b58-8000-000000001b58',
+  code: 'HOURS_DECIMAL',
+  name: 'Hours (decimal)',
+  shortName: 'h',
+};
+
 function countriesStub(impl: () => Observable<CountryResponse[]>): CountriesService {
   return {
     listCountries: (() => impl()) as CountriesService['listCountries'],
@@ -53,10 +82,35 @@ function locationTypesStub(impl: () => Observable<LocationTypeResponse[]>): Loca
   } as unknown as LocationTypesService;
 }
 
+function aircraftTypesStub(impl: () => Observable<AircraftTypeResponse[]>): AircraftTypesService {
+  return {
+    listAircraftTypes: (() => impl()) as AircraftTypesService['listAircraftTypes'],
+  } as unknown as AircraftTypesService;
+}
+
+function aircraftStatesStub(
+  impl: () => Observable<AircraftStateResponse[]>,
+): AircraftStatesService {
+  return {
+    listAircraftStates: (() => impl()) as AircraftStatesService['listAircraftStates'],
+  } as unknown as AircraftStatesService;
+}
+
+function counterUnitTypesStub(
+  impl: () => Observable<CounterUnitTypeResponse[]>,
+): CounterUnitTypesService {
+  return {
+    listCounterUnitTypes: (() => impl()) as CounterUnitTypesService['listCounterUnitTypes'],
+  } as unknown as CounterUnitTypesService;
+}
+
 function configure(opts: {
   countries?: () => Observable<CountryResponse[]>;
   clubStates?: () => Observable<ClubStateResponse[]>;
   locationTypes?: () => Observable<LocationTypeResponse[]>;
+  aircraftTypes?: () => Observable<AircraftTypeResponse[]>;
+  aircraftStates?: () => Observable<AircraftStateResponse[]>;
+  counterUnitTypes?: () => Observable<CounterUnitTypeResponse[]>;
 }): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
   TestBed.configureTestingModule({
@@ -74,6 +128,20 @@ function configure(opts: {
       {
         provide: LocationTypesService,
         useValue: locationTypesStub(opts.locationTypes ?? (() => of([sampleLocationType]))),
+      },
+      {
+        provide: AircraftTypesService,
+        useValue: aircraftTypesStub(opts.aircraftTypes ?? (() => of([sampleAircraftType]))),
+      },
+      {
+        provide: AircraftStatesService,
+        useValue: aircraftStatesStub(opts.aircraftStates ?? (() => of([sampleAircraftState]))),
+      },
+      {
+        provide: CounterUnitTypesService,
+        useValue: counterUnitTypesStub(
+          opts.counterUnitTypes ?? (() => of([sampleCounterUnitType])),
+        ),
       },
     ],
   });

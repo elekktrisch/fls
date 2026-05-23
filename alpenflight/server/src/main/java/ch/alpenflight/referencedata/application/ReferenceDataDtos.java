@@ -1,9 +1,13 @@
 package ch.alpenflight.referencedata.application;
 
+import ch.alpenflight.platform.id.AircraftStateId;
+import ch.alpenflight.platform.id.AircraftTypeId;
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
 import ch.alpenflight.platform.id.LocationTypeId;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Listitem projections for the reference-data REST surface. Records;
@@ -31,4 +35,29 @@ public final class ReferenceDataDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isAirfield) {}
+
+    @Schema(description = "AircraftType listitem projection — drives the type-discriminator dropdown + filter slices.")
+    public record AircraftTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftTypeId id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description,
+            @Nullable Boolean hasEngine,
+            @Nullable Boolean requiresTowingInfo,
+            @Nullable Boolean mayBeTowingAircraft) {}
+
+    @Schema(description = "AircraftState listitem projection — drives the airworthiness dropdown.")
+    public record AircraftStateResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftStateId id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String description,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isAircraftFlyable) {}
+
+    @Schema(description = "CounterUnitType listitem projection — drives the operating-counter "
+            + "unit dropdowns on the Aircraft form.")
+    public record CounterUnitTypeResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String code,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
+            @Nullable String shortName,
+            @Nullable String comment) {}
 }

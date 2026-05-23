@@ -6,13 +6,30 @@
  * OpenAPI spec version: 0.0.1
  */
 
+export * from './aircraftCounterHistory';
+export * from './aircraftCounterRecordRequest';
+export * from './aircraftCreateRequest';
+export * from './aircraftDetail';
+export * from './aircraftListItem';
+export * from './aircraftOperatingCounterResponse';
+export * from './aircraftPickerItem';
+export * from './aircraftStateChangeRequest';
+export * from './aircraftStateHistory';
+export * from './aircraftStateHistoryEntryResponse';
+export * from './aircraftStateResponse';
+export * from './aircraftTransferOwnershipRequest';
+export * from './aircraftTypeResponse';
+export * from './aircraftUpdateRequest';
 export * from './clubCreateRequest';
 export * from './clubResponse';
 export * from './clubStateResponse';
 export * from './clubUpdateRequest';
+export * from './counterUnitTypeResponse';
 export * from './countryResponse';
 export * from './inOutboundPointRequest';
 export * from './inOutboundPointResponse';
+export * from './listAircraftParams';
+export * from './listAircraftType';
 export * from './locationCreateRequest';
 export * from './locationDetail';
 export * from './locationListItem';
