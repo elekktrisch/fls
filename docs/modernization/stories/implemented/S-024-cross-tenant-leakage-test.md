@@ -5,6 +5,8 @@ epic: E-03
 status: done
 started_at: 2026-05-23
 done_at: 2026-05-23
+merged: true
+merged_at: 2026-05-23
 depends_on: [S-022, S-011]
 acceptance:
   - A property-based test under CI exercises every repository: create data in tenant A; attempt to read it while tenant context is B; assert empty result (or 404 from a controller-level test).
