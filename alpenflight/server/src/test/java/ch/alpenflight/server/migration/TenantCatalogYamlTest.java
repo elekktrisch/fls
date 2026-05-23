@@ -107,18 +107,18 @@ class TenantCatalogYamlTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void aircraft_tenant_column_renamed_to_owner_club_id_with_legacy_pin() {
+    void aircraft_tenant_scoped_via_managing_club_id_with_legacy_pin() {
         Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
         Map<String, Object> aircrafts = (Map<String, Object>) overrides.get("Aircrafts");
         assertThat(aircrafts.get("kind"))
-                .as("Aircrafts reclassified to cross-tenant 2026-05-16")
-                .isEqualTo("cross-tenant");
+                .as("Aircrafts reclassified to tenant-scoped 2026-05-23 (S-159)")
+                .isEqualTo("tenant-scoped");
         assertThat(aircrafts.get("owner_column"))
-                .as("aircraft tenant column renamed: legacy OwnerClubId → new owner_club_id")
-                .isEqualTo("owner_club_id");
+                .as("S-159: managing_club_id is the @TenantId discriminator")
+                .isEqualTo("managing_club_id");
         assertThat(aircrafts.get("tenant_column_legacy"))
-                .as("legacy OwnerClubId pin must remain for S-016 cutover")
-                .isEqualTo("OwnerClubId");
+                .as("legacy OwnerId pin (BaseEntity managing tenant) for S-016 cutover")
+                .isEqualTo("OwnerId");
     }
 
     @Test

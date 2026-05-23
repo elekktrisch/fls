@@ -313,6 +313,8 @@ public class AircraftsService {
                 .orElseThrow(() -> new AircraftNotFoundException(id));
     }
 
+    private static final String IMMATRICULATION_UNIQUE_CONSTRAINT = "ux_aircraft_immatriculation";
+
     private Aircraft persist(Aircraft a, String normalizedImmatriculation) {
         try {
             Aircraft saved = aircrafts.save(a);
@@ -325,7 +327,16 @@ public class AircraftsService {
             aircrafts.flush();
             return saved;
         } catch (DataIntegrityViolationException e) {
-            throw new DuplicateImmatriculationException(normalizedImmatriculation);
+            // Only the immatriculation UNIQUE constraint maps to the typed
+            // domain exception; FK violations (managing_club_id on NO_TENANT,
+            // aircraft_type_id) propagate unchanged.
+            String causeMessage = e.getMostSpecificCause() == null
+                    ? ""
+                    : String.valueOf(e.getMostSpecificCause().getMessage());
+            if (causeMessage.contains(IMMATRICULATION_UNIQUE_CONSTRAINT)) {
+                throw new DuplicateImmatriculationException(normalizedImmatriculation);
+            }
+            throw e;
         }
     }
 

@@ -54,13 +54,13 @@ class LocationsN1GuardIT extends PostgresIntegrationTest {
     @Autowired EntityManagerFactory entityManagerFactory;
     @Autowired JwtTestFixture jwts;
 
-    private String sysadminToken;
+    private String clubAdminToken;
 
     @BeforeEach
-    void mintSysadminToken() {
-        sysadminToken = jwts.mint(c -> c
+    void mintClubAdminToken() {
+        clubAdminToken = jwts.mint(c -> c
                 .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
-                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 
     @Test
@@ -137,11 +137,11 @@ class LocationsN1GuardIT extends PostgresIntegrationTest {
     }
 
     private <T extends RequestEntity.BodyBuilder> T authed(T builder) {
-        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken);
         return builder;
     }
 
     private RequestEntity.HeadersBuilder<?> authed(RequestEntity.HeadersBuilder<?> builder) {
-        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken);
     }
 }
