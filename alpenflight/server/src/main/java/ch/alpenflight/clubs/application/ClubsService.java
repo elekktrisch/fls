@@ -1,5 +1,8 @@
 package ch.alpenflight.clubs.application;
 
+import ch.alpenflight.audit.domain.AuditAction;
+import ch.alpenflight.audit.domain.AuditTrail;
+import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.clubs.application.ClubDtos.ClubCreateRequest;
 import ch.alpenflight.clubs.application.ClubDtos.ClubResponse;
 import ch.alpenflight.clubs.application.ClubDtos.ClubUpdateRequest;
@@ -52,19 +55,24 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class ClubsService {
 
+    private static final String AUDIT_ENTITY_TYPE = "Club";
+
     private final ClubRepository clubs;
     private final CountryRepository countries;
     private final ClubStateRepository clubStates;
     private final Clock clock;
+    private final AuditTrail auditTrail;
 
     public ClubsService(ClubRepository clubs,
                         CountryRepository countries,
                         ClubStateRepository clubStates,
-                        Clock clock) {
+                        Clock clock,
+                        AuditTrail auditTrail) {
         this.clubs = clubs;
         this.countries = countries;
         this.clubStates = clubStates;
         this.clock = clock;
+        this.auditTrail = auditTrail;
     }
 
     @Transactional(readOnly = true)
@@ -91,12 +99,16 @@ public class ClubsService {
                 req.publicRegistrationEnabled(),
                 req.countryId().value(),
                 req.clubStateId().value());
-        return ClubMapper.toResponse(persist(club, req.slug()));
+        ClubResponse created = ClubMapper.toResponse(persist(club, req.slug()));
+        auditTrail.record(AuditAction.CREATE,
+                AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
+        return created;
     }
 
     public ClubResponse updateClub(ClubId id, ClubUpdateRequest req) {
         Club club = clubs.findActiveById(id.value())
                 .orElseThrow(() -> new ClubNotFoundException(id));
+        ClubResponse before = ClubMapper.toResponse(club);
         if (clubs.existsBySlugExcluding(req.slug(), id.value())) {
             throw new SlugAlreadyExistsException(req.slug());
         }
@@ -109,7 +121,10 @@ public class ClubsService {
             club.disablePublicRegistration();
         }
         club.relocate(req.countryId().value(), req.clubStateId().value());
-        return ClubMapper.toResponse(persist(club, req.slug()));
+        ClubResponse after = ClubMapper.toResponse(persist(club, req.slug()));
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
+        return after;
     }
 
     private Club persist(Club club, String slug) {
@@ -135,7 +150,10 @@ public class ClubsService {
     public void deleteClub(ClubId id) {
         Club club = clubs.findActiveById(id.value())
                 .orElseThrow(() -> new ClubNotFoundException(id));
+        ClubResponse before = ClubMapper.toResponse(club);
         club.softDelete(clock);
         clubs.save(club);
+        auditTrail.record(AuditAction.DELETE,
+                AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id.value(), before));
     }
 }
