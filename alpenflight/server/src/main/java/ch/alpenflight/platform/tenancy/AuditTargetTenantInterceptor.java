@@ -20,12 +20,19 @@ import org.springframework.web.servlet.HandlerMapping;
  * BEFORE controller-argument validation fires. Without this preHandle the
  * hint is only set inside {@link Tenants#runAs} — too late if validation
  * 400s the request before the controller body executes (the original
- * audit row would then land on the JWT-resolved sysadmin tenant instead
- * of the path-variable target).
+ * audit row would then land on the JWT-resolved caller tenant instead of
+ * the path-variable target).
  *
  * <p>The interceptor walks the matched handler method's parameters looking
  * for one annotated {@link AuditTargetTenant}, extracts its value from
  * the URI template variables, and records the hint.
+ *
+ * <p><strong>No production caller today.</strong> The S-049c admin
+ * impersonation surface that originally used this was withdrawn in S-159;
+ * this interceptor remains as scaffolding for future cutover / bulk-import
+ * endpoints. DO NOT WIRE WITHOUT SECURITY REVIEW — the original threat
+ * model assumed a hosted SYSTEM_ADMIN impersonation surface, which the
+ * S-159 strip explicitly removed.
  */
 @Component
 public class AuditTargetTenantInterceptor implements HandlerInterceptor {

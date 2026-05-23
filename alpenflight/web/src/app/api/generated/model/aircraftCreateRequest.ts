@@ -7,11 +7,9 @@
  */
 
 /**
- * Payload to register a new Aircraft. ownerClubId is settable at create time only.
+ * Payload to register a new Aircraft. Ownership defaults to the managing club; change via transfer-ownership.
  */
 export type AircraftCreateRequest = {
-  /** @pattern ^clb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
-  ownerClubId?: string;
   /** @pattern ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftTypeId: string;
   /**
@@ -50,7 +48,6 @@ export type AircraftCreateRequest = {
   mtom?: number;
   /** @minimum 0 */
   nrOfSeats?: number;
-  aircraftOwnerPersonId?: string;
   flightOperatingCounterUnitTypeId?: string;
   engineOperatingCounterUnitTypeId?: string;
   /** @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */

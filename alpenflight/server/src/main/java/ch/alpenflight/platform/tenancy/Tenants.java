@@ -7,16 +7,25 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Production-facing escape hatch for code that legitimately needs to operate
- * outside the JWT-driven tenant context (ADR 0008 follow-up). The two cases
- * the project anticipates:
+ * outside the JWT-driven tenant context (ADR 0008 follow-up). Used by:
  *
  * <ul>
- *   <li><strong>SYSTEM_ADMINISTRATOR cross-tenant operations</strong> — fixing
- *       data in a club other than the one the JWT's {@code clubId} claim
- *       asserts (see {@code LocationsAdminController}).</li>
+ *   <li><strong>Audit listener + request audit filter</strong> — they push
+ *       the captured request-time tenant onto the audit-event write
+ *       (see {@code MutationAuditEventListener} / {@code RequestAuditFilter}).</li>
  *   <li><strong>OGN ingestion + cross-tenant scheduled jobs</strong> —
- *       endpoints / runners that write on behalf of many clubs in one pass.</li>
+ *       endpoints / runners that write on behalf of many clubs in one pass
+ *       (S-023 territory; not wired yet).</li>
+ *   <li><strong>Cutover / bulk-import</strong> — admin-only operations that
+ *       import legacy data on behalf of multiple clubs. Bound to a
+ *       sysadmin-only HTTP entry point when wired.</li>
  * </ul>
+ *
+ * <p>The HTTP-exposed {@code /api/v1/admin/locations/{clubId}} impersonation
+ * pattern (S-049c) was removed in S-159 — {@code Tenants.runAs} is no longer
+ * wired through to a "act as a club from the outside" surface. Tenant data
+ * is acted on by members of that tenant; the seam survives only for the
+ * non-HTTP cases above.
  *
  * <p>Internally pushes {@code clubId} into {@link TenantContextCarrier}
  * (the same package-mate carrier the test seam uses); the

@@ -171,7 +171,7 @@ export class AircraftListPage {
   protected readonly store = inject(AircraftStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
-  protected readonly canMutate = this.session.isAnyAdmin;
+  protected readonly canMutate = this.session.isClubAdmin;
   protected readonly typeFilterOptions = TYPE_FILTER_OPTIONS;
 
   protected onTypeFilterChange(value: AircraftTypeFilter | null): void {

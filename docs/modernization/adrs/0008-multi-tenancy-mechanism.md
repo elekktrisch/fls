@@ -61,3 +61,13 @@ Chosen: **Option A — Hibernate `@TenantId` discriminator multi-tenancy + Sprin
   - **Story:** evaluate Postgres RLS as a *defense-in-depth* layer on the same `club_id` column — RLS catches any query that escapes Hibernate (raw JDBC, dev-time mistakes, future ORM swaps). Implement after core Hibernate path is proven; or keep as a hardening story tracked but not committed.
   - **Story:** decide tenancy strategy for the public flows (trial-flight, passenger-flight registration) — these run without an authenticated principal but target a specific club. Likely a "tenant from URL path / form field, validated against an allowlist" pattern.
   - **Story:** OGN ingestion endpoint ([C8](../02-vision-and-constraints.md#3-hard-constraints)) — runs as a service principal that writes for many clubs; needs an explicit per-write tenant scope.
+
+## Amendment — 2026-05-23 (S-159)
+
+SYSTEM_ADMINISTRATOR is no longer co-allowed on tenant-scoped HTTP endpoints. Sysadmin's HTTP rights are limited to **cross-cutting resources** (Clubs catalog, sysadmin user management, cutover / bulk import). The `/api/v1/admin/locations/{clubId}` impersonation pattern introduced in S-049c is **withdrawn**.
+
+`Aircraft` becomes tenant-scoped via a NEW `managing_club_id` `@TenantId` column — separate from `owner_club_id` (which stays as ownership metadata, nullable, may differ from the managing tenant for other-organisation / private-person ownership). The owner-kind discriminator (own-club / other-organisation / private-person) lives in the domain layer, not the schema (per [ADR 0022](0022-modernization-primary-directives.md) directive 2).
+
+`Tenants.runAs(...)` survives only as an in-process seam for: the audit listener / `RequestAuditFilter`, OGN ingestion, scheduled jobs, cutover import. It is never wired through to an HTTP path that exists to "act as a club from the outside." Tenant data is acted on by members of that tenant; nothing else.
+
+Reclassifies the `alpenflight/database/tenant-rules.yaml` 2026-05-16 Aircraft-cross-tenant amendment as **superseded**: Aircraft is now tenant-scoped via `managing_club_id`. The aircraft_id FK on `aircraft_reservation` / `flight` becomes a same-tenant FK by construction; S-058 (Flight) and S-068 (AircraftReservation) inherit the new contract.

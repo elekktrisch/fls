@@ -106,12 +106,14 @@ class RequestAuditFilter extends OncePerRequestFilter {
                 ? thrown.getClass().getSimpleName()
                 : "http-" + status;
         AuditAction action = inferAction(request.getMethod());
-        // Admin cross-tenant paths (LocationsAdminController etc.) wrap the
-        // controller call in Tenants.runAs(targetClubId, ...), which has
-        // already unwound by the time we reach this finally block. The hint
-        // is published as a request attribute that survives the unwind, so
-        // the synthetic failure row lands on the target tenant — not the
-        // sysadmin's home tenant resolved from the JWT.
+        // Future cutover / bulk-import admin paths may wrap their service
+        // calls in Tenants.runAs(targetClubId, ...), which has already
+        // unwound by the time we reach this finally block. The hint is
+        // published as a request attribute that survives the unwind, so a
+        // synthetic failure row lands on the target tenant — not the
+        // caller's home tenant resolved from the JWT. The S-049c admin-
+        // impersonation surface that originally motivated this hook was
+        // withdrawn in S-159; the hook remains for the future paths.
         UUID hint = RequestTenantHint.currentForRequest(request);
         try {
             if (hint != null && !ClubTenantIdentifierResolver.NO_TENANT.equals(hint)) {

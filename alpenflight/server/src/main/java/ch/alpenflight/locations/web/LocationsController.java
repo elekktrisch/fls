@@ -33,12 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
  * REST surface for the Locations aggregate. Per ADR 0005 the path is plural
  * {@code /api/v1/locations}. Since S-049b Locations are TENANT_SCOPED
  * masterdata: reads return only the caller's own club's Locations
- * (Hibernate's {@code @TenantId} discriminator filter); writes open to
- * CLUB_ADMINISTRATOR (own club, structural via {@code @TenantId}) and
- * SYSTEM_ADMINISTRATOR (acts within whichever club its JWT {@code clubId}
- * claim asserts; cross-club operations need explicit impersonation today,
- * with a future {@code Tenants.runAs(...)} escape hatch tracked under ADR
- * 0008 follow-ups).
+ * (Hibernate's {@code @TenantId} discriminator filter); writes are open to
+ * CLUB_ADMINISTRATOR of the caller's tenant. SYSTEM_ADMINISTRATOR has no
+ * tenant context and therefore no rights on this surface (S-159 strip).
  *
  * <p>{@code @PathVariable LocationId id} resolves through
  * {@code LocationIdPathConverter} so callers send the prefixed external form
@@ -81,7 +78,7 @@ public class LocationsController {
     @ApiResponse(responseCode = "400", description = "Validation failed (ICAO format or unknown reference).")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use.")
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public ResponseEntity<LocationDetail> createLocation(
             @Valid @RequestBody LocationCreateRequest req) {
         LocationDetail created = service.createLocation(req);
@@ -94,7 +91,7 @@ public class LocationsController {
     @ApiResponse(responseCode = "404", description = "No active location with that id.")
     @ApiResponse(responseCode = "409", description = "ICAO code already in use by another Location.")
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public LocationDetail updateLocation(@PathVariable LocationId id,
                                          @Valid @RequestBody LocationUpdateRequest req) {
         return service.updateLocation(id, req);
@@ -104,7 +101,7 @@ public class LocationsController {
     @ApiResponse(responseCode = "204", description = "Deleted.")
     @ApiResponse(responseCode = "404", description = "No active location with that id.")
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'SYSTEM_ADMINISTRATOR')")
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
     public ResponseEntity<Void> deleteLocation(@PathVariable LocationId id,
                                                @AuthenticationPrincipal @Nullable Jwt jwt) {
         service.softDeleteLocation(id, principalUserId(jwt));

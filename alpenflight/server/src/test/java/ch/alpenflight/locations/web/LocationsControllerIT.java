@@ -31,8 +31,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Full-stack HTTP integration test for the Locations CRUD slice. Asserts the
  * REST surface, soft-delete filtering, ICAO uniqueness, and ICAO-format
- * validation under a SYSTEM_ADMINISTRATOR principal minted by
- * {@link JwtTestFixture}.
+ * validation under a CLUB_ADMINISTRATOR principal of seed-club-1 (per S-159:
+ * SYSTEM_ADMINISTRATOR has no rights on tenant-scoped surfaces).
  *
  * <p>Per-test isolation relies on time-stamped ICAO codes + location names —
  * V3 seeds no Location rows, so the test set is the only data in
@@ -49,13 +49,13 @@ class LocationsControllerIT extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
 
-    private String sysadminToken;
+    private String clubAdminToken;
 
     @BeforeEach
-    void mintSysadminToken() {
-        sysadminToken = jwts.mint(c -> c
+    void mintClubAdminToken() {
+        clubAdminToken = jwts.mint(c -> c
                 .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
-                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 
     @Test
@@ -281,12 +281,12 @@ class LocationsControllerIT extends PostgresIntegrationTest {
     }
 
     private <T extends RequestEntity.BodyBuilder> T authed(T builder) {
-        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken);
         return builder;
     }
 
     private RequestEntity.HeadersBuilder<?> authed(RequestEntity.HeadersBuilder<?> builder) {
-        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken);
     }
 
     static Map<String, Object> createPayload(String locationName, String icaoCode) {

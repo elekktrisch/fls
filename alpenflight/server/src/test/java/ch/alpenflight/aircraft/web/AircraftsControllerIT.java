@@ -36,12 +36,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Full-stack HTTP integration test for the Aircraft CRUD slice. Asserts
  * the REST surface, soft-delete semantics, immatriculation uniqueness,
- * state-history aggregate invariants, and the cross-tenant read contract
- * under a SYSTEM_ADMINISTRATOR principal.
+ * and state-history aggregate invariants under a CLUB_ADMINISTRATOR
+ * principal of seed-club-1 (the tenant whose aircraft this IT exercises).
  *
- * <p>Authz matrix evidence (CLUB_ADMIN cross-club mutation = 403,
- * null-owner = SYS_ADMIN-only, FLIGHT_OPS for state / counter) lives in
- * {@link AircraftsAuthorizationIT}.
+ * <p>Tenant-isolation properties (Hibernate {@code @TenantId} filtering,
+ * NO_TENANT fail-closed, regulator-global immatriculation uniqueness) live
+ * in {@link AircraftsTenantIsolationIT}; role-gate authz matrix
+ * (FLIGHT_OPERATOR for state/counter, transferOwnership-by-CLUB_ADMIN,
+ * cross-tenant 404 contract) lives in {@link AircraftsAuthorizationIT}.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -49,19 +51,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AircraftsControllerIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final String SYSADMIN_CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
+    private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
 
-    private String sysadminToken;
+    private String clubAdminToken;
 
     @BeforeEach
-    void mintSysadminToken() {
-        sysadminToken = jwts.mint(c -> c
-                .claim("clubId", SYSADMIN_CLUB_ID)
-                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+    void mintClubAdminToken() {
+        clubAdminToken = jwts.mint(c -> c
+                .claim("clubId", CLUB_ID)
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
     }
 
     @Test
@@ -74,7 +76,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void registerAircraft_valid_returns_201_with_location_header() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         JsonNode body = readJson(res);
         assertThat(body.get("immatriculation").asText()).isEqualTo(imm);
@@ -86,7 +88,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void registerAircraft_lowercaseImmatriculation_isUppercased() {
         String imm = "hb-x999";
-        ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm));
         // Bean-Validation pattern is case-insensitive (parity with legacy's
         // .ToUpper() normalize-on-read); VO uppercases at the domain boundary.
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -96,23 +98,23 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void registerAircraft_invalidImmatriculationCharacter_returns_400() {
         ResponseEntity<String> res = post("/api/v1/aircraft",
-                createPayload("HB 9999", SYSADMIN_CLUB_ID));
+                createPayload("HB 9999"));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     void registerAircraft_duplicateImmatriculation_returns_409() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> first = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> first = post("/api/v1/aircraft", createPayload(imm));
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        ResponseEntity<String> second = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> second = post("/api/v1/aircraft", createPayload(imm));
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test
     void registerAircraft_unknownAircraftType_returns_400_with_field_diagnostic() {
-        Map<String, Object> payload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        Map<String, Object> payload = createPayload(uniqueImmatriculation());
         payload.put("aircraftTypeId", "00000000-0000-0000-0000-000000000000");
         ResponseEntity<String> res = post("/api/v1/aircraft", payload);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -129,7 +131,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void updateAircraft_changesImmatriculation_returns_200() {
         String imm0 = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm0, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm0));
         String id = readJson(created).get("id").asText();
 
         String imm1 = uniqueImmatriculation();
@@ -141,7 +143,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void deleteAircraft_returns_204_andGetReturns_404() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String id = readJson(created).get("id").asText();
 
         ResponseEntity<Void> del = rest.exchange(
@@ -156,7 +158,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void deleteAircraft_softDeletes_rather_than_physicalRemove() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String external = readJson(created).get("id").asText();
         UUID raw = AircraftId.parse(external).value();
         rest.exchange(
@@ -172,13 +174,13 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void registerAircraft_afterSoftDeleteWithSameImmatriculation_succeeds() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String externalId = readJson(created).get("id").asText();
         rest.exchange(
                 authed(RequestEntity.delete(URI.create("/api/v1/aircraft/" + externalId))).build(),
                 Void.class);
 
-        ResponseEntity<String> recreated = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> recreated = post("/api/v1/aircraft", createPayload(imm));
         assertThat(recreated.getStatusCode())
                 .as("partial UNIQUE on immatriculation is scoped WHERE deleted_on IS NULL — "
                         + "soft-deleted row keeps its immatriculation but does not block recreate")
@@ -205,7 +207,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void changeState_opensFirstStateAndShowsAsCurrent() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String id = readJson(created).get("id").asText();
 
         Instant t0 = Instant.parse("2026-01-01T08:00:00Z");
@@ -226,7 +228,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void changeState_secondTransition_closesPreviousAndShowsNew() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String id = readJson(created).get("id").asText();
 
         post("/api/v1/aircraft/" + id + "/states", Map.of(
@@ -261,18 +263,17 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerAircraft_sameImmatriculation_acrossDifferentOwners_returns_409() {
-        // Immatriculation is GLOBALLY unique by regulator convention, not
-        // per-owner — the partial unique index ux_aircraft_immatriculation
-        // covers `WHERE deleted_on IS NULL` over the whole table.
+    void registerAircraft_sameImmatriculation_sameTenant_returns_409() {
+        // Same-tenant immatriculation collision — the partial unique index
+        // ux_aircraft_immatriculation covers `WHERE deleted_on IS NULL`.
+        // Cross-tenant global uniqueness is covered by
+        // AircraftsTenantIsolationIT.immatriculation_uniqueness_is_global_across_tenants.
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> firstOwner = post("/api/v1/aircraft",
-                createPayload(imm, SYSADMIN_CLUB_ID));
-        assertThat(firstOwner.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        ResponseEntity<String> first = post("/api/v1/aircraft", createPayload(imm));
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        // Same immat, different owner (charter / null) — must still 409.
-        ResponseEntity<String> charter = post("/api/v1/aircraft", createPayload(imm, null));
-        assertThat(charter.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        ResponseEntity<String> dup = post("/api/v1/aircraft", createPayload(imm));
+        assertThat(dup.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test
@@ -280,9 +281,9 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
         // Legacy AircraftService.cs:303-304: Glider slice = Type ∈ {Glider,
         // GliderWithMotor}. The server-side filter preserves this membership.
         String gliderImm = uniqueImmatriculation();
-        post("/api/v1/aircraft", createPayload(gliderImm, SYSADMIN_CLUB_ID));
+        post("/api/v1/aircraft", createPayload(gliderImm));
 
-        Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation());
         gwmPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_GLIDER_WITH_MOTOR);
         post("/api/v1/aircraft", gwmPayload);
 
@@ -305,11 +306,11 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
         // Legacy AircraftService.cs:96: AircraftTypeId >= MotorGlider (i.e.
         // legacy_int_id >= 4). GLIDER_WITH_MOTOR (legacy_int_id = 2) is
         // intentionally excluded from the MOTOR slice.
-        Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        Map<String, Object> gwmPayload = createPayload(uniqueImmatriculation());
         gwmPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_GLIDER_WITH_MOTOR);
         post("/api/v1/aircraft", gwmPayload);
 
-        Map<String, Object> motorPayload = createPayload(uniqueImmatriculation(), SYSADMIN_CLUB_ID);
+        Map<String, Object> motorPayload = createPayload(uniqueImmatriculation());
         motorPayload.put("aircraftTypeId", AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_MOTOR_AIRCRAFT);
         post("/api/v1/aircraft", motorPayload);
 
@@ -325,7 +326,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void changeState_validFromNotAfterPrevious_returns_409() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String id = readJson(created).get("id").asText();
 
         Map<String, Object> p1 = Map.of(
@@ -344,7 +345,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void recordCounter_monotonic_acceptsIncrease() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String id = readJson(created).get("id").asText();
 
         post("/api/v1/aircraft/" + id + "/counters", Map.of(
@@ -366,7 +367,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     @Test
     void recordCounter_decreasing_returns_409() {
         String imm = uniqueImmatriculation();
-        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm, SYSADMIN_CLUB_ID));
+        ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
         String id = readJson(created).get("id").asText();
 
         post("/api/v1/aircraft/" + id + "/counters", Map.of(
@@ -421,12 +422,12 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     }
 
     private <T extends RequestEntity.BodyBuilder> T authed(T builder) {
-        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken);
         return builder;
     }
 
     private RequestEntity.HeadersBuilder<?> authed(RequestEntity.HeadersBuilder<?> builder) {
-        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + sysadminToken);
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken);
     }
 
     private static JsonNode readJson(ResponseEntity<String> res) {

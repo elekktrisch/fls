@@ -144,6 +144,7 @@ audit:
         # and entity field names. Service-layer callers may pass either.
         allow:
           - id
+          - managingClubId
           - ownerClubId
           - aircraftTypeId
           - immatriculation

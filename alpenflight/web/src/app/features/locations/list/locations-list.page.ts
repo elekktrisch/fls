@@ -152,7 +152,7 @@ export class LocationsListPage {
   protected readonly store = inject(LocationsStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
-  protected readonly canMutate = this.session.isAnyAdmin;
+  protected readonly canMutate = this.session.isClubAdmin;
 
   protected confirmDelete(loc: LocationItem): void {
     if (typeof window === 'undefined' || !loc.id) return;

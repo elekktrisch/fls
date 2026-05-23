@@ -26,6 +26,7 @@ import ch.alpenflight.aircraft.domain.DuplicateImmatriculationException;
 import ch.alpenflight.aircraft.domain.Immatriculation;
 import ch.alpenflight.aircraft.domain.InvalidAircraftReferenceException;
 import ch.alpenflight.platform.id.AircraftId;
+import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.referencedata.domain.AircraftStateRepository;
 import ch.alpenflight.referencedata.domain.AircraftTypeRepository;
 import ch.alpenflight.referencedata.domain.CounterUnitTypeRepository;
@@ -35,16 +36,14 @@ import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Transactional service for the {@link Aircraft} aggregate. Authz is
- * enforced by {@code @PreAuthorize} on the controller via
- * {@link AircraftAccess}; this service trusts that the caller has been
- * gated.
+ * Transactional service for the {@link Aircraft} aggregate. Tenant scoping
+ * (S-159) is structural via Hibernate's {@code @TenantId} discriminator on
+ * {@code Aircraft.managingClubId}; role-within-tenant gates live on the
+ * controller as {@code @PreAuthorize("hasRole(...)")}.
  *
  * <p>Immatriculation uniqueness is GLOBAL (regulator-convention; partial
  * UNIQUE {@code ux_aircraft_immatriculation} WHERE {@code deleted_on IS
@@ -66,7 +65,7 @@ public class AircraftsService {
     private final AircraftTypeRepository aircraftTypes;
     private final AircraftStateRepository aircraftStates;
     private final CounterUnitTypeRepository counterUnitTypes;
-    private final AircraftAccess access;
+    private final ClubTenantIdentifierResolver tenantResolver;
     private final Clock clock;
     private final AuditTrail auditTrail;
 
@@ -74,14 +73,14 @@ public class AircraftsService {
                             AircraftTypeRepository aircraftTypes,
                             AircraftStateRepository aircraftStates,
                             CounterUnitTypeRepository counterUnitTypes,
-                            AircraftAccess access,
+                            ClubTenantIdentifierResolver tenantResolver,
                             Clock clock,
                             AuditTrail auditTrail) {
         this.aircrafts = aircrafts;
         this.aircraftTypes = aircraftTypes;
         this.aircraftStates = aircraftStates;
         this.counterUnitTypes = counterUnitTypes;
-        this.access = access;
+        this.tenantResolver = tenantResolver;
         this.clock = clock;
         this.auditTrail = auditTrail;
     }
@@ -116,9 +115,7 @@ public class AircraftsService {
 
     @Transactional(readOnly = true)
     public AircraftDetail getAircraft(AircraftId id) {
-        Aircraft a = loadOrThrow(id);
-        boolean ownerVisible = access.canSeeOwnerOnlyFields(currentAuth(), a.getOwnerClubId());
-        return AircraftMapper.toDetail(a, ownerVisible);
+        return AircraftMapper.toDetail(loadOrThrow(id));
     }
 
     public AircraftDetail registerAircraft(AircraftCreateRequest req) {
@@ -131,8 +128,16 @@ public class AircraftsService {
                     throw new DuplicateImmatriculationException(normalized);
                 });
 
+        // Ownership defaults to the managing club (own-club case). CLUB_ADMIN
+        // can later flip to other-club / private-person via transferOwnership.
+        // managing_club_id itself is set by Hibernate via @TenantId on save.
+        UUID defaultOwnerClubId = tenantResolver.resolveCurrentTenantIdentifier();
+        if (ClubTenantIdentifierResolver.NO_TENANT.equals(defaultOwnerClubId)) {
+            defaultOwnerClubId = null;
+        }
+
         Aircraft a = Aircraft.register(
-                req.ownerClubId() == null ? null : req.ownerClubId().value(),
+                defaultOwnerClubId,
                 req.aircraftTypeId().value(),
                 req.immatriculation(),
                 req.manufacturerName(),
@@ -145,7 +150,7 @@ public class AircraftsService {
                 req.noiseLevel(),
                 req.mtom(),
                 req.nrOfSeats(),
-                req.aircraftOwnerPersonId(),
+                null,
                 req.flightOperatingCounterUnitTypeId(),
                 req.engineOperatingCounterUnitTypeId(),
                 req.homebaseId() == null ? null : req.homebaseId().value(),
@@ -156,9 +161,7 @@ public class AircraftsService {
                 req.isTowingAircraft(),
                 req.comment(),
                 req.daecIndex());
-        // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
-        // (gated at the controller); they may see owner-only fields.
-        AircraftDetail created = AircraftMapper.toDetail(persist(a, normalized), true);
+        AircraftDetail created = AircraftMapper.toDetail(persist(a, normalized));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
         return created;
@@ -169,7 +172,7 @@ public class AircraftsService {
         validateCounterUnitType(req.flightOperatingCounterUnitTypeId());
         validateCounterUnitType(req.engineOperatingCounterUnitTypeId());
         Aircraft a = loadOrThrow(id);
-        AircraftDetail before = AircraftMapper.toDetail(a, true);
+        AircraftDetail before = AircraftMapper.toDetail(a);
 
         String normalized = Immatriculation.of(req.immatriculation()).normalized();
         aircrafts.findActiveByImmatriculation(normalized)
@@ -202,9 +205,7 @@ public class AircraftsService {
                 req.isTowingAircraft(),
                 req.comment(),
                 req.daecIndex());
-        // The mutating principal is already SYS_ADMIN or CLUB_ADMIN-of-owner
-        // (gated at the controller); they may see owner-only fields.
-        AircraftDetail after = AircraftMapper.toDetail(persist(a, normalized), true);
+        AircraftDetail after = AircraftMapper.toDetail(persist(a, normalized));
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -212,7 +213,7 @@ public class AircraftsService {
 
     public void softDeleteAircraft(AircraftId id, @Nullable UUID userId) {
         Aircraft a = loadOrThrow(id);
-        AircraftDetail before = AircraftMapper.toDetail(a, true);
+        AircraftDetail before = AircraftMapper.toDetail(a);
         a.softDelete(userId, clock);
         aircrafts.save(a);
         auditTrail.record(AuditAction.DELETE,
@@ -221,12 +222,26 @@ public class AircraftsService {
 
     public AircraftDetail transferOwnership(AircraftId id, AircraftTransferOwnershipRequest req) {
         Aircraft a = loadOrThrow(id);
-        AircraftDetail before = AircraftMapper.toDetail(a, true);
-        a.transferOwnership(
-                req.newOwnerClubId() == null ? null : req.newOwnerClubId().value(),
-                req.newOwnerPersonId());
-        // Transfer endpoint is SYS_ADMIN-only; owner-only fields visible.
-        AircraftDetail after = AircraftMapper.toDetail(aircrafts.save(a), true);
+        UUID newOwnerClubId = req.newOwnerClubId() == null ? null : req.newOwnerClubId().value();
+        // Unknown club UUID surfaces via the fk_aircraft_owner_club_id FK
+        // violation at flush time → mapped to 400 by the exception handler.
+        // No service-layer pre-check: the Clubs module owns its existence
+        // contract, and the FK is the structural gate.
+        AircraftDetail before = AircraftMapper.toDetail(a);
+        a.transferOwnership(newOwnerClubId, req.newOwnerPersonId());
+        AircraftDetail after;
+        try {
+            after = AircraftMapper.toDetail(aircrafts.save(a));
+            aircrafts.flush();
+        } catch (DataIntegrityViolationException e) {
+            String causeMessage = e.getMostSpecificCause() == null
+                    ? ""
+                    : String.valueOf(e.getMostSpecificCause().getMessage());
+            if (causeMessage.contains("fk_aircraft_owner_club_id")) {
+                throw new InvalidAircraftReferenceException("newOwnerClubId");
+            }
+            throw e;
+        }
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_ENTITY_TYPE, id.value(), before, after));
         return after;
@@ -303,11 +318,30 @@ public class AircraftsService {
                 .orElseThrow(() -> new AircraftNotFoundException(id));
     }
 
+    private static final String IMMATRICULATION_UNIQUE_CONSTRAINT = "ux_aircraft_immatriculation";
+
     private Aircraft persist(Aircraft a, String normalizedImmatriculation) {
         try {
-            return aircrafts.save(a);
+            Aircraft saved = aircrafts.save(a);
+            // Immatriculation uniqueness is regulator-GLOBAL (partial UNIQUE on
+            // immatriculation WHERE deleted_on IS NULL). The application
+            // pre-check only sees the caller's tenant under @TenantId scoping —
+            // so a cross-tenant collision needs the DB to surface the violation
+            // synchronously. Flush before returning so the IIE → typed exception
+            // mapping fires from this catch, not at tx commit.
+            aircrafts.flush();
+            return saved;
         } catch (DataIntegrityViolationException e) {
-            throw new DuplicateImmatriculationException(normalizedImmatriculation);
+            // Only the immatriculation UNIQUE constraint maps to the typed
+            // domain exception; FK violations (managing_club_id on NO_TENANT,
+            // aircraft_type_id) propagate unchanged.
+            String causeMessage = e.getMostSpecificCause() == null
+                    ? ""
+                    : String.valueOf(e.getMostSpecificCause().getMessage());
+            if (causeMessage.contains(IMMATRICULATION_UNIQUE_CONSTRAINT)) {
+                throw new DuplicateImmatriculationException(normalizedImmatriculation);
+            }
+            throw e;
         }
     }
 
@@ -335,9 +369,5 @@ public class AircraftsService {
     private static boolean sameRow(Aircraft other, AircraftId id) {
         AircraftId otherId = other.getId();
         return otherId != null && otherId.value().equals(id.value());
-    }
-
-    private static @Nullable Authentication currentAuth() {
-        return SecurityContextHolder.getContext().getAuthentication();
     }
 }

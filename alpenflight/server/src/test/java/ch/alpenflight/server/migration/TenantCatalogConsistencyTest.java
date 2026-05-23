@@ -165,9 +165,14 @@ class TenantCatalogConsistencyTest {
         }
     }
 
-    /** Aircraft is CROSS_TENANT per 2026-05-16 amendment — owner_club_id is nullable. */
+    /**
+     * Aircraft is tenant-scoped via {@code managing_club_id} (S-159), but
+     * {@code owner_club_id} stays as ownership metadata independent of the
+     * tenant — it's nullable and may differ from the managing club (other-org
+     * / private-person cases).
+     */
     @Test
-    void aircraft_tenant_column_renamed_to_owner_club_id_nullable() throws Exception {
+    void aircraft_owner_club_id_is_nullable_ownership_metadata() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, is_nullable FROM information_schema.columns "
@@ -176,8 +181,27 @@ class TenantCatalogConsistencyTest {
             assertThat(rs.next()).as("aircraft.owner_club_id must exist").isTrue();
             assertThat(rs.getString("data_type")).isEqualTo("uuid");
             assertThat(rs.getString("is_nullable"))
-                    .as("aircraft.owner_club_id must be NULLABLE (Aircraft is cross-tenant)")
+                    .as("aircraft.owner_club_id must be NULLABLE (ownership metadata, not tenancy)")
                     .isEqualTo("YES");
+        }
+    }
+
+    /**
+     * Aircraft.managing_club_id is the {@code @TenantId} discriminator (S-159):
+     * NOT NULL UUID, FK to club.
+     */
+    @Test
+    void aircraft_managing_club_id_is_tenant_discriminator_not_null() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT data_type, is_nullable FROM information_schema.columns "
+                                + "WHERE table_schema='public' AND table_name='aircraft' "
+                                + "AND column_name='managing_club_id'")) {
+            assertThat(rs.next()).as("aircraft.managing_club_id must exist").isTrue();
+            assertThat(rs.getString("data_type")).isEqualTo("uuid");
+            assertThat(rs.getString("is_nullable"))
+                    .as("aircraft.managing_club_id must be NOT NULL (@TenantId discriminator)")
+                    .isEqualTo("NO");
         }
     }
 

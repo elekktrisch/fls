@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.TenantId;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -37,16 +38,20 @@ import org.jspecify.annotations.Nullable;
  *       {@code ux_aas_current_state_per_aircraft} is the structural safety net.</li>
  * </ul>
  *
- * <p>Cross-tenant per tenant-rules.yaml (2026-05-16 reclassification):
- * {@code owner_club_id} is nullable (charter / loan / private ownership).
- * No {@code @TenantId}; authz lives in the application-layer service.
+ * <p>Tenant-scoped per S-159 via {@code managing_club_id}: every aircraft is
+ * registered by exactly one tenant (the managing club). Ownership is
+ * independent metadata — {@code owner_club_id} (nullable; physical owner,
+ * own/other club or NULL) + {@code aircraft_owner_person_id} (nullable;
+ * private owner). The three owner cases (own-club / other-organisation /
+ * private-person) are derived at the application layer, not encoded in the
+ * schema (ADR 0022 directive 2).
  *
  * <p>Aggregate boundary: {@link AircraftStateHistoryEntry} +
  * {@link AircraftOperatingCounter} are managed via Aircraft mutation
  * methods only. No top-level CRUD endpoint for either. The
  * {@code @OneToMany(cascade=ALL, orphanRemoval=true)} mapping is for state
  * history; counter history is append-only (no orphan removal — counters are
- * never re-keyed via PUT).
+ * never re-keyed via PUT). Child rides through the parent's tenant scope.
  */
 @Entity
 @Table(name = "aircraft")
@@ -67,6 +72,10 @@ public class Aircraft {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
+
+    @TenantId
+    @Column(name = "managing_club_id", nullable = false, updatable = false)
+    private @Nullable UUID managingClubId;
 
     @Column(name = "owner_club_id")
     private @Nullable UUID ownerClubId;
@@ -163,6 +172,13 @@ public class Aircraft {
         // JPA.
     }
 
+    /**
+     * Factory for a new Aircraft. The managing tenant
+     * ({@link #managingClubId}) is set by Hibernate's {@code @TenantId}
+     * resolver on persist — do NOT pass it here. {@code ownerClubId} is
+     * independent ownership metadata; the service layer defaults it to the
+     * managing tenant (own-club case).
+     */
     public static Aircraft register(@Nullable UUID ownerClubId,
                                     UUID aircraftTypeId,
                                     String immatriculation,
@@ -484,6 +500,10 @@ public class Aircraft {
 
     public @Nullable AircraftId getId() {
         return AircraftId.ofNullable(id);
+    }
+
+    public @Nullable UUID getManagingClubId() {
+        return managingClubId;
     }
 
     public @Nullable UUID getOwnerClubId() {

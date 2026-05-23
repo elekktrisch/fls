@@ -608,7 +608,8 @@ test('aircraft form: field inventory matches legacy reference screenshot (parity
   // 4 towing/winch checkboxes (legacy showed all four; the legacy form
   // gates the two sub-checkboxes via UI affordance, not server validation —
   // parity for now keeps them flat, no hide/show).
-  await expect(page.getByTestId('aircraft-owner-select')).toBeVisible(); // mock-auth principal is SYSTEM_ADMIN.
+  // The owner-select was dropped in S-159: ownership defaults to the managing
+  // club at the service layer; change via transfer-ownership.
   await expect(page.getByTestId('aircraft-homebase-select')).toBeVisible();
   await expect(page.getByLabel('SPOT tracker link')).toBeVisible();
   await expect(page.getByTestId('aircraft-spotlink-test')).toBeVisible();

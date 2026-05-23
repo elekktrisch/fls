@@ -25,10 +25,16 @@ import org.jspecify.annotations.Nullable;
  * aggregate.
  *
  * <p>{@code ownerClubId} and {@code aircraftOwnerPersonId} are intentionally
- * <strong>absent</strong> from {@link AircraftUpdateRequest}: ownership
- * transfer goes through a dedicated SYSTEM_ADMIN-only endpoint (A04
- * mass-assignment defense — a CLUB_ADMIN of club A could otherwise rewrite
- * an aircraft to club B silently).
+ * <strong>absent</strong> from {@link AircraftCreateRequest} and
+ * {@link AircraftUpdateRequest}: a newly-registered aircraft defaults to
+ * "owned by the managing club" (own-club case), and ownership changes go
+ * through a dedicated transfer endpoint (A04 mass-assignment defense — a
+ * caller could otherwise re-key ownership silently via PUT).
+ *
+ * <p>The managing tenant is set by Hibernate's {@code @TenantId} resolver
+ * from the JWT on persist — never on the wire. Do NOT re-introduce a
+ * {@code managingClubId} or {@code ownerClubId} field on create/update
+ * without security review (A04).
  *
  * <p>{@code isFastEntryRecord} is intentionally absent from both
  * {@link AircraftCreateRequest} and {@link AircraftUpdateRequest}: it is an
@@ -117,9 +123,8 @@ public final class AircraftDtos {
             @Nullable AircraftStateHistoryEntryResponse currentState,
             @Nullable AircraftOperatingCounterResponse latestCounter) {}
 
-    @Schema(description = "Payload to register a new Aircraft. ownerClubId is settable at create time only.")
+    @Schema(description = "Payload to register a new Aircraft. Ownership defaults to the managing club; change via transfer-ownership.")
     public record AircraftCreateRequest(
-            @Nullable ClubId ownerClubId,
             @NotNull AircraftTypeId aircraftTypeId,
             @NotBlank @Size(min = 2, max = 15)
                     @Pattern(regexp = IMMAT_REGEX, flags = Pattern.Flag.CASE_INSENSITIVE,
@@ -135,7 +140,6 @@ public final class AircraftDtos {
             @Nullable BigDecimal noiseLevel,
             @Nullable @Min(0) Integer mtom,
             @Nullable @Min(0) Integer nrOfSeats,
-            @Nullable UUID aircraftOwnerPersonId,
             @Nullable UUID flightOperatingCounterUnitTypeId,
             @Nullable UUID engineOperatingCounterUnitTypeId,
             @Nullable LocationId homebaseId,
@@ -150,7 +154,7 @@ public final class AircraftDtos {
             @Nullable @Size(max = 250) String comment,
             @Nullable Integer daecIndex) {}
 
-    @Schema(description = "Payload to update an Aircraft. ownerClubId / aircraftOwnerPersonId are NOT settable here — use the transfer-ownership endpoint (A04 defense).")
+    @Schema(description = "Payload to update an Aircraft. Ownership fields are not settable here — use the transfer-ownership endpoint (A04 defense).")
     public record AircraftUpdateRequest(
             @NotNull AircraftTypeId aircraftTypeId,
             @NotBlank @Size(min = 2, max = 15)
@@ -199,7 +203,7 @@ public final class AircraftDtos {
             @Nullable @Min(0) Long nextMaintenanceAtFlightOperatingCounterInSeconds,
             @Nullable @Min(0) Long nextMaintenanceAtEngineOperatingCounterInSeconds) {}
 
-    @Schema(description = "SYSTEM_ADMIN-only payload to transfer ownership.")
+    @Schema(description = "CLUB_ADMINISTRATOR-only payload to transfer ownership metadata. Managing tenant is unchanged.")
     public record AircraftTransferOwnershipRequest(
             @Nullable ClubId newOwnerClubId,
             @Nullable UUID newOwnerPersonId) {}

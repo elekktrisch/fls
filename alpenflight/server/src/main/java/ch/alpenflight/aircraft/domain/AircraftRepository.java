@@ -9,9 +9,11 @@ import org.jspecify.annotations.Nullable;
  * Domain port for {@link Aircraft} persistence. Implemented by
  * {@code ch.alpenflight.aircraft.infra.JpaAircraftRepository}.
  *
- * <p>Aircraft is cross-tenant — no {@code @TenantId} discriminator filter
- * rides on these queries. Tenancy / authz is enforced at the application
- * service layer via {@code AircraftAccess}, not Hibernate.
+ * <p>Aircraft is tenant-scoped via Hibernate's {@code @TenantId}
+ * discriminator on {@code Aircraft.managingClubId} (S-159). The
+ * discriminator rides on every read + write query automatically; the
+ * service layer trusts it and adds only role-within-tenant checks at the
+ * controller.
  *
  * <p>Soft-delete (V3 {@code deleted_on}) is filtered at the query layer.
  */

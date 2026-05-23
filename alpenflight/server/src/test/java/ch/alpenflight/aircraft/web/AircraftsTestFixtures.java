@@ -3,7 +3,6 @@ package ch.alpenflight.aircraft.web;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Canonical seed UUIDs the Aircraft ITs round-trip through DTOs, plus
@@ -33,15 +32,14 @@ final class AircraftsTestFixtures {
     }
 
     /**
-     * @param ownerClubIdUuid raw UUID string (without the {@code clb-} prefix);
-     *     the fixture wraps it in the external form the DTO expects. Pass
-     *     {@code null} for a charter aircraft.
+     * Builds an {@code AircraftCreateRequest} payload as JSON-shaped map.
+     * Tenant scoping (S-159): {@code managing_club_id} is set by Hibernate
+     * from the JWT resolver — neither callers nor the DTO carry it.
+     * Ownership defaults to the managing club at the service layer; change
+     * via the transfer-ownership endpoint.
      */
-    static Map<String, Object> createPayload(String immatriculation, @Nullable String ownerClubIdUuid) {
+    static Map<String, Object> createPayload(String immatriculation) {
         Map<String, Object> n = new LinkedHashMap<>();
-        if (ownerClubIdUuid != null) {
-            n.put("ownerClubId", "clb-" + ownerClubIdUuid);
-        }
         n.put("aircraftTypeId", SEED_AIRCRAFT_TYPE_GLIDER);
         n.put("immatriculation", immatriculation);
         n.put("manufacturerName", "Schleicher");
