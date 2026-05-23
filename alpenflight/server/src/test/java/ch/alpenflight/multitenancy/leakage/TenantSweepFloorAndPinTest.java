@@ -3,6 +3,7 @@ package ch.alpenflight.multitenancy.leakage;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.server.testsupport.TenantScopedEntityCatalog;
+import ch.alpenflight.server.testsupport.TenantScopedRowBuilders;
 import java.io.FileInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +44,17 @@ class TenantSweepFloorAndPinTest {
                         + "or annotation regression would silently empty the sweep.",
                         TENANT_SCOPED_ENTITY_FLOOR)
                 .hasSizeGreaterThanOrEqualTo(TENANT_SCOPED_ENTITY_FLOOR);
+    }
+
+    @Test
+    void every_discovered_entity_has_a_registered_row_builder() {
+        var discovered = TenantScopedEntityCatalog.discoverTenantScopedEntities();
+        var registered = TenantScopedRowBuilders.registered();
+        assertThat(discovered)
+                .as("Every @TenantId entity must have a row builder in TenantScopedRowBuilders "
+                        + "(else the sweep can't exercise it). Add a builder in the same PR that "
+                        + "introduces the @TenantId annotation.")
+                .allMatch(registered::contains);
     }
 
     @Test
