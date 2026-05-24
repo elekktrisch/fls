@@ -2,7 +2,6 @@ package ch.alpenflight.flights.web;
 
 import ch.alpenflight.flights.domain.DuplicateCrewMemberException;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
-import ch.alpenflight.flights.domain.InvalidFlightReferenceException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import java.net.URI;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -29,21 +28,14 @@ class FlightsExceptionHandler {
             URI.create("urn:alpenflight:problem:flight-duplicate-crew");
     private static final URI INVALID_CURSOR =
             URI.create("urn:alpenflight:problem:flight-invalid-cursor");
+    private static final URI INVALID_REQUEST =
+            URI.create("urn:alpenflight:problem:flight-invalid-request");
 
     @ExceptionHandler(FlightNotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(FlightNotFoundException e) {
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
         pd.setType(FLIGHT_NOT_FOUND);
         pd.setTitle("Flight not found");
-        pd.setDetail(e.getMessage());
-        return problem(pd);
-    }
-
-    @ExceptionHandler(InvalidFlightReferenceException.class)
-    ResponseEntity<ProblemDetail> handleInvalidReference(InvalidFlightReferenceException e) {
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
-        pd.setType(INVALID_REFERENCE);
-        pd.setTitle("Referenced row not found");
         pd.setDetail(e.getMessage());
         return problem(pd);
     }
@@ -84,11 +76,14 @@ class FlightsExceptionHandler {
         // The aggregate throws IllegalArgumentException for runway / coupon /
         // temporal-ordering / non-negative invariants. The DTO validator
         // catches most before this fires, but the aggregate is the
-        // authoritative source so the handler maps to 400 here too.
+        // authoritative source so the handler maps to 400 here too. Cursor
+        // decode errors get a distinct URI so an SRE can route them differently.
+        String msg = e.getMessage();
+        boolean isCursor = msg != null && msg.startsWith("cursor");
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        pd.setType(INVALID_CURSOR);
-        pd.setTitle("Invalid request");
-        pd.setDetail(e.getMessage());
+        pd.setType(isCursor ? INVALID_CURSOR : INVALID_REQUEST);
+        pd.setTitle(isCursor ? "Invalid cursor" : "Invalid request");
+        pd.setDetail(msg);
         return problem(pd);
     }
 

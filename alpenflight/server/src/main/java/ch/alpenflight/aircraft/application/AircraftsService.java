@@ -42,7 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Transactional service for the {@link Aircraft} aggregate. Aircraft is
  * cross-tenant (S-058 reversion of S-159, 2026-05-24); reads are open at
- * the controller; mutations are gated by {@code owner_club_id} via the
+ * the controller; mutations are gated by {@code managing_club_id} via the
  * {@code AircraftAccess} SpEL bean.
  *
  * <p>Immatriculation uniqueness is GLOBAL (regulator-convention; partial

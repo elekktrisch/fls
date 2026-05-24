@@ -9,7 +9,6 @@ import static ch.alpenflight.flights.web.FlightsTestFixtures.seedPersonInClub;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.singletonCrew;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.alpenflight.platform.id.FlightId;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
@@ -279,8 +278,4 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         }
     }
 
-    // Silence "unused-import" — FlightId is referenced via the external
-    // string format in assertions above.
-    @SuppressWarnings("unused")
-    private static String unused() { return FlightId.PREFIX; }
 }

@@ -12,7 +12,7 @@ merged_at: 2026-05-23
 depends_on: [S-049, S-047, S-026, S-022]
 acceptance:
   - `Aircraft`, `AircraftType`, `AircraftState`, `AircraftAircraftState`, `AircraftOperatingCounter` ported.
-  - Aircraft is **cross-tenant** — no `@TenantId`; per-flight tenancy lives on `Flight.operating_club_id` (S-058). Mutation authz is SYSTEM_ADMIN + CLUB_ADMIN-of-`managing_club_id` via the `AircraftAccess` SpEL bean. (The S-159 amendment briefly tenant-scoped Aircraft via `managing_club_id @TenantId`; S-058 reverted that — see ADR 0008 amendment 2026-05-24.)
+  - Aircraft is **cross-tenant** — no `@TenantId`; per-flight tenancy lives on `Flight.operating_club_id` (S-058). Mutation authz via the `AircraftAccess` SpEL bean: register is CLUB_ADMIN-only (sysadmin lacks the `clubId` claim — sysadmin-driven register tracked at S-162); edit / operate are CLUB_ADMIN-of-`managing_club_id` or SYSTEM_ADMIN. (The S-159 amendment briefly tenant-scoped Aircraft via `managing_club_id @TenantId`; S-058 reverted that — see ADR 0008 amendment 2026-05-24.)
   - The "Add aircraft" modal pattern works on the new SPA.
   - The aircraft → flight-type filter dropdowns (GLIDER / TOWING / MOTOR) work end-to-end (server-side filter via `?type=` query param preserves legacy membership).
   - Parity spec `e2e/tests/masterdata/aircrafts-crud.spec.ts` (legacy oracle) + new-stack spec `alpenflight/web/e2e/tests/masterdata/aircraft-crud.spec.ts` pass.

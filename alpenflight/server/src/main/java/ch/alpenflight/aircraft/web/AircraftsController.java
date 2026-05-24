@@ -53,11 +53,13 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Mutations are gated by the {@code AircraftAccess} SpEL bean:
  *
  * <ul>
- *   <li>{@code @aircraftAccess.canRegister(#jwt)} on register — any
- *       CLUB_ADMINISTRATOR or SYSTEM_ADMINISTRATOR.</li>
+ *   <li>{@code @aircraftAccess.canRegister(#jwt)} on register —
+ *       CLUB_ADMINISTRATOR only. SYSTEM_ADMINISTRATOR has no {@code clubId}
+ *       claim, so the service can't infer {@code managing_club_id}; a
+ *       sysadmin-driven register variant is tracked separately (S-162).</li>
  *   <li>{@code @aircraftAccess.canEdit(#id, #jwt)} on update /
- *       soft-delete / transfer-ownership — CLUB_ADMINISTRATOR of
- *       {@code owner_club_id} (or SYSTEM_ADMINISTRATOR for NULL-owner).</li>
+ *       soft-delete / transfer-ownership — CLUB_ADMINISTRATOR of the
+ *       aircraft's {@code managing_club_id}, or SYSTEM_ADMINISTRATOR.</li>
  *   <li>{@code @aircraftAccess.canOperate(#id, #jwt)} on state /
  *       counter — same predicate, FLIGHT_OPERATOR also admitted.</li>
  * </ul>
@@ -70,7 +72,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping(path = "/api/v1/aircraft", produces = MediaType.APPLICATION_JSON_VALUE)
-@Tag(name = "Aircraft", description = "Aircraft CRUD (per-club tenant-scoped masterdata).")
+@Tag(name = "Aircraft", description = "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id).")
 public class AircraftsController {
 
     private final AircraftsService service;

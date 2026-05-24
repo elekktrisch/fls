@@ -109,7 +109,7 @@ No CHECK constraints, generated columns, or triggers reintroduced. V3's stripped
 - **Integration — load-bearing.**
   - Cross-tenant `GET /api/v1/flights/{id}` → 404 (mirror `PersonsCrossTenantRideThroughIT`).
   - Person ride-through: Club B Flight with pilot whose only `PersonClub` is Club A → PK-load returns the Person; no tenant filter leak on `person_id`.
-  - Cross-tenant Aircraft FK block on create (the regression S-159 enables): Club B POST referencing Club A's aircraft → 404, NOT a successful FK write to an unreadable row.
+  - Cross-tenant Aircraft FK on create SUCCEEDS (post-S-058 charter case): Club B POST referencing Club A's aircraft → 201. Unknown aircraftIds surface as 400 via `DataIntegrityViolationException` (DB FK rejection).
   - Soft-delete: `deleted_on` filters list; soft-deleting a tow leaves glider's `tow_flight_id` intact.
   - AC4 smoke: create + read one Flight per `{GLIDER, TOW, MOTOR}` end-to-end.
   - Repository finders honor `@TenantId` (single assertion — framework guarantee, not a suite).

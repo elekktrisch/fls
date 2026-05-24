@@ -9,7 +9,6 @@ import ch.alpenflight.flights.application.FlightDtos.FlightListItem;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
 import ch.alpenflight.flights.domain.Flight;
-import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightOperationalData;
@@ -21,7 +20,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
@@ -179,17 +177,4 @@ public class FlightsService {
                         before));
     }
 
-    // Static helper kept to silence "unused-import" complaints in the
-    // Optional re-import below until S-059 needs it.
-    @SuppressWarnings("unused")
-    private static <T> Optional<T> none() {
-        return Optional.empty();
-    }
-
-    static FlightAircraftType requireType(@Nullable FlightAircraftType t) {
-        if (t == null) {
-            throw new IllegalArgumentException("flightAircraftType must not be null");
-        }
-        return t;
-    }
 }

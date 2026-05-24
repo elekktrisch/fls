@@ -60,10 +60,8 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
     @BeforeEach
     void seedTwoClubs() {
         cleanFlightRowsFor(jdbc, CLUB_A, CLUB_B);
-        // Aircraft is now tenant-scoped (S-159) and gets cleared by
-        // TwoClubFixture's TenantScopedEntityCatalog sweep. Re-seeding the
-        // two test clubs runs that sweep, so we don't need to delete
-        // aircraft rows ourselves.
+        // Aircraft is cross-tenant since S-058 (reverts S-159); TwoClubFixture
+        // wipes aircraft rows under the seed clubs explicitly before delete-clubs.
         new TwoClubFixture(jdbc, CLUB_A, CLUB_B, NAME_PREFIX, KEY_PREFIX).seed();
     }
 

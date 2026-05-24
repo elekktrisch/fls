@@ -35,12 +35,21 @@
  *
  * <p>Authz model: reads (list / picker / detail) require only
  * {@code isAuthenticated()}; the catalog is intentionally cross-tenant.
- * Mutations are gated by the {@code AircraftAccess} SpEL bean —
- * CLUB_ADMINISTRATOR of {@code managing_club_id} for masterdata
- * (register / update / soft-delete / transfer-ownership);
- * CLUB_ADMINISTRATOR or FLIGHT_OPERATOR of {@code managing_club_id} for
- * state + counter; SYSTEM_ADMINISTRATOR as the universal fallback.
- * Person-owner edit predicate is deferred to a follow-up story when
+ * Mutations are gated by the {@code AircraftAccess} SpEL bean:
+ *
+ * <ul>
+ *   <li><b>Register</b>: CLUB_ADMINISTRATOR only. The new row's
+ *       {@code managing_club_id} is sourced from the caller's JWT
+ *       {@code clubId} claim, which SYSTEM_ADMINISTRATOR lacks — a
+ *       sysadmin-driven register variant is tracked separately (S-162).</li>
+ *   <li><b>Edit / soft-delete / transfer-ownership</b>: CLUB_ADMINISTRATOR
+ *       of the aircraft's {@code managing_club_id}, or SYSTEM_ADMINISTRATOR
+ *       as universal fallback.</li>
+ *   <li><b>State / counter</b>: same predicate, FLIGHT_OPERATOR also
+ *       admitted.</li>
+ * </ul>
+ *
+ * <p>Person-owner edit predicate is deferred to a follow-up story when
  * User→Person (S-052) wires up.
  */
 @org.jspecify.annotations.NullMarked
