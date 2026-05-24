@@ -23,7 +23,7 @@ public interface JpaArticleRepository
         extends JpaRepository<Article, UUID>, ArticleRepository {
 
     @Override
-    @Query("select a from Article a where a.deletedOn is null and a.active = true "
+    @Query("select a from Article a where a.deletedOn is null and a.isActive = true "
             + "order by a.articleNumber asc")
     List<Article> findAllActive();
 

@@ -1,6 +1,7 @@
 package ch.alpenflight.articles.domain;
 
 import ch.alpenflight.platform.id.ArticleId;
+import ch.alpenflight.platform.persistence.PersistedAuditActor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -20,6 +21,10 @@ import org.jspecify.annotations.Nullable;
  * Hibernate's {@code @TenantId} on {@code operatingClubId}; every read +
  * write is filtered to the caller's tenant by Hibernate before the service
  * ever sees the row.
+ *
+ * <p>Column names are derived from field names by Spring Boot's default
+ * {@code SpringPhysicalNamingStrategy} (camelCase → snake_case); no field
+ * needs an explicit {@code @Column(name = ...)}.
  *
  * <p>Per ADR 0022 directive 2, business rules live on the aggregate, not the
  * schema:
@@ -56,33 +61,26 @@ public class Article {
     private @Nullable UUID id;
 
     @TenantId
-    @Column(name = "operating_club_id", nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false)
     private @Nullable UUID operatingClubId;
 
-    @Column(name = "article_number", nullable = false, length = MAX_NUMBER_LENGTH)
+    @Column(nullable = false, length = MAX_NUMBER_LENGTH)
     private String articleNumber = "";
 
-    @Column(name = "article_name", nullable = false, length = MAX_NAME_LENGTH)
+    @Column(nullable = false, length = MAX_NAME_LENGTH)
     private String articleName = "";
 
-    @Column(name = "article_info", length = MAX_INFO_LENGTH)
+    @Column(length = MAX_INFO_LENGTH)
     private @Nullable String articleInfo;
 
-    @Column(name = "description", columnDefinition = "text")
     private @Nullable String description;
 
-    @Column(name = "is_active", nullable = false)
-    private boolean active = true;
+    @Column(nullable = false)
+    private boolean isActive = true;
 
-    @Column(name = "deleted_on")
     private @Nullable Instant deletedOn;
 
-    @Column(name = "deleted_by_user_id")
-    // Field is assigned by softDelete() and persisted by JPA, but never
-    // read back through the aggregate — the audit emission carries the
-    // actor on the event payload instead. ErrorProne's UnusedVariable
-    // misclassifies the write-only case; suppress narrowly.
-    @SuppressWarnings("UnusedVariable")
+    @PersistedAuditActor
     private @Nullable UUID deletedByUserId;
 
     protected Article() {
@@ -98,13 +96,13 @@ public class Article {
                                    String articleName,
                                    @Nullable String articleInfo,
                                    @Nullable String description,
-                                   boolean active) {
+                                   boolean isActive) {
         Article a = new Article();
         a.assignNumber(articleNumber);
         a.assignName(articleName);
         a.assignInfo(articleInfo);
         a.assignDescription(description);
-        a.active = active;
+        a.isActive = isActive;
         return a;
     }
 
@@ -130,12 +128,12 @@ public class Article {
 
     public void activate() {
         ensureNotDeleted();
-        this.active = true;
+        this.isActive = true;
     }
 
     public void deactivate() {
         ensureNotDeleted();
-        this.active = false;
+        this.isActive = false;
     }
 
     public void softDelete(@Nullable UUID userId, Clock clock) {
@@ -226,7 +224,7 @@ public class Article {
     }
 
     public boolean isActive() {
-        return active;
+        return isActive;
     }
 
     public boolean isDeleted() {

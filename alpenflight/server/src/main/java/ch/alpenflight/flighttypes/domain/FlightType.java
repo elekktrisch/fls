@@ -1,6 +1,7 @@
 package ch.alpenflight.flighttypes.domain;
 
 import ch.alpenflight.platform.id.FlightTypeId;
+import ch.alpenflight.platform.persistence.PersistedAuditActor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -101,7 +102,7 @@ public class FlightType {
     private @Nullable Instant deletedOn;
 
     @Column(name = "deleted_by_user_id")
-    @SuppressWarnings("UnusedVariable")
+    @PersistedAuditActor
     private @Nullable UUID deletedByUserId;
 
     protected FlightType() {
