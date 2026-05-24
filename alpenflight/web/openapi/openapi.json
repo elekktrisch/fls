@@ -2720,7 +2720,7 @@
       },
       "FlightUpdateRequest" : {
         "type" : "object",
-        "description" : "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and not present here.",
+        "description" : "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).",
         "properties" : {
           "aircraftId" : {
             "type" : "string",

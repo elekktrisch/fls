@@ -109,6 +109,26 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void update_repoints_aircraftId_to_a_different_aircraft() {
+        UUID otherAid = seedAircraftFor(jdbc, CLUB_UUID);
+        String otherAircraftExternal = "ac-" + otherAid;
+
+        Map<String, Object> created = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        ResponseEntity<String> postRes = post("/api/v1/flights", created);
+        String id = readJson(postRes).get("id").asText();
+
+        Map<String, Object> update = updatePayload();
+        update.put("aircraftId", otherAircraftExternal);
+        ResponseEntity<String> updated = put("/api/v1/flights/" + id, update);
+
+        assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readJson(updated).get("aircraftId").asText())
+                .as("aircraftId is mutable at S-058 scope — state-machine gating "
+                        + "(block once booked / invoiced) lands in S-059.")
+                .isEqualTo(otherAircraftExternal);
+    }
+
+    @Test
     void update_replaces_crew_wholesale() {
         UUID pilot1 = seedPersonInClub(jdbc, CLUB_UUID);
         UUID pilot2 = seedPersonInClub(jdbc, CLUB_UUID);

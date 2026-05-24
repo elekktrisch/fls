@@ -145,6 +145,7 @@ public class FlightsService {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
         FlightDetail before = mapper.toDetail(flight);
+        flight.repointAircraft(req.aircraftId().value());
         flight.updateOperationalData(mapper.toOperationalData(req));
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));
         if (req.towFlightId() == null) {

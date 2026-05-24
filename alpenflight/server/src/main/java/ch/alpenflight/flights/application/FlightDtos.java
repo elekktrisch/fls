@@ -130,7 +130,7 @@ public final class FlightDtos {
             boolean isSoloFlight,
             @Nullable @Valid List<FlightCrewItem> crew) {}
 
-    @Schema(description = "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and not present here.")
+    @Schema(description = "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).")
     public record FlightUpdateRequest(
             @NotNull AircraftId aircraftId,
             @Nullable LocalDate flightDate,

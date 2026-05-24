@@ -29,12 +29,12 @@ class FlightListCursorTest {
     @Test
     void decode_rejects_blank() {
         assertThatThrownBy(() -> FlightListCursor.decode(""))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidCursorException.class);
     }
 
     @Test
     void decode_rejects_garbage() {
         assertThatThrownBy(() -> FlightListCursor.decode("not-base64-!!"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidCursorException.class);
     }
 }

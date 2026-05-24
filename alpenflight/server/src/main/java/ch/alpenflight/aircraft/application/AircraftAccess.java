@@ -5,10 +5,8 @@ import ch.alpenflight.aircraft.domain.AircraftRepository;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.util.Collection;
-import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
@@ -155,14 +153,4 @@ public class AircraftAccess {
         return false;
     }
 
-    /**
-     * Convenience overload accepting the Spring Security {@link Collection}
-     * of {@link GrantedAuthority} — used when tests resolve the principal
-     * directly. Production callers pass a {@link Jwt} via SpEL.
-     */
-    boolean hasRoleFromAuthorities(Collection<? extends GrantedAuthority> authorities, String role) {
-        return Optional.ofNullable(authorities).orElse(java.util.List.of()).stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(role::equals);
-    }
 }

@@ -1,5 +1,6 @@
 package ch.alpenflight.flights.web;
 
+import ch.alpenflight.flights.application.InvalidCursorException;
 import ch.alpenflight.flights.domain.DuplicateCrewMemberException;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
@@ -71,19 +72,24 @@ class FlightsExceptionHandler {
         return problem(pd);
     }
 
+    @ExceptionHandler(InvalidCursorException.class)
+    ResponseEntity<ProblemDetail> handleInvalidCursor(InvalidCursorException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setType(INVALID_CURSOR);
+        pd.setTitle("Invalid cursor");
+        pd.setDetail(e.getMessage());
+        return problem(pd);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
         // The aggregate throws IllegalArgumentException for runway / coupon /
         // temporal-ordering / non-negative invariants. The DTO validator
-        // catches most before this fires, but the aggregate is the
-        // authoritative source so the handler maps to 400 here too. Cursor
-        // decode errors get a distinct URI so an SRE can route them differently.
-        String msg = e.getMessage();
-        boolean isCursor = msg != null && msg.startsWith("cursor");
+        // catches most before this fires, but the aggregate is authoritative.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        pd.setType(isCursor ? INVALID_CURSOR : INVALID_REQUEST);
-        pd.setTitle(isCursor ? "Invalid cursor" : "Invalid request");
-        pd.setDetail(msg);
+        pd.setType(INVALID_REQUEST);
+        pd.setTitle("Invalid request");
+        pd.setDetail(e.getMessage());
         return problem(pd);
     }
 

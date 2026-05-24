@@ -259,6 +259,19 @@ public class Flight {
         applyOperationalData(ops);
     }
 
+    /**
+     * Repoints this Flight at a different aircraft. Open at S-058 scope; the
+     * state-machine gate (block once the Flight is booked / invoiced) lands
+     * in S-059. The cross-tenant FK is also allowed by design — the charter
+     * case (operating club references another club's aircraft) is first-class.
+     */
+    public void repointAircraft(UUID newAircraftId) {
+        if (newAircraftId == null) {
+            throw new IllegalArgumentException("aircraftId must not be null");
+        }
+        this.aircraftId = newAircraftId;
+    }
+
     private void applyOperationalData(FlightOperationalData ops) {
         if (ops == null) {
             throw new IllegalArgumentException("operational data must not be null");
