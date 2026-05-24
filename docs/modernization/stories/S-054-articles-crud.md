@@ -5,6 +5,7 @@ epic: E-06
 status: in_progress
 started_at: 2026-05-24
 github_issue: 110
+github_pr: 111
 depends_on: [S-048]
 acceptance:
   - `Article` entity ported (per-club, tenant-scoped via `operating_club_id` `@TenantId`). Referenced by `DeliveryItem.article_id` — pre-req for E-09.
