@@ -35,6 +35,11 @@ export const routes: Routes = [
     loadChildren: () => import('@features/aircraft/aircraft.routes').then((m) => m.AIRCRAFT_ROUTES),
   },
   {
+    path: 'flight-types',
+    loadChildren: () =>
+      import('@features/flight-types/flight-types.routes').then((m) => m.FLIGHT_TYPES_ROUTES),
+  },
+  {
     path: 'persons',
     loadChildren: () => import('@features/persons/persons.routes').then((m) => m.PERSONS_ROUTES),
   },
