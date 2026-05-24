@@ -61,11 +61,17 @@ public final class TwoClubFixture {
         jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
                         + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
                 clubA.toString(), clubB.toString());
-        // S-058: Flight rows hold a FK to Aircraft. The alphabetical catalog
-        // delete-loop hits Aircraft before Flight and trips
-        // fk_flight_aircraft_id. Delete flights up-front (CASCADE handles
-        // flight_crew via the schema-level FK).
+        // Flight rows hold a FK to Aircraft (ON DELETE RESTRICT). Delete flights
+        // up-front so the aircraft cleanup below isn't blocked. CASCADE handles
+        // flight_crew via the schema-level FK.
         jdbc.update("DELETE FROM flight WHERE operating_club_id IN (?::uuid, ?::uuid)",
+                clubA.toString(), clubB.toString());
+        // Aircraft is cross-tenant since S-058 (reverts S-159), so it's no longer
+        // in the catalog loop below. But managing_club_id → club is ON DELETE
+        // RESTRICT, so aircraft rows under the seed clubs would block
+        // deleteClubs(). Wipe explicitly; aircraft_aircraft_state and
+        // aircraft_operating_counter cascade via their FKs.
+        jdbc.update("DELETE FROM aircraft WHERE managing_club_id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);

@@ -93,7 +93,7 @@ No CHECK constraints, generated columns, or triggers reintroduced. V3's stripped
 - **Authz (per S-159 — no `SYSTEM_ADMINISTRATOR` on tenant-scoped endpoints).**
   - `GET /flights`, `GET /flights/{id}`, `POST /flights`, `PUT /flights/{id}`: `hasAnyRole('CLUB_ADMINISTRATOR','FLIGHT_OPERATOR')`.
   - `DELETE /flights/{id}`: `hasRole('CLUB_ADMINISTRATOR')` (destructive; higher bar than create/edit).
-- **Tenant isolation.** `@TenantId` on `Flight.operating_club_id`; cross-tenant access → 404 (avoids existence oracle). `aircraftRepository.findById(...)` is itself tenant-filtered (S-159) → wrong-tenant aircraft = 404 on the parent flight call. No native SQL on Flight; ArchUnit guards.
+- **Tenant isolation.** `@TenantId` on `Flight.operating_club_id`; cross-tenant access → 404 (avoids existence oracle). Aircraft is cross-tenant (S-058 reverts S-159): `aircraftRepository.findById(...)` is not tenant-filtered, so any active aircraft may be referenced; unknown / soft-deleted aircraftIds trip the DB FK and surface as 400 via `DataIntegrityViolationException`. No native SQL on Flight; ArchUnit guards.
 - **Intentional cross-tenant ride-throughs.** `FlightCrew.person_id` (Person untenanted, PK-load) and `Flight.flight_cost_balance_type_id` (FCBT system-global) — no enumeration surface, no cross-tenant list endpoints. Document in module javadoc.
 - **Mass-assignment.** Write DTOs explicitly exclude the state-machine + audit-metadata + tenant columns enumerated under §Design notes/DTOs. Discriminator `flightAircraftType` immutable post-create.
 - **Audit.** Every mutating service call emits `MutationAuditEvent`; `RequestAuditFilter` covers 4xx/5xx with actor+tenant. Flight stays in `audit.redaction.deny-all` — PII redacts structurally.

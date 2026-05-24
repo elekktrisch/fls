@@ -163,8 +163,8 @@ class TenantCatalogYamlTest {
                 .isNotNull()
                 .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("operating_club_id")
                         && p.toLowerCase(java.util.Locale.ROOT).contains("per-flight"))
-                .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("s-022")
-                        && p.toLowerCase(java.util.Locale.ROOT).contains("charter"));
+                .anyMatch(p -> p.toLowerCase(java.util.Locale.ROOT).contains("s-058")
+                        && p.toLowerCase(java.util.Locale.ROOT).contains("aircraft_id"));
     }
 
     @Test
