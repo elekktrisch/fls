@@ -191,14 +191,8 @@ export class ArticlesEditPage {
   protected readonly canMutate = this.session.isClubAdmin;
 
   protected readonly form: ArticleForm = this.fb.group({
-    articleNumber: this.fb.nonNullable.control('', [
-      Validators.required,
-      Validators.maxLength(50),
-    ]),
-    articleName: this.fb.nonNullable.control('', [
-      Validators.required,
-      Validators.maxLength(250),
-    ]),
+    articleNumber: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(50)]),
+    articleName: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(250)]),
     articleInfo: this.fb.nonNullable.control('', [Validators.maxLength(250)]),
     description: this.fb.nonNullable.control(''),
     isActive: this.fb.nonNullable.control(true),
