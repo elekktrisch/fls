@@ -28,5 +28,12 @@ public enum AuditAction {
     UPDATE,
     DELETE,
     STATE_TRANSITION,
-    BULK_IMPORT
+    BULK_IMPORT,
+    /** Search/lookup that returned ≥ 1 row. The negative response is itself
+     *  information disclosure on cross-tenant directory queries, so hits and
+     *  misses are recorded as distinct actions for forensics filtering. */
+    LOOKUP_HIT,
+    /** Search/lookup that returned 0 rows. Audited so repeated misses for
+     *  the same key surface as a probing signal in S-056. */
+    LOOKUP_MISS
 }

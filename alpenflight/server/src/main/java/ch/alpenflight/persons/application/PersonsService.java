@@ -114,10 +114,11 @@ public class PersonsService {
 
     public PersonResponse updatePerson(PersonId id, PersonUpdateRequest req) {
         Person p = loadInCurrentTenantOrThrow(id);
-        // before/after are the Person aggregates themselves; the deny-all
-        // policy on Person serialises both as [redacted]. We still pass them
-        // so S-056 sees the action + actor + target id with consistent shape.
-        Person beforeSnapshot = p;
+        // Snapshot the read DTO BEFORE mutating the aggregate. The audit
+        // listener serialises whatever object reference it receives; if we
+        // pass the in-place-mutated `p`, before/after are the same Java
+        // object and the diff is empty even before redaction runs.
+        PersonResponse beforeSnapshot = toResponse(p);
         p.rename(req.firstname(), req.lastname(), req.midname(), req.companyName());
         p.updateContact(
                 req.addressLine1(), req.addressLine2(), req.zip(), req.city(), req.region(),
@@ -136,39 +137,33 @@ public class PersonsService {
         Person p = loadInCurrentTenantOrThrow(id);
         UUID tenant = currentTenantOrThrow();
         boolean inOtherTenant = persons.hasActiveMembershipInOtherTenant(id.value(), tenant);
+        // Snapshot the response DTO before softDelete mutates deletedOn.
+        PersonResponse beforeSnapshot = toResponse(p);
         p.softDelete(userId, clock, inOtherTenant);
         persistPerson(p);
         auditTrail.record(AuditAction.DELETE,
-                AuditedTarget.deleted(AUDIT_PERSON, id.value(), p));
+                AuditedTarget.deleted(AUDIT_PERSON, id.value(), beforeSnapshot));
     }
 
     public PersonResponse attachExistingPerson(PersonId id, PersonClubRequest req) {
         Person p = persons.findActiveById(id.value())
                 .orElseThrow(() -> new PersonNotFoundException(id));
         UUID tenant = currentTenantOrThrow();
-        applyJoin(p, tenant, req);
+        // joinClub returns the attached PersonClub; persistPerson flushes so
+        // the generated UUID lands on the in-memory reference.
+        PersonClub attached = applyJoin(p, tenant, req);
         Person saved = persistPerson(p);
-        PersonResponse after = toResponse(saved);
-        // Audit the join: target is the (just-attached) PersonClub.
-        UUID pcId = saved.getActivePersonClubs().stream()
-                .filter(pc -> tenant.equals(pc.getClubId()))
-                .findFirst()
-                .map(pc -> {
-                    UUID childId = pc.getId();
-                    if (childId == null) {
-                        throw new IllegalStateException("PersonClub id missing after persist");
-                    }
-                    return childId;
-                })
-                .orElseThrow(() -> new IllegalStateException("attached PersonClub missing"));
+        UUID pcId = requirePersonClubId(attached);
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_PERSON_CLUB, pcId, saved));
-        return after;
+        return toResponse(saved);
     }
 
     public PersonResponse updateCurrentClubMembership(PersonId id, PersonClubRequest req) {
         Person p = loadInCurrentTenantOrThrow(id);
         UUID tenant = currentTenantOrThrow();
+        // Snapshot the membership-bearing response DTO before mutating.
+        PersonResponse beforeSnapshot = toResponse(p);
         PersonClub pc = p.updateClubMembership(
                 tenant,
                 req.memberNumber(),
@@ -177,22 +172,29 @@ public class PersonsService {
                 PersonMapper.prefsFrom(req),
                 req.isActive());
         Person saved = persistPerson(p);
-        UUID pcId = pc.getId();
-        if (pcId == null) {
-            throw new IllegalStateException("PersonClub id is null after update");
-        }
+        UUID pcId = requirePersonClubId(pc);
+        PersonResponse after = toResponse(saved);
         auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.updated(AUDIT_PERSON_CLUB, pcId, saved, saved));
-        return toResponse(saved);
+                AuditedTarget.updated(AUDIT_PERSON_CLUB, pcId, beforeSnapshot, after));
+        return after;
     }
 
     public void leaveCurrentClub(PersonId id, @Nullable UUID userId) {
         Person p = loadInCurrentTenantOrThrow(id);
         UUID tenant = currentTenantOrThrow();
+        // Capture the soft-deleted PersonClub id BEFORE the aggregate marks
+        // it deleted — `leaveClub` flips `deleted_on` in place, after which
+        // `getActivePersonClubs()` no longer sees the row.
+        UUID pcId = p.getActivePersonClubs().stream()
+                .filter(pc -> tenant.equals(pc.getClubId()))
+                .findFirst()
+                .map(PersonsService::requirePersonClubId)
+                .orElseThrow(() -> new PersonNotFoundException(
+                        "Person has no alive PersonClub in club " + tenant));
         p.leaveClub(tenant, userId, clock);
         persistPerson(p);
         auditTrail.record(AuditAction.DELETE,
-                AuditedTarget.deleted(AUDIT_PERSON_CLUB, id.value(), p));
+                AuditedTarget.deleted(AUDIT_PERSON_CLUB, pcId, p));
     }
 
     @Transactional(readOnly = true)
@@ -218,19 +220,65 @@ public class PersonsService {
                         p, persons.hasActiveMembershipInCurrentTenant(idValueOrThrow(p))))
                 .toList();
 
-        // Audit both hit + miss — the negative response is information disclosure.
-        // (entityType, entityId) disambiguates: `PersonLookup` + first-hit-id
-        // or nil-UUID on miss. A dedicated PERSON_LOOKUP_HIT/MISS AuditAction
-        // is a hardening follow-up; today we use UPDATE as the neutral marker.
-        UUID firstHitId = matches.isEmpty() ? new UUID(0L, 0L) : idValueOrThrow(matches.get(0));
-        auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.created("PersonLookup", firstHitId,
+        // Audit both hit and miss — the negative response is itself a
+        // disclosure on cross-tenant directory probes. The miss-target is a
+        // SHA-256-derived UUID over the canonical lookup key so repeated
+        // misses for the same probe correlate (and don't collide with real
+        // Person ids the way nil-UUID would).
+        AuditAction action = matches.isEmpty() ? AuditAction.LOOKUP_MISS : AuditAction.LOOKUP_HIT;
+        UUID targetId = matches.isEmpty()
+                ? hashLookupKey(req)
+                : idValueOrThrow(matches.get(0));
+        auditTrail.record(action,
+                AuditedTarget.created("PersonLookup", targetId,
                         new LookupAuditPayload(tenant, req.email() != null, matches.size())));
         return new PersonLookupResult(capped);
     }
 
     /** Minimal payload that survives default-deny redaction (only primitives). */
     record LookupAuditPayload(UUID tenant, boolean byEmail, int matchCount) {}
+
+    /**
+     * Canonicalise the lookup key + SHA-256 it, then fold the first 16 bytes
+     * into a UUID. Lets two lookup-miss audit rows for the same probe key
+     * correlate without leaking the queried value into the audit table.
+     */
+    private static UUID hashLookupKey(PersonLookupRequest req) {
+        String canonical;
+        if (req.email() != null && !req.email().isBlank()) {
+            canonical = "e|" + req.email().trim().toLowerCase(Locale.ROOT);
+        } else {
+            canonical = "t|"
+                    + (req.firstname() == null ? "" : req.firstname().strip().toLowerCase(Locale.ROOT))
+                    + "|"
+                    + (req.lastname() == null ? "" : req.lastname().strip().toLowerCase(Locale.ROOT))
+                    + "|"
+                    + (req.birthday() == null ? "" : req.birthday().toString());
+        }
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            long msb = 0;
+            long lsb = 0;
+            for (int i = 0; i < 8; i++) {
+                msb = (msb << 8) | (digest[i] & 0xff);
+            }
+            for (int i = 8; i < 16; i++) {
+                lsb = (lsb << 8) | (digest[i] & 0xff);
+            }
+            return new UUID(msb, lsb);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    private static UUID requirePersonClubId(PersonClub pc) {
+        UUID pcId = pc.getId();
+        if (pcId == null) {
+            throw new IllegalStateException("PersonClub id is null after persist");
+        }
+        return pcId;
+    }
 
     /** Internal helper: load by PK + assert the caller's tenant sees an alive PersonClub. */
     private Person loadInCurrentTenantOrThrow(PersonId id) {
@@ -252,8 +300,8 @@ public class PersonsService {
                 inOther);
     }
 
-    private void applyJoin(Person p, UUID tenant, PersonClubRequest req) {
-        p.joinClub(tenant,
+    private PersonClub applyJoin(Person p, UUID tenant, PersonClubRequest req) {
+        return p.joinClub(tenant,
                 req.memberNumber(),
                 req.memberStateId(),
                 PersonMapper.rolesFrom(req),

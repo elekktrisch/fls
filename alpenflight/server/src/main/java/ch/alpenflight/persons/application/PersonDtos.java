@@ -225,11 +225,13 @@ public final class PersonDtos {
             boolean hasGliderWinchStartPermission) {}
 
     /**
-     * Exact-match-only lookup payload. Per S-051 security plan (row 1)
-     * prefix search is structurally banned: a bare {@code q=} parameter
-     * doesn't exist on the schema. The {@code isExactMatchShape} cross-field
-     * validator rejects partial triples — caller must provide {@code email}
-     * OR the full identity triple (firstname + lastname + birthday).
+     * Exact-match-only lookup payload. Prefix search is structurally banned —
+     * a bare {@code q=} parameter doesn't exist on the schema — because
+     * substring lookups against a cross-tenant Person directory turn any
+     * CLUB_ADMINISTRATOR into a global PII enumerator. The
+     * {@code isExactMatchShape} cross-field validator rejects partial
+     * triples: caller must provide {@code email} OR the full identity
+     * triple (firstname + lastname + birthday).
      */
     @Schema(description = "Exact-match-only lookup payload. Either provide email, OR provide the full identity triple (firstname + lastname + birthday). Partial triples are rejected.")
     public record PersonLookupRequest(

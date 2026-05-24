@@ -1,5 +1,6 @@
 package ch.alpenflight.persons.domain;
 
+import ch.alpenflight.audit.domain.AuditRedact;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -44,6 +45,12 @@ public class PersonClub {
 
     @ManyToOne(optional = false, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "person_id", nullable = false)
+    // The back-reference walks into the cross-tenant Person aggregate; Person
+    // is in audit.redaction.deny-all so the redactor would scrub it anyway,
+    // but @AuditRedact here makes the decision explicit + survives a future
+    // policy relax. Also satisfies AuditRedactionCoverageTest's "every field
+    // gets an explicit decision" contract.
+    @AuditRedact
     @SuppressWarnings("UnusedVariable")
     private @Nullable Person person;
 

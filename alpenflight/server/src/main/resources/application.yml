@@ -140,13 +140,16 @@ audit:
           - clubId
           - name
       PersonClub:
-        # S-051 — aggregate-internal child of the cross-tenant Person root.
-        # Member number is identity-bearing but not PII (legacy parity: it's
-        # the club-issued ID, not a national identifier); role flags and
-        # notification prefs are non-PII boolean operational fields.
+        # Aggregate-internal child of the cross-tenant Person root. Member
+        # number is identity-bearing but not PII (legacy parity: club-issued
+        # ID, not a national identifier); role flags and notification prefs
+        # are operational booleans. The back-reference field `person` is
+        # intentionally omitted from the allow-list — Person is in deny-all,
+        # so even if the redactor recursed it would redact, but keeping
+        # `person` off the list defends against a future allow-list relax
+        # on Person.
         allow:
           - id
-          - person
           - clubId
           - memberNumber
           - memberStateId

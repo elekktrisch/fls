@@ -172,8 +172,7 @@ export const PersonsStore = signalStore(
                   bus.next({ kind: 'person.created', id: detail.id });
                   loadAll();
                 },
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, errorPatch(e)),
+                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e)),
               }),
             ),
           ),
@@ -247,7 +246,8 @@ function errorPatch(e: HttpErrorResponse): { saveError: string; saveErrorKind: S
     if (body?.type?.includes('cross-tenant')) {
       return {
         saveError:
-          body.detail ?? 'Person has active memberships in other clubs and cannot be deleted from here.',
+          body.detail ??
+          'Person has active memberships in other clubs and cannot be deleted from here.',
         saveErrorKind: 'cross-tenant-blocked',
       };
     }

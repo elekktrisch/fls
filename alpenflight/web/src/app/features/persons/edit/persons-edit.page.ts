@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormControl,
@@ -29,6 +31,7 @@ import type {
   PersonUpdateRequest,
 } from '@api/generated/model';
 
+import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
 import { MemberStatesStore } from '../member-states.store';
 import { PersonsStore } from '../persons.store';
@@ -40,7 +43,7 @@ type PersonForm = FormGroup<{
   mobilePhone: FormControl<string>;
   city: FormControl<string>;
   memberNumber: FormControl<string>;
-  memberStateId: FormControl<string>;
+  memberStateId: FormControl<string | null>;
   isMotorPilot: FormControl<boolean>;
   isGliderPilot: FormControl<boolean>;
   isTowPilot: FormControl<boolean>;
@@ -65,129 +68,153 @@ type PersonForm = FormGroup<{
     <af-page>
       <af-page-header [title]="isCreate() ? 'New person' : 'Edit person'" />
 
-      <af-page-error
-        [message]="store.saveError()"
-        (retry)="store.clearSaveError()"
-        data-testid="person-form-error"
-      />
-
-      <form
-        [formGroup]="form"
-        (ngSubmit)="onSubmit()"
-        data-testid="person-form"
-        class="max-w-2xl flex flex-col gap-3"
-      >
-        <af-form-field label="First name" for="Firstname">
-          <af-input
-            inputId="Firstname"
-            formControlName="firstname"
-            data-testid="firstname-input"
-            autocomplete="given-name"
-          />
-        </af-form-field>
-
-        <af-form-field label="Last name" for="Lastname">
-          <af-input
-            inputId="Lastname"
-            formControlName="lastname"
-            data-testid="lastname-input"
-            autocomplete="family-name"
-          />
-        </af-form-field>
-
-        <af-form-field label="Email" for="Email">
-          <af-input
-            inputId="Email"
-            type="email"
-            formControlName="email"
-            data-testid="email-input"
-            autocomplete="email"
-          />
-        </af-form-field>
-
-        <af-form-field label="Mobile phone" for="MobilePhone">
-          <af-input
-            inputId="MobilePhone"
-            formControlName="mobilePhone"
-            data-testid="mobile-input"
-            autocomplete="tel"
-          />
-        </af-form-field>
-
-        <af-form-field label="City" for="City">
-          <af-input
-            inputId="City"
-            formControlName="city"
-            data-testid="city-input"
-            autocomplete="address-level2"
-          />
-        </af-form-field>
-
-        <af-form-field label="Member number" for="MemberNumber">
-          <af-input
-            inputId="MemberNumber"
-            formControlName="memberNumber"
-            data-testid="member-number-input"
-          />
-        </af-form-field>
-
-        <af-form-field label="Member state" for="MemberStateId">
-          <af-select
-            inputId="MemberStateId"
-            [value]="form.controls.memberStateId.value || null"
-            (valueChange)="form.controls.memberStateId.setValue($event ?? '')"
-            [options]="memberStateOptions()"
-            data-testid="member-state-select"
-          />
-        </af-form-field>
-
-        <fieldset class="border border-slate-200 p-3 flex flex-col gap-2">
-          <legend class="text-sm text-slate-600 px-1">Roles in this club</legend>
-          <label class="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              formControlName="isGliderPilot"
-              data-testid="role-glider-pilot"
-            />
-            Glider pilot
-          </label>
-          <label class="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              formControlName="isMotorPilot"
-              data-testid="role-motor-pilot"
-            />
-            Motor pilot
-          </label>
-          <label class="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              formControlName="isTowPilot"
-              data-testid="role-tow-pilot"
-            />
-            Tow pilot
-          </label>
-        </fieldset>
-
-        <div class="flex gap-2 mt-3">
-          <af-button
-            type="primary"
-            htmlType="submit"
-            [disabled]="form.invalid || saving()"
-            data-testid="person-save-button"
-          >
-            {{ isCreate() ? 'Create' : 'Save' }}
-          </af-button>
-          <af-button
-            type="default"
-            htmlType="button"
-            (clicked)="router.navigateByUrl('/persons')"
-            data-testid="person-cancel-button"
-          >
-            Cancel
-          </af-button>
+      @if (!isCreate() && store.isLoadingDetail()) {
+        <div class="text-sm text-slate-500 my-4" data-testid="person-form-loading">
+          Loading person…
         </div>
-      </form>
+      } @else {
+        @if (inOtherClubsCount() > 0) {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
+            data-testid="person-shared-banner"
+          >
+            This person is also a member of {{ inOtherClubsCount() }} other
+            {{ inOtherClubsCount() === 1 ? 'club' : 'clubs' }}. Name and contact edits are visible
+            there too.
+          </div>
+        }
+
+        <af-page-error
+          [message]="store.saveError()"
+          (retry)="store.clearSaveError()"
+          data-testid="person-form-error"
+        />
+
+        <form
+          [formGroup]="form"
+          (ngSubmit)="onSubmit()"
+          novalidate
+          data-testid="person-form"
+          class="max-w-2xl flex flex-col gap-3"
+        >
+          <af-form-field
+            label="First name"
+            for="Firstname"
+            [required]="true"
+            [errors]="firstnameErrors()"
+          >
+            <af-input
+              inputId="Firstname"
+              formControlName="firstname"
+              data-testid="firstname-input"
+              autocomplete="given-name"
+            />
+          </af-form-field>
+
+          <af-form-field
+            label="Last name"
+            for="Lastname"
+            [required]="true"
+            [errors]="lastnameErrors()"
+          >
+            <af-input
+              inputId="Lastname"
+              formControlName="lastname"
+              data-testid="lastname-input"
+              autocomplete="family-name"
+            />
+          </af-form-field>
+
+          <af-form-field label="Email" for="Email" [errors]="emailErrors()">
+            <af-input
+              inputId="Email"
+              type="email"
+              formControlName="email"
+              data-testid="email-input"
+              autocomplete="email"
+            />
+          </af-form-field>
+
+          <af-form-field label="Mobile phone" for="MobilePhone">
+            <af-input
+              inputId="MobilePhone"
+              formControlName="mobilePhone"
+              data-testid="mobile-input"
+              autocomplete="tel"
+            />
+          </af-form-field>
+
+          <af-form-field label="City" for="City">
+            <af-input
+              inputId="City"
+              formControlName="city"
+              data-testid="city-input"
+              autocomplete="address-level2"
+            />
+          </af-form-field>
+
+          <af-form-field label="Member number" for="MemberNumber">
+            <af-input
+              inputId="MemberNumber"
+              formControlName="memberNumber"
+              data-testid="member-number-input"
+            />
+          </af-form-field>
+
+          <af-form-field label="Member state" for="MemberStateId">
+            <af-select
+              inputId="MemberStateId"
+              formControlName="memberStateId"
+              [options]="memberStateOptions()"
+              [placeholder]="memberStatePlaceholder()"
+              data-testid="member-state-select"
+            />
+          </af-form-field>
+
+          <fieldset class="border border-slate-200 p-3 flex flex-col gap-2">
+            <legend class="text-sm text-slate-600 px-1">Roles in this club</legend>
+            <label class="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                formControlName="isGliderPilot"
+                data-testid="role-glider-pilot"
+              />
+              Glider pilot
+            </label>
+            <label class="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                formControlName="isMotorPilot"
+                data-testid="role-motor-pilot"
+              />
+              Motor pilot
+            </label>
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" formControlName="isTowPilot" data-testid="role-tow-pilot" />
+              Tow pilot
+            </label>
+          </fieldset>
+
+          <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-200">
+            <af-button
+              type="default"
+              htmlType="button"
+              (clicked)="router.navigateByUrl('/persons')"
+              data-testid="person-cancel-button"
+            >
+              Cancel
+            </af-button>
+            <af-button
+              type="primary"
+              htmlType="submit"
+              [disabled]="saving()"
+              data-testid="person-save-button"
+            >
+              Save
+            </af-button>
+          </div>
+        </form>
+      }
     </af-page>
   `,
 })
@@ -198,27 +225,57 @@ export class PersonsEditPage {
   protected readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly bus = inject(MUTATION_BUS);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly routeId = signal<string | null>(this.route.snapshot.paramMap.get('id'));
   protected readonly isCreate = computed(() => this.routeId() === null);
   protected readonly saving = signal(false);
 
-  protected readonly memberStateOptions = computed<AfSelectOption<string>[]>(() => [
-    { value: '', label: '—' },
-    ...this.memberStatesStore.entities().map((m) => ({ value: m.id, label: m.name })),
-  ]);
+  protected readonly memberStateOptions = computed<AfSelectOption<string>[]>(() =>
+    this.memberStatesStore.entities().map((m) => ({ value: m.id, label: m.name })),
+  );
+
+  protected readonly memberStatePlaceholder = computed(() =>
+    this.memberStatesStore.entities().length === 0
+      ? 'No member states configured'
+      : 'Select a member state',
+  );
+
+  protected readonly inOtherClubsCount = computed(
+    () => this.store.selectedPerson()?.inOtherClubsCount ?? 0,
+  );
 
   protected readonly form: PersonForm = this.fb.group({
-    firstname: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),
-    lastname: this.fb.control('', { validators: [Validators.required, Validators.maxLength(100)] }),
+    firstname: this.fb.control('', {
+      validators: [Validators.required, Validators.maxLength(100)],
+    }),
+    lastname: this.fb.control('', {
+      validators: [Validators.required, Validators.maxLength(100)],
+    }),
     email: this.fb.control('', { validators: [Validators.email, Validators.maxLength(256)] }),
     mobilePhone: this.fb.control('', { validators: [Validators.maxLength(30)] }),
     city: this.fb.control('', { validators: [Validators.maxLength(100)] }),
     memberNumber: this.fb.control('', { validators: [Validators.maxLength(20)] }),
-    memberStateId: this.fb.control(''),
+    memberStateId: this.fb.control<string | null>(null),
     isMotorPilot: this.fb.control(false),
     isGliderPilot: this.fb.control(false),
     isTowPilot: this.fb.control(false),
+  });
+
+  // Per-field error signals — surface only after the control has been
+  // touched, mirroring the locations / aircraft sibling pattern.
+  protected readonly firstnameErrors = computed(() => {
+    void this.form.controls.firstname.value;
+    return this.form.controls.firstname.touched ? this.form.controls.firstname.errors : null;
+  });
+  protected readonly lastnameErrors = computed(() => {
+    void this.form.controls.lastname.value;
+    return this.form.controls.lastname.touched ? this.form.controls.lastname.errors : null;
+  });
+  protected readonly emailErrors = computed(() => {
+    void this.form.controls.email.value;
+    return this.form.controls.email.touched ? this.form.controls.email.errors : null;
   });
 
   constructor() {
@@ -230,16 +287,19 @@ export class PersonsEditPage {
       }
     });
 
-    // Trigger detail load when route param has an id.
-    effect(
-      () => {
-        const id = this.routeId();
-        if (id !== null) {
-          this.store.loadOne(id);
-        }
-      },
-      { allowSignalWrites: true } as { allowSignalWrites?: boolean },
-    );
+    // Trigger detail load when route param has an id. `select(id)` clears
+    // any stale detail from the previous Person before the GET response
+    // lands — keeps the form blank during loading rather than showing the
+    // previous Person's fields.
+    effect(() => {
+      const id = this.routeId();
+      if (id !== null) {
+        this.store.select(id);
+        this.store.loadOne(id);
+      } else {
+        this.store.select(null);
+      }
+    });
 
     // Reset saving spinner when a save error surfaces.
     effect(() => {
@@ -247,10 +307,23 @@ export class PersonsEditPage {
         this.saving.set(false);
       }
     });
+
+    // Navigate back to the list ONLY when the save succeeds, signalled via
+    // MUTATION_BUS. Optimistic navigation on submit would hide save errors
+    // on an unmounted page.
+    this.bus.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((evt) => {
+      if (this.saving() && (evt.kind === 'person.created' || evt.kind === 'person.updated')) {
+        this.saving.set(false);
+        this.router.navigateByUrl('/persons');
+      }
+    });
   }
 
   protected onSubmit(): void {
-    if (this.form.invalid) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
     const v = this.form.getRawValue();
     this.saving.set(true);
     if (this.isCreate()) {
@@ -265,7 +338,7 @@ export class PersonsEditPage {
         enableAddress: false,
         initialClubMembership: {
           memberNumber: v.memberNumber.trim() || undefined,
-          memberStateId: v.memberStateId || undefined,
+          memberStateId: v.memberStateId ?? undefined,
           isMotorPilot: v.isMotorPilot,
           isTowPilot: v.isTowPilot,
           isGliderInstructor: false,
@@ -281,12 +354,12 @@ export class PersonsEditPage {
         },
       };
       this.store.create(req);
-      // The store's bus event + loadAll() refresh fires when the response
-      // lands; navigate back optimistically.
-      this.router.navigateByUrl('/persons');
     } else {
       const id = this.routeId();
-      if (id === null) return;
+      if (id === null) {
+        this.saving.set(false);
+        return;
+      }
       const req: PersonUpdateRequest = {
         firstname: v.firstname.trim(),
         lastname: v.lastname.trim(),
@@ -298,7 +371,6 @@ export class PersonsEditPage {
         enableAddress: false,
       };
       this.store.update({ id, req });
-      this.router.navigateByUrl('/persons');
     }
   }
 
@@ -311,10 +383,14 @@ export class PersonsEditPage {
       mobilePhone: detail.mobilePhone ?? '',
       city: detail.city ?? '',
       memberNumber: pc?.memberNumber ?? '',
-      memberStateId: pc?.memberStateId ?? '',
+      memberStateId: pc?.memberStateId ?? null,
       isMotorPilot: pc?.isMotorPilot ?? false,
       isGliderPilot: pc?.isGliderPilot ?? false,
       isTowPilot: pc?.isTowPilot ?? false,
+    });
+  }
+}
+?? false,
     });
   }
 }

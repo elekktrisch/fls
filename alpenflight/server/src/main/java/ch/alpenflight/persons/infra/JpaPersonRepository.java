@@ -24,14 +24,21 @@ import org.springframework.data.repository.query.Param;
  */
 public interface JpaPersonRepository extends JpaRepository<Person, UUID>, PersonRepository {
 
+    /**
+     * Hibernate's {@code @TenantId} discriminator fires when the annotated
+     * entity is the ROOT of the query — not when it's joined as a child.
+     * Pivot the query to {@code FROM PersonClub} so the {@code club_id = ?}
+     * predicate is appended automatically; the Person parent rides through
+     * the {@code @ManyToOne} association.
+     */
     @Override
     @Query("select new ch.alpenflight.persons.domain.PersonRepository$ListRow("
             + "p.id, p.firstname, p.lastname, p.emailPrivate, p.mobilePhone, p.city, p.zip, "
             + "pc.memberNumber, pc.memberStateId, ms.name, pc.active, "
             + "pc.motorPilot, pc.towPilot, pc.gliderInstructor, pc.gliderPilot, "
             + "pc.gliderTrainee, pc.winchOperator, pc.motorInstructor) "
-            + "from Person p "
-            + "join p.personClubs pc "
+            + "from PersonClub pc "
+            + "join pc.person p "
             + "left join ch.alpenflight.clubs.domain.MemberState ms on ms.id = pc.memberStateId "
             + "where p.deletedOn is null and pc.deletedOn is null "
             + "order by p.lastname asc, p.firstname asc")
