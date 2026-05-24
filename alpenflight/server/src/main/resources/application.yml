@@ -167,6 +167,15 @@ audit:
           - active
           - deletedOn
           - deletedByUserId
+      LookupAuditPayload:
+        # Lookup-audit payload (PersonsService.lookup → LOOKUP_HIT/MISS).
+        # Three forensic primitives, all non-PII: tenant uuid + byEmail flag
+        # + match count. Whitelist so the redactor doesn't scrub the
+        # diagnostic value out of the audit row.
+        allow:
+          - tenant
+          - byEmail
+          - matchCount
       Aircraft:
         # Lists both DTO field names (`isXxx`-prefixed by Jackson convention)
         # and entity field names. Service-layer callers may pass either.

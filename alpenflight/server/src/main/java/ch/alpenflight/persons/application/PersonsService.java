@@ -202,7 +202,9 @@ public class PersonsService {
         UUID tenant = currentTenantOrThrow();
         List<Person> matches;
         if (req.email() != null && !req.email().isBlank()) {
-            matches = persons.findActiveByEmail(req.email().toLowerCase(Locale.ROOT));
+            // Same canonicalisation as hashLookupKey — trim + lowercase —
+            // so the audit-miss key correlates with the executed query.
+            matches = persons.findActiveByEmail(req.email().trim().toLowerCase(Locale.ROOT));
         } else if (req.firstname() != null && req.lastname() != null && req.birthday() != null) {
             matches = persons.findActiveByIdentityTriple(
                     req.firstname().strip(),

@@ -101,7 +101,7 @@ type PersonForm = FormGroup<{
             label="First name"
             for="Firstname"
             [required]="true"
-            [errors]="firstnameErrors()"
+            [errors]="form.controls.firstname.touched ? form.controls.firstname.errors : null"
           >
             <af-input
               inputId="Firstname"
@@ -115,7 +115,7 @@ type PersonForm = FormGroup<{
             label="Last name"
             for="Lastname"
             [required]="true"
-            [errors]="lastnameErrors()"
+            [errors]="form.controls.lastname.touched ? form.controls.lastname.errors : null"
           >
             <af-input
               inputId="Lastname"
@@ -125,7 +125,11 @@ type PersonForm = FormGroup<{
             />
           </af-form-field>
 
-          <af-form-field label="Email" for="Email" [errors]="emailErrors()">
+          <af-form-field
+            label="Email"
+            for="Email"
+            [errors]="form.controls.email.touched ? form.controls.email.errors : null"
+          >
             <af-input
               inputId="Email"
               type="email"
@@ -263,20 +267,10 @@ export class PersonsEditPage {
     isTowPilot: this.fb.control(false),
   });
 
-  // Per-field error signals — surface only after the control has been
-  // touched, mirroring the locations / aircraft sibling pattern.
-  protected readonly firstnameErrors = computed(() => {
-    void this.form.controls.firstname.value;
-    return this.form.controls.firstname.touched ? this.form.controls.firstname.errors : null;
-  });
-  protected readonly lastnameErrors = computed(() => {
-    void this.form.controls.lastname.value;
-    return this.form.controls.lastname.touched ? this.form.controls.lastname.errors : null;
-  });
-  protected readonly emailErrors = computed(() => {
-    void this.form.controls.email.value;
-    return this.form.controls.email.touched ? this.form.controls.email.errors : null;
-  });
+  // Per-field error access is inlined in the template
+  // (`[errors]="ctl.touched ? ctl.errors : null"`) mirroring the
+  // locations / aircraft sibling pattern — ReactiveForms event listeners
+  // drive view updates; no signal bridge needed.
 
   constructor() {
     // Hydrate the form when an existing detail is loaded.
@@ -387,10 +381,6 @@ export class PersonsEditPage {
       isMotorPilot: pc?.isMotorPilot ?? false,
       isGliderPilot: pc?.isGliderPilot ?? false,
       isTowPilot: pc?.isTowPilot ?? false,
-    });
-  }
-}
-?? false,
     });
   }
 }
