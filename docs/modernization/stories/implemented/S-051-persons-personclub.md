@@ -27,6 +27,8 @@ refined_at: 2026-05-23
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 github_issue: 106
 github_pr: 107
+merged: true
+merged_at: 2026-05-24
 ---
 
 ## Context
