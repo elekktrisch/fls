@@ -1,5 +1,6 @@
 package ch.alpenflight.flights.infra;
 
+import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Component;
  * that work.
  */
 @Component
-public class FlightInitialState {
+public class FlightInitialState implements FlightInitialStateProvider {
 
     private static final String INITIAL_PROCESS_STATE_CODE = "NOT_PROCESSED";
     private static final String INITIAL_AIR_STATE_CODE = "NEW";
@@ -39,10 +40,12 @@ public class FlightInitialState {
                 INITIAL_AIR_STATE_CODE, "flight_air_state");
     }
 
+    @Override
     public UUID initialProcessStateId() {
         return initialProcessStateId;
     }
 
+    @Override
     public UUID initialAirStateId() {
         return initialAirStateId;
     }

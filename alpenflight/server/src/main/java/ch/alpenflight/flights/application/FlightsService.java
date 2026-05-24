@@ -8,15 +8,15 @@ import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
 import ch.alpenflight.flights.application.FlightDtos.FlightListItem;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
+import ch.alpenflight.flights.domain.AircraftReferenceCheck;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightAircraftType;
+import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightOperationalData;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.InvalidFlightReferenceException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
-import ch.alpenflight.flights.infra.AircraftReferenceChecker;
-import ch.alpenflight.flights.infra.FlightInitialState;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -36,13 +36,13 @@ import org.springframework.transaction.annotation.Transactional;
  * the controller.
  *
  * <p>Per S-159, aircraft FK is same-tenant by construction —
- * {@link AircraftReferenceChecker} runs a tenant-aware existence check
+ * {@link AircraftReferenceCheck} runs a tenant-aware existence check
  * before persist so a CLUB_B principal cannot create a Flight against a
  * CLUB_A aircraft (which would silently produce an unreadable row).
  *
  * <p>State-machine columns ({@code process_state_id}, {@code air_state_id},
  * {@code validated_on}, etc.) are stamped at create from
- * {@link FlightInitialState}; transitions are deferred to S-059.
+ * {@link FlightInitialStateProvider}; transitions are deferred to S-059.
  *
  * <p>Audit emission: every mutation calls {@link AuditTrail#record}. Flight
  * + FlightCrew are in {@code audit.redaction.deny-all} for now — the
@@ -58,15 +58,15 @@ public class FlightsService {
     private static final int DEFAULT_WINDOW_DAYS = 90;
 
     private final FlightRepository repository;
-    private final FlightInitialState initialState;
-    private final AircraftReferenceChecker aircraftChecker;
+    private final FlightInitialStateProvider initialState;
+    private final AircraftReferenceCheck aircraftChecker;
     private final FlightMapper mapper;
     private final AuditTrail audit;
     private final Clock clock;
 
     public FlightsService(FlightRepository repository,
-                          FlightInitialState initialState,
-                          AircraftReferenceChecker aircraftChecker,
+                          FlightInitialStateProvider initialState,
+                          AircraftReferenceCheck aircraftChecker,
                           FlightMapper mapper,
                           AuditTrail audit,
                           Clock clock) {

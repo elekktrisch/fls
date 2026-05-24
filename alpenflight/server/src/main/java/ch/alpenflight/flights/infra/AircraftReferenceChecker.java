@@ -1,5 +1,6 @@
 package ch.alpenflight.flights.infra;
 
+import ch.alpenflight.flights.domain.AircraftReferenceCheck;
 import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Component;
  * persisting.
  */
 @Component
-public class AircraftReferenceChecker {
+public class AircraftReferenceChecker implements AircraftReferenceCheck {
 
     private final EntityManager em;
 
@@ -25,6 +26,7 @@ public class AircraftReferenceChecker {
      * the aircraft does not exist or belongs to another tenant (Hibernate
      * {@code @TenantId} hides the row in the latter case).
      */
+    @Override
     public boolean isAccessibleAircraft(UUID aircraftId) {
         AircraftTenantRefProjection row = em.find(AircraftTenantRefProjection.class, aircraftId);
         return row != null && row.isActive();
