@@ -37,6 +37,28 @@ See frontmatter.
 ## Tasks
 Superseded by acceptance criteria + design notes.
 
+## Pickup notes
+
+**Backend test wallclock budget (operator directive 2026-05-24):** local
+`./gradlew check` runs ~5min per pass and the implement loop burned ~20min
+across 4 full passes. Survives the session reset because future iterations
+on this story (or sibling backend stories) should:
+
+1. **Skip local `gradlew check`** for per-iteration verification. Use
+   `./gradlew test --tests 'ch.alpenflight.<changed-package>.*'` instead
+   (~30s for the persons module, ~60s with arch tests). Rely on remote CI
+   for the full-suite + arch + Modulith + OpenAPI-snapshot validation.
+2. **Gradle parallelism flags now on** in `alpenflight/server/gradle.properties`:
+   `org.gradle.parallel=true` + `org.gradle.caching=true`. `maxParallelForks=2`
+   on the `test` task was already configured. Configuration cache is off
+   pending Spring Boot 4 + Flyway plugin compatibility (test with
+   `--configuration-cache` to re-evaluate).
+3. **Spring context cache:** 32 distinct `@SpringBootTest` classes share
+   the `@ActiveProfiles("test")` + `JwtTestFixture` shape; a future
+   consolidation (hoist `@Import(JwtTestFixture)` onto a shared base or
+   move to `application-test.yml`) would cut wall further. Tracked as a
+   deferred follow-up — not in S-051 scope.
+
 <!-- modernize-refine: start -->
 
 ## Design notes
