@@ -11,6 +11,9 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
+    "name" : "Articles",
+    "description" : "Article CRUD (per-club tenant-scoped masterdata)."
+  }, {
     "name" : "Persons",
     "description" : "Person CRUD (cross-tenant root with tenant-scoped PersonClub child)."
   }, {
@@ -605,6 +608,125 @@
         }
       }
     },
+    "/api/v1/articles/{id}" : {
+      "get" : {
+        "tags" : [ "Articles" ],
+        "summary" : "Read a single Article by id.",
+        "operationId" : "getArticle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "art-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^art-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Article detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active Article with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Articles" ],
+        "summary" : "Update an Article.",
+        "operationId" : "updateArticle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "art-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^art-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ArticleUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active Article with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "articleNumber already in use for this tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Articles" ],
+        "summary" : "Soft-delete an Article.",
+        "operationId" : "deleteArticle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "art-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^art-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active Article with that id."
+          }
+        }
+      }
+    },
     "/api/v1/aircraft/{id}" : {
       "get" : {
         "tags" : [ "Aircraft" ],
@@ -1071,6 +1193,84 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ClubResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/articles" : {
+      "get" : {
+        "tags" : [ "Articles" ],
+        "summary" : "List Articles for the caller's tenant, sorted by articleNumber.",
+        "operationId" : "listArticles",
+        "parameters" : [ {
+          "name" : "includeInactive",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Array of Article listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ArticleListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Articles" ],
+        "summary" : "Register a new Article in the caller's tenant.",
+        "operationId" : "registerArticle",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ArticleCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "articleNumber already in use for this tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ArticleDetail"
                 }
               }
             }
@@ -2490,6 +2690,61 @@
         },
         "required" : [ "clubStateId", "countryId" ]
       },
+      "ArticleUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update an Article. operating_club_id is not settable here (A04 defense).",
+        "properties" : {
+          "articleNumber" : {
+            "type" : "string",
+            "maxLength" : 50,
+            "minLength" : 0
+          },
+          "articleName" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "articleInfo" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "articleName", "articleNumber" ]
+      },
+      "ArticleDetail" : {
+        "type" : "object",
+        "description" : "Article detail projection — full payload.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "art-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^art-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "articleNumber" : {
+            "type" : "string"
+          },
+          "articleName" : {
+            "type" : "string"
+          },
+          "articleInfo" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "articleName", "articleNumber", "id", "isActive" ]
+      },
       "AircraftUpdateRequest" : {
         "type" : "object",
         "description" : "Payload to update an Aircraft. Ownership fields are not settable here — use the transfer-ownership endpoint (A04 defense).",
@@ -3146,6 +3401,34 @@
         },
         "required" : [ "clubKey", "clubStateId", "countryId", "name", "slug" ]
       },
+      "ArticleCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to register a new Article in the caller's tenant.",
+        "properties" : {
+          "articleNumber" : {
+            "type" : "string",
+            "maxLength" : 50,
+            "minLength" : 0
+          },
+          "articleName" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "articleInfo" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "articleName", "articleNumber" ]
+      },
       "AircraftCreateRequest" : {
         "type" : "object",
         "description" : "Payload to register a new Aircraft. Ownership defaults to the managing club; change via transfer-ownership.",
@@ -3587,6 +3870,30 @@
           }
         },
         "required" : [ "code", "id", "name" ]
+      },
+      "ArticleListItem" : {
+        "type" : "object",
+        "description" : "Article listitem projection — sorted by articleNumber.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "art-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^art-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "articleNumber" : {
+            "type" : "string"
+          },
+          "articleName" : {
+            "type" : "string"
+          },
+          "articleInfo" : {
+            "type" : "string"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "articleName", "articleNumber", "id", "isActive" ]
       },
       "AircraftListItem" : {
         "type" : "object",
