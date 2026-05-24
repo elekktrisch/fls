@@ -1,0 +1,79 @@
+package ch.alpenflight.flights.domain;
+
+import ch.alpenflight.platform.id.FlightId;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Domain port for {@link Flight} persistence. Implemented by
+ * {@code ch.alpenflight.flights.infra.JpaFlightRepository}.
+ *
+ * <p>Flight is tenant-scoped via Hibernate's {@code @TenantId} discriminator
+ * on {@code Flight.operatingClubId} (ADR 0008); every read + write query
+ * carries the tenant predicate automatically. {@link #findByIdWithCrew}
+ * therefore returns empty for cross-tenant ids — the caller's tenant scope
+ * makes the row invisible.
+ *
+ * <p>Soft-delete ({@code deleted_on}) is filtered at the query layer.
+ */
+public interface FlightRepository {
+
+    /**
+     * Slim projection for {@code GET /api/v1/flights}. S-058 scope is basic
+     * CRUD — decoration columns (aircraft immatriculation, pilot display
+     * name) are intentionally NOT in this row to keep the list query a
+     * single-table JPQL projection that crosses no module boundary
+     * (ADR 0023). The web layer joins decorations from the
+     * {@code /api/v1/aircraft/picker} payload client-side, or a future
+     * story adds a per-row enrichment pass.
+     */
+    record ListRow(UUID id,
+                   FlightAircraftType flightAircraftType,
+                   @Nullable LocalDate flightDate,
+                   @Nullable Instant startDateTime,
+                   @Nullable Instant ldgDateTime,
+                   UUID aircraftId,
+                   UUID processStateId,
+                   UUID airStateId) {}
+
+    Flight save(Flight flight);
+
+    /**
+     * Detail load. Eagerly fetches the crew collection via {@code @EntityGraph}
+     * so the detail GET serves in one query.
+     */
+    Optional<Flight> findByIdWithCrew(FlightId id);
+
+    /**
+     * Keyset-cursor list. Returns rows where the (flight_date, id) pair is
+     * strictly less than the cursor, filtered by the date window (both
+     * bounds optional). Soft-deleted rows excluded. Tenant filter applied
+     * structurally by {@code @TenantId}.
+     *
+     * <p>Callers request {@code limit + 1} rows; the service trims to
+     * {@code limit} and emits a {@code nextCursor} only when the sentinel
+     * row was returned.
+     */
+    List<ListRow> findListWindow(@Nullable LocalDate from,
+                                 @Nullable LocalDate to,
+                                 @Nullable LocalDate cursorFlightDate,
+                                 @Nullable UUID cursorId,
+                                 int limit);
+
+    /**
+     * Findall gliders linked to the given tow flight (sacred-cow 1:N
+     * pairing per S-013 + S-058 design notes). Soft-deleted glider rows
+     * excluded; tenant filter structural.
+     */
+    List<Flight> findByTowFlightId(FlightId towFlightId);
+
+    /**
+     * Findall flights in the given process state. Soft-deleted excluded;
+     * tenant filter structural.
+     */
+    List<Flight> findByProcessStateId(UUID processStateId);
+}

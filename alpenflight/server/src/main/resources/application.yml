@@ -68,6 +68,13 @@ audit:
   redaction:
     deny-all:
       - Person
+      # S-058 — Flight + FlightCrew carry PII-laden columns (comment,
+      # incidentComment, validationErrors, outbound/inboundRoute). Default-
+      # deny here defers the allow-list to a follow-up security-engineer
+      # story; the mutation_audit_event still records action + tenant +
+      # actor + entity id so the trail is observable for forensics.
+      - Flight
+      - FlightCrew
     entities:
       # Names below are the entity field names (what reflection sees), NOT
       # the JSON-serialized property names — the redactor walks @Entity

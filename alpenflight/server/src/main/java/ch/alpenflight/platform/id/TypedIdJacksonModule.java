@@ -40,6 +40,7 @@ public class TypedIdJacksonModule extends SimpleModule {
         register(FlightCostBalanceTypeId.class, FlightCostBalanceTypeId::parse,
                 FlightCostBalanceTypeId::toExternal);
         register(ArticleId.class, ArticleId::parse, ArticleId::toExternal);
+        register(FlightId.class, FlightId::parse, FlightId::toExternal);
     }
 
     private <T> void register(Class<T> type, Function<String, T> parser, Function<T, String> renderer) {
