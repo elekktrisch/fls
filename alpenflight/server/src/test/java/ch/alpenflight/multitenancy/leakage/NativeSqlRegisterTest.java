@@ -50,8 +50,11 @@ class NativeSqlRegisterTest {
                     + "JdbcTemplate\\b|NamedParameterJdbcTemplate\\b");
 
     private static final Pattern REGISTER_ENTRY_HEADER = Pattern.compile("^###\\s+`([^`]+)`");
+    // Field-name group allows hyphens — needed for "Tenant-scoped tables touched"
+    // (the field name documented in the template + parser switch lower-case key).
+    // Boyscout fix to S-024's pattern.
     private static final Pattern REGISTER_FIELD = Pattern.compile(
-            "^-\\s+\\*\\*([A-Za-z][A-Za-z ]*?)(?:\\:)?\\*\\*\\s*:?\\s*(.*?)$");
+            "^-\\s+\\*\\*([A-Za-z][A-Za-z\\- ]*?)(?:\\:)?\\*\\*\\s*:?\\s*(.*?)$");
     /** Java string literal OR text block; group(1) holds the body in either form. */
     private static final Pattern STRING_LITERAL = Pattern.compile(
             "\"\"\"([\\s\\S]*?)\"\"\"|\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)\"");

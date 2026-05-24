@@ -1,7 +1,7 @@
 package ch.alpenflight.persons.application;
 
 import ch.alpenflight.clubs.domain.MemberState;
-import ch.alpenflight.clubs.infra.MemberStateRepository;
+import ch.alpenflight.clubs.domain.MemberStateRepository;
 import ch.alpenflight.persons.application.PersonDtos.MemberStateListItem;
 import java.util.List;
 import java.util.Objects;

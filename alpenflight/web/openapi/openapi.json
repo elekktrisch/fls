@@ -20,6 +20,9 @@
     "name" : "CounterUnitTypes",
     "description" : "Counter-unit-type reference catalog."
   }, {
+    "name" : "Persons",
+    "description" : "Person CRUD (cross-tenant root with tenant-scoped PersonClub child)."
+  }, {
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
@@ -40,8 +43,195 @@
   }, {
     "name" : "Clubs",
     "description" : "Clubs CRUD."
+  }, {
+    "name" : "MemberStates",
+    "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
   } ],
   "paths" : {
+    "/api/v1/persons/{id}" : {
+      "get" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Read a Person by id. Returns 404 if no alive PersonClub for this Person is visible to the caller's tenant.",
+        "operationId" : "getPerson",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Person detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No Person, or not visible to the caller's tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Update Person identity / contact / licences. PersonClub mutations go through /clubs/current.",
+        "operationId" : "updatePerson",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No Person, or not visible to the caller's tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Soft-delete a Person. Refused (409) if the Person has active memberships in another tenant.",
+        "operationId" : "deletePerson",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No Person, or not visible to the caller's tenant."
+          },
+          "409" : {
+            "description" : "Person has memberships in another tenant."
+          }
+        }
+      }
+    },
+    "/api/v1/persons/{id}/clubs/current" : {
+      "put" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Update the caller-tenant's PersonClub fields (memberNumber, memberStateId, role flags, notification prefs, isActive).",
+        "operationId" : "updateCurrentClubMembership",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonClubRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No alive PersonClub for this Person in the caller's tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Leave the caller's club (soft-delete the caller-tenant PersonClub).",
+        "operationId" : "leaveCurrentClub",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Left."
+          },
+          "404" : {
+            "description" : "No alive PersonClub for this Person in the caller's tenant."
+          }
+        }
+      }
+    },
     "/api/v1/locations/{id}" : {
       "get" : {
         "tags" : [ "Locations" ],
@@ -405,6 +595,163 @@
           },
           "404" : {
             "description" : "No active aircraft with that id."
+          }
+        }
+      }
+    },
+    "/api/v1/persons" : {
+      "get" : {
+        "tags" : [ "Persons" ],
+        "summary" : "List Persons with an alive membership in the caller's tenant. Sorted by lastname, firstname.",
+        "operationId" : "listPersons",
+        "responses" : {
+          "200" : {
+            "description" : "Array of Person listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PersonListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Create a new Person, optionally with an inline initial PersonClub for the caller's tenant.",
+        "operationId" : "createPerson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/persons/{id}/clubs" : {
+      "post" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Attach an existing Person to the caller's tenant. Creates a new PersonClub row.",
+        "operationId" : "attachExistingPerson",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonClubRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Person now has an alive PersonClub in the caller's tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Person not found (or never existed).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Person already has an active membership in this club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/persons/lookup" : {
+      "post" : {
+        "tags" : [ "Persons" ],
+        "summary" : "Exact-match lookup for the add-existing flow. Provide email OR full identity triple (firstname + lastname + birthday). Partial triples are rejected.",
+        "operationId" : "lookupPerson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PersonLookupRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Matches (≤ 5), with `alreadyInThisClub` per row.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonLookupResult"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Partial triple, or no lookup key.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonLookupResult"
+                }
+              }
+            }
           }
         }
       }
@@ -882,6 +1229,28 @@
         }
       }
     },
+    "/api/v1/club/member-states" : {
+      "get" : {
+        "tags" : [ "MemberStates" ],
+        "summary" : "List member-states in the caller's tenant, sorted alphabetically.",
+        "operationId" : "listMemberStates",
+        "responses" : {
+          "200" : {
+            "description" : "Array of {id, name} listitems.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/MemberStateListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/club-states" : {
       "get" : {
         "tags" : [ "ClubStates" ],
@@ -1050,6 +1419,456 @@
   },
   "components" : {
     "schemas" : {
+      "LicenceFlags" : {
+        "type" : "object",
+        "description" : "Person-level licence flags + expiry dates. Nullable on Create/Update — omit to keep current values.",
+        "properties" : {
+          "hasMotorPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasTowPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderInstructorLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderTraineeLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderPaxLicence" : {
+            "type" : "boolean"
+          },
+          "hasTmgLicence" : {
+            "type" : "boolean"
+          },
+          "hasWinchOperatorLicence" : {
+            "type" : "boolean"
+          },
+          "hasMotorInstructorLicence" : {
+            "type" : "boolean"
+          },
+          "hasPartMLicence" : {
+            "type" : "boolean"
+          },
+          "licenceNumber" : {
+            "type" : "string",
+            "maxLength" : 20,
+            "minLength" : 0
+          },
+          "medicalClass1ExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "medicalClass2ExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "medicalLaplExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "gliderInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "motorInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "partMLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "hasGliderTowingStartPermission" : {
+            "type" : "boolean"
+          },
+          "hasGliderSelfStartPermission" : {
+            "type" : "boolean"
+          },
+          "hasGliderWinchStartPermission" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "PersonUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update Person identity + contact + licences. PersonClub mutations go through /api/v1/persons/{id}/clubs/current.",
+        "properties" : {
+          "firstname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "lastname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "midname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "companyName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "addressLine1" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "addressLine2" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "zip" : {
+            "type" : "string",
+            "maxLength" : 10,
+            "minLength" : 0
+          },
+          "city" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "region" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "privatePhone" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "mobilePhone" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "businessPhone" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "faxNumber" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "emailPrivate" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "emailBusiness" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "preferMailToBusinessMail" : {
+            "type" : "boolean"
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "licences" : {
+            "$ref" : "#/components/schemas/LicenceFlags"
+          },
+          "spotLink" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0,
+            "pattern" : "^https://.*"
+          },
+          "receiveOwnedAircraftStatisticReports" : {
+            "type" : "boolean"
+          },
+          "enableAddress" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "firstname", "lastname" ]
+      },
+      "PersonClubResponse" : {
+        "type" : "object",
+        "description" : "Caller-visible PersonClub row (the caller's tenant only, per Hibernate's @TenantId filter).",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "memberNumber" : {
+            "type" : "string"
+          },
+          "memberStateId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "memberStateName" : {
+            "type" : "string"
+          },
+          "isMotorPilot" : {
+            "type" : "boolean"
+          },
+          "isTowPilot" : {
+            "type" : "boolean"
+          },
+          "isGliderInstructor" : {
+            "type" : "boolean"
+          },
+          "isGliderPilot" : {
+            "type" : "boolean"
+          },
+          "isGliderTrainee" : {
+            "type" : "boolean"
+          },
+          "isPassenger" : {
+            "type" : "boolean"
+          },
+          "isWinchOperator" : {
+            "type" : "boolean"
+          },
+          "isMotorInstructor" : {
+            "type" : "boolean"
+          },
+          "receiveFlightReports" : {
+            "type" : "boolean"
+          },
+          "receiveAircraftReservationNotifications" : {
+            "type" : "boolean"
+          },
+          "receivePlanningDayRoleReminder" : {
+            "type" : "boolean"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "clubId", "id", "isActive", "isGliderInstructor", "isGliderPilot", "isGliderTrainee", "isMotorInstructor", "isMotorPilot", "isPassenger", "isTowPilot", "isWinchOperator", "receiveAircraftReservationNotifications", "receiveFlightReports", "receivePlanningDayRoleReminder" ]
+      },
+      "PersonResponse" : {
+        "type" : "object",
+        "description" : "Person detail projection — Person identity / contact / licences + caller-visible memberships.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          },
+          "midname" : {
+            "type" : "string"
+          },
+          "companyName" : {
+            "type" : "string"
+          },
+          "addressLine1" : {
+            "type" : "string"
+          },
+          "addressLine2" : {
+            "type" : "string"
+          },
+          "zip" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "region" : {
+            "type" : "string"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "privatePhone" : {
+            "type" : "string"
+          },
+          "mobilePhone" : {
+            "type" : "string"
+          },
+          "businessPhone" : {
+            "type" : "string"
+          },
+          "faxNumber" : {
+            "type" : "string"
+          },
+          "emailPrivate" : {
+            "type" : "string"
+          },
+          "emailBusiness" : {
+            "type" : "string"
+          },
+          "preferMailToBusinessMail" : {
+            "type" : "boolean"
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "hasMotorPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasTowPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderInstructorLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderTraineeLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderPaxLicence" : {
+            "type" : "boolean"
+          },
+          "hasTmgLicence" : {
+            "type" : "boolean"
+          },
+          "hasWinchOperatorLicence" : {
+            "type" : "boolean"
+          },
+          "hasMotorInstructorLicence" : {
+            "type" : "boolean"
+          },
+          "hasPartMLicence" : {
+            "type" : "boolean"
+          },
+          "licenceNumber" : {
+            "type" : "string"
+          },
+          "medicalClass1ExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "medicalClass2ExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "medicalLaplExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "gliderInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "motorInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "partMLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "hasGliderTowingStartPermission" : {
+            "type" : "boolean"
+          },
+          "hasGliderSelfStartPermission" : {
+            "type" : "boolean"
+          },
+          "hasGliderWinchStartPermission" : {
+            "type" : "boolean"
+          },
+          "spotLink" : {
+            "type" : "string"
+          },
+          "receiveOwnedAircraftStatisticReports" : {
+            "type" : "boolean"
+          },
+          "enableAddress" : {
+            "type" : "boolean"
+          },
+          "memberships" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonClubResponse"
+            }
+          },
+          "inOtherClubsCount" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Opaque count of memberships in clubs the caller cannot see. 0 for sysadmin cross-cutting reads."
+          }
+        },
+        "required" : [ "enableAddress", "firstname", "hasGliderInstructorLicence", "hasGliderPaxLicence", "hasGliderPilotLicence", "hasGliderSelfStartPermission", "hasGliderTowingStartPermission", "hasGliderTraineeLicence", "hasGliderWinchStartPermission", "hasMotorInstructorLicence", "hasMotorPilotLicence", "hasPartMLicence", "hasTmgLicence", "hasTowPilotLicence", "hasWinchOperatorLicence", "id", "inOtherClubsCount", "lastname", "memberships", "preferMailToBusinessMail", "receiveOwnedAircraftStatisticReports" ]
+      },
+      "PersonClubRequest" : {
+        "type" : "object",
+        "description" : "Per-club membership shape. Used as nested in the create request and as request body for join/update sub-resources.",
+        "properties" : {
+          "memberNumber" : {
+            "type" : "string",
+            "maxLength" : 20,
+            "minLength" : 0
+          },
+          "memberStateId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "isMotorPilot" : {
+            "type" : "boolean"
+          },
+          "isTowPilot" : {
+            "type" : "boolean"
+          },
+          "isGliderInstructor" : {
+            "type" : "boolean"
+          },
+          "isGliderPilot" : {
+            "type" : "boolean"
+          },
+          "isGliderTrainee" : {
+            "type" : "boolean"
+          },
+          "isPassenger" : {
+            "type" : "boolean"
+          },
+          "isWinchOperator" : {
+            "type" : "boolean"
+          },
+          "isMotorInstructor" : {
+            "type" : "boolean"
+          },
+          "receiveFlightReports" : {
+            "type" : "boolean"
+          },
+          "receiveAircraftReservationNotifications" : {
+            "type" : "boolean"
+          },
+          "receivePlanningDayRoleReminder" : {
+            "type" : "boolean"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          }
+        }
+      },
       "InOutboundPointRequest" : {
         "type" : "object",
         "description" : "Payload to create / replace an InOutboundPoint under a Location.",
@@ -1631,6 +2450,190 @@
         },
         "required" : [ "aircraftStateId", "id", "validFrom" ]
       },
+      "PersonCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to create a new Person. The optional initialClubMembership creates the first PersonClub in the caller's tenant in the same transaction.",
+        "properties" : {
+          "firstname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "lastname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "midname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "companyName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "addressLine1" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "addressLine2" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "zip" : {
+            "type" : "string",
+            "maxLength" : 10,
+            "minLength" : 0
+          },
+          "city" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "region" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "privatePhone" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "mobilePhone" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "businessPhone" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "faxNumber" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "emailPrivate" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "emailBusiness" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "preferMailToBusinessMail" : {
+            "type" : "boolean"
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "licences" : {
+            "$ref" : "#/components/schemas/LicenceFlags"
+          },
+          "initialClubMembership" : {
+            "$ref" : "#/components/schemas/PersonClubRequest"
+          },
+          "spotLink" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0,
+            "pattern" : "^https://.*"
+          },
+          "receiveOwnedAircraftStatisticReports" : {
+            "type" : "boolean"
+          },
+          "enableAddress" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "firstname", "lastname" ]
+      },
+      "PersonLookupRequest" : {
+        "type" : "object",
+        "description" : "Exact-match-only lookup payload. Either provide email, OR provide the full identity triple (firstname + lastname + birthday). Partial triples are rejected.",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "firstname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "lastname" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "exactMatchShape" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "PersonLookupMatch" : {
+        "type" : "object",
+        "description" : "Slim per-match shape. No address, no licence flags — just enough to identify the person before attaching.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "alreadyInThisClub" : {
+            "type" : "boolean",
+            "description" : "True iff this Person already has an alive PersonClub in the caller's tenant."
+          }
+        },
+        "required" : [ "alreadyInThisClub", "firstname", "id", "lastname" ]
+      },
+      "PersonLookupResult" : {
+        "type" : "object",
+        "description" : "Cap at 5; exact-match never returns more.",
+        "properties" : {
+          "matches" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PersonLookupMatch"
+            }
+          }
+        },
+        "required" : [ "matches" ]
+      },
       "LocationCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a Location. ICAO code is optional but uppercase-regex bound when present.",
@@ -1953,6 +2956,70 @@
         },
         "required" : [ "atDateTime" ]
       },
+      "PersonListItem" : {
+        "type" : "object",
+        "description" : "Person listitem projection — one row per (Person, caller-tenant PersonClub) pair.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "firstname" : {
+            "type" : "string"
+          },
+          "lastname" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "mobilePhone" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "zip" : {
+            "type" : "string"
+          },
+          "memberNumber" : {
+            "type" : "string"
+          },
+          "memberStateId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "memberStateName" : {
+            "type" : "string"
+          },
+          "isActive" : {
+            "type" : "boolean"
+          },
+          "isMotorPilot" : {
+            "type" : "boolean"
+          },
+          "isTowPilot" : {
+            "type" : "boolean"
+          },
+          "isGliderInstructor" : {
+            "type" : "boolean"
+          },
+          "isGliderPilot" : {
+            "type" : "boolean"
+          },
+          "isGliderTrainee" : {
+            "type" : "boolean"
+          },
+          "isWinchOperator" : {
+            "type" : "boolean"
+          },
+          "isMotorInstructor" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "firstname", "id", "isActive", "isGliderInstructor", "isGliderPilot", "isGliderTrainee", "isMotorInstructor", "isMotorPilot", "isTowPilot", "isWinchOperator", "lastname" ]
+      },
       "LocationListItem" : {
         "type" : "object",
         "description" : "Location listitem projection — sort_indicator + name ordered.",
@@ -2046,6 +3113,20 @@
           }
         },
         "required" : [ "code", "id", "name" ]
+      },
+      "MemberStateListItem" : {
+        "type" : "object",
+        "description" : "Tenant-scoped listitem projection for the form picker.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "name" ]
       },
       "ClubStateResponse" : {
         "type" : "object",

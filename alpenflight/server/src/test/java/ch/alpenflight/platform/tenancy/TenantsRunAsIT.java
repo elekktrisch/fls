@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.clubs.domain.MemberState;
-import ch.alpenflight.clubs.infra.MemberStateRepository;
+import ch.alpenflight.clubs.infra.JpaMemberStateRepository;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
@@ -37,7 +37,7 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
     private static final String KEY_PREFIX = "IT_T_";
 
     @Autowired private JdbcTemplate jdbc;
-    @Autowired private MemberStateRepository memberStates;
+    @Autowired private JpaMemberStateRepository memberStates;
 
     @BeforeEach
     void seed() {

@@ -1,5 +1,6 @@
 package ch.alpenflight.persons.domain;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -41,7 +42,7 @@ public class PersonClub {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "person_id", nullable = false)
     @SuppressWarnings("UnusedVariable")
     private @Nullable Person person;
@@ -115,6 +116,34 @@ public class PersonClub {
         PersonClub pc = new PersonClub();
         pc.clubId = clubId;
         pc.applyMembership(memberNumber, memberStateId, roles, prefs, active);
+        return pc;
+    }
+
+    /**
+     * Test-fixture factory: build a PersonClub <strong>without setting</strong>
+     * the {@code clubId} field, attached to {@code parent}. Hibernate's
+     * {@code @TenantId} resolver populates {@code club_id} on save —
+     * matching the {@link MemberState}-style "transient construction, fill
+     * tenant on flush" pattern. Production code goes through
+     * {@link Person#joinClub} which sets the proposed {@code clubId} for
+     * the in-memory duplicate check; this factory bypasses that because
+     * sweep fixtures intentionally don't deduplicate.
+     *
+     * <p>The returned child is attached to {@code parent}. Save via
+     * {@code JpaPersonClubRepository.save(...)} — {@code CascadeType.PERSIST}
+     * on {@link #person} cascade-inserts the transient {@code parent} at
+     * flush.
+     */
+    public static PersonClub forSweepFixture(Person parent,
+                                             PersonRoleFlags roles,
+                                             PersonNotificationPrefs prefs,
+                                             boolean active) {
+        if (parent == null) {
+            throw new IllegalArgumentException("parent must not be null");
+        }
+        PersonClub pc = new PersonClub();
+        pc.person = parent;
+        pc.applyMembership(null, null, roles, prefs, active);
         return pc;
     }
 
