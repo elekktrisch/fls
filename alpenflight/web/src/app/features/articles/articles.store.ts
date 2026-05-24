@@ -79,13 +79,17 @@ function withDetailId(d: ArticleDetail): ArticleDetailLoaded {
  * `loadAll()` then settles to authoritative values.
  */
 function listItemFromDetail(d: ArticleDetailLoaded): ArticleItem {
-  return {
+  // `articleInfo` on the generated list-item is `?: string` (orval), so under
+  // `exactOptionalPropertyTypes` we must conditionally set it rather than
+  // unconditionally assigning the possibly-undefined detail field.
+  const item: ArticleItem = {
     id: d.id,
     articleNumber: d.articleNumber,
     articleName: d.articleName,
-    articleInfo: d.articleInfo,
     isActive: d.isActive,
   };
+  if (d.articleInfo !== undefined) item.articleInfo = d.articleInfo;
+  return item;
 }
 
 export const ArticlesStore = signalStore(
@@ -102,7 +106,7 @@ export const ArticlesStore = signalStore(
       pipe(
         tap(() => patchState(store, { isLoading: true, loadError: null })),
         switchMap(() =>
-          api.listArticles(store.includeInactive()).pipe(
+          api.listArticles({ includeInactive: store.includeInactive() }).pipe(
             tapResponse({
               next: (items: ArticleListItem[]) =>
                 patchState(store, setAllEntities(items.map(withListItemId)), {
