@@ -35,6 +35,10 @@ export const routes: Routes = [
     loadChildren: () => import('@features/aircraft/aircraft.routes').then((m) => m.AIRCRAFT_ROUTES),
   },
   {
+    path: 'persons',
+    loadChildren: () => import('@features/persons/persons.routes').then((m) => m.PERSONS_ROUTES),
+  },
+  {
     path: 'dev/primitives',
     loadChildren: () =>
       import('./dev/primitives/primitives.routes').then((m) => m.PRIMITIVES_ROUTES),
