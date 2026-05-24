@@ -1,6 +1,7 @@
 package ch.alpenflight.server.testsupport;
 
 import ch.alpenflight.aircraft.domain.Aircraft;
+import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
@@ -49,6 +50,7 @@ public final class TenantScopedRowBuilders {
             Location.class, LocationSweepFactory::build,
             Aircraft.class, AircraftSweepFactory::build,
             FlightType.class, FlightTypeSweepFactory::build,
+            Article.class, ArticleSweepFactory::build,
             // PersonClub is aggregate-internal under the cross-tenant Person
             // root; CascadeType.PERSIST on PersonClub.person makes
             // `save(personClub)` cascade-insert the parent Person at flush.
