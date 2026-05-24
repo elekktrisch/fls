@@ -20,9 +20,6 @@
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
-    "name" : "Aircraft",
-    "description" : "Aircraft CRUD (per-club tenant-scoped masterdata)."
-  }, {
     "name" : "FlightTypes",
     "description" : "FlightType CRUD (per-club tenant-scoped masterdata)."
   }, {
@@ -46,6 +43,9 @@
   }, {
     "name" : "flights",
     "description" : "Flight CRUD"
+  }, {
+    "name" : "Aircraft",
+    "description" : "Aircraft CRUD (cross-tenant masterdata; mutations gated to managing_club_id)."
   }, {
     "name" : "LocationTypes",
     "description" : "Location-type reference catalog."
