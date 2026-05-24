@@ -13,11 +13,8 @@ final class FlightTypeSweepFactory {
 
     private FlightTypeSweepFactory() {}
 
+    @SuppressWarnings("unused") // ctx unused — FlightType has no FK reference data to look up.
     static FlightType build(SweepFixtureContext ctx) {
-        // ctx is unused — FlightType has no FK reference data to look up.
-        // Keeping the parameter signature aligns with the SweepFixtureContext
-        // builder contract so the registry table stays uniform.
-        var ignored = ctx;
         String unique = Long.toString(System.nanoTime(), 36);
         return FlightType.register(
                 TenantScopedRowBuilders.SWEEP_PREFIX + "FT_" + unique,

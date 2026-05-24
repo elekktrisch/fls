@@ -318,6 +318,19 @@ audit:
           - isForGlider
           - isForTow
           - isForMotor
+      FlightCostBalanceTypeResponse:
+        # DTO mirror of the FCBT entity above. Mirrors the
+        # AircraftOperatingCounterResponse / InOutboundPointResponse precedent
+        # of listing both entity + response DTO so the deferred admin route
+        # ships into a clean audit allow-list.
+        allow:
+          - id
+          - code
+          - description
+          - isPersonForInvoiceRequired
+          - isForGlider
+          - isForTow
+          - isForMotor
 
 server:
   port: 8080

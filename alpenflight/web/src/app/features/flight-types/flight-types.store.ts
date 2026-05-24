@@ -247,5 +247,9 @@ function errorPatch(
       saveErrorKind: 'other',
     };
   }
-  return { saveError: e.message, saveErrorKind: 'other' };
+  // `HttpErrorResponse.message` can be empty on network drops / aborts;
+  // a falsy saveError silently re-enables Save (the `if (!err) return;`
+  // guard short-circuits the reset effect). Fall back to a non-empty
+  // string so the UI surfaces *something* every time.
+  return { saveError: e.message || 'Save failed. Please retry.', saveErrorKind: 'other' };
 }

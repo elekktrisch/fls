@@ -91,6 +91,29 @@ class FlightTypesAuthorizationIT extends PostgresIntegrationTest {
         ResponseEntity<String> upd = put("/api/v1/flight-types/" + id,
                 updatePayload(uniqueName()), adminB);
         assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        // DELETE shares the same loadOrThrow gate — verify the IDOR contract
+        // holds for the mutation-path too, not just the read+update legs.
+        ResponseEntity<String> del = delete("/api/v1/flight-types/" + id, adminB);
+        assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void list_unauthenticated_returns_401() {
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.get(URI.create("/api/v1/flight-types")).build(),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void detail_unauthenticated_returns_401() {
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.get(URI.create(
+                        "/api/v1/flight-types/ft-019e30c3-2c00-7001-8000-000000000aaa"))
+                        .build(),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test

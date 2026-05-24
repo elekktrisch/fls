@@ -141,6 +141,9 @@ type FlightTypeForm = FormGroup<{
                   autocomplete="off"
                   placeholder="(no constraint)"
                 />
+                <p class="text-xs text-slate-500 -mt-3">
+                  Leave empty for no constraint; minimum 1.
+                </p>
               </af-form-field>
             </div>
           </section>
@@ -179,14 +182,13 @@ type FlightTypeForm = FormGroup<{
                 />
                 <span>Motor flights</span>
               </label>
-              <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  formControlName="isForAircraftReservationType"
-                  class="w-4 h-4 accent-brand-500 cursor-pointer"
-                />
-                <span>Aircraft reservation type (S-068)</span>
-              </label>
+              <!--
+                isForAircraftReservationType: column shipped (S-068
+                AircraftReservation depends on it); not surfaced in the form
+                until that story's consumer needs it. DTO field still
+                round-trips (defaults to false on create / preserved on
+                update) so the wire shape stays stable.
+              -->
             </div>
           </section>
 
@@ -326,6 +328,13 @@ export class FlightTypesEditPage {
       const detail = this.store.selectedFlightType();
       if (!detail) return;
       this.form.patchValue(detailToFormValue(detail));
+      if (!this.canMutate()) {
+        // Non-admins land here on a deep-link / bookmark; the Save button is
+        // already hidden by `@if (canMutate())`, but leaving the form active
+        // lets them type changes that go nowhere — disable to make the
+        // read-only intent visible. Matches LocationsEditPage.
+        this.form.disable({ emitEvent: false });
+      }
     });
 
     effect(() => {

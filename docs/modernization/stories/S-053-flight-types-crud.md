@@ -20,6 +20,8 @@ parity_excluded:
   - `FlightCostBalanceType.FlightCostBalanceTypeId int` PK — new stack uses UUID (V3 already created the table this way; `legacy_int_id SMALLINT` preserved for cutover lookup).
   - `min_nr_of_aircraft_seats_required` legacy `0`-treated-as-null ambiguity — new DTO rejects `0` at the boundary; `null` is the only "no constraint" wire form.
   - `FlightCostBalanceType.IsActive` legacy soft-deactivate flag — V3 schema dropped it; FCBT mutation is full CRUD with physical DELETE gated by FK RESTRICT from consumers (no `is_active` toggle ships).
+  - Legacy `FlightCostBalanceTypeName` (max 100, user-display) + `Comment` (max 500, internal) columns collapsed into a single `description` (max 200) per V3. S-058 picker UI will bind to `description`; cutover importer concatenates the two if the operator wants a richer string.
+  - `FlightType.isForAircraftReservationType` form-checkbox NOT surfaced in the S-053 edit UI (DTO field round-trips, defaults to false on create). S-068 AircraftReservation ships the user-facing toggle when the feature consumer arrives.
 refined: true
 refined_at: 2026-05-24
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer]
@@ -79,10 +81,11 @@ Both entities are referenced by Flight (S-058) + AccountingRuleFilter (S-072) �
 | FCBT mutation reaches a non-sysadmin via path confusion | Med | Read controller mounted at `/api/v1/flight-cost-balance-types` exposes GET only; admin controller mounted at distinct `/api/v1/admin/flight-cost-balance-types/**` with class-level `hasRole('SYSTEM_ADMINISTRATOR')`. |
 
 ### Authorization
-- `/api/v1/flight-types/**` (CRUD) → `hasRole('CLUB_ADMINISTRATOR')`; SYSTEM_ADMINISTRATOR explicitly denied per S-159.
+- `GET /api/v1/flight-types[/{id}]` → `isAuthenticated()`. Reads are open to any authenticated principal so pickers on S-058 Flight / S-072 AccountingRuleFilter forms can fetch the catalogue without an elevated role.
+- `POST | PUT | DELETE /api/v1/flight-types[/{id}]` → `hasRole('CLUB_ADMINISTRATOR')`; SYSTEM_ADMINISTRATOR explicitly denied per S-159.
 - `GET /api/v1/flight-cost-balance-types` → `isAuthenticated()`.
 - `/api/v1/admin/flight-cost-balance-types/**` (CRUD) → `hasRole('SYSTEM_ADMINISTRATOR')`.
-- Cross-tenant FlightType detail → service `loadInCurrentTenantOrThrow` returns 404, never 403.
+- Cross-tenant FlightType detail/update/delete → service `loadOrThrow` returns 404, never 403 (IDOR contract).
 
 ### Input validation
 - `FlightTypeCreate/UpdateRequest`: no `operatingClubId` / `clubId` / `id` field (records, immutable, tenant from SecurityContext).
