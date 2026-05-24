@@ -135,3 +135,63 @@ No CHECK constraints, generated columns, or triggers reintroduced. V3's stripped
 4. **DELETE role.** Design notes pin `CLUB_ADMINISTRATOR`-only; `FLIGHT_OPERATOR` may need same-day mistake deletion in practice. Confirm or relax to `hasAnyRole('CLUB_ADMINISTRATOR','FLIGHT_OPERATOR')`.
 
 <!-- modernize-refine: end -->
+
+## Pickup notes
+
+Implementation paused mid-session (2026-05-24) after a grilling pass on Aircraft / Flight use-cases surfaced a structural scope shift. Captures session state so a future iteration can resume cold.
+
+### Status on `story/S-058-flight-entity-discriminator` (draft PR #113)
+
+Five commits land on top of `main`:
+
+1. `#112: start` — frontmatter flip + GitHub issue stamp.
+2. `#112: Flight aggregate + module skeleton` — typed `FlightId`, full `flights/{domain,application,web,infra}` module (`Flight` aggregate root, `FlightCrew` aggregate-internal, `FlightAircraftType` sparse converter `{GLIDER=1, TOW=2, MOTOR=4}`, three named factories, tow-link invariants, runway/coupon/temporal VOs, 5-route REST surface with role gates per S-159, keyset cursor pagination, ref-data projections, audit hookup, domain unit tests + cursor unit test).
+3. `#112: fix layering — application depends on domain ports` — moved `AircraftReferenceChecker` + `FlightInitialState` behind domain ports per ADR 0023.
+4. `#112: integration tests + FlightInitialState transactional init` — `FlightsControllerIT` + `FlightsTenantIsolationIT` + fixtures + sweep factory; `@PostConstruct` lookup wrapped in `TransactionTemplate` to keep the EntityManager bound.
+5. `#112: revert S-159 tenant-scoping of Aircraft` — the structural pivot (see below).
+
+### What the grilling pass changed
+
+The day-1 charter case — small glider clubs flying tow planes owned by other clubs (or by external owners not in the system) — was structurally closed by S-159's `@TenantId` on `Aircraft.managing_club_id`. The pivot baked into commit 5 reverts that:
+
+- `Aircraft` drops `@TenantId`; the `managing_club_id` column survives as plain metadata. Three columns drive semantics: `managing_club_id` (NOT NULL — the operational manager / write gate), `owner_club_id` (NULL OK — physical-owner metadata, no edit power), `aircraft_owner_person_id` (NULL OK — private-person metadata, person-edit predicate deferred to S-052).
+- Read endpoints (list / picker / detail / state-history) open to any authenticated user. Counter-history is manager-only (foreign-club counter views aren't operationally useful — most of that aircraft's flights live elsewhere).
+- New `AircraftAccess` SpEL bean: `canRegister` (CLUB_ADMIN only — sysadmin lacks a clubId claim), `canEdit` (CLUB_ADMIN of managing_club_id OR SYSTEM_ADMIN), `canOperate` (same, FLIGHT_OPERATOR also admitted).
+- `Flight.aircraft_id` is unrestricted; `AircraftReferenceChecker` deleted. `DataIntegrityViolationException` → 400 in the advice handles unknown aircraftIds.
+- ADR 0008 amendment (2026-05-24, reverts the 2026-05-23 S-159 amendment) landed in `docs/modernization/adrs/0008-multi-tenancy-mechanism.md`.
+- `tenant-rules.yaml`, `application.yml` audit redaction allow-list, `TenantCatalogYamlTest`, `TenantCatalogConsistencyTest`, `AircraftsTenantIsolationIT`, `AircraftsAuthorizationIT`, sweep factories + `TenantScopedRowBuilders`, `AircraftTenantScopingGuardTest` (deleted), `AircraftSweepFactory` (deleted) — all consistent with the revert.
+
+### What's left to land on this branch
+
+1. **Verify full local test suite.** Targeted runs after the revert (domain + arch) passed; broader IT suite (`aircraft.web.*`, `flights.web.*`, `multitenancy.leakage.*`, `server.migration.*`, `OpenApiSnapshotIT`) was queued + stopped — needs a clean rerun. Expect 1-2 patch commits if anything trips.
+2. **Push the pivot + watch CI.** Last pushed head is `4e2f30ee` (pre-revert); commit 5 `43b0539f` is local-only. CI is still red from the pre-revert push.
+3. **Story-body updates:**
+   - `docs/modernization/stories/implemented/S-050-aircraft-crud.md` — strip `@TenantId` / `managing_club_id @TenantId` language; cite the S-058 revert.
+   - This file (`docs/modernization/stories/S-058-flight-entity-discriminator.md`) — design-notes section on "Aircraft FK + cross-tenant" needs to flip (the AircraftReferenceChecker paragraph is now wrong).
+4. **Self-review reviewer panel** (`/modernize-implement` Step 7 — maintainability + security + tech-writer; usability N/A; parity N/A since `parity_test: none`).
+5. **Prune + status:done + archive move** (Step 8) — one commit, includes `git mv` to `implemented/`.
+6. **`gh pr ready` + done report** (Step 9).
+
+### Open follow-up stories surfaced by this pass
+
+- **Cross-club aircraft usage visibility.** When Club A charters Club B's aircraft, should Club B *see* Club A's flights on that aircraft? Three shapes considered: (a) loosen Flight `@TenantId` — breaks ADR 0008's structural multi-tenancy; (b) copy-on-flight-close — emit a derived `AircraftUsageRecord` in the manager's books; (c) defer — Club B reads their own books, reconciliation is out-of-band. Day-1 recommendation: (c). When the feature is needed, refine into a new story. Probably the right home is the delivery / accounting epic, not flights.
+- **Sysadmin admin variant for Aircraft register.** `AircraftAccess.canRegister` deliberately excludes SYSTEM_ADMIN today (no clubId claim → service can't infer managing tenant). Future story: add `/api/v1/admin/aircraft` with explicit `managingClubId` field for cutover / cross-cutting register.
+- **Person-owner edit predicate on Aircraft.** When S-052 (Users CRUD) wires `User → Person`, extend `AircraftAccess.canEdit` to admit the person who matches `aircraft_owner_person_id`. Schema unchanged.
+- **Non-manager counter redaction on Aircraft detail GET.** Today the detail response surfaces `latestCounter` inline regardless of caller. The dedicated counter-list endpoint is gated to the manager; the inline field on detail isn't. A caller-aware mapper (or a separate non-manager detail projection) closes the gap when the policy bar rises.
+
+### Resume recipe
+
+```bash
+git checkout story/S-058-flight-entity-discriminator
+# Working tree should be clean and commit 5 (43b0539f-ish) on top.
+cd alpenflight/server
+./gradlew test --tests 'ch.alpenflight.aircraft.web.*' \
+  --tests 'ch.alpenflight.flights.web.*' \
+  --tests 'ch.alpenflight.multitenancy.leakage.*' \
+  --tests 'ch.alpenflight.server.migration.*' \
+  --tests 'ch.alpenflight.platform.openapi.OpenApiSnapshotIT' \
+  --tests 'ch.alpenflight.arch.*'
+# Iterate to green, push, watch CI, then story-body updates + reviewer panel + prune + done.
+```
+
+Or invoke `/modernize-implement` with no arg while on the branch — it picks up the story from the branch name.
