@@ -10,10 +10,9 @@ import java.lang.annotation.Target;
  * Marks a JPA-persisted column that records the principal who effected a
  * mutation but is never read back through the aggregate's API (e.g.
  * {@code deletedByUserId} on a soft-deletable aggregate root). The value is
- * still load-bearing — Flyway-declared {@code NOT NULL} variants would
- * become a runtime hazard if Hibernate stopped writing them, and audit /
- * forensics tooling reads the column directly via JDBC — but the aggregate
- * itself has no business reason to surface the actor through a getter.
+ * still load-bearing — Hibernate writes it, audit / forensics tooling reads
+ * the column directly via JDBC — but the aggregate itself has no business
+ * reason to surface the actor through a getter.
  *
  * <p>The write-only shape confuses two static checkers:
  *
@@ -24,10 +23,15 @@ import java.lang.annotation.Target;
  *       because no other method reads it.</li>
  * </ul>
  *
- * Both are wrong here: the persistence layer is the implicit reader. The
- * bundled {@link SuppressWarnings} silences both checks at usages that also
- * carry the marker, so the suppression and its rationale travel together
- * instead of repeating an inline comment per field.
+ * Both are wrong here: the persistence layer is the implicit reader.
+ *
+ * <p><strong>Suppression is not transitive through this meta-annotation.</strong>
+ * The JLS scopes {@code @SuppressWarnings} to the directly-annotated element,
+ * and neither IntelliJ nor ErrorProne walks meta-annotations for suppression.
+ * Every usage MUST pair {@code @PersistedAuditActor} with an explicit
+ * {@code @SuppressWarnings({"UnusedVariable", "FieldCanBeLocal"})} on the
+ * field — the marker carries the WHY; the bare {@code @SuppressWarnings}
+ * actually silences the checker.
  *
  * <p>Use sparingly: only for fields that are genuinely write-only through
  * the aggregate. Anything readable through the API gets a normal getter and
@@ -36,5 +40,4 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RetentionPolicy.CLASS)
 @Target(ElementType.FIELD)
-@SuppressWarnings({"UnusedVariable", "FieldCanBeLocal"})
 public @interface PersistedAuditActor {}

@@ -81,6 +81,7 @@ public class Article {
     private @Nullable Instant deletedOn;
 
     @PersistedAuditActor
+    @SuppressWarnings({"UnusedVariable", "FieldCanBeLocal"})
     private @Nullable UUID deletedByUserId;
 
     protected Article() {

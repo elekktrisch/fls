@@ -103,6 +103,7 @@ public class FlightType {
 
     @Column(name = "deleted_by_user_id")
     @PersistedAuditActor
+    @SuppressWarnings({"UnusedVariable", "FieldCanBeLocal"})
     private @Nullable UUID deletedByUserId;
 
     protected FlightType() {
