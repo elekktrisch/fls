@@ -5,6 +5,8 @@ epic: E-07
 status: done
 started_at: 2026-05-24
 done_at: 2026-05-24
+merged: true
+merged_at: 2026-05-24
 depends_on: [S-013, S-050, S-051, S-053]
 acceptance:
   - `Flight` JPA entity covers all columns from the legacy `Flight` table (with reshape per S-013).
