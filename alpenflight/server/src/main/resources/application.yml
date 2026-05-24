@@ -267,6 +267,57 @@ audit:
           - engineOperatingCounterInSeconds
           - nextMaintenanceAtFlightOperatingCounterInSeconds
           - nextMaintenanceAtEngineOperatingCounterInSeconds
+      FlightType:
+        # No PII; per-club masterdata. Allow-list lists DTO field names + entity
+        # field names so both audit-paths (service-layer DTO snapshot, entity
+        # mirror) round-trip cleanly.
+        allow:
+          - id
+          - operatingClubId
+          - flightTypeName
+          - flightCode
+          - isInstructorRequired
+          - isObserverPilotOrInstructorRequired
+          - isCheckFlight
+          - isPassengerFlight
+          - isSoloFlight
+          - isForGliderFlights
+          - isForTowFlights
+          - isForMotorFlights
+          - isFlightCostBalanceSelectable
+          - isCouponNumberRequired
+          - isForAircraftReservationType
+          - instructorRequired
+          - observerPilotOrInstructorRequired
+          - checkFlight
+          - passengerFlight
+          - soloFlight
+          - forGliderFlights
+          - forTowFlights
+          - forMotorFlights
+          - flightCostBalanceSelectable
+          - couponNumberRequired
+          - forAircraftReservationType
+          - minNrOfAircraftSeatsRequired
+          - deletedOn
+          - deletedByUserId
+      FlightCostBalanceType:
+        # System-global reference (no tenant), code-driven, no PII. Admin-CRUD
+        # is deferred per S-053 but the allow-list lands now so a future
+        # admin route lands clean.
+        allow:
+          - id
+          - code
+          - legacyIntId
+          - description
+          - personForInvoiceRequired
+          - isPersonForInvoiceRequired
+          - forGlider
+          - forTow
+          - forMotor
+          - isForGlider
+          - isForTow
+          - isForMotor
 
 server:
   port: 8080

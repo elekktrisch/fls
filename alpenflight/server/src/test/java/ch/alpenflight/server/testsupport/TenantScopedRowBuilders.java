@@ -4,6 +4,7 @@ import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
+import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.persons.domain.PersonClub;
 import java.time.Instant;
@@ -47,6 +48,7 @@ public final class TenantScopedRowBuilders {
             MemberState.class, ctx -> new MemberState(uniqueName("MS")),
             Location.class, LocationSweepFactory::build,
             Aircraft.class, AircraftSweepFactory::build,
+            FlightType.class, FlightTypeSweepFactory::build,
             // PersonClub is aggregate-internal under the cross-tenant Person
             // root; CascadeType.PERSIST on PersonClub.person makes
             // `save(personClub)` cascade-insert the parent Person at flush.
