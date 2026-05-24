@@ -2,8 +2,9 @@
 id: S-051
 title: Persons CRUD + PersonClub many-to-many
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-05-23
+done_at: 2026-05-24
 depends_on: [S-048, S-047]
 acceptance:
   - `Person` (cross-tenant; **no `@TenantId`**) + `PersonClub` (aggregate-internal child under Person; `@TenantId` on `club_id`; M:N junction with `member_number`, `member_state_id`, role flags, notification prefs) ported. No new Flyway migration — V2 schema is sufficient.
