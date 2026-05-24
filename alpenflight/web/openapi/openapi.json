@@ -2716,7 +2716,7 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "articleName", "articleNumber" ]
+        "required" : [ "articleName", "articleNumber", "isActive" ]
       },
       "ArticleDetail" : {
         "type" : "object",
@@ -3427,7 +3427,7 @@
             "type" : "boolean"
           }
         },
-        "required" : [ "articleName", "articleNumber" ]
+        "required" : [ "articleName", "articleNumber", "isActive" ]
       },
       "AircraftCreateRequest" : {
         "type" : "object",

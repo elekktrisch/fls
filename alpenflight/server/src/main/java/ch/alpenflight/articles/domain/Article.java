@@ -78,6 +78,11 @@ public class Article {
     private @Nullable Instant deletedOn;
 
     @Column(name = "deleted_by_user_id")
+    // Field is assigned by softDelete() and persisted by JPA, but never
+    // read back through the aggregate — the audit emission carries the
+    // actor on the event payload instead. ErrorProne's UnusedVariable
+    // misclassifies the write-only case; suppress narrowly.
+    @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
     protected Article() {
