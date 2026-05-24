@@ -26,5 +26,5 @@ export type ArticleUpdateRequest = {
      */
   articleInfo?: string;
   description?: string;
-  isActive?: boolean;
+  isActive: boolean;
 };

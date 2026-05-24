@@ -26,5 +26,5 @@ export type ArticleCreateRequest = {
      */
   articleInfo?: string;
   description?: string;
-  isActive?: boolean;
+  isActive: boolean;
 };
