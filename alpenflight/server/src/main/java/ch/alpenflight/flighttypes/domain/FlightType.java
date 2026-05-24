@@ -101,7 +101,6 @@ public class FlightType {
     private @Nullable Instant deletedOn;
 
     @Column(name = "deleted_by_user_id")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
     protected FlightType() {

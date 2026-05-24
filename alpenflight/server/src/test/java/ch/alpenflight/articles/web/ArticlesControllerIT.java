@@ -172,6 +172,17 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    void registerArticle_missingIsActive_returns_400() {
+        // Legacy [Required]: a payload that omits `isActive` is a 400, not a
+        // silent inactive-by-default insert. Pins the boxed-Boolean + @NotNull
+        // shape of ArticleCreateRequest.
+        Map<String, Object> body = createPayload(uniqueNumber());
+        body.remove("isActive");
+        ResponseEntity<String> res = post("/api/v1/articles", body);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     // ----- helpers -----
 
     private static List<String> toNumbers(JsonNode array) {

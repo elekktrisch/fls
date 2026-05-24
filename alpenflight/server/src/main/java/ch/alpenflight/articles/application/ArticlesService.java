@@ -77,7 +77,7 @@ public class ArticlesService {
                 req.articleName(),
                 req.articleInfo(),
                 req.description(),
-                req.isActive());
+                Boolean.TRUE.equals(req.isActive()));
         ArticleDetail created = ArticleMapper.toDetail(persist(a, number));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));
@@ -99,7 +99,7 @@ public class ArticlesService {
         a.rename(req.articleName());
         a.updateInfo(req.articleInfo());
         a.updateDescription(req.description());
-        if (req.isActive()) {
+        if (Boolean.TRUE.equals(req.isActive())) {
             a.activate();
         } else {
             a.deactivate();

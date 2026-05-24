@@ -92,6 +92,24 @@ class ArticleDomainTest {
         assertThatThrownBy(a::deactivate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("soft-deleted");
+        // Every mutator goes through the same gate — pin each, otherwise a
+        // future repository helper that re-loads a soft-deleted row could
+        // silently mutate it.
+        assertThatThrownBy(() -> a.rename("New name"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("soft-deleted");
+        assertThatThrownBy(() -> a.renumber("A-701"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("soft-deleted");
+        assertThatThrownBy(() -> a.updateInfo("new info"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("soft-deleted");
+        assertThatThrownBy(() -> a.updateDescription("new desc"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("soft-deleted");
+        assertThatThrownBy(a::activate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("soft-deleted");
     }
 
     @Test

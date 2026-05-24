@@ -79,14 +79,13 @@ function withDetailId(d: ArticleDetail): ArticleDetailLoaded {
  * `loadAll()` then settles to authoritative values.
  */
 function listItemFromDetail(d: ArticleDetailLoaded): ArticleItem {
-  const item: ArticleItem = {
+  return {
     id: d.id,
     articleNumber: d.articleNumber,
     articleName: d.articleName,
+    articleInfo: d.articleInfo,
     isActive: d.isActive,
   };
-  if (d.articleInfo !== undefined) item.articleInfo = d.articleInfo;
-  return item;
 }
 
 export const ArticlesStore = signalStore(

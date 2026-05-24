@@ -84,7 +84,7 @@ import { ArticlesStore } from '../articles.store';
           }
           @if (!a.isActive) {
             <span
-              class="inline-block ml-2 text-xs px-2 py-0.5 bg-slate-50 text-slate-500"
+              class="inline-block ml-2 text-xs px-2 py-0.5 bg-slate-50 text-slate-700 border border-slate-200"
               [attr.data-testid]="'articles-badge-inactive-' + a.id"
             >
               Inactive

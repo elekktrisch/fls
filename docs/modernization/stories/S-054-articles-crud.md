@@ -11,7 +11,7 @@ acceptance:
   - `Article` entity ported (per-club, tenant-scoped via `operating_club_id` `@TenantId`). Referenced by `DeliveryItem.article_id` — pre-req for E-09.
   - REST surface at `/api/v1/articles/**` — `CLUB_ADMINISTRATOR`-gated per S-159 (no `SYSTEM_ADMINISTRATOR` co-allowance, no `/admin/` variant). Soft-delete only.
   - List + edit screens. List defaults to `is_active = true`; `?includeInactive=true` surfaces deactivated rows.
-  - `@AuditedTarget("article")` on the aggregate; S-027 listener emits mutations (no bespoke audit code).
+  - Mutations recorded via `AuditTrail.record(AuditAction.{CREATE,UPDATE,DELETE}, AuditedTarget...)` in `ArticlesService` (mirror S-053 FlightType); `entityType="Article"`.
   - New Playwright spec at `alpenflight/web/e2e/tests/masterdata/articles-crud.spec.ts` (greenfield — no legacy oracle).
 estimate: S
 adr_refs: [0005, 0008, 0022, 0023]
@@ -21,6 +21,7 @@ parity_excluded:
   - Legacy paged search `POST /page/{pageStart}/{pageSize}` (`ArticleOverviewSearchFilter`) — **excluded**; full-list-per-club is fine at expected cardinality.
   - Legacy `CanUpdateRecord` / `CanDeleteRecord` per-row DTO security flags (`ArticleService.cs:218-223`) — replaced by server-side `@PreAuthorize` + SPA capability signals from S-026.
   - Legacy physical `DELETE` (`ArticleService.cs:144`) — replaced by soft-delete; `delivery_item.article_id` FK RESTRICT + invoice integrity (Swiss OR Art. 957a) require it.
+  - Legacy default list returns active + inactive rows (`ArticleService.cs:30-47`) — new default hides inactive; `?includeInactive=true` restores the legacy union for operator catalogue management.
 refined: true
 refined_at: 2026-05-24
 refined_specialists: [requirements, solution, qa, security]
@@ -58,7 +59,7 @@ Standard CRUD at `/api/v1/articles` (list, GET, POST, PUT, DELETE). No paged-sea
 Domain methods on `Article`: `rename`, `updateInfo`, `updateDescription`, `activate` / `deactivate` (idempotent; cannot mutate a soft-deleted article), `softDelete` (idempotent). `article_number` format validation (non-blank, trimmed, length ≤ 50, no leading/trailing whitespace) lives on the aggregate constructor. **No schema CHECK constraints** — structural NOT NULL + partial UNIQUE already in V3 are the only DB-level rules. Whether `article_number` is mutable post-create → Open design questions.
 
 ### Audit
-`@AuditedTarget("article")` on the aggregate; S-027 `MutationAuditEventListener` handles emission. No PII → no redaction.
+`ArticlesService` calls `auditTrail.record(AuditAction.{CREATE,UPDATE,DELETE}, AuditedTarget.created/updated/deleted("Article", id, ...))` on every mutation (mirror S-053). The S-027 audit-listener consumes the emitted event. No PII → no redaction.
 
 ### Frontend
 Mirror S-053's feature module — Signal Store with `withEntities`, list + edit screens using S-008 ng-zorro + Tailwind primitives. Generated TS client via orval. Capability gates via S-026 role signal (`CLUB_ADMINISTRATOR`).
@@ -116,7 +117,7 @@ A01 Broken Access Control — `@PreAuthorize` + `@TenantId` (above). Other rows 
 ## Test plan
 
 ### Pyramid
-~6 unit on `Article` aggregate / 1 controller IT (testcontainer + real Postgres + real Security) covering CRUD + tenant + audit / 1 Playwright happy round-trip.
+Unit tests on the `Article` aggregate / three Spring ITs (CRUD `ArticlesControllerIT`, authz matrix `ArticlesAuthorizationIT`, cross-layer tenancy `ArticlesTenantIsolationIT`) sharing `PostgresIntegrationTest` + `JwtTestFixture` / one Playwright happy round-trip + flag-omitted / soft-delete cases.
 
 ### Domain unit (`Article` aggregate)
 - `articleNumber` non-blank + length + trim validation; reject blank `articleName`.

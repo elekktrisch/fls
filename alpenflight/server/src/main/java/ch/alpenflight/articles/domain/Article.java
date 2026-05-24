@@ -78,7 +78,6 @@ public class Article {
     private @Nullable Instant deletedOn;
 
     @Column(name = "deleted_by_user_id")
-    @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
     protected Article() {
@@ -105,18 +104,22 @@ public class Article {
     }
 
     public void rename(String newName) {
+        ensureNotDeleted();
         assignName(newName);
     }
 
     public void renumber(String newNumber) {
+        ensureNotDeleted();
         assignNumber(newNumber);
     }
 
     public void updateInfo(@Nullable String newInfo) {
+        ensureNotDeleted();
         assignInfo(newInfo);
     }
 
     public void updateDescription(@Nullable String newDescription) {
+        ensureNotDeleted();
         assignDescription(newDescription);
     }
 

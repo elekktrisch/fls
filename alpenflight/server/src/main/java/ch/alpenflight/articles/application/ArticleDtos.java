@@ -3,6 +3,7 @@ package ch.alpenflight.articles.application;
 import ch.alpenflight.platform.id.ArticleId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
@@ -48,7 +49,9 @@ public final class ArticleDtos {
             @NotBlank @Size(max = 250) String articleName,
             @Nullable @Size(max = 250) String articleInfo,
             @Nullable String description,
-            boolean isActive) {}
+            // Boxed + @NotNull — legacy [Required] semantics: a payload that
+            // omits the flag is a 400, not a silent inactive-by-default insert.
+            @NotNull Boolean isActive) {}
 
     @Schema(description = "Payload to update an Article. operating_club_id is not settable here (A04 defense).")
     public record ArticleUpdateRequest(
@@ -56,5 +59,5 @@ public final class ArticleDtos {
             @NotBlank @Size(max = 250) String articleName,
             @Nullable @Size(max = 250) String articleInfo,
             @Nullable String description,
-            boolean isActive) {}
+            @NotNull Boolean isActive) {}
 }

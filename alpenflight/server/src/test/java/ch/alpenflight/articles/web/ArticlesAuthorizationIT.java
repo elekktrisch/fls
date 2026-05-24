@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -164,7 +165,7 @@ class ArticlesAuthorizationIT extends PostgresIntegrationTest {
 
     // ----- helpers -----
 
-    private String mintToken(String clubId, String role) {
+    private String mintToken(@Nullable String clubId, String role) {
         Consumer<com.nimbusds.jwt.JWTClaimsSet.Builder> body = c -> {
             if (clubId != null) {
                 c.claim("clubId", clubId);

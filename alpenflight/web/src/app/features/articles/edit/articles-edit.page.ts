@@ -17,7 +17,11 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import type { ArticleCreateRequest, ArticleDetail, ArticleUpdateRequest } from '@api/generated/model';
+import type {
+  ArticleCreateRequest,
+  ArticleDetail,
+  ArticleUpdateRequest,
+} from '@api/generated/model';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
@@ -55,11 +59,13 @@ type ArticleForm = FormGroup<{
     <af-page>
       <af-page-header [title]="isCreate() ? 'New article' : 'Edit article'" />
 
-      <af-page-error
-        [message]="store.saveError()"
-        [retryLabel]="null"
-        data-testid="articles-save-error"
-      />
+      @if (store.saveErrorKind() !== 'number-duplicate') {
+        <af-page-error
+          [message]="store.saveError()"
+          [retryLabel]="null"
+          data-testid="articles-save-error"
+        />
+      }
 
       @if (store.isLoadingDetail() && !isCreate()) {
         <div
@@ -140,12 +146,19 @@ type ArticleForm = FormGroup<{
                 class="w-4 h-4 accent-brand-500 cursor-pointer"
                 data-testid="articles-flag-active"
               />
-              <span>Active (available for selection in delivery flows)</span>
+              <span>Active</span>
             </label>
+            <p class="text-xs text-slate-500 -mt-1">
+              Inactive articles are hidden from delivery pickers.
+            </p>
           </section>
 
           <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
-            <af-button htmlType="button" (clicked)="router.navigateByUrl('/articles')">
+            <af-button
+              htmlType="button"
+              (clicked)="router.navigateByUrl('/articles')"
+              data-testid="articles-cancel-button"
+            >
               Cancel
             </af-button>
             @if (canMutate()) {
@@ -173,7 +186,7 @@ export class ArticlesEditPage {
   private readonly bus = inject(MUTATION_BUS);
 
   private readonly routeId = toSignal(this.route.paramMap, { requireSync: true });
-  protected readonly articleId = computed(() => this.routeId().get('id'));
+  protected readonly articleId = computed<string | null>(() => this.routeId().get('id'));
   protected readonly isCreate = computed(() => this.articleId() === null);
   protected readonly canMutate = this.session.isClubAdmin;
 
@@ -196,7 +209,7 @@ export class ArticlesEditPage {
   constructor() {
     effect(() => {
       const id = this.articleId();
-      if (!id) {
+      if (id === null) {
         this.store.select(null);
         return;
       }
@@ -281,20 +294,41 @@ function detailToFormValue(d: ArticleDetail): Partial<{
   };
 }
 
-function formToCreateRequest(form: ArticleForm): ArticleCreateRequest {
+/**
+ * Build the wire payload from the form. {@code ArticleCreateRequest} and
+ * {@code ArticleUpdateRequest} are structurally identical today; if they
+ * diverge, narrow each caller back to its own builder rather than casting.
+ */
+function formToWirePayload(form: ArticleForm): {
+  articleNumber: string;
+  articleName: string;
+  articleInfo?: string;
+  description?: string;
+  isActive: boolean;
+} {
   const v = form.getRawValue();
-  const req: ArticleCreateRequest = {
+  const payload: {
+    articleNumber: string;
+    articleName: string;
+    articleInfo?: string;
+    description?: string;
+    isActive: boolean;
+  } = {
     articleNumber: v.articleNumber.trim(),
     articleName: v.articleName.trim(),
     isActive: v.isActive,
   };
   const info = v.articleInfo.trim();
-  if (info !== '') req.articleInfo = info;
+  if (info !== '') payload.articleInfo = info;
   const desc = v.description.trim();
-  if (desc !== '') req.description = desc;
-  return req;
+  if (desc !== '') payload.description = desc;
+  return payload;
+}
+
+function formToCreateRequest(form: ArticleForm): ArticleCreateRequest {
+  return formToWirePayload(form) satisfies ArticleCreateRequest;
 }
 
 function formToUpdateRequest(form: ArticleForm): ArticleUpdateRequest {
-  return formToCreateRequest(form) as ArticleUpdateRequest;
+  return formToWirePayload(form) satisfies ArticleUpdateRequest;
 }

@@ -27,7 +27,7 @@ final class ArticlesTestFixtures {
         n.put("articleName", "Glider hour");
         n.put("articleInfo", "per flight");
         n.put("description", null);
-        n.put("isActive", true);
+        n.put("isActive", Boolean.TRUE);
         return n;
     }
 
