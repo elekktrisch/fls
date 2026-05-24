@@ -9,7 +9,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.TenantId;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -38,20 +37,39 @@ import org.jspecify.annotations.Nullable;
  *       {@code ux_aas_current_state_per_aircraft} is the structural safety net.</li>
  * </ul>
  *
- * <p>Tenant-scoped per S-159 via {@code managing_club_id}: every aircraft is
- * registered by exactly one tenant (the managing club). Ownership is
- * independent metadata — {@code owner_club_id} (nullable; physical owner,
- * own/other club or NULL) + {@code aircraft_owner_person_id} (nullable;
- * private owner). The three owner cases (own-club / other-organisation /
- * private-person) are derived at the application layer, not encoded in the
- * schema (ADR 0022 directive 2).
+ * <p>Cross-tenant per S-058 (reverts S-159's {@code @TenantId} discriminator
+ * but keeps the {@code managing_club_id} column): the day-1 charter case —
+ * a glider club flying a tow plane owned by another club — requires that
+ * any club may reference any active aircraft on a Flight. The aircraft
+ * picker is therefore unscoped (any authenticated user reads).
+ *
+ * <p>Two ownership-axis columns:
+ *
+ * <ul>
+ *   <li>{@code managing_club_id} (NOT NULL): operational manager — the
+ *       club that may edit masterdata / state / counters via the
+ *       {@code AircraftAccess} SpEL gate. Required even for external-owned
+ *       aircraft (the "Club A operates an aircraft owned by an
+ *       organisation not in the system" case — Club A is the manager,
+ *       owner_club_id is NULL).</li>
+ *   <li>{@code owner_club_id} (NULL OK): physical / regulatory owner
+ *       metadata. May differ from manager. NULL when owned externally
+ *       (not in the Clubs catalog) or by a private person. Does NOT
+ *       gate edits.</li>
+ *   <li>{@code aircraft_owner_person_id} (NULL OK): private-person owner
+ *       metadata; orthogonal to {@code owner_club_id}. Today purely
+ *       informational — person-edit predicate deferred to a follow-up
+ *       when S-052 wires User→Person.</li>
+ * </ul>
+ *
+ * <p>{@code AircraftAccess} gates writes:
+ * CLUB_ADMINISTRATOR of {@code managing_club_id} for masterdata;
+ * CLUB_ADMINISTRATOR or FLIGHT_OPERATOR of {@code managing_club_id} for
+ * state + counter; SYSTEM_ADMINISTRATOR as the universal fallback.
  *
  * <p>Aggregate boundary: {@link AircraftStateHistoryEntry} +
  * {@link AircraftOperatingCounter} are managed via Aircraft mutation
- * methods only. No top-level CRUD endpoint for either. The
- * {@code @OneToMany(cascade=ALL, orphanRemoval=true)} mapping is for state
- * history; counter history is append-only (no orphan removal — counters are
- * never re-keyed via PUT). Child rides through the parent's tenant scope.
+ * methods only. No top-level CRUD endpoint for either.
  */
 @Entity
 @Table(name = "aircraft")
@@ -73,7 +91,6 @@ public class Aircraft {
     @GeneratedValue(strategy = GenerationType.UUID)
     private @Nullable UUID id;
 
-    @TenantId
     @Column(name = "managing_club_id", nullable = false, updatable = false)
     private @Nullable UUID managingClubId;
 
@@ -173,13 +190,20 @@ public class Aircraft {
     }
 
     /**
-     * Factory for a new Aircraft. The managing tenant
-     * ({@link #managingClubId}) is set by Hibernate's {@code @TenantId}
-     * resolver on persist — do NOT pass it here. {@code ownerClubId} is
-     * independent ownership metadata; the service layer defaults it to the
-     * managing tenant (own-club case).
+     * Factory for a new Aircraft. Aircraft is cross-tenant (S-058 reversion
+     * of S-159) — reads are open, writes are gated by the
+     * {@code managing_club_id} via the {@code AircraftAccess} SpEL bean.
+     *
+     * @param managingClubId the operational manager — the club that may edit
+     *     this aircraft's masterdata, state, and counter records. Required.
+     *     Service layer defaults to the caller's club.
+     * @param ownerClubId    the physical owner club. NULL when the owner is
+     *     an external organisation not in the Clubs catalog, or when the
+     *     aircraft is privately owned (see {@code aircraftOwnerPersonId}).
+     *     {@code ownerClubId} is metadata only — it does NOT gate edits.
      */
-    public static Aircraft register(@Nullable UUID ownerClubId,
+    public static Aircraft register(UUID managingClubId,
+                                    @Nullable UUID ownerClubId,
                                     UUID aircraftTypeId,
                                     String immatriculation,
                                     @Nullable String manufacturerName,
@@ -203,7 +227,11 @@ public class Aircraft {
                                     boolean towingAircraft,
                                     @Nullable String comment,
                                     @Nullable Integer daecIndex) {
+        if (managingClubId == null) {
+            throw new IllegalArgumentException("managingClubId must not be null");
+        }
         Aircraft a = new Aircraft();
+        a.managingClubId = managingClubId;
         a.ownerClubId = ownerClubId;
         a.assignAircraftType(aircraftTypeId);
         a.assignImmatriculation(immatriculation);

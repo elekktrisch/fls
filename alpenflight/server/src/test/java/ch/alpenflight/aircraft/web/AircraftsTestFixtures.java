@@ -33,10 +33,10 @@ final class AircraftsTestFixtures {
 
     /**
      * Builds an {@code AircraftCreateRequest} payload as JSON-shaped map.
-     * Tenant scoping (S-159): {@code managing_club_id} is set by Hibernate
-     * from the JWT resolver — neither callers nor the DTO carry it.
-     * Ownership defaults to the managing club at the service layer; change
-     * via the transfer-ownership endpoint.
+     * Aircraft is cross-tenant (S-058 reverts S-159): {@code managing_club_id}
+     * is set by the service from the JWT resolver — neither callers nor the
+     * DTO carry it. {@code owner_club_id} defaults to the managing club at
+     * the service layer; change via the transfer-ownership endpoint.
      */
     static Map<String, Object> createPayload(String immatriculation) {
         Map<String, Object> n = new LinkedHashMap<>();

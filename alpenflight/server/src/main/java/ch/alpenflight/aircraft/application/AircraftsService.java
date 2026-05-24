@@ -40,10 +40,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Transactional service for the {@link Aircraft} aggregate. Tenant scoping
- * (S-159) is structural via Hibernate's {@code @TenantId} discriminator on
- * {@code Aircraft.managingClubId}; role-within-tenant gates live on the
- * controller as {@code @PreAuthorize("hasRole(...)")}.
+ * Transactional service for the {@link Aircraft} aggregate. Aircraft is
+ * cross-tenant (S-058 reversion of S-159, 2026-05-24); reads are open at
+ * the controller; mutations are gated by {@code managing_club_id} via the
+ * {@code AircraftAccess} SpEL bean.
  *
  * <p>Immatriculation uniqueness is GLOBAL (regulator-convention; partial
  * UNIQUE {@code ux_aircraft_immatriculation} WHERE {@code deleted_on IS
@@ -128,15 +128,24 @@ public class AircraftsService {
                     throw new DuplicateImmatriculationException(normalized);
                 });
 
-        // Ownership defaults to the managing club (own-club case). CLUB_ADMIN
-        // can later flip to other-club / private-person via transferOwnership.
-        // managing_club_id itself is set by Hibernate via @TenantId on save.
-        UUID defaultOwnerClubId = tenantResolver.resolveCurrentTenantIdentifier();
-        if (ClubTenantIdentifierResolver.NO_TENANT.equals(defaultOwnerClubId)) {
-            defaultOwnerClubId = null;
+        // managingClubId (operational manager) is set from the caller's tenant.
+        // The owner_club_id defaults to the same club in the own-club case;
+        // CLUB_ADMIN can flip via transferOwnership to other-club /
+        // external-organisation (owner_club_id NULL) / private-person.
+        UUID callerClubId = tenantResolver.resolveCurrentTenantIdentifier();
+        if (ClubTenantIdentifierResolver.NO_TENANT.equals(callerClubId)) {
+            // Unscoped callers (cutover import) must supply a managingClubId
+            // out-of-band; for the HTTP-served register this means a
+            // SYSTEM_ADMIN register is unsupported until a follow-up story
+            // adds an explicit managingClubId field to the admin variant.
+            throw new IllegalStateException(
+                    "Aircraft.register requires a tenant context; unscoped caller cannot register");
         }
+        UUID managingClubId = callerClubId;
+        UUID defaultOwnerClubId = callerClubId;
 
         Aircraft a = Aircraft.register(
+                managingClubId,
                 defaultOwnerClubId,
                 req.aircraftTypeId().value(),
                 req.immatriculation(),
@@ -324,17 +333,18 @@ public class AircraftsService {
         try {
             Aircraft saved = aircrafts.save(a);
             // Immatriculation uniqueness is regulator-GLOBAL (partial UNIQUE on
-            // immatriculation WHERE deleted_on IS NULL). The application
-            // pre-check only sees the caller's tenant under @TenantId scoping —
-            // so a cross-tenant collision needs the DB to surface the violation
-            // synchronously. Flush before returning so the IIE → typed exception
-            // mapping fires from this catch, not at tx commit.
+            // immatriculation WHERE deleted_on IS NULL). Flush before returning so
+            // the IIE → typed-exception mapping fires from this catch, not at tx
+            // commit. (Pre-S-058 the application pre-check was tenant-scoped so the
+            // DB was the only path to a cross-tenant collision; now reads are
+            // cross-tenant and the pre-check catches almost everything, but flush
+            // still pins the timing for races.)
             aircrafts.flush();
             return saved;
         } catch (DataIntegrityViolationException e) {
             // Only the immatriculation UNIQUE constraint maps to the typed
-            // domain exception; FK violations (managing_club_id on NO_TENANT,
-            // aircraft_type_id) propagate unchanged.
+            // domain exception; FK violations (aircraft_type_id, owner_club_id)
+            // propagate unchanged.
             String causeMessage = e.getMostSpecificCause() == null
                     ? ""
                     : String.valueOf(e.getMostSpecificCause().getMessage());

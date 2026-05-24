@@ -1,10 +1,10 @@
 package ch.alpenflight.server.testsupport;
 
-import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.articles.domain.Article;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
+import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.persons.domain.PersonClub;
@@ -48,7 +48,7 @@ public final class TenantScopedRowBuilders {
     private static final Map<Class<?>, Function<SweepFixtureContext, ?>> BUILDERS = Map.of(
             MemberState.class, ctx -> new MemberState(uniqueName("MS")),
             Location.class, LocationSweepFactory::build,
-            Aircraft.class, AircraftSweepFactory::build,
+            Flight.class, FlightSweepFactory::build,
             FlightType.class, FlightTypeSweepFactory::build,
             Article.class, ArticleSweepFactory::build,
             // PersonClub is aggregate-internal under the cross-tenant Person

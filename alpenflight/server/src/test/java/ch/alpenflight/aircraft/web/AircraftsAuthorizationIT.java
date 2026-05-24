@@ -31,17 +31,22 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Authz matrix for the Aircraft REST surface under the S-159 model:
+ * Authz matrix for the Aircraft REST surface under S-058 (reverts S-159):
  *
  * <ul>
- *   <li><strong>Tenant scoping is structural</strong> via Hibernate's
- *       {@code @TenantId} discriminator on {@code Aircraft.managingClubId}.
- *       Cross-club access is invisible (404), not 403 — the IDOR contract.</li>
- *   <li><strong>Role gates</strong> on the controller: CLUB_ADMINISTRATOR for
- *       register / update / soft-delete / transfer-ownership;
- *       CLUB_ADMINISTRATOR or FLIGHT_OPERATOR for state change + counter.</li>
- *   <li><strong>SYSTEM_ADMINISTRATOR has no rights here</strong> — sysadmin
- *       lacks a tenant context (no clubId claim) and is denied at every gate.</li>
+ *   <li><strong>Reads are cross-tenant.</strong> Any authenticated user
+ *       lists / picks / detail-reads any aircraft — the catalog is shared
+ *       so a Club B user can pick Club A's tow plane on a Flight.</li>
+ *   <li><strong>Writes are manager-gated</strong> via the
+ *       {@code AircraftAccess} SpEL bean: CLUB_ADMINISTRATOR of
+ *       {@code managing_club_id} for masterdata (update / soft-delete /
+ *       transfer-ownership); CLUB_ADMINISTRATOR or FLIGHT_OPERATOR of
+ *       {@code managing_club_id} for state + counter. Cross-club writes
+ *       surface as 403, not 404.</li>
+ *   <li><strong>SYSTEM_ADMINISTRATOR has fallback rights on masterdata</strong>
+ *       writes (for cutover / cross-cutting admin) but is intentionally
+ *       NOT a register-path role today — sysadmin lacks a clubId claim
+ *       and the service can't infer a managing tenant.</li>
  * </ul>
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
@@ -80,21 +85,21 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void clubAdminOfOtherClub_seesCrossTenantAircraft_as_404_not_403() {
-        // CLUB_A creates aircraft (becomes managing tenant of the row).
+    void clubAdminOfOtherClub_reads_crossTenantAircraft_but_cannot_write() {
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> created = post("/api/v1/aircraft",
                 createPayload(uniqueImmatriculation()), adminA);
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         String id = readJson(created).get("id").asText();
 
-        // CLUB_B's admin: the row is invisible under B's tenant scope → 404.
+        // CLUB_B's admin can read (cross-tenant catalog), but cannot write
+        // (manager-club gated).
         String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> read = get("/api/v1/aircraft/" + id, adminB);
-        assertThat(read.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(read.getStatusCode()).isEqualTo(HttpStatus.OK);
         ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
                 updatePayload(uniqueImmatriculation()), adminB);
-        assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -111,15 +116,31 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void sysAdmin_cannotRegister_lacksClubAdminRole() {
-        // Sysadmin is rejected at the @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
-        // gate before reaching the persistence layer. The NO_TENANT / FK-fail
-        // path on `managing_club_id` is unreachable from HTTP but covered
-        // directly in AircraftsTenantIsolationIT.no_tenant_context_writes_fail_at_fk_constraint.
+    void sysAdmin_cannotRegister_lacksClubIdClaim() {
+        // Register is intentionally CLUB_ADMINISTRATOR-only — sysadmin lacks
+        // a clubId claim and the service can't infer the managing tenant.
+        // A dedicated /admin/aircraft variant for sysadmin (with an explicit
+        // managingClubId field) is deferred to a follow-up story.
         String sysToken = mintToken(null, "SYSTEM_ADMINISTRATOR");
         ResponseEntity<String> res = post("/api/v1/aircraft",
                 createPayload(uniqueImmatriculation()), sysToken);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void sysAdmin_canMutate_existingAircraft() {
+        // For pre-existing aircraft, SYSTEM_ADMIN is the universal fallback
+        // on the AircraftAccess.canEdit / canOperate predicates — handles
+        // the cutover / cross-cutting maintenance case.
+        String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation()), adminA);
+        String id = readJson(created).get("id").asText();
+
+        String sysToken = mintToken(null, "SYSTEM_ADMINISTRATOR");
+        ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
+                updatePayload(uniqueImmatriculation()), sysToken);
+        assertThat(upd.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
@@ -139,8 +160,11 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void flightOperatorOfOtherClub_sees_404_on_stateChange() {
-        // Cross-tenant state change is invisible → 404, not 403.
+    void flightOperatorOfOtherClub_cannot_changeState_returns_403() {
+        // Aircraft is cross-tenant on reads but writes are manager-club
+        // gated — Club B's FLIGHT_OPERATOR can't change state on Club A's
+        // aircraft. Surfaces as 403 (the row is readable; the write is
+        // denied), not 404.
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> created = post("/api/v1/aircraft",
                 createPayload(uniqueImmatriculation()), adminA);
@@ -152,7 +176,23 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
                         "aircraftStateId", SEED_AIRCRAFT_STATE_OK,
                         "validFrom", "2026-01-01T08:00:00Z"),
                 opsB);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void clubAdminOfOtherClub_cannot_listCounters_returns_403() {
+        // Counter snapshots reflect the managing club's bookkeeping —
+        // a foreign club's totals would be misleading (their flights live
+        // in a different system). The list endpoint gates to manager-club
+        // even though plain detail / state reads stay open.
+        String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation()), adminA);
+        String id = readJson(created).get("id").asText();
+
+        String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> res = get("/api/v1/aircraft/" + id + "/counters", adminB);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -172,10 +212,9 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void clubAdmin_canTransferOwnership_inOwnTenant() {
-        // S-159: transferOwnership changes ownership metadata only;
-        // managing tenant is unchanged. CLUB_ADMIN of the managing tenant
-        // is the gate (no longer sysadmin-only).
+    void clubAdmin_canTransferOwnership_whenManagingClub() {
+        // transferOwnership changes ownership metadata only; managing club
+        // is unchanged. CLUB_ADMIN of the managing club is the gate.
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> created = post("/api/v1/aircraft",
                 createPayload(uniqueImmatriculation()), adminA);

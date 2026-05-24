@@ -280,45 +280,49 @@ overrides:
     # The tenant identity row itself. Each Club row IS a tenant.
 
   Aircrafts:
-    kind: tenant-scoped   # reclassified 2026-05-23 (S-159): managing_club_id is @TenantId; owner_club_id is independent ownership metadata
+    kind: cross-tenant   # S-058 (2026-05-24): drops S-159's @TenantId discriminator but KEEPS the managing_club_id column. Reads are open; mutations are gated to CLUB_ADMINISTRATOR (or FLIGHT_OPERATOR for state/counter) of managing_club_id via the AircraftAccess SpEL bean.
     target_entity: Aircraft
     rationale_ref: tenant-catalog.md#aircraft
-    tenant_column_legacy: OwnerId  # legacy BaseEntity column = managing tenant; maps to new managing_club_id
-    owner_column: managing_club_id  # uuid NOT NULL → club(id) ON DELETE RESTRICT; the tenant that registered + operates this aircraft
+    tenant_column_legacy: OwnerId
+    owner_column: managing_club_id  # uuid NOT NULL → club(id) ON DELETE RESTRICT; the operational manager (the club that may edit this aircraft's masterdata). Distinct from owner_club_id (physical-owner metadata, NULL OK).
     emits_audit: true
     pii_columns: [comment]
     sensitive_columns: [immatriculation, flarm_id, competition_sign, aircraft_serial_number, mtom, noise_class, noise_level, spot_link]
     pii_ride_through: [aircraft_owner_person_id]
-    # Reclassification rationale (2026-05-23, S-159): supersedes the 2026-05-16
-    # cross-tenant amendment. Every aircraft is registered by exactly one tenant
-    # (managing_club_id, the @TenantId discriminator). Physical ownership is
-    # independent — own-club (owner_club_id == managing_club_id), other
-    # organisation (owner_club_id != managing_club_id, or NULL when external),
-    # or private person (aircraft_owner_person_id). Ownership data does NOT
-    # cross @TenantId boundaries; only the managing club sees the row.
+    # Cross-tenant rationale (2026-05-24, S-058): supersedes the 2026-05-23 S-159
+    # tenant-scoping. Three orthogonal columns now drive Aircraft semantics:
+    #   - managing_club_id (NOT NULL): operational manager — the gate field for the
+    #     AircraftAccess SpEL bean. Required even for external-owned aircraft
+    #     (Club A operates an aircraft owned by an organisation not in the system —
+    #     managing_club_id = Club A, owner_club_id = NULL).
+    #   - owner_club_id (NULL OK): physical owner club. Metadata only — does NOT
+    #     gate edits. NULL = external organisation OR private-person owned.
+    #   - aircraft_owner_person_id (NULL OK): private-person owner. Metadata only;
+    #     person-edit predicate deferred until S-052 wires User→Person.
+    # Reads are unscoped (any authenticated user) so the Flight aircraft picker
+    # surfaces other clubs' aircraft for the charter case.
 
   AircraftAircraftStates:
-    kind: tenant-scoped
+    kind: cross-tenant   # inherits Aircraft's cross-tenant classification (S-058 / 2026-05-24)
     target_entity: AircraftAircraftState
     rationale_ref: tenant-catalog.md#aircraft
     emits_audit: true
     pii_columns: [remarks]
     pii_ride_through: [noticed_by_person_id]
     ride_through_targets: [Persons]
-    # Per-aircraft state history (FK: AircraftId; ValidFrom / ValidTo / NoticedByPersonId).
-    # Inherits Aircrafts' tenant-scoped classification (2026-05-23, S-159): airworthiness
-    # state rides with the managing tenant; the parent aircraft's @TenantId
-    # discriminator covers the child via FK chain — no separate column needed.
+    # Per-aircraft state history. The parent Aircraft is cross-tenant; state changes are
+    # airworthiness / maintenance events gated to the owner club's FLIGHT_OPERATOR / CLUB_ADMIN
+    # via the AircraftAccess SpEL bean (same predicate as Aircraft writes).
 
   AircraftOperatingCounters:
-    kind: tenant-scoped
+    kind: cross-tenant   # inherits Aircraft's cross-tenant classification (S-058 / 2026-05-24)
     target_entity: AircraftOperatingCounter
     rationale_ref: tenant-catalog.md#aircraft
     emits_audit: true
-    # Per-aircraft engine / flight-hour counter history (FK: AircraftId; AtDateTime, totals,
-    # next-maintenance thresholds). Inherits Aircrafts' tenant-scoped classification: the
-    # managing tenant's FLIGHT_OPERATOR / CLUB_ADMIN record + read counters.
-    # Maintenance triggers (NextMaintenanceAt*) are airframe-level, scoped per tenant.
+    # Cumulative airframe counters. Write gate today is owner-club via AircraftAccess; a
+    # follow-up story can extend to "any operator who flew this aircraft" if the operational
+    # workflow requires per-flight counter advances from chartering clubs (Flight engine
+    # times on flight.engine_*_operating_counter_in_seconds already record per-flight deltas).
 
   AuditLogs:
     kind: tenant-scoped
@@ -348,12 +352,10 @@ overrides:
     # CHECK shape and the S-027 audit-redaction set treats free-text PII columns
     # only. If a future audit policy wants coupon-redaction, classify under
     # `sensitive_columns` (parallel to aircraft.flarm_id) rather than PII proper.
-    # Per S-159 (Aircraft tenant-scoped via managing_club_id), Flight.operating_club_id is
-    # set per-flight by the operator and is NOT derived from Aircraft.managing_club_id. The
-    # legacy "charter pool" cross-tenant case (Club B operates Club A's aircraft) is no
-    # longer first-class — S-058 (Flight) revisits the contract under @TenantId on Aircraft.
-    # Owner metadata (aircraft.owner_club_id / aircraft.aircraft_owner_person_id) is
-    # independent of tenancy and may differ from the managing tenant (other-org / private).
+    # S-058 (2026-05-24) reverts S-159: Aircraft is cross-tenant again, so the charter pool
+    # case (Club B's Flight references Club A's tow plane) is first-class. flight.aircraft_id
+    # FK does NOT require same-tenant Aircraft — any active aircraft is referenceable.
+    # flight.operating_club_id stays as the @TenantId discriminator (the operating club's books).
     #
     # Classifier note: legacy Flights had no ClubId column — tenancy was INDIRECT via
     # Aircrafts.OwnerClubId FK-hop. `kind:` is omitted so step 1 (override) doesn't fire and
@@ -363,7 +365,7 @@ overrides:
     tenant_column: operating_club_id
     preconditions:
       - "S-013 ships flight.operating_club_id as required column set per-flight by operator (do not denormalize from aircraft.owner_club_id)"
-      - "S-022 service layer enforces 'may this club use this aircraft?' (owner / charter / public-rental checks) via Aircraft aggregate"
+      - "S-058 reverts S-159: aircraft_id is unrestricted (any active aircraft); use-rights gating is deferred to a future story if needed"
 
   Articles:
     kind: tenant-scoped  # S-013 — aggregate root per ADR 0018; legacy Article carries ClubId NOT NULL
@@ -430,13 +432,14 @@ overrides:
     # `pii_ride_through` lists ONLY cross-tenant FKs to entities that carry direct PII
     # (Persons). Consumers (S-027 audit-blob redaction, S-051 DSAR scope) iterate this
     # list assuming "data here is PII to redact / scrub on subject erasure".
-    # Per S-159: Aircraft is now tenant-scoped (managing_club_id @TenantId), so the
-    # aircraft_id FK is same-tenant by construction — it is NOT a cross-tenant FK and
-    # carries no PII. Reclassifies the 2026-05-16 amendment that added Aircrafts to the
-    # ride-through + cross_tenant_fks list.
+    # Per S-058 (2026-05-24, reverts S-159): Aircraft is cross-tenant again. The
+    # aircraft_id FK on aircraft_reservation can therefore reference an aircraft owned
+    # by another club; the parity is the same as flight.aircraft_id. aircraft_owner_person_id
+    # is the only PII ride-through on Aircraft (immatriculation and similar are sensitive
+    # but not direct-PII).
     preconditions:
-      - "S-068 (AircraftReservation) revisits Aircraft.canBeReservedBy(operating_club_id) under the @TenantId model — a reservation may only reference an aircraft of the same managing tenant"
-      - "S-027 audit-blob redaction iterates pii_ride_through (Persons only); aircraft_id is a same-tenant FK, no special handling"
+      - "S-068 (AircraftReservation) revisits Aircraft.canBeReservedBy(operating_club_id) under the new cross-tenant model — any reservation may reference any aircraft; mutations on Aircraft itself stay owner-club gated"
+      - "S-027 audit-blob redaction iterates pii_ride_through (Persons only); aircraft_id is structurally an FK, no PII"
       - "S-051 DSAR scope iterates pii_ride_through (Persons only)"
 
   PlanningDays:

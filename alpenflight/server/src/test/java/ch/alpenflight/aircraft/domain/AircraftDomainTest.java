@@ -230,7 +230,7 @@ class AircraftDomainTest {
     }
 
     private static Aircraft registered(String immatriculation) {
-        return Aircraft.register(CLUB_A, GLIDER_TYPE, immatriculation,
+        return Aircraft.register(CLUB_A, CLUB_A, GLIDER_TYPE, immatriculation,
                 null, null, null, null, null, LocalDate.of(2020, 1, 1),
                 null, null, null, null, null, null, null, null, null,
                 false, false, false, false, null, null);

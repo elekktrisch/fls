@@ -9,12 +9,14 @@
  * {@link ch.alpenflight.aircraft.domain.AircraftRepository} port is the
  * persistence boundary.
  *
- * <p>Tenant-scoped via {@link ch.alpenflight.aircraft.domain.Aircraft#managingClubId}
- * (S-159 reclassification): the {@code @TenantId} discriminator filters
- * reads + writes by the resolved managing tenant. Aggregate-internal
- * entities ({@code AircraftStateHistoryEntry}, {@code AircraftOperatingCounter})
- * ride through the parent via FK chain; they do not carry their own
- * {@code @TenantId}.
+ * <p>Cross-tenant per S-058 (reversion of S-159's {@code @TenantId}, but
+ * keeps the {@code managing_club_id} column as the operational-manager
+ * gate). Read endpoints are open to any authenticated user (the Flight
+ * aircraft picker must see other clubs' aircraft for the charter case);
+ * write endpoints are gated by {@code managing_club_id} via the
+ * {@code AircraftAccess} SpEL bean. Aggregate-internal entities
+ * ({@code AircraftStateHistoryEntry}, {@code AircraftOperatingCounter})
+ * ride the parent's aggregate boundary.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.aircraft.domain;
