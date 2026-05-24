@@ -3,8 +3,10 @@ package ch.alpenflight.flights.infra;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * One-shot lookup of the two reference-data UUIDs the Flight aggregate
@@ -24,20 +26,27 @@ public class FlightInitialState implements FlightInitialStateProvider {
     private static final String INITIAL_AIR_STATE_CODE = "NEW";
 
     private final EntityManager em;
+    private final TransactionTemplate tx;
 
     private UUID initialProcessStateId = new UUID(0L, 0L);
     private UUID initialAirStateId = new UUID(0L, 0L);
 
-    public FlightInitialState(EntityManager em) {
+    public FlightInitialState(EntityManager em, TransactionTemplate tx) {
         this.em = em;
+        this.tx = tx;
     }
 
     @PostConstruct
     void resolveSeeds() {
-        initialProcessStateId = lookup(FlightProcessStateProjection.class,
-                INITIAL_PROCESS_STATE_CODE, "flight_process_state");
-        initialAirStateId = lookup(FlightAirStateProjection.class,
-                INITIAL_AIR_STATE_CODE, "flight_air_state");
+        // Resolve inside an explicit transaction so the EntityManager has a
+        // bound JDBC session — outside Spring's @Transactional, the EM's
+        // ResultSet would be closed before we read the row.
+        tx.executeWithoutResult(status -> {
+            initialProcessStateId = lookup(FlightProcessStateProjection.class,
+                    INITIAL_PROCESS_STATE_CODE, "flight_process_state");
+            initialAirStateId = lookup(FlightAirStateProjection.class,
+                    INITIAL_AIR_STATE_CODE, "flight_air_state");
+        });
     }
 
     @Override
@@ -52,16 +61,18 @@ public class FlightInitialState implements FlightInitialStateProvider {
 
     private <T> UUID lookup(Class<T> projection, String code, String tableName) {
         String entityName = projection.getSimpleName();
-        @SuppressWarnings("unchecked")
-        Object row = em.createQuery(
-                        "select p from " + entityName + " p where p.code = :c",
-                        projection)
-                .setParameter("c", code)
-                .getResultStream()
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "Reference seed missing: " + tableName + ".code='" + code
-                                + "' — V3 migration must seed this row"));
+        Object row;
+        try {
+            row = em.createQuery(
+                            "select p from " + entityName + " p where p.code = :c",
+                            projection)
+                    .setParameter("c", code)
+                    .getSingleResult();
+        } catch (NoResultException e) {
+            throw new IllegalStateException(
+                    "Reference seed missing: " + tableName + ".code='" + code
+                            + "' — V3 migration must seed this row", e);
+        }
         if (row instanceof FlightProcessStateProjection p && p.getId() != null) {
             return p.getId();
         }
