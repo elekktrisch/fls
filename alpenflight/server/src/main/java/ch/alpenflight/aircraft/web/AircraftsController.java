@@ -44,10 +44,13 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code /api/v1/aircraft} (mass noun — no plural form).
  *
  * <p>Aircraft is <strong>cross-tenant</strong> (S-058 reversion of S-159).
- * Reads (list / picker / detail / state-history / counter-history) require
- * only {@code isAuthenticated()} — the catalog is shared so a Club B user
- * can pick Club A's tow plane on a Flight. Mutations are gated by the
- * {@code AircraftAccess} SpEL bean:
+ * Reads (list / picker / detail / state-history) require only
+ * {@code isAuthenticated()} — the catalog is shared so a Club B user can
+ * pick Club A's tow plane on a Flight. Counter-history reads are
+ * manager-only (a foreign club's counter view isn't operationally useful;
+ * most of that aircraft's flights live in another system).
+ *
+ * <p>Mutations are gated by the {@code AircraftAccess} SpEL bean:
  *
  * <ul>
  *   <li>{@code @aircraftAccess.canRegister(#jwt)} on register — any
@@ -187,7 +190,7 @@ public class AircraftsController {
     @Operation(summary = "List counter history for an Aircraft (newest first).")
     @ApiResponse(responseCode = "200", description = "Counter history.")
     @GetMapping("/{id}/counters")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@aircraftAccess.canEdit(#id, authentication.principal)")
     public AircraftCounterHistory listCounterHistory(@PathVariable AircraftId id) {
         return service.getCounterHistory(id);
     }

@@ -49,10 +49,11 @@ final class AircraftMapper {
     /**
      * Build the detail projection. Aircraft is cross-tenant (S-058 reversion
      * of S-159) — any authenticated user may read the row to surface it on
-     * a Flight picker. Sensitive owner-only fields (flarm id, mtom, noise
-     * class / level, spot link, comment) are still returned on the full
-     * detail today; an explicit non-owner projection is a follow-up story
-     * if the policy bar rises.
+     * a Flight picker. {@code latestCounter} is still surfaced here for the
+     * managing club's own use; a future story may redact it (and other
+     * sensitive fields like flarm id, mtom, comment) for non-managing
+     * readers via a caller-aware mapper. For now the counter-history list
+     * endpoint already gates to the managing club via {@code AircraftAccess}.
      */
     static AircraftDetail toDetail(Aircraft a) {
         return new AircraftDetail(

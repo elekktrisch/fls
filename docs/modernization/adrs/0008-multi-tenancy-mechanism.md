@@ -71,3 +71,27 @@ SYSTEM_ADMINISTRATOR is no longer co-allowed on tenant-scoped HTTP endpoints. Sy
 `Tenants.runAs(...)` survives only as an in-process seam for: the audit listener / `RequestAuditFilter`, OGN ingestion, scheduled jobs, cutover import. It is never wired through to an HTTP path that exists to "act as a club from the outside." Tenant data is acted on by members of that tenant; nothing else.
 
 Reclassifies the `alpenflight/database/tenant-rules.yaml` 2026-05-16 Aircraft-cross-tenant amendment as **superseded**: Aircraft is now tenant-scoped via `managing_club_id`. The aircraft_id FK on `aircraft_reservation` / `flight` becomes a same-tenant FK by construction; S-058 (Flight) and S-068 (AircraftReservation) inherit the new contract.
+
+## Amendment — 2026-05-24 (S-058, reverts the S-159 Aircraft scoping above)
+
+The S-058 grilling pass on Flight semantics surfaced the day-1 use case S-159's Aircraft tenant-scoping had structurally closed: small glider clubs charter tow planes from other clubs (or from external owners not in the Clubs catalog at all). A Club B user must be able to pick Club A's tow plane on a Flight; equally, Club A must be able to operate aircraft whose physical owner isn't a registered Club.
+
+**Aircraft reverts to cross-tenant** (mirrors Person + Location). The `@TenantId` discriminator on `Aircraft.managingClubId` is removed; the `managing_club_id` column survives as plain metadata — the operational manager — and gates writes via the `AircraftAccess` SpEL bean at the controller layer:
+
+- `managing_club_id` (NOT NULL): the operational manager — required even for external-owner aircraft (the manager IS the entity that runs the row's lifecycle).
+- `owner_club_id` (NULL OK): physical owner club. Metadata only; does NOT gate edits. NULL when owned by an external organisation or by a private person.
+- `aircraft_owner_person_id` (NULL OK): private-person owner metadata. Person-edit predicate deferred until S-052 (Users CRUD) wires User→Person.
+
+**Read endpoints are open** to any authenticated user — except counter-history. Counter snapshots reflect the managing club's bookkeeping (most of a foreign club's flights aren't in the system, so the totals are misleading to non-managers): `GET /api/v1/aircraft`, `/picker`, `/{id}`, `/{id}/states` are open; `GET /api/v1/aircraft/{id}/counters` is manager-only (same predicate as masterdata writes). The detail GET still surfaces the latest counter inline today; a follow-up story can redact it for non-managers when the policy bar rises.
+
+**Write endpoints are gated** by:
+
+- `@aircraftAccess.canRegister(jwt)` — CLUB_ADMIN only (managing_club_id sourced from JWT clubId; sysadmin has no clubId and must use a future admin variant).
+- `@aircraftAccess.canEdit(id, jwt)` — CLUB_ADMINISTRATOR of managing_club_id, OR SYSTEM_ADMINISTRATOR (universal fallback for cross-cutting maintenance).
+- `@aircraftAccess.canOperate(id, jwt)` — same predicate, FLIGHT_OPERATOR also admitted.
+
+**Flight contract** (S-058): `aircraft_id` is unrestricted (any active aircraft). The charter pair (glider + tow flights) sits under a single `operating_club_id` (the operating club's books); the tow's `aircraft_id` may reference a different club's aircraft. The `tow_flight_id` self-FK still pairs two flights inside the same operating club. The previous "same-tenant aircraft check" service-layer guard is withdrawn.
+
+**S-068 (AircraftReservation)** inherits the unrestricted contract: any club may reserve any aircraft (subject to a future "may this club use this aircraft" gate if needed).
+
+**Schema delta:** none. The `managing_club_id` column from V10 stays in place; only the `@TenantId` annotation in Java is dropped. No data migration needed.

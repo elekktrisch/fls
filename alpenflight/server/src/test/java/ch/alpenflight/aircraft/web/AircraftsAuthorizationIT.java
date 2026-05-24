@@ -180,6 +180,22 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void clubAdminOfOtherClub_cannot_listCounters_returns_403() {
+        // Counter snapshots reflect the managing club's bookkeeping —
+        // a foreign club's totals would be misleading (their flights live
+        // in a different system). The list endpoint gates to manager-club
+        // even though plain detail / state reads stay open.
+        String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation()), adminA);
+        String id = readJson(created).get("id").asText();
+
+        String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> res = get("/api/v1/aircraft/" + id + "/counters", adminB);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void officeUser_cannotRecordCounter() {
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> created = post("/api/v1/aircraft",
