@@ -15,28 +15,6 @@ Queue of trivial cleanups waiting for the next story's PR to bundle them in. Per
 
 ## Pending items (oldest first)
 
-### CI display-name rename `next *` → `alpenflight *` + auto-commit-on-drift (S-051 follow-up)
-
-`Status:` pending
-
-Two CI workflow improvements I tried to land inside S-051's PR but couldn't push from the sandbox (the OAuth-App token lacks `workflow` scope, AND the silent gate that workflow-file pushes from OAuth-app tokens trigger blocked subsequent `pull_request` CI on the branch — only resolvable by force-pushing the workflow commits out of history). Has to ship from a host-direct push with a PAT that holds `workflow` scope.
-
-The diff was at branch commit `831ba8f4` (rewritten out of the S-051 branch in the final force-push) — recover via `git show 831ba8f4` from any clone that fetched the branch before the rewrite, or recompose from these specs:
-
-1. **Display-name rename** in `.github/workflows/ci.yml`:
-   - `next-build:` job → `name: alpenflight build`
-   - `next-auth-realm-shape:` job → `name: alpenflight auth realm shape`
-   - `required` aggregator's printed labels follow suit (`"alpenflight-build:..."`, etc.)
-   - Job ids (`next-build` / `next-auth-realm-shape`) stay unchanged to avoid breaking branch-protection wiring; the `required` aggregator id stays as the load-bearing check name.
-2. **Auto-commit-on-drift for generated API client** (replaces the current `Regenerate API client and assert no drift` fail-on-diff step):
-   - `permissions: contents: write` granted at the `next-build` job scope.
-   - `actions/checkout@v4` switched to `ref: ${{ github.event.pull_request.head.ref || github.ref }}` + `persist-credentials: true`.
-   - On drift: `git config user.name "github-actions[bot]"` + same-repo PR detection (head.repo == base.repo) + `git add` + `git commit -m "ci: regenerate API client [skip ci]"` + `git push origin HEAD:<head-ref>`.
-   - Fork PRs + `push` events fall back to the previous fail-with-message behavior (no write token).
-   - Concurrency.cancel-in-progress already in the workflow handles the racing-rerun case.
-
-**Push from your host** (where your gh PAT has `workflow` scope, not the sandbox OAuth-App) — otherwise the gate that bit S-051 will bite the next PR too.
-
 ### CI job-ids rename `next-*` → `alpenflight-*` (S-152 follow-up)
 
 `Status:` pending
