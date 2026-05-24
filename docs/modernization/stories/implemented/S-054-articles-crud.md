@@ -26,6 +26,8 @@ parity_excluded:
 refined: true
 refined_at: 2026-05-24
 refined_specialists: [requirements, solution, qa, security]
+merged: true
+merged_at: 2026-05-24
 ---
 
 ## Context
