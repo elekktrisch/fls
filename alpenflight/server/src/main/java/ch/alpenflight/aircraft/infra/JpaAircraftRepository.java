@@ -17,9 +17,8 @@ import org.springframework.data.repository.query.Param;
  * Data generates the runtime bean.
  *
  * <p>Soft-delete (V3 {@code deleted_on}) is filtered at the query layer.
- * Aircraft is tenant-scoped via {@code @TenantId} on
- * {@code Aircraft.managingClubId} (S-159); Hibernate appends the tenant
- * predicate to every query automatically.
+ * Aircraft is cross-tenant (S-058 reversion of S-159) — queries return
+ * rows from any club; the catalog is intentionally shared.
  *
  * <p>List + picker rows are flat projection DTOs to avoid N+1 across
  * {@code aircraft_type} + current {@code aircraft_aircraft_state}. The

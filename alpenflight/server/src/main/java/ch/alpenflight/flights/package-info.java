@@ -8,9 +8,10 @@
  *
  * <p>Tenant-scoped via Hibernate's {@code @TenantId} discriminator on
  * {@link ch.alpenflight.flights.domain.Flight#operatingClubId} (ADR 0008).
- * Per the S-159 amendment, {@code Aircraft.managing_club_id} matches
- * {@code Flight.operating_club_id} by construction — the aircraft_id FK is
- * structurally same-tenant (charter cross-tenant is withdrawn).
+ * Aircraft is cross-tenant (S-058 reversion of S-159) so a Flight's
+ * {@code aircraft_id} FK may reference any active aircraft regardless of
+ * its managing club — this is the charter case (Club B's Flight flying
+ * Club A's tow plane).
  *
  * <p>Layered per ADR 0023 into four sub-packages: {@code domain} (aggregate
  * root + aggregate-internal FlightCrew + value objects + repository port +

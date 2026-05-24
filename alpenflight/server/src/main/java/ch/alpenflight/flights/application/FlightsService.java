@@ -8,14 +8,12 @@ import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
 import ch.alpenflight.flights.application.FlightDtos.FlightListItem;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
-import ch.alpenflight.flights.domain.AircraftReferenceCheck;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightOperationalData;
 import ch.alpenflight.flights.domain.FlightRepository;
-import ch.alpenflight.flights.domain.InvalidFlightReferenceException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
@@ -35,10 +33,12 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link Flight#getOperatingClubId()}; role-within-tenant gates live on
  * the controller.
  *
- * <p>Per S-159, aircraft FK is same-tenant by construction —
- * {@link AircraftReferenceCheck} runs a tenant-aware existence check
- * before persist so a CLUB_B principal cannot create a Flight against a
- * CLUB_A aircraft (which would silently produce an unreadable row).
+ * <p>S-058 (reverts S-159): Aircraft is cross-tenant — any active aircraft
+ * may be referenced on a Flight (charter case: Club B flies Club A's tow
+ * plane). The FK constraint at the DB rejects unknown aircraftIds with a
+ * generic data-integrity violation; pre-validation isn't needed for the
+ * tenant gate (Aircraft has no @TenantId), only for friendlier error
+ * messages, which we defer.
  *
  * <p>State-machine columns ({@code process_state_id}, {@code air_state_id},
  * {@code validated_on}, etc.) are stamped at create from
@@ -59,20 +59,17 @@ public class FlightsService {
 
     private final FlightRepository repository;
     private final FlightInitialStateProvider initialState;
-    private final AircraftReferenceCheck aircraftChecker;
     private final FlightMapper mapper;
     private final AuditTrail audit;
     private final Clock clock;
 
     public FlightsService(FlightRepository repository,
                           FlightInitialStateProvider initialState,
-                          AircraftReferenceCheck aircraftChecker,
                           FlightMapper mapper,
                           AuditTrail audit,
                           Clock clock) {
         this.repository = repository;
         this.initialState = initialState;
-        this.aircraftChecker = aircraftChecker;
         this.mapper = mapper;
         this.audit = audit;
         this.clock = clock;
@@ -80,9 +77,6 @@ public class FlightsService {
 
     public FlightDetail createFlight(FlightCreateRequest req) {
         UUID aircraftUuid = req.aircraftId().value();
-        if (!aircraftChecker.isAccessibleAircraft(aircraftUuid)) {
-            throw new InvalidFlightReferenceException("Aircraft", aircraftUuid);
-        }
         FlightOperationalData ops = mapper.toOperationalData(req);
         Flight flight = switch (req.flightAircraftType()) {
             case GLIDER -> Flight.createGlider(aircraftUuid,
@@ -152,11 +146,6 @@ public class FlightsService {
     public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
-        UUID aircraftUuid = req.aircraftId().value();
-        if (!flight.getAircraftId().equals(aircraftUuid)
-                && !aircraftChecker.isAccessibleAircraft(aircraftUuid)) {
-            throw new InvalidFlightReferenceException("Aircraft", aircraftUuid);
-        }
         FlightDetail before = mapper.toDetail(flight);
         flight.updateOperationalData(mapper.toOperationalData(req));
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));

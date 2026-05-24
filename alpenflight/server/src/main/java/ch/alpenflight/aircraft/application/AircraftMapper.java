@@ -47,10 +47,12 @@ final class AircraftMapper {
     }
 
     /**
-     * Build the detail projection. Aircraft is tenant-scoped via
-     * {@code managing_club_id} (S-159), so any caller who sees the row
-     * belongs to the managing tenant — owner-only field redaction is no
-     * longer needed (the {@code @TenantId} discriminator did the work).
+     * Build the detail projection. Aircraft is cross-tenant (S-058 reversion
+     * of S-159) — any authenticated user may read the row to surface it on
+     * a Flight picker. Sensitive owner-only fields (flarm id, mtom, noise
+     * class / level, spot link, comment) are still returned on the full
+     * detail today; an explicit non-owner projection is a follow-up story
+     * if the policy bar rises.
      */
     static AircraftDetail toDetail(Aircraft a) {
         return new AircraftDetail(

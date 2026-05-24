@@ -107,14 +107,14 @@ class TenantCatalogYamlTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void aircraft_tenant_scoped_via_managing_club_id_with_legacy_pin() {
+    void aircraft_cross_tenant_with_managing_club_id_as_owner_gate() {
         Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
         Map<String, Object> aircrafts = (Map<String, Object>) overrides.get("Aircrafts");
         assertThat(aircrafts.get("kind"))
-                .as("Aircrafts reclassified to tenant-scoped 2026-05-23 (S-159)")
-                .isEqualTo("tenant-scoped");
+                .as("Aircraft reclassified to cross-tenant 2026-05-24 (S-058, reverts S-159)")
+                .isEqualTo("cross-tenant");
         assertThat(aircrafts.get("owner_column"))
-                .as("S-159: managing_club_id is the @TenantId discriminator")
+                .as("S-058: managing_club_id is the manager-club gate field (not @TenantId)")
                 .isEqualTo("managing_club_id");
         assertThat(aircrafts.get("tenant_column_legacy"))
                 .as("legacy OwnerId pin (BaseEntity managing tenant) for S-016 cutover")
@@ -227,20 +227,22 @@ class TenantCatalogYamlTest {
     }
 
     /**
-     * S-159 amendment to the 2026-05-16 ride-through addition: with Aircraft
-     * now tenant-scoped (via {@code managing_club_id}), the aircraft_id FK
-     * on aircraft_reservation is a same-tenant FK by construction — not a
-     * cross-tenant ride-through. AircraftReservations.ride_through_targets
-     * keeps only Persons (the genuinely cross-tenant ride-through).
+     * After S-058 (reverts S-159), Aircraft is cross-tenant again, but it
+     * remains an empty entry in {@code ride_through_targets} for
+     * downstream consumers — Aircraft carries no PII columns (only
+     * sensitive metadata: immatriculation, flarm id, mtom, …). The
+     * ride-through list captures PII-carrying cross-tenant FKs so that
+     * audit-blob redaction and DSAR scope iterate the right entities;
+     * Aircraft doesn't belong on either list.
      */
     @Test
     @SuppressWarnings("unchecked")
-    void s014_aircraft_reservations_ride_through_is_persons_only_post_s159() {
+    void s014_aircraft_reservations_ride_through_persons_only_no_pii_on_aircraft() {
         Map<String, Object> overrides = (Map<String, Object>) tenantRules.get("overrides");
         Map<String, Object> arv = (Map<String, Object>) overrides.get("AircraftReservations");
         List<String> rideThrough = (List<String>) arv.get("ride_through_targets");
         assertThat(rideThrough)
-                .as("AircraftReservations.ride_through_targets is Persons-only after S-159 (Aircraft tenant-scoped)")
+                .as("AircraftReservations.ride_through_targets stays Persons-only — Aircraft is cross-tenant but PII-free")
                 .containsExactly("Persons");
     }
 

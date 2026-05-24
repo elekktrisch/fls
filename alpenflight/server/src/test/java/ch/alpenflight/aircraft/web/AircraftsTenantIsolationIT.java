@@ -6,34 +6,29 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftCreateRequest;
 import ch.alpenflight.aircraft.application.AircraftDtos.AircraftDetail;
 import ch.alpenflight.aircraft.application.AircraftsService;
-import ch.alpenflight.aircraft.domain.AircraftNotFoundException;
 import ch.alpenflight.aircraft.domain.DuplicateImmatriculationException;
-import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.AircraftTypeId;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.server.testsupport.TenantTestContext;
 import ch.alpenflight.server.testsupport.TwoClubFixture;
 import ch.alpenflight.server.testsupport.WithTenant;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Cross-layer tenancy properties for the Aircraft aggregate (S-159: Aircraft
- * becomes tenant-scoped via {@code managing_club_id}). Counterpart to
- * {@code LocationsTenantIsolationIT}. The Hibernate {@code @TenantId}
- * discriminator filters reads/writes by the resolved tenant; aviation-
- * regulator immatriculation stays GLOBAL unique unlike Locations' per-club
- * ICAO uniqueness.
+ * Cross-layer cross-tenant behaviour for the Aircraft aggregate (S-058
+ * reverts S-159's tenant-scoping). Reads are unscoped — any tenant context
+ * lists rows from every club so the Flight aircraft picker can surface
+ * other clubs' aircraft for the charter case. Writes are restricted to the
+ * managing-club at the HTTP layer (see {@code AircraftsAuthorizationIT})
+ * via the {@code AircraftAccess} SpEL bean.
  *
- * <p>Aggregate-level rules (immatriculation regex, monotonic counters,
- * state-history "exactly one open") live in {@code AircraftDomainTest};
- * HTTP routing + authz live in {@code AircraftsControllerIT} /
- * {@code AircraftsAuthorizationIT}.
+ * <p>Service-layer registration still demands a tenant context (it sources
+ * the managing_club_id from the resolver). The no-tenant fallback path
+ * exists for system-admin / cutover via {@code Tenants.runAs}.
  */
 class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
 
@@ -43,11 +38,6 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
     private static final UUID CLUB_B = UUID.fromString(CLUB_B_LITERAL);
 
     private static final String TEST_NAME_PREFIX = "IT_ATI_";
-    // Each IT owns a unique 2-char prefix slot for ux_club_key. The earlier
-    // "IT_T_" choice collided with TenantsRunAsIT.KEY_PREFIX once parallel
-    // fork timing changed (S-053 surfaced it); the boyscout pre-cleanup
-    // never deleted by club_key, so leftover rows with the same key under
-    // a different UUID tripped ux_club_key on the sibling IT's seed.
     private static final String TEST_KEY_PREFIX = "IT_AC";
 
     @Autowired private JdbcTemplate jdbc;
@@ -60,35 +50,30 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
 
     @Test
     @WithTenant(CLUB_A_LITERAL)
-    void tenant_filter_isolates_reads_and_persists_managing_club_id() {
+    void list_returns_aircraft_from_every_club() {
         AircraftDetail aRow = aircrafts.registerAircraft(payload(uniqueImmat()));
-        AtomicReference<AircraftDetail> bRowRef = new AtomicReference<>();
-        TenantTestContext.runAs(CLUB_B, () ->
-                bRowRef.set(aircrafts.registerAircraft(payload(uniqueImmat()))));
+        AircraftDetail bRow = TenantTestContext.runAs(CLUB_B,
+                () -> aircrafts.registerAircraft(payload(uniqueImmat())));
 
-        // A's list contains A's row; getById of B's row throws (invisible to A).
+        // Cross-tenant catalog: Club A's list includes Club B's row.
         assertThat(aircrafts.listAircraft(null))
                 .extracting(li -> li.id().toString())
-                .contains(aRow.id().toString())
-                .doesNotContain(bRowRef.get().id().toString());
-        AircraftId bExternal = bRowRef.get().id();
-        assertThatThrownBy(() -> aircrafts.getAircraft(bExternal))
-                .isInstanceOf(AircraftNotFoundException.class);
+                .contains(aRow.id().toString(), bRow.id().toString());
+    }
 
-        // The persisted row carries A's managing_club_id (not B's, not nil).
+    @Test
+    @WithTenant(CLUB_A_LITERAL)
+    void register_persists_managing_club_id_from_resolver() {
+        AircraftDetail row = aircrafts.registerAircraft(payload(uniqueImmat()));
         Integer matches = jdbc.queryForObject(
                 "SELECT count(*) FROM aircraft WHERE id = ?::uuid AND managing_club_id = ?::uuid",
-                Integer.class, aRow.id().value().toString(), CLUB_A.toString());
+                Integer.class, row.id().value().toString(), CLUB_A.toString());
         assertThat(matches).isEqualTo(1);
     }
 
     @Test
     @WithTenant(CLUB_A_LITERAL)
     void immatriculation_uniqueness_is_global_across_tenants() {
-        // Unlike Locations (per-club partial UNIQUE on ICAO), aircraft
-        // immatriculation is regulator-global. Same immatriculation under
-        // CLUB_B collides — proves we did NOT regress to per-tenant uniqueness
-        // when adding @TenantId on managing_club_id.
         String shared = uniqueImmat();
         aircrafts.registerAircraft(payload(shared));
         TenantTestContext.runAs(CLUB_B, () ->
@@ -97,25 +82,16 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void no_tenant_context_yields_empty_reads() {
-        TenantTestContext.runAs(CLUB_A, () ->
-                aircrafts.registerAircraft(payload(uniqueImmat())));
-        // Resolver returns NO_TENANT outside any @WithTenant / runAs block.
-        assertThat(aircrafts.listAircraft(null)).isEmpty();
-    }
-
-    @Test
-    void no_tenant_context_writes_fail_at_fk_constraint() {
-        // No real row carries the nil UUID, so fk_aircraft_managing_club_id
-        // rejects the write — the fail-closed half of the @TenantId contract.
+    void register_without_tenant_context_throws_illegalState() {
+        // Service refuses to register without a resolved manager — the
+        // controller's @PreAuthorize ensures this path isn't reached from
+        // an authenticated HTTP request, but the service still fails closed.
         assertThatThrownBy(() -> aircrafts.registerAircraft(payload(uniqueImmat())))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("tenant context");
     }
-
-    // ----- helpers -----
 
     private static AircraftCreateRequest payload(String immatriculation) {
-        // managing_club_id is derived from the tenant resolver; not in the DTO.
         return new AircraftCreateRequest(
                 AircraftTypeId.of(UUID.fromString(AircraftsTestFixtures.SEED_AIRCRAFT_TYPE_GLIDER)),
                 immatriculation,

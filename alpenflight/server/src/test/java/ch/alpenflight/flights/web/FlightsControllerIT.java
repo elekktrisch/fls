@@ -216,11 +216,14 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void create_with_unknown_aircraft_returns_404() {
+    void create_with_unknown_aircraft_returns_400() {
+        // Aircraft is cross-tenant (S-058 reverts S-159); we no longer pre-check
+        // existence at the service layer. An unknown aircraftId trips the DB FK
+        // constraint, surfaced as a 400 by the advice.
         Map<String, Object> body = createPayload(
                 "GLIDER", "ac-019e30c3-2c00-7001-8000-0000000000ee", "2026-05-01");
         ResponseEntity<String> res = post("/api/v1/flights", body);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     private Map<String, Object> updatePayload() {

@@ -166,10 +166,10 @@ class TenantCatalogConsistencyTest {
     }
 
     /**
-     * Aircraft is tenant-scoped via {@code managing_club_id} (S-159), but
-     * {@code owner_club_id} stays as ownership metadata independent of the
-     * tenant — it's nullable and may differ from the managing club (other-org
-     * / private-person cases).
+     * Aircraft is cross-tenant (S-058 reverts S-159). {@code owner_club_id}
+     * stays as ownership metadata, independent of the manager — it's
+     * nullable and may differ from the managing club (external-org /
+     * private-person cases).
      */
     @Test
     void aircraft_owner_club_id_is_nullable_ownership_metadata() throws Exception {
@@ -187,11 +187,14 @@ class TenantCatalogConsistencyTest {
     }
 
     /**
-     * Aircraft.managing_club_id is the {@code @TenantId} discriminator (S-159):
-     * NOT NULL UUID, FK to club.
+     * Aircraft.managing_club_id is the operational-manager gate field
+     * (S-058 reverts S-159's {@code @TenantId} role but keeps the column
+     * as plain metadata). NOT NULL UUID, FK to club — required even for
+     * external-owner aircraft (the managing club is the entity that runs
+     * the row's lifecycle).
      */
     @Test
-    void aircraft_managing_club_id_is_tenant_discriminator_not_null() throws Exception {
+    void aircraft_managing_club_id_is_required_metadata_not_null() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, is_nullable FROM information_schema.columns "
@@ -200,7 +203,7 @@ class TenantCatalogConsistencyTest {
             assertThat(rs.next()).as("aircraft.managing_club_id must exist").isTrue();
             assertThat(rs.getString("data_type")).isEqualTo("uuid");
             assertThat(rs.getString("is_nullable"))
-                    .as("aircraft.managing_club_id must be NOT NULL (@TenantId discriminator)")
+                    .as("aircraft.managing_club_id must be NOT NULL (manager-club gate)")
                     .isEqualTo("NO");
         }
     }

@@ -5,6 +5,7 @@ import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.InvalidFlightReferenceException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import java.net.URI;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -62,6 +63,19 @@ class FlightsExceptionHandler {
         pd.setType(DUPLICATE_CREW);
         pd.setTitle("Duplicate crew member");
         pd.setDetail(e.getMessage());
+        return problem(pd);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException e) {
+        // Unknown FK references (unknown aircraftId, unknown flightTypeId, …)
+        // surface as DB integrity violations. Map to 400 — the client supplied
+        // a syntactically valid id that doesn't resolve. We don't echo the SQL
+        // detail to avoid leaking schema names.
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setType(INVALID_REFERENCE);
+        pd.setTitle("Invalid reference");
+        pd.setDetail("One or more referenced rows do not exist or are not valid.");
         return problem(pd);
     }
 

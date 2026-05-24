@@ -26,14 +26,13 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code ownerClubId} and {@code aircraftOwnerPersonId} are intentionally
  * <strong>absent</strong> from {@link AircraftCreateRequest} and
- * {@link AircraftUpdateRequest}: a newly-registered aircraft defaults to
- * "owned by the managing club" (own-club case), and ownership changes go
- * through a dedicated transfer endpoint (A04 mass-assignment defense — a
- * caller could otherwise re-key ownership silently via PUT).
+ * {@link AircraftUpdateRequest}: a newly-registered aircraft defaults its
+ * {@code owner_club_id} to the caller's club (own-club case), and
+ * ownership changes go through a dedicated transfer endpoint (A04
+ * mass-assignment defense — a caller could otherwise re-key ownership
+ * silently via PUT).
  *
- * <p>The managing tenant is set by Hibernate's {@code @TenantId} resolver
- * from the JWT on persist — never on the wire. Do NOT re-introduce a
- * {@code managingClubId} or {@code ownerClubId} field on create/update
+ * <p>Do NOT re-introduce an {@code ownerClubId} field on create/update
  * without security review (A04).
  *
  * <p>{@code isFastEntryRecord} is intentionally absent from both

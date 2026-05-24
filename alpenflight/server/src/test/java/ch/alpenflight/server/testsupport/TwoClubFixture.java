@@ -61,6 +61,12 @@ public final class TwoClubFixture {
         jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
                         + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
                 clubA.toString(), clubB.toString());
+        // S-058: Flight rows hold a FK to Aircraft. The alphabetical catalog
+        // delete-loop hits Aircraft before Flight and trips
+        // fk_flight_aircraft_id. Delete flights up-front (CASCADE handles
+        // flight_crew via the schema-level FK).
+        jdbc.update("DELETE FROM flight WHERE operating_club_id IN (?::uuid, ?::uuid)",
+                clubA.toString(), clubB.toString());
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
             String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);

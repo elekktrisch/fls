@@ -36,9 +36,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <ul>
  *   <li>{@code @TenantId} on {@code operating_club_id} hides another
  *       tenant's flight on {@code GET /flights/{id}} — 404, not 403.</li>
- *   <li>S-159: {@code aircraft_id} is same-tenant by construction. A POST
- *       from Club B referencing Club A's Aircraft must surface as 404, NOT
- *       a silent write of an FK Club B can't read.</li>
+ *   <li>Cross-tenant Aircraft references are intentionally allowed —
+ *       Club B's Flight may reference Club A's tow plane (S-058 reversion
+ *       of S-159). The list-isolation assertion below pins both shapes
+ *       in one test.</li>
  * </ul>
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
@@ -83,23 +84,23 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void createFlight_referencing_other_tenants_aircraft_returns_404() {
+    void createFlight_referencing_other_tenants_aircraft_succeeds() {
+        // S-058 (reverts S-159): the charter case is first-class. Club B
+        // creating a Flight against Club A's aircraft must persist —
+        // Aircraft is cross-tenant; only the Flight's operating_club_id
+        // carries the @TenantId discriminator.
         UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
         String clubBToken = mintToken(CLUB_B);
-
         Map<String, Object> body = body("GLIDER", "ac-" + aircraftA);
         ResponseEntity<String> res = post("/api/v1/flights", body, clubBToken);
         assertThat(res.getStatusCode())
-                .as("S-159 regression witness: a Flight written by Club B against "
-                        + "Club A's Aircraft must NOT silently persist — the resulting row "
-                        + "would be unreadable under either tenant scope.")
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .as("Charter case: Club B's Flight may reference Club A's aircraft.")
+                .isEqualTo(HttpStatus.CREATED);
 
-        // And the negative: nothing was persisted under B.
         Integer count = jdbc.queryForObject(
                 "SELECT count(*) FROM flight WHERE operating_club_id = ?::uuid",
                 Integer.class, CLUB_B.toString());
-        assertThat(count).isZero();
+        assertThat(count).isEqualTo(1);
     }
 
     @Test
