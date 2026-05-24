@@ -8,7 +8,7 @@
 import type { FlightCrewItem } from './flightCrewItem';
 
 /**
- * Payload to update a Flight. The discriminator (flightAircraftType) is immutable and not present here.
+ * Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).
  */
 export type FlightUpdateRequest = {
   /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
