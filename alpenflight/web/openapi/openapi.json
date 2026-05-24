@@ -11,15 +11,6 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
-    "name" : "Countries",
-    "description" : "ISO-3166 country catalog."
-  }, {
-    "name" : "Locations",
-    "description" : "Locations CRUD (per-club masterdata)."
-  }, {
-    "name" : "CounterUnitTypes",
-    "description" : "Counter-unit-type reference catalog."
-  }, {
     "name" : "Persons",
     "description" : "Person CRUD (cross-tenant root with tenant-scoped PersonClub child)."
   }, {
@@ -29,11 +20,26 @@
     "name" : "Aircraft",
     "description" : "Aircraft CRUD (per-club tenant-scoped masterdata)."
   }, {
+    "name" : "FlightTypes",
+    "description" : "FlightType CRUD (per-club tenant-scoped masterdata)."
+  }, {
     "name" : "AircraftTypes",
     "description" : "Aircraft-type reference catalog."
   }, {
     "name" : "ClubStates",
     "description" : "Club lifecycle-state catalog."
+  }, {
+    "name" : "Clubs",
+    "description" : "Clubs CRUD."
+  }, {
+    "name" : "Countries",
+    "description" : "ISO-3166 country catalog."
+  }, {
+    "name" : "Locations",
+    "description" : "Locations CRUD (per-club masterdata)."
+  }, {
+    "name" : "CounterUnitTypes",
+    "description" : "Counter-unit-type reference catalog."
   }, {
     "name" : "LocationTypes",
     "description" : "Location-type reference catalog."
@@ -41,11 +47,11 @@
     "name" : "AircraftStates",
     "description" : "Aircraft-state reference catalog."
   }, {
-    "name" : "Clubs",
-    "description" : "Clubs CRUD."
-  }, {
     "name" : "MemberStates",
     "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
+  }, {
+    "name" : "FlightCostBalanceTypes",
+    "description" : "Flight-cost-balance reference catalog (cross-tenant)."
   } ],
   "paths" : {
     "/api/v1/persons/{id}" : {
@@ -357,6 +363,125 @@
           },
           "404" : {
             "description" : "No active location with that id."
+          }
+        }
+      }
+    },
+    "/api/v1/flight-types/{id}" : {
+      "get" : {
+        "tags" : [ "FlightTypes" ],
+        "summary" : "Read a single FlightType by id.",
+        "operationId" : "getFlightType",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "FlightType detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active FlightType with that id (includes cross-tenant lookup).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "FlightTypes" ],
+        "summary" : "Update a FlightType.",
+        "operationId" : "updateFlightType",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightTypeUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active FlightType with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Name already in use for this tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "FlightTypes" ],
+        "summary" : "Soft-delete a FlightType.",
+        "operationId" : "deleteFlightType",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active FlightType with that id."
           }
         }
       }
@@ -825,6 +950,75 @@
         }
       }
     },
+    "/api/v1/flight-types" : {
+      "get" : {
+        "tags" : [ "FlightTypes" ],
+        "summary" : "List all active FlightTypes for the caller's tenant, sorted by name.",
+        "operationId" : "listFlightTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of FlightType listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlightTypeListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "FlightTypes" ],
+        "summary" : "Register a new FlightType in the caller's tenant.",
+        "operationId" : "registerFlightType",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightTypeCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Name already in use for this tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTypeDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/clubs" : {
       "get" : {
         "tags" : [ "Clubs" ],
@@ -1177,6 +1371,28 @@
                   "type" : "array",
                   "items" : {
                     "$ref" : "#/components/schemas/LocationTypeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flight-cost-balance-types" : {
+      "get" : {
+        "tags" : [ "FlightCostBalanceTypes" ],
+        "summary" : "List all flight-cost-balance types, ordered by legacy_int_id.",
+        "operationId" : "listFlightCostBalanceTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of FlightCostBalanceType reference projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/FlightCostBalanceTypeResponse"
                   }
                 }
               }
@@ -2095,6 +2311,116 @@
         },
         "required" : [ "countryId", "id", "inOutboundPoints", "isFastEntryRecord", "isInboundRouteRequired", "isOutboundRouteRequired", "locationName", "locationTypeId" ]
       },
+      "FlightTypeUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update a FlightType. operating_club_id is not settable here (A04 defense).",
+        "properties" : {
+          "flightTypeName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "flightCode" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "isInstructorRequired" : {
+            "type" : "boolean"
+          },
+          "isObserverPilotOrInstructorRequired" : {
+            "type" : "boolean"
+          },
+          "isCheckFlight" : {
+            "type" : "boolean"
+          },
+          "isPassengerFlight" : {
+            "type" : "boolean"
+          },
+          "isSoloFlight" : {
+            "type" : "boolean"
+          },
+          "isForGliderFlights" : {
+            "type" : "boolean"
+          },
+          "isForTowFlights" : {
+            "type" : "boolean"
+          },
+          "isForMotorFlights" : {
+            "type" : "boolean"
+          },
+          "isFlightCostBalanceSelectable" : {
+            "type" : "boolean"
+          },
+          "isCouponNumberRequired" : {
+            "type" : "boolean"
+          },
+          "isForAircraftReservationType" : {
+            "type" : "boolean"
+          },
+          "minNrOfAircraftSeatsRequired" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          }
+        },
+        "required" : [ "flightTypeName" ]
+      },
+      "FlightTypeDetail" : {
+        "type" : "object",
+        "description" : "FlightType detail projection — full payload.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightTypeName" : {
+            "type" : "string"
+          },
+          "flightCode" : {
+            "type" : "string"
+          },
+          "isInstructorRequired" : {
+            "type" : "boolean"
+          },
+          "isObserverPilotOrInstructorRequired" : {
+            "type" : "boolean"
+          },
+          "isCheckFlight" : {
+            "type" : "boolean"
+          },
+          "isPassengerFlight" : {
+            "type" : "boolean"
+          },
+          "isSoloFlight" : {
+            "type" : "boolean"
+          },
+          "isForGliderFlights" : {
+            "type" : "boolean"
+          },
+          "isForTowFlights" : {
+            "type" : "boolean"
+          },
+          "isForMotorFlights" : {
+            "type" : "boolean"
+          },
+          "isFlightCostBalanceSelectable" : {
+            "type" : "boolean"
+          },
+          "isCouponNumberRequired" : {
+            "type" : "boolean"
+          },
+          "isForAircraftReservationType" : {
+            "type" : "boolean"
+          },
+          "minNrOfAircraftSeatsRequired" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        },
+        "required" : [ "flightTypeName", "id", "isCheckFlight", "isCouponNumberRequired", "isFlightCostBalanceSelectable", "isForAircraftReservationType", "isForGliderFlights", "isForMotorFlights", "isForTowFlights", "isInstructorRequired", "isObserverPilotOrInstructorRequired", "isPassengerFlight", "isSoloFlight" ]
+      },
       "ClubUpdateRequest" : {
         "type" : "object",
         "description" : "Payload to update a club. `clubKey` is immutable post-create.",
@@ -2727,6 +3053,61 @@
         },
         "required" : [ "countryId", "locationName", "locationTypeId" ]
       },
+      "FlightTypeCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to register a new FlightType in the caller's tenant.",
+        "properties" : {
+          "flightTypeName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "flightCode" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "isInstructorRequired" : {
+            "type" : "boolean"
+          },
+          "isObserverPilotOrInstructorRequired" : {
+            "type" : "boolean"
+          },
+          "isCheckFlight" : {
+            "type" : "boolean"
+          },
+          "isPassengerFlight" : {
+            "type" : "boolean"
+          },
+          "isSoloFlight" : {
+            "type" : "boolean"
+          },
+          "isForGliderFlights" : {
+            "type" : "boolean"
+          },
+          "isForTowFlights" : {
+            "type" : "boolean"
+          },
+          "isForMotorFlights" : {
+            "type" : "boolean"
+          },
+          "isFlightCostBalanceSelectable" : {
+            "type" : "boolean"
+          },
+          "isCouponNumberRequired" : {
+            "type" : "boolean"
+          },
+          "isForAircraftReservationType" : {
+            "type" : "boolean"
+          },
+          "minNrOfAircraftSeatsRequired" : {
+            "type" : "integer",
+            "format" : "int32",
+            "minimum" : 1
+          }
+        },
+        "required" : [ "flightTypeName" ]
+      },
       "ClubCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a new club.",
@@ -3071,6 +3452,66 @@
           }
         },
         "required" : [ "code", "description", "id", "isAirfield" ]
+      },
+      "FlightTypeListItem" : {
+        "type" : "object",
+        "description" : "FlightType listitem projection — sorted by name.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightTypeName" : {
+            "type" : "string"
+          },
+          "flightCode" : {
+            "type" : "string"
+          },
+          "isForGliderFlights" : {
+            "type" : "boolean"
+          },
+          "isForTowFlights" : {
+            "type" : "boolean"
+          },
+          "isForMotorFlights" : {
+            "type" : "boolean"
+          },
+          "isFlightCostBalanceSelectable" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "flightTypeName", "id", "isFlightCostBalanceSelectable", "isForGliderFlights", "isForMotorFlights", "isForTowFlights" ]
+      },
+      "FlightCostBalanceTypeResponse" : {
+        "type" : "object",
+        "description" : "FlightCostBalanceType reference-list projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "fcb-019e2e15-2c00-7268-8000-000000004268",
+            "pattern" : "^fcb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "code" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "isPersonForInvoiceRequired" : {
+            "type" : "boolean"
+          },
+          "isForGlider" : {
+            "type" : "boolean"
+          },
+          "isForTow" : {
+            "type" : "boolean"
+          },
+          "isForMotor" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "code", "description", "id", "isForGlider", "isForMotor", "isForTow", "isPersonForInvoiceRequired" ]
       },
       "CountryResponse" : {
         "type" : "object",
