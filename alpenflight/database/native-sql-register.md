@@ -11,7 +11,30 @@ This register is the gate.
 
 ## Approved escape hatches
 
-_(none currently — S-011 deliberately ships the register empty.)_
+### `persons-cross-tenant-membership-check` — `Person soft-delete cross-tenant safety check`
+
+- **Caller:** `src/main/java/ch/alpenflight/persons/infra/JpaPersonRepository.java`
+- **Tenant-scoped tables touched:** `person_club`
+- **Justification:** soft-deleting a `Person` must refuse when memberships
+  in tenants OTHER THAN the caller's exist — the Person aggregate's
+  `softDelete` invariant refuses to orphan another tenant's PersonClub
+  records. Hibernate's `@TenantId` discriminator on `PersonClub.clubId`
+  filters JPA reads to the caller's tenant; checking for *other* tenants
+  is the literal opposite intent and cannot be expressed via the filtered
+  path. The companion count query derives the response's `inOtherClubsCount`
+  privacy projection — same cross-tenant truth shape, used only for
+  reads (the value never lands on the wire as a per-club identifier).
+- **Tenancy gate:** explicit `club_id <> :currentTenantId` predicate (or no
+  predicate for the count). Both queries take parameterised path-bound
+  caller-tenant values; no caller-controllable injection vector.
+- **Reviewer:** auto-registered with S-051 implementation; security-reviewer
+  panel (implement Step 7) re-confirms.
+- **Approved:** 2026-05-24.
+- **Expires:** 2027-05-24
+- **Remove when:** Hibernate exposes a first-class "unscoped read" API that
+  filters across all tenants by construction, or the soft-delete safety
+  check moves to a dedicated service explicitly wrapped in
+  `Tenants.runAs(null)` so the JPA path becomes idiomatic.
 
 When you need to add one:
 

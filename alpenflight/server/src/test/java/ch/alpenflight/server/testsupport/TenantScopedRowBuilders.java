@@ -5,6 +5,7 @@ import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.MutationAuditEvent;
 import ch.alpenflight.clubs.domain.MemberState;
 import ch.alpenflight.locations.domain.Location;
+import ch.alpenflight.persons.domain.PersonClub;
 import java.time.Instant;
 import java.util.Map;
 import java.util.function.Function;
@@ -46,6 +47,10 @@ public final class TenantScopedRowBuilders {
             MemberState.class, ctx -> new MemberState(uniqueName("MS")),
             Location.class, LocationSweepFactory::build,
             Aircraft.class, AircraftSweepFactory::build,
+            // PersonClub is aggregate-internal under the cross-tenant Person
+            // root; CascadeType.PERSIST on PersonClub.person makes
+            // `save(personClub)` cascade-insert the parent Person at flush.
+            PersonClub.class, PersonClubSweepFactory::build,
             // Save bypasses the AuditTrailService / listener so the sweep
             // exercises Hibernate's @TenantId resolver directly — same
             // discriminator-filter contract as the other tenant-scoped rows.

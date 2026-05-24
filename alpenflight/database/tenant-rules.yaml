@@ -41,14 +41,20 @@ overrides:
     # PII catalog drives S-027 audit-blob redaction + FADP DSAR scope.
 
   PersonClub:
-    kind: cross-tenant
+    # Reclassified to tenant-scoped when the Persons module landed: the row
+    # carries `@TenantId` on `club_id`, so Hibernate scopes the
+    # aggregate-internal collection per caller. The parent Person remains
+    # cross-tenant; PersonClub's classification reflects the discriminator
+    # column the implementation chose, not the legacy join-table shape.
+    kind: tenant-scoped
     target_entity: PersonClub
     rationale_ref: tenant-catalog.md#personclub
     pii_columns:
       - member_number  # quasi-PII — combined with name reveals membership
-    # The cross-tenant join table itself. A Person can belong to many Clubs.
-    # PersonClub is internal to the Person aggregate (ADR 0018) — no own
-    # repository at S-022; mutation via Person.addMembership() / removeMembership().
+    # Mutation through the Person aggregate (joinClub / leaveClub /
+    # updateClubMembership). Direct PersonClub repository ships only to
+    # support the S-024 leakage sweep (JpaPersonClubRepository); production
+    # code goes through Person.
 
   # ---- Principal subject ----
 

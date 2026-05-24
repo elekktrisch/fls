@@ -36,8 +36,10 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    // Infra-package test: depend on the Spring Data binding directly so
+    // we can exercise save() + the rest of the JpaRepository surface.
     @Autowired
-    private MemberStateRepository memberStates;
+    private JpaMemberStateRepository memberStates;
 
     @BeforeEach
     void seed() {

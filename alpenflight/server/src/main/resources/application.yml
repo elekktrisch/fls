@@ -139,6 +139,43 @@ audit:
           - id
           - clubId
           - name
+      PersonClub:
+        # Aggregate-internal child of the cross-tenant Person root. Member
+        # number is identity-bearing but not PII (legacy parity: club-issued
+        # ID, not a national identifier); role flags and notification prefs
+        # are operational booleans. The back-reference field `person` is
+        # intentionally omitted from the allow-list — Person is in deny-all,
+        # so even if the redactor recursed it would redact, but keeping
+        # `person` off the list defends against a future allow-list relax
+        # on Person.
+        allow:
+          - id
+          - clubId
+          - memberNumber
+          - memberStateId
+          - motorPilot
+          - towPilot
+          - gliderInstructor
+          - gliderPilot
+          - gliderTrainee
+          - passenger
+          - winchOperator
+          - motorInstructor
+          - receiveFlightReports
+          - receiveAircraftReservationNotifications
+          - receivePlanningDayRoleReminder
+          - active
+          - deletedOn
+          - deletedByUserId
+      LookupAuditPayload:
+        # Lookup-audit payload (PersonsService.lookup → LOOKUP_HIT/MISS).
+        # Three forensic primitives, all non-PII: tenant uuid + byEmail flag
+        # + match count. Whitelist so the redactor doesn't scrub the
+        # diagnostic value out of the audit row.
+        allow:
+          - tenant
+          - byEmail
+          - matchCount
       Aircraft:
         # Lists both DTO field names (`isXxx`-prefixed by Jackson convention)
         # and entity field names. Service-layer callers may pass either.

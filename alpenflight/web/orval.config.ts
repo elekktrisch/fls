@@ -4,9 +4,14 @@
 // alpenflight/server) and emits an Angular client under
 // src/app/api/generated/.
 //
-// retrievalClient: 'both' produces, per @Tag:
-//   • *.service.ts          @Injectable, inject(HttpClient), classic for writes
-//   • *.httpResource.ts     signal-first httpResource() for zoneless reads
+// retrievalClient: 'service' produces, per @Tag:
+//   • *.service.ts          @Injectable, inject(HttpClient), used by all Signal Stores
+//
+// Was previously 'both' (also emitted *.resource.ts httpResource() helpers
+// for zoneless reads), but no feature consumes the resource variant today
+// and the orval generator emits TS2722-unsafe `body: signal?()` calls for
+// POST endpoints whose body is a Signal (e.g. lookupPersonResource). Flip
+// back to 'both' once orval ships the fix.
 //
 // Refresh: `pnpm run generate-api`. CI gate diffs the regenerated output
 // against the committed tree (see .github/workflows/ci.yml).
@@ -27,7 +32,7 @@ export default defineConfig({
       mock: false,
       clean: true,
       override: {
-        angular: { retrievalClient: 'both' },
+        angular: { retrievalClient: 'service' },
         useTypeOverInterfaces: true,
       },
     },

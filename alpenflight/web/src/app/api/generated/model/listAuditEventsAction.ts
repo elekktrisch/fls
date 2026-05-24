@@ -15,4 +15,6 @@ export const ListAuditEventsAction = {
   DELETE: 'DELETE',
   STATE_TRANSITION: 'STATE_TRANSITION',
   BULK_IMPORT: 'BULK_IMPORT',
+  LOOKUP_HIT: 'LOOKUP_HIT',
+  LOOKUP_MISS: 'LOOKUP_MISS',
 } as const;

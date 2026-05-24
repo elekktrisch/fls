@@ -257,8 +257,3 @@ export class LocationsService {
   }
 };
 
-export type GetLocationClientResult = NonNullable<LocationDetail>
-export type UpdateLocationClientResult = NonNullable<LocationDetail>
-export type DeleteLocationClientResult = NonNullable<void>
-export type ListLocationsClientResult = NonNullable<LocationListItem[]>
-export type CreateLocationClientResult = NonNullable<LocationDetail>
