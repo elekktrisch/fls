@@ -49,13 +49,25 @@ jobs:
   # only gates the rewrite.
   # ---------------------------------------------------------------------------
   next-build:
-    name: next build
+    name: alpenflight build
     needs: changes
     if: needs.changes.outputs.next == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
+    # Write scope so the API-client drift step can push regenerated artifacts
+    # back to the PR branch instead of failing the run on every backend-only
+    # PR. Fork PRs + push events fall through to the previous fail-with-
+    # message behaviour (no write token granted).
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Check out the PR head ref (not the merge ref) so the auto-commit
+          # below pushes to the contributor's branch. `persist-credentials`
+          # leaves the GITHUB_TOKEN behind for the `git push` step.
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          persist-credentials: true
 
       - name: Detect buildable next subdirs
         id: detect
@@ -116,15 +128,36 @@ jobs:
           CI: 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Regenerate API client and assert no drift
+      - name: Regenerate API client and auto-commit on drift
         if: steps.detect.outputs.web == 'true'
         working-directory: alpenflight/web
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          EVENT: ${{ github.event_name }}
         run: |
           pnpm run generate-api
-          if ! git diff --exit-code src/app/api/generated/; then
+          if git diff --quiet src/app/api/generated/; then
+            echo "Generated API client is up to date."
+            exit 0
+          fi
+          # Fork PRs (head.repo != base.repo) and non-PR events (push,
+          # workflow_dispatch) don't grant a usable write token. Fall back
+          # to the legacy fail-with-message behaviour in those cases.
+          if [ "$EVENT" != "pull_request" ] || [ "$HEAD_REPO" != "$BASE_REPO" ]; then
             echo "::error::Generated API client is stale. Run 'pnpm run generate-api' locally and commit the result."
+            git --no-pager diff --stat src/app/api/generated/
             exit 1
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/api/generated/
+          git commit -m "ci: regenerate API client [skip ci]"
+          # `concurrency.cancel-in-progress` (workflow header) handles the
+          # racing-rerun a fresh push triggers.
+          git push origin "HEAD:$HEAD_REF"
 
       - name: Lint + format + test + build alpenflight/web
         if: steps.detect.outputs.web == 'true'
@@ -142,7 +175,7 @@ jobs:
   # because the realm-export lives under alpenflight/auth/.
   # ---------------------------------------------------------------------------
   next-auth-realm-shape:
-    name: next auth realm shape
+    name: alpenflight auth realm shape
     needs: changes
     if: needs.changes.outputs.next == 'true'
     runs-on: ubuntu-22.04
@@ -175,13 +208,13 @@ jobs:
           fail=0
           for pair in \
               "changes:$R_CHANGES" \
-              "next-build:$R_NEXT" \
-              "next-auth-realm-shape:$R_AUTH" ; do
+              "alpenflight-build:$R_NEXT" \
+              "alpenflight-auth-realm-shape:$R_AUTH" ; do
             name="${pair%%:*}"
             result="${pair##*:}"
             case "$result" in
-              success|skipped) printf "  %-22s %s\n" "$name" "$result" ;;
-              *)               printf "  %-22s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
+              success|skipped) printf "  %-28s %s\n" "$name" "$result" ;;
+              *)               printf "  %-28s %s  <-- failing\n" "$name" "$result"; fail=1 ;;
             esac
           done
           [ "$fail" = "0" ]

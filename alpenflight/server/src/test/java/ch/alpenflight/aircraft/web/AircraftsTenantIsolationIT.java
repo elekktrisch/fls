@@ -43,11 +43,12 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
     private static final UUID CLUB_B = UUID.fromString(CLUB_B_LITERAL);
 
     private static final String TEST_NAME_PREFIX = "IT_ATI_";
-    // Boyscout: was "IT_A_" which collided with LocationsAuthorizationIT's
-    // "IT_A_" — different CLUB UUIDs but same club_key prefix tripped
-    // ux_club_key when both ITs ran in the same JVM. Each IT now owns a
-    // unique 2-char prefix slot.
-    private static final String TEST_KEY_PREFIX = "IT_T_";
+    // Each IT owns a unique 2-char prefix slot for ux_club_key. The earlier
+    // "IT_T_" choice collided with TenantsRunAsIT.KEY_PREFIX once parallel
+    // fork timing changed (S-053 surfaced it); the boyscout pre-cleanup
+    // never deleted by club_key, so leftover rows with the same key under
+    // a different UUID tripped ux_club_key on the sibling IT's seed.
+    private static final String TEST_KEY_PREFIX = "IT_AC";
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AircraftsService aircrafts;

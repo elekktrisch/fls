@@ -142,6 +142,7 @@ overrides:
   FlightCostBalanceTypes:
     kind: reference
     target_entity: FlightCostBalanceType
+    emits_audit: true  # S-053 sysadmin admin route (deferred but planned) mutates; reads do not emit.
     rationale_ref: tenant-catalog.md#reference-data
   FlightTypes:
     kind: tenant-scoped  # reclassified S-013 — legacy FlightType.cs:25 carries ClubId NOT NULL
