@@ -320,19 +320,37 @@ export class PersonsEditPage {
     }
     const v = this.form.getRawValue();
     this.saving.set(true);
+    // exactOptionalPropertyTypes: true forbids `email?: string` being
+    // assigned `string | undefined`; spread the optional fields only when
+    // they have a non-empty value.
+    const optionalContact: {
+      emailPrivate?: string;
+      mobilePhone?: string;
+      city?: string;
+    } = {};
+    const trimmedEmail = v.email.trim();
+    if (trimmedEmail.length > 0) optionalContact.emailPrivate = trimmedEmail;
+    const trimmedMobile = v.mobilePhone.trim();
+    if (trimmedMobile.length > 0) optionalContact.mobilePhone = trimmedMobile;
+    const trimmedCity = v.city.trim();
+    if (trimmedCity.length > 0) optionalContact.city = trimmedCity;
+
     if (this.isCreate()) {
+      const optionalMembership: { memberNumber?: string; memberStateId?: string } = {};
+      const trimmedMember = v.memberNumber.trim();
+      if (trimmedMember.length > 0) optionalMembership.memberNumber = trimmedMember;
+      if (v.memberStateId !== null && v.memberStateId.length > 0) {
+        optionalMembership.memberStateId = v.memberStateId;
+      }
       const req: PersonCreateRequest = {
         firstname: v.firstname.trim(),
         lastname: v.lastname.trim(),
-        emailPrivate: v.email.trim() || undefined,
-        mobilePhone: v.mobilePhone.trim() || undefined,
-        city: v.city.trim() || undefined,
+        ...optionalContact,
         preferMailToBusinessMail: false,
         receiveOwnedAircraftStatisticReports: false,
         enableAddress: false,
         initialClubMembership: {
-          memberNumber: v.memberNumber.trim() || undefined,
-          memberStateId: v.memberStateId ?? undefined,
+          ...optionalMembership,
           isMotorPilot: v.isMotorPilot,
           isTowPilot: v.isTowPilot,
           isGliderInstructor: false,
@@ -357,9 +375,7 @@ export class PersonsEditPage {
       const req: PersonUpdateRequest = {
         firstname: v.firstname.trim(),
         lastname: v.lastname.trim(),
-        emailPrivate: v.email.trim() || undefined,
-        mobilePhone: v.mobilePhone.trim() || undefined,
-        city: v.city.trim() || undefined,
+        ...optionalContact,
         preferMailToBusinessMail: false,
         receiveOwnedAircraftStatisticReports: false,
         enableAddress: false,
