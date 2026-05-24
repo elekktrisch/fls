@@ -17,6 +17,7 @@ import {
   LucideShield,
   LucideTrash2,
   LucideUser,
+  LucideUsers,
   LucideX,
   provideLucideConfig,
   provideLucideIcons,
@@ -59,6 +60,7 @@ export function provideAlpenflightIcons(): Provider[] {
       LucideShield,
       LucideTrash2,
       LucideUser,
+      LucideUsers,
       LucideX,
     ),
   ];

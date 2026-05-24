@@ -10,9 +10,10 @@ import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms
 const TENANT_SECTIONS: readonly NavItem[] = [
   { path: '/aircraft', label: 'Aircraft', icon: 'plane' },
   { path: '/locations', label: 'Locations', icon: 'map-pin' },
-  // Future sections (Flights, Reservations, Members, Reports, Settings) land
-  // here as their feature stories ship — kept inline so the nav-bar's input
-  // surface stays a pure data shape.
+  { path: '/persons', label: 'Persons', icon: 'users' },
+  // Future sections (Flights, Reservations, Reports, Settings) land here as
+  // their feature stories ship — kept inline so the nav-bar's input surface
+  // stays a pure data shape.
 ];
 
 // Cross-cutting nav (available to every authenticated principal).
