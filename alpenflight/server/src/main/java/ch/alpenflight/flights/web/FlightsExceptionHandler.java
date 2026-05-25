@@ -4,6 +4,7 @@ import ch.alpenflight.flights.application.InvalidCursorException;
 import ch.alpenflight.flights.domain.DuplicateCrewMemberException;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightStateGateException;
+import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.IllegalFlightTransitionException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import java.net.URI;
@@ -43,6 +44,8 @@ class FlightsExceptionHandler {
             URI.create("urn:alpenflight:problem:flight-state-terminal");
     private static final URI STATE_GATE_ADMIN_REQUIRED =
             URI.create("urn:alpenflight:problem:flight-state-admin-required");
+    private static final URI VERSION_MISMATCH =
+            URI.create("urn:alpenflight:problem:flight-version-mismatch");
 
     @ExceptionHandler(FlightNotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(FlightNotFoundException e) {
@@ -123,6 +126,17 @@ class FlightsExceptionHandler {
                 : "Mutation requires CLUB_ADMINISTRATOR");
         pd.setDetail(e.getMessage());
         pd.setProperty("state", e.state().name());
+        return problem(pd);
+    }
+
+    @ExceptionHandler(FlightVersionMismatchException.class)
+    ResponseEntity<ProblemDetail> handleVersionMismatch(FlightVersionMismatchException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.PRECONDITION_FAILED);
+        pd.setType(VERSION_MISMATCH);
+        pd.setTitle("If-Match version does not match");
+        pd.setDetail(e.getMessage());
+        pd.setProperty("expected", e.expected());
+        pd.setProperty("actual", e.actual());
         return problem(pd);
     }
 

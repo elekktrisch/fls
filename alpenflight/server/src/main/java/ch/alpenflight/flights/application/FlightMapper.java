@@ -146,6 +146,7 @@ public class FlightMapper {
                 f.isNoLdgTimeInformation(),
                 f.airState(),
                 f.getProcessStateId(),
+                f.getVersion(),
                 f.getEngineStartOperatingCounterInSeconds(),
                 f.getEngineEndOperatingCounterInSeconds(),
                 f.getComment(),

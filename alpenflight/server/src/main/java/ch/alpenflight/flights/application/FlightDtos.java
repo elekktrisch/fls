@@ -91,6 +91,7 @@ public final class FlightDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noLdgTimeInformation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long version,
             @Nullable Long engineStartOperatingCounterInSeconds,
             @Nullable Long engineEndOperatingCounterInSeconds,
             @Nullable String comment,

@@ -15,6 +15,7 @@ import ch.alpenflight.flights.domain.FlightOperationalData;
 import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.FlightStateGateException;
+import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
@@ -141,8 +142,16 @@ public class FlightsService {
     }
 
     public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req) {
+        return updateFlight(id, req, null);
+    }
+
+    public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req,
+                                     @Nullable Long ifMatchVersion) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        if (ifMatchVersion != null && ifMatchVersion != flight.getVersion()) {
+            throw new FlightVersionMismatchException(ifMatchVersion, flight.getVersion());
+        }
         assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.repointAircraft(req.aircraftId().value());

@@ -414,6 +414,13 @@
             "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -2992,6 +2999,10 @@
             "type" : "string",
             "format" : "uuid"
           },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
           "engineStartOperatingCounterInSeconds" : {
             "type" : "integer",
             "format" : "int64"
@@ -3029,7 +3040,7 @@
             }
           }
         },
-        "required" : [ "airState", "aircraftId", "crew", "flightAircraftType", "id", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "crew", "flightAircraftType", "id", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation", "processStateId", "version" ]
       },
       "FlightTypeUpdateRequest" : {
         "type" : "object",

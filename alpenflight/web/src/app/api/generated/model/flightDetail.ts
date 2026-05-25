@@ -43,6 +43,7 @@ export type FlightDetail = {
   noLdgTimeInformation: boolean;
   airState: FlightDetailAirState;
   processStateId: string;
+  version: number;
   engineStartOperatingCounterInSeconds?: number;
   engineEndOperatingCounterInSeconds?: number;
   comment?: string;

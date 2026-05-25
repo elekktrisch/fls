@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -92,8 +93,34 @@ class FlightsController {
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
     @Operation(summary = "Update a flight (full replace of editable surface + crew)")
     FlightDetail update(@PathVariable("id") FlightId id,
+                        @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch,
                         @Valid @RequestBody FlightUpdateRequest req) {
-        return flights.updateFlight(id, req);
+        Long expected = parseIfMatch(ifMatch);
+        return flights.updateFlight(id, req, expected);
+    }
+
+    private static @Nullable Long parseIfMatch(@Nullable String header) {
+        if (header == null) {
+            return null;
+        }
+        String trimmed = header.trim();
+        if (trimmed.isEmpty() || "*".equals(trimmed)) {
+            // RFC 7232 §3.1 — "*" matches any current representation; treat
+            // as "no precondition" since every PUT loads the row anyway.
+            return null;
+        }
+        // Strip optional weak / strong ETag wrapping ("123" or W/"123").
+        if (trimmed.startsWith("W/")) {
+            trimmed = trimmed.substring(2).trim();
+        }
+        if (trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1);
+        }
+        try {
+            return Long.parseLong(trimmed);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("If-Match header must be a numeric version", e);
+        }
     }
 
     @DeleteMapping("/{id}")

@@ -315,6 +315,36 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void update_withMatchingIfMatch_returns_200() {
+        String id = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        long version = readJson(get("/api/v1/flights/" + id)).get("version").asLong();
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.put(URI.create("/api/v1/flights/" + id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken)
+                        .header(HttpHeaders.IF_MATCH, String.valueOf(version))
+                        .body(updatePayload()),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void update_withStaleIfMatch_returns_412() {
+        String id = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        // A version > 0 cannot match a freshly-created row's version 0.
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.put(URI.create("/api/v1/flights/" + id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken)
+                        .header(HttpHeaders.IF_MATCH, "999")
+                        .body(updatePayload()),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+    }
+
+    @Test
     void delete_cascadesTowFlightInSameTransaction() {
         // Seed a glider and a tow flight, link them via PUT, then DELETE glider.
         // The linked tow row must also be soft-deleted.
