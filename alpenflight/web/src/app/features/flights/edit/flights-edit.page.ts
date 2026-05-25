@@ -53,14 +53,6 @@ import { FlightPrefsService } from './flight-prefs.service';
 
 type Mode = 'new' | 'edit' | 'copy';
 
-interface SnapshotPatch {
-  flightId?: string | null;
-  flightDate?: string | null;
-  startTypeId?: string | null;
-  glider?: Partial<FlightFormSnapshot['glider']>;
-  tow?: Partial<FlightFormSnapshot['tow']>;
-}
-
 /**
  * 3-step wizard shell for create / edit / copy of a flight.
  *
@@ -292,9 +284,9 @@ interface SnapshotPatch {
         title="Discard changes?"
         message="You have unsaved changes. Leave anyway?"
         confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        dismissLabel="Keep editing"
         (confirm)="confirmDiscard()"
-        (cancel)="dirtyConfirmOpen.set(false)"
+        (dismiss)="dirtyConfirmOpen.set(false)"
       />
     </af-page>
   `,

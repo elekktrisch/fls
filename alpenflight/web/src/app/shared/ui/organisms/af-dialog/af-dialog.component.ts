@@ -32,8 +32,8 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
             </p>
           }
           <div class="flex justify-end gap-2">
-            <af-button (clicked)="cancel.emit()" data-testid="af-dialog-cancel">
-              {{ cancelLabel() }}
+            <af-button (clicked)="dismiss.emit()" data-testid="af-dialog-dismiss">
+              {{ dismissLabel() }}
             </af-button>
             <af-button type="primary" (clicked)="confirm.emit()" data-testid="af-dialog-confirm">
               {{ confirmLabel() }}
@@ -49,8 +49,8 @@ export class AfDialogComponent {
   readonly title = input<string>('Confirm');
   readonly message = input<string | null>(null);
   readonly confirmLabel = input<string>('Confirm');
-  readonly cancelLabel = input<string>('Cancel');
+  readonly dismissLabel = input<string>('Cancel');
 
   readonly confirm = output<void>();
-  readonly cancel = output<void>();
+  readonly dismiss = output<void>();
 }
