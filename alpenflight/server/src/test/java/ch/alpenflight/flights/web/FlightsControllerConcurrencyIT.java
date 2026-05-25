@@ -195,28 +195,33 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
 
     @Test
     void put_secondClient_returns412_afterFirstClientPuts() {
-        // Two clients load the same flight; first PUT succeeds; second PUT
-        // with the now-stale version returns 412. The original race condition
-        // R14 was about to guard against.
+        // Two clients load the same flight; first PUT succeeds and bumps
+        // version; second PUT with the now-stale version returns 412.
+        // Each PUT must mutate at least one field so Hibernate's dirty-check
+        // produces an UPDATE (no-op saves don't bump @Version).
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         long sharedVersion = readJson(get("/api/v1/flights/" + id)).get("version").asLong();
 
+        Map<String, Object> firstBody = updatePayload();
+        firstBody.put("comment", "first writer");
         ResponseEntity<String> first = rest.exchange(
                 RequestEntity.put(URI.create("/api/v1/flights/" + id))
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken)
                         .header(HttpHeaders.IF_MATCH, String.valueOf(sharedVersion))
-                        .body(updatePayload()),
+                        .body(firstBody),
                 String.class);
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+        Map<String, Object> secondBody = updatePayload();
+        secondBody.put("comment", "second writer");
         ResponseEntity<String> second = rest.exchange(
                 RequestEntity.put(URI.create("/api/v1/flights/" + id))
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken)
                         .header(HttpHeaders.IF_MATCH, String.valueOf(sharedVersion))
-                        .body(updatePayload()),
+                        .body(secondBody),
                 String.class);
         assertThat(second.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
         JsonNode body = readJson(second);

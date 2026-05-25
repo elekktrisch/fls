@@ -403,7 +403,7 @@
       },
       "put" : {
         "tags" : [ "flights" ],
-        "summary" : "Update a flight (full replace of editable surface + crew)",
+        "summary" : "Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.",
         "operationId" : "update",
         "parameters" : [ {
           "name" : "id",
@@ -447,7 +447,7 @@
       },
       "delete" : {
         "tags" : [ "flights" ],
-        "summary" : "Soft-delete a flight",
+        "summary" : "Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.",
         "operationId" : "delete",
         "parameters" : [ {
           "name" : "id",
@@ -457,6 +457,13 @@
             "type" : "string",
             "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
           }
         } ],
         "responses" : {

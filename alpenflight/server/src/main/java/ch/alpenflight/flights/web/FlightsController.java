@@ -16,14 +16,7 @@ import ch.alpenflight.flights.domain.TransitionTrigger;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.FlightId;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.ProblemDetail;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
@@ -129,13 +122,7 @@ class FlightsController {
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
-    @Operation(summary = "Update a flight (full replace of editable surface + crew)")
-    @Parameter(in = ParameterIn.HEADER, name = "If-Match",
-            description = "Optimistic-concurrency precondition — pass the version returned by the previous GET / POST. RFC 7232 §3.1. Accepts a bare integer, a strong ETag (\"N\"), or weak (W/\"N\"). \"*\" disables the precondition.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "412", description = "If-Match header did not match the stored version; ProblemDetail body carries `expected` + `actual` + `serverVersion` for the conflict dialog.",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    })
+    @Operation(summary = "Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.")
     FlightDetail update(@PathVariable("id") FlightId id,
                         @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch,
                         @Valid @RequestBody FlightUpdateRequest req) {
@@ -169,13 +156,7 @@ class FlightsController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
-    @Operation(summary = "Soft-delete a flight")
-    @Parameter(in = ParameterIn.HEADER, name = "If-Match",
-            description = "Optimistic-concurrency precondition; same semantics as PUT. Omit to force-delete regardless of stored version.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "412", description = "If-Match header did not match the stored version.",
-                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
-    })
+    @Operation(summary = "Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.")
     ResponseEntity<Void> delete(@PathVariable("id") FlightId id,
                                 @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch) {
         Long expected = parseIfMatch(ifMatch);
