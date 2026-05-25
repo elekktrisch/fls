@@ -4,6 +4,7 @@ title: Home/dashboard page — greeting + last flight + quick actions (MVP, pilo
 epic: E-07
 status: todo
 github_issue: 132
+github_pr: 133
 depends_on: [S-062a, S-062b, S-026]
 acceptance:
   - New `GET /api/v1/me` endpoint returns the current user info `{id, personId, clubId, roles, firstName, lastName, email, username}` — resolved from JWT sub via existing `UserPrincipalLookup`. `personId` is nullable (sysadmins / unmapped federated users have none).
