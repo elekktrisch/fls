@@ -11,10 +11,7 @@ import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
-import {
-  AfDatePickerComponent,
-  type DateValue,
-} from '@ui/organisms/af-date-picker';
+import { AfDatePickerComponent, type DateValue } from '@ui/organisms/af-date-picker';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import {
@@ -215,9 +212,7 @@ function toneDotClass(tone: Tone): string {
         <span class="tabular">{{ summary() }}</span>
       </p>
 
-      <div
-        class="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3 border border-slate-200 bg-white p-4"
-      >
+      <div class="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3 border border-slate-200 bg-white p-4">
         <af-form-field label="Date range" for="FlightDateRange">
           <af-date-picker
             mode="range"
@@ -321,9 +316,7 @@ function toneDotClass(tone: Tone): string {
                     {{ processStateText(fl.processState) }}
                   </span>
                   <span class="flex-1"></span>
-                  <span
-                    class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
-                  >
+                  <span class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
                     Duration
                   </span>
                   <span
@@ -398,9 +391,7 @@ function toneDotClass(tone: Tone): string {
                   decoration set (per S-062a "list decorations deferred"). -->
                 <dl class="grid grid-cols-3 gap-x-6 gap-y-2 m-0">
                   <div class="min-w-0">
-                    <dt
-                      class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
-                    >
+                    <dt class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
                       Aircraft
                     </dt>
                     <dd
@@ -411,9 +402,7 @@ function toneDotClass(tone: Tone): string {
                     </dd>
                   </div>
                   <div class="min-w-0">
-                    <dt
-                      class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
-                    >
+                    <dt class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
                       Takeoff
                     </dt>
                     <dd class="m-0 text-sm tabular text-slate-900">
@@ -421,9 +410,7 @@ function toneDotClass(tone: Tone): string {
                     </dd>
                   </div>
                   <div class="min-w-0">
-                    <dt
-                      class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
-                    >
+                    <dt class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
                       Landing
                     </dt>
                     <dd class="m-0 text-sm tabular text-slate-900">

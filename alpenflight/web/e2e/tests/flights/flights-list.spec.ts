@@ -193,9 +193,10 @@ async function stubReferenceData(page: Page): Promise<void> {
   });
 }
 
-function setupFlightsBackend(
-  flights: readonly MockFlightListItem[],
-): { handler: (route: Route) => Promise<void>; lastParams: { from?: string; to?: string } } {
+function setupFlightsBackend(flights: readonly MockFlightListItem[]): {
+  handler: (route: Route) => Promise<void>;
+  lastParams: { from?: string; to?: string };
+} {
   const state: { from?: string; to?: string } = {};
   return {
     lastParams: state,
@@ -247,16 +248,12 @@ test.describe('flights list page', () => {
     await expect(page.getByTestId(`flights-immat-${allFlights[1].id}`)).toHaveText('HB-TOW');
 
     // Air state pill shows the resolved label.
-    await expect(page.getByTestId(`flights-air-state-${allFlights[0].id}`)).toContainText(
-      'Landed',
-    );
+    await expect(page.getByTestId(`flights-air-state-${allFlights[0].id}`)).toContainText('Landed');
 
     // Apply a client-side air-state filter (Started). Both Landed rows hide;
     // the Started row stays. The server is NOT re-queried for this — the
     // client narrows the loaded page.
-    const airStateFilter = page
-      .getByTestId('flights-air-state-filter')
-      .locator('nz-select');
+    const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
     await airStateFilter.click();
     await page.getByRole('option', { name: 'Started' }).click();
 
