@@ -3,8 +3,13 @@ package ch.alpenflight.flights.web;
 import ch.alpenflight.flights.application.FlightDtos.FlightCreateRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
+import ch.alpenflight.flights.application.FlightDtos.FlightProcessStateChangeRequest;
+import ch.alpenflight.flights.application.FlightDtos.FlightProcessStateResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
+import ch.alpenflight.flights.application.FlightStateTransitionService;
 import ch.alpenflight.flights.application.FlightsService;
+import ch.alpenflight.flights.domain.Flight;
+import ch.alpenflight.flights.domain.TransitionTrigger;
 import ch.alpenflight.platform.id.FlightId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -49,9 +55,11 @@ import org.springframework.web.bind.annotation.RestController;
 class FlightsController {
 
     private final FlightsService flights;
+    private final FlightStateTransitionService stateService;
 
-    FlightsController(FlightsService flights) {
+    FlightsController(FlightsService flights, FlightStateTransitionService stateService) {
         this.flights = flights;
+        this.stateService = stateService;
     }
 
     @GetMapping
@@ -94,5 +102,19 @@ class FlightsController {
     ResponseEntity<Void> delete(@PathVariable("id") FlightId id) {
         flights.softDeleteFlight(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping(path = "/{id}/process-state", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Transition a flight's process state (OPERATOR trigger)")
+    FlightProcessStateResponse transitionProcessState(
+            @PathVariable("id") FlightId id,
+            @Valid @RequestBody FlightProcessStateChangeRequest req) {
+        Flight saved = stateService.transition(id, req.processState(), TransitionTrigger.OPERATOR);
+        return new FlightProcessStateResponse(
+                FlightId.of(java.util.Objects.requireNonNull(saved.getId())),
+                saved.getProcessState(),
+                saved.getProcessStateId(),
+                saved.getVersion());
     }
 }

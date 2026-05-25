@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.server.testsupport.TwoClubFixture;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -42,14 +43,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
-    private static final UUID CLUB_UUID = UUID.fromString(CLUB_ID);
+    // Distinct UUIDs per IT so we don't collide with FlightsControllerIT /
+    // FlightsTenantIsolationIT when JUnit runs them in the same JVM.
+    private static final UUID CLUB_UUID = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d1");
+    private static final UUID OTHER_CLUB_UUID = UUID.fromString("019e30c3-2c00-7001-8000-0000000000d2");
+    private static final String CLUB_ID = CLUB_UUID.toString();
 
     private static final UUID NOT_PROCESSED = UUID.fromString("019e2e15-2c00-7a98-8000-000000003a98");
     private static final UUID VALID = UUID.fromString("019e2e15-2c00-7a9a-8000-000000003a9a");
-    private static final UUID LOCKED = UUID.fromString("019e2e15-2c00-7a9b-8000-000000003a9b");
     private static final UUID DELIVERY_BOOKED = UUID.fromString("019e2e15-2c00-7a9e-8000-000000003a9e");
-    private static final UUID EXCLUDED = UUID.fromString("019e2e15-2c00-7a9f-8000-000000003a9f");
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
@@ -63,9 +65,11 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
         adminToken = jwts.mint(c -> c
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        cleanFlightRowsFor(jdbc, CLUB_UUID);
-        jdbc.update("DELETE FROM aircraft WHERE managing_club_id = ?::uuid "
-                + "AND immatriculation LIKE 'HB-FT%'", CLUB_ID);
+        cleanFlightRowsFor(jdbc, CLUB_UUID, OTHER_CLUB_UUID);
+        // Seed both clubs via the existing fixture (handles aircraft + child
+        // cleanup + the complex club FK chain).
+        new TwoClubFixture(jdbc, CLUB_UUID, OTHER_CLUB_UUID,
+                "patchit", "PAIT").seed();
         UUID aid = seedAircraftFor(jdbc, CLUB_UUID);
         aircraftIdExternal = "ac-" + aid;
     }
@@ -133,18 +137,8 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
 
     @Test
     void cross_tenant_flight_returns_404() {
-        // Seed a flight under a different club and try to PATCH it with our token.
-        UUID otherClub = UUID.fromString("019e30c3-2c00-7001-8000-000000000099");
-        jdbc.update("""
-                INSERT INTO club (id, name, business_name, country_id, language_id,
-                                  homebase_id)
-                VALUES (?::uuid, 'Other', 'Other AG',
-                        (SELECT id FROM country WHERE code='CH'),
-                        (SELECT id FROM language WHERE code='DE'),
-                        NULL)
-                ON CONFLICT (id) DO NOTHING
-                """, otherClub.toString());
-        UUID otherAircraft = seedAircraftFor(jdbc, otherClub);
+        // Seed a flight under OTHER_CLUB_UUID and try to PATCH it with our token.
+        UUID otherAircraft = seedAircraftFor(jdbc, OTHER_CLUB_UUID);
         UUID otherFlightId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO flight (id, operating_club_id, aircraft_id,
@@ -158,7 +152,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
                         ?::uuid, 0)
                 """,
                 otherFlightId.toString(),
-                otherClub.toString(),
+                OTHER_CLUB_UUID.toString(),
                 otherAircraft.toString(),
                 VALID.toString());
 
@@ -166,10 +160,6 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
                 "/api/v1/flights/fl-" + otherFlightId + "/process-state",
                 Map.of("processState", "LOCKED"));
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-
-        // Cleanup.
-        jdbc.update("DELETE FROM flight WHERE operating_club_id = ?::uuid", otherClub.toString());
-        jdbc.update("DELETE FROM aircraft WHERE managing_club_id = ?::uuid", otherClub.toString());
     }
 
     /**

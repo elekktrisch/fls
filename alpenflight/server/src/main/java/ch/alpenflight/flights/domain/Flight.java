@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -194,6 +195,10 @@ public class Flight {
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<FlightCrew> crew = new ArrayList<>();
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     protected Flight() {
         // JPA.
@@ -389,6 +394,35 @@ public class Flight {
         this.towFlightId = null;
     }
 
+    /**
+     * Apply a process-state transition. Validates legality against the
+     * {@link FlightTransitionMatrix} and mutates {@link #processStateId}
+     * on success.
+     *
+     * <p>Per the bulk-job convention this method throws on illegality;
+     * bulk callers wrap iterate-collect-log around it so one bad flight
+     * does not abort the batch (legacy {@code FlightService.cs:1180-1183}).
+     *
+     * <p>The audit row is emitted by the application service —
+     * the aggregate stays free of cross-module dependencies. The caller
+     * is responsible for any cross-aggregate side effects (e.g.
+     * delivery-row deletion on DeliveryPrepared → Locked), per the
+     * contract documented in the S-059 design notes.
+     */
+    public void transition(FlightProcessState target, TransitionTrigger trigger) {
+        if (target == null) {
+            throw new IllegalArgumentException("target must not be null");
+        }
+        if (trigger == null) {
+            throw new IllegalArgumentException("trigger must not be null");
+        }
+        FlightProcessState current = FlightProcessState.fromId(this.processStateId);
+        if (!FlightTransitionMatrix.isLegal(trigger, current, target)) {
+            throw new IllegalFlightTransitionException(current, target, trigger);
+        }
+        this.processStateId = target.id();
+    }
+
     /** Marks this flight as soft-deleted. Idempotent. */
     public void softDelete(Instant at) {
         if (this.deletedOn != null) {
@@ -572,6 +606,21 @@ public class Flight {
 
     public UUID getProcessStateId() {
         return processStateId;
+    }
+
+    /**
+     * Resolves the persisted {@link #processStateId} to the corresponding
+     * enum constant. Convenience for callers that prefer the enum surface
+     * (the matrix, audit payload, and DTOs). Throws if the id doesn't
+     * map to a known seed — broken constraint that should be impossible
+     * given the FK.
+     */
+    public FlightProcessState getProcessState() {
+        return FlightProcessState.fromId(processStateId);
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     public @Nullable Long getEngineStartOperatingCounterInSeconds() {

@@ -142,14 +142,14 @@ class FlightTransitionMatrixTest {
     void enum_codes_match_legacy_smallints() {
         // The codes are part of the public contract — the audit payload + e2e
         // parity all key off them. Don't drift.
-        assertThat(FlightProcessState.NOT_PROCESSED.legacyCode()).isEqualTo(0);
-        assertThat(FlightProcessState.INVALID.legacyCode()).isEqualTo(28);
-        assertThat(FlightProcessState.VALID.legacyCode()).isEqualTo(30);
-        assertThat(FlightProcessState.LOCKED.legacyCode()).isEqualTo(40);
-        assertThat(FlightProcessState.DELIVERY_PREPARATION_ERROR.legacyCode()).isEqualTo(45);
-        assertThat(FlightProcessState.DELIVERY_PREPARED.legacyCode()).isEqualTo(50);
-        assertThat(FlightProcessState.DELIVERY_BOOKED.legacyCode()).isEqualTo(60);
-        assertThat(FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS.legacyCode()).isEqualTo(99);
+        assertThat(FlightProcessState.NOT_PROCESSED.legacyCode()).isEqualTo((short) 0);
+        assertThat(FlightProcessState.INVALID.legacyCode()).isEqualTo((short) 28);
+        assertThat(FlightProcessState.VALID.legacyCode()).isEqualTo((short) 30);
+        assertThat(FlightProcessState.LOCKED.legacyCode()).isEqualTo((short) 40);
+        assertThat(FlightProcessState.DELIVERY_PREPARATION_ERROR.legacyCode()).isEqualTo((short) 45);
+        assertThat(FlightProcessState.DELIVERY_PREPARED.legacyCode()).isEqualTo((short) 50);
+        assertThat(FlightProcessState.DELIVERY_BOOKED.legacyCode()).isEqualTo((short) 60);
+        assertThat(FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS.legacyCode()).isEqualTo((short) 99);
     }
 
     @Test

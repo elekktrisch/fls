@@ -61,8 +61,9 @@ class FlightStateTransitionServiceTest {
 
     @Test
     void operator_transition_emits_one_state_transition_audit_row() {
-        Flight f = gliderInState(FlightProcessState.VALID);
         FlightId id = FlightId.of(UUID.randomUUID());
+        Flight f = gliderInState(FlightProcessState.VALID);
+        setField(f, "id", id.value());
         when(repo.findByIdWithCrew(id)).thenReturn(Optional.of(f));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -104,11 +105,12 @@ class FlightStateTransitionServiceTest {
 
     @Test
     void tow_cascade_transitions_both_glider_and_tow_in_one_call() {
-        Flight glider = gliderInState(FlightProcessState.LOCKED);
-        Flight tow = towInState(FlightProcessState.LOCKED);
         FlightId gliderId = FlightId.of(UUID.randomUUID());
         FlightId towId = FlightId.of(UUID.randomUUID());
-
+        Flight glider = gliderInState(FlightProcessState.LOCKED);
+        Flight tow = towInState(FlightProcessState.LOCKED);
+        setField(glider, "id", gliderId.value());
+        setField(tow, "id", towId.value());
         // Wire the tow link.
         setField(glider, "towFlightId", towId.value());
 
@@ -127,8 +129,9 @@ class FlightStateTransitionServiceTest {
 
     @Test
     void tow_cascade_without_tow_link_only_transitions_glider() {
-        Flight glider = gliderInState(FlightProcessState.LOCKED);
         FlightId gliderId = FlightId.of(UUID.randomUUID());
+        Flight glider = gliderInState(FlightProcessState.LOCKED);
+        setField(glider, "id", gliderId.value());
         when(repo.findByIdWithCrew(gliderId)).thenReturn(Optional.of(glider));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
