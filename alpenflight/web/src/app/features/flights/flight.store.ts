@@ -299,7 +299,7 @@ export const FlightStore = signalStore(
       }
     }
 
-    async function deleteOne(id: string, ifMatch: string = '*'): Promise<void> {
+    async function deleteOne(id: string, ifMatch = '*'): Promise<void> {
       // Default `*` matches any current representation (RFC 7232 §3.1) —
       // appropriate when the caller deletes from the list view where the
       // FlightListItem doesn't carry a version. Detail views that loaded
