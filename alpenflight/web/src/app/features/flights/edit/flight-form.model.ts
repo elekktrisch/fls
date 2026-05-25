@@ -9,15 +9,26 @@ import type {
   FlightUpdateRequest,
 } from '@api/generated/model';
 
+import {
+  FLIGHT_CREW_TYPE_CO_PILOT,
+  FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
+  FLIGHT_CREW_TYPE_FLIGHT_INSTRUCTOR,
+  FLIGHT_CREW_TYPE_OBSERVER,
+  FLIGHT_CREW_TYPE_PASSENGER,
+  FLIGHT_CREW_TYPE_PILOT,
+  FLIGHT_CREW_TYPE_WINCH_OPERATOR,
+} from './flight-crew-types';
+
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 
 const FCT = {
-  PILOT: 'pilot',
-  CO_PILOT: 'coPilot',
-  INSTRUCTOR: 'instructor',
-  OBSERVER: 'observer',
-  PASSENGER: 'passenger',
-  WINCH_OPERATOR: 'winchOperator',
+  PILOT: FLIGHT_CREW_TYPE_PILOT,
+  CO_PILOT: FLIGHT_CREW_TYPE_CO_PILOT,
+  INSTRUCTOR: FLIGHT_CREW_TYPE_FLIGHT_INSTRUCTOR,
+  OBSERVER: FLIGHT_CREW_TYPE_OBSERVER,
+  PASSENGER: FLIGHT_CREW_TYPE_PASSENGER,
+  WINCH_OPERATOR: FLIGHT_CREW_TYPE_WINCH_OPERATOR,
+  INVOICE_RECIPIENT: FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
 } as const;
 
 type CrewSlot = (typeof FCT)[keyof typeof FCT];
@@ -141,6 +152,11 @@ function packCrew(g: Partial<CrewSnapshot>): FlightCrewItem[] {
   push(g.observerPersonId, FCT.OBSERVER);
   push(g.passengerPersonId, FCT.PASSENGER);
   push(g.winchOperatorPersonId, FCT.WINCH_OPERATOR);
+  // Invoice recipient: legacy modeled this as a crew row of its own type
+  // rather than a column on Flight (`FlightCrewType.FlightCostInvoiceRecipient`
+  // in `flsserver/src/FLS.Server.Data/DbEntities/Flight.cs:368`); we preserve
+  // that shape so the existing crew table covers it without a schema change.
+  push(g.invoiceRecipientPersonId, FCT.INVOICE_RECIPIENT);
   return out;
 }
 
@@ -208,7 +224,7 @@ function detailToCrewSnapshot(d: FlightDetail): CrewSnapshot {
     engineStartOperatingCounterInSeconds: d.engineStartOperatingCounterInSeconds ?? null,
     engineEndOperatingCounterInSeconds: d.engineEndOperatingCounterInSeconds ?? null,
     flightCostBalanceTypeId: nullIfEmptyGuid(d.flightCostBalanceTypeId),
-    invoiceRecipientPersonId: null,
+    invoiceRecipientPersonId: extractCrew(crew, FCT.INVOICE_RECIPIENT),
     couponNumber: d.couponNumber ?? null,
     flightComment: d.comment ?? null,
     isSoloFlight: d.isSoloFlight,
@@ -241,7 +257,7 @@ function templateToCrewSnapshot(t: FlightTemplateResponse): CrewSnapshot {
     engineStartOperatingCounterInSeconds: null,
     engineEndOperatingCounterInSeconds: null,
     flightCostBalanceTypeId: nullIfEmptyGuid(t.flightCostBalanceTypeId),
-    invoiceRecipientPersonId: null,
+    invoiceRecipientPersonId: extractCrew(crew, FCT.INVOICE_RECIPIENT),
     couponNumber: null,
     flightComment: null,
     isSoloFlight: t.isSoloFlight,

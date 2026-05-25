@@ -155,6 +155,7 @@ This applies even when you "already know" — Angular signal APIs and zoneless r
 - **Legacy parity port:** later (S-109).
 - **Coverage targets:** not enforced by CI; coverage accumulates per feature story.
 - **Acceptable vitest specs today:** anything that asserts behavior without rendering a template — e.g. a `FlightStore` reducer / selector test, a `dateRange.spec.ts` for a pure helper, a guard's URL-building. **Not acceptable today:** `*.component.spec.ts` files that assert on rendered output. (Files predating this convention stay until their next touch; new specs follow the rule.)
+- **Playwright specs write screenshots.** Every spec that renders a non-trivial view writes one PNG per asserted state to `screenshots/<feature>/<NN>-<state>.png` (`fullPage: true`). Examples: `01-populated.png`, `02-filtered.png`, `03-empty.png`, `04-dialog-open.png`. Naming sorts in flow order. This is **diagnostic output, not visual-regression** — no `toHaveScreenshot`; assertions still target data-testids. Reference pattern: `flights-list.spec.ts:316-346`. `screenshots/` is gitignored; CI uploads as a test artifact. Rationale: the operator should not have to manually save PNGs when reviewing UI work.
 
 ## 8b. i18n conventions
 

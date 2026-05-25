@@ -1,8 +1,20 @@
 import { FormBuilder } from '@angular/forms';
 import { describe, expect, it } from 'vitest';
 
-import type { FlightDetail, FlightTemplateResponse } from '@api/generated/model';
+import type {
+  FlightCreateRequest,
+  FlightDetail,
+  FlightTemplateResponse,
+} from '@api/generated/model';
 
+import {
+  FLIGHT_CREW_TYPE_CO_PILOT,
+  FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
+  FLIGHT_CREW_TYPE_FLIGHT_INSTRUCTOR,
+  FLIGHT_CREW_TYPE_PASSENGER,
+  FLIGHT_CREW_TYPE_PILOT,
+  FLIGHT_CREW_TYPE_WINCH_OPERATOR,
+} from './flight-crew-types';
 import {
   buildFlightForm,
   flightDetailToFormSnapshot,
@@ -10,6 +22,8 @@ import {
   snapshotToCreateRequests,
   snapshotToUpdateRequest,
   templateToFormSnapshot,
+  type CrewSnapshot,
+  type FlightFormSnapshot,
 } from './flight-form.model';
 import { START_TYPE } from './flight-start-types';
 
@@ -83,9 +97,13 @@ describe('flight-form.model', () => {
       const snap = flightDetailToFormSnapshot(
         gliderDetail({
           crew: [
-            { personId: 'pn-pilot-1', flightCrewTypeId: 'pilot' },
-            { personId: 'pn-instr-1', flightCrewTypeId: 'instructor' },
-            { personId: 'pn-pax-1', flightCrewTypeId: 'passenger' },
+            { personId: 'pn-pilot-1', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT },
+            { personId: 'pn-instr-1', flightCrewTypeId: FLIGHT_CREW_TYPE_FLIGHT_INSTRUCTOR },
+            { personId: 'pn-pax-1', flightCrewTypeId: FLIGHT_CREW_TYPE_PASSENGER },
+            {
+              personId: 'pn-invoice-1',
+              flightCrewTypeId: FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
+            },
           ],
         }),
         undefined,
@@ -93,6 +111,7 @@ describe('flight-form.model', () => {
       expect(snap.glider.pilotPersonId).toBe('pn-pilot-1');
       expect(snap.glider.instructorPersonId).toBe('pn-instr-1');
       expect(snap.glider.passengerPersonId).toBe('pn-pax-1');
+      expect(snap.glider.invoiceRecipientPersonId).toBe('pn-invoice-1');
       expect(snap.glider.coPilotPersonId).toBeNull();
       expect(snap.glider.observerPersonId).toBeNull();
     });
@@ -101,8 +120,8 @@ describe('flight-form.model', () => {
       const snap = flightDetailToFormSnapshot(
         gliderDetail({
           crew: [
-            { personId: 'pn-pilot-1', flightCrewTypeId: 'pilot' },
-            { personId: EMPTY_GUID, flightCrewTypeId: 'coPilot' },
+            { personId: 'pn-pilot-1', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT },
+            { personId: EMPTY_GUID, flightCrewTypeId: FLIGHT_CREW_TYPE_CO_PILOT },
           ],
         }),
         undefined,
@@ -198,12 +217,12 @@ describe('flight-form.model', () => {
       expect(result.tow?.aircraftId).toBe('ac-tow');
     });
 
-    it('drops tow when start-type Towing but tow aircraft NOT picked (partial tow data discarded, parity)', () => {
+    it('drops tow when start-type Towing but tow aircraft NOT picked (parity discard)', () => {
       const result = snapshotToCreateRequests(snap(TOWING, null));
       expect(result.tow).toBeUndefined();
     });
 
-    it('mirrors glider startLocationId / startTime / outboundRoute onto the tow request (parity FlightsController.js:370-372)', () => {
+    it('mirrors glider startLocationId / startTime / outboundRoute onto the tow request', () => {
       const result = snapshotToCreateRequests(snap(TOWING, 'ac-tow'));
       expect(result.tow?.startLocationId).toBe('loc-home');
       expect(result.tow?.startDateTime).toBe('2026-05-25T10:00:00Z');
@@ -226,14 +245,19 @@ describe('flight-form.model', () => {
           pilotPersonId: 'pn-pilot',
           coPilotPersonId: 'pn-copilot',
           winchOperatorPersonId: 'pn-winch',
+          invoiceRecipientPersonId: 'pn-invoice',
         },
       });
       const s = form.getRawValue() as Parameters<typeof snapshotToCreateRequests>[0];
       const r = snapshotToCreateRequests(s).glider;
       expect(r.crew).toEqual([
-        { personId: 'pn-pilot', flightCrewTypeId: 'pilot' },
-        { personId: 'pn-copilot', flightCrewTypeId: 'coPilot' },
-        { personId: 'pn-winch', flightCrewTypeId: 'winchOperator' },
+        { personId: 'pn-pilot', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT },
+        { personId: 'pn-copilot', flightCrewTypeId: FLIGHT_CREW_TYPE_CO_PILOT },
+        { personId: 'pn-winch', flightCrewTypeId: FLIGHT_CREW_TYPE_WINCH_OPERATOR },
+        {
+          personId: 'pn-invoice',
+          flightCrewTypeId: FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
+        },
       ]);
     });
   });
@@ -274,6 +298,167 @@ describe('flight-form.model', () => {
       const req = snapshotToUpdateRequest(basicSnap(), 'tow');
       expect(req.startLocationId).toBe('loc-home');
       expect(req.startDateTime).toBe('2026-05-25T10:00:00Z');
+    });
+  });
+
+  describe('mapper round-trip: every editable attribute survives snapshot→request→echo', () => {
+    // Fully-populated CrewSnapshot — every field non-null, every flag non-default.
+    // The two side-mirrored fields (startLocationId, startTime, outboundRoute) are
+    // populated identically on glider + tow so the submit-time glider→tow sync
+    // doesn't flip them.
+    const FULL_GLIDER: CrewSnapshot = {
+      aircraftId: 'ac-glider',
+      flightTypeId: 'ft-glider',
+      pilotPersonId: 'pn-pilot',
+      coPilotPersonId: 'pn-copilot',
+      instructorPersonId: 'pn-instr',
+      observerPersonId: 'pn-obs',
+      passengerPersonId: 'pn-pax',
+      winchOperatorPersonId: 'pn-winch',
+      startLocationId: 'loc-start',
+      ldgLocationId: 'loc-ldg',
+      outboundRoute: 'OUT-1',
+      inboundRoute: 'IN-1',
+      startTime: '10:00',
+      ldgTime: '11:30',
+      duration: null,
+      noStartTimeInformation: true,
+      noLdgTimeInformation: true,
+      nrOfLdgs: 3,
+      engineStartOperatingCounterInSeconds: 600,
+      engineEndOperatingCounterInSeconds: 1800,
+      flightCostBalanceTypeId: 'fcb-pilot',
+      invoiceRecipientPersonId: 'pn-invoice',
+      couponNumber: 'C-12345',
+      flightComment: 'round-trip test',
+      isSoloFlight: true,
+    };
+
+    const FULL_TOW: CrewSnapshot = {
+      ...FULL_GLIDER,
+      aircraftId: 'ac-tow',
+      flightTypeId: 'ft-tow',
+      pilotPersonId: 'pn-tow-pilot',
+      coPilotPersonId: null, // tow has no coPilot slot in legacy
+      instructorPersonId: null,
+      observerPersonId: null,
+      passengerPersonId: null,
+      winchOperatorPersonId: null,
+      isSoloFlight: false,
+      flightComment: 'tow leg',
+    };
+
+    function fullSnapshot(): FlightFormSnapshot {
+      return {
+        flightId: null,
+        flightDate: '2026-05-25',
+        startTypeId: TOWING,
+        canUpdateRecord: true,
+        canDeleteRecord: true,
+        glider: { ...FULL_GLIDER },
+        tow: { ...FULL_TOW },
+      };
+    }
+
+    /** Simulates the server echoing a create request back as a detail. */
+    function echoAsDetail(
+      req: FlightCreateRequest,
+      id: string,
+      isSoloFlight: boolean,
+    ): FlightDetail {
+      return {
+        id,
+        flightAircraftType: req.flightAircraftType,
+        aircraftId: req.aircraftId,
+        flightDate: req.flightDate,
+        startDateTime: req.startDateTime,
+        ldgDateTime: req.ldgDateTime,
+        startLocationId: req.startLocationId,
+        ldgLocationId: req.ldgLocationId,
+        outboundRoute: req.outboundRoute,
+        inboundRoute: req.inboundRoute,
+        flightTypeId: req.flightTypeId,
+        startTypeId: req.startTypeId,
+        nrOfLdgs: req.nrOfLdgs,
+        noStartTimeInformation: req.noStartTimeInformation,
+        noLdgTimeInformation: req.noLdgTimeInformation,
+        engineStartOperatingCounterInSeconds: req.engineStartOperatingCounterInSeconds,
+        engineEndOperatingCounterInSeconds: req.engineEndOperatingCounterInSeconds,
+        comment: req.comment,
+        couponNumber: req.couponNumber,
+        flightCostBalanceTypeId: req.flightCostBalanceTypeId,
+        isSoloFlight,
+        airState: 'OnGround',
+        processStateId: 'ps-new',
+        version: 0,
+        crew: req.crew ?? [],
+      } as unknown as FlightDetail;
+    }
+
+    function assertCrewIdentity(out: CrewSnapshot, original: CrewSnapshot): void {
+      expect(out.aircraftId).toBe(original.aircraftId);
+      expect(out.flightTypeId).toBe(original.flightTypeId);
+      expect(out.pilotPersonId).toBe(original.pilotPersonId);
+      expect(out.coPilotPersonId).toBe(original.coPilotPersonId);
+      expect(out.instructorPersonId).toBe(original.instructorPersonId);
+      expect(out.observerPersonId).toBe(original.observerPersonId);
+      expect(out.passengerPersonId).toBe(original.passengerPersonId);
+      expect(out.winchOperatorPersonId).toBe(original.winchOperatorPersonId);
+      expect(out.invoiceRecipientPersonId).toBe(original.invoiceRecipientPersonId);
+      expect(out.startLocationId).toBe(original.startLocationId);
+      expect(out.ldgLocationId).toBe(original.ldgLocationId);
+      expect(out.outboundRoute).toBe(original.outboundRoute);
+      expect(out.inboundRoute).toBe(original.inboundRoute);
+      expect(out.startTime).toBe(original.startTime);
+      expect(out.ldgTime).toBe(original.ldgTime);
+      expect(out.nrOfLdgs).toBe(original.nrOfLdgs);
+      expect(out.engineStartOperatingCounterInSeconds).toBe(
+        original.engineStartOperatingCounterInSeconds,
+      );
+      expect(out.engineEndOperatingCounterInSeconds).toBe(
+        original.engineEndOperatingCounterInSeconds,
+      );
+      expect(out.flightCostBalanceTypeId).toBe(original.flightCostBalanceTypeId);
+      expect(out.couponNumber).toBe(original.couponNumber);
+      expect(out.flightComment).toBe(original.flightComment);
+      expect(out.noStartTimeInformation).toBe(original.noStartTimeInformation);
+      expect(out.noLdgTimeInformation).toBe(original.noLdgTimeInformation);
+      expect(out.isSoloFlight).toBe(original.isSoloFlight);
+    }
+
+    it('every editable glider attribute round-trips byte-identical', () => {
+      const original = fullSnapshot();
+      const requests = snapshotToCreateRequests(original);
+      const gliderEcho = echoAsDetail(requests.glider, 'fl-g', original.glider.isSoloFlight);
+      const towEcho = requests.tow
+        ? echoAsDetail(requests.tow, 'fl-t', original.tow.isSoloFlight)
+        : undefined;
+      const reloaded = flightDetailToFormSnapshot(gliderEcho, towEcho);
+
+      expect(reloaded.flightDate).toBe(original.flightDate);
+      expect(reloaded.startTypeId).toBe(original.startTypeId);
+      assertCrewIdentity(reloaded.glider, original.glider);
+    });
+
+    it('every editable tow attribute round-trips byte-identical', () => {
+      const original = fullSnapshot();
+      const requests = snapshotToCreateRequests(original);
+      expect(requests.tow).toBeDefined();
+      const gliderEcho = echoAsDetail(requests.glider, 'fl-g', original.glider.isSoloFlight);
+      const towEcho = echoAsDetail(requests.tow!, 'fl-t', original.tow.isSoloFlight);
+      const reloaded = flightDetailToFormSnapshot(gliderEcho, towEcho);
+
+      assertCrewIdentity(reloaded.tow, original.tow);
+    });
+
+    it('invoiceRecipientPersonId serializes as a FLIGHT_COST_INVOICE_RECIPIENT crew row', () => {
+      const original = fullSnapshot();
+      const requests = snapshotToCreateRequests(original);
+      const invoiceRow = requests.glider.crew?.find(
+        (c) => c.flightCrewTypeId === FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
+      );
+      expect(invoiceRow).toBeDefined();
+      expect(invoiceRow!.personId).toBe('pn-invoice');
     });
   });
 });

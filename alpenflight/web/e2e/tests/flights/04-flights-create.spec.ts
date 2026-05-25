@@ -166,6 +166,7 @@ test.describe('flight edit — create (parity port)', () => {
     // Wizard mounts after new-template resolves.
     await expect(page.getByTestId('flight-form')).toBeVisible();
     await expect(page.getByTestId('flight-step-launch')).toBeVisible();
+    await page.screenshot({ path: 'screenshots/flights/04-01-launch.png', fullPage: true });
 
     // Flight date pre-filled from new-template.
     await expect(page.getByTestId('flight-edit-flightDate').locator('input')).toHaveValue(
@@ -182,6 +183,8 @@ test.describe('flight edit — create (parity port)', () => {
     await page.getByTestId('flight-step-next').click();
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
     await page.getByTestId('flight-edit-glider-comment').locator('input').fill('parity create');
+
+    await page.screenshot({ path: 'screenshots/flights/04-02-glider-filled.png', fullPage: true });
 
     // Glider is the last step under Self start — submit directly.
     await page.getByTestId('flight-submit').click();

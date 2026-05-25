@@ -122,7 +122,7 @@ class FlightsController {
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
-    @Operation(summary = "Update a flight (full replace of editable surface + crew)")
+    @Operation(summary = "Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.")
     FlightDetail update(@PathVariable("id") FlightId id,
                         @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch,
                         @Valid @RequestBody FlightUpdateRequest req) {
@@ -156,9 +156,11 @@ class FlightsController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
-    @Operation(summary = "Soft-delete a flight")
-    ResponseEntity<Void> delete(@PathVariable("id") FlightId id) {
-        flights.softDeleteFlight(id);
+    @Operation(summary = "Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.")
+    ResponseEntity<Void> delete(@PathVariable("id") FlightId id,
+                                @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch) {
+        Long expected = parseIfMatch(ifMatch);
+        flights.softDeleteFlight(id, expected);
         return ResponseEntity.noContent().build();
     }
 

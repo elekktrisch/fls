@@ -38,6 +38,7 @@ public interface FlightRepository {
                    @Nullable Instant ldgDateTime,
                    UUID aircraftId,
                    UUID processStateId,
+                   long version,
                    boolean noStartTimeInformation,
                    boolean noLdgTimeInformation,
                    @Nullable Instant flightPlanOpenedOn) {

@@ -49,6 +49,7 @@ interface MockFlightListItem {
     | 'MIGHT_BE_LANDED_OR_IN_AIR'
     | 'LANDED'
     | 'FLIGHT_PLAN_CLOSED';
+  version: number;
 }
 
 const AC_GLI = 'ac-019e30c3-2c00-7001-8000-000000000a01';
@@ -65,6 +66,7 @@ const allFlights: MockFlightListItem[] = [
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
     airState: 'LANDED',
+    version: 1,
   },
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000002',
@@ -76,6 +78,7 @@ const allFlights: MockFlightListItem[] = [
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
     airState: 'LANDED',
+    version: 1,
   },
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000003',
@@ -87,6 +90,7 @@ const allFlights: MockFlightListItem[] = [
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
     airState: 'STARTED',
+    version: 1,
   },
 ];
 

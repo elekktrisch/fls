@@ -219,9 +219,12 @@ public class FlightsService {
                 });
     }
 
-    public void softDeleteFlight(FlightId id) {
+    public void softDeleteFlight(FlightId id, @Nullable Long ifMatchVersion) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        if (ifMatchVersion != null && ifMatchVersion != flight.getVersion()) {
+            throw new FlightVersionMismatchException(ifMatchVersion, flight.getVersion());
+        }
         assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.softDelete(clock.instant());
@@ -232,7 +235,9 @@ public class FlightsService {
                         before));
         // Legacy FlightService.cs:1314-1319. Application-layer only (no DB
         // cascade on the self-FK by design); each tow row gets its own audit
-        // event sharing the request's actor + timestamp.
+        // event sharing the request's actor + timestamp. Class-level
+        // @Transactional means an exception in the tow leg rolls back the
+        // glider delete too — caller sees an atomic outcome.
         if (flight.getFlightAircraftType() == FlightAircraftType.GLIDER
                 && flight.getTowFlightId() != null) {
             FlightId towId = FlightId.of(flight.getTowFlightId());
@@ -240,6 +245,10 @@ public class FlightsService {
                 if (tow.isDeleted()) {
                     return;
                 }
+                // The tow row may be in a terminal / admin-locked state
+                // independent of the glider; cascade must honour the same
+                // gate. Throwing here rolls back the glider delete too.
+                assertMutationAllowed(tow);
                 FlightDetail towBefore = mapper.toDetail(tow);
                 tow.softDelete(clock.instant());
                 repository.save(tow);
