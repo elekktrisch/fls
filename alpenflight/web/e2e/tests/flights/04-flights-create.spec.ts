@@ -172,6 +172,10 @@ test.describe('flight edit — create (parity port)', () => {
       '2026-05-25',
     );
 
+    // Tow step is hidden from the stepper because startType is Self
+    // (not Aerotow) — only steps 0 (Launch) and 1 (Glider) render.
+    await expect(page.getByTestId('flight-step-2')).toHaveCount(0);
+
     // Move to step 2 (glider). Aircraft / pilot / flight type already
     // defaulted from new-template; type a comment for parity-with-legacy
     // assertion.
@@ -179,11 +183,7 @@ test.describe('flight edit — create (parity port)', () => {
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
     await page.getByTestId('flight-edit-glider-comment').locator('input').fill('parity create');
 
-    // Step 3: tow is skipped because startType is Self (not Towing).
-    await page.getByTestId('flight-step-next').click();
-    await expect(page.getByTestId('flight-step-tow-skipped')).toBeVisible();
-
-    // Submit.
+    // Glider is the last step under Self start — submit directly.
     await page.getByTestId('flight-submit').click();
 
     // POST /flights observed once, with the glider row shape.

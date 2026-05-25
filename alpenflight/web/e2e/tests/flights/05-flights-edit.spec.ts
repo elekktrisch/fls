@@ -145,13 +145,13 @@ test.describe('flight edit — edit existing (parity port)', () => {
     await page.goto(`/flights/${FLIGHT_ID}/edit`);
 
     await expect(page.getByTestId('flight-form')).toBeVisible();
-    // Walk to glider step + mutate the comment.
+    // Mocked flight has startTypeId='st-self' → tow step is hidden;
+    // wizard is two steps (Launch / Glider).
     await page.getByTestId('flight-step-next').click();
     const commentInput = page.getByTestId('flight-edit-glider-comment').locator('input');
     await commentInput.fill('after edit');
 
-    // Skip to last step and submit.
-    await page.getByTestId('flight-step-next').click();
+    // Glider is the last step — submit directly.
     await page.getByTestId('flight-submit').click();
 
     await expect.poll(() => captured).not.toBeNull();

@@ -54,6 +54,13 @@ import { START_TYPE_OPTIONS } from './flight-start-types';
 
 type Mode = 'new' | 'edit' | 'copy';
 
+interface StepDescriptor {
+  index: number;
+  label: string;
+  subtitle: string;
+  conditional: boolean;
+}
+
 /**
  * 3-step wizard shell for create / edit / copy of a flight.
  *
@@ -106,17 +113,43 @@ type Mode = 'new' | 'edit' | 'copy';
         <p class="text-slate-600" data-testid="flight-loading">Loading...</p>
       } @else {
         <form [formGroup]="form" (ngSubmit)="onEnter()" data-testid="flight-form" class="space-y-6">
-          <nav class="flex gap-2 border-b border-slate-200 pb-2" data-testid="flight-stepper">
-            @for (s of stepLabels; track s.index) {
+          <nav class="grid gap-2 sm:grid-cols-3" data-testid="flight-stepper">
+            @for (s of stepLabels(); track s.index) {
               <button
                 type="button"
-                class="min-h-11 px-4 py-2 text-sm"
-                [class.text-brand-600]="step() === s.index"
-                [class.font-medium]="step() === s.index"
+                class="flex min-h-16 items-start gap-3 border border-slate-200 px-4 py-3 text-left
+                       hover:border-brand-300 focus:outline-hidden focus:ring-2 focus:ring-brand-400"
+                [class.border-b-2]="step() === s.index"
+                [class.border-b-brand-500]="step() === s.index"
+                [class.bg-white]="step() === s.index"
+                [class.bg-slate-50]="step() !== s.index"
                 [attr.data-testid]="'flight-step-' + s.index"
+                [attr.aria-current]="step() === s.index ? 'step' : null"
                 (click)="goToStep(s.index)"
               >
-                {{ s.index + 1 }}. {{ s.label }}
+                <span
+                  class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center border text-xs font-medium"
+                  [class.border-brand-500]="step() === s.index"
+                  [class.bg-brand-500]="step() < s.index ? false : step() > s.index"
+                  [class.text-white]="step() > s.index"
+                  [class.text-brand-600]="step() === s.index"
+                  [class.border-slate-300]="step() < s.index"
+                  [class.text-slate-500]="step() < s.index"
+                  aria-hidden="true"
+                >
+                  @if (step() > s.index) {
+                    ✓
+                  } @else {
+                    {{ s.index + 1 }}
+                  }
+                </span>
+                <span class="flex flex-col">
+                  <span class="text-xs uppercase tracking-wide text-slate-500"
+                    >Step {{ s.index + 1 }}</span
+                  >
+                  <span class="text-sm font-medium text-slate-900">{{ s.label }}</span>
+                  <span class="text-xs text-slate-500">{{ s.subtitle }}</span>
+                </span>
               </button>
             }
           </nav>
@@ -209,35 +242,29 @@ type Mode = 'new' | 'edit' | 'copy';
               </section>
             }
             @case (2) {
-              @if (needsTow()) {
-                <section formGroupName="tow" class="space-y-4" data-testid="flight-step-tow">
-                  <af-form-field label="Tow aircraft">
-                    <af-select
-                      formControlName="aircraftId"
-                      [options]="towAircraftOptions()"
-                      data-testid="flight-edit-tow-aircraft"
-                    />
-                  </af-form-field>
-                  <af-form-field label="Tow pilot">
-                    <af-select
-                      formControlName="pilotPersonId"
-                      [options]="personOptions()"
-                      data-testid="flight-edit-tow-pilot"
-                    />
-                  </af-form-field>
-                  <af-form-field label="Landing time">
-                    <af-input
-                      type="time"
-                      formControlName="ldgTime"
-                      data-testid="flight-edit-tow-ldgTime"
-                    />
-                  </af-form-field>
-                </section>
-              } @else {
-                <p class="text-slate-600" data-testid="flight-step-tow-skipped">
-                  No tow plane required for this start type.
-                </p>
-              }
+              <section formGroupName="tow" class="space-y-4" data-testid="flight-step-tow">
+                <af-form-field label="Tow aircraft">
+                  <af-select
+                    formControlName="aircraftId"
+                    [options]="towAircraftOptions()"
+                    data-testid="flight-edit-tow-aircraft"
+                  />
+                </af-form-field>
+                <af-form-field label="Tow pilot">
+                  <af-select
+                    formControlName="pilotPersonId"
+                    [options]="personOptions()"
+                    data-testid="flight-edit-tow-pilot"
+                  />
+                </af-form-field>
+                <af-form-field label="Landing time">
+                  <af-input
+                    type="time"
+                    formControlName="ldgTime"
+                    data-testid="flight-edit-tow-ldgTime"
+                  />
+                </af-form-field>
+              </section>
             }
           }
 
@@ -250,7 +277,7 @@ type Mode = 'new' | 'edit' | 'copy';
                 >Back</af-button
               >
               <span class="text-sm text-slate-500"
-                >Step {{ step() + 1 }} / {{ stepLabels.length }}</span
+                >Step {{ step() + 1 }} / {{ stepLabels().length }}</span
               >
               @if (!isLastStep()) {
                 <af-button
@@ -299,10 +326,10 @@ type Mode = 'new' | 'edit' | 'copy';
   `,
 })
 export class FlightsEditPage {
-  protected readonly stepLabels = [
-    { index: 0, label: 'Launch' },
-    { index: 1, label: 'Glider' },
-    { index: 2, label: 'Tow' },
+  private readonly allSteps: readonly StepDescriptor[] = [
+    { index: 0, label: 'Launch', subtitle: 'date · airfield · method', conditional: false },
+    { index: 1, label: 'Glider', subtitle: 'aircraft · crew · times', conditional: false },
+    { index: 2, label: 'Tow plane', subtitle: 'aircraft · pilot · landing', conditional: true },
   ];
 
   private readonly fb: NonNullableFormBuilder = inject(FormBuilder).nonNullable;
@@ -342,11 +369,18 @@ export class FlightsEditPage {
     }
   });
 
-  protected readonly isLastStep = computed(() => this.step() === this.stepLabels.length - 1);
-
   // Live signal of startTypeId so needsTow() responds to form changes.
   private readonly startTypeSignal = signal<string | null>(null);
   protected readonly needsTow = computed(() => needsTowplane(this.startTypeSignal()));
+
+  // The visible step set drops conditional steps (Tow) when their predicate
+  // is false. Reactive — flips back on as soon as the user picks Aerotow.
+  protected readonly stepLabels = computed<readonly StepDescriptor[]>(() => {
+    const needs = this.needsTow();
+    return this.allSteps.filter((s) => !s.conditional || needs);
+  });
+
+  protected readonly isLastStep = computed(() => this.step() === this.stepLabels().length - 1);
 
   protected readonly locationOptions = computed<AfSelectOption<string>[]>(() =>
     this.locationsStore.entities().map((l) => ({ value: l.id, label: l.locationName })),
@@ -426,6 +460,16 @@ export class FlightsEditPage {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.startTypeSignal.set(v));
 
+    // Clamp the active step when the visible step set shrinks (e.g. user
+    // is on the Tow step and switches to Winch — the Tow step disappears
+    // from the stepper, so the active step lands on the new last step).
+    effect(() => {
+      const max = this.stepLabels().length - 1;
+      if (this.step() > max) {
+        untracked(() => this.step.set(max));
+      }
+    });
+
     // Resolve mode + id from the route; load the appropriate snapshot.
     effect(() => {
       const params = this.route.snapshot.paramMap;
@@ -443,7 +487,7 @@ export class FlightsEditPage {
   }
 
   protected goToStep(n: number): void {
-    if (n < 0 || n >= this.stepLabels.length) return;
+    if (n < 0 || n >= this.stepLabels().length) return;
     this.step.set(n);
   }
 
