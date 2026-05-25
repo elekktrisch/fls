@@ -10,12 +10,13 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link FlightPairValidator} — locks in the S-063 fork
+ * Unit tests for {@link FlightCompositeValidator} — locks in the S-063 fork
  * outcome (b) AC-as-written: glider validity couples to tow validity via
  * a single sentinel error code rather than inheriting the tow's nested
- * error list.
+ * error list. Degenerate cases (motor, tow-passed-directly) assert the
+ * non-glider input paths fall through to per-flight validation only.
  */
-class FlightPairValidatorTest {
+class FlightCompositeValidatorTest {
 
     private static final UUID AIRCRAFT_GLIDER =
             UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1");
@@ -48,7 +49,7 @@ class FlightPairValidatorTest {
     void glider_with_no_towFlight_returns_only_per_flight_errors() {
         Flight glider = validGlider(START_TYPE_SELF, /* towLinked= */ false);
         List<FlightValidator.ValidationError> errors =
-                FlightPairValidator.validate(glider, id -> Optional.empty());
+                FlightCompositeValidator.validate(glider, id -> Optional.empty());
         assertThat(errors).extracting(FlightValidator.ValidationError::code)
                 .doesNotContain(
                         "VALIDATION_ERROR_Tow_flight_invalid",
@@ -60,7 +61,7 @@ class FlightPairValidatorTest {
         Flight glider = validGlider(START_TYPE_AEROTOW, /* towLinked= */ true);
         Flight tow = validTow();
         List<FlightValidator.ValidationError> errors =
-                FlightPairValidator.validate(glider, id -> Optional.of(tow));
+                FlightCompositeValidator.validate(glider, id -> Optional.of(tow));
         assertThat(errors).extracting(FlightValidator.ValidationError::code)
                 .doesNotContain(
                         "VALIDATION_ERROR_Tow_flight_invalid",
@@ -72,7 +73,7 @@ class FlightPairValidatorTest {
         Flight glider = validGlider(START_TYPE_AEROTOW, /* towLinked= */ true);
         Flight tow = invalidTow();
         List<FlightValidator.ValidationError> errors =
-                FlightPairValidator.validate(glider, id -> Optional.of(tow));
+                FlightCompositeValidator.validate(glider, id -> Optional.of(tow));
         assertThat(errors).extracting(FlightValidator.ValidationError::code)
                 .contains("VALIDATION_ERROR_Tow_flight_invalid")
                 // Tow's own missing-pilot error must NOT appear in the glider
@@ -85,7 +86,7 @@ class FlightPairValidatorTest {
     void glider_with_missing_tow_target_appends_missing_or_deleted() throws Exception {
         Flight glider = validGlider(START_TYPE_AEROTOW, /* towLinked= */ true);
         List<FlightValidator.ValidationError> errors =
-                FlightPairValidator.validate(glider, id -> Optional.empty());
+                FlightCompositeValidator.validate(glider, id -> Optional.empty());
         assertThat(errors).extracting(FlightValidator.ValidationError::code)
                 .contains("VALIDATION_ERROR_Tow_flight_missing_or_deleted")
                 .doesNotContain("VALIDATION_ERROR_Tow_flight_invalid");
@@ -97,10 +98,26 @@ class FlightPairValidatorTest {
         Flight tow = validTow();
         tow.softDelete(java.time.Instant.parse("2026-05-01T08:00:00Z"));
         List<FlightValidator.ValidationError> errors =
-                FlightPairValidator.validate(glider, id -> Optional.of(tow));
+                FlightCompositeValidator.validate(glider, id -> Optional.of(tow));
         assertThat(errors).extracting(FlightValidator.ValidationError::code)
                 .contains("VALIDATION_ERROR_Tow_flight_missing_or_deleted")
                 .doesNotContain("VALIDATION_ERROR_Tow_flight_invalid");
+    }
+
+    @Test
+    void motor_flight_falls_through_to_per_flight_validation() {
+        // Motor flights don't link to anything; passing one through the
+        // composite validator must not attempt recursion.
+        Flight motor = Flight.createMotor(AIRCRAFT_GLIDER, PROCESS_STATE_NEW,
+                opsForFlight(START_TYPE_SELF));
+        List<FlightValidator.ValidationError> errors =
+                FlightCompositeValidator.validate(motor, id -> {
+                    throw new AssertionError("lookup must not be called for MOTOR row");
+                });
+        assertThat(errors).extracting(FlightValidator.ValidationError::code)
+                .doesNotContain(
+                        "VALIDATION_ERROR_Tow_flight_invalid",
+                        "VALIDATION_ERROR_Tow_flight_missing_or_deleted");
     }
 
     @Test
@@ -110,7 +127,7 @@ class FlightPairValidatorTest {
         // construction). Returns just its per-flight errors.
         Flight tow = validTow();
         List<FlightValidator.ValidationError> errors =
-                FlightPairValidator.validate(tow, id -> {
+                FlightCompositeValidator.validate(tow, id -> {
                     throw new AssertionError("lookup must not be called for TOW row");
                 });
         assertThat(errors).extracting(FlightValidator.ValidationError::code)

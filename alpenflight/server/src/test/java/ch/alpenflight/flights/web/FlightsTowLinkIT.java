@@ -85,16 +85,16 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void put_with_explicit_null_towFlightId_unlinks() {
-        // The explicit-null path is how an operator chooses to detach a tow
-        // without deleting either row. Stays supported after the partial-PUT
-        // fix.
+    void put_with_unlinkTowFlight_true_unlinks() {
+        // Per the partial-PUT contract, plain absence of `towFlightId` means
+        // "preserve" — explicit detach without delete uses the new
+        // `unlinkTowFlight` boolean.
         String gliderId = createFlight("GLIDER");
         String towId = createFlight("TOW");
         link(gliderId, towId);
 
         Map<String, Object> body = updateBody();
-        body.put("towFlightId", null);
+        body.put("unlinkTowFlight", true);
         ResponseEntity<String> put = put("/api/v1/flights/" + gliderId, body, tokenA);
         assertThat(put.getStatusCode()).isEqualTo(HttpStatus.OK);
 

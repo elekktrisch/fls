@@ -196,7 +196,7 @@ public final class FlightDtos {
             boolean isSoloFlight,
             @Nullable @Valid List<FlightCrewItem> crew) {}
 
-    @Schema(description = "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).")
+    @Schema(description = "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059). Tow-link semantics: `towFlightId` value → link; `unlinkTowFlight: true` → explicit unlink; both absent → preserve the existing link (S-063 partial-PUT fix).")
     public record FlightUpdateRequest(
             @NotNull AircraftId aircraftId,
             @Nullable LocalDate flightDate,
@@ -226,5 +226,6 @@ public final class FlightDtos {
             @Nullable Short startPosition,
             boolean isSoloFlight,
             @Nullable FlightId towFlightId,
+            @Nullable Boolean unlinkTowFlight,
             @Nullable @Valid List<FlightCrewItem> crew) {}
 }
