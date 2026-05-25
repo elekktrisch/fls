@@ -2868,7 +2868,7 @@
       },
       "FlightUpdateRequest" : {
         "type" : "object",
-        "description" : "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).",
+        "description" : "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059). Tow-link semantics: `towFlightId` value → link; `unlinkTowFlight: true` → explicit unlink; both absent → preserve the existing link (S-063 partial-PUT fix).",
         "properties" : {
           "aircraftId" : {
             "type" : "string",
@@ -2992,6 +2992,9 @@
             "type" : "string",
             "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "unlinkTowFlight" : {
+            "type" : "boolean"
           },
           "crew" : {
             "type" : "array",

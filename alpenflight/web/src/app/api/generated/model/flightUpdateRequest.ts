@@ -8,7 +8,7 @@
 import type { FlightCrewItem } from './flightCrewItem';
 
 /**
- * Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).
+ * Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059). Tow-link semantics: `towFlightId` value → link; `unlinkTowFlight: true` → explicit unlink; both absent → preserve the existing link (S-063 partial-PUT fix).
  */
 export type FlightUpdateRequest = {
   /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
@@ -70,5 +70,6 @@ export type FlightUpdateRequest = {
   isSoloFlight?: boolean;
   /** @pattern ^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   towFlightId?: string;
+  unlinkTowFlight?: boolean;
   crew?: FlightCrewItem[];
 };

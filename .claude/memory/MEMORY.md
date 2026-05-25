@@ -28,3 +28,4 @@
 - [Tailwind only, no component CSS](feedback-no-component-css-tailwind-only.md) — alpenflight/web: zero `styles: [...]` arrays; templates use Tailwind utilities; styles.css holds only tokens + ng-zorro overrides; repetition → extract a component.
 - [Rename after 3 prompts](feedback-rename-after-three-prompts.md) — once per session, after the 3rd user prompt, run /rename to give the session a meaningful title.
 - [Angular Vite proxy needs `**`](feedback-angular-vite-proxy-glob.md) — `proxy.conf.json` paths must use `/api/v1/**`; single `*` doesn't cross `/` and silently lets deep paths fall through to index.html.
+- [Targeted tests, not full suite](feedback-targeted-tests-not-full-suite.md) — during implement, use `--tests 'pkg.*'` covering the change; full backend suite > 5 min on this stack. CI catches anything missed.
