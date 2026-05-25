@@ -38,7 +38,11 @@ jobs:
   playwright:
     name: Run Playwright
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    # Hard ceiling. Suite + ng-serve boot fit in <5 min when green;
+    # 8 min absorbs a cold pnpm/playwright cache. `maxFailures: 3` in
+    # the Playwright config bails the test run itself; this is the
+    # backstop when the runner itself stalls.
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
@@ -88,6 +92,11 @@ jobs:
       - name: Run Playwright
         id: pw
         working-directory: alpenflight/web
+        # Step-level cap so a single hung test or non-cooperative cancel
+        # can't keep the whole job tied up. Playwright per-test timeout
+        # is 30s; maxFailures is 3; this gives ample room for a clean run
+        # and pulls the plug if the runner refuses SIGINT.
+        timeout-minutes: 5
         run: pnpm exec playwright test --config=e2e/playwright.config.ts
         continue-on-error: true
 
