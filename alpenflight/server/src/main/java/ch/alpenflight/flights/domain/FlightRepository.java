@@ -38,7 +38,19 @@ public interface FlightRepository {
                    @Nullable Instant ldgDateTime,
                    UUID aircraftId,
                    UUID processStateId,
-                   UUID airStateId) {}
+                   boolean noStartTimeInformation,
+                   boolean noLdgTimeInformation,
+                   @Nullable Instant flightPlanOpenedOn) {
+
+        /**
+         * Air-state is sacred-cow computed (S-060). Delegates to
+         * {@link FlightAirState#compute} so list + detail agree.
+         */
+        public FlightAirState airState() {
+            return FlightAirState.compute(ldgDateTime, startDateTime,
+                    noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
+        }
+    }
 
     Flight save(Flight flight);
 

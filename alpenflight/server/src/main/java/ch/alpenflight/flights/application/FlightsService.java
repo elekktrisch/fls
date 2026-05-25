@@ -38,9 +38,10 @@ import org.springframework.transaction.annotation.Transactional;
  * tenant gate (Aircraft has no @TenantId), only for friendlier error
  * messages, which we defer.
  *
- * <p>State-machine columns ({@code process_state_id}, {@code air_state_id},
- * {@code validated_on}, etc.) are stamped at create from
- * {@link FlightInitialStateProvider}; transitions are deferred to S-059.
+ * <p>State-machine columns ({@code process_state_id}, {@code validated_on},
+ * etc.) are stamped at create from {@link FlightInitialStateProvider};
+ * transitions are owned by S-059. Air-state is computed (S-060), never
+ * stored.
  *
  * <p>Audit emission: every mutation calls {@link AuditTrail#record}. Flight
  * + FlightCrew are in {@code audit.redaction.deny-all} for now — the
@@ -78,17 +79,11 @@ public class FlightsService {
         FlightOperationalData ops = mapper.toOperationalData(req);
         Flight flight = switch (req.flightAircraftType()) {
             case GLIDER -> Flight.createGlider(aircraftUuid,
-                    initialState.initialProcessStateId(),
-                    initialState.initialAirStateId(),
-                    ops);
+                    initialState.initialProcessStateId(), ops);
             case TOW -> Flight.createTow(aircraftUuid,
-                    initialState.initialProcessStateId(),
-                    initialState.initialAirStateId(),
-                    ops);
+                    initialState.initialProcessStateId(), ops);
             case MOTOR -> Flight.createMotor(aircraftUuid,
-                    initialState.initialProcessStateId(),
-                    initialState.initialAirStateId(),
-                    ops);
+                    initialState.initialProcessStateId(), ops);
         };
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));
         Flight saved = repository.save(flight);

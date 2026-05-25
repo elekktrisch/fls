@@ -77,7 +77,7 @@ class TenantCatalogConsistencyTest {
         // `location_type` stays reference data (categorical code).
         List<String> refs = List.of(
                 "aircraft_type", "aircraft_state", "location_type",
-                "flight_crew_type", "flight_process_state", "flight_air_state",
+                "flight_crew_type", "flight_process_state",
                 "flight_cost_balance_type");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : refs) {

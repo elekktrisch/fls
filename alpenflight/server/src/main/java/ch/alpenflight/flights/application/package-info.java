@@ -8,11 +8,12 @@
  *
  * <p>Mass-assignment defense (A04): {@code FlightCreateRequest} and
  * {@code FlightUpdateRequest} explicitly exclude the state-machine columns
- * ({@code processStateId}, {@code airStateId}, {@code validatedOn},
- * {@code deliveryCreatedOn}, {@code flightReportSentOn},
- * {@code validationErrors}), the tenant column ({@code operatingClubId} —
- * set by Hibernate from the JWT), and audit metadata. Discriminator
- * {@code flightAircraftType} is immutable post-create.
+ * ({@code processStateId}, {@code validatedOn}, {@code deliveryCreatedOn},
+ * {@code flightReportSentOn}, {@code validationErrors}), the tenant column
+ * ({@code operatingClubId} — set by Hibernate from the JWT), and audit
+ * metadata. Air-state is computed (S-060), response-only; the request DTOs
+ * carry no air-state field at all. Discriminator {@code flightAircraftType}
+ * is immutable post-create.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.flights.application;

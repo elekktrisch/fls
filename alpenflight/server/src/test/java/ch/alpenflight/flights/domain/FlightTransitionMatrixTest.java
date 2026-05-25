@@ -197,15 +197,14 @@ class FlightTransitionMatrixTest {
      * they live in the same package.
      */
     private static Flight newGliderInState(FlightProcessState state) {
-        Flight f = Flight.createGlider(
+        // The factory accepts the initial process-state UUID; we pass the
+        // target state's seeded UUID so the aggregate already carries the
+        // matching enum before the test exercises a transition. Air-state
+        // is computed (S-060), so no longer threaded through.
+        return Flight.createGlider(
                 java.util.UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1"),
                 state.id(),
-                java.util.UUID.fromString("019e2e15-2c00-7e80-8000-000000003e80"),
                 opsForTest());
-        // The factory already accepts an initial-state UUID; we pass the
-        // target state's seeded UUID. The aggregate then carries the
-        // matching enum because FlightProcessState exposes its UUID.
-        return f;
     }
 
     private static FlightOperationalData opsForTest() {

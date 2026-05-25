@@ -9,27 +9,24 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * One-shot lookup of the two reference-data UUIDs the Flight aggregate
- * stamps on create — {@code flight_process_state.code='NOT_PROCESSED'} and
- * {@code flight_air_state.code='NEW'}. Cached at {@code @PostConstruct} so
- * every create is a pure in-memory call; the canonical UUIDs are seeded by
- * V3 and never change at runtime (they're identity-bearing per ADR 0019).
+ * One-shot lookup of the reference-data UUID the Flight aggregate stamps
+ * on create — {@code flight_process_state.code='NOT_PROCESSED'}. Cached
+ * at {@code @PostConstruct} so every create is a pure in-memory call; the
+ * canonical UUID is seeded by V3 and never changes at runtime (identity-
+ * bearing per ADR 0019).
  *
- * <p>Pre-S-059 (state-machine) all new flights start in this fixed pair.
- * S-059 owns the transition logic; this component is invariant against
- * that work.
+ * <p>S-060 dropped the parallel air-state lookup — air-state is computed
+ * by {@code Flight.airState()}, never stored.
  */
 @Component
 public class FlightInitialState implements FlightInitialStateProvider {
 
     private static final String INITIAL_PROCESS_STATE_CODE = "NOT_PROCESSED";
-    private static final String INITIAL_AIR_STATE_CODE = "NEW";
 
     private final EntityManager em;
     private final TransactionTemplate tx;
 
     private UUID initialProcessStateId = new UUID(0L, 0L);
-    private UUID initialAirStateId = new UUID(0L, 0L);
 
     public FlightInitialState(EntityManager em, TransactionTemplate tx) {
         this.em = em;
@@ -41,12 +38,7 @@ public class FlightInitialState implements FlightInitialStateProvider {
         // Resolve inside an explicit transaction so the EntityManager has a
         // bound JDBC session — outside Spring's @Transactional, the EM's
         // ResultSet would be closed before we read the row.
-        tx.executeWithoutResult(status -> {
-            initialProcessStateId = lookup(FlightProcessStateProjection.class,
-                    INITIAL_PROCESS_STATE_CODE, "flight_process_state");
-            initialAirStateId = lookup(FlightAirStateProjection.class,
-                    INITIAL_AIR_STATE_CODE, "flight_air_state");
-        });
+        tx.executeWithoutResult(status -> initialProcessStateId = lookup());
     }
 
     @Override
@@ -54,32 +46,26 @@ public class FlightInitialState implements FlightInitialStateProvider {
         return initialProcessStateId;
     }
 
-    @Override
-    public UUID initialAirStateId() {
-        return initialAirStateId;
-    }
-
-    private <T> UUID lookup(Class<T> projection, String code, String tableName) {
-        String entityName = projection.getSimpleName();
-        Object row;
+    private UUID lookup() {
+        FlightProcessStateProjection row;
         try {
             row = em.createQuery(
-                            "select p from " + entityName + " p where p.code = :c",
-                            projection)
-                    .setParameter("c", code)
+                            "select p from FlightProcessStateProjection p where p.code = :c",
+                            FlightProcessStateProjection.class)
+                    .setParameter("c", INITIAL_PROCESS_STATE_CODE)
                     .getSingleResult();
         } catch (NoResultException e) {
             throw new IllegalStateException(
-                    "Reference seed missing: " + tableName + ".code='" + code
+                    "Reference seed missing: flight_process_state.code='"
+                            + INITIAL_PROCESS_STATE_CODE
                             + "' — V3 migration must seed this row", e);
         }
-        if (row instanceof FlightProcessStateProjection p && p.getId() != null) {
-            return p.getId();
+        UUID id = row.getId();
+        if (id == null) {
+            throw new IllegalStateException(
+                    "Reference seed flight_process_state.code='"
+                            + INITIAL_PROCESS_STATE_CODE + "' has null id");
         }
-        if (row instanceof FlightAirStateProjection p && p.getId() != null) {
-            return p.getId();
-        }
-        throw new IllegalStateException(
-                "Reference seed " + tableName + ".code='" + code + "' has null id");
+        return id;
     }
 }

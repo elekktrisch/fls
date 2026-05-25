@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { FlightCrewItem } from './flightCrewItem';
+import type { FlightDetailAirState } from './flightDetailAirState';
 import type { FlightDetailFlightAircraftType } from './flightDetailFlightAircraftType';
 
 /**
@@ -40,7 +41,7 @@ export type FlightDetail = {
   nrOfLdgsOnStartLocation?: number;
   noStartTimeInformation: boolean;
   noLdgTimeInformation: boolean;
-  airStateId: string;
+  airState: FlightDetailAirState;
   processStateId: string;
   engineStartOperatingCounterInSeconds?: number;
   engineEndOperatingCounterInSeconds?: number;

@@ -145,10 +145,9 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
                                     flight_aircraft_type_id, flight_date,
                                     is_solo_flight, no_start_time_information,
                                     no_ldg_time_information,
-                                    air_state_id, process_state_id, version)
+                                    process_state_id, version)
                 VALUES (?::uuid, ?::uuid, ?::uuid, 1, '2026-05-01',
                         false, false, false,
-                        '019e2e15-2c00-7e80-8000-000000003e80'::uuid,
                         ?::uuid, 0)
                 """,
                 otherFlightId.toString(),

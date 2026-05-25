@@ -117,7 +117,7 @@ public class FlightMapper {
                 row.ldgDateTime(),
                 AircraftId.of(row.aircraftId()),
                 row.processStateId(),
-                row.airStateId());
+                row.airState());
     }
 
     public FlightDetail toDetail(Flight f) {
@@ -144,7 +144,7 @@ public class FlightMapper {
                 f.getNrOfLdgsOnStartLocation(),
                 f.isNoStartTimeInformation(),
                 f.isNoLdgTimeInformation(),
-                f.getAirStateId(),
+                f.airState(),
                 f.getProcessStateId(),
                 f.getEngineStartOperatingCounterInSeconds(),
                 f.getEngineEndOperatingCounterInSeconds(),
