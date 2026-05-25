@@ -2,7 +2,8 @@
 id: S-062b
 title: Flight list page (paginated, filterable)
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-05-25
 depends_on: [S-062a, S-006, S-008]
 acceptance:
   - `/flights` route renders a paginated `<fls-data-table>` over `POST /api/v1/flights/search` (the endpoint built in S-062a).
@@ -21,6 +22,7 @@ refined: true
 refined_at: 2026-05-14
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 split_from: S-062
+github_issue: 122
 ---
 
 ## Context
