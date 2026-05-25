@@ -5,6 +5,7 @@
  * Glider club operations platform. Source of truth for the SPA-generated TS client.
  * OpenAPI spec version: 0.0.1
  */
+import type { FlightListItemAirState } from './flightListItemAirState';
 import type { FlightListItemFlightAircraftType } from './flightListItemFlightAircraftType';
 
 /**
@@ -20,5 +21,5 @@ export type FlightListItem = {
   /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftId: string;
   processStateId: string;
-  airStateId: string;
+  airState: FlightListItemAirState;
 };

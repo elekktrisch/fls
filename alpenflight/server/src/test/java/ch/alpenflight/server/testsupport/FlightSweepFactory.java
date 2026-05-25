@@ -9,10 +9,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Minimal-object factory for {@link Flight} consumed by the S-024 leakage
- * sweep. Looks up the {@code NOT_PROCESSED} / {@code NEW} reference rows
- * and seeds a minimal Aircraft (Aircraft is cross-tenant per S-058 reverting
- * S-159, so the aircraft row can sit under any club — we use the sweep's
- * tenant when one is set, otherwise the V5 seed club).
+ * sweep. Looks up the {@code NOT_PROCESSED} reference row and seeds a
+ * minimal Aircraft (Aircraft is cross-tenant per S-058 reverting S-159, so
+ * the aircraft row can sit under any club — we use the sweep's tenant when
+ * one is set, otherwise the V5 seed club). Air-state is computed (S-060),
+ * so no seed lookup needed for that surface.
  */
 final class FlightSweepFactory {
 
@@ -24,7 +25,6 @@ final class FlightSweepFactory {
 
     static Flight build(SweepFixtureContext ctx) {
         UUID processStateId = firstIdByCode(ctx, "flight_process_state", "NOT_PROCESSED");
-        UUID airStateId = firstIdByCode(ctx, "flight_air_state", "NEW");
         UUID currentTenant = TenantTestContext.current().orElse(null);
         // Aircraft is cross-tenant; seed under the current tenant if one is
         // bound, otherwise fall back to the V5 seed club so the aircraft FK
@@ -36,7 +36,7 @@ final class FlightSweepFactory {
                 ? FALLBACK_MANAGING_CLUB
                 : currentTenant;
         UUID aircraftId = seedAircraftForTenant(ctx, aircraftManager);
-        return Flight.createGlider(aircraftId, processStateId, airStateId, emptyOps());
+        return Flight.createGlider(aircraftId, processStateId, emptyOps());
     }
 
     private static UUID seedAircraftForTenant(SweepFixtureContext ctx, UUID managingClub) {

@@ -79,7 +79,8 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
         StringBuilder sb = new StringBuilder();
         sb.append("select new ch.alpenflight.flights.domain.FlightRepository$ListRow(")
           .append("  f.id, f.flightAircraftType, f.flightDate, f.startDateTime,")
-          .append("  f.ldgDateTime, f.aircraftId, f.processStateId, f.airStateId)")
+          .append("  f.ldgDateTime, f.aircraftId, f.processStateId,")
+          .append("  f.noStartTimeInformation, f.noLdgTimeInformation, f.flightPlanOpenedOn)")
           .append(" from Flight f")
           .append(" where f.deletedOn is null");
         if (from != null) {

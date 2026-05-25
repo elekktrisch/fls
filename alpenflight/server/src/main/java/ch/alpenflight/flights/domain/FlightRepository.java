@@ -38,7 +38,16 @@ public interface FlightRepository {
                    @Nullable Instant ldgDateTime,
                    UUID aircraftId,
                    UUID processStateId,
-                   UUID airStateId) {}
+                   boolean noStartTimeInformation,
+                   boolean noLdgTimeInformation,
+                   @Nullable Instant flightPlanOpenedOn) {
+
+        /** Cross-view parity: same compute as {@link Flight#airState()}. */
+        public FlightAirState airState() {
+            return FlightAirState.compute(ldgDateTime, startDateTime,
+                    noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
+        }
+    }
 
     Flight save(Flight flight);
 

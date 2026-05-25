@@ -235,6 +235,35 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void getFlight_returns_airState_as_string_enum_name() {
+        // S-060 — air state is computed (never stored) and surfaces on the
+        // wire as the enum name. A fresh flight with no timestamps lands at NEW.
+        ResponseEntity<String> created = post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"));
+        String id = readJson(created).get("id").asText();
+        ResponseEntity<String> res = get("/api/v1/flights/" + id);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.has("airState")).isTrue();
+        assertThat(body.get("airState").isTextual()).isTrue();
+        assertThat(body.get("airState").asText()).isEqualTo("NEW");
+        assertThat(body.has("airStateId"))
+                .as("legacy airStateId UUID is gone — replaced by computed airState enum name")
+                .isFalse();
+    }
+
+    @Test
+    void getFlight_with_landing_timestamp_returns_LANDED() {
+        Map<String, Object> payload = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        payload.put("startDateTime", "2026-05-01T08:00:00Z");
+        payload.put("ldgDateTime", "2026-05-01T09:00:00Z");
+        ResponseEntity<String> created = post("/api/v1/flights", payload);
+        String id = readJson(created).get("id").asText();
+        ResponseEntity<String> res = get("/api/v1/flights/" + id);
+        assertThat(readJson(res).get("airState").asText()).isEqualTo("LANDED");
+    }
+
+    @Test
     void create_with_unknown_aircraft_returns_400() {
         // Aircraft is cross-tenant (S-058 reverts S-159); we no longer pre-check
         // existence at the service layer. An unknown aircraftId trips the DB FK

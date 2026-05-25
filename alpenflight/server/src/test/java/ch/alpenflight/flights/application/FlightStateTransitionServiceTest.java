@@ -45,17 +45,7 @@ class FlightStateTransitionServiceTest {
     void setUp() {
         repo = Mockito.mock(FlightRepository.class);
         audit = Mockito.mock(AuditTrail.class);
-        FlightInitialStateProvider initial = new FlightInitialStateProvider() {
-            @Override
-            public UUID initialProcessStateId() {
-                return FlightProcessState.NOT_PROCESSED.id();
-            }
-
-            @Override
-            public UUID initialAirStateId() {
-                return UUID.fromString("019e2e15-2c00-7e80-8000-000000003e80");
-            }
-        };
+        FlightInitialStateProvider initial = () -> FlightProcessState.NOT_PROCESSED.id();
         service = new FlightStateTransitionService(repo, audit, initial);
     }
 
@@ -146,7 +136,6 @@ class FlightStateTransitionServiceTest {
         return Flight.createGlider(
                 UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1"),
                 state.id(),
-                UUID.fromString("019e2e15-2c00-7e80-8000-000000003e80"),
                 ops());
     }
 
@@ -154,7 +143,6 @@ class FlightStateTransitionServiceTest {
         return Flight.createTow(
                 UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a2"),
                 state.id(),
-                UUID.fromString("019e2e15-2c00-7e80-8000-000000003e80"),
                 ops());
     }
 

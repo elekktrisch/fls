@@ -1,6 +1,7 @@
 package ch.alpenflight.flights.application;
 
 import ch.alpenflight.flights.domain.FlightAircraftType;
+import ch.alpenflight.flights.domain.FlightAirState;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.FlightCostBalanceTypeId;
 import ch.alpenflight.platform.id.FlightId;
@@ -26,10 +27,12 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code FlightCreateRequest} / {@code FlightUpdateRequest} explicitly
  * exclude the state-machine columns ({@code processStateId},
- * {@code airStateId}, {@code validatedOn}, {@code deliveryCreatedOn},
- * {@code flightReportSentOn}, {@code validationErrors}) and tenant/audit
- * metadata. The discriminator {@code flightAircraftType} is required on
- * create and immutable post-create (absent from {@code FlightUpdateRequest}).
+ * {@code validatedOn}, {@code deliveryCreatedOn}, {@code flightReportSentOn},
+ * {@code validationErrors}) and tenant/audit metadata. Air-state is computed
+ * (S-060) and response-only — {@code FlightDetail.airState} carries the
+ * enum-name string; it never appears on a create/update request.
+ * The discriminator {@code flightAircraftType} is required on create and
+ * immutable post-create (absent from {@code FlightUpdateRequest}).
  */
 public final class FlightDtos {
 
@@ -44,7 +47,7 @@ public final class FlightDtos {
             @Nullable Instant ldgDateTime,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID airStateId) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState) {}
 
     @Schema(description = "Keyset-cursor list response. Filter via from/to; scroll via nextCursor.")
     public record FlightListResponse(
@@ -86,7 +89,7 @@ public final class FlightDtos {
             @Nullable Short nrOfLdgsOnStartLocation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noStartTimeInformation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noLdgTimeInformation,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID airStateId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
             @Nullable Long engineStartOperatingCounterInSeconds,
             @Nullable Long engineEndOperatingCounterInSeconds,

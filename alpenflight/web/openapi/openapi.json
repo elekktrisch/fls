@@ -2984,9 +2984,9 @@
           "noLdgTimeInformation" : {
             "type" : "boolean"
           },
-          "airStateId" : {
+          "airState" : {
             "type" : "string",
-            "format" : "uuid"
+            "enum" : [ "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED", "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED" ]
           },
           "processStateId" : {
             "type" : "string",
@@ -3029,7 +3029,7 @@
             }
           }
         },
-        "required" : [ "airStateId", "aircraftId", "crew", "flightAircraftType", "id", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "crew", "flightAircraftType", "id", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation", "processStateId" ]
       },
       "FlightTypeUpdateRequest" : {
         "type" : "object",
@@ -4460,12 +4460,12 @@
             "type" : "string",
             "format" : "uuid"
           },
-          "airStateId" : {
+          "airState" : {
             "type" : "string",
-            "format" : "uuid"
+            "enum" : [ "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED", "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED" ]
           }
         },
-        "required" : [ "airStateId", "aircraftId", "flightAircraftType", "id", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processStateId" ]
       },
       "FlightListResponse" : {
         "type" : "object",

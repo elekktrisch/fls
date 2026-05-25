@@ -50,11 +50,17 @@ import org.jspecify.annotations.Nullable;
  * {@code findById} returns {@link java.util.Optional#empty} (mapped to 404
  * by the controller advice).
  *
- * <p>State-machine columns ({@link #processStateId}, {@link #airStateId},
- * {@link #validatedOn}, {@link #deliveryCreatedOn},
- * {@link #flightReportSentOn}, {@link #validationErrors}) are
- * package-private setters reserved for S-059's validator. The service
- * stamps initial state on create; no transitions ship in S-058.
+ * <p>State-machine columns ({@link #processStateId}, {@link #validatedOn},
+ * {@link #deliveryCreatedOn}, {@link #flightReportSentOn},
+ * {@link #validationErrors}) are package-private setters reserved for
+ * S-059's validator. The service stamps initial state on create; no
+ * transitions ship in S-058.
+ *
+ * <p>Air-state is the sacred-cow computed surface (S-060): never stored,
+ * always derived by {@link #airState()} from timestamps + flags.
+ * {@link #flightPlanOpenedOn} is the structural timestamp replacing the
+ * legacy {@code AirStateId == FlightPlanOpen} branch; the setting workflow
+ * is a future flight-plan-open story.
  */
 @Entity
 @Table(name = "flight")
@@ -138,11 +144,11 @@ public class Flight {
     @Column(name = "no_ldg_time_information", nullable = false)
     private boolean noLdgTimeInformation;
 
-    @Column(name = "air_state_id", nullable = false)
-    private UUID airStateId = new UUID(0L, 0L);
-
     @Column(name = "process_state_id", nullable = false)
     private UUID processStateId = new UUID(0L, 0L);
+
+    @Column(name = "flight_plan_opened_on")
+    private @Nullable Instant flightPlanOpenedOn;
 
     @Column(name = "engine_start_operating_counter_in_seconds")
     private @Nullable Long engineStartOperatingCounterInSeconds;
@@ -204,37 +210,27 @@ public class Flight {
         // JPA.
     }
 
-    /** Factory for a new glider flight. */
     public static Flight createGlider(UUID aircraftId,
                                       UUID initialProcessStateId,
-                                      UUID initialAirStateId,
                                       FlightOperationalData ops) {
-        return create(FlightAircraftType.GLIDER, aircraftId,
-                initialProcessStateId, initialAirStateId, ops);
+        return create(FlightAircraftType.GLIDER, aircraftId, initialProcessStateId, ops);
     }
 
-    /** Factory for a new tow flight. */
     public static Flight createTow(UUID aircraftId,
                                    UUID initialProcessStateId,
-                                   UUID initialAirStateId,
                                    FlightOperationalData ops) {
-        return create(FlightAircraftType.TOW, aircraftId,
-                initialProcessStateId, initialAirStateId, ops);
+        return create(FlightAircraftType.TOW, aircraftId, initialProcessStateId, ops);
     }
 
-    /** Factory for a new motor flight. */
     public static Flight createMotor(UUID aircraftId,
                                      UUID initialProcessStateId,
-                                     UUID initialAirStateId,
                                      FlightOperationalData ops) {
-        return create(FlightAircraftType.MOTOR, aircraftId,
-                initialProcessStateId, initialAirStateId, ops);
+        return create(FlightAircraftType.MOTOR, aircraftId, initialProcessStateId, ops);
     }
 
     private static Flight create(FlightAircraftType type,
                                  UUID aircraftId,
                                  UUID initialProcessStateId,
-                                 UUID initialAirStateId,
                                  FlightOperationalData ops) {
         if (aircraftId == null) {
             throw new IllegalArgumentException("aircraftId must not be null");
@@ -242,14 +238,10 @@ public class Flight {
         if (initialProcessStateId == null) {
             throw new IllegalArgumentException("initialProcessStateId must not be null");
         }
-        if (initialAirStateId == null) {
-            throw new IllegalArgumentException("initialAirStateId must not be null");
-        }
         Flight f = new Flight();
         f.flightAircraftType = type;
         f.aircraftId = aircraftId;
         f.processStateId = initialProcessStateId;
-        f.airStateId = initialAirStateId;
         f.applyOperationalData(ops);
         return f;
     }
@@ -600,12 +592,21 @@ public class Flight {
         return noLdgTimeInformation;
     }
 
-    public UUID getAirStateId() {
-        return airStateId;
-    }
-
     public UUID getProcessStateId() {
         return processStateId;
+    }
+
+    public @Nullable Instant getFlightPlanOpenedOn() {
+        return flightPlanOpenedOn;
+    }
+
+    /**
+     * Computes the air-state per legacy {@code Flight.cs:175-206}. Never
+     * stored — recomputed on every read / serialisation.
+     */
+    public FlightAirState airState() {
+        return FlightAirState.compute(ldgDateTime, startDateTime,
+                noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
     }
 
     /**

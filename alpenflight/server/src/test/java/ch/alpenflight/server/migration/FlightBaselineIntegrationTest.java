@@ -41,20 +41,23 @@ class FlightBaselineIntegrationTest {
     private static final PostgresTestContainerLifecycle POSTGRES = SharedPostgresContainer.INSTANCE;
     private static JsonNode canonicalSeeds;
 
-    /** The 16 in-scope tables. */
+    /**
+     * The S-013 baseline tables that still exist after S-060 dropped
+     * {@code flight_air_state} (air-state is computed, never stored).
+     */
     private static final List<String> S013_TABLES = List.of(
             "flight", "flight_crew",
             "aircraft", "aircraft_aircraft_state", "aircraft_operating_counter",
             "location", "inoutbound_point",
             "flight_type", "article",
-            "flight_crew_type", "flight_process_state", "flight_air_state",
+            "flight_crew_type", "flight_process_state",
             "flight_cost_balance_type",
             "aircraft_type", "aircraft_state", "location_type");
 
-    /** Of those, the 7 reference / lookup tables. */
+    /** Reference / lookup tables that still exist after S-060. */
     private static final List<String> S013_REFERENCE_TABLES = List.of(
             "aircraft_type", "aircraft_state", "location_type",
-            "flight_crew_type", "flight_process_state", "flight_air_state",
+            "flight_crew_type", "flight_process_state",
             "flight_cost_balance_type");
 
     /**
@@ -91,9 +94,9 @@ class FlightBaselineIntegrationTest {
     // Table presence + type pinning
     // ============================================================================
 
-    /** AC1 — every S-013 domain table is present. */
+    /** AC1 — every still-present S-013 domain table is here (post-S-060 drop). */
     @Test
-    void all_16_tables_present() throws Exception {
+    void all_baseline_tables_present() throws Exception {
         Set<String> actual = new LinkedHashSet<>();
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
@@ -102,8 +105,11 @@ class FlightBaselineIntegrationTest {
             while (rs.next()) actual.add(rs.getString(1));
         }
         assertThat(actual)
-                .as("V3 migration must create all 16 flight/aircraft/location tables")
+                .as("baseline must include every still-present flight/aircraft/location table")
                 .containsAll(S013_TABLES);
+        assertThat(actual)
+                .as("flight_air_state was dropped by V13 — air state is computed (S-060)")
+                .doesNotContain("flight_air_state");
     }
 
     /** AC2 — every PK across S-013's 16 tables is `uuid NOT NULL`. */
@@ -749,16 +755,13 @@ class FlightBaselineIntegrationTest {
     }
 
     @Test
-    void flight_air_state_seeded_7_canonical_values() throws Exception {
-        assertSeededCodes("flight_air_state", List.of(
-                "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED",
-                "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED"));
+    void flight_air_state_table_was_dropped_by_S060() throws Exception {
+        // S-060 dropped the flight_air_state seed table — air-state is
+        // computed by Flight.airState() per legacy Flight.cs:175-206.
         try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT legacy_int_id FROM flight_air_state ORDER BY legacy_int_id")) {
-            List<Integer> ids = new ArrayList<>();
-            while (rs.next()) ids.add(rs.getInt(1));
-            assertThat(ids).containsExactly(0, 5, 8, 10, 15, 20, 25);
+                ResultSet rs = conn.getMetaData().getTables(
+                        null, "public", "flight_air_state", new String[]{"TABLE"})) {
+            assertThat(rs.next()).isFalse();
         }
     }
 
@@ -775,16 +778,16 @@ class FlightBaselineIntegrationTest {
 
     /**
      * Load-bearing FKs (per design notes' performance plan) must have at least
-     * one supporting index. Reference / lookup-table FKs (e.g. flight.air_state_id,
-     * flight.process_state_id) intentionally don't get dedicated indexes — they
-     * are always queried by joining FROM flight WHERE operating_club_id, the
-     * composite ix_flight_club_state covers the process-state filter, and
-     * reference rows are L2-cached anyway.
+     * one supporting index. Reference / lookup-table FKs (e.g. flight.process_state_id)
+     * intentionally don't get dedicated indexes — they are always queried by
+     * joining FROM flight WHERE operating_club_id, the composite
+     * ix_flight_club_state covers the process-state filter, and reference rows
+     * are L2-cached anyway.
      */
     @Test
     void every_load_bearing_fk_has_supporting_index() throws Exception {
         // Curated from design notes' index grid: the FKs that actually drive
-        // hot-path queries. Reference-data FKs (air_state_id, process_state_id,
+        // hot-path queries. Reference-data FKs (process_state_id,
         // flight_cost_balance_type_id, start_type_id, flight_crew_type_id,
         // aircraft_type_id, aircraft_state_id, location_type_id) are excluded
         // by design.
