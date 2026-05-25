@@ -300,11 +300,9 @@ export const FlightStore = signalStore(
     }
 
     async function deleteOne(id: string, ifMatch = '*'): Promise<void> {
-      // Default `*` matches any current representation (RFC 7232 §3.1) —
-      // appropriate when the caller deletes from the list view where the
-      // FlightListItem doesn't carry a version. Detail views that loaded
-      // a specific version should pass it explicitly to gate stale
-      // deletes the same way PUT does.
+      // Callers pass the row's version as `ifMatch` to gate stale deletes
+      // (RFC 7232 §3.1). `*` is the escape hatch for force-delete paths
+      // that intentionally bypass the precondition.
       await firstValueFrom(
         flightsApi._delete(id, {
           headers: { 'If-Match': ifMatch },

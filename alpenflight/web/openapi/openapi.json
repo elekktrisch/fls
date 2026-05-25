@@ -4541,7 +4541,7 @@
       },
       "FlightListItem" : {
         "type" : "object",
-        "description" : "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred.",
+        "description" : "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred. Carries `version` so concurrency-aware actions (e.g. DELETE with If-Match) can fire from the list view without a follow-up GET.",
         "properties" : {
           "id" : {
             "type" : "string",
@@ -4580,9 +4580,13 @@
           "airState" : {
             "type" : "string",
             "enum" : [ "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED", "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED" ]
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         },
-        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processState", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processState", "processStateId", "version" ]
       },
       "FlightListResponse" : {
         "type" : "object",

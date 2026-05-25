@@ -10,6 +10,7 @@ import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -84,14 +85,16 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
         assertThat(res.getHeaders().getContentType().toString())
                 .isEqualTo("application/problem+json");
         JsonNode body = readJson(res);
-        assertThat(body.get("type").asText()).contains("flight-version-mismatch");
+        assertThat(body.get("type").asText())
+                .isEqualTo("urn:alpenflight:problem:flight-version-mismatch");
         assertThat(body.get("expected").asLong()).isEqualTo(stale);
-        assertThat(body.get("actual").asLong()).isEqualTo(current);
         assertThat(body.get("serverVersion").asLong()).isEqualTo(current);
+        // `actual` was dropped in favour of the wire-stable `serverVersion`.
+        assertThat(body.has("actual")).isFalse();
     }
 
     @Test
-    void delete_withMatchingIfMatch_returns_204() {
+    void delete_withMatchingIfMatch_returns204() {
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         long version = readJson(get("/api/v1/flights/" + id)).get("version").asLong();
@@ -107,7 +110,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void delete_withStaleIfMatch_returns_412() {
+    void delete_withStaleIfMatch_returns412() {
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
 
@@ -229,7 +232,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
     }
 
     private Map<String, Object> updatePayload() {
-        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        Map<String, Object> body = new LinkedHashMap<>();
         body.put("aircraftId", aircraftIdExternal);
         body.put("flightDate", "2026-05-01");
         body.put("isSoloFlight", false);

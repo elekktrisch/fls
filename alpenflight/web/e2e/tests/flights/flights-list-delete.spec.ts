@@ -31,6 +31,7 @@ interface MockFlightRow {
   processStateId: string;
   processState: string;
   airState: string;
+  version: number;
 }
 
 const FL_DELETABLE: MockFlightRow = {
@@ -43,6 +44,7 @@ const FL_DELETABLE: MockFlightRow = {
   processStateId: PROC_STATE_VALID,
   processState: 'VALID',
   airState: 'LANDED',
+  version: 7,
 };
 
 const FL_LOCKED: MockFlightRow = {
@@ -55,6 +57,7 @@ const FL_LOCKED: MockFlightRow = {
   processStateId: PROC_STATE_DELIVERY_BOOKED,
   processState: 'DELIVERY_BOOKED',
   airState: 'LANDED',
+  version: 3,
 };
 
 async function stubReferenceData(page: Page): Promise<void> {
@@ -137,7 +140,9 @@ function setupBackend(initial: MockFlightRow[]): FlightsBackend {
 }
 
 test.describe('flights list — delete', () => {
-  test('kebab Delete → confirm → row removed; DELETE sent with If-Match: *', async ({ page }) => {
+  test('kebab Delete → confirm → row removed; DELETE carries row version as If-Match', async ({
+    page,
+  }) => {
     await stubReferenceData(page);
     const backend = setupBackend([FL_DELETABLE]);
     await page.route('**/api/v1/flights**', backend.handler);
@@ -166,10 +171,11 @@ test.describe('flights list — delete', () => {
 
     await page.getByTestId('af-dialog-confirm').click();
 
-    // DELETE observed with If-Match: * and row removed from the list.
+    // DELETE observed and carries the row's current version as If-Match
+    // (not the wildcard) — the concurrency gate is live from the list view.
     await expect.poll(() => backend.observed.deletes.length).toBe(1);
     expect(backend.observed.deletes[0]!.id).toBe(FL_DELETABLE.id);
-    expect(backend.observed.deletes[0]!.ifMatch).toBe('*');
+    expect(backend.observed.deletes[0]!.ifMatch).toBe(String(FL_DELETABLE.version));
     await expect(page.getByTestId('flights-empty')).toContainText('No flights yet');
     await page.screenshot({
       path: 'screenshots/flights/delete-04-after-delete.png',
@@ -209,7 +215,11 @@ test.describe('flights list — delete', () => {
     await page.goto('/flights');
     await page.getByTestId(`flights-kebab-${FL_LOCKED.id}`).click();
     await expect(page.getByTestId(`flights-delete-${FL_LOCKED.id}`)).toHaveCount(0);
-    await expect(page.getByTestId(`flights-delete-disabled-${FL_LOCKED.id}`)).toBeVisible();
+    const disabled = page.getByTestId(`flights-delete-disabled-${FL_LOCKED.id}`);
+    await expect(disabled).toBeVisible();
+    // The placeholder names the gating state so the operator knows why
+    // delete is unavailable instead of guessing.
+    await expect(disabled).toContainText('Delivery booked');
     await page.screenshot({
       path: 'screenshots/flights/delete-06-locked-row.png',
       fullPage: true,

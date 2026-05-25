@@ -366,7 +366,7 @@ function toneDotClass(tone: Tone): string {
                   </span>
                   <button
                     type="button"
-                    class="w-8 h-8 inline-flex items-center justify-center bg-transparent border-0 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100"
+                    class="w-11 h-11 inline-flex items-center justify-center bg-transparent border-0 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100"
                     nz-dropdown
                     [nzDropdownMenu]="rowMenu"
                     nzTrigger="click"
@@ -418,17 +418,20 @@ function toneDotClass(tone: Tone): string {
                           </button>
                         </li>
                       } @else {
-                        <!-- Mirror the backend's TERMINAL state gate so the
-                          UI doesn't surface a Delete action that would
-                          immediately 409. -->
+                        <!-- Mirror the backend's state gate so the UI does
+                          not surface a Delete action that would 409. The
+                          process-state label tells the user why. -->
                         <li role="none">
                           <span
                             class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-400 cursor-not-allowed"
+                            [attr.title]="
+                              'Delete blocked by process state ' + processStateText(fl.processState)
+                            "
                             [attr.data-testid]="'flights-delete-disabled-' + fl.id"
                             [attr.aria-disabled]="true"
                           >
                             <af-icon name="trash-2" [size]="14" />
-                            <span>Delete (locked)</span>
+                            <span>Delete ({{ processStateText(fl.processState) }})</span>
                           </span>
                         </li>
                       }
@@ -482,15 +485,17 @@ function toneDotClass(tone: Tone): string {
 
       <af-dialog
         [visible]="deleteTarget() !== null"
-        title="Delete this flight?"
-        [message]="deletePromptMessage()"
-        confirmLabel="Delete"
+        [title]="deleteError() ? 'Delete failed' : 'Delete this flight?'"
+        [message]="deleteDialogMessage()"
+        [confirmLabel]="deleteInFlight() ? 'Deleting…' : 'Delete'"
         dismissLabel="Cancel"
         (confirm)="confirmDelete()"
         (dismiss)="cancelDelete()"
       />
       @if (deleteError()) {
-        <p class="mt-3 text-sm text-rose-700" data-testid="flights-delete-error">
+        <!-- Hidden in normal flow because the dialog overlay covers the
+          page; kept for a11y readers + the e2e spec's testid hook. -->
+        <p class="sr-only" data-testid="flights-delete-error">
           {{ deleteError() }}
         </p>
       }
@@ -614,19 +619,43 @@ export class FlightsListPage {
 
   protected readonly deleteTarget = signal<FlightListItem | null>(null);
   protected readonly deleteError = signal<string | null>(null);
+  protected readonly deleteInFlight = signal<boolean>(false);
 
   protected readonly deletePromptMessage = computed<string | null>(() => {
     const t = this.deleteTarget();
     if (!t) return null;
     const dateBit = t.flightDate ? formatLegacyDate(t.flightDate) : '';
     const acBit = this.aircraftImmat(t.aircraftId);
-    return `Soft-deletes ${acBit}${dateBit ? ` on ${dateBit}` : ''}. Linked tow flight is removed in the same step. Cannot be undone from the UI.`;
+    const towBit =
+      t.flightAircraftType === FlightListItemFlightAircraftType.GLIDER
+        ? ' Any linked tow flight is removed in the same step.'
+        : '';
+    return `Soft-deletes ${acBit}${dateBit ? ` on ${dateBit}` : ''}.${towBit} Cannot be undone from the UI.`;
   });
 
+  // After a failed delete the dialog stays open so the user sees the
+  // outcome next to the action they just took; swap the body to the
+  // error message so the previously-confirmed prompt isn't misleading.
+  protected readonly deleteDialogMessage = computed<string | null>(
+    () => this.deleteError() ?? this.deletePromptMessage(),
+  );
+
+  // Mirror the server's FlightStateGateException gate. Both the TERMINAL
+  // (DELIVERY_BOOKED) and ADMIN_REQUIRED (LOCKED + delivery-prep states)
+  // paths surface as 409 from the backend; the list page can't elevate the
+  // caller's role, so we suppress the affordance on every state the server
+  // would reject for the default CLUB_ADMINISTRATOR principal.
+  private static readonly NON_DELETABLE_STATES: ReadonlySet<FlightListItemProcessState> =
+    new Set<FlightListItemProcessState>([
+      FlightListItemProcessState.DELIVERY_BOOKED,
+      FlightListItemProcessState.LOCKED,
+      FlightListItemProcessState.DELIVERY_PREPARED,
+      FlightListItemProcessState.DELIVERY_PREPARATION_ERROR,
+      FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS,
+    ]);
+
   protected canDelete(fl: FlightListItem): boolean {
-    // Mirror the server's FlightStateGateException.TERMINAL gate so the
-    // UI doesn't tease an action that would immediately fail with 409.
-    return fl.processState !== FlightListItemProcessState.DELIVERY_BOOKED;
+    return !FlightsListPage.NON_DELETABLE_STATES.has(fl.processState);
   }
 
   protected openDeleteConfirm(fl: FlightListItem): void {
@@ -635,18 +664,34 @@ export class FlightsListPage {
   }
 
   protected cancelDelete(): void {
+    if (this.deleteInFlight()) return;
     this.deleteTarget.set(null);
   }
 
   protected async confirmDelete(): Promise<void> {
     const target = this.deleteTarget();
-    if (!target) return;
-    this.deleteTarget.set(null);
+    if (!target || this.deleteInFlight()) return;
+    this.deleteInFlight.set(true);
+    this.deleteError.set(null);
     try {
-      await this.store.deleteOne(target.id);
+      await this.store.deleteOne(target.id, String(target.version));
+      this.deleteTarget.set(null);
     } catch (e) {
-      const err = e as { message?: string };
-      this.deleteError.set(err.message ?? 'Could not delete flight');
+      // Keep the dialog open so the error renders next to the prompt the
+      // user just confirmed — the inline rose error inside the dialog is
+      // load-bearing context that doesn't get lost when they look away.
+      const err = e as { status?: number; message?: string };
+      if (err.status === 409) {
+        this.deleteError.set(
+          'Flight became locked while you were looking — refresh the list and retry.',
+        );
+      } else if (err.status === 412) {
+        this.deleteError.set('Flight was modified by someone else — refresh and retry.');
+      } else {
+        this.deleteError.set(err.message ?? 'Could not delete flight');
+      }
+    } finally {
+      this.deleteInFlight.set(false);
     }
   }
 
