@@ -307,9 +307,11 @@ test.describe('flights list page', () => {
     await expect(
       page.getByTestId('flight-form').or(page.getByTestId('flight-loading')),
     ).toBeVisible();
+    await page.goBack();
 
-    // From/To pickers exist (split into two single-mode pickers — the
-    // range variant of nz-range-picker deadlocks under zoneless).
+    // From/To pickers exist on the list page (split into two single-mode
+    // pickers — the range variant of nz-range-picker deadlocks under
+    // zoneless).
     await expect(page.getByTestId('flights-date-from').locator('input')).toBeVisible();
     await expect(page.getByTestId('flights-date-to').locator('input')).toBeVisible();
     // No date params on initial load.
