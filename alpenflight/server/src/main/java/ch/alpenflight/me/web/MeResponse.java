@@ -1,6 +1,7 @@
 package ch.alpenflight.me.web;
 
 import ch.alpenflight.me.application.MeView;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -12,6 +13,7 @@ import org.jspecify.annotations.Nullable;
  * without string-munging keeps the SPA contract trivial.
  */
 @Schema(description = "Authenticated-principal projection.")
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public record MeResponse(
         @Schema(description = "Internal user.id (UUID). Null when the JWT sub matches no active user row.")
         @Nullable String id,

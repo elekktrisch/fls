@@ -8,7 +8,6 @@ import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -31,11 +30,13 @@ import org.springframework.stereotype.Service;
  *       {@code person} is linked.</li>
  * </ol>
  *
- * <p>Roles come from the {@link Jwt}'s mapped {@link GrantedAuthority}
- * collection (stripped of the {@code ROLE_} prefix that
+ * <p>Roles are read directly from the JWT's {@code realm_access.roles[]}
+ * claim — the same source
  * {@link ch.alpenflight.platform.security.ClubAwareJwtAuthenticationConverter}
- * adds for {@code hasRole(…)} compatibility) — keeps the wire shape
- * symmetric with the realm names the SPA expects.
+ * consumes for the {@code ROLE_*} GrantedAuthority. Reading the JWT
+ * directly keeps the service free of Spring Security's {@code Authentication}
+ * surface, which simplifies the controller signature and avoids any
+ * GrantedAuthority-prefix translation.
  */
 @Service
 public class MeService {
@@ -59,11 +60,8 @@ public class MeService {
         this.jdbc = jdbc;
     }
 
-    public MeView resolve(Jwt jwt, Collection<? extends GrantedAuthority> authorities) {
-        List<String> roles = authorities.stream()
-                .map(GrantedAuthority::getAuthority)
-                .map(a -> a.startsWith("ROLE_") ? a.substring(5) : a)
-                .toList();
+    public MeView resolve(Jwt jwt) {
+        List<String> roles = extractRoles(jwt);
         @Nullable UserPersonRow row = loadUserAndPerson(jwt);
         if (row == null) {
             return new MeView(
@@ -87,6 +85,21 @@ public class MeService {
                 lastName,
                 row.email,
                 row.username);
+    }
+
+    private static List<String> extractRoles(Jwt jwt) {
+        Map<String, Object> realmAccess = jwt.getClaim("realm_access");
+        if (realmAccess == null) {
+            return List.of();
+        }
+        Object roles = realmAccess.get("roles");
+        if (!(roles instanceof Collection<?> raw)) {
+            return List.of();
+        }
+        return raw.stream()
+                .filter(r -> r instanceof String)
+                .map(r -> (String) r)
+                .toList();
     }
 
     private @Nullable UserPersonRow loadUserAndPerson(Jwt jwt) {
