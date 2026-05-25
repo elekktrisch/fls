@@ -206,6 +206,27 @@ interface StepDescriptor {
                     data-testid="flight-edit-glider-pilot"
                   />
                 </af-form-field>
+                <label
+                  class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+                  data-testid="flight-edit-glider-isSoloFlight-label"
+                >
+                  <input
+                    type="checkbox"
+                    class="w-4 h-4 accent-brand-500"
+                    formControlName="isSoloFlight"
+                    data-testid="flight-edit-glider-isSoloFlight"
+                  />
+                  Solo flight (no co-pilot)
+                </label>
+                @if (!gliderIsSolo()) {
+                  <af-form-field label="Co-pilot">
+                    <af-select
+                      formControlName="coPilotPersonId"
+                      [options]="personOptions()"
+                      data-testid="flight-edit-glider-coPilot"
+                    />
+                  </af-form-field>
+                }
                 <div class="grid grid-cols-2 gap-3">
                   <af-form-field label="Start time">
                     <div class="flex gap-2">
@@ -373,6 +394,12 @@ export class FlightsEditPage {
   private readonly startTypeSignal = signal<string | null>(null);
   protected readonly needsTow = computed(() => needsTowplane(this.startTypeSignal()));
 
+  // Live solo flag so the co-pilot selector hides reactively and any
+  // already-picked co-pilot is cleared the moment the flag flips on —
+  // the UI invariant the form contract relies on (operator decision on
+  // S-067 refine: persist as-given, never derive from crew).
+  protected readonly gliderIsSolo = signal<boolean>(false);
+
   // The visible step set drops conditional steps (Tow) when their predicate
   // is false. Reactive — flips back on as soon as the user picks Aerotow.
   protected readonly stepLabels = computed<readonly StepDescriptor[]>(() => {
@@ -459,6 +486,20 @@ export class FlightsEditPage {
     this.form.controls.startTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.startTypeSignal.set(v));
+
+    // Track isSoloFlight: when it flips on, hide + clear the co-pilot
+    // slot so the submitted snapshot can never contain a contradictory
+    // (isSoloFlight=true, coPilotPersonId=non-null) state.
+    this.form.controls.glider.controls.isSoloFlight.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((solo) => {
+        this.gliderIsSolo.set(!!solo);
+        if (solo) {
+          this.form.controls.glider.controls.coPilotPersonId.setValue(null, {
+            emitEvent: false,
+          });
+        }
+      });
 
     // Clamp the active step when the visible step set shrinks (e.g. user
     // is on the Tow step and switches to Winch — the Tow step disappears
@@ -633,6 +674,7 @@ export class FlightsEditPage {
     this.patchSub(this.form.controls.glider, snapshot.glider);
     this.patchSub(this.form.controls.tow, snapshot.tow);
     this.startTypeSignal.set(snapshot.startTypeId);
+    this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
   }
 

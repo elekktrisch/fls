@@ -299,10 +299,15 @@ export const FlightStore = signalStore(
       }
     }
 
-    async function deleteOne(id: string, version: number): Promise<void> {
+    async function deleteOne(id: string, ifMatch: string = '*'): Promise<void> {
+      // Default `*` matches any current representation (RFC 7232 §3.1) —
+      // appropriate when the caller deletes from the list view where the
+      // FlightListItem doesn't carry a version. Detail views that loaded
+      // a specific version should pass it explicitly to gate stale
+      // deletes the same way PUT does.
       await firstValueFrom(
         flightsApi._delete(id, {
-          headers: { 'If-Match': String(version) },
+          headers: { 'If-Match': ifMatch },
         }),
       );
       bus.next({ kind: 'flight.deleted', flightId: id });

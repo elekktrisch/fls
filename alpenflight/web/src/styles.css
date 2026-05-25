@@ -148,6 +148,25 @@ body[data-density='comfortable']
   padding: 0 !important;
   box-sizing: border-box !important;
 }
+/* Date-picker parity with .ant-select-selector at comfortable density —
+   without this, From / To inputs render ~36px tall next to 44px selects
+   in the flights filter bar. The host class also forces width:100% so
+   the input fills its grid column instead of falling back to antd's
+   intrinsic 180-ish px. */
+body[data-density='comfortable'] .ant-picker {
+  min-height: 44px !important;
+  width: 100% !important;
+  border-color: var(--color-slate-300) !important;
+}
+body[data-density='comfortable'] .ant-picker:hover:not(.ant-picker-disabled),
+body[data-density='comfortable'] .ant-picker.ant-picker-focused {
+  border-color: var(--color-brand-500) !important;
+  box-shadow: none !important;
+}
+body[data-density='comfortable'] .ant-picker .ant-picker-input > input {
+  font-size: 1rem !important;
+}
+
 body[data-density='comfortable'] .ant-btn {
   padding-inline: 2.5rem !important; /* 40px — generous primary-button feel */
   font-weight: 500;

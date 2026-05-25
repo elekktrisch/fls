@@ -168,7 +168,7 @@ export class FlightsService {
     );
   }
 /**
- * @summary Update a flight (full replace of editable surface + crew)
+ * @summary Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.
  */
  update<TData = FlightDetail>(id: string,
     flightUpdateRequest: FlightUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
@@ -208,7 +208,7 @@ export class FlightsService {
     );
   }
 /**
- * @summary Soft-delete a flight
+ * @summary Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.
  */
  _delete<TData = void>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
  _delete<TData = void>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
