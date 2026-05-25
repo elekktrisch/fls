@@ -5,6 +5,7 @@ epic: E-07
 status: in_progress
 started_at: 2026-05-25
 github_issue: 124
+github_pr: 125
 depends_on: [S-062a, S-062b, S-007, S-008]
 acceptance:
   - `/flights/new` renders a 3-step wizard shell (Launch → Glider → Tow) per the design-reference at `docs/modernization/design-reference/screenshots/flights-form.png`; Step 3 (tow) is skipped with empty state when `startType !== Towing` (parity with legacy `FlightsController.js:418-420, 666-673`).
