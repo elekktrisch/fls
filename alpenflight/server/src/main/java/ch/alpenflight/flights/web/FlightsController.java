@@ -2,14 +2,18 @@ package ch.alpenflight.flights.web;
 
 import ch.alpenflight.flights.application.FlightDtos.FlightCreateRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
+import ch.alpenflight.flights.application.FlightDtos.FlightLastContextResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightProcessStateChangeRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightProcessStateResponse;
+import ch.alpenflight.flights.application.FlightDtos.FlightTemplateResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
 import ch.alpenflight.flights.application.FlightStateTransitionService;
 import ch.alpenflight.flights.application.FlightsService;
 import ch.alpenflight.flights.domain.Flight;
+import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.TransitionTrigger;
+import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.FlightId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,6 +31,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -79,6 +84,33 @@ class FlightsController {
         return flights.getFlight(id);
     }
 
+    @GetMapping("/new-template")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Empty new-flight template (no id; per-club defaults applied if any)")
+    FlightTemplateResponse newTemplate(
+            @RequestParam(value = "type", required = false, defaultValue = "GLIDER")
+            FlightAircraftType type) {
+        return flights.newTemplate(type);
+    }
+
+    @GetMapping("/{id}/copy-template")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Copy-template projection: source flight minus identity, times, comments, counters")
+    FlightTemplateResponse copyTemplate(@PathVariable("id") FlightId id) {
+        return flights.copyTemplate(id);
+    }
+
+    @GetMapping("/last-context")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Last-flight context for (aircraft, date) — mobile-first form pre-fill (AC-DIR-1)")
+    ResponseEntity<FlightLastContextResponse> lastContext(
+            @RequestParam("aircraftId") AircraftId aircraftId,
+            @RequestParam("date") LocalDate date) {
+        return flights.lastContext(aircraftId.value(), date)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
     @Operation(summary = "Create a flight")
@@ -92,8 +124,34 @@ class FlightsController {
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
     @Operation(summary = "Update a flight (full replace of editable surface + crew)")
     FlightDetail update(@PathVariable("id") FlightId id,
+                        @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch,
                         @Valid @RequestBody FlightUpdateRequest req) {
-        return flights.updateFlight(id, req);
+        Long expected = parseIfMatch(ifMatch);
+        return flights.updateFlight(id, req, expected);
+    }
+
+    private static @Nullable Long parseIfMatch(@Nullable String header) {
+        if (header == null) {
+            return null;
+        }
+        String trimmed = header.trim();
+        if (trimmed.isEmpty() || "*".equals(trimmed)) {
+            // RFC 7232 §3.1 — "*" matches any current representation; treat
+            // as "no precondition" since every PUT loads the row anyway.
+            return null;
+        }
+        // Strip optional weak / strong ETag wrapping ("123" or W/"123").
+        if (trimmed.startsWith("W/")) {
+            trimmed = trimmed.substring(2).trim();
+        }
+        if (trimmed.length() >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1);
+        }
+        try {
+            return Long.parseLong(trimmed);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("If-Match header must be a numeric version", e);
+        }
     }
 
     @DeleteMapping("/{id}")

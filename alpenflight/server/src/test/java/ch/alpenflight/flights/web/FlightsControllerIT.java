@@ -274,6 +274,206 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    void update_rejectsDeliveryBookedFlight_with_409() {
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9e-8000-000000003a9e"); // DELIVERY_BOOKED
+        ResponseEntity<String> res = put("/api/v1/flights/" + id, updatePayload());
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void update_rejectsLockedFlight_for_flightOperator_with_403() {
+        String operatorToken = jwts.mint(c -> c
+                .claim("clubId", CLUB_ID)
+                .claim("realm_access", Map.of("roles", List.of("FLIGHT_OPERATOR"))));
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9b-8000-000000003a9b"); // LOCKED
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.put(URI.create("/api/v1/flights/" + id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + operatorToken)
+                        .body(updatePayload()),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void update_allowsLockedFlight_for_clubAdministrator_with_200() {
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9b-8000-000000003a9b"); // LOCKED
+        ResponseEntity<String> res = put("/api/v1/flights/" + id, updatePayload());
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void delete_rejectsDeliveryBookedFlight_with_409() {
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9e-8000-000000003a9e"); // DELIVERY_BOOKED
+        ResponseEntity<String> res = delete("/api/v1/flights/" + id);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void newTemplate_returns_empty_payload_with_todays_date() {
+        ResponseEntity<String> res = get("/api/v1/flights/new-template?type=GLIDER");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.get("flightAircraftType").asText()).isEqualTo("GLIDER");
+        assertThat(body.has("id")).isFalse();
+        assertThat(body.has("version")).isFalse();
+        assertThat(body.get("crew")).isEmpty();
+        assertThat(body.get("flightDate").asText()).isEqualTo(LocalDate.now().toString());
+    }
+
+    @Test
+    void copyTemplate_clears_timestamps_and_identity_keeps_aircraft_and_type() {
+        Map<String, Object> payload = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        payload.put("startDateTime", "2026-05-01T08:00:00Z");
+        payload.put("ldgDateTime", "2026-05-01T09:00:00Z");
+        payload.put("nrOfLdgs", 1);
+        payload.put("comment", "do not copy me");
+        String sourceId = readJson(post("/api/v1/flights", payload)).get("id").asText();
+
+        ResponseEntity<String> res = get("/api/v1/flights/" + sourceId + "/copy-template");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.has("id")).isFalse();
+        assertThat(body.has("version")).isFalse();
+        assertThat(body.has("startDateTime")).isFalse();
+        assertThat(body.has("ldgDateTime")).isFalse();
+        assertThat(body.has("comment")).isFalse();
+        assertThat(body.get("flightAircraftType").asText()).isEqualTo("GLIDER");
+        assertThat(body.get("aircraftId").asText()).isEqualTo(aircraftIdExternal);
+        assertThat(body.get("flightDate").asText()).isEqualTo("2026-05-01");
+        assertThat(body.has("nrOfLdgs"))
+                .as("nrOfLdgs is cleared on copy (Jackson omits null)")
+                .isFalse();
+    }
+
+    @Test
+    void copyTemplate_unknownId_returns_404() {
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/fl-019e30c3-2c00-7001-8000-000000000aaa/copy-template");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void lastContext_returns_most_recent_flight_context() {
+        // Seed two flights on the same (aircraft, date); the second is "most
+        // recent" by UUIDv7-time-ordered id.
+        Map<String, Object> p1 = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        p1.put("outboundRoute", "EARLIER");
+        post("/api/v1/flights", p1);
+        Map<String, Object> p2 = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        p2.put("outboundRoute", "LATER");
+        post("/api/v1/flights", p2);
+
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/last-context?aircraftId=" + aircraftIdExternal + "&date=2026-05-01");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.get("outboundRoute").asText()).isEqualTo("LATER");
+        // Times are deliberately NOT returned.
+        assertThat(body.has("startDateTime")).isFalse();
+        assertThat(body.has("ldgDateTime")).isFalse();
+    }
+
+    @Test
+    void lastContext_returns_404_when_no_prior_flight() {
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/last-context?aircraftId=" + aircraftIdExternal + "&date=2030-12-31");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void lastContext_returns_404_for_cross_tenant_aircraft() {
+        // AC-DIR-1 case (c): an aircraftId that another tenant uses must not
+        // leak any flight context to the caller — @TenantId on Flight makes
+        // the row invisible, even though Aircraft is cross-tenant by ADR 0008.
+        UUID otherClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c9");
+        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        jdbc.update("""
+                INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
+                                  slug, public_registration_enabled)
+                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                otherClub.toString(), "IT_LCT_x", "IT_LCTx",
+                countryId.toString(), clubStateId.toString(), "IT_LCT_x");
+        UUID otherAircraft = seedAircraftFor(jdbc, otherClub);
+
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/last-context?aircraftId=ac-" + otherAircraft
+                        + "&date=2026-05-01");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void update_withMatchingIfMatch_returns_200() {
+        String id = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        long version = readJson(get("/api/v1/flights/" + id)).get("version").asLong();
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.put(URI.create("/api/v1/flights/" + id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken)
+                        .header(HttpHeaders.IF_MATCH, String.valueOf(version))
+                        .body(updatePayload()),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void update_withStaleIfMatch_returns_412() {
+        String id = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        // A version > 0 cannot match a freshly-created row's version 0.
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.put(URI.create("/api/v1/flights/" + id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + clubAdminToken)
+                        .header(HttpHeaders.IF_MATCH, "999")
+                        .body(updatePayload()),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.PRECONDITION_FAILED);
+    }
+
+    @Test
+    void delete_cascadesTowFlightInSameTransaction() {
+        // Seed a glider and a tow flight, link them via PUT, then DELETE glider.
+        // The linked tow row must also be soft-deleted.
+        String gliderId = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        String towId = readJson(post("/api/v1/flights",
+                createPayload("TOW", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        Map<String, Object> link = updatePayload();
+        link.put("towFlightId", towId);
+        assertThat(put("/api/v1/flights/" + gliderId, link).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<String> del = delete("/api/v1/flights/" + gliderId);
+        assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        // Both rows soft-deleted: GET returns 404 for each.
+        assertThat(get("/api/v1/flights/" + gliderId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(get("/api/v1/flights/" + towId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Creates a fresh glider flight via the public POST then forces it into
+     * the target process state via JDBC — public surface only stamps
+     * NOT_PROCESSED on create.
+     */
+    private String createGliderInState(String processStateId) {
+        String idExternal = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        UUID flightUuid = UUID.fromString(idExternal.substring(3));
+        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+                processStateId, flightUuid.toString());
+        return idExternal;
+    }
+
     private Map<String, Object> updatePayload() {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("aircraftId", aircraftIdExternal);

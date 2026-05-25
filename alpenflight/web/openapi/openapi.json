@@ -414,6 +414,13 @@
             "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -1785,6 +1792,101 @@
         }
       }
     },
+    "/api/v1/flights/{id}/copy-template" : {
+      "get" : {
+        "tags" : [ "flights" ],
+        "summary" : "Copy-template projection: source flight minus identity, times, comments, counters",
+        "operationId" : "copyTemplate",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTemplateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flights/new-template" : {
+      "get" : {
+        "tags" : [ "flights" ],
+        "summary" : "Empty new-flight template (no id; per-club defaults applied if any)",
+        "operationId" : "newTemplate",
+        "parameters" : [ {
+          "name" : "type",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "GLIDER",
+            "enum" : [ "GLIDER", "TOW", "MOTOR" ]
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightTemplateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/flights/last-context" : {
+      "get" : {
+        "tags" : [ "flights" ],
+        "summary" : "Last-flight context for (aircraft, date) — mobile-first form pre-fill (AC-DIR-1)",
+        "operationId" : "lastContext",
+        "parameters" : [ {
+          "name" : "aircraftId",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }, {
+          "name" : "date",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightLastContextResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flight-cost-balance-types" : {
       "get" : {
         "tags" : [ "FlightCostBalanceTypes" ],
@@ -2992,6 +3094,10 @@
             "type" : "string",
             "format" : "uuid"
           },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
           "engineStartOperatingCounterInSeconds" : {
             "type" : "integer",
             "format" : "int64"
@@ -3029,7 +3135,7 @@
             }
           }
         },
-        "required" : [ "airState", "aircraftId", "crew", "flightAircraftType", "id", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "crew", "flightAircraftType", "id", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation", "processStateId", "version" ]
       },
       "FlightTypeUpdateRequest" : {
         "type" : "object",
@@ -4482,6 +4588,173 @@
           }
         },
         "required" : [ "items" ]
+      },
+      "FlightTemplateResponse" : {
+        "type" : "object",
+        "description" : "Editable-surface projection for new-flight and copy-flight templates. Carries no id / version / state-machine / audit metadata. Times + comments + engine counters are cleared on copy-template per legacy `FlightsController.js:232-255`.",
+        "properties" : {
+          "flightAircraftType" : {
+            "type" : "string",
+            "enum" : [ "GLIDER", "TOW", "MOTOR" ]
+          },
+          "aircraftId" : {
+            "type" : "string",
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "startLocationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "ldgLocationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "startRunway" : {
+            "type" : "string"
+          },
+          "ldgRunway" : {
+            "type" : "string"
+          },
+          "outboundRoute" : {
+            "type" : "string"
+          },
+          "inboundRoute" : {
+            "type" : "string"
+          },
+          "flightTypeId" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "isSoloFlight" : {
+            "type" : "boolean"
+          },
+          "startTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "towFlightId" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nrOfLdgs" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "nrOfLdgsOnStartLocation" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "noStartTimeInformation" : {
+            "type" : "boolean"
+          },
+          "noLdgTimeInformation" : {
+            "type" : "boolean"
+          },
+          "flightCostBalanceTypeId" : {
+            "type" : "string",
+            "example" : "fcb-019e2e15-2c00-7268-8000-000000004268",
+            "pattern" : "^fcb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "nrOfPassengers" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "startPosition" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "crew" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/FlightCrewItem"
+            }
+          }
+        },
+        "required" : [ "crew", "flightAircraftType", "isSoloFlight", "noLdgTimeInformation", "noStartTimeInformation" ]
+      },
+      "FlightLastContextResponse" : {
+        "type" : "object",
+        "description" : "Last-flight context for the (aircraft, date) tuple — seeds the flight-edit form's empty state per the mobile-first amendment (vision §F6 / AC-DIR-1). 404 when no prior flight matches.",
+        "properties" : {
+          "flightTypeId" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "pilotPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "invoiceRecipientPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "startLocationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "ldgLocationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "outboundRoute" : {
+            "type" : "string"
+          },
+          "inboundRoute" : {
+            "type" : "string"
+          },
+          "startTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "flightCostBalanceTypeId" : {
+            "type" : "string",
+            "example" : "fcb-019e2e15-2c00-7268-8000-000000004268",
+            "pattern" : "^fcb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "tow" : {
+            "$ref" : "#/components/schemas/TowContext"
+          }
+        }
+      },
+      "TowContext" : {
+        "type" : "object",
+        "properties" : {
+          "aircraftId" : {
+            "type" : "string",
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "pilotPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightTypeId" : {
+            "type" : "string",
+            "example" : "ft-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ft-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "ldgLocationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required" : [ "aircraftId" ]
       },
       "FlightTypeListItem" : {
         "type" : "object",

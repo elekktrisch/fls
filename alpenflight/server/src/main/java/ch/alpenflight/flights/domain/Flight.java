@@ -190,6 +190,9 @@ public class Flight {
     @SuppressWarnings("UnusedVariable")
     private @Nullable Instant flightReportSentOn;
 
+    @Column(name = "created_on", insertable = false, updatable = false)
+    private @Nullable Instant createdOn;
+
     @Column(name = "deleted_on")
     private @Nullable Instant deletedOn;
 
@@ -658,6 +661,10 @@ public class Flight {
 
     public boolean isDeleted() {
         return deletedOn != null;
+    }
+
+    public @Nullable Instant getCreatedOn() {
+        return createdOn;
     }
 
     public List<FlightCrew> getCrew() {

@@ -6,23 +6,16 @@
  * OpenAPI spec version: 0.0.1
  */
 import type { FlightCrewItem } from './flightCrewItem';
-import type { FlightDetailAirState } from './flightDetailAirState';
-import type { FlightDetailFlightAircraftType } from './flightDetailFlightAircraftType';
+import type { FlightTemplateResponseFlightAircraftType } from './flightTemplateResponseFlightAircraftType';
 
 /**
- * Flight detail projection — full payload + crew.
+ * Editable-surface projection for new-flight and copy-flight templates. Carries no id / version / state-machine / audit metadata. Times + comments + engine counters are cleared on copy-template per legacy `FlightsController.js:232-255`.
  */
-export type FlightDetail = {
-  /** @pattern ^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
-  id: string;
-  flightAircraftType: FlightDetailFlightAircraftType;
+export type FlightTemplateResponse = {
+  flightAircraftType: FlightTemplateResponseFlightAircraftType;
   /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
-  aircraftId: string;
+  aircraftId?: string;
   flightDate?: string;
-  startDateTime?: string;
-  ldgDateTime?: string;
-  blockStartDateTime?: string;
-  blockEndDateTime?: string;
   /** @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   startLocationId?: string;
   /** @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
@@ -41,14 +34,6 @@ export type FlightDetail = {
   nrOfLdgsOnStartLocation?: number;
   noStartTimeInformation: boolean;
   noLdgTimeInformation: boolean;
-  airState: FlightDetailAirState;
-  processStateId: string;
-  version: number;
-  engineStartOperatingCounterInSeconds?: number;
-  engineEndOperatingCounterInSeconds?: number;
-  comment?: string;
-  incidentComment?: string;
-  couponNumber?: string;
   /** @pattern ^fcb-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   flightCostBalanceTypeId?: string;
   nrOfPassengers?: number;

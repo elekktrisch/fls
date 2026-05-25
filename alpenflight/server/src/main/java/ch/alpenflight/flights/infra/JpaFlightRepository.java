@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -51,6 +53,24 @@ public interface JpaFlightRepository
     @Override
     @Query("select f from Flight f where f.processStateId = :psid and f.deletedOn is null")
     List<Flight> findByProcessStateId(@Param("psid") UUID processStateId);
+
+    @Override
+    default Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate) {
+        return doFindLastByAircraftAndDate(aircraftId, flightDate, PageRequest.of(0, 1))
+                .stream().findFirst();
+    }
+
+    @EntityGraph(attributePaths = {"crew"})
+    @Query("""
+            select f from Flight f
+            where f.aircraftId = :acid
+              and f.flightDate = :date
+              and f.deletedOn is null
+            order by f.createdOn desc, f.id desc
+            """)
+    List<Flight> doFindLastByAircraftAndDate(@Param("acid") UUID aircraftId,
+                                             @Param("date") LocalDate flightDate,
+                                             Pageable pageable);
 }
 
 interface CustomListQuery {

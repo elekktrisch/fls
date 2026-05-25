@@ -5,14 +5,20 @@ import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.flights.application.FlightDtos.FlightCreateRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
+import ch.alpenflight.flights.application.FlightDtos.FlightLastContextResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightListItem;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
+import ch.alpenflight.flights.application.FlightDtos.FlightTemplateResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
+import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightOperationalData;
+import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.FlightRepository;
+import ch.alpenflight.flights.domain.FlightStateGateException;
+import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
@@ -20,8 +26,11 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -136,9 +145,14 @@ public class FlightsService {
         return new FlightListResponse(items, nextCursor);
     }
 
-    public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req) {
+    public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req,
+                                     @Nullable Long ifMatchVersion) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        if (ifMatchVersion != null && ifMatchVersion != flight.getVersion()) {
+            throw new FlightVersionMismatchException(ifMatchVersion, flight.getVersion());
+        }
+        assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.repointAircraft(req.aircraftId().value());
         flight.updateOperationalData(mapper.toOperationalData(req));
@@ -161,9 +175,54 @@ public class FlightsService {
         return after;
     }
 
+    /** Per-club defaults remain a future story; this stamps today's date + the discriminator. */
+    @Transactional(readOnly = true)
+    public FlightTemplateResponse newTemplate(FlightAircraftType type) {
+        return new FlightTemplateResponse(
+                type,
+                null,
+                LocalDate.now(clock),
+                null, null,
+                null, null,
+                null, null,
+                null,
+                false,
+                null,
+                null,
+                null, null,
+                false, false,
+                null,
+                null, null,
+                List.of());
+    }
+
+    /** See {@link FlightTemplateResponse}; cross-tenant source → 404. */
+    @Transactional(readOnly = true)
+    public FlightTemplateResponse copyTemplate(FlightId sourceId) {
+        Flight flight = repository.findByIdWithCrew(sourceId)
+                .orElseThrow(() -> new FlightNotFoundException(sourceId));
+        return mapper.toCopyTemplate(flight);
+    }
+
+    /** AC-DIR-1; times are deliberately NOT returned. */
+    @Transactional(readOnly = true)
+    public Optional<FlightLastContextResponse> lastContext(UUID aircraftId,
+                                                           LocalDate flightDate) {
+        return repository.findLastByAircraftAndDate(aircraftId, flightDate)
+                .map(flight -> {
+                    Flight tow = null;
+                    if (flight.getTowFlightId() != null) {
+                        tow = repository.findByIdWithCrew(FlightId.of(flight.getTowFlightId()))
+                                .orElse(null);
+                    }
+                    return mapper.toLastContext(flight, tow);
+                });
+    }
+
     public void softDeleteFlight(FlightId id) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.softDelete(clock.instant());
         repository.save(flight);
@@ -171,6 +230,58 @@ public class FlightsService {
                 AuditedTarget.deleted("Flight",
                         Objects.requireNonNull(flight.getId()),
                         before));
+        // Legacy FlightService.cs:1314-1319. Application-layer only (no DB
+        // cascade on the self-FK by design); each tow row gets its own audit
+        // event sharing the request's actor + timestamp.
+        if (flight.getFlightAircraftType() == FlightAircraftType.GLIDER
+                && flight.getTowFlightId() != null) {
+            FlightId towId = FlightId.of(flight.getTowFlightId());
+            repository.findByIdWithCrew(towId).ifPresent(tow -> {
+                if (tow.isDeleted()) {
+                    return;
+                }
+                FlightDetail towBefore = mapper.toDetail(tow);
+                tow.softDelete(clock.instant());
+                repository.save(tow);
+                audit.record(AuditAction.DELETE,
+                        AuditedTarget.deleted("Flight",
+                                Objects.requireNonNull(tow.getId()),
+                                towBefore));
+            });
+        }
     }
 
+    private static void assertMutationAllowed(Flight flight) {
+        FlightProcessState state = flight.getProcessState();
+        if (state == FlightProcessState.DELIVERY_BOOKED) {
+            throw new FlightStateGateException(state,
+                    FlightStateGateException.Reason.TERMINAL);
+        }
+        if (isAdminLockedState(state) && !callerIsClubAdmin()) {
+            throw new FlightStateGateException(state,
+                    FlightStateGateException.Reason.ADMIN_REQUIRED);
+        }
+    }
+
+    private static boolean isAdminLockedState(FlightProcessState state) {
+        return state == FlightProcessState.LOCKED
+                || state == FlightProcessState.DELIVERY_PREPARED
+                || state == FlightProcessState.DELIVERY_PREPARATION_ERROR
+                || state == FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS;
+    }
+
+    /**
+     * MVC-thread-bound — reads the request's authentication from Spring's
+     * thread-local {@link SecurityContextHolder}. Reactive or {@code @Async}
+     * call sites would see a {@code null} authentication and fail-closed
+     * (returning {@code false} keeps the gate restrictive).
+     */
+    private static boolean callerIsClubAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_CLUB_ADMINISTRATOR".equals(a.getAuthority()));
+    }
 }

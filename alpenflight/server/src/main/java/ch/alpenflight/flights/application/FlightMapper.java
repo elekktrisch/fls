@@ -3,11 +3,14 @@ package ch.alpenflight.flights.application;
 import ch.alpenflight.flights.application.FlightDtos.FlightCreateRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightCrewItem;
 import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
+import ch.alpenflight.flights.application.FlightDtos.FlightLastContextResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightListItem;
+import ch.alpenflight.flights.application.FlightDtos.FlightTemplateResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
 import ch.alpenflight.flights.domain.CrewMemberSpec;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightCrew;
+import ch.alpenflight.flights.domain.FlightCrewTypeIds;
 import ch.alpenflight.flights.domain.FlightOperationalData;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.platform.id.AircraftId;
@@ -146,6 +149,7 @@ public class FlightMapper {
                 f.isNoLdgTimeInformation(),
                 f.airState(),
                 f.getProcessStateId(),
+                f.getVersion(),
                 f.getEngineStartOperatingCounterInSeconds(),
                 f.getEngineEndOperatingCounterInSeconds(),
                 f.getComment(),
@@ -158,6 +162,80 @@ public class FlightMapper {
                         .filter(c -> !c.isDeleted())
                         .map(FlightMapper::toCrewItem)
                         .toList());
+    }
+
+    public FlightTemplateResponse toCopyTemplate(Flight f) {
+        return new FlightTemplateResponse(
+                f.getFlightAircraftType(),
+                AircraftId.of(f.getAircraftId()),
+                f.getFlightDate(),
+                LocationId.ofNullable(f.getStartLocationId()),
+                LocationId.ofNullable(f.getLdgLocationId()),
+                f.getStartRunway(),
+                f.getLdgRunway(),
+                f.getOutboundRoute(),
+                f.getInboundRoute(),
+                FlightTypeId.ofNullable(f.getFlightTypeId()),
+                f.isSoloFlight(),
+                f.getStartTypeId(),
+                FlightId.ofNullable(f.getTowFlightId()),
+                null, null,
+                f.isNoStartTimeInformation(),
+                f.isNoLdgTimeInformation(),
+                FlightCostBalanceTypeId.ofNullable(f.getFlightCostBalanceTypeId()),
+                f.getNrOfPassengers(),
+                f.getStartPosition(),
+                f.getCrew().stream()
+                        .filter(c -> !c.isDeleted())
+                        .map(FlightMapper::toCrewItemCleared)
+                        .toList());
+    }
+
+    public FlightLastContextResponse toLastContext(Flight glider, @Nullable Flight tow) {
+        FlightLastContextResponse.TowContext towCtx = null;
+        if (tow != null) {
+            towCtx = new FlightLastContextResponse.TowContext(
+                    AircraftId.of(tow.getAircraftId()),
+                    pickPilot(tow),
+                    FlightTypeId.ofNullable(tow.getFlightTypeId()),
+                    LocationId.ofNullable(tow.getLdgLocationId()));
+        }
+        return new FlightLastContextResponse(
+                FlightTypeId.ofNullable(glider.getFlightTypeId()),
+                pickPilot(glider),
+                pickInvoiceRecipient(glider),
+                LocationId.ofNullable(glider.getStartLocationId()),
+                LocationId.ofNullable(glider.getLdgLocationId()),
+                glider.getOutboundRoute(),
+                glider.getInboundRoute(),
+                glider.getStartTypeId(),
+                FlightCostBalanceTypeId.ofNullable(glider.getFlightCostBalanceTypeId()),
+                towCtx);
+    }
+
+    private static @Nullable PersonId pickPilot(Flight f) {
+        return pickCrew(f, FlightCrewTypeIds.PILOT_OR_STUDENT);
+    }
+
+    private static @Nullable PersonId pickInvoiceRecipient(Flight f) {
+        return pickCrew(f, FlightCrewTypeIds.FLIGHT_COST_INVOICE_RECIPIENT);
+    }
+
+    private static @Nullable PersonId pickCrew(Flight f, UUID crewTypeId) {
+        for (FlightCrew c : f.getCrew()) {
+            if (!c.isDeleted() && crewTypeId.equals(c.getFlightCrewTypeId())) {
+                return PersonId.of(c.getPersonId());
+            }
+        }
+        return null;
+    }
+
+    private static FlightCrewItem toCrewItemCleared(FlightCrew c) {
+        return new FlightCrewItem(
+                PersonId.of(c.getPersonId()),
+                c.getFlightCrewTypeId(),
+                null, null, null, null,
+                null, null);
     }
 
     private static FlightCrewItem toCrewItem(FlightCrew c) {

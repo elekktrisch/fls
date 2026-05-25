@@ -85,4 +85,12 @@ public interface FlightRepository {
      * tenant filter structural.
      */
     List<Flight> findByProcessStateId(UUID processStateId);
+
+    /**
+     * Returns the most recently created flight for the given (aircraft,
+     * flight_date) tuple within the caller's tenant — feeds the SPA's
+     * last-flight-context pre-fill per AC-DIR-1. Soft-deleted excluded;
+     * tenant filter structural via {@code @TenantId}.
+     */
+    Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate);
 }

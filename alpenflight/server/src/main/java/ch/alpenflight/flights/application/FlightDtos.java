@@ -91,6 +91,7 @@ public final class FlightDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noLdgTimeInformation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long version,
             @Nullable Long engineStartOperatingCounterInSeconds,
             @Nullable Long engineEndOperatingCounterInSeconds,
             @Nullable String comment,
@@ -100,6 +101,51 @@ public final class FlightDtos {
             @Nullable Short nrOfPassengers,
             @Nullable Short startPosition,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<FlightCrewItem> crew) {}
+
+    @Schema(description = "Editable-surface projection for new-flight and copy-flight templates. Carries no id / version / state-machine / audit metadata. Times + comments + engine counters are cleared on copy-template per legacy `FlightsController.js:232-255`.")
+    public record FlightTemplateResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAircraftType flightAircraftType,
+            @Nullable AircraftId aircraftId,
+            @Nullable LocalDate flightDate,
+            @Nullable LocationId startLocationId,
+            @Nullable LocationId ldgLocationId,
+            @Nullable String startRunway,
+            @Nullable String ldgRunway,
+            @Nullable String outboundRoute,
+            @Nullable String inboundRoute,
+            @Nullable FlightTypeId flightTypeId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isSoloFlight,
+            @Nullable UUID startTypeId,
+            @Nullable FlightId towFlightId,
+            @Nullable Short nrOfLdgs,
+            @Nullable Short nrOfLdgsOnStartLocation,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noStartTimeInformation,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean noLdgTimeInformation,
+            @Nullable FlightCostBalanceTypeId flightCostBalanceTypeId,
+            @Nullable Short nrOfPassengers,
+            @Nullable Short startPosition,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<FlightCrewItem> crew) {}
+
+    @Schema(description = "Last-flight context for the (aircraft, date) tuple — seeds the flight-edit form's empty state per the mobile-first amendment (vision §F6 / AC-DIR-1). 404 when no prior flight matches.")
+    public record FlightLastContextResponse(
+            @Nullable FlightTypeId flightTypeId,
+            @Nullable PersonId pilotPersonId,
+            @Nullable PersonId invoiceRecipientPersonId,
+            @Nullable LocationId startLocationId,
+            @Nullable LocationId ldgLocationId,
+            @Nullable String outboundRoute,
+            @Nullable String inboundRoute,
+            @Nullable UUID startTypeId,
+            @Nullable FlightCostBalanceTypeId flightCostBalanceTypeId,
+            FlightLastContextResponse.@Nullable TowContext tow) {
+
+        /** Tow-specific context populated only when the last flight was towed. */
+        public record TowContext(
+                @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
+                @Nullable PersonId pilotPersonId,
+                @Nullable FlightTypeId flightTypeId,
+                @Nullable LocationId ldgLocationId) {}
+    }
 
     @Schema(description = "Request body for `PATCH /api/v1/flights/{id}/process-state`. The transition matrix gates which state changes are legal under the OPERATOR trigger.")
     public record FlightProcessStateChangeRequest(
