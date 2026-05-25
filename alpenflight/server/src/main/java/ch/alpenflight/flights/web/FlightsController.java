@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -69,12 +70,17 @@ class FlightsController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
-    @Operation(summary = "List flights (keyset-cursor paginated)")
+    @Operation(summary = "List flights (keyset-cursor paginated). When `personId` is supplied, "
+            + "rows are filtered to flights with a non-deleted FlightCrew row for that person, "
+            + "and the sort order is the AC-defined `flight_date DESC, start_date_time DESC NULLS "
+            + "LAST, created_on DESC` (the third key tie-breaks via UUIDv7 id, which is "
+            + "monotonic-in-creation-time).")
     FlightListResponse list(@RequestParam(value = "from", required = false) @Nullable LocalDate from,
                             @RequestParam(value = "to", required = false) @Nullable LocalDate to,
                             @RequestParam(value = "after", required = false) @Nullable String cursor,
-                            @RequestParam(value = "limit", required = false) @Nullable Integer limit) {
-        return flights.listFlights(from, to, cursor, limit);
+                            @RequestParam(value = "limit", required = false) @Nullable Integer limit,
+                            @RequestParam(value = "personId", required = false) @Nullable UUID personId) {
+        return flights.listFlights(from, to, cursor, limit, personId);
     }
 
     @GetMapping("/{id}")

@@ -116,7 +116,8 @@ public class FlightsService {
     public FlightListResponse listFlights(@Nullable LocalDate from,
                                           @Nullable LocalDate to,
                                           @Nullable String cursor,
-                                          @Nullable Integer requestedLimit) {
+                                          @Nullable Integer requestedLimit,
+                                          @Nullable UUID personId) {
         int limit = requestedLimit == null ? DEFAULT_LIMIT
                 : Math.min(Math.max(1, requestedLimit), MAX_LIMIT);
         LocalDate effectiveFrom = from;
@@ -131,7 +132,7 @@ public class FlightsService {
         UUID cursorId = decoded == null ? null : decoded.id();
         // limit + 1 sentinel to compute nextCursor cheaply.
         List<FlightRepository.ListRow> rows = repository.findListWindow(
-                effectiveFrom, effectiveTo, cursorDate, cursorId, limit + 1);
+                effectiveFrom, effectiveTo, cursorDate, cursorId, limit + 1, personId);
         boolean hasMore = rows.size() > limit;
         List<FlightRepository.ListRow> page = hasMore ? rows.subList(0, limit) : rows;
         List<FlightListItem> items = new ArrayList<>(page.size());
