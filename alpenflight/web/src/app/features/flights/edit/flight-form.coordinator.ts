@@ -2,7 +2,12 @@ import { DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { pairwise, startWith } from 'rxjs';
 
-import { needsTowplane, type FlightForm, type GliderFlightForm, type TowFlightForm } from './flight-form.model';
+import {
+  needsTowplane,
+  type FlightForm,
+  type GliderFlightForm,
+  type TowFlightForm,
+} from './flight-form.model';
 
 /**
  * Read-only metadata the wizard hands the coordinator. The wizard owns the
@@ -118,7 +123,11 @@ export class FlightFormCoordinator {
     // Mirror canUpdateRecord onto each sub-group's disabled state — the wizard
     // body disables when the server flag is false.
     this.form.controls.canUpdateRecord.valueChanges
-      .pipe(startWith(this.form.controls.canUpdateRecord.value), pairwise(), takeUntilDestroyed(destroyRef))
+      .pipe(
+        startWith(this.form.controls.canUpdateRecord.value),
+        pairwise(),
+        takeUntilDestroyed(destroyRef),
+      )
       .subscribe(([prev, next]) => {
         if (prev === next) return;
         if (next) {

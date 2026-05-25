@@ -122,10 +122,7 @@ function nullIfEmptyGuid<T extends string | null | undefined>(v: T): T | null {
   return v ?? null;
 }
 
-function extractCrew(
-  crew: readonly FlightCrewItem[] | undefined,
-  slot: CrewSlot,
-): string | null {
+function extractCrew(crew: readonly FlightCrewItem[] | undefined, slot: CrewSlot): string | null {
   if (!crew) return null;
   const item = crew.find((c) => c.flightCrewTypeId === slot);
   return item ? nullIfEmptyGuid(item.personId) : null;
