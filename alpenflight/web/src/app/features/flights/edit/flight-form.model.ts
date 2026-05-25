@@ -107,14 +107,15 @@ export function buildFlightForm(fb: NonNullableFormBuilder): FlightForm {
   });
 }
 
-// Sentinel start-type id mirroring the legacy `StartType.Towing` enum. Server
-// returns start-type ids as opaque strings; the wizard checks identity here.
-// Aligned with the seeded `startType.towing.id` value the backend exposes.
-export const TOWING_START_TYPE_SUFFIX = 'towing';
+import { isAerotow } from './flight-start-types';
 
+/**
+ * The legacy `StartType.Towing` semantics. Today: matched against the
+ * Aerotow UUID seeded by `V2__identity_and_reference.sql`. Once a real
+ * `/start-types` endpoint exists this collapses into a store lookup.
+ */
 export function needsTowplane(startTypeId: string | null | undefined): boolean {
-  if (!startTypeId) return false;
-  return startTypeId.toLowerCase().endsWith(TOWING_START_TYPE_SUFFIX);
+  return isAerotow(startTypeId);
 }
 
 function nullIfEmptyGuid(v: string | null | undefined): string | null {

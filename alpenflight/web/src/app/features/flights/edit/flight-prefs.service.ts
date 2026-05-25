@@ -1,4 +1,7 @@
-import { Injectable } from '@angular/core';
+import { DestroyRef, inject, Injectable } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import { MUTATION_BUS } from '@app/core/mutation-bus/mutation-bus';
 
 const DB_NAME = 'af-flight-prefs';
 const DB_VERSION = 1;
@@ -61,6 +64,18 @@ function asPromise<T>(req: IDBRequest<T>): Promise<T> {
  */
 @Injectable({ providedIn: 'root' })
 export class FlightPrefsService {
+  constructor() {
+    // Session-lifecycle wipe: drain on logout AND tenant-switch per the
+    // Security plan's shared-workstation PII boundary.
+    const bus = inject(MUTATION_BUS);
+    const destroyRef = inject(DestroyRef);
+    bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
+      if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
+        void this.clearAll();
+      }
+    });
+  }
+
   async get(sub: string): Promise<FlightPrefs> {
     try {
       const db = await openDb();

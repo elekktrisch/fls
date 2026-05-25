@@ -50,6 +50,7 @@ import {
   type FlightFormSnapshot,
 } from './flight-form.model';
 import { FlightPrefsService } from './flight-prefs.service';
+import { START_TYPE_OPTIONS } from './flight-start-types';
 
 type Mode = 'new' | 'edit' | 'copy';
 
@@ -85,29 +86,31 @@ type Mode = 'new' | 'edit' | 'copy';
     <af-page>
       <af-page-header [title]="title()">
         <af-button data-testid="flight-cancel" (clicked)="onCancel()">Cancel</af-button>
-        <af-button
-          type="primary"
-          data-testid="flight-save"
-          [disabled]="saving()"
-          (clicked)="onSubmit()"
-          >Save</af-button
-        >
+        <!--
+          Inline header save only on >=lg; the sticky-bar Save on the last
+          step takes over on <lg (the next/back button area). Two distinct
+          slots, not duplicated.
+        -->
+        <div class="hidden lg:contents">
+          <af-button
+            type="primary"
+            data-testid="flight-submit"
+            [disabled]="saving()"
+            (clicked)="finalSubmit()"
+            >Save</af-button
+          >
+        </div>
       </af-page-header>
 
       @if (loading()) {
         <p class="text-slate-600" data-testid="flight-loading">Loading...</p>
       } @else {
-        <form
-          [formGroup]="form"
-          (ngSubmit)="onSubmit()"
-          data-testid="flight-form"
-          class="space-y-6"
-        >
+        <form [formGroup]="form" (ngSubmit)="onEnter()" data-testid="flight-form" class="space-y-6">
           <nav class="flex gap-2 border-b border-slate-200 pb-2" data-testid="flight-stepper">
             @for (s of stepLabels; track s.index) {
               <button
                 type="button"
-                class="px-3 py-2 text-sm"
+                class="min-h-11 px-4 py-2 text-sm"
                 [class.text-brand-600]="step() === s.index"
                 [class.font-medium]="step() === s.index"
                 [attr.data-testid]="'flight-step-' + s.index"
@@ -257,13 +260,17 @@ type Mode = 'new' | 'edit' | 'copy';
                   >Next</af-button
                 >
               } @else {
-                <af-button
-                  data-testid="flight-submit"
-                  type="primary"
-                  [disabled]="saving()"
-                  (clicked)="onSubmit()"
-                  >Save flight</af-button
-                >
+                <!-- Sticky-bar save only on <lg; on >=lg the header action carries it. -->
+                <div class="lg:hidden">
+                  <af-button
+                    data-testid="flight-submit"
+                    type="primary"
+                    [disabled]="saving()"
+                    (clicked)="finalSubmit()"
+                    >Save flight</af-button
+                  >
+                </div>
+                <span class="hidden lg:inline"></span>
               }
             </div>
           </af-sticky-bar>
@@ -373,12 +380,9 @@ export class FlightsEditPage {
       .map((t) => ({ value: t.id, label: t.flightTypeName })),
   );
 
-  protected readonly startTypeOptions = computed<AfSelectOption<string>[]>(() => [
-    { value: 'st-towing', label: 'Towing' },
-    { value: 'st-winch', label: 'Winch launch' },
-    { value: 'st-self', label: 'Self start' },
-    { value: 'st-external', label: 'External start' },
-  ]);
+  protected readonly startTypeOptions = computed<AfSelectOption<string>[]>(() =>
+    START_TYPE_OPTIONS.map((s) => ({ value: s.id, label: s.label })),
+  );
 
   private readonly metadata: CoordinatorMetadata = {
     aircraft: (id) => {
@@ -447,7 +451,20 @@ export class FlightsEditPage {
     this.form.controls.glider.controls.startTime.setValue(time);
   }
 
-  protected async onSubmit(): Promise<void> {
+  /**
+   * Enter-key handler — advances to the next step on intermediate steps,
+   * submits only on the last step. Per AC-DIR-3a: "Enter advances step /
+   * submits on last step".
+   */
+  protected onEnter(): void {
+    if (this.isLastStep()) {
+      void this.finalSubmit();
+    } else {
+      this.goToStep(this.step() + 1);
+    }
+  }
+
+  protected async finalSubmit(): Promise<void> {
     if (this.saving()) return;
     this.saving.set(true);
     this.errorMessage.set(null);
@@ -502,6 +519,12 @@ export class FlightsEditPage {
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
+    if (this.dirtyConfirmOpen()) {
+      // The dialog itself owns dismissal — let it close cleanly instead of
+      // re-firing the cancel flow.
+      this.dirtyConfirmOpen.set(false);
+      return;
+    }
     this.onCancel();
   }
 
@@ -574,5 +597,8 @@ export class FlightsEditPage {
     snap: FlightFormSnapshot['glider'] | FlightFormSnapshot['tow'],
   ): void {
     group.patchValue(snap, { emitEvent: false });
+  }
+}
+up.patchValue(snap, { emitEvent: false });
   }
 }
