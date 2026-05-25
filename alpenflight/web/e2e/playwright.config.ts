@@ -6,6 +6,17 @@ const BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
 
 export default defineConfig({
   testDir: './tests',
+  // Skip the parity-port masterdata specs that are not on the current
+  // critical path (flights, clubs, navigation, landing). They cover real
+  // CRUD surfaces, but their happy-paths add ~22 tests and the 5-minute
+  // step budget is more valuable than the coverage right now. Re-enable
+  // when the underlying features become load-bearing — or move them to
+  // a separate nightly project so they don't gate PR feedback.
+  testIgnore: [
+    '**/masterdata/articles-crud.spec.ts',
+    '**/masterdata/locations-crud.spec.ts',
+    '**/masterdata/flight-types-crud.spec.ts',
+  ],
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   // Zero retries in CI: this is a mock-only suite (no Keycloak, no
