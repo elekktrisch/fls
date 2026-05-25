@@ -2,7 +2,8 @@
 id: S-165
 title: Home/dashboard page — greeting + last flight + quick actions (MVP, pilot variant) + /me endpoint
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-05-25
 github_issue: 132
 github_pr: 133
 depends_on: [S-062a, S-062b, S-026]
