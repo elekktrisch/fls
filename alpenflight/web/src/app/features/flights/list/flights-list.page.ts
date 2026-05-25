@@ -20,11 +20,13 @@ import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 import {
   FlightListItemAirState,
   FlightListItemFlightAircraftType,
+  FlightListItemProcessState,
 } from '@api/generated/model';
 import type {
   FlightListItem,
   FlightListItemAirState as AirState,
   FlightListItemFlightAircraftType as AcType,
+  FlightListItemProcessState as ProcessState,
 } from '@api/generated/model';
 
 import { SessionStore } from '../../../core/session/session.store';
@@ -49,6 +51,17 @@ const AIRCRAFT_TYPE_OPTIONS: readonly AfSelectOption<AcType>[] = [
   { value: FlightListItemFlightAircraftType.MOTOR, label: 'Motor' },
 ];
 
+const PROCESS_STATE_LABEL: Readonly<Record<ProcessState, string>> = {
+  [FlightListItemProcessState.NOT_PROCESSED]: 'Not processed',
+  [FlightListItemProcessState.INVALID]: 'Invalid',
+  [FlightListItemProcessState.VALID]: 'Valid',
+  [FlightListItemProcessState.LOCKED]: 'Locked',
+  [FlightListItemProcessState.DELIVERY_PREPARATION_ERROR]: 'Delivery prep error',
+  [FlightListItemProcessState.DELIVERY_PREPARED]: 'Delivery prepared',
+  [FlightListItemProcessState.DELIVERY_BOOKED]: 'Delivery booked',
+  [FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS]: 'Excluded',
+};
+
 function toIsoDate(d: Date): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -56,10 +69,12 @@ function toIsoDate(d: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function shortDate(iso?: string): string {
-  if (!iso) return '';
-  // The DTO sends `YYYY-MM-DD`; surface `MM-DD` per the prototype.
-  return iso.length === 10 ? iso.slice(5) : iso;
+function formatLegacyDate(iso?: string): string {
+  if (!iso || iso.length !== 10) return iso ?? '';
+  // Surface dd.MM.yyyy — parity with legacy `flights.html`
+  // (`flight.FlightDate | date:'dd.MM.yyyy'`).
+  const [yyyy, mm, dd] = iso.split('-');
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 function formatTime(iso?: string): string {
@@ -104,6 +119,25 @@ function airStateTone(state: AirState): Tone {
   }
 }
 
+function processStateTone(state: ProcessState): Tone {
+  switch (state) {
+    // Valid + downstream delivery states are operationally "done" / good.
+    case FlightListItemProcessState.VALID:
+    case FlightListItemProcessState.LOCKED:
+    case FlightListItemProcessState.DELIVERY_PREPARED:
+    case FlightListItemProcessState.DELIVERY_BOOKED:
+      return 'ok';
+    // Anything that needs operator attention surfaces warn.
+    case FlightListItemProcessState.INVALID:
+    case FlightListItemProcessState.DELIVERY_PREPARATION_ERROR:
+      return 'warn';
+    case FlightListItemProcessState.NOT_PROCESSED:
+    case FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS:
+    default:
+      return 'neutral';
+  }
+}
+
 function toneClasses(tone: Tone): string {
   switch (tone) {
     case 'ok':
@@ -131,10 +165,17 @@ function toneDotClass(tone: Tone): string {
 /**
  * Logbook (flight list). Visual reference: docs/modernization/design-reference
  * screens-logbook.jsx + screenshots/02-desktop-cards.png. Card-per-flight,
- * header row (date / type pill / status pill / block time), emphasis row
- * (aircraft immatriculation), and a small labels grid below. Server-side
- * date-range filter; air-state / aircraft-type narrowing is client-side
- * over the loaded page until /flights/search lands.
+ * header row (date / type pill / air-state pill / duration), emphasis row
+ * (aircraft immatriculation), labels grid (aircraft / takeoff / landing).
+ *
+ * Columns are grounded in legacy `flsweb/src/flights/flights.html`: FlightDate
+ * (rendered dd.MM.yyyy), Immatriculation, takeoff/landing times, glider-flight
+ * duration, AirState, ProcessState. Pilot / second-crew / locations / comments
+ * / tow columns from legacy are deferred with the rest of the decoration set
+ * (per S-062a "decorations deferred").
+ *
+ * Server-side date-range filter; air-state / aircraft-type narrowing is
+ * client-side over the loaded page until `/flights/search` lands.
  */
 @Component({
   selector: 'af-flights-list',
@@ -245,17 +286,18 @@ function toneDotClass(tone: Tone): string {
                 class="flex flex-col gap-3 px-5 py-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
                 [attr.data-testid]="'flights-row-' + fl.id"
               >
-                <!-- header row: date · type pill · status pill · block -->
+                <!-- header row: date · type pill · status pill · duration -->
                 <div class="flex items-center gap-3 flex-wrap text-sm">
                   <a
                     class="tabular font-medium text-slate-900 no-underline hover:text-brand-700"
                     [routerLink]="['/flights', fl.id, 'edit']"
                     [attr.data-testid]="'flights-row-link-' + fl.id"
                   >
-                    {{ shortDate(fl.flightDate) || fl.flightDate || '-' }}
+                    {{ formatDate(fl.flightDate) || '-' }}
                   </a>
                   <span
                     class="inline-flex items-center px-2 py-px text-xs font-medium bg-slate-100 text-slate-700"
+                    [attr.data-testid]="'flights-aircraft-type-' + fl.id"
                   >
                     {{ aircraftTypeLabel(fl.flightAircraftType) }}
                   </span>
@@ -267,17 +309,28 @@ function toneDotClass(tone: Tone): string {
                     <span class="w-1.5 h-1.5 rounded-full" [class]="toneDot(fl.airState)"></span>
                     {{ airStateText(fl.airState) }}
                   </span>
+                  <span
+                    class="inline-flex items-center gap-1.5 px-2 py-px text-xs font-medium"
+                    [class]="processToneClass(fl.processState)"
+                    [attr.data-testid]="'flights-process-state-' + fl.id"
+                  >
+                    <span
+                      class="w-1.5 h-1.5 rounded-full"
+                      [class]="processToneDot(fl.processState)"
+                    ></span>
+                    {{ processStateText(fl.processState) }}
+                  </span>
                   <span class="flex-1"></span>
                   <span
                     class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
                   >
-                    Block
+                    Duration
                   </span>
                   <span
                     class="tabular text-base font-medium text-slate-900"
-                    [attr.data-testid]="'flights-block-' + fl.id"
+                    [attr.data-testid]="'flights-duration-' + fl.id"
                   >
-                    {{ block(fl) }}
+                    {{ duration(fl) }}
                   </span>
                   @if (canMutate()) {
                     <button
@@ -325,7 +378,11 @@ function toneDotClass(tone: Tone): string {
                   }
                 </div>
 
-                <!-- emphasis row: aircraft immatriculation -->
+                <!-- emphasis row: aircraft immatriculation (legacy
+                  Immatriculation column). Pilot name (legacy PilotName
+                  + SecondCrewName) is intentionally absent — list DTO
+                  ships only aircraftId per S-062a; PIC name needs a
+                  person lookup that the list endpoint does not decorate. -->
                 <div class="flex items-baseline gap-2">
                   <span
                     class="tabular text-xl font-medium text-slate-900"
@@ -335,15 +392,29 @@ function toneDotClass(tone: Tone): string {
                   </span>
                 </div>
 
-                <!-- labels grid -->
-                <dl
-                  class="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 m-0"
-                >
+                <!-- labels grid — legacy parity columns we can resolve today
+                  (aircraft / takeoff / landing). Pilot, location and
+                  comment surfaces are deferred with the rest of the
+                  decoration set (per S-062a "list decorations deferred"). -->
+                <dl class="grid grid-cols-3 gap-x-6 gap-y-2 m-0">
                   <div class="min-w-0">
                     <dt
                       class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
                     >
-                      Off block
+                      Aircraft
+                    </dt>
+                    <dd
+                      class="m-0 text-sm tabular text-slate-900"
+                      [attr.data-testid]="'flights-aircraft-' + fl.id"
+                    >
+                      {{ aircraftImmat(fl.aircraftId) }}
+                    </dd>
+                  </div>
+                  <div class="min-w-0">
+                    <dt
+                      class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
+                    >
+                      Takeoff
                     </dt>
                     <dd class="m-0 text-sm tabular text-slate-900">
                       {{ formatTime(fl.startDateTime) || '-' }}
@@ -353,30 +424,10 @@ function toneDotClass(tone: Tone): string {
                     <dt
                       class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
                     >
-                      On block
+                      Landing
                     </dt>
                     <dd class="m-0 text-sm tabular text-slate-900">
                       {{ formatTime(fl.ldgDateTime) || '-' }}
-                    </dd>
-                  </div>
-                  <div class="min-w-0">
-                    <dt
-                      class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
-                    >
-                      Type
-                    </dt>
-                    <dd class="m-0 text-sm text-slate-900">
-                      {{ aircraftTypeLabel(fl.flightAircraftType) }}
-                    </dd>
-                  </div>
-                  <div class="min-w-0">
-                    <dt
-                      class="text-[10px] uppercase tracking-wider font-medium text-slate-500"
-                    >
-                      State
-                    </dt>
-                    <dd class="m-0 text-sm text-slate-900">
-                      {{ airStateText(fl.airState) }}
                     </dd>
                   </div>
                 </dl>
@@ -449,7 +500,19 @@ export class FlightsListPage {
     return toneDotClass(airStateTone(state));
   }
 
-  protected block(fl: FlightListItem): string {
+  protected processStateText(state: ProcessState): string {
+    return PROCESS_STATE_LABEL[state];
+  }
+
+  protected processToneClass(state: ProcessState): string {
+    return toneClasses(processStateTone(state));
+  }
+
+  protected processToneDot(state: ProcessState): string {
+    return toneDotClass(processStateTone(state));
+  }
+
+  protected duration(fl: FlightListItem): string {
     return durationBlock(fl.startDateTime, fl.ldgDateTime);
   }
 
@@ -457,8 +520,8 @@ export class FlightsListPage {
     return formatTime(iso);
   }
 
-  protected shortDate(iso?: string): string {
-    return shortDate(iso);
+  protected formatDate(iso?: string): string {
+    return formatLegacyDate(iso);
   }
 
   protected onDateRangeChange(value: DateValue): void {

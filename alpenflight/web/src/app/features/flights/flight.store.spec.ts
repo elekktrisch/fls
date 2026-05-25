@@ -8,6 +8,7 @@ import type { FlightListItem, FlightListResponse, ListParams } from '@api/genera
 import {
   FlightListItemAirState,
   FlightListItemFlightAircraftType,
+  FlightListItemProcessState,
 } from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
@@ -21,6 +22,7 @@ const FLIGHT_A: FlightListItem = {
   ldgDateTime: '2026-05-20T11:00:00Z',
   aircraftId: 'ac-019e30c3-2c00-7001-8000-000000000a01',
   processStateId: '019e2e15-2c00-7100-8000-000000007002',
+  processState: FlightListItemProcessState.VALID,
   airState: FlightListItemAirState.LANDED,
 };
 
@@ -32,6 +34,7 @@ const FLIGHT_B: FlightListItem = {
   ldgDateTime: '2026-05-20T10:08:00Z',
   aircraftId: 'ac-019e30c3-2c00-7001-8000-000000000a02',
   processStateId: '019e2e15-2c00-7100-8000-000000007002',
+  processState: FlightListItemProcessState.VALID,
   airState: FlightListItemAirState.STARTED,
 };
 
