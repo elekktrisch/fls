@@ -247,8 +247,34 @@ test.describe('flights list page', () => {
     await expect(page.getByTestId(`flights-immat-${allFlights[0].id}`)).toHaveText('HB-GLI');
     await expect(page.getByTestId(`flights-immat-${allFlights[1].id}`)).toHaveText('HB-TOW');
 
-    // Air state pill shows the resolved label.
+    // Air state + process state pills show resolved labels.
     await expect(page.getByTestId(`flights-air-state-${allFlights[0].id}`)).toContainText('Landed');
+    await expect(page.getByTestId(`flights-process-state-${allFlights[0].id}`)).toContainText(
+      'Valid',
+    );
+    // Aircraft-type pill renders the legacy-equivalent label.
+    await expect(page.getByTestId(`flights-aircraft-type-${allFlights[0].id}`)).toContainText(
+      'Glider',
+    );
+    // Duration is computed from start/landing times.
+    await expect(page.getByTestId(`flights-duration-${allFlights[0].id}`)).toHaveText('01:32');
+
+    // Column-inventory parity guard: the row exposes Takeoff + Landing labels
+    // but NOT pilot / location / comment / tow columns (deferred per S-062a).
+    const firstRow = page.getByTestId(`flights-row-${allFlights[0].id}`);
+    await expect(firstRow).toContainText('Takeoff');
+    await expect(firstRow).toContainText('Landing');
+    await expect(firstRow).not.toContainText('Pilot');
+    await expect(firstRow).not.toContainText('Comment');
+    await expect(firstRow).not.toContainText('Tow ');
+
+    // Row body click → navigates to the edit placeholder (legacy parity:
+    // whole-row click opens edit). Verified once, then the same target via
+    // the kebab menu below.
+    await firstRow.click();
+    await expect(page).toHaveURL(new RegExp(`/flights/${allFlights[0].id}/edit$`));
+    await expect(page.getByTestId('flights-edit-placeholder')).toBeVisible();
+    await page.goBack();
 
     // Apply a client-side air-state filter (Started). Both Landed rows hide;
     // the Started row stays. The server is NOT re-queried for this — the

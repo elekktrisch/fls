@@ -26,7 +26,6 @@ import type {
   FlightListItemProcessState as ProcessState,
 } from '@api/generated/model';
 
-import { SessionStore } from '../../../core/session/session.store';
 import { FlightStore } from '../flight.store';
 
 const AIR_STATE_OPTIONS: readonly AfSelectOption<AirState>[] = [
@@ -98,7 +97,7 @@ function airStateLabel(state: AirState): string {
   return AIR_STATE_OPTIONS.find((o) => o.value === state)?.label ?? state;
 }
 
-type Tone = 'ok' | 'warn' | 'neutral';
+type Tone = 'ok' | 'warn' | 'danger' | 'neutral';
 
 function airStateTone(state: AirState): Tone {
   switch (state) {
@@ -124,10 +123,11 @@ function processStateTone(state: ProcessState): Tone {
     case FlightListItemProcessState.DELIVERY_PREPARED:
     case FlightListItemProcessState.DELIVERY_BOOKED:
       return 'ok';
-    // Anything that needs operator attention surfaces warn.
+    // Operator-required-attention conditions surface red (distinct from
+    // amber/warn which marks in-flight transient states elsewhere).
     case FlightListItemProcessState.INVALID:
     case FlightListItemProcessState.DELIVERY_PREPARATION_ERROR:
-      return 'warn';
+      return 'danger';
     case FlightListItemProcessState.NOT_PROCESSED:
     case FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS:
     default:
@@ -141,6 +141,8 @@ function toneClasses(tone: Tone): string {
       return 'bg-emerald-50 text-emerald-700';
     case 'warn':
       return 'bg-amber-50 text-amber-700';
+    case 'danger':
+      return 'bg-rose-50 text-rose-700';
     case 'neutral':
     default:
       return 'bg-slate-100 text-slate-700';
@@ -153,6 +155,8 @@ function toneDotClass(tone: Tone): string {
       return 'bg-emerald-500';
     case 'warn':
       return 'bg-amber-500';
+    case 'danger':
+      return 'bg-rose-500';
     case 'neutral':
     default:
       return 'bg-slate-500';
@@ -196,16 +200,14 @@ function toneDotClass(tone: Tone): string {
   template: `
     <af-page>
       <af-page-header title="Flights">
-        @if (canMutate()) {
-          <af-button
-            type="primary"
-            htmlType="button"
-            (clicked)="router.navigateByUrl('/flights/new')"
-            data-testid="flights-new-button"
-          >
-            New flight
-          </af-button>
-        }
+        <af-button
+          type="primary"
+          htmlType="button"
+          (clicked)="router.navigateByUrl('/flights/new')"
+          data-testid="flights-new-button"
+        >
+          New flight
+        </af-button>
       </af-page-header>
 
       <p class="text-sm text-slate-500 mt-0 mb-4" data-testid="flights-summary">
@@ -259,27 +261,44 @@ function toneDotClass(tone: Tone): string {
         </div>
       </div>
 
-      <af-page-error
-        [message]="store.loadError()"
-        (retry)="store.refresh()"
-        data-testid="flights-error"
-      />
+      @if (store.loadError()) {
+        <af-page-error
+          [message]="store.loadError()"
+          (retry)="store.refresh()"
+          data-testid="flights-error"
+        />
+      }
 
       <div class="border border-slate-200 bg-white" data-testid="flights-table">
         @if (store.isLoading()) {
           <div class="flex justify-center py-12">
-            <nz-spin />
+            <nz-spin [nzDelay]="300" />
           </div>
         } @else if (store.visibleEntities().length === 0) {
-          <div class="py-12">
-            <nz-empty />
+          <div class="py-12 text-center text-sm text-slate-500" data-testid="flights-empty">
+            @if (hasActiveFilter()) {
+              <p class="m-0">No flights match the active filters.</p>
+              <button
+                type="button"
+                class="mt-2 underline bg-transparent border-0 cursor-pointer text-brand-600 hover:text-brand-700"
+                (click)="onClearFilters()"
+                data-testid="flights-empty-clear-filters"
+              >
+                Clear filters
+              </button>
+            } @else {
+              <p class="m-0">No flights yet.</p>
+            }
           </div>
         } @else {
           <ul role="list" class="list-none m-0 p-0">
             @for (fl of store.visibleEntities(); track fl.id) {
               <li
-                class="flex flex-col gap-3 px-5 py-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
+                class="flex flex-col gap-3 px-5 py-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors cursor-pointer"
                 [attr.data-testid]="'flights-row-' + fl.id"
+                (click)="openEdit(fl.id)"
+                (keydown.enter)="openEdit(fl.id)"
+                tabindex="0"
               >
                 <!-- header row: date · type pill · status pill · duration -->
                 <div class="flex items-center gap-3 flex-wrap text-sm">
@@ -325,50 +344,48 @@ function toneDotClass(tone: Tone): string {
                   >
                     {{ duration(fl) }}
                   </span>
-                  @if (canMutate()) {
-                    <button
-                      type="button"
-                      class="w-8 h-8 inline-flex items-center justify-center bg-transparent border-0 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100"
-                      nz-dropdown
-                      [nzDropdownMenu]="rowMenu"
-                      nzTrigger="click"
-                      nzPlacement="bottomRight"
-                      [attr.aria-label]="'Actions for flight on ' + (fl.flightDate ?? fl.id)"
-                      [attr.data-testid]="'flights-kebab-' + fl.id"
-                      (click)="$event.stopPropagation()"
+                  <button
+                    type="button"
+                    class="w-8 h-8 inline-flex items-center justify-center bg-transparent border-0 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100"
+                    nz-dropdown
+                    [nzDropdownMenu]="rowMenu"
+                    nzTrigger="click"
+                    nzPlacement="bottomRight"
+                    [attr.aria-label]="'Actions for flight on ' + (fl.flightDate ?? fl.id)"
+                    [attr.data-testid]="'flights-kebab-' + fl.id"
+                    (click)="$event.stopPropagation()"
+                  >
+                    <af-icon name="more-vertical" [size]="18" />
+                  </button>
+                  <nz-dropdown-menu #rowMenu="nzDropdownMenu">
+                    <ul
+                      class="list-none m-0 p-1 min-w-[10rem] bg-white border border-slate-200"
+                      role="menu"
                     >
-                      <af-icon name="more-vertical" [size]="18" />
-                    </button>
-                    <nz-dropdown-menu #rowMenu="nzDropdownMenu">
-                      <ul
-                        class="list-none m-0 p-1 min-w-[10rem] bg-white border border-slate-200"
-                        role="menu"
-                      >
-                        <li role="none">
-                          <a
-                            role="menuitem"
-                            class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
-                            [routerLink]="['/flights', fl.id, 'edit']"
-                            [attr.data-testid]="'flights-edit-' + fl.id"
-                          >
-                            <af-icon name="pencil" [size]="14" />
-                            <span>Edit</span>
-                          </a>
-                        </li>
-                        <li role="none">
-                          <a
-                            role="menuitem"
-                            class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
-                            [routerLink]="['/flights/copy', fl.id]"
-                            [attr.data-testid]="'flights-copy-' + fl.id"
-                          >
-                            <af-icon name="copy" [size]="14" />
-                            <span>Copy</span>
-                          </a>
-                        </li>
-                      </ul>
-                    </nz-dropdown-menu>
-                  }
+                      <li role="none">
+                        <a
+                          role="menuitem"
+                          class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
+                          [routerLink]="['/flights', fl.id, 'edit']"
+                          [attr.data-testid]="'flights-edit-' + fl.id"
+                        >
+                          <af-icon name="pencil" [size]="14" />
+                          <span>Edit</span>
+                        </a>
+                      </li>
+                      <li role="none">
+                        <a
+                          role="menuitem"
+                          class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
+                          [routerLink]="['/flights/copy', fl.id]"
+                          [attr.data-testid]="'flights-copy-' + fl.id"
+                        >
+                          <af-icon name="copy" [size]="14" />
+                          <span>Copy</span>
+                        </a>
+                      </li>
+                    </ul>
+                  </nz-dropdown-menu>
                 </div>
 
                 <!-- emphasis row: aircraft immatriculation (legacy
@@ -385,22 +402,13 @@ function toneDotClass(tone: Tone): string {
                   </span>
                 </div>
 
-                <!-- labels grid — legacy parity columns we can resolve today
-                  (aircraft / takeoff / landing). Pilot, location and
-                  comment surfaces are deferred with the rest of the
-                  decoration set (per S-062a "list decorations deferred"). -->
-                <dl class="grid grid-cols-3 gap-x-6 gap-y-2 m-0">
-                  <div class="min-w-0">
-                    <dt class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
-                      Aircraft
-                    </dt>
-                    <dd
-                      class="m-0 text-sm tabular text-slate-900"
-                      [attr.data-testid]="'flights-aircraft-' + fl.id"
-                    >
-                      {{ aircraftImmat(fl.aircraftId) }}
-                    </dd>
-                  </div>
+                <!-- labels grid — Takeoff / Landing times (legacy
+                  parity columns we can resolve today). Aircraft immat
+                  is the emphasis row above, not repeated here. Pilot,
+                  location and comment surfaces are deferred with the
+                  rest of the decoration set (per S-062a "list
+                  decorations deferred"). -->
+                <dl class="grid grid-cols-2 gap-x-6 gap-y-2 m-0">
                   <div class="min-w-0">
                     <dt class="text-[10px] uppercase tracking-wider font-medium text-slate-500">
                       Takeoff
@@ -429,12 +437,10 @@ function toneDotClass(tone: Tone): string {
 export class FlightsListPage {
   protected readonly store = inject(FlightStore);
   private readonly aircraft = inject(AircraftStore);
-  private readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
 
   protected readonly airStateOptions = AIR_STATE_OPTIONS;
   protected readonly aircraftTypeOptions = AIRCRAFT_TYPE_OPTIONS;
-  protected readonly canMutate = this.session.isClubAdmin;
 
   protected readonly summary = computed(() => {
     const total = this.store.entities().length;
@@ -468,7 +474,11 @@ export class FlightsListPage {
   });
 
   protected aircraftImmat(id: string): string {
-    return this.aircraft.entityMap()[id]?.immatriculation ?? id;
+    // Falls back to `…` while AircraftStore hydrates so the row never
+    // surfaces a raw UUID. The store is global + warmed by sibling
+    // navigation; first-paint races are bounded by SessionStore prefetch.
+    const immat = this.aircraft.entityMap()[id]?.immatriculation;
+    return immat ?? '…';
   }
 
   protected aircraftTypeLabel(t: AcType): string {
@@ -530,5 +540,20 @@ export class FlightsListPage {
   protected onClearFilters(): void {
     this.store.clearClientFilter();
     this.store.setDateRange({ from: null, to: null });
+  }
+
+  protected openEdit(flightId: string): void {
+    this.router.navigate(['/flights', flightId, 'edit']);
+  }
+
+  protected hasActiveFilter(): boolean {
+    const f = this.store.clientFilter();
+    return (
+      this.store.dateFrom() !== null ||
+      this.store.dateTo() !== null ||
+      f.airStates.length > 0 ||
+      f.processStateIds.length > 0 ||
+      f.aircraftTypes.length > 0
+    );
   }
 }
