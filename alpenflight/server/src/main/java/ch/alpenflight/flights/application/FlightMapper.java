@@ -10,6 +10,7 @@ import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
 import ch.alpenflight.flights.domain.CrewMemberSpec;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightCrew;
+import ch.alpenflight.flights.domain.FlightCrewTypeIds;
 import ch.alpenflight.flights.domain.FlightOperationalData;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.platform.id.AircraftId;
@@ -163,13 +164,6 @@ public class FlightMapper {
                         .toList());
     }
 
-    /**
-     * Builds a copy-template payload — preserves the operational shape but
-     * clears identity-bearing + per-flight fields (timestamps, comments,
-     * coupon, engine counters) per legacy {@code FlightsController.js:232-255}.
-     * Crew is preserved with timestamps stripped (the new flight hasn't
-     * happened yet).
-     */
     public FlightTemplateResponse toCopyTemplate(Flight f) {
         return new FlightTemplateResponse(
                 f.getFlightAircraftType(),
@@ -197,10 +191,6 @@ public class FlightMapper {
                         .toList());
     }
 
-    /**
-     * Projects the last-flight context for the (aircraft, date) tuple per
-     * AC-DIR-1. Times are deliberately omitted from the surface.
-     */
     public FlightLastContextResponse toLastContext(Flight glider, @Nullable Flight tow) {
         FlightLastContextResponse.TowContext towCtx = null;
         if (tow != null) {
@@ -224,11 +214,11 @@ public class FlightMapper {
     }
 
     private static @Nullable PersonId pickPilot(Flight f) {
-        return pickCrew(f, PILOT_OR_STUDENT);
+        return pickCrew(f, FlightCrewTypeIds.PILOT_OR_STUDENT);
     }
 
     private static @Nullable PersonId pickInvoiceRecipient(Flight f) {
-        return pickCrew(f, FLIGHT_COST_INVOICE_RECIPIENT);
+        return pickCrew(f, FlightCrewTypeIds.FLIGHT_COST_INVOICE_RECIPIENT);
     }
 
     private static @Nullable PersonId pickCrew(Flight f, UUID crewTypeId) {
@@ -239,11 +229,6 @@ public class FlightMapper {
         }
         return null;
     }
-
-    private static final UUID PILOT_OR_STUDENT =
-            UUID.fromString("019e2e15-2c00-76b0-8000-0000000036b0");
-    private static final UUID FLIGHT_COST_INVOICE_RECIPIENT =
-            UUID.fromString("019e2e15-2c00-76b6-8000-0000000036b6");
 
     private static FlightCrewItem toCrewItemCleared(FlightCrew c) {
         return new FlightCrewItem(

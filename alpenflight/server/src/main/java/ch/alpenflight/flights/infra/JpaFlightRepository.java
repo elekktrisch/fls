@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -54,10 +56,7 @@ public interface JpaFlightRepository
 
     @Override
     default Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate) {
-        // Spring Data DESC-by-id pagination — UUIDv7 ids are time-ordered so
-        // max-id ≈ most-recently-created within the same date.
-        return doFindLastByAircraftAndDate(aircraftId, flightDate,
-                org.springframework.data.domain.PageRequest.of(0, 1))
+        return doFindLastByAircraftAndDate(aircraftId, flightDate, PageRequest.of(0, 1))
                 .stream().findFirst();
     }
 
@@ -71,7 +70,7 @@ public interface JpaFlightRepository
             """)
     List<Flight> doFindLastByAircraftAndDate(@Param("acid") UUID aircraftId,
                                              @Param("date") LocalDate flightDate,
-                                             org.springframework.data.domain.Pageable pageable);
+                                             Pageable pageable);
 }
 
 interface CustomListQuery {

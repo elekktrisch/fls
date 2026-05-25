@@ -22,10 +22,6 @@ import java.util.UUID;
  */
 public final class FlightValidator {
 
-    private static final UUID CREW_TYPE_PILOT_OR_STUDENT =
-            UUID.fromString("019e2e15-2c00-76b0-8000-0000000036b0");
-    private static final UUID CREW_TYPE_WINCH_OPERATOR =
-            UUID.fromString("019e2e15-2c00-76b4-8000-0000000036b4");
     private static final UUID START_TYPE_AEROTOW =
             UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1");
     private static final UUID START_TYPE_EXTERNAL =
@@ -100,7 +96,7 @@ public final class FlightValidator {
                         "VALIDATION_ERROR_Towing_flight_referenced_for_externally_started_glider_flight"));
             }
         } else if (START_TYPE_WINCH.equals(startType)) {
-            if (!hasCrewOfType(f, CREW_TYPE_WINCH_OPERATOR)) {
+            if (!hasCrewOfType(f, FlightCrewTypeIds.WINCH_OPERATOR)) {
                 errors.add(new ValidationError(
                         "VALIDATION_ERROR_No_winch_operator_set_for_winch_started_glider_flight"));
             }
@@ -108,7 +104,7 @@ public final class FlightValidator {
     }
 
     private static boolean hasPilot(Flight f) {
-        return hasCrewOfType(f, CREW_TYPE_PILOT_OR_STUDENT);
+        return hasCrewOfType(f, FlightCrewTypeIds.PILOT_OR_STUDENT);
     }
 
     private static boolean hasCrewOfType(Flight f, UUID crewTypeId) {

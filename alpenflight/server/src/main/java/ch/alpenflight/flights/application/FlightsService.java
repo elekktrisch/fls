@@ -26,6 +26,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.core.Authentication;
@@ -144,10 +145,6 @@ public class FlightsService {
         return new FlightListResponse(items, nextCursor);
     }
 
-    public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req) {
-        return updateFlight(id, req, null);
-    }
-
     public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req,
                                      @Nullable Long ifMatchVersion) {
         Flight flight = repository.findByIdWithCrew(id)
@@ -178,12 +175,7 @@ public class FlightsService {
         return after;
     }
 
-    /**
-     * Builds an empty template payload — id-less editable surface for the
-     * SPA's new-flight form. Per-club defaults remain a future story (no
-     * club-default infrastructure exists yet); this only stamps today's
-     * date + the discriminator.
-     */
+    /** Per-club defaults remain a future story; this stamps today's date + the discriminator. */
     @Transactional(readOnly = true)
     public FlightTemplateResponse newTemplate(FlightAircraftType type) {
         return new FlightTemplateResponse(
@@ -204,13 +196,7 @@ public class FlightsService {
                 List.of());
     }
 
-    /**
-     * Reads the source flight in the caller's tenant and produces a
-     * template payload cleared of identity-bearing + per-flight fields per
-     * legacy {@code FlightsController.js:232-255}: timestamps, comments,
-     * coupon, engine counters are blanked; aircraft / type / locations /
-     * crew are preserved.
-     */
+    /** See {@link FlightTemplateResponse}; cross-tenant source → 404. */
     @Transactional(readOnly = true)
     public FlightTemplateResponse copyTemplate(FlightId sourceId) {
         Flight flight = repository.findByIdWithCrew(sourceId)
@@ -218,15 +204,10 @@ public class FlightsService {
         return mapper.toCopyTemplate(flight);
     }
 
-    /**
-     * Returns the seed fields from the last saved flight for the given
-     * (operating_club_id, aircraft_id, flight_date). Times are deliberately
-     * NOT returned — the SPA uses this to pre-fill 'what to fly with', not
-     * when. Per AC-DIR-1.
-     */
+    /** AC-DIR-1; times are deliberately NOT returned. */
     @Transactional(readOnly = true)
-    public java.util.Optional<FlightLastContextResponse> lastContext(UUID aircraftId,
-                                                                    LocalDate flightDate) {
+    public Optional<FlightLastContextResponse> lastContext(UUID aircraftId,
+                                                           LocalDate flightDate) {
         return repository.findLastByAircraftAndDate(aircraftId, flightDate)
                 .map(flight -> {
                     Flight tow = null;
@@ -249,12 +230,11 @@ public class FlightsService {
                 AuditedTarget.deleted("Flight",
                         Objects.requireNonNull(flight.getId()),
                         before));
-        // Cascade tow flight soft-delete in the same transaction — legacy
-        // FlightService.cs:1314-1319. Application-layer only (no DB cascade
-        // on the self-FK), so each tow row gets its own audit event sharing
-        // the request's actor + timestamp.
-        if (flight.getFlightAircraftType() == ch.alpenflight.flights.domain
-                .FlightAircraftType.GLIDER && flight.getTowFlightId() != null) {
+        // Legacy FlightService.cs:1314-1319. Application-layer only (no DB
+        // cascade on the self-FK by design); each tow row gets its own audit
+        // event sharing the request's actor + timestamp.
+        if (flight.getFlightAircraftType() == FlightAircraftType.GLIDER
+                && flight.getTowFlightId() != null) {
             FlightId towId = FlightId.of(flight.getTowFlightId());
             repository.findByIdWithCrew(towId).ifPresent(tow -> {
                 if (tow.isDeleted()) {
@@ -290,6 +270,12 @@ public class FlightsService {
                 || state == FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS;
     }
 
+    /**
+     * MVC-thread-bound — reads the request's authentication from Spring's
+     * thread-local {@link SecurityContextHolder}. Reactive or {@code @Async}
+     * call sites would see a {@code null} authentication and fail-closed
+     * (returning {@code false} keeps the gate restrictive).
+     */
     private static boolean callerIsClubAdmin() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {

@@ -387,6 +387,30 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void lastContext_returns_404_for_cross_tenant_aircraft() {
+        // AC-DIR-1 case (c): an aircraftId that another tenant uses must not
+        // leak any flight context to the caller — @TenantId on Flight makes
+        // the row invisible, even though Aircraft is cross-tenant by ADR 0008.
+        UUID otherClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c9");
+        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        jdbc.update("""
+                INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
+                                  slug, public_registration_enabled)
+                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
+                ON CONFLICT (id) DO NOTHING
+                """,
+                otherClub.toString(), "IT_LCT_x", "IT_LCTx",
+                countryId.toString(), clubStateId.toString(), "IT_LCT_x");
+        UUID otherAircraft = seedAircraftFor(jdbc, otherClub);
+
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/last-context?aircraftId=ac-" + otherAircraft
+                        + "&date=2026-05-01");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void update_withMatchingIfMatch_returns_200() {
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
