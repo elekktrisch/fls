@@ -5,6 +5,8 @@ epic: E-07
 status: done
 started_at: 2026-05-25
 done_at: 2026-05-25
+merged: true
+merged_at: 2026-05-25
 github_issue: 128
 github_pr: 127
 depends_on: [S-058, S-062c]
@@ -28,7 +30,7 @@ refined_specialists: [synthesized-inline]
 
 ## Context
 
-R14 (concurrent-edit was untested in legacy) closed for Flight, the highest-frequency editable entity. Plus the aerotow paired-create coverage S-062c left on the table, the delete-from-list affordance the operator asked for, and the filter-bar alignment boyscout surfaced from `alpenflight/misaligned-filter.png`.
+R14 (concurrent-edit was untested in legacy) closed for Flight, the highest-frequency editable entity. Plus the aerotow paired-create coverage S-062c left on the table, the delete-from-list affordance the operator asked for, and the filter-bar alignment boyscout the operator surfaced from a manual screenshot during refine — since codified as the screenshots-in-e2e convention.
 
 ## Load-bearing decisions
 

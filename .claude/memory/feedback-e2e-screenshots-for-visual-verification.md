@@ -9,7 +9,7 @@ metadata:
 
 Every Playwright spec under `alpenflight/web/e2e/tests/` that renders a non-trivial view writes a screenshot to `screenshots/<feature>/<descriptive-name>.png` at each meaningful state (populated, filtered, empty, error, dialog-open, post-submit, etc.).
 
-**Why:** Without screenshots, Claude can't visually verify UI changes — when something looks wrong, the operator has to manually run the app + save a PNG into the repo so Claude can look at it. The operator already did that once (`alpenflight/misaligned-filter.png`, 2026-05-25) for the flights filter-bar misalignment; doing it every time is friction. Letting the e2e run produce the screenshots makes `pnpm e2e` (or its CI artifact) the single source for "what does the UI actually look like right now".
+**Why:** Without screenshots, Claude can't visually verify UI changes — when something looks wrong, the operator has to manually run the app + save a PNG into the repo so Claude can look at it. The operator did this once on S-067 (2026-05-25) for the flights filter-bar misalignment; doing it every time is friction. Letting the e2e run produce the screenshots makes `pnpm e2e` (or its CI artifact) the single source for "what does the UI actually look like right now".
 
 **How to apply:**
 - New Playwright specs: add `await page.screenshot({ path: 'screenshots/<feature>/<state>.png', fullPage: true })` at every state the spec asserts on. One PNG per assertion-cluster, not one per `expect`.
