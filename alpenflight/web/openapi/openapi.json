@@ -4591,7 +4591,7 @@
       },
       "FlightTemplateResponse" : {
         "type" : "object",
-        "description" : "Template projection for `GET /api/v1/flights/new-template` and `GET /api/v1/flights/{id}/copy-template`. Mirrors the editable surface of `FlightCreateRequest`; carries no id / version / state-machine / audit metadata. Times + comments + engine counters are blank on copy-template per legacy `FlightsController.js:232-255`.",
+        "description" : "Editable-surface projection for new-flight and copy-flight templates. Carries no id / version / state-machine / audit metadata. Times + comments + engine counters are cleared on copy-template per legacy `FlightsController.js:232-255`.",
         "properties" : {
           "flightAircraftType" : {
             "type" : "string",
