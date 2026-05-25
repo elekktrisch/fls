@@ -3,12 +3,15 @@ package ch.alpenflight.flights.web;
 import ch.alpenflight.flights.application.InvalidCursorException;
 import ch.alpenflight.flights.domain.DuplicateCrewMemberException;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
+import ch.alpenflight.flights.domain.IllegalFlightTransitionException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import java.net.URI;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -31,6 +34,10 @@ class FlightsExceptionHandler {
             URI.create("urn:alpenflight:problem:flight-invalid-cursor");
     private static final URI INVALID_REQUEST =
             URI.create("urn:alpenflight:problem:flight-invalid-request");
+    private static final URI ILLEGAL_TRANSITION =
+            URI.create("urn:alpenflight:problem:flight-illegal-transition");
+    private static final URI CONCURRENT_MODIFICATION =
+            URI.create("urn:alpenflight:problem:flight-concurrent-modification");
 
     @ExceptionHandler(FlightNotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(FlightNotFoundException e) {
@@ -78,6 +85,40 @@ class FlightsExceptionHandler {
         pd.setType(INVALID_CURSOR);
         pd.setTitle("Invalid cursor");
         pd.setDetail(e.getMessage());
+        return problem(pd);
+    }
+
+    @ExceptionHandler(IllegalFlightTransitionException.class)
+    ResponseEntity<ProblemDetail> handleIllegalTransition(IllegalFlightTransitionException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        pd.setType(ILLEGAL_TRANSITION);
+        pd.setTitle("Illegal flight-state transition");
+        pd.setDetail(e.getMessage());
+        pd.setProperty("from", e.from().name());
+        pd.setProperty("to", e.to().name());
+        pd.setProperty("trigger", e.trigger().name());
+        if (!e.allowed().isEmpty()) {
+            pd.setProperty("allowed", e.allowed().stream().map(Enum::name).toList());
+        }
+        return problem(pd);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ResponseEntity<ProblemDetail> handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        pd.setType(CONCURRENT_MODIFICATION);
+        pd.setTitle("Flight was modified concurrently");
+        pd.setDetail("Flight was modified by another transaction; reload and retry.");
+        return problem(pd);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ProblemDetail> handleUnreadable(HttpMessageNotReadableException e) {
+        // Jackson rejects unknown enum values (e.g. processState=WHO_KNOWS) here.
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setType(INVALID_REQUEST);
+        pd.setTitle("Invalid request");
+        pd.setDetail("Request body could not be parsed.");
         return problem(pd);
     }
 

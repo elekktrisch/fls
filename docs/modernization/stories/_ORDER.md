@@ -123,11 +123,14 @@ Rest of the master-data CRUD plus the Phase-C items deferred until their first c
 - S-047 — (continued) — port remaining reference entities (Language, MemberState, PersonCategory, LengthUnitType, etc.) — *split off the walking-skeleton's `Country`-only slice.*
 - S-048 — M — Clubs CRUD (deps S-047, S-026, S-027)
 - S-050 — M — Aircraft CRUD (deps S-049)
+- S-162 — S — Sysadmin Aircraft register endpoint `/api/v1/admin/aircraft` (deps S-050, S-058) — *S-058 follow-up; cross-club aircraft registration for sysadmins.*
+- S-164 — S — Redact `latestCounter` from Aircraft detail GET for non-manager callers (deps S-058) — *S-058 follow-up; hardening.*
 - S-051 — L — Persons + PersonClub (deps S-048, S-047, S-057)
 - S-053 — S — Flight types CRUD (deps S-050)
 - S-054 — S — Articles CRUD (deps S-048)
 - S-055 — M — Email templates CRUD (deps S-048, S-082 — see Phase G)
 - S-052 — L — Users CRUD + role assignment (deps S-051, S-026, S-019, S-020)
+- S-163 — S — Extend `AircraftAccess.canEdit` to admit `aircraft_owner_person_id` match (deps S-052, S-058) — *S-058 follow-up; needs User→Person link from S-052.*
 - S-056 — M — System data + system-logs view (deps S-027)
 - S-158 — S — Tenant-branding seven-surface preview component (deps S-008, S-156; ADR 0024 follow-up) — *standalone molecule + dev route; no admin-form consumer yet (branding admin CRUD UI is an ADR 0014 follow-up not yet written). Can fire any time after deps; lands here as the natural home for branding admin UI.*
 
@@ -144,6 +147,7 @@ The airfield hot-path (vision C23). Where most user value lands.
 - S-062c — M — Flight create/edit forms + copy flow (deps S-062a, S-062b, S-007)
 - S-063 — M — Glider↔Tow link integrity (deps S-062a)
 - S-064 — M — Air movements (motor aircraft) (deps S-062a, S-062c)
+- S-161 — M — Cross-club aircraft usage visibility (charter case) (deps S-058, S-064) — *S-058 follow-up; what does the managing club see of others' usage.*
 - S-067 — M — Optimistic-concurrency on Flight (deps S-058)
 - S-065 — L — Flight reports + custom report builder (deps S-062a, S-093)
 - S-066 — M — OGN ingestion REST endpoint (deps S-058, S-023, S-029) — *S-023 + S-029 deferred from old-C; both land here before OGN.*

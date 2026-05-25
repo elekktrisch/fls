@@ -29,6 +29,8 @@ import type {
   FlightCreateRequest,
   FlightDetail,
   FlightListResponse,
+  FlightProcessStateChangeRequest,
+  FlightProcessStateResponse,
   FlightUpdateRequest,
   ListParams
 } from '../model';
@@ -300,6 +302,46 @@ export class FlightsService {
     return this.http.post<TData>(
       `/api/v1/flights`,
       flightCreateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Transition a flight's process state (OPERATOR trigger)
+ */
+ transitionProcessState<TData = FlightProcessStateResponse>(id: string,
+    flightProcessStateChangeRequest: FlightProcessStateChangeRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ transitionProcessState<TData = FlightProcessStateResponse>(id: string,
+    flightProcessStateChangeRequest: FlightProcessStateChangeRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ transitionProcessState<TData = FlightProcessStateResponse>(id: string,
+    flightProcessStateChangeRequest: FlightProcessStateChangeRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  transitionProcessState<TData = FlightProcessStateResponse>(
+    id: string,
+    flightProcessStateChangeRequest: FlightProcessStateChangeRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/flights/${id}/process-state`,
+      flightProcessStateChangeRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/flights/${id}/process-state`,
+      flightProcessStateChangeRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/flights/${id}/process-state`,
+      flightProcessStateChangeRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

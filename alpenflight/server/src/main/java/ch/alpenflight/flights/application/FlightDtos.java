@@ -98,6 +98,20 @@ public final class FlightDtos {
             @Nullable Short startPosition,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<FlightCrewItem> crew) {}
 
+    @Schema(description = "Request body for `PATCH /api/v1/flights/{id}/process-state`. The transition matrix gates which state changes are legal under the OPERATOR trigger.")
+    public record FlightProcessStateChangeRequest(
+            @NotNull
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            ch.alpenflight.flights.domain.FlightProcessState processState) {}
+
+    @Schema(description = "Response for a successful PATCH on process-state — minimal payload reflecting the persisted change.")
+    public record FlightProcessStateResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightId id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            ch.alpenflight.flights.domain.FlightProcessState processState,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long version) {}
+
     @Schema(description = "Payload to create a Flight. State-machine columns are server-set; ownership tenant rides from the JWT (A04 defense).")
     public record FlightCreateRequest(
             @NotNull FlightAircraftType flightAircraftType,

@@ -1724,6 +1724,45 @@
         }
       }
     },
+    "/api/v1/flights/{id}/process-state" : {
+      "patch" : {
+        "tags" : [ "flights" ],
+        "summary" : "Transition a flight's process state (OPERATOR trigger)",
+        "operationId" : "transitionProcessState",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightProcessStateChangeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightProcessStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/location-types" : {
       "get" : {
         "tags" : [ "LocationTypes" ],
@@ -4235,6 +4274,41 @@
           }
         },
         "required" : [ "atDateTime" ]
+      },
+      "FlightProcessStateChangeRequest" : {
+        "type" : "object",
+        "description" : "Request body for `PATCH /api/v1/flights/{id}/process-state`. The transition matrix gates which state changes are legal under the OPERATOR trigger.",
+        "properties" : {
+          "processState" : {
+            "type" : "string",
+            "enum" : [ "NOT_PROCESSED", "INVALID", "VALID", "LOCKED", "DELIVERY_PREPARATION_ERROR", "DELIVERY_PREPARED", "DELIVERY_BOOKED", "EXCLUDED_FROM_DELIVERY_PROCESS" ]
+          }
+        },
+        "required" : [ "processState" ]
+      },
+      "FlightProcessStateResponse" : {
+        "type" : "object",
+        "description" : "Response for a successful PATCH on process-state — minimal payload reflecting the persisted change.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "processState" : {
+            "type" : "string",
+            "enum" : [ "NOT_PROCESSED", "INVALID", "VALID", "LOCKED", "DELIVERY_PREPARATION_ERROR", "DELIVERY_PREPARED", "DELIVERY_BOOKED", "EXCLUDED_FROM_DELIVERY_PROCESS" ]
+          },
+          "processStateId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "id", "processState", "processStateId", "version" ]
       },
       "PersonListItem" : {
         "type" : "object",
