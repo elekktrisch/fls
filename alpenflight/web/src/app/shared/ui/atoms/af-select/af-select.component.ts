@@ -47,7 +47,17 @@ export interface AfSelectOption<T> {
           [nzValue]="option.value"
           [nzLabel]="option.label"
           [nzDisabled]="option.disabled ?? false"
-        />
+          [nzCustomContent]="true"
+        >
+          <!--
+            Custom content renders into the CDK-overlay option-item, so the
+            data-testid lives on a node Playwright can target directly with
+            getByTestId() — no `.ant-select-dropdown:not(.hidden)` gymnastics
+            in the spec. Value is coerced to string for the testid; tests
+            pass the same string they bind on the model.
+          -->
+          <span [attr.data-testid]="'af-select-option-' + option.value">{{ option.label }}</span>
+        </nz-option>
       }
     </nz-select>
   `,

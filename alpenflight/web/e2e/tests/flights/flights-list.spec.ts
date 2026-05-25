@@ -290,10 +290,7 @@ test.describe('flights list page', () => {
     // client narrows the loaded page.
     const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
     await airStateFilter.click();
-    await expect(
-      page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').first(),
-    ).toBeVisible();
-    await page.locator('nz-option-item').filter({ hasText: 'Started' }).click();
+    await page.getByTestId('af-select-option-STARTED').click();
 
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await expect(page.getByTestId(`flights-row-${allFlights[2].id}`)).toBeVisible();
@@ -333,10 +330,7 @@ test.describe('flights list page', () => {
     // 02 — same list, with the Started air-state filter applied.
     const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
     await airStateFilter.click();
-    await expect(
-      page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').first(),
-    ).toBeVisible();
-    await page.locator('nz-option-item').filter({ hasText: 'Started' }).click();
+    await page.getByTestId('af-select-option-STARTED').click();
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await page.screenshot({ path: 'screenshots/flights/02-filtered.png', fullPage: true });
 
