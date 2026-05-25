@@ -27,6 +27,8 @@ refined_specialists: [requirements-engineer, solution-architect, security-engine
 split_from: S-062
 github_issue: 120
 github_pr: 121
+merged: true
+merged_at: 2026-05-25
 ---
 
 ## Context
