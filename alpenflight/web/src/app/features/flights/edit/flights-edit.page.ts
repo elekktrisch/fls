@@ -599,6 +599,3 @@ export class FlightsEditPage {
     group.patchValue(snap, { emitEvent: false });
   }
 }
-up.patchValue(snap, { emitEvent: false });
-  }
-}
