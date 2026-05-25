@@ -13,27 +13,21 @@ export const FLIGHTS_ROUTES: Routes = [
     path: 'new',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./placeholder/flights-edit-placeholder.page').then(
-        (m) => m.FlightsEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/flights-edit.page').then((m) => m.FlightsEditPage),
   },
   {
     path: 'copy/:id',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./placeholder/flights-edit-placeholder.page').then(
-        (m) => m.FlightsEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/flights-edit.page').then((m) => m.FlightsEditPage),
   },
   {
+    // `:id/edit` (not `:id`): keeps `/flights/:id` free for a read-only
+    // detail view (S-105 / S-110). The legacy-parity oracle's `/flights/:id`
+    // semantic maps to *this* edit route.
     path: ':id/edit',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./placeholder/flights-edit-placeholder.page').then(
-        (m) => m.FlightsEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/flights-edit.page').then((m) => m.FlightsEditPage),
   },
 ];

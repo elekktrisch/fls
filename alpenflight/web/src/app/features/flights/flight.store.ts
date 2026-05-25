@@ -12,17 +12,25 @@ import {
 } from '@ngrx/signals';
 import { setAllEntities, withEntities } from '@ngrx/signals/entities';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { firstValueFrom, pipe, switchMap, tap } from 'rxjs';
 
 import { FlightsService } from '@api/generated/flights/flights.service';
 import type {
+  FlightDetail,
+  FlightLastContextResponse,
   FlightListItem,
   FlightListItemAirState,
   FlightListItemFlightAircraftType,
+  FlightTemplateResponse,
   ListParams,
 } from '@api/generated/model';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
+import {
+  snapshotToCreateRequests,
+  snapshotToUpdateRequest,
+  type FlightFormSnapshot,
+} from './edit/flight-form.model';
 
 export type FlightRow = FlightListItem;
 
@@ -51,7 +59,18 @@ const EMPTY_FILTER: FlightClientFilter = {
 
 const DEFAULT_LIMIT = 50;
 
-interface FlightExtraState {
+interface FlightDetailSlice {
+  current: FlightDetail | null;
+  currentTow: FlightDetail | null;
+  currentVersion: number | null;
+  currentTowVersion: number | null;
+  detailLoading: boolean;
+  detailError: string | null;
+  saveError: string | null;
+  saveConflict: boolean;
+}
+
+interface FlightListSlice {
   dateFrom: string | null;
   dateTo: string | null;
   clientFilter: FlightClientFilter;
@@ -61,6 +80,8 @@ interface FlightExtraState {
   lastRefreshedAt: number | null;
 }
 
+type FlightExtraState = FlightListSlice & FlightDetailSlice;
+
 const initial: FlightExtraState = {
   dateFrom: null,
   dateTo: null,
@@ -69,6 +90,14 @@ const initial: FlightExtraState = {
   isLoading: false,
   loadError: null,
   lastRefreshedAt: null,
+  current: null,
+  currentTow: null,
+  currentVersion: null,
+  currentTowVersion: null,
+  detailLoading: false,
+  detailError: null,
+  saveError: null,
+  saveConflict: false,
 };
 
 function matchesClientFilter(row: FlightListItem, f: FlightClientFilter): boolean {
@@ -91,11 +120,16 @@ function paramsOf(dateFrom: string | null, dateTo: string | null): ListParams {
   return p;
 }
 
+export interface UpdatePairVersions {
+  glider: number;
+  tow: number | null;
+}
+
 export const FlightStore = signalStore(
   { providedIn: 'root' },
   withEntities<FlightRow>(),
   withState<FlightExtraState>(initial),
-  withComputed(({ entities, clientFilter, loadError }) => ({
+  withComputed(({ entities, clientFilter, loadError, saveConflict }) => ({
     isEmpty: computed(() => entities().length === 0),
     visibleEntities: computed(() => {
       const f = clientFilter();
@@ -106,8 +140,9 @@ export const FlightStore = signalStore(
       return rows.filter((r) => matchesClientFilter(r, f));
     }),
     hasError: computed(() => loadError() !== null),
+    hasSaveConflict: computed(() => saveConflict()),
   })),
-  withMethods((store, flightsApi = inject(FlightsService)) => {
+  withMethods((store, flightsApi = inject(FlightsService), bus = inject(MUTATION_BUS)) => {
     const loadPage = rxMethod<void>(
       pipe(
         tap(() => patchState(store, { isLoading: true, loadError: null })),
@@ -127,6 +162,153 @@ export const FlightStore = signalStore(
         ),
       ),
     );
+
+    function clearDetail(): void {
+      patchState(store, {
+        current: null,
+        currentTow: null,
+        currentVersion: null,
+        currentTowVersion: null,
+        detailError: null,
+        saveError: null,
+        saveConflict: false,
+      });
+    }
+
+    async function loadDetail(id: string): Promise<void> {
+      patchState(store, { detailLoading: true, detailError: null });
+      try {
+        const glider = await firstValueFrom(flightsApi.get(id));
+        let tow: FlightDetail | null = null;
+        if (glider.towFlightId) {
+          try {
+            tow = await firstValueFrom(flightsApi.get(glider.towFlightId));
+          } catch {
+            // Orphan or cross-tenant tow — degrade to glider-only.
+          }
+        }
+        patchState(store, {
+          current: glider,
+          currentTow: tow,
+          currentVersion: glider.version,
+          currentTowVersion: tow?.version ?? null,
+          detailLoading: false,
+        });
+      } catch (e) {
+        patchState(store, {
+          detailLoading: false,
+          detailError: (e as HttpErrorResponse).message,
+        });
+      }
+    }
+
+    async function loadNewTemplate(): Promise<FlightTemplateResponse> {
+      return firstValueFrom(flightsApi.newTemplate());
+    }
+
+    async function loadCopyTemplate(id: string): Promise<FlightTemplateResponse> {
+      return firstValueFrom(flightsApi.copyTemplate(id));
+    }
+
+    async function loadLastContext(
+      aircraftId: string,
+      date: string,
+    ): Promise<FlightLastContextResponse | null> {
+      try {
+        return await firstValueFrom(flightsApi.lastContext({ aircraftId, date }));
+      } catch {
+        // 404 / no context → silent fallback per AC: null last-context never toasts.
+        return null;
+      }
+    }
+
+    async function savePair(snapshot: FlightFormSnapshot): Promise<{
+      gliderId: string;
+      towId?: string;
+    }> {
+      patchState(store, { saveError: null, saveConflict: false });
+      const requests = snapshotToCreateRequests(snapshot);
+      const glider = await firstValueFrom(flightsApi.create(requests.glider));
+      if (!requests.tow) {
+        bus.next({ kind: 'flight.created', flightId: glider.id });
+        loadPage();
+        return { gliderId: glider.id };
+      }
+      let tow: FlightDetail;
+      try {
+        tow = await firstValueFrom(flightsApi.create(requests.tow));
+      } catch (e) {
+        // Tow-POST failure → compensating DELETE of the glider row.
+        try {
+          await firstValueFrom(flightsApi._delete(glider.id));
+        } catch {
+          // Best-effort rollback; backend GC sweeps stragglers.
+        }
+        patchState(store, { saveError: (e as HttpErrorResponse).message });
+        throw e;
+      }
+      // Link: PUT glider with towFlightId, If-Match the just-created version.
+      const linkBody = snapshotToUpdateRequest(snapshot, 'glider', tow.id);
+      await firstValueFrom(
+        flightsApi.update(glider.id, linkBody, {
+          headers: { 'If-Match': String(glider.version) },
+        }),
+      );
+      bus.next({ kind: 'flight.created', flightId: glider.id });
+      bus.next({ kind: 'flight.created', flightId: tow.id });
+      loadPage();
+      return { gliderId: glider.id, towId: tow.id };
+    }
+
+    async function updatePair(
+      snapshot: FlightFormSnapshot,
+      versions: UpdatePairVersions,
+    ): Promise<void> {
+      if (!snapshot.flightId) {
+        throw new Error('updatePair: snapshot.flightId is required');
+      }
+      patchState(store, { saveError: null, saveConflict: false });
+      try {
+        const gliderBody = snapshotToUpdateRequest(snapshot, 'glider');
+        await firstValueFrom(
+          flightsApi.update(snapshot.flightId, gliderBody, {
+            headers: { 'If-Match': String(versions.glider) },
+          }),
+        );
+        const currentTow = store.currentTow();
+        if (currentTow && versions.tow != null) {
+          const towBody = snapshotToUpdateRequest(snapshot, 'tow');
+          await firstValueFrom(
+            flightsApi.update(currentTow.id, towBody, {
+              headers: { 'If-Match': String(versions.tow) },
+            }),
+          );
+          bus.next({ kind: 'flight.updated', flightId: currentTow.id });
+        }
+        bus.next({ kind: 'flight.updated', flightId: snapshot.flightId });
+        loadPage();
+      } catch (e) {
+        const err = e as HttpErrorResponse;
+        if (err.status === 412) {
+          // S-062h owns the inline diff dialog. Placeholder: surface the
+          // conflict state so the wizard can render a toast.
+          patchState(store, { saveConflict: true });
+        }
+        patchState(store, { saveError: err.message });
+        throw e;
+      }
+    }
+
+    async function deleteOne(id: string, version: number): Promise<void> {
+      await firstValueFrom(
+        flightsApi._delete(id, {
+          headers: { 'If-Match': String(version) },
+        }),
+      );
+      bus.next({ kind: 'flight.deleted', flightId: id });
+      loadPage();
+    }
+
     return {
       setDateRange(range: FlightDateRange): void {
         patchState(store, { dateFrom: range.from, dateTo: range.to });
@@ -151,6 +333,14 @@ export const FlightStore = signalStore(
       clearEntities(): void {
         patchState(store, setAllEntities<FlightRow>([]), { nextCursor: null });
       },
+      clearDetail,
+      loadDetail,
+      loadNewTemplate,
+      loadCopyTemplate,
+      loadLastContext,
+      savePair,
+      updatePair,
+      deleteOne,
       // exposed so the hook can call without re-creating the rxMethod
       _loadPage: loadPage,
     };
@@ -163,14 +353,19 @@ export const FlightStore = signalStore(
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         switch (evt.kind) {
           case 'flight.booked':
+          case 'flight.created':
+          case 'flight.updated':
+          case 'flight.deleted':
             store._loadPage();
             return;
           case 'session.tenantSwitch':
             store.clearEntities();
+            store.clearDetail();
             store._loadPage();
             return;
           case 'session.logout':
             store.clearEntities();
+            store.clearDetail();
             return;
           default:
             return;

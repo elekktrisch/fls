@@ -33,8 +33,8 @@ This is the spec the uptime probe (S-037) doesn't catch — it tests the full au
 
 Vision-doc amendment 2026-05-15b (§2 NFR) extends the T3 smoke to cover both density modes:
 
-- **AC-DIR-1 (T3 runs on mobile + desktop projects).** The smoke spec runs on both the `mobile` (360 × 640) and `desktop-dense` (1920 × 1080) Playwright projects from S-109. Demonstrates the full auth → fetch → edit → persist round-trip works at both density modes.
-- **AC-DIR-2 (dense-desktop keyboard-only path).** A second `desktop-dense` smoke variant exercises a keyboard-only flight edit — no mouse events fired — and asserts the save succeeds. Validates AC-DIR-3 of S-062c (keyboard-only completion).
+- **AC-DIR-1 (T3 runs on mobile + desktop projects).** The smoke spec runs on both the `mobile` (360 × 640) and `desktop` (1280 × 800) Playwright projects from S-109. Demonstrates the full auth → fetch → edit → persist round-trip works at both viewports. (Dense-desktop project removed per operator 2026-05-25 — single responsive wizard makes a separate dense smoke unnecessary.)
+- **AC-DIR-2 (desktop keyboard-only path).** A second `desktop` smoke variant exercises a keyboard-only flight edit — no mouse events fired — and asserts the save succeeds. Validates AC-DIR-3a of S-062c (first-pass keyboard: Tab/Enter/Esc). S-062i keyboard-polish (Ctrl+D + 1–5 quick-select) is NOT a prerequisite — this AC is satisfied against S-062c alone.
 - **AC-DIR-3 (synthetic monitor parity).** Production synthetic monitor runs the same dual-project setup; an alert fires if either project regresses.
 
 **Refinement status flag:** Story is unrefined. Fold the above into the AC list when `/modernize-refine S-110` runs.

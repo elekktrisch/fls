@@ -273,7 +273,12 @@ test.describe('flights list page', () => {
     // the kebab menu below.
     await firstRow.click();
     await expect(page).toHaveURL(new RegExp(`/flights/${allFlights[0].id}/edit$`));
-    await expect(page.getByTestId('flights-edit-placeholder')).toBeVisible();
+    // The edit wizard mounts on the same URL — assert on its stable testid
+    // (either the form mounts after loadDetail resolves, or the loading
+    // placeholder shows while the GET pends).
+    await expect(
+      page.getByTestId('flight-form').or(page.getByTestId('flight-loading')),
+    ).toBeVisible();
     await page.goBack();
 
     // Apply a client-side air-state filter (Started). Both Landed rows hide;
@@ -295,7 +300,9 @@ test.describe('flights list page', () => {
     await page.getByTestId(`flights-kebab-${allFlights[0].id}`).click();
     await page.getByTestId(`flights-edit-${allFlights[0].id}`).click();
     await expect(page).toHaveURL(new RegExp(`/flights/${allFlights[0].id}/edit$`));
-    await expect(page.getByTestId('flights-edit-placeholder')).toBeVisible();
+    await expect(
+      page.getByTestId('flight-form').or(page.getByTestId('flight-loading')),
+    ).toBeVisible();
 
     // From/To pickers exist (split into two single-mode pickers — the
     // range variant of nz-range-picker deadlocks under zoneless).

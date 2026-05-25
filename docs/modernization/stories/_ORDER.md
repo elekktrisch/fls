@@ -142,9 +142,11 @@ The airfield hot-path (vision C23). Where most user value lands.
 - S-059 — L — FlightProcessState transition matrix (deps S-058)
 - S-060 — S — FlightAirState computed state (deps S-058)
 - S-061 — M — Time-gate enforcement (deps S-059)
-- S-062a — M — Flight CRUD backend + DTOs + validator port (deps S-058, S-059, S-060)
-- S-062b — M — Flight list page (deps S-062a, S-006, S-008)
-- S-062c — M — Flight create/edit forms + copy flow (deps S-062a, S-062b, S-007)
+- S-062a — M — Flight CRUD backend + DTOs + validator port (deps S-058, S-059, S-060) ✓ **done**
+- S-062b — M — Flight list page (deps S-062a, S-006, S-008) ✓ **done**
+- S-062c — L — Flight create/edit forms — wizard + paired-create + Copy-from-Last + first-pass keyboard (deps S-062a, S-062b, S-007, S-008) ✓ **done**
+- S-062h — M — Flight-edit resilience: IndexedDB drafts + 412 inline diff + marginal-3G (deps S-062c, S-067)
+- S-062i — S — Flight-edit keyboard polish: Ctrl+D + 1–5 quick-select + slide-in focus jump (deps S-062c)
 - S-063 — M — Glider↔Tow link integrity (deps S-062a)
 - S-064 — M — Air movements (motor aircraft) (deps S-062a, S-062c)
 - S-161 — M — Cross-club aircraft usage visibility (charter case) (deps S-058, S-064) — *S-058 follow-up; what does the managing club see of others' usage.*
