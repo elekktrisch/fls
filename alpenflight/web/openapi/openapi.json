@@ -4566,12 +4566,16 @@
             "type" : "string",
             "format" : "uuid"
           },
+          "processState" : {
+            "type" : "string",
+            "enum" : [ "NOT_PROCESSED", "INVALID", "VALID", "LOCKED", "DELIVERY_PREPARATION_ERROR", "DELIVERY_PREPARED", "DELIVERY_BOOKED", "EXCLUDED_FROM_DELIVERY_PROCESS" ]
+          },
           "airState" : {
             "type" : "string",
             "enum" : [ "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED", "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED" ]
           }
         },
-        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processState", "processStateId" ]
       },
       "FlightListResponse" : {
         "type" : "object",

@@ -7,6 +7,7 @@
  */
 import type { FlightListItemAirState } from './flightListItemAirState';
 import type { FlightListItemFlightAircraftType } from './flightListItemFlightAircraftType';
+import type { FlightListItemProcessState } from './flightListItemProcessState';
 
 /**
  * Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred.
@@ -21,5 +22,6 @@ export type FlightListItem = {
   /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftId: string;
   processStateId: string;
+  processState: FlightListItemProcessState;
   airState: FlightListItemAirState;
 };

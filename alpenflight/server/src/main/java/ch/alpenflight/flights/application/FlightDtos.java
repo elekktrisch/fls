@@ -2,6 +2,7 @@ package ch.alpenflight.flights.application;
 
 import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.FlightAirState;
+import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.FlightCostBalanceTypeId;
 import ch.alpenflight.platform.id.FlightId;
@@ -47,6 +48,7 @@ public final class FlightDtos {
             @Nullable Instant ldgDateTime,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightProcessState processState,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState) {}
 
     @Schema(description = "Keyset-cursor list response. Filter via from/to; scroll via nextCursor.")

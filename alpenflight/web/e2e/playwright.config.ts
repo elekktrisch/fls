@@ -10,6 +10,11 @@ export default defineConfig({
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
   workers: process.env['CI'] ? 1 : undefined,
+  // Bail once a regression is obvious instead of burning the full 15-min
+  // budget on a guaranteed-red run. 3 absorbs a flake without dragging
+  // the whole suite through a doomed run. Tunable via
+  // PLAYWRIGHT_MAX_FAILURES; 0 / empty disables.
+  maxFailures: Number(process.env['PLAYWRIGHT_MAX_FAILURES'] ?? 3),
   reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : 'html',
   timeout: 30_000,
   expect: { timeout: 5_000 },

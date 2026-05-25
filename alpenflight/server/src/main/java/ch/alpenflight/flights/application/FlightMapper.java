@@ -120,6 +120,7 @@ public class FlightMapper {
                 row.ldgDateTime(),
                 AircraftId.of(row.aircraftId()),
                 row.processStateId(),
+                ch.alpenflight.flights.domain.FlightProcessState.fromId(row.processStateId()),
                 row.airState());
     }
 

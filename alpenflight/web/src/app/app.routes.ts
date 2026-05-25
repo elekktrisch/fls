@@ -22,6 +22,10 @@ export const routes: Routes = [
     loadChildren: () => import('./core/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
+    path: 'start',
+    loadChildren: () => import('@features/start/start.routes').then((m) => m.START_ROUTES),
+  },
+  {
     path: 'clubs',
     loadChildren: () => import('@features/clubs/clubs.routes').then((m) => m.CLUBS_ROUTES),
   },
@@ -33,6 +37,10 @@ export const routes: Routes = [
   {
     path: 'aircraft',
     loadChildren: () => import('@features/aircraft/aircraft.routes').then((m) => m.AIRCRAFT_ROUTES),
+  },
+  {
+    path: 'flights',
+    loadChildren: () => import('@features/flights/flights.routes').then((m) => m.FLIGHTS_ROUTES),
   },
   {
     path: 'flight-types',

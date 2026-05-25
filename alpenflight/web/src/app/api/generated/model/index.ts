@@ -46,6 +46,7 @@ export * from './flightLastContextResponse';
 export * from './flightListItem';
 export * from './flightListItemAirState';
 export * from './flightListItemFlightAircraftType';
+export * from './flightListItemProcessState';
 export * from './flightListResponse';
 export * from './flightProcessStateChangeRequest';
 export * from './flightProcessStateChangeRequestProcessState';

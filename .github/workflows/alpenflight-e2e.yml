@@ -1,0 +1,162 @@
+name: alpenflight e2e
+
+# Runs the alpenflight/web Playwright suite (Angular under the `mock-auth`
+# configuration — no Keycloak / no backend). Self-contained: Playwright's
+# webServer config starts `ng serve --configuration=mock-auth` for the run.
+#
+# Why a separate workflow (not in ci.yml):
+#   - ci.yml is the PR gate; it must stay fast. Playwright + ng serve adds
+#     2–4 minutes to every push.
+#   - This workflow runs on push (any branch) so the report + screenshots
+#     are produced for in-flight feature work without gating the PR.
+#   - Publishes to gh-pages under /alpenflight/ on main pushes only;
+#     branches surface the same outputs as a workflow artifact.
+#
+# gh-pages publication uses `keep_files: true` so it does not wipe the
+# legacy nightly dashboard at the root of the branch. The legacy nightly
+# workflow currently publishes with `force_orphan: true` which WILL wipe
+# /alpenflight/ on its next run — re-trigger this workflow with
+# `gh workflow run alpenflight-e2e.yml` (or any push to main) to restore.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'alpenflight/web/**'
+      - '.github/workflows/alpenflight-e2e.yml'
+  pull_request:
+    paths:
+      - 'alpenflight/web/**'
+      - '.github/workflows/alpenflight-e2e.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: alpenflight-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Run Playwright
+    runs-on: ubuntu-22.04
+    # Hard ceiling. Suite + ng-serve boot fit in <5 min when green;
+    # 8 min absorbs a cold pnpm/playwright cache. `maxFailures: 3` in
+    # the Playwright config bails the test run itself; this is the
+    # backstop when the runner itself stalls.
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      - name: Run Playwright
+        id: pw
+        working-directory: alpenflight/web
+        # Step-level cap so a single hung test or non-cooperative cancel
+        # can't keep the whole job tied up. Playwright per-test timeout
+        # is 30s; maxFailures is 3; this gives ample room for a clean run
+        # and pulls the plug if the runner refuses SIGINT.
+        timeout-minutes: 5
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts
+        continue-on-error: true
+
+      - name: Assemble publishable bundle
+        if: always()
+        env:
+          PW_OUTCOME: ${{ steps.pw.outcome }}
+        run: |
+          mkdir -p public/alpenflight
+          if [ -d alpenflight/web/playwright-report ]; then
+            cp -r alpenflight/web/playwright-report public/alpenflight/report
+          fi
+          if [ -d alpenflight/web/screenshots ]; then
+            cp -r alpenflight/web/screenshots public/alpenflight/screenshots
+          fi
+
+          SCREENSHOTS=""
+          if [ -d public/alpenflight/screenshots ]; then
+            for catdir in public/alpenflight/screenshots/*/; do
+              [ -d "$catdir" ] || continue
+              compgen -G "${catdir}*.png" > /dev/null || continue
+              cat=$(basename "$catdir")
+              if [ -z "$SCREENSHOTS" ]; then
+                SCREENSHOTS='<section><h2>Full-page screenshots</h2>'
+              fi
+              SCREENSHOTS="${SCREENSHOTS}<h3 class=\"cat\">${cat}</h3><div class=\"gallery\">"
+              for f in "${catdir}"*.png; do
+                name=$(basename "$f")
+                rel="screenshots/${cat}/${name}"
+                SCREENSHOTS="${SCREENSHOTS}<a class=\"shot\" href=\"${rel}\"><img src=\"${rel}\" loading=\"lazy\" alt=\"${cat}/${name}\"><span>${name}</span></a>"
+              done
+              SCREENSHOTS="${SCREENSHOTS}</div>"
+            done
+            [ -n "$SCREENSHOTS" ] && SCREENSHOTS="${SCREENSHOTS}</section>"
+          fi
+
+          export TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          export COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          export BRANCH="${GITHUB_REF_NAME}"
+          export PW_OUTCOME SCREENSHOTS
+
+          envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${BRANCH} ${PW_OUTCOME} ${SCREENSHOTS}' \
+            < .github/pages/alpenflight-index.html > public/alpenflight/index.html
+
+      - name: Upload workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-playwright-${{ github.sha }}
+          path: public/alpenflight
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Deploy to gh-pages
+        if: github.ref == 'refs/heads/main' && always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "alpenflight e2e: ${{ steps.pw.outcome }} for ${{ github.sha }}"
