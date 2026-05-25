@@ -3,6 +3,7 @@ package ch.alpenflight.me.application;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -100,11 +101,14 @@ public class MeService {
         }
         try {
             Map<String, Object> row = jdbc.queryForMap(SELECT_USER_AND_PERSON, sub);
+            // Casts use requireNonNull for columns the schema (V2) marks
+            // NOT NULL (id, club_id, username, notification_email). The
+            // JDBC map signature can't carry that through to NullAway.
             return new UserPersonRow(
                     asUuid(row.get("user_id")),
                     asUuid(row.get("club_id")),
-                    (String) row.get("username"),
-                    (String) row.get("email"),
+                    Objects.requireNonNull((String) row.get("username")),
+                    Objects.requireNonNull((String) row.get("email")),
                     asUuidNullable(row.get("person_id")),
                     (String) row.get("first_name"),
                     (String) row.get("last_name"));
@@ -136,7 +140,7 @@ public class MeService {
             UUID userId,
             UUID clubId,
             String username,
-            @Nullable String email,
+            String email,
             @Nullable UUID personId,
             @Nullable String firstName,
             @Nullable String lastName) {}
