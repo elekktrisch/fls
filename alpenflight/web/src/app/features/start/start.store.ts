@@ -80,7 +80,7 @@ export const StartStore = signalStore(
                 patchState(store, { isLoading: false, hasError: true });
                 return [];
               }
-              return flightsApi.getFlight(id).pipe(
+              return flightsApi.get(id).pipe(
                 tapResponse({
                   next: (detail: FlightDetail) =>
                     patchState(store, {
