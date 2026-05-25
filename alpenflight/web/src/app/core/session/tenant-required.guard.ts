@@ -6,17 +6,17 @@ import { SessionStore } from './session.store';
 
 /**
  * Composes {@link authGuard} with a "must have a managing tenant" gate.
- * SYSTEM_ADMINISTRATOR has no {@code clubId} claim — tenant-scoped pages
- * (Aircraft, Locations, future Flights / Reservations / Members) render
- * empty under {@code @TenantId} filtering with no useful action. Per the
- * S-159 nav strip, the sysadmin shell hides the tenant entries; this guard
- * is the deep-link / bookmark / back-button counterpart: it redirects
- * sysadmin to {@code /clubs}, the cross-cutting surface they can act on.
+ * Tenant-scoped pages (Aircraft, Locations, Persons, Flights, future
+ * Reservations / Members) render empty under {@code @TenantId} filtering
+ * when the principal has no {@code clubId}; in that case redirect to
+ * {@code /start} — the authenticated landing every role can reach.
  *
- * <p>Non-sysadmins (CLUB_ADMINISTRATOR, FLIGHT_OPERATOR, PILOT,
- * OFFICE_USER, GUEST) pass through unchanged — their JWT carries a
- * {@code clubId} that {@code ClubTenantIdentifierResolver} resolves to a
- * non-{@code NO_TENANT} tenant.
+ * <p>Production SYSTEM_ADMINISTRATOR has no {@code clubId} claim → bounce.
+ * Non-sysadmins carry a {@code clubId} → pass through. A sysadmin who has
+ * picked a tenant (impersonation flow, or the mock-auth principal that
+ * ships with a fixed {@code MOCK_CLUB_ID}) ALSO passes through — the
+ * criterion is "does this session have a tenant to operate on", not the
+ * role flag.
  */
 export const tenantRequiredGuard: CanActivateFn = (route, state) => {
   const authResult = authGuard(route, state);
@@ -24,8 +24,8 @@ export const tenantRequiredGuard: CanActivateFn = (route, state) => {
     return authResult;
   }
   const session = inject(SessionStore);
-  if (session.isSystemAdmin()) {
-    return inject(Router).parseUrl('/clubs');
+  if (session.currentClubId() === null) {
+    return inject(Router).parseUrl('/start');
   }
   return true;
 };

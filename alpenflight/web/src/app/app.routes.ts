@@ -22,6 +22,10 @@ export const routes: Routes = [
     loadChildren: () => import('./core/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
+    path: 'start',
+    loadChildren: () => import('@features/start/start.routes').then((m) => m.START_ROUTES),
+  },
+  {
     path: 'clubs',
     loadChildren: () => import('@features/clubs/clubs.routes').then((m) => m.CLUBS_ROUTES),
   },

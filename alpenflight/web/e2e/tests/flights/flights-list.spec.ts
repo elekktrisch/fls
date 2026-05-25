@@ -297,11 +297,46 @@ test.describe('flights list page', () => {
     await expect(page).toHaveURL(new RegExp(`/flights/${allFlights[0].id}/edit$`));
     await expect(page.getByTestId('flights-edit-placeholder')).toBeVisible();
 
-    // Date-range filter would round-trip to the server. We don't drive the
-    // ant date picker (its keyboard interactions are awkward in headless);
-    // instead we verify the wiring by confirming the server saw no
-    // unexpected date params on the initial load.
+    // From/To pickers exist (split into two single-mode pickers — the
+    // range variant of nz-range-picker deadlocks under zoneless).
+    await expect(page.getByTestId('flights-date-from').locator('input')).toBeVisible();
+    await expect(page.getByTestId('flights-date-to').locator('input')).toBeVisible();
+    // No date params on initial load.
     expect(lastParams.from).toBeUndefined();
     expect(lastParams.to).toBeUndefined();
+  });
+
+  test('visual snapshots — populated, filtered, empty', async ({ page }) => {
+    await stubReferenceData(page);
+    const { handler: flightsHandler } = setupFlightsBackend(allFlights);
+    await page.route('**/api/v1/flights**', flightsHandler);
+
+    // 01 — populated list (default state, three rows).
+    await page.goto('/flights');
+    await expect(page.getByTestId('flights-summary')).toContainText('3 flights');
+    await page.screenshot({ path: 'screenshots/flights/01-populated.png', fullPage: true });
+
+    // 02 — same list, with the Started air-state filter applied.
+    const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
+    await airStateFilter.click();
+    await page.getByRole('option', { name: 'Started' }).click();
+    await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
+    await page.screenshot({ path: 'screenshots/flights/02-filtered.png', fullPage: true });
+
+    // 03 — empty state (server returns zero rows). Use a fresh page so the
+    // store re-initialises with the empty backend.
+    const emptyPage = await page.context().newPage();
+    await stubReferenceData(emptyPage);
+    await emptyPage.route('**/api/v1/flights**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ items: [] }),
+      });
+    });
+    await emptyPage.goto('/flights');
+    await expect(emptyPage.getByTestId('flights-empty')).toContainText('No flights yet');
+    await emptyPage.screenshot({ path: 'screenshots/flights/03-empty.png', fullPage: true });
+    await emptyPage.close();
   });
 });

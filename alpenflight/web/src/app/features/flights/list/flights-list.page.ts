@@ -214,14 +214,28 @@ function toneDotClass(tone: Tone): string {
         <span class="tabular">{{ summary() }}</span>
       </p>
 
-      <div class="mb-5 grid grid-cols-1 md:grid-cols-4 gap-3 border border-slate-200 bg-white p-4">
-        <af-form-field label="Date range" for="FlightDateRange">
+      <div class="mb-5 grid grid-cols-1 md:grid-cols-5 gap-3 border border-slate-200 bg-white p-4">
+        <!-- Two single-mode pickers instead of mode=range: the range
+          variant of nz-range-picker deadlocks under zoneless Angular
+          (reproducible at /dev/primitives). Switch back to a single
+          range picker once S-008 fixes the primitive. -->
+        <af-form-field label="From" for="FlightDateFrom">
           <af-date-picker
-            mode="range"
-            [rangePlaceholders]="['From', 'To']"
-            [value]="dateRangeValue()"
-            (valueChange)="onDateRangeChange($event)"
-            data-testid="flights-date-range"
+            mode="single"
+            placeholder="From"
+            [value]="dateFromValue()"
+            (valueChange)="onDateFromChange($event)"
+            data-testid="flights-date-from"
+          />
+        </af-form-field>
+
+        <af-form-field label="To" for="FlightDateTo">
+          <af-date-picker
+            mode="single"
+            placeholder="To"
+            [value]="dateToValue()"
+            (valueChange)="onDateToChange($event)"
+            data-testid="flights-date-to"
           />
         </af-form-field>
 
@@ -272,7 +286,7 @@ function toneDotClass(tone: Tone): string {
       <div class="border border-slate-200 bg-white" data-testid="flights-table">
         @if (store.isLoading()) {
           <div class="flex justify-center py-12">
-            <nz-spin [nzDelay]="300" />
+            <nz-spin />
           </div>
         } @else if (store.visibleEntities().length === 0) {
           <div class="py-12 text-center text-sm text-slate-500" data-testid="flights-empty">
@@ -454,13 +468,14 @@ export class FlightsListPage {
     return `${visible} of ${total} flights`;
   });
 
-  protected readonly dateRangeValue = computed<DateValue>(() => {
+  protected readonly dateFromValue = computed<DateValue>(() => {
     const from = this.store.dateFrom();
+    return from ? new Date(from) : null;
+  });
+
+  protected readonly dateToValue = computed<DateValue>(() => {
     const to = this.store.dateTo();
-    if (from && to) {
-      return [new Date(from), new Date(to)];
-    }
-    return null;
+    return to ? new Date(to) : null;
   });
 
   protected readonly selectedAirState = computed<AirState | null>(() => {
@@ -521,12 +536,14 @@ export class FlightsListPage {
     return formatLegacyDate(iso);
   }
 
-  protected onDateRangeChange(value: DateValue): void {
-    if (Array.isArray(value) && value.length === 2) {
-      this.store.setDateRange({ from: toIsoDate(value[0]), to: toIsoDate(value[1]) });
-    } else {
-      this.store.setDateRange({ from: null, to: null });
-    }
+  protected onDateFromChange(value: DateValue): void {
+    const from = value instanceof Date ? toIsoDate(value) : null;
+    this.store.setDateRange({ from, to: this.store.dateTo() });
+  }
+
+  protected onDateToChange(value: DateValue): void {
+    const to = value instanceof Date ? toIsoDate(value) : null;
+    this.store.setDateRange({ from: this.store.dateFrom(), to });
   }
 
   protected onAirStateChange(value: AirState | null): void {
