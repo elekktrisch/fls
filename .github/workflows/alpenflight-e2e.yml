@@ -12,11 +12,13 @@ name: alpenflight e2e
 #   - Publishes to gh-pages under /alpenflight/ on main pushes only;
 #     branches surface the same outputs as a workflow artifact.
 #
-# gh-pages publication uses `keep_files: true` so it does not wipe the
-# legacy nightly dashboard at the root of the branch. The legacy nightly
-# workflow currently publishes with `force_orphan: true` which WILL wipe
-# /alpenflight/ on its next run — re-trigger this workflow with
-# `gh workflow run alpenflight-e2e.yml` (or any push to main) to restore.
+# gh-pages publication uses `keep_files: true` and namespaces under
+# /alpenflight/. The legacy nightly workflow (`nightly.yml`) now publishes
+# under /legacy/ with the same `keep_files: true` policy, so the two
+# dashboards coexist without races. The root nav page (`/index.html`) is
+# deployed by both workflows from `.github/pages/root-index.html`; the
+# content is static and identical, so whichever workflow lands last wins
+# harmlessly.
 
 on:
   push:
@@ -140,6 +142,10 @@ jobs:
 
           envsubst '${TIMESTAMP} ${COMMIT_SHORT} ${BRANCH} ${PW_OUTCOME} ${SCREENSHOTS}' \
             < .github/pages/alpenflight-index.html > public/alpenflight/index.html
+
+          # Root nav page picks between /legacy/ and /alpenflight/. Deployed by
+          # both workflows; content is static and identical.
+          cp .github/pages/root-index.html public/index.html
 
       - name: Upload workflow artifact
         if: always()

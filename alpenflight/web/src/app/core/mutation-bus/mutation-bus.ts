@@ -8,6 +8,9 @@ export type MutationEvent =
   | { kind: 'aircraft.updated'; aircraftId: string }
   | { kind: 'aircraft.deleted'; aircraftId: string }
   | { kind: 'flight.booked'; flightId: string }
+  | { kind: 'flight.created'; flightId: string }
+  | { kind: 'flight.updated'; flightId: string }
+  | { kind: 'flight.deleted'; flightId: string }
   | { kind: 'club.created'; id: string }
   | { kind: 'club.updated'; id: string }
   | { kind: 'club.deleted'; id: string }
