@@ -1,31 +1,36 @@
-- [FLS server IPv6 binding](fls-server-ipv6-binding.md) — Mono `localhost:25567` is IPv6-only; webpack proxy 502s unless server started with `FLS_LISTEN_URL="http://*:25567/"`
-- [FLS e2e setup](fls-e2e-setup.md) — Booby-traps when bringing up the Playwright stack (Node split, yarn start trap, seed cache, output dirs, spinner wait)
-- [FLS e2e state](fls-e2e-state.md) — Pointers to in-repo e2e docs + summary of the self-contained-parallel model and remaining failure islands
-- [FLS modernization workflow](fls-modernization-workflow.md) — 4-phase spec-kit-style workflow in docs/modernization/ + .claude/skills/modernize-*; greenfield rewrite, hard cutover, sibling -next folders
-- [Derive before asking](feedback-derive-before-asking.md) — derive from legacy code first; for artifact-generation (stories, backlogs) go fully autonomous and surface decisions as `## Assumptions made` afterwards rather than asking
-- [Push policy](feedback-ask-before-pushing.md) — push freely by default; only ask first when `.github/workflows/e2e.yml` (or other expensive CI workflows) is in the diff
-- [Demo-mode feature note](project-demo-mode-feature-note.md) — new system should ship a try-it/demo mode so prospective users can experience the UX without being onboarded; tracked in vision §8
-- [Re-runnable over frozen docs](feedback-re-runnable-over-frozen-docs.md) — for extraction/parity tooling prefer re-runnable scripts (re-export from seeded legacy DB) over big frozen MD or committed JSON; CI verifies the script's structure, not committed data
-- [Always squash-merge](feedback-always-squash-merge.md) — for fls repo, always squash-merge PRs without asking; skip the /modernize-finalize merge-strategy question
-- [Rebrand to AlpenFlight](project-rebrand-alpenflight.md) — FLS → AlpenFlight (alpenflight.ch); selected 2026-05-16; DACH-coded compound; no TM filing; domain registration pending
-- [Boyscout rule over clean PRs](feedback-boyscout-rule-over-clean-prs.md) — fix pre-existing bugs in the same PR; don't defer to follow-up just to keep PRs single-topic. Trivial cleanups never get their own PR — roll them into next story (see [[pending-boyscout-followups]]).
-- [No SHAs in committed docs](feedback-no-shas-in-committed-docs.md) — never embed git commit SHAs in files that ship in a commit; broken by construction + erased by squash-merge. Cite by subject / file:line / PR# / story-ID.
-- [No per-blocker GH issues](feedback-no-per-blocker-issues.md) — `/modernize-review` should NOT file per-blocker issues; the story file's `## Review` section is canonical. Remove Step 6 entirely.
-- [Meta-improvements are boyscout](feedback-meta-improvements-are-boyscout.md) — `/modernize-rework` Step 3.5 apply-now meta-improvements NEVER get separate `chore/*` branches; fold into current story PR or next story's PR.
-- [Pending boyscout followups](pending-boyscout-followups.md) — queue of trivial cleanups waiting for the next story's PR to bundle them in. Remove entries after merge.
-- [Archive in mark-done commit](feedback-archive-in-mark-done-commit.md) — pointer-only now; canonical rule lives in `.claude/skills/modernize-{implement,review,rework,finalize}/SKILL.md`.
-- [FE tests: unit for logic, Playwright for DOM](feedback-fe-tests-unit-for-logic-playwright-for-dom.md) — `next/web` vitest covers logic classes only; no `*.component.spec.ts` with DOM assertions. Playwright owns rendering / a11y / routing. Codified in `next/web/CLAUDE.md` §8.
-- [E2E screenshots for visual verification](feedback-e2e-screenshots-for-visual-verification.md) — Playwright specs in alpenflight/web/e2e/ write `screenshots/<feature>/<state>.png` at each state so Claude can read the UI without the operator manually saving PNGs.
-- [Parallel agents need single message](feedback-parallel-agents-need-single-message.md) — to actually parallelize Agent calls, batch them ALL into ONE assistant message; separate messages serialize.
-- [Component kit: ng-zorro](project-component-kit-ng-zorro.md) — S-008 picks ng-zorro-antd (primary primitives) + Tailwind v4 tokens (auth theme). From-to datepicker + autocomplete dropdown decided it. Selected 2026-05-17.
-- [Walking skeleton: Clubs CRUD with mocked auth](project-walking-skeleton-clubs-mocked-auth.md) — S-048 reshape: land Clubs CRUD with mocked auth as the kit's walking-skeleton showcase, ahead of the S-019/S-020/S-022/S-026 auth chain. Selected 2026-05-17.
-- [Dirty refines go on story branch](feedback-dirty-refines-go-on-story-branch.md) — never commit a refine to local main without pushing; stash/pop on the new story branch instead, or push immediately. Drift causes the refine to ride another story's squash invisibly.
-- [Use dev-up-full.sh, not compose](feedback-use-dev-up-full-not-compose.md) — local dev bring-up always via `next/ops/dev-up-full.sh` (legacy=`fls-e2e`, new=`alpenflight-dev`, split projects per chore PR #58), never ad-hoc compose project names.
-- [clubId resolution not only JWT](project-clubid-resolution-not-only-jwt.md) — Google OIDC users have no clubId claim. S-022 @TenantId must read claim OR fall back to DB lookup by sub/email. "No clubId = sysadmin" is wrong.
-- [Legacy bulk import](project-legacy-bulk-import.md) — cutover imports N clubs × M users (including N+ club admins) at once from a legacy FLS deployment. S-028 is the building block, not the whole story.
-- [IdP-portable validators, DB for identity mapping](feedback-idp-portability-no-keycloak-specific-validators.md) — prod IdP could be Google/Ory/Auth0; don't hardwire Keycloak realm-export changes (audience mappers etc.) to make Spring validators work. User/tenant mapping goes through DB, not vendor-specific claim shapes.
-- [Login UI lives in Keycloak, not SPA](project-login-in-keycloak.md) — landing surfaces a Sign-in CTA; the actual form is Keycloak's hosted UI. "Polish the login" = Keycloak theme work, not Angular templates.
-- [Tailwind only, no component CSS](feedback-no-component-css-tailwind-only.md) — alpenflight/web: zero `styles: [...]` arrays; templates use Tailwind utilities; styles.css holds only tokens + ng-zorro overrides; repetition → extract a component.
-- [Rename after 3 prompts](feedback-rename-after-three-prompts.md) — once per session, after the 3rd user prompt, run /rename to give the session a meaningful title.
-- [Angular Vite proxy needs `**`](feedback-angular-vite-proxy-glob.md) — `proxy.conf.json` paths must use `/api/v1/**`; single `*` doesn't cross `/` and silently lets deep paths fall through to index.html.
-- [Targeted tests, not full suite](feedback-targeted-tests-not-full-suite.md) — during implement, use `--tests 'pkg.*'` covering the change; full backend suite > 5 min on this stack. CI catches anything missed.
+## Modernization workflow & PR hygiene
+- [Modernization workflow](fls-modernization-workflow.md) — 4-phase spec-kit flow in docs/modernization/ + `.claude/skills/modernize-*`; greenfield rewrite, hard cutover, sibling alpenflight/ folders.
+- [Derive before asking](feedback-derive-before-asking.md) — derive from legacy code first; artifact-generation goes autonomous, surfaces decisions as `## Assumptions made`.
+- [Always squash-merge](feedback-always-squash-merge.md) — squash every PR on fls without asking; skip the strategy prompt.
+- [Boyscout rule (incl. meta-improvements)](feedback-boyscout-rule-over-clean-prs.md) — fix pre-existing bugs in the same PR; trivial cleanups roll into next story via [[pending-boyscout-followups]]; rework Step 3.5 meta-improvements never get their own chore/* branch.
+- [Pending boyscout queue](pending-boyscout-followups.md) — list of trivial cleanups waiting for the next story PR.
+- [Dirty refines go on story branch](feedback-dirty-refines-go-on-story-branch.md) — never commit a refine to main; stash → branch → pop. Otherwise the refine rides another story's squash invisibly.
+- [No SHAs in committed docs](feedback-no-shas-in-committed-docs.md) — broken by construction + erased by squash-merge. Cite by file:line / PR# / story-ID.
+- [No per-blocker GH issues](feedback-no-per-blocker-issues.md) — `/modernize-review` Step 6 dropped; story file's `## Review` is canonical.
+- [Push policy](feedback-ask-before-pushing.md) — push freely; only ask first when `.github/workflows/e2e.yml` (or other expensive CI) is in the diff.
+- [Re-runnable over frozen docs](feedback-re-runnable-over-frozen-docs.md) — extraction/parity tooling prefers re-runnable scripts over big frozen MD or committed JSON.
+
+## Coding & testing
+- [Targeted tests, not full suite](feedback-targeted-tests-not-full-suite.md) — during implement use `--tests 'pkg.*'`; full backend suite > 5 min. CI is the safety net.
+- [FE tests: unit for logic, Playwright for DOM](feedback-fe-tests-unit-for-logic-playwright-for-dom.md) — alpenflight/web vitest covers logic classes only; Playwright owns rendering / a11y / routing.
+- [E2E screenshots for verification](feedback-e2e-screenshots-for-visual-verification.md) — Playwright specs write `screenshots/<feature>/<state>.png` so Claude can read the UI without operator intervention.
+- [Tailwind only, no component CSS](feedback-no-component-css-tailwind-only.md) — alpenflight/web: zero `styles:[...]` arrays; templates use utilities; styles.css holds only tokens + ng-zorro overrides.
+- [Component kit: ng-zorro + Tailwind](project-component-kit-ng-zorro.md) — ng-zorro-antd primitives + Tailwind v4 tokens (S-008). From-to datepicker + autocomplete dropdown decided it.
+- [IdP-portable validators, DB for identity](feedback-idp-portability-no-keycloak-specific-validators.md) — prod IdP may be Google/Ory/Auth0; user/tenant mapping via DB, not vendor-specific claim shapes.
+- [Login UI in Keycloak, not SPA](project-login-in-keycloak.md) — landing has a Sign-in CTA; the form is Keycloak's hosted UI. "Polish the login" = Keycloak theme work.
+
+## Operational gotchas
+- [FLS server IPv6 binding](fls-server-ipv6-binding.md) — legacy Mono on `localhost:25567` is IPv6-only; webpack proxy 502s unless `FLS_LISTEN_URL="http://*:25567/"`.
+- [FLS e2e setup](fls-e2e-setup.md) — Playwright stack booby-traps (Node split, yarn-start trap, seed cache, output dirs, spinner wait).
+- [FLS e2e state](fls-e2e-state.md) — in-repo e2e docs + summary of self-contained-parallel model + remaining failure islands.
+- [Use dev-up-full.sh, not compose](feedback-use-dev-up-full-not-compose.md) — local dev bring-up via `next/ops/dev-up-full.sh` (legacy=`fls-e2e`, new=`alpenflight-dev`), never ad-hoc compose project names.
+- [Angular Vite proxy needs `**`](feedback-angular-vite-proxy-glob.md) — `proxy.conf.json` paths use `/api/v1/**`; single `*` doesn't cross `/`.
+- [Parallel agents need single message](feedback-parallel-agents-need-single-message.md) — to parallelize Agent calls, batch them in ONE assistant message; separate messages serialize.
+- [Rename session after 3 prompts](feedback-rename-after-three-prompts.md) — once per session, after the 3rd user prompt, run /rename for a meaningful title.
+
+## Project state & decisions
+- [Rebrand to AlpenFlight](project-rebrand-alpenflight.md) — FLS → AlpenFlight (alpenflight.ch); shipped via S-128 on 2026-05-16. Domain reg + TM filing deferred.
+- [Walking skeleton: Clubs CRUD + mocked auth](project-walking-skeleton-clubs-mocked-auth.md) — S-048 lands early as kit showcase with mock auth; rip-out when S-019/S-020/S-022/S-026 land.
+- [Demo-mode feature](project-demo-mode-feature-note.md) — prospective users get try-it/demo mode; tracked in vision §8.
+- [Legacy bulk import](project-legacy-bulk-import.md) — cutover imports N clubs × M users at once; S-028 is the building block.
+- [clubId resolution not only JWT](project-clubid-resolution-not-only-jwt.md) — Google OIDC users have no clubId claim; S-022 reads claim OR falls back to DB lookup by sub/email.
