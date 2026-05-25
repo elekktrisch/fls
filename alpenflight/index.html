@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AlpenFlight e2e dashboard</title>
+<style>
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f4;
+  --text: #1a1d21;
+  --muted: #5c6470;
+  --border: #e3e6ea;
+  --primary: #0a66c2;
+  --primary-hover: #0552a3;
+  --success: #0a7f3f;
+  --success-bg: #e3f5ea;
+  --failure: #c0353a;
+  --failure-bg: #fbe6e7;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c222b;
+    --text: #e6edf3;
+    --muted: #8d96a0;
+    --border: #2a313b;
+    --primary: #4da3ff;
+    --primary-hover: #79bbff;
+    --success: #3fb950;
+    --success-bg: #14271b;
+    --failure: #f85149;
+    --failure-bg: #2a1416;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem) clamp(1rem, 3vw, 1.5rem); }
+header { margin-bottom: 2rem; }
+h1 { font-size: clamp(1.5rem, 4vw, 2.25rem); margin: 0 0 .5rem; letter-spacing: -.02em; }
+h2 { font-size: 1.25rem; margin: 2.5rem 0 1rem; letter-spacing: -.01em; }
+h3 { font-size: 1rem; margin: 0 0 .25rem; }
+.cat { margin: 1.5rem 0 .75rem; color: var(--muted); font-weight: 500; font-size: .9rem; text-transform: uppercase; letter-spacing: .04em; }
+p { margin: 0; color: var(--muted); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; background: var(--surface-2); padding: .1em .4em; border-radius: 4px; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { color: var(--primary-hover); text-decoration: underline; }
+.meta { color: var(--muted); font-size: .9rem; }
+.status { display: inline-block; padding: .2em .65em; border-radius: 4px; font-size: .85em; font-weight: 500; }
+.status.success { background: var(--success-bg); color: var(--success); }
+.status.failure { background: var(--failure-bg); color: var(--failure); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
+.card {
+  display: block;
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  color: var(--text);
+}
+.card:hover { border-color: var(--primary); text-decoration: none; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .75rem; }
+.shot {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  color: var(--text);
+}
+.shot img { display: block; width: 100%; height: auto; }
+.shot span { display: block; padding: .5rem .65rem; font-size: .8rem; color: var(--muted); border-top: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>AlpenFlight e2e dashboard</h1>
+    <p class="meta">
+      Playwright run on <code>main</code> @ <code>76edc0b</code> &middot;
+      <span class="status success">success</span> &middot;
+      2026-05-25 17:19:04 UTC
+    </p>
+    <p class="meta" style="margin-top:.5rem;">
+      <a href="../">&larr; legacy dashboard</a>
+    </p>
+  </header>
+
+  <section>
+    <h2>Reports</h2>
+    <div class="cards">
+      <a class="card" href="report/index.html"><h3>Playwright report</h3><p>Traces, failure details, video on failure.</p></a>
+    </div>
+  </section>
+
+  <section><h2>Full-page screenshots</h2><h3 class="cat">flights</h3><div class="gallery"><a class="shot" href="screenshots/flights/01-populated.png"><img src="screenshots/flights/01-populated.png" loading="lazy" alt="flights/01-populated.png"><span>01-populated.png</span></a><a class="shot" href="screenshots/flights/02-filtered.png"><img src="screenshots/flights/02-filtered.png" loading="lazy" alt="flights/02-filtered.png"><span>02-filtered.png</span></a><a class="shot" href="screenshots/flights/03-empty.png"><img src="screenshots/flights/03-empty.png" loading="lazy" alt="flights/03-empty.png"><span>03-empty.png</span></a><a class="shot" href="screenshots/flights/04-01-launch.png"><img src="screenshots/flights/04-01-launch.png" loading="lazy" alt="flights/04-01-launch.png"><span>04-01-launch.png</span></a><a class="shot" href="screenshots/flights/04-02-glider-filled.png"><img src="screenshots/flights/04-02-glider-filled.png" loading="lazy" alt="flights/04-02-glider-filled.png"><span>04-02-glider-filled.png</span></a><a class="shot" href="screenshots/flights/04c-01-wizard-launch.png"><img src="screenshots/flights/04c-01-wizard-launch.png" loading="lazy" alt="flights/04c-01-wizard-launch.png"><span>04c-01-wizard-launch.png</span></a><a class="shot" href="screenshots/flights/04c-02-glider-filled.png"><img src="screenshots/flights/04c-02-glider-filled.png" loading="lazy" alt="flights/04c-02-glider-filled.png"><span>04c-02-glider-filled.png</span></a><a class="shot" href="screenshots/flights/04c-03-tow-filled.png"><img src="screenshots/flights/04c-03-tow-filled.png" loading="lazy" alt="flights/04c-03-tow-filled.png"><span>04c-03-tow-filled.png</span></a><a class="shot" href="screenshots/flights/04c-04-post-submit.png"><img src="screenshots/flights/04c-04-post-submit.png" loading="lazy" alt="flights/04c-04-post-submit.png"><span>04c-04-post-submit.png</span></a><a class="shot" href="screenshots/flights/04c-05-rollback.png"><img src="screenshots/flights/04c-05-rollback.png" loading="lazy" alt="flights/04c-05-rollback.png"><span>04c-05-rollback.png</span></a><a class="shot" href="screenshots/flights/05-01-edit-loaded.png"><img src="screenshots/flights/05-01-edit-loaded.png" loading="lazy" alt="flights/05-01-edit-loaded.png"><span>05-01-edit-loaded.png</span></a><a class="shot" href="screenshots/flights/05-02-edit-glider.png"><img src="screenshots/flights/05-02-edit-glider.png" loading="lazy" alt="flights/05-02-edit-glider.png"><span>05-02-edit-glider.png</span></a><a class="shot" href="screenshots/flights/delete-01-row-visible.png"><img src="screenshots/flights/delete-01-row-visible.png" loading="lazy" alt="flights/delete-01-row-visible.png"><span>delete-01-row-visible.png</span></a><a class="shot" href="screenshots/flights/delete-02-kebab-open.png"><img src="screenshots/flights/delete-02-kebab-open.png" loading="lazy" alt="flights/delete-02-kebab-open.png"><span>delete-02-kebab-open.png</span></a><a class="shot" href="screenshots/flights/delete-03-dialog-open.png"><img src="screenshots/flights/delete-03-dialog-open.png" loading="lazy" alt="flights/delete-03-dialog-open.png"><span>delete-03-dialog-open.png</span></a><a class="shot" href="screenshots/flights/delete-04-after-delete.png"><img src="screenshots/flights/delete-04-after-delete.png" loading="lazy" alt="flights/delete-04-after-delete.png"><span>delete-04-after-delete.png</span></a><a class="shot" href="screenshots/flights/delete-05-cancelled.png"><img src="screenshots/flights/delete-05-cancelled.png" loading="lazy" alt="flights/delete-05-cancelled.png"><span>delete-05-cancelled.png</span></a><a class="shot" href="screenshots/flights/delete-06-locked-row.png"><img src="screenshots/flights/delete-06-locked-row.png" loading="lazy" alt="flights/delete-06-locked-row.png"><span>delete-06-locked-row.png</span></a></div></section>
+
+  <footer>
+    Mock-auth lane: SPA boots without Keycloak; <code>/api/v1/*</code> is intercepted per spec.
+  </footer>
+</div>
+</body>
+</html>
