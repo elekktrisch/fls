@@ -137,6 +137,10 @@ class FlightsExceptionHandler {
         pd.setDetail(e.getMessage());
         pd.setProperty("expected", e.expected());
         pd.setProperty("actual", e.actual());
+        // Client-facing alias so the SPA's S-062h inline-diff dialog can read
+        // a stable property name without an extra GET. Kept in addition to
+        // `actual` for human readability (the response carries both views).
+        pd.setProperty("serverVersion", e.actual());
         return problem(pd);
     }
 
