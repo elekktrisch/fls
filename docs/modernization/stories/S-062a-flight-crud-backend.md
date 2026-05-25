@@ -2,7 +2,8 @@
 id: S-062a
 title: Flight CRUD backend + DTOs + validator port
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-05-25
 depends_on: [S-058, S-059, S-060]
 acceptance:
   - REST endpoints under `/api/v1/flights`: POST search, GET `{id}`, GET `new-template`, GET `{id}/copy-template`, POST, PUT, DELETE (full surface table in Design notes).
@@ -23,6 +24,7 @@ refined: true
 refined_at: 2026-05-14
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 split_from: S-062
+github_issue: 120
 ---
 
 ## Context
