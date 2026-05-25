@@ -69,6 +69,30 @@ const mockMyFlight = {
   ],
 };
 
+async function stubMe(page: Page, personId: string | null = MOCK_PERSON_ID): Promise<void> {
+  // Mock-auth pre-seeds personId on the synthetic principal, so the page
+  // already has what it needs — but the production code path fires GET /me
+  // post-login (per SessionStore.loadMe()). Stub it explicitly so the spec
+  // exercises the same wire shape the real OIDC flow does, and so a future
+  // me-driven branch surfaces here instead of in production.
+  await page.route('**/api/v1/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'mock-sysadmin',
+        personId,
+        clubId: 'clb-019e30c3-2c00-7001-8000-000000000001',
+        roles: ['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'],
+        firstName: 'Mock',
+        lastName: 'Sysadmin',
+        email: 'mock@local',
+        username: 'mock-sysadmin',
+      }),
+    }),
+  );
+}
+
 async function stubPickerStores(page: Page): Promise<void> {
   await page.route('**/api/v1/aircraft', (route) => {
     const url = new URL(route.request().url());
@@ -152,6 +176,7 @@ test.describe('home (/start) dashboard', () => {
   test('greets the user, shows the last-flight card, navigates to detail on click', async ({
     page,
   }) => {
+    await stubMe(page);
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([mockMyFlight]));
     await stubFlightDetail(page, mockMyFlight);
@@ -163,7 +188,10 @@ test.describe('home (/start) dashboard', () => {
     const lastCard = page.getByTestId('start-last-flight-card');
     await expect(lastCard).toBeVisible();
     await expect(lastCard).toContainText('HB-S165');
-    await expect(lastCard).toContainText('2026-05-21');
+    // Card header date is rendered via DatePipe in the resolved locale —
+    // EN `mediumDate` shape is "May 21, 2026".
+    await expect(lastCard).toContainText(/May 21, 2026/);
+    await expect(page.getByTestId('start-last-flight-role')).toHaveText('PIC');
 
     await expect(page.getByTestId('start-reservation-placeholder')).toBeVisible();
     await expect(page.getByTestId('start-quick-open-logbook')).toBeVisible();
@@ -176,6 +204,7 @@ test.describe('home (/start) dashboard', () => {
   });
 
   test('empty state when the user has no flights', async ({ page }) => {
+    await stubMe(page);
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([]));
 
@@ -193,6 +222,7 @@ test.describe('home (/start) dashboard', () => {
   });
 
   test('quick-action buttons navigate to logbook and new-flight', async ({ page }) => {
+    await stubMe(page);
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([]));
 

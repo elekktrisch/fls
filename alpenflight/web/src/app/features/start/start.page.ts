@@ -22,17 +22,19 @@ function pickGreeting(hourOfDay: number): Greeting {
   return 'evening';
 }
 
-// Seed FlightCrewType ids per V3 reference data. Mapping to translation
-// suffixes keeps the role chip translatable without a runtime crew-type
-// catalog fetch; the seven roles are stable per the legacy state model.
+// FlightCrewType seed UUIDs per V3 — canonical source is
+// `ch.alpenflight.flights.domain.FlightCrewTypeIds` on the server. Keep
+// the map in lockstep; a seed re-id would surface here as "—" until this
+// map is patched (or as a wrong label, which the e2e spec's `PIC`
+// assertion catches for the populated path).
 const CREW_ROLE_LABEL: Record<string, string> = {
-  '019e2e15-2c00-76b0-8000-0000000036b0': 'pic',
+  '019e2e15-2c00-76b0-8000-0000000036b0': 'pic', // PILOT_OR_STUDENT
   '019e2e15-2c00-76b1-8000-0000000036b1': 'coPilot',
   '019e2e15-2c00-76b2-8000-0000000036b2': 'instructor',
-  '019e2e15-2c00-76b3-8000-0000000036b3': 'student',
-  '019e2e15-2c00-76b4-8000-0000000036b4': 'towPilot',
-  '019e2e15-2c00-76b5-8000-0000000036b5': 'winchOperator',
-  '019e2e15-2c00-76b6-8000-0000000036b6': 'passenger',
+  '019e2e15-2c00-76b3-8000-0000000036b3': 'passenger',
+  '019e2e15-2c00-76b4-8000-0000000036b4': 'winchOperator',
+  '019e2e15-2c00-76b5-8000-0000000036b5': 'observer',
+  '019e2e15-2c00-76b6-8000-0000000036b6': 'flightCostInvoiceRecipient',
 };
 
 @Component({
@@ -57,15 +59,20 @@ const CREW_ROLE_LABEL: Record<string, string> = {
         <div class="grid grid-cols-1 gap-6 min-[900px]:grid-cols-2 mb-8">
           @if (store.showLastFlight()) {
             <a
-              class="block border border-slate-200 p-5 hover:border-brand-500 cursor-pointer"
+              class="block border border-slate-200 p-5 hover:border-brand-500 cursor-pointer focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
               data-testid="start-last-flight-card"
               [routerLink]="['/flights', flightId(), 'edit']"
             >
               <header class="flex items-baseline justify-between gap-3 mb-3">
                 <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
-                <span class="text-sm tabular text-slate-500">{{ lastFlightDate() }}</span>
+                <span class="text-sm tabular text-slate-500">{{
+                  lastFlightDateRaw() | date: 'mediumDate' : undefined : locale()
+                }}</span>
               </header>
-              <dl class="grid grid-cols-[8rem_1fr] gap-y-1 text-sm text-slate-700">
+              <!-- max-content keeps the label column auto-sized so longer
+                   localized labels (FR "Type de vol", IT "Tipo di volo")
+                   don't squeeze the value column on narrow viewports. -->
+              <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm text-slate-700">
                 <dt class="text-slate-500">{{ t('lastFlight.aircraft') }}</dt>
                 <dd class="tabular">{{ aircraftImmat() }}</dd>
                 <dt class="text-slate-500">{{ t('lastFlight.route') }}</dt>
@@ -73,7 +80,7 @@ const CREW_ROLE_LABEL: Record<string, string> = {
                 <dt class="text-slate-500">{{ t('lastFlight.flightType') }}</dt>
                 <dd>{{ flightTypeLabel() }}</dd>
                 <dt class="text-slate-500">{{ t('lastFlight.role') }}</dt>
-                <dd>{{ myRoleLabel(t) }}</dd>
+                <dd data-testid="start-last-flight-role">{{ myRoleLabel(t) }}</dd>
               </dl>
             </a>
           } @else if (store.showEmptyState()) {
@@ -84,17 +91,21 @@ const CREW_ROLE_LABEL: Record<string, string> = {
               <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
               <p class="text-slate-600">{{ t('lastFlight.empty.message') }}</p>
               <a
-                class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] bg-brand-500 text-white hover:bg-brand-600"
+                class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] bg-brand-500 text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
                 data-testid="start-empty-cta"
                 [routerLink]="['/flights', 'new']"
               >
                 {{ t('lastFlight.empty.cta') }}
               </a>
             </div>
-          } @else {
-            <div class="border border-slate-200 p-5" aria-busy="true">
+          } @else if (store.hasError()) {
+            <div class="border border-slate-200 p-5 space-y-2" data-testid="start-last-flight-error">
               <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
-              <p class="text-slate-400">…</p>
+              <p class="text-red-600">{{ t('lastFlight.error') }}</p>
+            </div>
+          } @else {
+            <div class="border border-slate-200 p-5">
+              <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
             </div>
           }
 
@@ -109,14 +120,14 @@ const CREW_ROLE_LABEL: Record<string, string> = {
 
         <nav class="flex flex-wrap gap-3">
           <a
-            class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] border border-slate-300 text-slate-800 hover:border-slate-500"
+            class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] border border-slate-300 text-slate-800 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
             data-testid="start-quick-open-logbook"
             [routerLink]="['/flights']"
           >
             {{ t('quickActions.openLogbook') }}
           </a>
           <a
-            class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] bg-brand-500 text-white hover:bg-brand-600"
+            class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] bg-brand-500 text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
             data-testid="start-quick-log-flight"
             [routerLink]="['/flights', 'new']"
           >
@@ -148,7 +159,9 @@ export class StartPage {
 
   protected readonly flightId = computed(() => this.store.lastFlight()?.id ?? null);
 
-  protected readonly lastFlightDate = computed(() => this.store.lastFlight()?.flightDate ?? '—');
+  protected readonly lastFlightDateRaw = computed(
+    () => this.store.lastFlight()?.flightDate ?? null,
+  );
 
   protected readonly aircraftImmat = computed(() => {
     const f = this.store.lastFlight();

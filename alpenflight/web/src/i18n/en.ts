@@ -34,18 +34,19 @@ const en: Translations = {
     lastFlight: {
       aircraft: 'Aircraft',
       empty: {
-        cta: 'Log your first',
+        cta: 'Log your first flight',
         message: 'No flights yet — log your first.',
       },
+      error: 'Could not load your last flight.',
       flightType: 'Flight type',
       role: 'Role',
       roles: {
         coPilot: 'Co-pilot',
+        flightCostInvoiceRecipient: 'Cost recipient',
         instructor: 'Instructor',
+        observer: 'Observer',
         passenger: 'Passenger',
         pic: 'PIC',
-        student: 'Student',
-        towPilot: 'Tow pilot',
         winchOperator: 'Winch operator',
       },
       route: 'Route',

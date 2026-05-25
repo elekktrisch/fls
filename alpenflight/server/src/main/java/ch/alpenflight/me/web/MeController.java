@@ -4,7 +4,9 @@ import ch.alpenflight.me.application.MeService;
 import ch.alpenflight.me.application.MeView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -37,8 +39,14 @@ class MeController {
     @Operation(summary = "Authenticated-principal projection (id, personId, clubId, roles, "
             + "firstName, lastName, email, username). personId is null for sysadmins / "
             + "unmapped federated users.")
-    MeResponse get(@AuthenticationPrincipal Jwt jwt) {
+    ResponseEntity<MeResponse> get(@AuthenticationPrincipal Jwt jwt) {
         MeView view = meService.resolve(jwt);
-        return MeResponse.from(view);
+        // Per-principal PII (email, firstName, lastName) on a bearer-bound
+        // endpoint — explicit no-store so intermediary caches don't persist
+        // it. Browser disk cache is already private to the user, but the
+        // header makes the contract loud + survives a future CDN.
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(MeResponse.from(view));
     }
 }

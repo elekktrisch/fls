@@ -11,7 +11,7 @@ import {
   withState,
 } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { pipe, switchMap, tap } from 'rxjs';
+import { EMPTY, pipe, switchMap, tap } from 'rxjs';
 
 import { FlightsService } from '@api/generated/flights/flights.service';
 import type { FlightDetail, FlightListItem, FlightListResponse } from '@api/generated/model';
@@ -44,15 +44,19 @@ const initial: StartState = {
  *
  * <p>Direct {@link HttpClient} for the list call: the generated client's
  * {@code ListParams} type doesn't carry {@code personId} until {@code
- * openapi.json} is regenerated. Swap to {@code FlightsService.list} when the
- * generated type covers the new param.
+ * openapi.json} is regenerated. TODO(S-165 follow-up): once the snapshot
+ * is refreshed and orval re-emits {@code ListParams}, swap to
+ * {@code FlightsService.list({personId, limit: 1})} and delete the
+ * {@link HttpClient} import.
  */
 export const StartStore = signalStore(
   { providedIn: 'root' },
   withState<StartState>(initial),
-  withComputed(({ lastFlight, hasNoFlights, isLoading, hasAttemptedLoad }) => ({
-    showEmptyState: computed(() => hasAttemptedLoad() && !isLoading() && hasNoFlights()),
-    showLastFlight: computed(() => !isLoading() && lastFlight() !== null),
+  withComputed(({ lastFlight, hasNoFlights, hasError, isLoading, hasAttemptedLoad }) => ({
+    showEmptyState: computed(
+      () => hasAttemptedLoad() && !isLoading() && !hasError() && hasNoFlights(),
+    ),
+    showLastFlight: computed(() => !isLoading() && !hasError() && lastFlight() !== null),
   })),
   withMethods((store, flightsApi = inject(FlightsService), http = inject(HttpClient)) => {
     const load = rxMethod<string>(
@@ -72,13 +76,13 @@ export const StartStore = signalStore(
               const items = listRes.items ?? [];
               if (items.length === 0) {
                 patchState(store, { isLoading: false, hasNoFlights: true, lastFlight: null });
-                return [];
+                return EMPTY;
               }
               const top: FlightListItem = items[0]!;
               const id = top.id;
               if (!id) {
                 patchState(store, { isLoading: false, hasError: true });
-                return [];
+                return EMPTY;
               }
               return flightsApi.get(id).pipe(
                 tapResponse({

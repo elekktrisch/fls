@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -40,6 +41,20 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class MeService {
+
+    // AlpenFlight realm-role catalog (mirrors `alpenflight/auth/realm-export.json`
+    // and the FE's AppRole union in `core/session/session.store.ts`). Roles
+    // outside this set (Keycloak built-ins like `uma_authorization`,
+    // `offline_access`, `default-roles-*`) are dropped at the wire boundary
+    // so SPA consumers + downstream stories couple only to the project's
+    // own role vocabulary.
+    private static final Set<String> KNOWN_REALM_ROLES = Set.of(
+            "SYSTEM_ADMINISTRATOR",
+            "CLUB_ADMINISTRATOR",
+            "FLIGHT_OPERATOR",
+            "PILOT",
+            "OFFICE_USER",
+            "GUEST");
 
     private static final String SELECT_USER_AND_PERSON = """
             SELECT u.id              AS user_id,
@@ -97,8 +112,9 @@ public class MeService {
             return List.of();
         }
         return raw.stream()
-                .filter(r -> r instanceof String)
-                .map(r -> (String) r)
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .filter(KNOWN_REALM_ROLES::contains)
                 .toList();
     }
 

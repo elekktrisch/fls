@@ -1,6 +1,7 @@
 package ch.alpenflight.flights.web;
 
 import static ch.alpenflight.flights.web.FlightsTestFixtures.SEED_FLIGHT_CREW_TYPE_PIC;
+import static ch.alpenflight.flights.domain.FlightCrewTypeIds.PASSENGER;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.cleanFlightRowsFor;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.createPayload;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.crewItem;
@@ -106,17 +107,41 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
     void list_withPersonIdFilter_includesFlightsInAnyNonDeletedCrewRole() {
         UUID pilot = seedPersonInClub(jdbc, CLUB_UUID);
         String pilotExt = PersonId.of(pilot).toExternal();
-        // The fixture's seed for "PIC" is a known crew-type UUID; the AC says
-        // ANY non-deleted crew role qualifies. The two PIC-flagged flights here
-        // both must show up — proves "any role" rather than e.g. PIC-only.
-        String pic1 = createFlightWithPic(pilotExt, "2026-05-01");
-        String pic2 = createFlightWithPic(pilotExt, "2026-05-02");
+        // The AC says ANY non-deleted crew role qualifies. Seed two flights
+        // with the same person in different roles (PIC + PASSENGER); both
+        // must surface — proves the SQL EXISTS clause carries no
+        // `flightCrewTypeId` predicate.
+        String picFlight = createFlightWithCrew(pilotExt, SEED_FLIGHT_CREW_TYPE_PIC, "2026-05-01");
+        String paxFlight = createFlightWithCrew(pilotExt, PASSENGER.toString(), "2026-05-02");
 
         JsonNode items = readJson(get(
                 "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal() + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=50")).get("items");
 
-        assertThat(extractIds(items)).contains(pic1, pic2);
+        assertThat(extractIds(items)).contains(picFlight, paxFlight);
+    }
+
+    @Test
+    void list_withPersonIdFilter_includesFlightsInTerminalProcessStates() {
+        // AC: "Includes flights in any process state (NotProcessed / Valid /
+        // Invalid / Locked / DeliveryBooked / ExcludedFromDeliveryProcess) —
+        // only `deleted_on IS NULL` filtered out." Force the seeded flight
+        // into a terminal state via JDBC (public create only stamps
+        // NOT_PROCESSED) and confirm it still surfaces under the filter.
+        UUID pilot = seedPersonInClub(jdbc, CLUB_UUID);
+        String pilotExt = PersonId.of(pilot).toExternal();
+        String flightId = createFlightWithCrew(pilotExt, SEED_FLIGHT_CREW_TYPE_PIC, "2026-05-01");
+        UUID flightUuid = UUID.fromString(flightId.substring(3));
+        // DELIVERY_BOOKED seed id (terminal — see FlightProcessState).
+        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+                "019e2e15-2c00-7a9e-8000-000000003a9e", flightUuid.toString());
+
+        JsonNode items = readJson(get(
+                "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal()
+                        + "&from=2026-05-01&to=2026-05-31&limit=50")).get("items");
+        assertThat(extractIds(items))
+                .as("Process-state gates do not narrow the personId filter result set")
+                .contains(flightId);
     }
 
     @Test
@@ -195,9 +220,15 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
     }
 
     private String createFlightWithPic(String personIdExternal, String flightDateIso) {
+        return createFlightWithCrew(personIdExternal, SEED_FLIGHT_CREW_TYPE_PIC, flightDateIso);
+    }
+
+    private String createFlightWithCrew(String personIdExternal,
+                                        String flightCrewTypeId,
+                                        String flightDateIso) {
         Map<String, Object> payload = createPayload("GLIDER", aircraftIdExternal, flightDateIso);
         payload.put("crew",
-                singletonCrew(crewItem(personIdExternal, SEED_FLIGHT_CREW_TYPE_PIC)));
+                singletonCrew(crewItem(personIdExternal, flightCrewTypeId)));
         ResponseEntity<String> res = post("/api/v1/flights", payload);
         return readJson(res).get("id").asText();
     }
