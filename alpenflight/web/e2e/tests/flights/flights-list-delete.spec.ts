@@ -137,14 +137,19 @@ function setupBackend(initial: MockFlightRow[]): FlightsBackend {
 }
 
 test.describe('flights list — delete', () => {
-  test('kebab Delete → confirm → row removed; DELETE sent with If-Match: *', async ({ page }) => {
+  test('kebab Delete → confirm → row removed; DELETE sent with If-Match: *', async ({
+    page,
+  }) => {
     await stubReferenceData(page);
     const backend = setupBackend([FL_DELETABLE]);
     await page.route('**/api/v1/flights**', backend.handler);
 
     await page.goto('/flights');
     await expect(page.getByTestId('flights-summary')).toContainText('1 flight');
-    await page.screenshot({ path: 'screenshots/flights/delete-01-row-visible.png', fullPage: true });
+    await page.screenshot({
+      path: 'screenshots/flights/delete-01-row-visible.png',
+      fullPage: true,
+    });
 
     // Open kebab → Delete entry rendered (not locked).
     await page.getByTestId(`flights-kebab-${FL_DELETABLE.id}`).click();

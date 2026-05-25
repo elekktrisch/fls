@@ -1,7 +1,11 @@
 import { FormBuilder } from '@angular/forms';
 import { describe, expect, it } from 'vitest';
 
-import type { FlightCreateRequest, FlightDetail, FlightTemplateResponse } from '@api/generated/model';
+import type {
+  FlightCreateRequest,
+  FlightDetail,
+  FlightTemplateResponse,
+} from '@api/generated/model';
 
 import {
   FLIGHT_CREW_TYPE_CO_PILOT,
@@ -213,12 +217,12 @@ describe('flight-form.model', () => {
       expect(result.tow?.aircraftId).toBe('ac-tow');
     });
 
-    it('drops tow when start-type Towing but tow aircraft NOT picked (partial tow data discarded, parity)', () => {
+    it('drops tow when start-type Towing but tow aircraft NOT picked (parity discard)', () => {
       const result = snapshotToCreateRequests(snap(TOWING, null));
       expect(result.tow).toBeUndefined();
     });
 
-    it('mirrors glider startLocationId / startTime / outboundRoute onto the tow request (parity FlightsController.js:370-372)', () => {
+    it('mirrors glider startLocationId / startTime / outboundRoute onto the tow request', () => {
       const result = snapshotToCreateRequests(snap(TOWING, 'ac-tow'));
       expect(result.tow?.startLocationId).toBe('loc-home');
       expect(result.tow?.startDateTime).toBe('2026-05-25T10:00:00Z');
@@ -250,7 +254,10 @@ describe('flight-form.model', () => {
         { personId: 'pn-pilot', flightCrewTypeId: FLIGHT_CREW_TYPE_PILOT },
         { personId: 'pn-copilot', flightCrewTypeId: FLIGHT_CREW_TYPE_CO_PILOT },
         { personId: 'pn-winch', flightCrewTypeId: FLIGHT_CREW_TYPE_WINCH_OPERATOR },
-        { personId: 'pn-invoice', flightCrewTypeId: FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT },
+        {
+          personId: 'pn-invoice',
+          flightCrewTypeId: FLIGHT_CREW_TYPE_FLIGHT_COST_INVOICE_RECIPIENT,
+        },
       ]);
     });
   });
@@ -294,7 +301,7 @@ describe('flight-form.model', () => {
     });
   });
 
-  describe('mapper round-trip: every editable attribute survives snapshot → request → echo → snapshot', () => {
+  describe('mapper round-trip: every editable attribute survives snapshot→request→echo', () => {
     // Fully-populated CrewSnapshot — every field non-null, every flag non-default.
     // The two side-mirrored fields (startLocationId, startTime, outboundRoute) are
     // populated identically on glider + tow so the submit-time glider→tow sync
@@ -444,7 +451,7 @@ describe('flight-form.model', () => {
       assertCrewIdentity(reloaded.tow, original.tow);
     });
 
-    it('invoiceRecipientPersonId on FlightCreateRequest serializes as a FLIGHT_COST_INVOICE_RECIPIENT crew row', () => {
+    it('invoiceRecipientPersonId serializes as a FLIGHT_COST_INVOICE_RECIPIENT crew row', () => {
       const original = fullSnapshot();
       const requests = snapshotToCreateRequests(original);
       const invoiceRow = requests.glider.crew?.find(
