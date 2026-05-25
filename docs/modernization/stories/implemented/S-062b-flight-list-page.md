@@ -5,6 +5,8 @@ epic: E-07
 status: done
 started_at: 2026-05-25
 done_at: 2026-05-25
+merged: true
+merged_at: 2026-05-25
 depends_on: [S-062a, S-006, S-008]
 acceptance:
   - `/flights` route renders a list of flights backed by `GET /api/v1/flights` (keyset cursor — `from / to / after / limit`).
