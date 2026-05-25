@@ -52,9 +52,9 @@ export interface AfSelectOption<T> {
           <!--
             Custom content renders into the CDK-overlay option-item, so the
             data-testid lives on a node Playwright can target directly with
-            getByTestId() — no `.ant-select-dropdown:not(.hidden)` gymnastics
-            in the spec. Value is coerced to string for the testid; tests
-            pass the same string they bind on the model.
+            getByTestId() — no ant-select-dropdown:not(.hidden) gymnastics.
+            Value is coerced to string for the testid; specs pass the same
+            string they bind on the model.
           -->
           <span [attr.data-testid]="'af-select-option-' + option.value">{{ option.label }}</span>
         </nz-option>
