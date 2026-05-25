@@ -2,26 +2,30 @@
 id: S-062c
 title: Flight create/edit forms (glider + tow) + copy flow
 epic: E-07
-status: todo
-depends_on: [S-062a, S-062b, S-007]
+status: in_progress
+started_at: 2026-05-25
+github_issue: 124
+depends_on: [S-062a, S-062b, S-007, S-008]
 acceptance:
-  - `/flights/new` renders a typed Reactive Form shell with the glider sub-form always present and the tow sub-form conditionally rendered when `startType === Towing` (parity with legacy `FlightsController.js:418-420, 666-673`).
-  - `/flights/:id` loads an existing flight via `GET /flights/{id}` (S-062a) and patches the form; respects server-supplied `canUpdateRecord` / `canDeleteRecord` flags (whole form disables when `!canUpdateRecord`).
-  - `/flights/copy/:id` fetches `GET /flights/{id}/copy-template` (S-062a), patches the form with the cleared draft, navigates to `/flights/new`'s save flow.
-  - Save flow: glider+tow paired-create lands in ONE backend call (`POST /flights` with both blocks); update is one PUT with both blocks. Server (S-062a) handles the dual-row tx.
-  - `FlightFormCoordinator` implements the cross-field reactive rules (full table in Client form mechanics): start-location mirror glider→tow, start-time mirror, outbound-route mirror, solo-flight derivation, co-pilot clear on solo, invoice recipient clear when not required, aircraft change resets engine counters, location change recomputes route requirement.
-  - `prepareForSaving` mirror: glider→tow sync of `startDateTime`/`startLocationId`/`outboundRoute`; tow data dropped when `!needsTowplane || !tow.aircraftId` (parity with `FlightsController.js:348-378`).
-  - localStorage hydration (workstation-level UX): `lastStartLocation` auto-hydrated as default; `lastTowAircraftId`, `towPilotByAircraftId`, `lastGliderOutbound/Inbound`, `lastTowOutbound/Inbound` available via explicit "copy from last" buttons.
-  - Parity specs `04-flights-create.spec.ts` and `05-flights-edit.spec.ts` green on the new stack with byte-identical assertions (selector adaptation via `data-testid` allowed; behavior assertions not).
-  - New e2e specs added: `04b-flights-copy.spec.ts` (copy flow) and `04c-flights-paired-create.spec.ts` (glider+tow paired-create in a single submit).
-  - FlightStore extended with detail-state slice (`current`, `currentVersion`, `save`, `delete`) and emits `MutationBus.flightChanged$` on save/delete (consumed by S-062b's list refetch).
-  - On `412 Precondition Failed` (S-067 future): show a non-blocking "this flight was just edited" toast with a refresh action. Don't retry blindly.
-estimate: M
+  - `/flights/new` renders a 3-step wizard shell (Launch → Glider → Tow) per the design-reference at `docs/modernization/design-reference/screenshots/flights-form.png`; Step 3 (tow) is skipped with empty state when `startType !== Towing` (parity with legacy `FlightsController.js:418-420, 666-673`).
+  - `/flights/:id` loads an existing flight via `GET /flights/{id}` (S-062a) and patches the wizard; respects server-supplied `canUpdateRecord` / `canDeleteRecord` flags (whole wizard disables when `!canUpdateRecord`).
+  - `/flights/copy/:id` fetches `GET /flights/{id}/copy-template` (S-062a), patches the wizard with the cleared draft, navigates to `/flights/new`'s save flow. Empty-UUID load normalization applied to BOTH edit-load AND copy-template.
+  - Paired-create save flow orchestrates client-side per refined design (S-062a shipped flat single-row POST/PUT — no bundled endpoint): `POST /flights` glider → `POST /flights` tow → `PUT /flights/{gliderId}` with `If-Match: 1` body `{ towFlightId }`. Update is a single PUT per row. Tow-POST failure triggers compensating `DELETE /flights/{gliderId}` + i18n rollback toast; draft retained.
+  - `FlightFormCoordinator` (plain TS, no Angular DI) implements all cross-field reactive rules from `## Client form mechanics`: start-location mirror glider→tow, start-time mirror, outbound-route mirror, solo-flight tri-state derivation, co-pilot clear on solo, invoice recipient clear when not required, aircraft change resets engine counters (conditional on `myClub.resetEngineOperatingCounters`), location change recomputes route requirement.
+  - `prepareForSaving` mirror: glider→tow sync of `startDateTime`/`startLocationId`/`outboundRoute` BEFORE the tow-discard check; tow row data dropped when `!needsTowplane || !tow.aircraftId` (parity with `FlightsController.js:348-378`).
+  - New `af-user-preferences-service` (Dexie-backed, OIDC `sub`-scoped) replaces raw localStorage: `lastStartLocation` auto-hydrated default; `lastTowAircraftId`, `towPilotByAircraftId`, `lastGliderOutbound/Inbound`, `lastTowOutbound/Inbound` via explicit "Copy from Last" buttons (button rendered only when source key present AND target field empty). Wiped on logout AND tenant-switch via shared session-lifecycle hook.
+  - Smart defaults from `GET /flights/last-context` (S-062a) hydrate on cold new + aircraft picked, with resolution order: explicit Copy-from-Last > IndexedDB draft (S-062h) > `copy-template` > `last-context` > `new-template` > hardcoded fallback. Null `last-context` → silent fallback, no toast.
+  - Parity specs `04-flights-create.spec.ts` and `05-flights-edit.spec.ts` green on the new stack with byte-identical behavior assertions (selector adaptation via `data-testid` allowed; behavior not).
+  - New Playwright specs: `04b-flights-copy.spec.ts` (copy flow), `04c-flights-paired-create.spec.ts` (3-call orchestration + tow-fail rollback), `04d-keyboard-only.spec.ts` (first-pass happy path), `04e-mobile-wizard.spec.ts` (mobile reflow + touch-targets).
+  - FlightStore extended with detail-state slice (`current`, `currentVersion`, `save`, `delete`, `loadDetail`, `loadNewTemplate`, `loadCopyTemplate`) emitting `MutationBus.flightChanged$` on save/delete.
+  - Keyboard nav first pass (AC-DIR-3 scope split): Tab/Shift+Tab natural order, Enter advances step / submits on last, Esc cancel-with-dirty-confirm. Ctrl+D save+copy, number-key 1–5 flight-type quick-select, and AC-DIR-13 slide-in focus jump are deferred to **S-062i**.
+  - On `412 Precondition Failed` (concurrent edit, full handler ships in S-062h): plumbs `If-Match` outbound on PUT and a non-blocking placeholder toast inbound. Inline diff dialog is S-062h's scope.
+estimate: L
 adr_refs: [0005, 0007, 0008]
 parity_test: tests/flights/04-flights-create.spec.ts, tests/flights/05-flights-edit.spec.ts
 refined: true
-refined_at: 2026-05-14
-refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer, frontend-form-engineer]
+refined_at: 2026-05-25
+refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer, performance-engineer]
 split_from: S-062
 ---
 
@@ -32,281 +36,214 @@ Third of three sub-stories splitting the original S-062 (see [S-062a](S-062a-fli
 Specs `04-flights-create.spec.ts` and `05-flights-edit.spec.ts` are the parity oracles; they don't go green until this story does. New e2e specs `04b` (copy) and `04c` (paired-create) are added here to cover behavior the legacy specs skip.
 
 ## Acceptance criteria
-See frontmatter.
+See frontmatter. **Several frontmatter AC clauses are superseded by the refined design and need rewriting at `/modernize-decompose` time** — they pre-date the wizard pattern, the orchestrated paired-create, and the Dexie-backed prefs primitive. The Refinement block below is authoritative until decompose folds the rewrite in.
 
 ## Tasks
-- [ ] Replace placeholder routes from S-062b: `/flights/new`, `/flights/:id`, `/flights/copy/:id` now render the edit shell.
-- [ ] `flight-edit.component.ts` — shell: owns route params, masterdata loading, save/cancel, dispatch into either glider+tow or motor route (motor is S-064 — for now redirect motor flights there).
-- [ ] `glider-flight-form.component.ts` + template — port of `flight-edit-glider-form.html` field-by-field.
-- [ ] `tow-flight-form.component.ts` + template — port of `flight-edit-tow-form.html`.
-- [ ] `flight-form.model.ts` — typed Reactive Forms model + `buildFlightForm()` factory.
-- [ ] `flight-form-coordinator.ts` — plain TS class implementing all `valueChanges` cross-field rules from Client form mechanics. No Angular DI.
-- [ ] `flight-form-defaults.ts` — `initForNewFlight` port: pulls `myClub.DefaultStartType / HomebaseId / DefaultGliderFlightTypeId / DefaultTowFlightTypeId` and writes form defaults.
-- [ ] `flight-form-coordinator.spec.ts` — the cross-field rule table is testable in isolation (no Angular Testing Library needed for a plain TS class).
-- [ ] `local-storage-preferences.ts` — typed wrapper over `lastStartLocation`, `lastTowAircraftId`, `towPilotByAircraftId[]`, `lastGliderOutbound`, `lastGliderInbound`, `lastTowOutbound`, `lastTowInbound`. Two-mode access: auto-hydrate (`lastStartLocation` only) and explicit "copy from last" buttons.
-- [ ] Extend `FlightStore` (shared with S-062b) with detail-state slice: `current: FlightDetail | null`, `currentVersion: number | null`, `save: (dto) => Promise<...>`, `delete: () => Promise<...>`, `loadDetail: (id) => ...`, `loadNewTemplate: () => ...`, `loadCopyTemplate: (id) => ...`. Emits `MutationBus.flightChanged$` on save/delete.
-- [ ] `<fls-field-errors>` integration per S-007: each Reactive Form control's i18n error messages render via the primitive.
-- [ ] Selector contract: every form input, select, date/time picker, save/cancel/delete button has a stable `data-testid` (`flight-edit-<field>`).
-- [ ] Port parity spec `04-flights-create.spec.ts` to new stack — selector adaptation only.
-- [ ] Port parity spec `05-flights-edit.spec.ts` to new stack — selector adaptation only.
-- [ ] Write new e2e spec `04b-flights-copy.spec.ts`.
-- [ ] Write new e2e spec `04c-flights-paired-create.spec.ts`.
+- [ ] Replace placeholder routes from S-062b: `/flights/new`, `/flights/:id`, `/flights/copy/:id` now render the wizard shell.
+- [ ] Shell page + 3 step components (Launch / Glider / Tow) per the wizard design notes; tow step skipped with empty-state when `startType !== Towing`.
+- [ ] `flight-form.model.ts` — typed Reactive Forms model + `buildFlightForm()` factory (legacy-shaped `glider` / `tow` sub-FormGroups; flat-DTO mappers at the wire).
+- [ ] `flight-form.coordinator.ts` — plain TS class, no Angular DI; hosts the ~30 `valueChanges` rules from Client form mechanics + submit-time `prepareForSaving` + 3-call paired-create orchestration.
+- [ ] `flight-form.defaults.ts` — overlays `new-template` / `copy-template` / `last-context` with the prefs resolution chain.
+- [ ] `af-user-preferences-service` — new Dexie-backed primitive (OIDC `sub`-scoped) consumed by Copy-from-Last AND recents wipe-on-logout. (Same Dexie store is later consumed by S-062h drafts.)
+- [ ] Extend `FlightStore` (shared with S-062b) with detail-state slice + `MutationBus.flightChanged$` emit on save/delete. `If-Match` header plumbed on PUT + placeholder 412 toast handler (full diff dialog ships in S-062h).
+- [ ] `<af-field-errors>` integration per S-007; stable `data-testid` (`flight-edit-<field>`) on every input + action.
+- [ ] JIT-deferred S-008 primitives that land here: `<af-time-now-button>`, `<af-sticky-bar>`, `<af-dialog>` (consumed by Esc-dirty-confirm here; reused by S-062h restore + conflict prompts).
+- [ ] `flight-form.coordinator.spec.ts` + `flight-form.defaults.spec.ts` + `flight-prefs.service.spec.ts` (Vitest). `conflict-resolver.spec.ts` moves to S-062h.
+- [ ] Port parity specs `04-flights-create.spec.ts` + `05-flights-edit.spec.ts` (selector adaptation only).
+- [ ] New Playwright specs (core): `04b-flights-copy.spec.ts`, `04c-flights-paired-create.spec.ts`, `04d-keyboard-only.spec.ts` (first-pass happy path), `04e-mobile-wizard.spec.ts`. (`04f` / `04g` / `04h` move to S-062h.)
 
 ## Notes
 
-**Estimate calibration (M):**
-- 2 form components + 1 shell + 1 coordinator + 1 defaults helper + 1 form model + 1 prefs service + FlightStore detail-slice extension.
-- ~30 cross-field reactive rules (full table below).
-- ~750 lines of legacy code referenced (`FlightsController.js:100-820`, `flight-edit-glider-form.html`, `flight-edit-tow-form.html`).
-- 4 e2e specs (2 ported, 2 new).
-- ~10 unit tests for the coordinator.
+**Estimate calibration:** Bumped from M → L at decompose 2026-05-25 after the wizard + Dexie prefs primitive + paired-create orchestration were folded in. Drafts / conflict diff / marginal-3G split off into [S-062h](S-062h-flight-edit-resilience.md); keyboard polish (Ctrl+D / 1–5 / slide-in focus) split off into [S-062i](S-062i-flight-edit-keyboard-polish.md). S-062c retains: wizard shell + 3 steps + coordinator + paired-create + Dexie prefs (provisioned, drafts ship in S-062h) + Copy-from-Last + smart-defaults + first-pass keyboard + 6 Playwright specs (parity ×2, copy, paired-create, kbd-happy, mobile).
 
-**Why this is M not L**: the field rules are dense but mechanical — the coordinator is one class with one `valueChanges` subscription per rule. The risk surface is well-bounded (the parity specs catch behavioral drift end-to-end). Bumps to L only if the architect's "no DI in the coordinator" recipe turns out to fight Angular ergonomics.
-
-**Open risk — selectize replacement.** Legacy specs inject directly on `$scope` to bypass selectize widgets (`04-flights-create.spec.ts:109-138`). The new SPA uses native `<fls-select>` (S-008); spec adaptation goes through `data-testid` instead of `angular.element(form).scope()`. If the replacement primitive isn't Playwright-friendly, this story balloons.
+**Open risk — selectize replacement.** Legacy specs inject on `$scope` to bypass selectize (`04-flights-create.spec.ts:109-138`). New SPA uses ng-zorro `nz-select` which opens on `mousedown` not `click` — parity-helper rewrite, not pure selector-swap.
 
 **Out of scope:**
-- Motor-flight form — S-064 owns `/airmovements/*`. The shell here redirects motor flights to that route.
+- Motor-flight form — S-064 owns `/airmovements/*`.
 - Validation rejection-path UX depth — S-101.
-- Optimistic-concurrency `@Version` column + 412 mapping — S-067 (this story plumbs the `If-Match` header and the toast handler).
+- Optimistic-concurrency `@Version` column at the DB — S-067 (this story plumbs `If-Match` + the 412 handler).
 - Glider↔Tow cascade / orphan / concurrent edit depth — S-105.
+- **Keyboard-nav polish (deferred):** Ctrl+D save+copy, number-key 1–5 flight-type quick-select, AC-DIR-13 slide-in focus jump. First-pass scope only here (Tab/Enter/Esc + `04d` happy path). File a follow-up story at decompose time.
+- **Prototype-only fields (dropped):** `releaseAlt` (Step 1) and `fuel start/end/burn` (Step 3) — no legacy DTO mapping. Wizard renders without them. File a backend story if business confirms the need.
 
 <!-- modernize-refine: start -->
 
 ## Design notes
 
-### Module layout — client-side
+### Visual reference + wizard shape
 
-`alpenflight/web/src/app/flights/` (extending what S-062b created):
-- `flight-routes.ts` — UPGRADE: replace placeholders with real components.
-- `flight.store.ts` — EXTEND: add detail-state slice + `save`/`delete` methods + `MutationBus` emit.
-- `services/flight-api.ts` — EXTEND: wrap `getFlight`, `getNewTemplate`, `getCopyTemplate`, `createFlight`, `updateFlight`, `deleteFlight`.
-- `pages/flight-edit/flight-edit.component.ts` + `.html` — **shell page**. Owns route params, masterdata loading, save/cancel, glider↔tow time/location coordination. Hosts one of the two form components.
-- `pages/flight-edit/glider-flight-form.component.ts` + `.html` — glider form (mirrors `flight-edit-glider-form.html`). Standalone, takes typed `FormGroup<GliderFlightFormModel>` as input.
-- `pages/flight-edit/tow-flight-form.component.ts` + `.html` — tow form. Standalone, takes `FormGroup<TowFlightFormModel>` as input. Conditionally rendered when `startType === Towing`.
-- `pages/flight-edit/flight-form.model.ts` — typed Reactive Forms model + `buildFlightForm()` factory.
-- `pages/flight-edit/flight-form-coordinator.ts` — cross-form orchestration (start-time copy glider→tow, location mirror, duration warning). Plain TS, no Angular DI.
-- `pages/flight-edit/flight-form-defaults.ts` — pulls `myClub.DefaultStartType / HomebaseId / DefaultGliderFlightTypeId / DefaultTowFlightTypeId`. Port of `initForNewFlight`.
-- `pages/flight-edit/local-storage-preferences.ts` — typed wrapper over the workstation-level UX preferences.
-- `masterdata.signals.ts` — EXTEND: per-form-context derived signals (`selectedGliderAircraft`, `selectedFlightType`, `personForInvoiceRequired`, etc.).
+Canonical visual oracle: `docs/modernization/design-reference/screenshots/flights-form.png` per ADR 0024. **3-step wizard supersedes the original side-by-side ACs**: Step 1 Launch (`flightDate`, airfield = `glider.startLocationId`, launch method = `startType`), Step 2 Glider (aircraft, flight type, PIC + one-of co-pilot/instructor/observer/passenger by rule, times, landings, engine counters, winch op, comment), Step 3 Tow plane (aerotow only — skipped with empty-state otherwise). Single-column wizard at all viewports — **dense-desktop multi-column variant dropped** per operator 2026-05-25; vision §C22 / §F3 superseded. Persistent summary header above the stepper (stacks on `<lg`); page-header actions Cancel / Save draft / Submit (reflow into sticky footer save bar on `<lg`); footer Back · {n}/{N} · Next-or-Submit; stepper items jump-to-step. `releaseAlt` (Step 1) + `fuel start/end/burn` (Step 3) **dropped** — no legacy mapping; field-by-field table unchanged.
 
-### Backend: nothing new
-S-062a owns the API. This story only consumes it.
+### Form model + flat-DTO mapping
 
-### Integration with other stories
+Keep legacy-shaped `glider` / `tow` sub-FormGroups — the ~30 rules key off them, conditional render is cleaner. Mapper layer flattens at the wire: one form → two `FlightDetail` rows. Form does not carry `flightAircraftType`; mapper picks the enum. **Keep four separate FormControls** (`coPilot` / `instructor` / `observer` / `passenger`); flight-type rules drive which ONE is visible + the displayed label. Empty-UUID normalization (`00000000-…` → `null`) runs in the load-mapper for BOTH edit-load AND copy-template (regression risk if applied only to edit). `version` lives on the store slice (`currentVersion`), round-tripped via `If-Match` — never in the form.
 
-**Inputs:**
-- **S-062a**: API endpoints + DTOs.
-- **S-062b**: FlightStore list slice; this story extends with detail slice in the same file.
-- **S-006**: Signal Store reference + per-domain refetch convention.
-- **S-007**: typed Reactive Forms + `<fls-field-errors>`.
-- **S-008**: UI primitives kit (`<fls-text-input>`, `<fls-select>`, `<fls-date-picker>`, `<fls-time-picker>`, `<fls-toggle>`).
-- **S-051**: Persons + PersonClub (server-filtered dropdown sources).
-- **S-050**: Aircraft.
-- **S-049**: Locations.
-- **S-053**: Flight types.
+### Paired-create orchestration
 
-**Outputs:**
-- **S-063** (glider↔tow link integrity): consumes the paired-create form behavior as a parity oracle.
-- **S-064** (air movements): mirrors this story's shell pattern with a motor-flight form variant.
-- **S-067** (optimistic concurrency): consumes the 412 toast handler shape.
-- **S-101** (validator depth): runs validation-rejection scenarios through this form.
-- **S-110** (T3 smoke): consumes the edit flow as a navigation step.
+S-062a shipped flat single-row POST/PUT. Client orchestrates: (1) `POST /flights` glider → capture `gliderId`; (2) if aerotow + `tow.aircraftId`: `POST /flights` tow → capture `towId`; (3) `PUT /flights/{gliderId}` `If-Match: 1`, body `{ towFlightId: towId }`. **Tow-POST failure → compensating `DELETE /flights/{gliderId}`** + i18n "rolled back" toast; draft retained. Step 3 fail → pair unlinked, retry step 3 only. Future server-side `POST /flights/paired` is the deliberate seam.
 
-### Alternatives considered
+### FlightFormCoordinator
 
-**Q1 — Two form components vs. one parametrized form.** Chose **two separate standalone components** sharing a typed-form model. Reason: glider has fields tow doesn't (winch operator, coupon, invoice recipient, passenger, engine counters); one parametrized form would be `*ngIf` soup. Rejected: parametrized component (template becomes 30% conditional rendering); class inheritance (anti-pattern in standalone-signal Angular).
+Plain TS class, no Angular DI. Component calls `coordinator.attach(form, masterdataSignals, destroyRef)` once. Owns: all `valueChanges` rules (Client form mechanics is the verbatim oracle), flat-DTO mappers, submit-time `prepareForSaving` parity transforms (`FlightsController.js:370-372`), the 3-call paired-create chain.
 
-**Q2 — Where does Flight↔Tow orchestration live?** **Server-side, in `FlightApplicationService` under one `@Transactional` boundary** (owned by S-062a). Client `FlightFormCoordinator` only handles UX-level mirroring (start-time, location, outbound route glider→tow at submit time per `FlightsController.js:348-378`).
+### Storage primitives
 
-**Q3 — Coordinator with or without Angular DI?** **Plain TS class, no DI.** Reasons: testable in isolation without Angular Testing Library; explicit `attach(form)` contract; lifecycle owned by the component (`takeUntilDestroyed`). The component injects masterdata signals and passes them in.
+Build **`af-user-preferences-service`** in this story — Dexie-backed, OIDC `sub`-scoped, single source for: Copy-from-Last keys (`lastTowAircraftId`, `towPilotByAircraftId`, `lastGliderOutbound/Inbound`, `lastTowOutbound/Inbound`, `lastStartLocation`), IndexedDB drafts (separate Dexie store `flight-drafts` from the SW mutation queue per ADR 0015), and the recents wipe-on-logout shared with `RecentlyUsedService`. **Zero raw localStorage writes.** `/flights/last-context` response is transient seed — refetched per form-open, never persisted to Dexie. Endpoint is workstation-scoped (no caller-`personId` filter) — legacy parity.
+
+### Conflict UX
+
+**412** (`If-Match` mismatch, stale version, the common concurrent edit) → `<af-dialog>` inline diff prompt (`flight-conflict-prompt`); first conflicting field focused; Enter activates keep-mine / keep-theirs; **no auto-retry**. **409** (DELIVERY_BOOKED state-gate or `ObjectOptimisticLockingFailureException` race) → non-blocking toast with "Reload latest"; no diff because state-gate is policy not data. `/modernize-decompose` should rewrite AC-DIR-12 and AC9 wording to match.
+
+### Keyboard nav (first pass only)
+
+In scope: Tab/Shift+Tab natural order across the wizard, Enter advances step / submits on last, Esc cancel-with-dirty-confirm (reuses the same `<af-dialog>` as draft-restore), `04d-keyboard-only.spec.ts` happy path. **Deferred:** Ctrl+D save+copy, number-key 1–5 flight-type quick-select, AC-DIR-13 slide-in focus jump.
+
+### Story boundaries
+
+**Inputs:** S-062a (endpoints + flat `FlightDetail` + `last-context` + `If-Match`); S-062b (`FlightStore` list slice + `MutationBus.flightChanged$`); S-007 (typed forms + `<af-field-errors>`); S-008 (ng-zorro primitives + `RecentlyUsedService` + `DensityService` + `ViewportService`; JIT-deferred here: `<af-time-now-button>`, `<af-sticky-bar>`, `<af-dialog>`); S-006 (Signal Store masterdata caches). **Outputs:** S-063 (paired-create contract precedent); S-064 (motor variant mirrors wizard pattern); S-067 (extends 412 coverage when `@Version` lands); S-101 (validation-rejection UX); S-102 (state-transition buttons); S-105 (cascade depth); S-110 (T3 navigation). **No schema-level business logic** introduced — ADR 0022 directive 2 holds.
+
+### Recommended split for decompose
+
+Carve AC-DIR-9 (IndexedDB draft + restore prompt), AC-DIR-12 (412 inline conflict dialog), AC-DIR-14 (marginal-3G + SW-queue UX) and specs `04f` / `04g` / `04h` into sibling **S-062c-resilience**. S-062c keeps the parity slice + paired-create + wizard + Copy-from-Last + smart-defaults + first-pass keyboard. Resilience lands on top once the happy path is green.
 
 ## Edge cases & hidden requirements
 
-### Edge cases (per acceptance criterion)
+### Reality reconciliation (load-bearing)
 
-**AC1 — Glider flight form**
-- Null/empty: `AircraftId`, `PilotPersonId`, `FlightTypeId`, `StartLocationId`, `LdgLocationId`, `StartTypeId`, `FlightDate` may all be null on the wire — server (S-062a) defers required-field checks to async validation per Q3 in S-062a. Client form **does not** mark these as `Validators.required` unless eager-validation flag flips at the org level.
-- Boundary: `NrOfLdgs` accepted as null when `NoLdgTimeInformation=true`; client defaults to `1` on first `ldgTime` blur if unset.
-- Boundary: `StartDateTime > LdgDateTime` is not rejected; legacy only warns client-side (`FlightsController.js:590-599`). Preserve.
-- Glider with `StartType=SelfStart(3)` / `WinchLaunch(2)` / `ExternalStart(4)` / `MotorFlightStart(5)`: tow sub-form hidden; tow data **kept in memory**, stripped at submit (`prepareForSaving :375-377`).
-- Glider with `StartType=Towing(1)`: tow sub-form shown; tow.aircraftId not client-required.
-- `IsSoloFlight + CoPilotPersonId` set → CoPilot silently cleared by coordinator (`FlightsController.js:425-427`).
-- Engine counters: `EngineEnd < EngineStart` produces 0 duration (`FlightsController.js:767-777`).
-- Unauthorized: edit on `ProcessState >= Locked` without ClubAdmin role → `CanUpdateRecord=false` → whole form disabled. Server (S-062a) additionally enforces.
-- Cross-tenant: `Pilot/CoPilot/Instructor/Observer/Passenger/WinchOperator` PersonId may belong to a different `OperatingClub` — legitimate. Persons dropdown sourced from `Persons.getGliderPilots()` etc. which already returns the right set.
+- **AC3 / AC4 dead.** S-062a shipped flat single-row POST/PUT — paired-create is client-orchestrated (POST glider → POST tow → PUT link). Spec `04c` asserts the 3-call sequence + compensating DELETE on tow-fail.
+- **412 vs 409 (settled).** 412 → inline diff; 409 → toast. AC-DIR-12 + AC9 wording is for decompose to rewrite.
+- **Cross-tenant / empty-UUID FK shape.** Cross-tenant aircraft / flightType / location FK surfaces as 400 `DataIntegrityViolationException` with no `errors[].path` (S-062a "Out of scope NOT deferred"). Load-time empty-UUID → `null` normalization on both edit-load AND copy-template is load-bearing — without it the form silently 400s on save.
+- **Wizard supersedes side-by-side.** Operator confirmed (design-reference). AC1/AC2/AC4 rewrite is decompose's call.
+- **Persistence (settled).** Dexie via `af-user-preferences-service`; no localStorage carve-out.
+- **2nd-seat slot (settled).** Four separate FormControls, one visible at a time by flight-type rule.
+- **`last-context` (settled).** Workstation-scoped, legacy parity.
 
-**AC2 — Tow flight form**
-- Tow without parent glider: tow form renders only as sub-section of glider form when `startType=Towing`; no standalone tow route.
-- Tow inherits `StartDateTime` + `StartLocationId` + `OutboundRoute` from parent glider at save (`FlightsController.js:370-372`). Tow form has these fields **always disabled**; UI reads from glider via computed signal.
-- Boundary: tow landing < glider start → warn but allow.
-- Tow `AircraftId` empty → tow data discarded entirely at submit (`prepareForSaving :375-377`).
+### Edge cases worth flagging (per AC-DIR)
 
-**AC3 — Single entity, discriminator**
-- Discriminator derived server-side from which `*DetailsData` block populated. Client doesn't send a discriminator.
-- Concurrent edit: two users edit same flight; second save gets 412 (once S-067 lands). UX: non-blocking toast + refresh action. **Don't retry blindly.**
-- Deleted-mid-flow: glider deleted while tow form open → tow form save fails. The shell catches the 404, navigates back to list with an i18n toast.
-- Discriminator mid-edit change: legacy doesn't allow Glider → Motor. Form prevents (motor route is separate per S-064).
+- **AC-DIR-1** — wizard step jump mid-edit must preserve FormGroup state (no rebuild); viewport resize preserves draft + active step + scroll. (AC-DIR-2 dropped — no dense variant to switch between.)
+- **AC-DIR-3 (first pass)** — Esc dirty-confirm reuses the draft-restore `<af-dialog>`; Enter on a step's last control advances, never submits before final step.
+- **AC-DIR-4** — "Copy from last" button only rendered when source key exists AND target field empty (`flight-edit-tow-form.html:36-38` pattern). No dead buttons.
+- **AC-DIR-5** — resolution order: explicit Copy-from-Last click > IndexedDB draft > `copy-template` > `last-context` > `new-template` > hardcoded fallback. Null `last-context` → silent fallback.
+- **AC-DIR-6** — empty Recently-used bucket omits the group header entirely.
+- **AC-DIR-7** — 400 (cross-tenant FK / empty-UUID) lacks `path` — map to form-level `flight.error.invalidReference` i18n toast with hint to the most likely FK control; never echo the offending UUID.
+- **AC-DIR-8** — `<input type="date">` returns `yyyy-MM-dd`; keep `flightDate` as ISO-date string end-to-end (never `new Date(yyyy-MM-dd)` — local-TZ midnight drift). Times stay `HH:mm` string.
+- **AC-DIR-9** — aircraft-change rebuild writes rebuilt values BEFORE the 500 ms draft debounce fires; draft holds rebuilt state. Route-key change is a distinct draft scope — never cross-restores.
+- **AC-DIR-12** — focus first conflicting field on dialog open; keep-mine/theirs Enter-activatable; diff never serialized to telemetry.
+- **AC-DIR-14** — second tab online-save first → first tab's queued PUT arrives stale → 412 → diff against user's own later edit. On form open, surface "queued save from prior session" indicator if SW queue has a pending mutation for this flightId.
+- **Orphan person on copy-template** — server accepts (PersonClub gap); dropdown can't display the orphan ID. Show `<unknown person>` placeholder + inline "replace?" hint. Hard fix → S-101.
 
-**AC4 — Copy-flight**
-- Copy preserves: `FlightDate`, `StartType`, `GliderFlightDetailsData` (mostly), `TowFlightDetailsData` (mostly).
-- Copy clears: `FlightId`, all `StartDateTime`/`LdgDateTime`, `FlightComment`, `CouponNumber`, engine counters (`FlightsController.js:232-254`).
-- Copy of `DeliveryBooked` flight: allowed (creates new `NotProcessed` copy).
-- Copy of cross-club-owned flight: server (S-062a) returns 404; UI shows i18n toast.
-- Unauthorized: any authenticated user can hit `/flights/copy/:id` — no role gate.
+### Hidden requirements not in ACs
 
-**AC5 — Specs 04/05 pass**
-- Spec 04 (`04-flights-create.spec.ts:109-131`) injects values directly on `$scope` to bypass selectize widgets — new SPA uses `data-testid` on form fields, dropdowns, save button. Spec adaptation: `await page.getByTestId('flight-edit-aircraft').selectOption(...)`.
-- Spec 05 round-trips `FlightComment` via `GliderFlightDetailsData` shape (`05-flights-edit.spec.ts:88, 96-98`). Server (S-062a) preserves the nested-by-discriminator DTO shape per its Q5 → spec port is mechanical.
-
-### Hidden requirements (legacy behavior the story doesn't mention)
-
-- **Tow fields auto-synced from glider on save:** `StartDateTime`, `StartLocationId`, `OutboundRoute` copied glider→tow at `prepareForSaving` (`FlightsController.js:370-372`). Client coordinator handles it; server (S-062a) double-checks as defense in depth.
-- **`copyTowingFromLast` + `lastTowAircraftId` in localStorage** (`FlightsController.js:147-152, 348-358`). Workstation-scoped UX. Wrapped in `local-storage-preferences.ts`.
-- **`HomebaseId` default** for new flight locations from `myClub` (`FlightsController.js:200-206`).
-- **`SoloFlightCheckboxEnablementCalculator`** auto-derives solo-flag from `FlightType.IsSoloFlight`/`IsPassengerFlight` and `Aircraft.NrOfSeats==1` (`FlightsServices.js:75-98`, `FlightsController.js:111-124`). Lives in coordinator.
-- **Number-of-seats warning**: `Aircraft.NrOfSeats < FlightType.MinNrOfAircraftSeatsRequired` (`FlightsController.js:583-588`). Non-blocking, client-only.
-- **Defaults: `StartType` from `myClub.DefaultStartType || "1"`** and `FlightType` from `myClub.DefaultGliderFlightTypeId` / `DefaultTowFlightTypeId` (`FlightsController.js:198-206, 159`).
-- **`GetFlightDetails` returns `CanUpdateRecord`/`CanDeleteRecord` flags** computed server-side (S-062a). Form reads them off the DTO; whole-form-disable when false.
-- **Empty-Guid normalization** on load (`tow.AircraftId == '00000000-...'` → `""`): server (S-062a) rejects empty UUIDs at the wire, so client must replace `'00000000-...'` → `null` on load (parity with legacy `mapFlightToForm` `:319-324`).
-
-### Scope clarifications
-
-**In:** create / read / update / copy / delete for glider + tow + glider-with-tow via SPA forms. localStorage workstation prefs. `CanUpdate/CanDelete` flag respected. 412 toast. New e2e specs for copy + paired-create.
-
-**Out:**
-- Motor flight form (S-064).
-- Async validate-flights workflow trigger (S-083).
-- Validation rejection UX depth (S-101).
-- State-transition buttons other than save/delete (S-059 / S-102).
-
-### NFR call-outs
-
-- **Performance**: form-load p95 < 3s on Fast 3G (page-load) + fan-out of ~5 master-data GETs. Master-data caching per S-006 makes the second open near-instant.
-- **Security**: `canUpdateRecord` disables the whole form; server (S-062a) is the authoritative gate.
-- **Keyboard navigation** (operator-velocity, not WCAG — that target was rescinded by vision amendment 2026-05-20d): selectize was hostile to Playwright (`04-flights-create.spec.ts:64`); the new `<fls-select>` (S-008) is Playwright-friendly and `Tab`-reachable, which is enough for the keyboard-only completion NFR (§2). No screen-reader / ARIA obligations beyond kit defaults.
-- **i18n**: every label, hint, validation message via i18n key.
+- **Submit-time glider→tow sync** of `startDateTime` / `startLocationId` / `outboundRoute` happens BEFORE the tow-discard check; tow row receives the synced values even though the UI mirrors were always disabled. Coordinator owns it; server is defense in depth.
+- **Engine-counter reset on aircraft change is conditional** on `myClub.resetEngineOperatingCounters`. When false, counters preserved. Draft-restore wins over the reset rule on cold reload.
+- **`SoloFlightCheckboxEnablementCalculator` is tri-state** (CHECKED-disabled / UNCHECKED-disabled / toggleable); ng-zorro checkbox is binary — needs `<af-toggle>` with a "locked" visual + tooltip, not a plain disabled checkbox.
+- **`noStartTimeInformation` propagates glider→tow; `noLdgTimeInformation` does NOT.** Asymmetric by legacy design.
+- **`nrOfLdgs` auto-defaults to 1** on first `ldgTime` blur (glider) / first `formatTowLanding` (tow) if unset.
+- **Wizard step-jump must flush in-flight `valueChanges`** before nav, else the last keystroke is dropped between debounce and route change.
+- **Mass-assignment defense** — submit DTO excludes `processState`, `operatingClubId`, `ownerId`, `validationErrors`, `version`, audit columns. Server rejects them anyway; stripping client-side avoids round-tripping a stale `version` from the form.
+- **Session-lifecycle wipe** — Dexie store (drafts + recents + prefs) drains on logout AND tenant-switch via a shared hook. Shared-workstation PII boundary; not surfaced in the AC list.
 
 ## Security plan
 
 ### Threat model (form-page-specific)
 
-- **PII echo in localStorage prefs (med)**: `towPilotByAircraftId` keys aircraft → person ID. Person ID alone isn't PII. **OK**.
-- **Stored-XSS via free-text fields rendering on edit (med)**: `flight_comment`, `outbound_route`, `inbound_route`, `coupon_number` echoed back into the form on load. Angular bindings use interpolation by default — never `[innerHTML]`. Audit the templates for `bypassSecurityTrustHtml` (must be zero usages).
-- **Cross-tenant Person dropdown leak (high)**: Persons dropdowns sourced from `Persons.getGliderPilots()` which is server-filtered per S-062a's input-validation contract (Person must have `PersonClub` for caller's tenant + role). Dropdown options reflect this; the form doesn't fetch person lists from another route.
-- **Form bypass of `canUpdateRecord` (high)**: a determined user disables the `[disabled]` binding via DevTools and submits. Server (S-062a) re-checks. **No client gate is sufficient.**
-- **412 retry-storm (low)**: 412 toast must not auto-retry. UI shows refresh action; user decides.
+- **PII echo in Dexie store on shared workstation** (med — drafts + recents + prefs carry person IDs, comments, coupons; origin-scoped not user-scoped). Mitigation: session-lifecycle hook wipes the Dexie store on logout AND tenant-switch (one hook, drains all three slices).
+- **Conflict-prompt diff leakage via console / telemetry** (low — diff contains pilot names + comments + coupons). Mitigation: sanitize at source — telemetry emits `{flightId, fieldPaths[]}` only; never serialize `theirs` / `yours` payloads.
+- **SW queue replay with expired bearer** (med, ADR 0015) — queued mutation drains post-reconnect with a stale token → 401. Mitigation: surface re-auth prompt with "keep / discard queued change"; never silently drop. Both the SW queue (origin-scoped) and the Dexie draft must survive re-auth.
+- **412 retry-storm** (low). No auto-retry; inline diff requires explicit user action before next PUT.
+- **`last-context` cross-caller PII** (low — workstation-scoped by design, legacy parity). Response treated as untrusted seed; never persisted to Dexie prefs slice; refetched per form-open.
 
 ### Authorization
 
-Inherits from S-062a. UI hides edit/delete row actions and disables save/delete buttons when `canUpdateRecord` / `canDeleteRecord` is false. Server (S-062a) is the gate.
+Inherits S-062a. UI hides/disables save/delete + wizard body when `canUpdateRecord` / `canDeleteRecord` are false; server is the gate, client flag is UX-only.
 
 ### Input validation
 
-Inherits from S-062a's server-side validation. Client-side adds:
-- `Validators.required` only on fields that are client-required per the field-by-field table (currently: `flightDate`, `aircraftId`, `startLocationId`, `ldgLocationId`, `startType` and conditionally `observerPersonId`, `flightCostBalanceType`, `invoiceRecipientPersonId`, route fields).
-- HTML5 `pattern`/`min`/`max` where it matches server expectations (cheap UX preview).
+Client validators are eager UX preview only; server `FlightValidator` (S-062a) is authoritative. Known S-062a gaps (NOT deferred here): (1) cross-tenant aircraft / flightType / location FK → 400 without path; (2) PersonClub membership for crew person FKs not validated at write. Both map to `flight.error.invalidReference` i18n toast with a generic hint; never echo the offending UUID.
 
 ### PII handling
 
-- Form never logs values.
-- `MessageManager` toasts use i18n keys + field-path; never the offending value.
-- localStorage prefs: per-workstation, per-user via OIDC token? **Investigate** — legacy uses unscoped localStorage. If tokens collide across users on a shared workstation, prefs may leak. Acceptable per legacy parity; document.
+Never log control values; toasts use i18n keys + field-path (`glider.pilotPersonId`), never the value. SW queue logs carry `flightId` + reason only. Conflict-prompt diff renders via Angular interpolation only; never serialized to `console.*` / telemetry.
 
 ## Test plan
 
 ### Coverage contract
 
-This story owns **happy-path parity** for create/edit/copy on glider and tow flights through the SPA. Backend coverage is S-062a. List coverage is S-062b. Depth dimensions deferred to S-101 (validation), S-102 (state), S-103 (time gates), S-104 (perms), S-105 (cascade), S-106 (tenant per-endpoint).
+Owns happy-path parity for create/edit/copy + the AC-DIR-* directives at the form layer. Backend coverage = S-062a; list coverage = S-062b; depth → S-101 / S-102 / S-105.
 
 ### Test pyramid
 
-- **Unit (Vitest)**: ~10 — coordinator rules, form defaults, copy-reset.
-- **Component (Angular Testing Library)**: ~5 — visibility rules, disabled-state, field-validity round-trip.
-- **E2E (Playwright)**: 4 — 2 parity ports + 2 new.
+- **Vitest:** 4 logic-class specs (~12 cases total).
+- **Playwright:** 9 specs (2 ported parity + 7 directive), grouped `S-062c-core` (6) and `resilience-split` (3).
+- **Component (Angular Testing Library):** 0 — forbidden per memory `feedback-fe-tests-unit-for-logic-playwright-for-dom`.
 
-### Unit tests
+### Vitest scope (logic classes only)
 
-`FlightFormCoordinator`:
-- `startLocationChange_mirrorsToLdgLocationAndTowFields`.
-- `flightTypeChange_isSoloFlight_isForcedTrue_whenFlightTypeIsSolo`.
-- `flightTypeChange_isPassengerFlight_isForcedFalse`.
-- `aircraftChange_oneSeatAircraft_forcesIsSolo`.
-- `aircraftChange_resetsEngineCountersWhenFlagSet`.
-- `flightCostBalanceTypeChange_clearsInvoiceRecipient_whenNotRequired`.
-- `noStartTimeInformation_propagatesToTow_butNoLdgTimeInformationDoesNot`.
-- `isSoloToggleOn_clearsCoPilotPersonId`.
+- `flight-form.coordinator.spec.ts` — ~30 cross-field rules exercised against a detached `FormGroup`: solo-derivation tri-state, co-pilot clear, invoice-recipient clear, glider→tow mirror, aircraft change engine-counter reset, `noStartTimeInformation` propagation, paired-create `toDto` flat-DTO split, `prepareForSaving` tow-discard.
+- `flight-form.defaults.spec.ts` — resolution order precedence; empty-Guid normalization on load; copy clears timestamps/comment/coupon/counters but preserves aircraft + pilot.
+- `flight-prefs.service.spec.ts` — Dexie-backed service keyed by OIDC `sub`: namespacing across `sub`, recency ordering, logout-wipe of `flight-drafts` + recents + prefs.
+- `conflict-resolver.spec.ts` — 412 diff returns field-path list; per-field keep-mine/theirs merge; never serializes either side for telemetry.
 
-`FlightFormDefaults`:
-- `initForNewFlight_appliesMyClubDefaults`.
-- `initForNewFlight_useslastStartLocationFromLocalStorageIfPresent`.
+### Playwright scope
 
-`FlightCopyService` (client-side reset on copy template payload):
-- (Server owns this in S-062a; client only consumes the cleared payload. No client-side unit test needed.)
+**S-062c-core:**
 
-### Component tests (Angular Testing Library)
+| Spec | Scope |
+|---|---|
+| `04-flights-create.spec.ts` (ported) | Parity oracle for create — selector adaptation only. |
+| `05-flights-edit.spec.ts` (ported) | Parity oracle for edit — selector adaptation only. |
+| `04b-flights-copy.spec.ts` | Copy flow: source unchanged, new row distinct, cleared timestamps / comment / coupon / counters. |
+| `04c-flights-paired-create.spec.ts` | Wizard 3 steps → Submit both → assert POST/POST/PUT order + `towFlightId`; force tow-POST 500 → compensating DELETE + i18n rollback toast + draft retained. |
+| `04d-keyboard-only.spec.ts` | First-pass happy path: Tab order, Enter advances/submits, Esc dirty-confirm; zero `page.mouse.click`. Consumed by S-110-t3-smoke AC-DIR-2. |
+| `04e-mobile-wizard.spec.ts` | `project: 'mobile'`: summary stacks, stepper vertical, sticky save bar, touch-target ≥44 px (AC-DIR-1/10). |
 
-- `gliderForm_disablesTowFieldsWhenStartTypeSelfLaunch` — UI conditional render.
-- `gliderForm_enablesTowFieldsWhenStartTypeTowing` — tow form section becomes visible + required-marked.
-- `towForm_engineCounterShownOnlyForEngineGliders` — `04-flights-create.spec.ts:96` parity.
-- `gliderForm_submitDisabledUntilRequiredFieldsPresent` — mirrors `04:146`.
-- `gliderForm_wholeFormDisabledWhenCanUpdateRecordFalse`.
+**resilience-split** (likely moves to sibling story per decompose):
 
-### E2E tests
-
-**Ported (selector adaptation only):**
-- `e2e/tests/new/04-flights-create.spec.ts` — port of legacy. `data-testid` adaptation; behavior assertions unchanged.
-- `e2e/tests/new/05-flights-edit.spec.ts` — port of legacy. `data-testid` adaptation.
-
-**New:**
-- `e2e/tests/new/04b-flights-copy.spec.ts`: create source via API → `/flights/copy/:id` → assert prefill + cleared fields → submit → assert second row distinct from source.
-- `e2e/tests/new/04c-flights-paired-create.spec.ts`: `/flights/new` → `StartType=Towing` → fill both sections → submit once → assert two rows in DB (glider with `towFlightId`, tow with matching `flightId`). Legacy `04` uses self-launch to avoid the tow form — this is genuinely new e2e coverage.
+| Spec | Scope |
+|---|---|
+| `04f-draft-restore.spec.ts` | Type → reload mid-wizard → restore prompt → values + active step recovered; route-key isolation between `new` / `edit:<id>` / `copy:<id>` (AC-DIR-9). |
+| `04g-conflict-prompt.spec.ts` | Stub 412 → inline diff dialog, per-field keep-mine/theirs, Enter-activatable, no auto-retry; stub 409 state-gate → toast w/ Reload action. |
+| `04h-marginal-3g.spec.ts` | `page.route` 200 ms RTT + intermittent loss: form interactive, save queues via SW, no spinner > 3 s; time-to-log stopwatch present, not value-gated (AC-DIR-11/14). |
 
 ### Parity gate
 
-**Parity gate: zero-delta.** `04` + `05` both green on new stack with byte-identical behavior assertions; runs in CI continuously.
+Zero-delta on `04-flights-create` + `05-flights-edit`. Only allowed change: `data-testid` / selector adaptation to ng-zorro markup (incl. `nz-select` `mousedown`-open helper). Field labels, validation copy, save outcomes, list-after-save state, redirect target — byte-identical to the legacy oracle.
 
 ### Risks
 
-- **Selectize-to-fls-select migration drift**: behavior parity (filter, select, blur semantics) — covered by parity specs + component tests.
-- **Coordinator complexity**: ~30 cross-field rules. Each is one `valueChanges` subscription + `setValue({emitEvent:false})` — repetitive but mechanical. Risk: a missed `emitEvent:false` causes an infinite loop. Mitigation: unit-test each rule's effect independently.
-- **Calculated `FlightAirState` reads "now"** — must be pure on timestamps to avoid test flakiness. S-060 verifies.
+- `nz-select` opens on `mousedown` not `click` — parity-helper rewrite, not selector swap. Budget time in the port.
+- Coordinator `patchValue` without `emitEvent: false` deadlocks in Vitest fakeAsync — explicit unit test, but easy to regress.
+- IndexedDB / SW draft state leaks across Playwright workers — per-test browser context + `storageState: undefined` on every resilience-split spec.
+- 412 / 409 stubs race the optimistic save — deterministic `page.route` delay only, no real-clock waits.
+- Wizard step-jump mid-typing may swallow the in-flight keystroke if `valueChanges` lags route nav — coordinator flushes before step change; assert in `04c`.
 
 ## Performance plan
 
-### Hot paths
+### Budgets
 
-- **Page-load on `/flights/new` or `/flights/:id`**: cold-cache LCP < 3s on Fast 3G. Form bundle + master-data fan-out + initial GET share this budget.
-- **`GET /flights/{id}`**: p95 < **150ms** server-side (owned by S-062a).
-- **`PUT /flights/{id}`**: p95 < **300ms** server-side; UI shows a save-in-progress indicator if > 500ms.
-- **`POST /flights`**: p95 < **300ms** server-side.
+- Form-open cold: p95 < 3 s Fast 3G (flight GET + 5 master-data GETs all in parallel, never serialized).
+- Form-open warm: p95 < 300 ms (master-data hits Signal Store cache per S-006; only flight GET / template GET round-trips).
+- Save single: p95 < 500 ms (one POST/PUT).
+- Save paired-create: p95 < 1500 ms (3 sequential round-trips; revisit when server-side `POST /flights/paired` lands).
+- Draft auto-save: < 50 ms per write (500 ms debounce, single IDBTransaction, well under one frame).
 
-### Form-load fan-out
+### Fan-out shape
 
-Each form open triggers ~5 GETs (aircraft, persons, locations, flight types, start types). Mitigations:
-- Master-data signal stores are **cache-long** per S-006. Second open near-instant.
-- First open of the session: fan-out the 5 GETs in parallel; don't serialize them behind the flight GET.
-- Show the form shell as soon as the flight detail returns; resolve dropdown options as masterdata trickles in.
+Master-data GETs (aircraft / persons / locations / flight-types / routes) issued in parallel with the flight GET on route entry — never chained behind it.
 
-### Caching strategy (client-side)
+### Marginal-3G (AC-DIR-14)
 
-- **Single-flight (edit) store slice**: load on route entry; clear on route exit. No cross-route caching.
-- **Master-data**: cache-long.
-- **localStorage workstation prefs**: per-workstation, opt-in by user via "copy from last" buttons (except `lastStartLocation` which auto-hydrates).
+Dropdowns from Signal Store cache; SW queues the save mutation per ADR 0015; UI surfaces "queued for sync" immediately so no spinner exceeds 3 s. Verified by `04h-marginal-3g.spec.ts`.
 
-### Bundle size
+### Route-split
 
-- Form components, coordinator, defaults helper, prefs service — code-split via the route loader.
-- Reactive Forms + field-error primitives are shared chunks.
+Code-split `flight-edit` at the route level — load only on `/flights/new`, `/flights/:id`, `/flights/copy/:id`. Coordinator + defaults budget ≤ 10 KB minzipped; the 3 wizard step components share the route chunk.
 
-### Memory considerations
-
-- Form-detail payload ~10KB. Negligible.
-- No streaming concerns.
+<!-- modernize-refine: end -->
 
 ## Client form mechanics
 
-(Carried verbatim from the original S-062 refinement, which already covered this in depth.)
+The detailed legacy field set, default chain, and cross-field reactive rules below are preserved verbatim as the parity oracle. The 3-step wizard above is the production layout; this section is the field-level contract those steps render against. (Held outside the refinement delimiters so re-refines don't risk dropping it.)
 
 ### Form structure
 
@@ -320,7 +257,7 @@ Each form open triggers ~5 GETs (aircraft, persons, locations, flight types, sta
 
 type FlightForm = FormGroup<{
   flightId:  FormControl<string | null>;          // hidden; null on create
-  flightDate: FormControl<Date | null>;           // top-level (flight-edit-form.html:17-20)
+  flightDate: FormControl<string | null>;         // ISO yyyy-MM-dd; native <input type="date">
   startType:  FormControl<number | null>;         // top-level (FlightsController.js:198, 666-673)
 
   canUpdateRecord: FormControl<boolean>;          // server-supplied permission (FlightService.cs:1741-1770)
@@ -525,79 +462,6 @@ Engine-counter visibility is `glider.HasEngine`, independent of `startType` (`fl
 
 Mass-assignment defense: form **does not** include `processState`, `operating_club_id`, `owner_id`, `validation_errors`, `version`, audit columns in the DTO at submit — server (S-062a) rejects them anyway.
 
-### Recommended Angular implementation
-
-**Required-when patterns.** Single `effect()` re-derives validators from a `formValue` signal. Avoid `Validators.required` in the initial builder for conditionally-required fields — set dynamically. Use `setValidators` + `updateValueAndValidity({emitEvent:false})` to avoid re-trigger loops.
-
-```ts
-effect(() => {
-  const ft = flightTypeSig();          // computed from form value + flightTypes signal
-  const required = !!ft?.observerPilotOrInstructorRequired;
-  const c = form.controls.glider.controls.observerPersonId;
-  c.setValidators(required ? [Validators.required] : []);
-  c.updateValueAndValidity({ emitEvent: false });
-});
-```
-
-**Visible-when patterns.** Drive template via `computed()` signals over `formValue = toSignal(form.valueChanges, { initialValue: form.getRawValue() })`. Template uses `@if`. **Disable hidden controls** so they don't contribute to validity.
-
-```ts
-readonly showWinchOperator = computed(() => this.selectedStartType()?.isWinchStart === true);
-readonly showInstructor    = computed(() => this.selectedFlightType()?.instructorRequired === true);
-readonly showCoPilot       = computed(() =>
-  !this.formValue().glider.isSoloFlight
-  && !this.selectedFlightType()?.isPassengerFlight
-  && !this.selectedFlightType()?.instructorRequired);
-```
-
-Pair each visibility computed with an `effect` that enables/disables the control. Reactive form `[disabled]` binding is a footgun; use `control.disable({emitEvent:false})`.
-
-**Cross-field value derivation.** Coordinator pattern as plain TS — `FlightFormCoordinator` lives in `pages/flight-edit/flight-form-coordinator.ts`, no Angular DI. Subscribes to `valueChanges` of specific controls and writes through.
-
-```ts
-// FlightFormCoordinator.attach(form) — called once from FlightEditComponent.ngOnInit()
-form.controls.glider.controls.startLocationId.valueChanges
-   .pipe(takeUntilDestroyed(destroyRef))
-   .subscribe(id => {
-     form.controls.glider.controls.ldgLocationId.setValue(id, { emitEvent: false });
-     form.controls.tow?.controls.startLocationId.setValue(id, { emitEvent: false });
-     form.controls.tow?.controls.ldgLocationId.setValue(id, { emitEvent: false });
-   });
-```
-
-Same pattern for: `flightTypeId` → solo derivation + `coPilotPersonId` clear; `aircraftId` → force-solo-if-1-seat + reset engine counters; `flightCostBalanceType` → toggle `personForInvoiceRequired` + clear invoice recipient when needed; `noStartTimeInformation` → propagate to tow.
-
-**Disabled-state binding.** Server's `canUpdateRecord` flag flows through FlightStore. On detail load, after `form.patchValue(dto)`, call `form.disable({emitEvent:false})` when `!canUpdateRecord`. For tow's per-field `!tow.aircraftId` gate, an `effect` toggles per-control enable/disable:
-
-```ts
-effect(() => {
-  const towEnabled = !!this.formValue().tow?.aircraftId && this.canUpdate();
-  for (const key of ['pilotPersonId','flightTypeId','ldgTime','ldgLocationId',
-                     'nrOfLdgs','inboundRoute','flightComment','duration']) {
-    const c = (form.controls.tow.controls as any)[key];
-    towEnabled ? c.enable({emitEvent:false}) : c.disable({emitEvent:false});
-  }
-});
-```
-
-`tow.startLocationId` / `tow.startTime` / `tow.outboundRoute` get permanently `.disable()`'d in the builder.
-
-**Where `FlightFormCoordinator` plugs in.** Instantiated once by `FlightEditComponent.ngOnInit()`, given the `FormGroup` + masterdata signals (`gliderAircrafts`, `gliderFlightTypes`, `flightCostBalanceTypes`, `myClub`). Owns: (a) all `valueChanges` subscriptions for cross-field derivations; (b) the submit-time transformation pipeline (`prepareForSaving` equivalent); (c) "copy from last" actions (delegates to `LocalStoragePreferences`). The coordinator does **not** own visibility computeds — those live on the component because templates bind to them directly. The coordinator only writes form values; visibility is a pure projection.
-
-## Open design questions
-
-These are the form-relevant open questions carried from the original S-062. Backend-specific questions live in S-062a.
-
-1. **Route allow-list pre-validation client-side.** Server (S-062a) validates `outboundRoute`/`inboundRoute` values against the location's `InOutboundPoints` allow-list. Client currently shows autocomplete from the list but accepts free text. Decide: pre-validate client-side (better UX; saves a round-trip on rejection) or keep the legacy free-text behavior. Related to S-062a's Q3 (eager-vs-deferred validation).
-
-2. **Server-required-but-no-client-`required` fields.** Four fields are required by the server but have no client-side `ng-required` attribute in legacy: `glider.flightTypeId`, `glider.pilotPersonId`, `tow.flightTypeId`, `tow.pilotPersonId`. Legacy lets the form save without them — the flight just lands in `NotProcessed`. If S-062a chose eager rejection at create (currently it didn't — see Q3 there), these need `Validators.required` client-side too — otherwise the SPA's "save" button enables but the POST returns 400. **Currently aligned with deferred validation.**
-
-3. **`tow.noStartTimeInformation` modeling.** The flag is set indirectly via glider toggle propagation (`FlightsController.js:810`) but has no dedicated UI control on the tow form. **Currently modeled** as a hidden derived control on the new tow form (mirrors glider). Server-side computation is the alternative (cleaner contract). Confirm.
-
-4. **`FlightStateMapper` enum drift (R5).** Both `FlightProcessState` (stored) and `FlightAirState` (computed) flow to the SPA. The new system derives both from the generated OpenAPI client (closing R5). Confirm `FlightAirState` is included in the OpenAPI spec as an enum, not stringified ad-hoc. Verify via S-004 codegen output.
-
-<!-- modernize-refine: end -->
-
 <!-- amendment-2026-05-15b: start -->
 
 ## Amendment 2026-05-15b — Mobile-first / dense-desktop directive
@@ -606,22 +470,23 @@ The vision-doc amendment 2026-05-15b (see [`02-vision-and-constraints.md`](../02
 
 **Layered acceptance criteria (additive to existing AC list — do not remove the parity ACs):**
 
-- **AC-DIR-1 (mobile-first single-column layout).** At viewports `<lg` (< 1024 px), the form renders as a single column with sectioned accordion (Aircraft → Pilots → Times → Locations → Costs); glider and tow are accordion siblings, not side-by-side. Sticky save bar anchored to viewport bottom. (Vision §F2.)
-- **AC-DIR-2 (dense-desktop variant).** At `≥lg` (≥ 1024 px), the form renders in a dense multi-column grid (4 columns at `xl`, glider + tow side-by-side as legacy intends but tighter padding + inline labels). **Same component**, breakpoint-driven layout — no parallel desktop component (C22). (§F3.)
-- **AC-DIR-3 (keyboard-only completion on dense).** On `≥lg`: Tab / Shift+Tab natural order; Enter = save; Esc = cancel-with-dirty-confirm; Ctrl+D = save+copy; number keys 1–5 select the most-common flight-types. Playwright spec asserts the form saves with zero mouse events. (§F4, §2 NFR "keyboard-only completion".)
-- **AC-DIR-4 ("Copy from Last" preserved as first-class).** Existing localStorage-backed `local-storage-preferences.ts` + per-field "Copy from Last" buttons remain unchanged. They are not replaced by AC-DIR-5. (C24, §F5.)
+- **AC-DIR-1 (single-column responsive wizard at all sizes).** Wizard renders as a 3-step single-column flow at every viewport — mobile to desktop. No dense / multi-column variant; the dense-desktop layout originally specified by amendment 2026-05-15b is **dropped** (operator 2026-05-25). Sticky save bar anchored to viewport bottom on `<lg`; inline page-header actions on `≥lg`. (Vision §F2 still applies; §F3 dense layout supersedes-by-drop.)
+- **AC-DIR-2 — dropped (2026-05-25).** Dense-desktop multi-column variant removed. Single responsive wizard satisfies both density profiles.
+- **AC-DIR-3a (keyboard nav first pass — in this story).** Tab / Shift+Tab natural order across the wizard, Enter advances step / submits on last step, Esc cancel-with-dirty-confirm. `04d-keyboard-only.spec.ts` happy path asserts the form saves with zero mouse events at any viewport. (§F4, §2 NFR "keyboard-only completion" — applies universally now that dense is dropped.)
+- **AC-DIR-3b (keyboard nav polish — deferred to S-062i).** Ctrl+D = save+copy; number keys 1–5 select the most-common flight-types. Linux Firefox Ctrl+D collides with browser bookmark — needs `preventDefault` + browser-target test. See `S-062i-flight-edit-keyboard-polish.md`.
+- **AC-DIR-4 ("Copy from Last" preserved as first-class).** Per-field "Copy from Last" buttons backed by the new `af-user-preferences-service` (Dexie, `sub`-scoped — replaces raw localStorage per `alpenflight/web/CLAUDE.md` policy). They are not replaced by AC-DIR-5. (C24, §F5.)
 - **AC-DIR-5 (smart defaults from server context).** When the form opens blank (no localStorage hint, no copy), the SPA calls `GET /api/v1/flights/last-context?aircraftId=<club-default>&date=<today>` (added in S-062a) and patches with the last-saved field combo. Smart defaults **never** overwrite an explicit "Copy from Last" action. Empty response → falls back to `flight-form-defaults.ts`. (§F6, §F7.)
 - **AC-DIR-6 (recency-biased autocompletes).** All dropdowns (aircraft, pilot, observer, passenger, location, route) surface "recently used by this user, last 7 days" at the top of the list before the rest of the catalog. Consumes `<fls-autocomplete>` primitive from S-008. (§F8.)
 - **AC-DIR-7 (inline validation, not on-blur).** Errors pin next to the offending field; update as the user types / moves focus. Soft pref §4. Supersedes legacy on-blur + top-message-bar pattern. (§F9.)
 - **AC-DIR-8 (native input types).** `<input type="time">` (native mobile picker); `<input type="date">`; `inputmode="numeric"` for counters / nrOfLdgs. The `<fls-time-now-button>` primitive (S-008) wraps the legacy "Set Now" semantics on top of native time inputs. No text-with-format-on-blur. (§F10, §F14.)
-- **AC-DIR-9 (auto-save draft to IndexedDB).** Form debounce-saves (500 ms) the in-progress draft to IndexedDB on every field change. On connection loss, queued via PWA service worker (C18 / ADR 0014). On reload, draft restored with "continue from draft / start fresh" prompt. (§F12.)
-- **AC-DIR-10 (touch-target compliance).** Primary actions on mobile viewports ≥ 44 × 44 CSS px hit area; on dense desktop, ≥ 28 × 28 px for icon-only secondary actions. Enforced by primitives kit (S-008); verified by Playwright bounding-rect assertion (axe-core rescinded per vision amendment 2026-05-20d). (§2 NFR "touch targets".)
-- **AC-DIR-11 (time-to-log benchmark).** Scripted Playwright "stopwatch" test logs a typical glider-with-tow flight on dense desktop in ≤ 60 s and on phone viewport (360 × 640) in ≤ 90 s. Recorded per release; informational, not a blocking gate. (§2 NFR "time-to-log".)
-- **AC-DIR-12 (online 409 conflict UX).** When a `PUT` returns 409 (via the `@Version` check from S-067), the form shows the diff inline with per-field "keep mine / keep theirs", keeps the draft visible, and never auto-retries. Applies in addition to the existing AC-9 412 toast. (§F13, soft pref §4 "optimistic-concurrency UX".)
-- **AC-DIR-13 (smooth conditional sections).** Dependent fields (e.g. tow block when StartType=Towing; instructor when `InstructorRequired`) appear/disappear via Signal-Store render control; 150 ms slide-in; focus moves to first new field. No layout jank. (§F15.)
-- **AC-DIR-14 (marginal-connectivity graceful degradation).** At simulated 200 ms RTT + intermittent loss: dropdown data served from Signal Store cache; save attempts queue via service worker; no spinner > 3 s blocks the user. (§2 NFR "marginal-connectivity graceful degradation".)
+- **AC-DIR-9 (auto-save draft to IndexedDB — deferred to S-062h).** Form debounce-saves (500 ms) the in-progress draft to IndexedDB via `af-user-preferences-service` on every field change. On connection loss, queued via PWA service worker (ADR 0015). On reload, draft restored with "continue from draft / start fresh" prompt via `<af-dialog>`. (§F12.) Plumbs in this story (Dexie store provisioned); full draft service + restore prompt ship in **S-062h**.
+- **AC-DIR-10 (touch-target compliance).** Primary actions ≥ 44 × 44 CSS px hit area at every viewport. Icon-only secondary actions ≥ 28 × 28 CSS px. Enforced by S-008 primitives kit; verified by Playwright bounding-rect assertion (axe-core rescinded per vision amendment 2026-05-20d). (§2 NFR "touch targets".)
+- **AC-DIR-11 (time-to-log benchmark).** Scripted Playwright "stopwatch" test logs a typical glider-with-tow flight on desktop (1280 × 800) in ≤ 60 s and on phone viewport (360 × 640) in ≤ 90 s. Recorded per release; informational, not a blocking gate. (§2 NFR "time-to-log".)
+- **AC-DIR-12 (concurrency UX, reconciled — deferred to S-062h).** Two codes split by source: **412** (stale-version `If-Match` mismatch from S-067 once `@Version` lands) → inline diff dialog via `<af-dialog>` with per-field keep-mine / keep-theirs, draft visible, no auto-retry. **409** (state-gate reject from S-062a `DELIVERY_BOOKED`, or `ObjectOptimisticLockingFailureException` race) → non-blocking toast with "Reload latest" action; no diff because state-gate is policy not data. Earlier AC9 toast wording is superseded — toast remains the 409 fallback. This story plumbs the `If-Match` round-trip and a placeholder 412 toast; the diff dialog ships in **S-062h**.
+- **AC-DIR-13 (smooth conditional sections — deferred to S-062i).** Dependent fields (e.g. tow step empty-state when StartType ≠ Towing; instructor when `InstructorRequired`) appear/disappear via Signal-Store render control; 150 ms slide-in (honors `prefers-reduced-motion`); focus moves to first new field. No layout jank. (§F15.)
+- **AC-DIR-14 (marginal-connectivity graceful degradation — deferred to S-062h).** At simulated 200 ms RTT + intermittent loss: dropdown data served from Signal Store cache (S-006); save attempts queue via service worker (ADR 0015); no spinner > 3 s blocks the user. (§2 NFR.) Tested by `04h-marginal-3g.spec.ts` in S-062h.
 
-**Refinement status flag:** This story was refined on 2026-05-14, *before* the 2026-05-15b directive. The existing form-store + coordinator + prefs-service design accommodates the directive without architectural change, but the design-notes, test-plan, and performance-plan sections were written without it. **Recommend `/modernize-refine S-062c` is re-run before implementation begins** so the directive folds into the per-section refinement rather than living as an appended block.
+**Refinement status flag:** Re-refined on 2026-05-25 with the amendment + operator decisions baked into the Design / Edge / Security / Test / Performance sections. Story formally split via decompose on 2026-05-25 into S-062c (core: wizard + paired-create + Copy-from-Last + smart-defaults + first-pass keyboard), [S-062h](S-062h-flight-edit-resilience.md) (drafts + 412 inline diff + marginal-3G), and [S-062i](S-062i-flight-edit-keyboard-polish.md) (Ctrl+D + 1–5 quick-select + slide-in focus).
 
 **Inputs picked up from sibling stories:**
 
