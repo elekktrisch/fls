@@ -13,27 +13,18 @@ export const FLIGHTS_ROUTES: Routes = [
     path: 'new',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./placeholder/flights-edit-placeholder.page').then(
-        (m) => m.FlightsEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/flights-edit.page').then((m) => m.FlightsEditPage),
   },
   {
     path: 'copy/:id',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./placeholder/flights-edit-placeholder.page').then(
-        (m) => m.FlightsEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/flights-edit.page').then((m) => m.FlightsEditPage),
   },
   {
     path: ':id/edit',
     canActivate: [tenantRequiredGuard],
     data: { showNavBar: true },
-    loadComponent: () =>
-      import('./placeholder/flights-edit-placeholder.page').then(
-        (m) => m.FlightsEditPlaceholderPage,
-      ),
+    loadComponent: () => import('./edit/flights-edit.page').then((m) => m.FlightsEditPage),
   },
 ];
