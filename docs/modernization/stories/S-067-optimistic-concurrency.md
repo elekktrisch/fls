@@ -2,7 +2,10 @@
 id: S-067
 title: Flight concurrency + delete-from-list + aerotow round-trip
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-05-25
+github_issue: 128
+github_pr: 127
 depends_on: [S-058, S-062c]
 acceptance:
   - `flight.version` `@Version` column added (already present on `Flight.java:208-210` from S-058 — story confirms migration alignment + OpenAPI surfacing).
