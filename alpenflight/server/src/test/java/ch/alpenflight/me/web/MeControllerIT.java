@@ -2,6 +2,7 @@ package ch.alpenflight.me.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -75,7 +76,9 @@ class MeControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
         assertThat(body.get("id").asText()).isEqualTo(userId.toString());
-        assertThat(body.get("personId").asText()).isEqualTo(personId.toString());
+        assertThat(body.get("personId").asText())
+                .as("personId carries the `pn-` external prefix per ADR 0019")
+                .isEqualTo(PersonId.of(personId).toExternal());
         assertThat(body.get("clubId").asText()).isEqualTo(CLUB_UUID.toString());
         assertThat(body.get("username").asText()).isEqualTo("me-it-linked");
         assertThat(body.get("firstName").asText())

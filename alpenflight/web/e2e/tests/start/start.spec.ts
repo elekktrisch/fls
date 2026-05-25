@@ -8,7 +8,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * names against.
  */
 
-const MOCK_PERSON_ID = '019e30c3-2c00-7100-8000-0000000000a5';
+const MOCK_PERSON_ID = 'pn-019e30c3-2c00-7100-8000-0000000000a5';
 const FLIGHT_ID = 'fl-019e30c3-2c00-7165-8000-000000000001';
 const AIRCRAFT_ID = 'ac-019e30c3-2c00-7165-8000-000000000a01';
 const START_LOC_ID = '019e30c3-2c00-7165-8000-000000000b01';

@@ -93,7 +93,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         String bFlight = createFlightWithPic(pilotBExt, "2026-05-02");
 
         JsonNode items = readJson(get(
-                "/api/v1/flights?personId=" + pilotA + "&from=2026-05-01&to=2026-05-31"
+                "/api/v1/flights?personId=" + pilotAExt + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=50")).get("items");
 
         assertThat(extractIds(items))
@@ -113,7 +113,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         String pic2 = createFlightWithPic(pilotExt, "2026-05-02");
 
         JsonNode items = readJson(get(
-                "/api/v1/flights?personId=" + pilot + "&from=2026-05-01&to=2026-05-31"
+                "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal() + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=50")).get("items");
 
         assertThat(extractIds(items)).contains(pic1, pic2);
@@ -130,7 +130,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
                 flightUuid.toString(), pilot.toString());
 
         JsonNode items = readJson(get(
-                "/api/v1/flights?personId=" + pilot + "&from=2026-05-01&to=2026-05-31"
+                "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal() + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=50")).get("items");
         assertThat(extractIds(items))
                 .as("Soft-deleted crew rows are filtered out — the user is no longer "
@@ -156,7 +156,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         UUID foreignPerson = seedPersonInClub(jdbc, foreignClub);
 
         ResponseEntity<String> res = get(
-                "/api/v1/flights?personId=" + foreignPerson
+                "/api/v1/flights?personId=" + PersonId.of(foreignPerson).toExternal()
                         + "&from=2026-05-01&to=2026-05-31&limit=50");
         assertThat(res.getStatusCode())
                 .as("Cross-tenant personId is an empty match, never a 403")
@@ -186,7 +186,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         createFlightWithPicAndStart(pilotExt, "2026-05-10", "2026-05-10T06:00:00Z");
 
         JsonNode items = readJson(get(
-                "/api/v1/flights?personId=" + pilot + "&from=2026-05-01&to=2026-05-31"
+                "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal() + "&from=2026-05-01&to=2026-05-31"
                         + "&limit=1")).get("items");
         assertThat(items).hasSize(1);
         assertThat(items.get(0).get("id").asText())
