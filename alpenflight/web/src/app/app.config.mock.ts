@@ -52,7 +52,12 @@ const MOCK_USER: User = {
   firstName: 'Mock',
   lastName: 'Sysadmin',
   clubId: MOCK_CLUB_ID,
-  roles: ['SYSTEM_ADMINISTRATOR'],
+  // Both roles: SYSTEM_ADMINISTRATOR unlocks sysadmin-only screens,
+  // CLUB_ADMINISTRATOR unlocks the per-tenant mutation gates
+  // (`session.isClubAdmin`, used by e.g. `aircraft-edit`'s canMutate
+  // guard). The production model keeps these separate — sysadmin has
+  // no clubId — but the mock is the "can drive everything" persona.
+  roles: ['SYSTEM_ADMINISTRATOR', 'CLUB_ADMINISTRATOR'],
 };
 
 const mockAuthInterceptor: HttpInterceptorFn = (req, next) => {
