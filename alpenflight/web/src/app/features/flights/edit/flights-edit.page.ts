@@ -101,7 +101,7 @@ interface StepDescriptor {
         <div class="hidden lg:contents">
           <af-button
             type="primary"
-            data-testid="flight-submit"
+            data-testid="flight-submit-header"
             [disabled]="saving()"
             (clicked)="finalSubmit()"
             >Save</af-button
@@ -311,7 +311,7 @@ interface StepDescriptor {
                 <!-- Sticky-bar save only on <lg; on >=lg the header action carries it. -->
                 <div class="lg:hidden">
                   <af-button
-                    data-testid="flight-submit"
+                    data-testid="flight-submit-sticky"
                     type="primary"
                     [disabled]="saving()"
                     (clicked)="finalSubmit()"

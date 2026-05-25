@@ -187,7 +187,7 @@ test.describe('flight edit — create (parity port)', () => {
     await page.screenshot({ path: 'screenshots/flights/04-02-glider-filled.png', fullPage: true });
 
     // Glider is the last step under Self start — submit directly.
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     // POST /flights observed once, with the glider row shape.
     await expect.poll(() => captured.length).toBeGreaterThan(0);

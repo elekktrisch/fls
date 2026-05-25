@@ -266,16 +266,26 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     const towAircraft = page.getByTestId('flight-edit-tow-aircraft').locator('nz-select');
     await towAircraft.click();
-    await page.getByRole('option', { name: 'HB-TOW' }).click();
+    // Wait for the ng-zorro CDK overlay panel to mount before clicking the
+    // option — `getByRole('option')` polls the document but the option only
+    // renders once the portal is attached, and inside a wizard with active
+    // re-renders the panel can briefly thrash.
+    await expect(
+      page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').first(),
+    ).toBeVisible();
+    await page.locator('nz-option-item').filter({ hasText: 'HB-TOW' }).click();
     const towPilot = page.getByTestId('flight-edit-tow-pilot').locator('nz-select');
     await towPilot.click();
-    await page.getByRole('option', { name: 'Bob Tower' }).click();
+    await expect(
+      page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').first(),
+    ).toBeVisible();
+    await page.locator('nz-option-item').filter({ hasText: 'Bob Tower' }).click();
     await page.screenshot({
       path: 'screenshots/flights/04c-03-tow-filled.png',
       fullPage: true,
     });
 
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     // Three calls observed in order: POST glider, POST tow, PUT-link.
     await expect.poll(() => backend.observed.length).toBeGreaterThanOrEqual(3);
@@ -309,9 +319,12 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     const towAircraft = page.getByTestId('flight-edit-tow-aircraft').locator('nz-select');
     await towAircraft.click();
-    await page.getByRole('option', { name: 'HB-TOW' }).click();
+    await expect(
+      page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').first(),
+    ).toBeVisible();
+    await page.locator('nz-option-item').filter({ hasText: 'HB-TOW' }).click();
 
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     // POST glider, POST tow (fails), DELETE glider — exactly three calls.
     await expect.poll(() => backend.observed.length).toBeGreaterThanOrEqual(3);

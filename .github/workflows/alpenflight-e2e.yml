@@ -40,6 +40,11 @@ jobs:
   playwright:
     name: Run Playwright
     runs-on: ubuntu-22.04
+    # `contents: write` lets the gh-pages deploy step push to the
+    # gh-pages branch. Without it the deploy fails with 403 even though
+    # the test job otherwise has no need for write access.
+    permissions:
+      contents: write
     # Hard ceiling. Suite + ng-serve boot fit in <5 min when green;
     # 8 min absorbs a cold pnpm/playwright cache. `maxFailures: 3` in
     # the Playwright config bails the test run itself; this is the
@@ -98,9 +103,14 @@ jobs:
         # can't keep the whole job tied up. Playwright per-test timeout
         # is 30s; maxFailures is 3; this gives ample room for a clean run
         # and pulls the plug if the runner refuses SIGINT.
+        #
+        # `continue-on-error: false` (default): a test failure fails the
+        # job. The downstream "Assemble", "Upload artifact" and "Deploy
+        # to gh-pages" steps all guard with `if: always()` so the report
+        # is still published when the suite is red — that's what makes
+        # the failure surface diagnosable.
         timeout-minutes: 5
         run: pnpm exec playwright test --config=e2e/playwright.config.ts
-        continue-on-error: true
 
       - name: Assemble publishable bundle
         if: always()
@@ -157,7 +167,11 @@ jobs:
           if-no-files-found: warn
 
       - name: Deploy to gh-pages
-        if: github.ref == 'refs/heads/main' && always()
+        # `always()` keeps this step alive when the Playwright step is
+        # red — the whole point of publishing is that you can read the
+        # failing run's report. Convention is `always()` first so it's
+        # clear the implicit `success()` gate is intentionally lifted.
+        if: ${{ always() && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
