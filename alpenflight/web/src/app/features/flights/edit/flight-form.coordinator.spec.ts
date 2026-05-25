@@ -1,5 +1,5 @@
 import { DestroyRef, Injector, runInInjectionContext } from '@angular/core';
-import { NonNullableFormBuilder } from '@angular/forms';
+import { FormBuilder } from '@angular/forms';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -47,7 +47,7 @@ describe('FlightFormCoordinator', () => {
     TestBed.configureTestingModule({});
     injector = TestBed.inject(Injector);
     destroyRef = runInInjectionContext(injector, () => TestBed.inject(DestroyRef));
-    const fb = new NonNullableFormBuilder();
+    const fb = new FormBuilder().nonNullable;
     form = buildFlightForm(fb);
     metadata = {
       aircraft: {
@@ -166,7 +166,7 @@ describe('FlightFormCoordinator', () => {
     it('preserves engine counters when club.resetEngineOperatingCounters=false', () => {
       metadata.clubDefaults.resetEngineOperatingCounters = false;
       // Re-attach with the updated stub.
-      const fb = new NonNullableFormBuilder();
+      const fb = new FormBuilder().nonNullable;
       form = buildFlightForm(fb);
       coordinator = new FlightFormCoordinator();
       runInInjectionContext(injector, () => {

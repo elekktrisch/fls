@@ -117,9 +117,10 @@ export function needsTowplane(startTypeId: string | null | undefined): boolean {
   return startTypeId.toLowerCase().endsWith(TOWING_START_TYPE_SUFFIX);
 }
 
-function nullIfEmptyGuid<T extends string | null | undefined>(v: T): T | null {
+function nullIfEmptyGuid(v: string | null | undefined): string | null {
+  if (v == null) return null;
   if (v === EMPTY_GUID) return null;
-  return v ?? null;
+  return v;
 }
 
 function extractCrew(crew: readonly FlightCrewItem[] | undefined, slot: CrewSlot): string | null {
@@ -180,10 +181,9 @@ export interface FlightFormSnapshot {
   tow: CrewSnapshot;
 }
 
-function detailToSubForm(d: FlightDetail | FlightTemplateResponse | undefined): CrewSnapshot {
+function detailToCrewSnapshot(d: FlightDetail): CrewSnapshot {
   // Empty-Guid normalization is load-bearing on BOTH edit-load AND copy-template
   // — without it the form silently 400s on save (S-062a known FK gap).
-  if (!d) return blankCrew();
   const crew = d.crew ?? [];
   return {
     aircraftId: nullIfEmptyGuid(d.aircraftId),
@@ -201,16 +201,49 @@ function detailToSubForm(d: FlightDetail | FlightTemplateResponse | undefined): 
     startTime: timeOfIso(d.startDateTime),
     ldgTime: timeOfIso(d.ldgDateTime),
     duration: null,
-    noStartTimeInformation: d.noStartTimeInformation ?? false,
-    noLdgTimeInformation: d.noLdgTimeInformation ?? false,
+    noStartTimeInformation: d.noStartTimeInformation,
+    noLdgTimeInformation: d.noLdgTimeInformation,
     nrOfLdgs: d.nrOfLdgs ?? null,
     engineStartOperatingCounterInSeconds: d.engineStartOperatingCounterInSeconds ?? null,
     engineEndOperatingCounterInSeconds: d.engineEndOperatingCounterInSeconds ?? null,
     flightCostBalanceTypeId: nullIfEmptyGuid(d.flightCostBalanceTypeId),
     invoiceRecipientPersonId: null,
     couponNumber: d.couponNumber ?? null,
-    flightComment: 'comment' in d ? ((d.comment as string) ?? null) : null,
+    flightComment: d.comment ?? null,
     isSoloFlight: d.isSoloFlight,
+  };
+}
+
+function templateToCrewSnapshot(t: FlightTemplateResponse): CrewSnapshot {
+  // FlightTemplateResponse is the editable-surface subset — no times / engine
+  // counters / comment / coupon. Crew + aircraft + locations + routes only.
+  const crew = t.crew ?? [];
+  return {
+    aircraftId: nullIfEmptyGuid(t.aircraftId),
+    flightTypeId: nullIfEmptyGuid(t.flightTypeId),
+    pilotPersonId: extractCrew(crew, FCT.PILOT),
+    coPilotPersonId: extractCrew(crew, FCT.CO_PILOT),
+    instructorPersonId: extractCrew(crew, FCT.INSTRUCTOR),
+    observerPersonId: extractCrew(crew, FCT.OBSERVER),
+    passengerPersonId: extractCrew(crew, FCT.PASSENGER),
+    winchOperatorPersonId: extractCrew(crew, FCT.WINCH_OPERATOR),
+    startLocationId: nullIfEmptyGuid(t.startLocationId),
+    ldgLocationId: nullIfEmptyGuid(t.ldgLocationId),
+    outboundRoute: t.outboundRoute ?? null,
+    inboundRoute: t.inboundRoute ?? null,
+    startTime: null,
+    ldgTime: null,
+    duration: null,
+    noStartTimeInformation: t.noStartTimeInformation,
+    noLdgTimeInformation: t.noLdgTimeInformation,
+    nrOfLdgs: t.nrOfLdgs ?? null,
+    engineStartOperatingCounterInSeconds: null,
+    engineEndOperatingCounterInSeconds: null,
+    flightCostBalanceTypeId: nullIfEmptyGuid(t.flightCostBalanceTypeId),
+    invoiceRecipientPersonId: null,
+    couponNumber: null,
+    flightComment: null,
+    isSoloFlight: t.isSoloFlight,
   };
 }
 
@@ -272,8 +305,8 @@ export function flightDetailToFormSnapshot(
     startTypeId: glider.startTypeId ?? null,
     canUpdateRecord: true,
     canDeleteRecord: true,
-    glider: detailToSubForm(glider),
-    tow: detailToSubForm(tow),
+    glider: detailToCrewSnapshot(glider),
+    tow: tow ? detailToCrewSnapshot(tow) : blankCrew(),
   };
 }
 
@@ -284,7 +317,7 @@ export function templateToFormSnapshot(template: FlightTemplateResponse): Flight
     startTypeId: template.startTypeId ?? null,
     canUpdateRecord: true,
     canDeleteRecord: true,
-    glider: detailToSubForm(template),
+    glider: templateToCrewSnapshot(template),
     tow: blankCrew(),
   };
 }

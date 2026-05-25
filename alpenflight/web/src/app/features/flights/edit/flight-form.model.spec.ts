@@ -1,4 +1,4 @@
-import { NonNullableFormBuilder } from '@angular/forms';
+import { FormBuilder } from '@angular/forms';
 import { describe, expect, it } from 'vitest';
 
 import type { FlightDetail, FlightTemplateResponse } from '@api/generated/model';
@@ -12,7 +12,7 @@ import {
   templateToFormSnapshot,
 } from './flight-form.model';
 
-const fb = new NonNullableFormBuilder();
+const fb = new FormBuilder().nonNullable;
 
 const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
 
@@ -111,7 +111,8 @@ describe('flight-form.model', () => {
     it('produces a blank tow sub-group when no tow is linked', () => {
       const snap = flightDetailToFormSnapshot(gliderDetail(), undefined);
       expect(snap.tow.aircraftId).toBeNull();
-      expect(snap.tow.crew).toBeUndefined();
+      expect(snap.tow.pilotPersonId).toBeNull();
+      expect(snap.tow.flightTypeId).toBeNull();
     });
 
     it('parses startTime / ldgTime from ISO datetimes', () => {
