@@ -28,11 +28,15 @@ import {
 import type {
   FlightCreateRequest,
   FlightDetail,
+  FlightLastContextResponse,
   FlightListResponse,
   FlightProcessStateChangeRequest,
   FlightProcessStateResponse,
+  FlightTemplateResponse,
   FlightUpdateRequest,
-  ListParams
+  LastContextParams,
+  ListParams,
+  NewTemplateParams
 } from '../model';
 
 
@@ -345,6 +349,109 @@ export class FlightsService {
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
+    );
+  }
+/**
+ * @summary Copy-template projection: source flight minus identity, times, comments, counters
+ */
+ copyTemplate<TData = FlightTemplateResponse>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
+ copyTemplate<TData = FlightTemplateResponse>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ copyTemplate<TData = FlightTemplateResponse>(id: string, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  copyTemplate<TData = FlightTemplateResponse>(
+    id: string, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/flights/${id}/copy-template`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/flights/${id}/copy-template`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/flights/${id}/copy-template`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Empty new-flight template (no id; per-club defaults applied if any)
+ */
+ newTemplate<TData = FlightTemplateResponse>(params?: NewTemplateParams, options?: HttpClientBodyOptions): Observable<TData>;
+ newTemplate<TData = FlightTemplateResponse>(params?: NewTemplateParams, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ newTemplate<TData = FlightTemplateResponse>(params?: NewTemplateParams, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  newTemplate<TData = FlightTemplateResponse>(
+    params?: NewTemplateParams, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    const filteredParams = filterParams({...params, ...options?.params}, new Set<string>([]));
+
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/flights/new-template`,{
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+        params: filteredParams,}
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/flights/new-template`,{
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+        params: filteredParams,}
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/flights/new-template`,{
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+        params: filteredParams,}
+    );
+  }
+/**
+ * @summary Last-flight context for (aircraft, date) — mobile-first form pre-fill (AC-DIR-1)
+ */
+ lastContext<TData = FlightLastContextResponse>(params: LastContextParams, options?: HttpClientBodyOptions): Observable<TData>;
+ lastContext<TData = FlightLastContextResponse>(params: LastContextParams, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ lastContext<TData = FlightLastContextResponse>(params: LastContextParams, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  lastContext<TData = FlightLastContextResponse>(
+    params: LastContextParams, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    const filteredParams = filterParams({...params, ...options?.params}, new Set<string>([]));
+
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/flights/last-context`,{
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+        params: filteredParams,}
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/flights/last-context`,{
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+        params: filteredParams,}
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/flights/last-context`,{
+    ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+        params: filteredParams,}
     );
   }
 };

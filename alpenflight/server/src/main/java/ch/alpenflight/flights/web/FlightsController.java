@@ -2,14 +2,18 @@ package ch.alpenflight.flights.web;
 
 import ch.alpenflight.flights.application.FlightDtos.FlightCreateRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
+import ch.alpenflight.flights.application.FlightDtos.FlightLastContextResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightProcessStateChangeRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightProcessStateResponse;
+import ch.alpenflight.flights.application.FlightDtos.FlightTemplateResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
 import ch.alpenflight.flights.application.FlightStateTransitionService;
 import ch.alpenflight.flights.application.FlightsService;
 import ch.alpenflight.flights.domain.Flight;
+import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.TransitionTrigger;
+import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.FlightId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -78,6 +82,33 @@ class FlightsController {
     @Operation(summary = "Get a flight by id")
     FlightDetail get(@PathVariable("id") FlightId id) {
         return flights.getFlight(id);
+    }
+
+    @GetMapping("/new-template")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Empty new-flight template (no id; per-club defaults applied if any)")
+    FlightTemplateResponse newTemplate(
+            @RequestParam(value = "type", required = false, defaultValue = "GLIDER")
+            FlightAircraftType type) {
+        return flights.newTemplate(type);
+    }
+
+    @GetMapping("/{id}/copy-template")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Copy-template projection: source flight minus identity, times, comments, counters")
+    FlightTemplateResponse copyTemplate(@PathVariable("id") FlightId id) {
+        return flights.copyTemplate(id);
+    }
+
+    @GetMapping("/last-context")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @Operation(summary = "Last-flight context for (aircraft, date) — mobile-first form pre-fill (AC-DIR-1)")
+    ResponseEntity<FlightLastContextResponse> lastContext(
+            @RequestParam("aircraftId") AircraftId aircraftId,
+            @RequestParam("date") LocalDate date) {
+        return flights.lastContext(aircraftId.value(), date)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)

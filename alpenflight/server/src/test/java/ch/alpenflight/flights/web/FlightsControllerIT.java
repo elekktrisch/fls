@@ -315,6 +315,78 @@ class FlightsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void newTemplate_returns_empty_payload_with_todays_date() {
+        ResponseEntity<String> res = get("/api/v1/flights/new-template?type=GLIDER");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.get("flightAircraftType").asText()).isEqualTo("GLIDER");
+        assertThat(body.has("id")).isFalse();
+        assertThat(body.has("version")).isFalse();
+        assertThat(body.get("crew")).isEmpty();
+        assertThat(body.get("flightDate").asText()).isEqualTo(LocalDate.now().toString());
+    }
+
+    @Test
+    void copyTemplate_clears_timestamps_and_identity_keeps_aircraft_and_type() {
+        Map<String, Object> payload = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        payload.put("startDateTime", "2026-05-01T08:00:00Z");
+        payload.put("ldgDateTime", "2026-05-01T09:00:00Z");
+        payload.put("nrOfLdgs", 1);
+        payload.put("comment", "do not copy me");
+        String sourceId = readJson(post("/api/v1/flights", payload)).get("id").asText();
+
+        ResponseEntity<String> res = get("/api/v1/flights/" + sourceId + "/copy-template");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.has("id")).isFalse();
+        assertThat(body.has("version")).isFalse();
+        assertThat(body.has("startDateTime")).isFalse();
+        assertThat(body.has("ldgDateTime")).isFalse();
+        assertThat(body.has("comment")).isFalse();
+        assertThat(body.get("flightAircraftType").asText()).isEqualTo("GLIDER");
+        assertThat(body.get("aircraftId").asText()).isEqualTo(aircraftIdExternal);
+        assertThat(body.get("flightDate").asText()).isEqualTo("2026-05-01");
+        assertThat(body.has("nrOfLdgs"))
+                .as("nrOfLdgs is cleared on copy (Jackson omits null)")
+                .isFalse();
+    }
+
+    @Test
+    void copyTemplate_unknownId_returns_404() {
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/fl-019e30c3-2c00-7001-8000-000000000aaa/copy-template");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void lastContext_returns_most_recent_flight_context() {
+        // Seed two flights on the same (aircraft, date); the second is "most
+        // recent" by UUIDv7-time-ordered id.
+        Map<String, Object> p1 = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        p1.put("outboundRoute", "EARLIER");
+        post("/api/v1/flights", p1);
+        Map<String, Object> p2 = createPayload("GLIDER", aircraftIdExternal, "2026-05-01");
+        p2.put("outboundRoute", "LATER");
+        post("/api/v1/flights", p2);
+
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/last-context?aircraftId=" + aircraftIdExternal + "&date=2026-05-01");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        assertThat(body.get("outboundRoute").asText()).isEqualTo("LATER");
+        // Times are deliberately NOT returned.
+        assertThat(body.has("startDateTime")).isFalse();
+        assertThat(body.has("ldgDateTime")).isFalse();
+    }
+
+    @Test
+    void lastContext_returns_404_when_no_prior_flight() {
+        ResponseEntity<String> res = get(
+                "/api/v1/flights/last-context?aircraftId=" + aircraftIdExternal + "&date=2030-12-31");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void update_withMatchingIfMatch_returns_200() {
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();

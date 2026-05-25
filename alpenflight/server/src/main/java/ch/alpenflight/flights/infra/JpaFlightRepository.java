@@ -51,6 +51,27 @@ public interface JpaFlightRepository
     @Override
     @Query("select f from Flight f where f.processStateId = :psid and f.deletedOn is null")
     List<Flight> findByProcessStateId(@Param("psid") UUID processStateId);
+
+    @Override
+    default Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate) {
+        // Spring Data DESC-by-id pagination — UUIDv7 ids are time-ordered so
+        // max-id ≈ most-recently-created within the same date.
+        return doFindLastByAircraftAndDate(aircraftId, flightDate,
+                org.springframework.data.domain.PageRequest.of(0, 1))
+                .stream().findFirst();
+    }
+
+    @EntityGraph(attributePaths = {"crew"})
+    @Query("""
+            select f from Flight f
+            where f.aircraftId = :acid
+              and f.flightDate = :date
+              and f.deletedOn is null
+            order by f.createdOn desc, f.id desc
+            """)
+    List<Flight> doFindLastByAircraftAndDate(@Param("acid") UUID aircraftId,
+                                             @Param("date") LocalDate flightDate,
+                                             org.springframework.data.domain.Pageable pageable);
 }
 
 interface CustomListQuery {

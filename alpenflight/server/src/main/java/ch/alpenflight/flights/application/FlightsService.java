@@ -5,9 +5,12 @@ import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.flights.application.FlightDtos.FlightCreateRequest;
 import ch.alpenflight.flights.application.FlightDtos.FlightDetail;
+import ch.alpenflight.flights.application.FlightDtos.FlightLastContextResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightListItem;
 import ch.alpenflight.flights.application.FlightDtos.FlightListResponse;
+import ch.alpenflight.flights.application.FlightDtos.FlightTemplateResponse;
 import ch.alpenflight.flights.application.FlightDtos.FlightUpdateRequest;
+import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
@@ -173,6 +176,66 @@ public class FlightsService {
                         Objects.requireNonNull(saved.getId()),
                         before, saved));
         return after;
+    }
+
+    /**
+     * Builds an empty template payload — id-less editable surface for the
+     * SPA's new-flight form. Per-club defaults remain a future story (no
+     * club-default infrastructure exists yet); this only stamps today's
+     * date + the discriminator.
+     */
+    @Transactional(readOnly = true)
+    public FlightTemplateResponse newTemplate(FlightAircraftType type) {
+        return new FlightTemplateResponse(
+                type,
+                null,
+                LocalDate.now(clock),
+                null, null,
+                null, null,
+                null, null,
+                null,
+                false,
+                null,
+                null,
+                null, null,
+                false, false,
+                null,
+                null, null,
+                List.of());
+    }
+
+    /**
+     * Reads the source flight in the caller's tenant and produces a
+     * template payload cleared of identity-bearing + per-flight fields per
+     * legacy {@code FlightsController.js:232-255}: timestamps, comments,
+     * coupon, engine counters are blanked; aircraft / type / locations /
+     * crew are preserved.
+     */
+    @Transactional(readOnly = true)
+    public FlightTemplateResponse copyTemplate(FlightId sourceId) {
+        Flight flight = repository.findByIdWithCrew(sourceId)
+                .orElseThrow(() -> new FlightNotFoundException(sourceId));
+        return mapper.toCopyTemplate(flight);
+    }
+
+    /**
+     * Returns the seed fields from the last saved flight for the given
+     * (operating_club_id, aircraft_id, flight_date). Times are deliberately
+     * NOT returned — the SPA uses this to pre-fill 'what to fly with', not
+     * when. Per AC-DIR-1.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<FlightLastContextResponse> lastContext(UUID aircraftId,
+                                                                    LocalDate flightDate) {
+        return repository.findLastByAircraftAndDate(aircraftId, flightDate)
+                .map(flight -> {
+                    Flight tow = null;
+                    if (flight.getTowFlightId() != null) {
+                        tow = repository.findByIdWithCrew(FlightId.of(flight.getTowFlightId()))
+                                .orElse(null);
+                    }
+                    return mapper.toLastContext(flight, tow);
+                });
     }
 
     public void softDeleteFlight(FlightId id) {
