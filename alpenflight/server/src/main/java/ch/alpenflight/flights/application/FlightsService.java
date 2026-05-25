@@ -20,6 +20,7 @@ import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
+import ch.alpenflight.flights.domain.TowLinkPolicy;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -157,15 +158,7 @@ public class FlightsService {
         flight.repointAircraft(req.aircraftId().value());
         flight.updateOperationalData(mapper.toOperationalData(req));
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));
-        if (req.towFlightId() == null) {
-            flight.unlinkTow();
-        } else {
-            FlightId towId = req.towFlightId();
-            Flight tow = repository.findByIdWithCrew(towId)
-                    .orElseThrow(() -> new InvalidTowLinkException(
-                            "Tow flight " + towId.toExternal() + " not found in current tenant"));
-            flight.linkTow(tow);
-        }
+        applyTowLink(flight, req);
         Flight saved = repository.save(flight);
         FlightDetail after = mapper.toDetail(saved);
         audit.record(AuditAction.UPDATE,
@@ -258,6 +251,35 @@ public class FlightsService {
                                 towBefore));
             });
         }
+    }
+
+    /**
+     * S-063 partial-PUT contract:
+     * <ul>
+     *   <li>{@code unlinkTowFlight=true} — unlink, regardless of any {@code
+     *       towFlightId} value also sent (the explicit choice wins).</li>
+     *   <li>{@code towFlightId} non-null — link to the resolved tow. Rejects
+     *       if another non-deleted glider already references that tow row
+     *       (cascade-delete would otherwise orphan the second link).</li>
+     *   <li>Both absent / null — preserve the existing link. This is the
+     *       partial-PUT fix: clients editing crew on a paired glider no
+     *       longer have to re-echo the link to keep it.</li>
+     * </ul>
+     */
+    private void applyTowLink(Flight flight, FlightUpdateRequest req) {
+        if (Boolean.TRUE.equals(req.unlinkTowFlight())) {
+            flight.unlinkTow();
+            return;
+        }
+        if (req.towFlightId() == null) {
+            return;
+        }
+        FlightId towId = req.towFlightId();
+        Flight tow = repository.findByIdWithCrew(towId)
+                .orElseThrow(() -> new InvalidTowLinkException(
+                        "Tow flight " + towId.toExternal() + " not found in current tenant"));
+        TowLinkPolicy.verifyExclusiveLink(towId, repository.findByTowFlightId(towId), flight);
+        flight.linkTow(tow);
     }
 
     private static void assertMutationAllowed(Flight flight) {
