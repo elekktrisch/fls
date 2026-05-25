@@ -5,11 +5,13 @@ epic: E-07
 status: done
 started_at: 2026-05-25
 done_at: 2026-05-25
+merged: true
+merged_at: 2026-05-25
 github_issue: 124
 github_pr: 125
 depends_on: [S-062a, S-062b, S-007, S-008]
 acceptance:
-  - `/flights/new`, `/flights/copy/:id`, `/flights/:id/edit` render a 3-step wizard (Launch / Glider / Tow). Step 3 is replaced by an empty-state when the start-type is not Aerotow.
+  - `/flights/new`, `/flights/copy/:id`, `/flights/:id/edit` render the wizard (Launch → Glider → optional Tow). The Tow step is hidden from the stepper entirely when the start type is not Aerotow; an effect clamps the active step when the visible set shrinks. Stepper renders as 3 equal-width cards with a numbered/checkmark badge, "STEP N" uppercase label, step name, and subtitle — matches `docs/modernization/design-reference/screenshots/flights-form.png`.
   - Edit-load via `GET /flights/{id}` (+ follow-up GET for the linked tow row when `towFlightId` is set). Copy via `GET /flights/{id}/copy-template`. Both apply empty-UUID load normalization in the form-model load mapper.
   - Paired-create orchestration (`FlightStore.savePair`): `POST /flights` glider → `POST /flights` tow → `PUT /flights/{gliderId}` with `If-Match` to link `towFlightId`. Tow-POST failure triggers a compensating `DELETE /flights/{gliderId}` (best-effort; orphan GC is a backend concern). Update is a single PUT per row via `updatePair`.
   - `FlightFormCoordinator` (plain TS, no Angular DI) hosts the cross-field reactive rules from the parity oracle. Rules that key off rich master-data flags (solo tri-state, invoice clear, seat-count force-solo, route-required) are wired but await richer list-projection fields from the masterdata stores — see Follow-ups.

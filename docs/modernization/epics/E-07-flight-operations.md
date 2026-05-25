@@ -19,7 +19,7 @@ Port the single `Flight` entity (discriminated by `FlightAircraftType`), the two
 - [ ] S-061 — Time-gate enforcement (≥2d lock, ≥3d bill) — code + tests
 - [x] S-062a — Flight CRUD backend + DTOs + validator port
 - [x] S-062b — Flight list page (paginated, filterable)
-- [ ] S-062c — Flight create/edit forms (wizard + paired-create + Copy-from-Last + first-pass keyboard)
+- [x] S-062c — Flight create/edit forms (wizard + paired-create + Copy-from-Last + first-pass keyboard)
 - [ ] S-062h — Flight-edit resilience (IndexedDB drafts + 412 inline diff + marginal-3G)
 - [ ] S-062i — Flight-edit keyboard polish (Ctrl+D + 1–5 quick-select + slide-in focus jump)
 - [ ] S-063 — Glider↔Tow link integrity (TowFlightId recursion in validation + cascade semantics)
