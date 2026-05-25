@@ -99,17 +99,19 @@ jobs:
       - name: Run Playwright
         id: pw
         working-directory: alpenflight/web
-        # Step-level cap so a single hung test or non-cooperative cancel
-        # can't keep the whole job tied up. Playwright per-test timeout
-        # is 30s; maxFailures is 3; this gives ample room for a clean run
-        # and pulls the plug if the runner refuses SIGINT.
+        # Step-level cap matches the outer job timeout — a single hung
+        # test or non-cooperative cancel can't tie up more than the job
+        # itself. Per-test timeout is 30s; maxFailures is 3; retries are
+        # 0 in CI (flake-mask off). A clean run fits in ~3 min with 2
+        # workers; the 7 min ceiling absorbs a slow ng-serve boot or a
+        # cold pnpm/playwright cache.
         #
         # `continue-on-error: false` (default): a test failure fails the
         # job. The downstream "Assemble", "Upload artifact" and "Deploy
         # to gh-pages" steps all guard with `if: always()` so the report
         # is still published when the suite is red — that's what makes
         # the failure surface diagnosable.
-        timeout-minutes: 5
+        timeout-minutes: 7
         run: pnpm exec playwright test --config=e2e/playwright.config.ts
 
       - name: Assemble publishable bundle

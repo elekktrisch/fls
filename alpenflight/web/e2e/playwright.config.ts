@@ -8,8 +8,17 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
-  retries: process.env['CI'] ? 2 : 0,
-  workers: process.env['CI'] ? 1 : undefined,
+  // Zero retries in CI: this is a mock-only suite (no Keycloak, no
+  // backend, no flaky cross-process timing). Retries here mask flake
+  // instead of fixing it, and triple the wall-clock cost of every
+  // failure — burning the 5-minute step budget on a single red test
+  // chasing 30s × 3 timeouts.
+  retries: 0,
+  // 4 parallel workers in CI to match ubuntu-22.04's core count. ng
+  // serve is shared via Playwright's `webServer` config (one instance)
+  // so worker count only fans out browser contexts, not dev servers.
+  // If ng-serve asset-serving becomes a bottleneck, dial back to 2.
+  workers: process.env['CI'] ? 4 : undefined,
   // Bail once a regression is obvious instead of burning the full 15-min
   // budget on a guaranteed-red run. 3 absorbs a flake without dragging
   // the whole suite through a doomed run. Tunable via
