@@ -118,6 +118,7 @@ function newTemplateBody(): unknown {
     startLocationId: LOC_HOME,
     ldgLocationId: LOC_HOME,
     flightTypeId: FT_GLIDER,
+    aircraftId: AC_GLIDER,
     crew: [],
     isSoloFlight: false,
     noStartTimeInformation: false,
@@ -266,16 +267,16 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     const towAircraft = page.getByTestId('flight-edit-tow-aircraft').locator('nz-select');
     await towAircraft.click();
-    await page.getByRole('option', { name: 'HB-TOW' }).click();
+    await page.getByTestId(`af-select-option-${AC_TOW}`).click();
     const towPilot = page.getByTestId('flight-edit-tow-pilot').locator('nz-select');
     await towPilot.click();
-    await page.getByRole('option', { name: 'Bob Tower' }).click();
+    await page.getByTestId(`af-select-option-${PERSON_TOW_PILOT}`).click();
     await page.screenshot({
       path: 'screenshots/flights/04c-03-tow-filled.png',
       fullPage: true,
     });
 
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     // Three calls observed in order: POST glider, POST tow, PUT-link.
     await expect.poll(() => backend.observed.length).toBeGreaterThanOrEqual(3);
@@ -309,9 +310,9 @@ test.describe('flight wizard — aerotow paired-create (S-067)', () => {
     await expect(page.getByTestId('flight-step-tow')).toBeVisible();
     const towAircraft = page.getByTestId('flight-edit-tow-aircraft').locator('nz-select');
     await towAircraft.click();
-    await page.getByRole('option', { name: 'HB-TOW' }).click();
+    await page.getByTestId(`af-select-option-${AC_TOW}`).click();
 
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     // POST glider, POST tow (fails), DELETE glider — exactly three calls.
     await expect.poll(() => backend.observed.length).toBeGreaterThanOrEqual(3);

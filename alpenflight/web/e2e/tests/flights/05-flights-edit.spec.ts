@@ -154,7 +154,7 @@ test.describe('flight edit — edit existing (parity port)', () => {
     await page.screenshot({ path: 'screenshots/flights/05-02-edit-glider.png', fullPage: true });
 
     // Glider is the last step — submit directly.
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     await expect.poll(() => captured).not.toBeNull();
     expect(captured!.ifMatch).toBe('7');

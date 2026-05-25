@@ -618,10 +618,11 @@ test('aircraft form: field inventory matches legacy reference screenshot (parity
   await expect(page.getByLabel('Towing start allowed')).toBeVisible();
   await expect(page.getByLabel('Winch start allowed')).toBeVisible();
 
-  // Section 3: Technical fields.
+  // Section 3: Technical fields. Year is an af-select — locate by testId
+  // for the same reason as Type / Homebase above.
   await expect(page.getByLabel('MTOM (kg)')).toBeVisible();
   await expect(page.getByLabel('Serial number')).toBeVisible();
-  await expect(page.getByLabel('Year of manufacture')).toBeVisible();
+  await expect(page.getByTestId('aircraft-year-select')).toBeVisible();
   await expect(page.getByLabel('FLARM ID')).toBeVisible();
   await expect(page.getByLabel('DAEC index')).toBeVisible();
   await expect(page.getByLabel('Noise class')).toBeVisible();
