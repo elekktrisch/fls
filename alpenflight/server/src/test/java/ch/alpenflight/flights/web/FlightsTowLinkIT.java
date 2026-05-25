@@ -66,13 +66,11 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
     @Test
     void put_without_towFlightId_preserves_existing_link() {
-        // Seed a paired glider+tow.
         String gliderId = createFlight("GLIDER");
         String towId = createFlight("TOW");
         link(gliderId, towId);
 
-        // PUT that omits towFlightId entirely. Per the JsonNullable fix,
-        // "field absent" means "preserve existing link" — not "unlink."
+        // Omit towFlightId entirely on the PUT. Absence means preserve, not unlink.
         Map<String, Object> body = updateBody();
         body.put("comment", "edited the crew note");
         ResponseEntity<String> put = put("/api/v1/flights/" + gliderId, body, tokenA);
@@ -99,10 +97,9 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         assertThat(put.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         JsonNode detail = readJson(get("/api/v1/flights/" + gliderId, tokenA));
-        assertThat(detail.has("towFlightId") && !detail.get("towFlightId").isNull()).isFalse();
-
-        // Tow row remains (unlink ≠ delete).
+        assertThat(hasTowLink(detail)).isFalse();
         assertThat(get("/api/v1/flights/" + towId, tokenA).getStatusCode())
+                .as("Unlink does not delete the tow row")
                 .isEqualTo(HttpStatus.OK);
     }
 
@@ -140,7 +137,7 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
         // glider2 unchanged; glider1's link intact.
         JsonNode g2 = readJson(get("/api/v1/flights/" + glider2, tokenA));
-        assertThat(g2.has("towFlightId") && !g2.get("towFlightId").isNull()).isFalse();
+        assertThat(hasTowLink(g2)).isFalse();
         JsonNode g1 = readJson(get("/api/v1/flights/" + glider1, tokenA));
         assertThat(g1.get("towFlightId").asText()).isEqualTo(tow);
     }
@@ -162,7 +159,7 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
 
         assertThat(put.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         JsonNode glider = readJson(get("/api/v1/flights/" + gliderA, tokenA));
-        assertThat(glider.has("towFlightId") && !glider.get("towFlightId").isNull()).isFalse();
+        assertThat(hasTowLink(glider)).isFalse();
     }
 
     @Test
@@ -254,6 +251,10 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .build(),
                 String.class);
+    }
+
+    private static boolean hasTowLink(JsonNode detail) {
+        return detail.has("towFlightId") && !detail.get("towFlightId").isNull();
     }
 
     private static JsonNode readJson(ResponseEntity<String> res) {

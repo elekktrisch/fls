@@ -20,6 +20,7 @@ import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
+import ch.alpenflight.flights.domain.TowLinkPolicy;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -277,13 +278,7 @@ public class FlightsService {
         Flight tow = repository.findByIdWithCrew(towId)
                 .orElseThrow(() -> new InvalidTowLinkException(
                         "Tow flight " + towId.toExternal() + " not found in current tenant"));
-        for (Flight other : repository.findByTowFlightId(towId)) {
-            if (!Objects.equals(other.getId(), flight.getId())) {
-                throw new InvalidTowLinkException(
-                        "Tow flight " + towId.toExternal()
-                                + " is already linked by another glider");
-            }
-        }
+        TowLinkPolicy.verifyExclusiveLink(towId, repository.findByTowFlightId(towId), flight);
         flight.linkTow(tow);
     }
 

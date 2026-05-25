@@ -24,8 +24,8 @@ import java.util.UUID;
  * raw-FK back-door.
  *
  * <p>The legacy validator at {@code FlightService.cs:987-1015} keeps the
- * pair independently valid. S-063 diverges (operator decision, 2026-05-25)
- * because the daily-validation job + UI both prefer one verdict per pair.
+ * pair independently valid. AlpenFlight diverges because the daily-validation
+ * job and UI both prefer one verdict per pair.
  */
 public final class FlightCompositeValidator {
 
