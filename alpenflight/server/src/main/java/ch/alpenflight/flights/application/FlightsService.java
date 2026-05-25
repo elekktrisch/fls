@@ -12,7 +12,9 @@ import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightOperationalData;
+import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.FlightRepository;
+import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -139,6 +143,7 @@ public class FlightsService {
     public FlightDetail updateFlight(FlightId id, FlightUpdateRequest req) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.repointAircraft(req.aircraftId().value());
         flight.updateOperationalData(mapper.toOperationalData(req));
@@ -164,6 +169,7 @@ public class FlightsService {
     public void softDeleteFlight(FlightId id) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.softDelete(clock.instant());
         repository.save(flight);
@@ -171,6 +177,53 @@ public class FlightsService {
                 AuditedTarget.deleted("Flight",
                         Objects.requireNonNull(flight.getId()),
                         before));
+        // Cascade tow flight soft-delete in the same transaction — legacy
+        // FlightService.cs:1314-1319. Application-layer only (no DB cascade
+        // on the self-FK), so each tow row gets its own audit event sharing
+        // the request's actor + timestamp.
+        if (flight.getFlightAircraftType() == ch.alpenflight.flights.domain
+                .FlightAircraftType.GLIDER && flight.getTowFlightId() != null) {
+            FlightId towId = FlightId.of(flight.getTowFlightId());
+            repository.findByIdWithCrew(towId).ifPresent(tow -> {
+                if (tow.isDeleted()) {
+                    return;
+                }
+                FlightDetail towBefore = mapper.toDetail(tow);
+                tow.softDelete(clock.instant());
+                repository.save(tow);
+                audit.record(AuditAction.DELETE,
+                        AuditedTarget.deleted("Flight",
+                                Objects.requireNonNull(tow.getId()),
+                                towBefore));
+            });
+        }
     }
 
+    private static void assertMutationAllowed(Flight flight) {
+        FlightProcessState state = flight.getProcessState();
+        if (state == FlightProcessState.DELIVERY_BOOKED) {
+            throw new FlightStateGateException(state,
+                    FlightStateGateException.Reason.TERMINAL);
+        }
+        if (isAdminLockedState(state) && !callerIsClubAdmin()) {
+            throw new FlightStateGateException(state,
+                    FlightStateGateException.Reason.ADMIN_REQUIRED);
+        }
+    }
+
+    private static boolean isAdminLockedState(FlightProcessState state) {
+        return state == FlightProcessState.LOCKED
+                || state == FlightProcessState.DELIVERY_PREPARED
+                || state == FlightProcessState.DELIVERY_PREPARATION_ERROR
+                || state == FlightProcessState.EXCLUDED_FROM_DELIVERY_PROCESS;
+    }
+
+    private static boolean callerIsClubAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_CLUB_ADMINISTRATOR".equals(a.getAuthority()));
+    }
 }

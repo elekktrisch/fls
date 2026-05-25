@@ -274,6 +274,80 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    void update_rejectsDeliveryBookedFlight_with_409() {
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9e-8000-000000003a9e"); // DELIVERY_BOOKED
+        ResponseEntity<String> res = put("/api/v1/flights/" + id, updatePayload());
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void update_rejectsLockedFlight_for_flightOperator_with_403() {
+        String operatorToken = jwts.mint(c -> c
+                .claim("clubId", CLUB_ID)
+                .claim("realm_access", Map.of("roles", List.of("FLIGHT_OPERATOR"))));
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9b-8000-000000003a9b"); // LOCKED
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.put(URI.create("/api/v1/flights/" + id))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + operatorToken)
+                        .body(updatePayload()),
+                String.class);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void update_allowsLockedFlight_for_clubAdministrator_with_200() {
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9b-8000-000000003a9b"); // LOCKED
+        ResponseEntity<String> res = put("/api/v1/flights/" + id, updatePayload());
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void delete_rejectsDeliveryBookedFlight_with_409() {
+        String id = createGliderInState(
+                "019e2e15-2c00-7a9e-8000-000000003a9e"); // DELIVERY_BOOKED
+        ResponseEntity<String> res = delete("/api/v1/flights/" + id);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void delete_cascadesTowFlightInSameTransaction() {
+        // Seed a glider and a tow flight, link them via PUT, then DELETE glider.
+        // The linked tow row must also be soft-deleted.
+        String gliderId = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        String towId = readJson(post("/api/v1/flights",
+                createPayload("TOW", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        Map<String, Object> link = updatePayload();
+        link.put("towFlightId", towId);
+        assertThat(put("/api/v1/flights/" + gliderId, link).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<String> del = delete("/api/v1/flights/" + gliderId);
+        assertThat(del.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        // Both rows soft-deleted: GET returns 404 for each.
+        assertThat(get("/api/v1/flights/" + gliderId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(get("/api/v1/flights/" + towId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Creates a fresh glider flight via the public POST then forces it into
+     * the target process state via JDBC — public surface only stamps
+     * NOT_PROCESSED on create.
+     */
+    private String createGliderInState(String processStateId) {
+        String idExternal = readJson(post("/api/v1/flights",
+                createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
+        UUID flightUuid = UUID.fromString(idExternal.substring(3));
+        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+                processStateId, flightUuid.toString());
+        return idExternal;
+    }
+
     private Map<String, Object> updatePayload() {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("aircraftId", aircraftIdExternal);

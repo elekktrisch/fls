@@ -3,6 +3,7 @@ package ch.alpenflight.flights.web;
 import ch.alpenflight.flights.application.InvalidCursorException;
 import ch.alpenflight.flights.domain.DuplicateCrewMemberException;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
+import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.IllegalFlightTransitionException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import java.net.URI;
@@ -38,6 +39,10 @@ class FlightsExceptionHandler {
             URI.create("urn:alpenflight:problem:flight-illegal-transition");
     private static final URI CONCURRENT_MODIFICATION =
             URI.create("urn:alpenflight:problem:flight-concurrent-modification");
+    private static final URI STATE_GATE_TERMINAL =
+            URI.create("urn:alpenflight:problem:flight-state-terminal");
+    private static final URI STATE_GATE_ADMIN_REQUIRED =
+            URI.create("urn:alpenflight:problem:flight-state-admin-required");
 
     @ExceptionHandler(FlightNotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(FlightNotFoundException e) {
@@ -100,6 +105,24 @@ class FlightsExceptionHandler {
         if (!e.allowed().isEmpty()) {
             pd.setProperty("allowed", e.allowed().stream().map(Enum::name).toList());
         }
+        return problem(pd);
+    }
+
+    @ExceptionHandler(FlightStateGateException.class)
+    ResponseEntity<ProblemDetail> handleStateGate(FlightStateGateException e) {
+        HttpStatus status = e.reason() == FlightStateGateException.Reason.TERMINAL
+                ? HttpStatus.CONFLICT
+                : HttpStatus.FORBIDDEN;
+        URI type = e.reason() == FlightStateGateException.Reason.TERMINAL
+                ? STATE_GATE_TERMINAL
+                : STATE_GATE_ADMIN_REQUIRED;
+        ProblemDetail pd = ProblemDetail.forStatus(status);
+        pd.setType(type);
+        pd.setTitle(e.reason() == FlightStateGateException.Reason.TERMINAL
+                ? "Flight is in a terminal state"
+                : "Mutation requires CLUB_ADMINISTRATOR");
+        pd.setDetail(e.getMessage());
+        pd.setProperty("state", e.state().name());
         return problem(pd);
     }
 
