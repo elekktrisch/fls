@@ -11,6 +11,10 @@ import {
   snapshotToUpdateRequest,
   templateToFormSnapshot,
 } from './flight-form.model';
+import { START_TYPE } from './flight-start-types';
+
+const TOWING = START_TYPE.AEROTOW;
+const NON_TOWING = START_TYPE.WINCH_LAUNCH;
 
 const fb = new FormBuilder().nonNullable;
 
@@ -22,7 +26,7 @@ function gliderDetail(over: Partial<FlightDetail> = {}): FlightDetail {
     flightAircraftType: 'GLIDER',
     aircraftId: 'ac-11111111-1111-1111-1111-111111111111',
     flightDate: '2026-05-25',
-    startTypeId: 'st-towing',
+    startTypeId: TOWING,
     isSoloFlight: false,
     noStartTimeInformation: false,
     noLdgTimeInformation: false,
@@ -48,13 +52,12 @@ describe('flight-form.model', () => {
   });
 
   describe('needsTowplane', () => {
-    it('returns true for the towing start-type id', () => {
-      expect(needsTowplane('st-towing')).toBe(true);
-      expect(needsTowplane('st-TOWING')).toBe(true);
+    it('returns true for the aerotow start-type id', () => {
+      expect(needsTowplane(TOWING)).toBe(true);
     });
 
     it('returns false for other start-types', () => {
-      expect(needsTowplane('st-winch')).toBe(false);
+      expect(needsTowplane(NON_TOWING)).toBe(false);
       expect(needsTowplane(null)).toBe(false);
       expect(needsTowplane(undefined)).toBe(false);
       expect(needsTowplane('')).toBe(false);
@@ -184,31 +187,31 @@ describe('flight-form.model', () => {
     }
 
     it('returns glider request only when start-type is not Towing', () => {
-      const result = snapshotToCreateRequests(snap('st-winch', 'ac-tow'));
+      const result = snapshotToCreateRequests(snap(NON_TOWING, 'ac-tow'));
       expect(result.glider.aircraftId).toBe('ac-glider');
       expect(result.tow).toBeUndefined();
     });
 
     it('returns glider+tow when start-type Towing AND tow aircraft picked', () => {
-      const result = snapshotToCreateRequests(snap('st-towing', 'ac-tow'));
+      const result = snapshotToCreateRequests(snap(TOWING, 'ac-tow'));
       expect(result.glider.aircraftId).toBe('ac-glider');
       expect(result.tow?.aircraftId).toBe('ac-tow');
     });
 
     it('drops tow when start-type Towing but tow aircraft NOT picked (partial tow data discarded, parity)', () => {
-      const result = snapshotToCreateRequests(snap('st-towing', null));
+      const result = snapshotToCreateRequests(snap(TOWING, null));
       expect(result.tow).toBeUndefined();
     });
 
     it('mirrors glider startLocationId / startTime / outboundRoute onto the tow request (parity FlightsController.js:370-372)', () => {
-      const result = snapshotToCreateRequests(snap('st-towing', 'ac-tow'));
+      const result = snapshotToCreateRequests(snap(TOWING, 'ac-tow'));
       expect(result.tow?.startLocationId).toBe('loc-home');
       expect(result.tow?.startDateTime).toBe('2026-05-25T10:00:00Z');
       expect(result.tow?.outboundRoute).toBe('home->A');
     });
 
     it('discriminates GLIDER vs TOW flightAircraftType', () => {
-      const result = snapshotToCreateRequests(snap('st-towing', 'ac-tow'));
+      const result = snapshotToCreateRequests(snap(TOWING, 'ac-tow'));
       expect(result.glider.flightAircraftType).toBe('GLIDER');
       expect(result.tow?.flightAircraftType).toBe('TOW');
     });
@@ -217,7 +220,7 @@ describe('flight-form.model', () => {
       const form = buildFlightForm(fb);
       form.patchValue({
         flightDate: '2026-05-25',
-        startTypeId: 'st-winch',
+        startTypeId: NON_TOWING,
         glider: {
           aircraftId: 'ac-glider',
           pilotPersonId: 'pn-pilot',
@@ -241,7 +244,7 @@ describe('flight-form.model', () => {
       form.patchValue({
         flightId: 'fl-existing',
         flightDate: '2026-05-25',
-        startTypeId: 'st-towing',
+        startTypeId: TOWING,
         glider: {
           aircraftId: 'ac-glider',
           pilotPersonId: 'pn-pilot',
