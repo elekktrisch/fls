@@ -2,6 +2,7 @@ package ch.alpenflight.flights.web;
 
 import static ch.alpenflight.flights.web.FlightsTestFixtures.SEED_FLIGHT_CREW_TYPE_PIC;
 import static ch.alpenflight.flights.domain.FlightCrewTypeIds.PASSENGER;
+import static ch.alpenflight.flights.domain.FlightProcessState.DELIVERY_BOOKED;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.cleanFlightRowsFor;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.createPayload;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.crewItem;
@@ -132,9 +133,8 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         String pilotExt = PersonId.of(pilot).toExternal();
         String flightId = createFlightWithCrew(pilotExt, SEED_FLIGHT_CREW_TYPE_PIC, "2026-05-01");
         UUID flightUuid = UUID.fromString(flightId.substring(3));
-        // DELIVERY_BOOKED seed id (terminal — see FlightProcessState).
         jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
-                "019e2e15-2c00-7a9e-8000-000000003a9e", flightUuid.toString());
+                DELIVERY_BOOKED.id().toString(), flightUuid.toString());
 
         JsonNode items = readJson(get(
                 "/api/v1/flights?personId=" + PersonId.of(pilot).toExternal()

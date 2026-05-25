@@ -75,6 +75,9 @@ class MeControllerIT extends PostgresIntegrationTest {
 
         ResponseEntity<String> res = get("/api/v1/me", token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getHeaders().getCacheControl())
+                .as("Per-principal PII must not be cached by intermediaries")
+                .contains("no-store");
         JsonNode body = readJson(res);
         assertThat(body.get("id").asText()).isEqualTo(userId.toString());
         assertThat(body.get("personId").asText())

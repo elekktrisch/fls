@@ -1,4 +1,3 @@
-import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
@@ -13,6 +12,22 @@ import { DEFAULT_LOCALE } from '../../core/i18n/lang-resolver';
 import { SessionStore } from '../../core/session/session.store';
 
 import { StartStore } from './start.store';
+
+/**
+ * Locale-aware date formatter via the browser's Intl. Angular's
+ * {@code DatePipe} would require {@code registerLocaleData(localeDe)} +
+ * the same for fr/it, which the project doesn't ship today; Intl works
+ * for every modern browser locale without registration and without the
+ * per-locale bundle cost.
+ */
+function formatLocaleDate(date: Date | null, locale: string, style: 'long' | 'medium'): string {
+  if (!date) return '';
+  try {
+    return new Intl.DateTimeFormat(locale, { dateStyle: style }).format(date);
+  } catch {
+    return new Intl.DateTimeFormat(DEFAULT_LOCALE, { dateStyle: style }).format(date);
+  }
+}
 
 type Greeting = 'morning' | 'afternoon' | 'evening';
 
@@ -41,7 +56,7 @@ const CREW_ROLE_LABEL: Record<string, string> = {
   selector: 'af-start',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, TranslocoDirective, AfPageComponent, DatePipe],
+  imports: [RouterLink, TranslocoDirective, AfPageComponent],
   template: `
     <af-page>
       <ng-container *transloco="let t; read: 'home'">
@@ -49,9 +64,7 @@ const CREW_ROLE_LABEL: Record<string, string> = {
           <h1 class="text-2xl font-medium text-slate-900" data-testid="start-greeting">
             {{ t('greeting.' + greetingKey(), { name: displayName() }) }}
           </h1>
-          <p class="text-slate-500" data-testid="start-today">
-            {{ today() | date: 'longDate' : undefined : locale() }}
-          </p>
+          <p class="text-slate-500" data-testid="start-today">{{ formattedToday() }}</p>
         </header>
 
         <!-- min-[900px] is the AC's exact breakpoint; matches legacy
@@ -65,9 +78,7 @@ const CREW_ROLE_LABEL: Record<string, string> = {
             >
               <header class="flex items-baseline justify-between gap-3 mb-3">
                 <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
-                <span class="text-sm tabular text-slate-500">{{
-                  lastFlightDateRaw() | date: 'mediumDate' : undefined : locale()
-                }}</span>
+                <span class="text-sm tabular text-slate-500">{{ formattedLastFlightDate() }}</span>
               </header>
               <!-- max-content keeps the label column auto-sized so longer
                    localized labels (FR "Type de vol", IT "Tipo di volo")
@@ -103,11 +114,12 @@ const CREW_ROLE_LABEL: Record<string, string> = {
               <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
               <p class="text-red-600">{{ t('lastFlight.error') }}</p>
             </div>
-          } @else {
-            <div class="border border-slate-200 p-5">
-              <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
-            </div>
           }
+          <!-- Pre-attempt / first-paint: render no card at all (per ADR 0024
+               "spinner only after 300ms" — a single-line title card with no
+               body content reads as a layout glitch). The reservations
+               placeholder keeps the row's grid shape stable. -->
+
 
           <div
             class="border border-slate-200 p-5 space-y-2"
@@ -148,6 +160,19 @@ export class StartPage {
 
   protected readonly today = computed(() => new Date());
   protected readonly locale = computed(() => this.transloco.getActiveLang() || DEFAULT_LOCALE);
+  protected readonly formattedToday = computed(() =>
+    formatLocaleDate(this.today(), this.locale(), 'long'),
+  );
+  protected readonly formattedLastFlightDate = computed(() => {
+    const iso = this.store.lastFlight()?.flightDate;
+    if (!iso) return '';
+    // Avoid the new Date('YYYY-MM-DD') UTC-midnight gotcha by parsing the
+    // local-date components directly — a flight in CH-DE on 2026-05-21
+    // mustn't render as 2026-05-20 west of UTC.
+    const [y, m, d] = iso.split('-').map(Number);
+    if (!y || !m || !d) return '';
+    return formatLocaleDate(new Date(y, m - 1, d), this.locale(), 'medium');
+  });
 
   protected readonly displayName = computed(() => {
     const user = this.session.authenticatedUser();
@@ -158,10 +183,6 @@ export class StartPage {
   protected readonly greetingKey = computed<Greeting>(() => pickGreeting(this.today().getHours()));
 
   protected readonly flightId = computed(() => this.store.lastFlight()?.id ?? null);
-
-  protected readonly lastFlightDateRaw = computed(
-    () => this.store.lastFlight()?.flightDate ?? null,
-  );
 
   protected readonly aircraftImmat = computed(() => {
     const f = this.store.lastFlight();

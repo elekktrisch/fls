@@ -188,8 +188,8 @@ test.describe('home (/start) dashboard', () => {
     const lastCard = page.getByTestId('start-last-flight-card');
     await expect(lastCard).toBeVisible();
     await expect(lastCard).toContainText('HB-S165');
-    // Card header date is rendered via DatePipe in the resolved locale —
-    // EN `mediumDate` shape is "May 21, 2026".
+    // Card-header date renders via Intl.DateTimeFormat(locale, {dateStyle:
+    // 'medium'}); en-US shape is "May 21, 2026".
     await expect(lastCard).toContainText(/May 21, 2026/);
     await expect(page.getByTestId('start-last-flight-role')).toHaveText('PIC');
 
@@ -214,6 +214,9 @@ test.describe('home (/start) dashboard', () => {
     await expect(empty).toBeVisible();
     const emptyCta = page.getByTestId('start-empty-cta');
     await expect(emptyCta).toBeVisible();
+    // Regression-lock the self-contained imperative CTA copy (was the
+    // fragment "Log your first" in round 1).
+    await expect(emptyCta).toHaveText('Log your first flight');
 
     await page.screenshot({ path: 'screenshots/start/02-empty.png', fullPage: true });
 

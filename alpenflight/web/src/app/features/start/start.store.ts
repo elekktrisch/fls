@@ -106,9 +106,13 @@ export const StartStore = signalStore(
       markNoPersonLink(): void {
         // /me returned personId = null; render the empty state without a
         // flights round-trip. Same visual as "no flights yet" per the AC.
+        // Reset hasError too so a previous transient error doesn't pin
+        // the error branch through a personId resolution that effectively
+        // succeeded.
         patchState(store, {
           hasAttemptedLoad: true,
           hasNoFlights: true,
+          hasError: false,
           lastFlight: null,
           isLoading: false,
         });
