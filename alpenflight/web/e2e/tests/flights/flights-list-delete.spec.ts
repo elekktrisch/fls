@@ -137,9 +137,7 @@ function setupBackend(initial: MockFlightRow[]): FlightsBackend {
 }
 
 test.describe('flights list — delete', () => {
-  test('kebab Delete → confirm → row removed; DELETE sent with If-Match: *', async ({
-    page,
-  }) => {
+  test('kebab Delete → confirm → row removed; DELETE sent with If-Match: *', async ({ page }) => {
     await stubReferenceData(page);
     const backend = setupBackend([FL_DELETABLE]);
     await page.route('**/api/v1/flights**', backend.handler);
