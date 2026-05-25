@@ -42,10 +42,7 @@ public interface FlightRepository {
                    boolean noLdgTimeInformation,
                    @Nullable Instant flightPlanOpenedOn) {
 
-        /**
-         * Air-state is sacred-cow computed (S-060). Delegates to
-         * {@link FlightAirState#compute} so list + detail agree.
-         */
+        /** Cross-view parity: same compute as {@link Flight#airState()}. */
         public FlightAirState airState() {
             return FlightAirState.compute(ldgDateTime, startDateTime,
                     noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);

@@ -191,16 +191,11 @@ class FlightTransitionMatrixTest {
     }
 
     /**
-     * Helper: build a glider in the given process state directly (bypasses
-     * the create flow which always stamps NOT_PROCESSED). Uses reflection to
-     * seed the package-private field — domain tests are allowed this since
-     * they live in the same package.
+     * Builds a glider seeded with the given process state's UUID so the
+     * aggregate carries the matching enum before a transition is exercised.
+     * Bypasses the application flow which always stamps NOT_PROCESSED.
      */
     private static Flight newGliderInState(FlightProcessState state) {
-        // The factory accepts the initial process-state UUID; we pass the
-        // target state's seeded UUID so the aggregate already carries the
-        // matching enum before the test exercises a transition. Air-state
-        // is computed (S-060), so no longer threaded through.
         return Flight.createGlider(
                 java.util.UUID.fromString("019e2e15-2c00-7af9-8000-0000000000a1"),
                 state.id(),

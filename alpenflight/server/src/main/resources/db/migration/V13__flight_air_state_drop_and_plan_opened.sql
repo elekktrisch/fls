@@ -16,4 +16,7 @@ ALTER TABLE flight DROP CONSTRAINT fk_flight_air_state_id;
 ALTER TABLE flight DROP COLUMN air_state_id;
 ALTER TABLE flight ADD COLUMN flight_plan_opened_on TIMESTAMPTZ;
 
+-- PostgreSQL implicitly drops the unique indexes on flight_air_state
+-- (ux_flight_air_state_code / ux_flight_air_state_legacy_int_id) along
+-- with the table.
 DROP TABLE flight_air_state;

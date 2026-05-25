@@ -88,13 +88,33 @@ class FlightAirStateTest {
     }
 
     @Test
-    void flightPlanClosed_never_emitted() {
-        // Legacy Flight.cs:175-206 never returns FlightPlanClosed; reachable only
-        // through process-state driven downstream operations.
-        Stream.of(airStateTable().toArray(Arguments[]::new)).forEach(args -> {
-            Object[] vals = args.get();
-            assertThat(vals[vals.length - 1]).isNotEqualTo(FlightAirState.FLIGHT_PLAN_CLOSED);
-        });
+    void flightPlanClosed_never_emitted_by_compute() throws Exception {
+        // Sweep every input combination over (ldgDateTime, startDateTime,
+        // noLdgTimeInformation, noStartTimeInformation, flightPlanOpenedOn);
+        // legacy Flight.cs:175-206 never returns FLIGHT_PLAN_CLOSED — it is
+        // reachable only through process-state driven downstream operations.
+        Instant[] tsValues = { null, T_LDG };
+        Instant[] startValues = { null, T_START };
+        Instant[] planValues = { null, T_PLAN };
+        for (Instant ldg : tsValues) {
+            for (Instant start : startValues) {
+                for (boolean noLdg : new boolean[] { false, true }) {
+                    for (boolean noStart : new boolean[] { false, true }) {
+                        for (Instant plan : planValues) {
+                            Flight f = Flight.createGlider(AIRCRAFT, PROCESS_STATE_NEW,
+                                    opsWith(start, ldg, noStart, noLdg));
+                            if (plan != null) {
+                                setField(f, "flightPlanOpenedOn", plan);
+                            }
+                            assertThat(f.airState())
+                                    .as("inputs ldg=%s start=%s noLdg=%s noStart=%s plan=%s",
+                                            ldg, start, noLdg, noStart, plan)
+                                    .isNotEqualTo(FlightAirState.FLIGHT_PLAN_CLOSED);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Test

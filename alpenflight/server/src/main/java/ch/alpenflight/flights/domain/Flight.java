@@ -210,21 +210,18 @@ public class Flight {
         // JPA.
     }
 
-    /** Factory for a new glider flight. */
     public static Flight createGlider(UUID aircraftId,
                                       UUID initialProcessStateId,
                                       FlightOperationalData ops) {
         return create(FlightAircraftType.GLIDER, aircraftId, initialProcessStateId, ops);
     }
 
-    /** Factory for a new tow flight. */
     public static Flight createTow(UUID aircraftId,
                                    UUID initialProcessStateId,
                                    FlightOperationalData ops) {
         return create(FlightAircraftType.TOW, aircraftId, initialProcessStateId, ops);
     }
 
-    /** Factory for a new motor flight. */
     public static Flight createMotor(UUID aircraftId,
                                      UUID initialProcessStateId,
                                      FlightOperationalData ops) {
@@ -605,9 +602,7 @@ public class Flight {
 
     /**
      * Computes the air-state per legacy {@code Flight.cs:175-206}. Never
-     * stored — recomputed on every read / serialisation. Delegates to
-     * {@link FlightAirState#compute} so list-row projections agree branch-
-     * for-branch with the aggregate view.
+     * stored — recomputed on every read / serialisation.
      */
     public FlightAirState airState() {
         return FlightAirState.compute(ldgDateTime, startDateTime,

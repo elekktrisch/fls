@@ -38,16 +38,9 @@ public enum FlightAirState {
     }
 
     /**
-     * Pure compute over the aggregate's air-state inputs per legacy
-     * {@code Flight.cs:175-206}. Branch ordering is load-bearing:
-     * {@code ldgDateTime} wins over any flag combination, then
-     * {@code noLdgTimeInformation+startDateTime}, then {@code startDateTime},
-     * then {@code noStartTimeInformation}, then {@code flightPlanOpenedOn}.
-     * {@link #FLIGHT_PLAN_CLOSED} is never emitted here — it is a process-
-     * state driven downstream value.
-     *
-     * <p>Shared between {@link Flight#airState()} and the list-row projection
-     * so detail + list views always agree.
+     * Shared between {@link Flight#airState()} and the list-row projection so
+     * detail + list views agree branch-for-branch. Branch order is load-
+     * bearing — see legacy {@code Flight.cs:175-206}.
      */
     public static FlightAirState compute(@Nullable Instant ldgDateTime,
                                          @Nullable Instant startDateTime,
