@@ -54,7 +54,10 @@ The spec file already has a reserved name (`04c-flights-paired-create.spec.ts`) 
 - [ ] **`flights-list-delete.spec.ts`** — Playwright for the delete flow.
 - [ ] **`isSoloFlight` UI invariant**: add solo checkbox to the Glider step; hide co-pilot selector when checked. Server-side: persist as-given, do not derive.
 - [ ] **`invoiceRecipientPersonId` round-trip**: add to `FlightDetail` + detail mapper (add column if missing on `Flight` entity).
-- [ ] **Boyscout — flights filter bar alignment**: fix the input-height mismatch between `<af-date-picker>` and `<af-select>` columns in `flights-list.page.ts:217-275` (see implement-time screenshot verification).
+- [ ] **Boyscout — flights filter bar alignment** (verified visually from `alpenflight/misaligned-filter.png`):
+  - `af-date-picker` host: add `class: 'block w-full'` + an inner override (`::ng-deep .ant-picker { width: 100% }` or a token bridge) so the input fills its grid column. Today the From / To inputs leave visible right-side daylight inside their cells.
+  - Height parity between `nz-date-picker` and `nz-select` at `default` size — the picker renders ~32px while the select renders ~40px in the same row. Pin both to the same min-height (likely via `--ant-control-height-lg` token bridge or explicit class).
+  - Move "Clear filters" out of its own grid column — it currently eats column 5 with `items-end`, leaving a wide empty band. Either inline-trail after the Aircraft-type filter or relocate next to the "New flight" header action.
 
 ## Notes
 
