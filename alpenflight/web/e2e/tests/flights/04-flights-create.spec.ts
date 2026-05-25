@@ -114,6 +114,7 @@ async function stubFlightEndpoints(page: Page, onCreate: (body: unknown) => void
         startLocationId: LOC_HOME,
         ldgLocationId: LOC_HOME,
         flightTypeId: FT_GLIDER,
+        aircraftId: AC_GLIDER,
         crew: [],
         isSoloFlight: false,
         noStartTimeInformation: false,

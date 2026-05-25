@@ -118,6 +118,7 @@ function newTemplateBody(): unknown {
     startLocationId: LOC_HOME,
     ldgLocationId: LOC_HOME,
     flightTypeId: FT_GLIDER,
+    aircraftId: AC_GLIDER,
     crew: [],
     isSoloFlight: false,
     noStartTimeInformation: false,
