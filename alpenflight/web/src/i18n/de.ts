@@ -29,6 +29,41 @@ const de = {
     tagline:
       'Für Flugvereine, die schon bestehen und schon fliegen. Ein leises Werkzeug für Flugbuch, Reservationskalender und Mitgliederverwaltung.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Guten Tag, {{name}}',
+      evening: 'Guten Abend, {{name}}',
+      morning: 'Guten Morgen, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Flugzeug',
+      empty: {
+        cta: 'Ersten Flug erfassen',
+        message: 'Noch keine Flüge — erfasse deinen ersten.',
+      },
+      flightType: 'Flugart',
+      role: 'Rolle',
+      roles: {
+        coPilot: 'Copilot',
+        instructor: 'Fluglehrer',
+        passenger: 'Passagier',
+        pic: 'PIC',
+        student: 'Schüler',
+        towPilot: 'Schlepppilot',
+        winchOperator: 'Windenführer',
+      },
+      route: 'Route',
+      title: 'Dein letzter Flug',
+    },
+    quickActions: {
+      logFlight: 'Flug erfassen',
+      openLogbook: 'Flugbuch öffnen',
+    },
+    reservations: {
+      placeholder: 'Reservationen folgen demnächst.',
+      title: 'Nächste Reservation',
+    },
+  },
   locations: {
     admin: {
       banner:

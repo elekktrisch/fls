@@ -1,40 +1,203 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, effect, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
+
+import { AircraftStore } from '@features/aircraft/aircraft.store';
+import { FlightTypesStore } from '@features/flight-types/flight-types.store';
+import { LocationsStore } from '@features/locations/locations.store';
 
 import { AfPageComponent } from '@ui/molecules/af-page';
-import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 
+import { DEFAULT_LOCALE } from '../../core/i18n/lang-resolver';
 import { SessionStore } from '../../core/session/session.store';
 
-/**
- * Authenticated landing — placeholder home / dashboard surface. Reachable
- * to every authenticated principal regardless of tenant or role. A real
- * dashboard lands in a future story; this page exists so
- * `tenantRequiredGuard` has a safe redirect target.
- */
+import { StartStore } from './start.store';
+
+type Greeting = 'morning' | 'afternoon' | 'evening';
+
+function pickGreeting(hourOfDay: number): Greeting {
+  if (hourOfDay < 12) return 'morning';
+  if (hourOfDay < 18) return 'afternoon';
+  return 'evening';
+}
+
+// Seed FlightCrewType ids per V3 reference data. Mapping to translation
+// suffixes keeps the role chip translatable without a runtime crew-type
+// catalog fetch; the seven roles are stable per the legacy state model.
+const CREW_ROLE_LABEL: Record<string, string> = {
+  '019e2e15-2c00-76b0-8000-0000000036b0': 'pic',
+  '019e2e15-2c00-76b1-8000-0000000036b1': 'coPilot',
+  '019e2e15-2c00-76b2-8000-0000000036b2': 'instructor',
+  '019e2e15-2c00-76b3-8000-0000000036b3': 'student',
+  '019e2e15-2c00-76b4-8000-0000000036b4': 'towPilot',
+  '019e2e15-2c00-76b5-8000-0000000036b5': 'winchOperator',
+  '019e2e15-2c00-76b6-8000-0000000036b6': 'passenger',
+};
+
 @Component({
   selector: 'af-start',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AfPageComponent, AfPageHeaderComponent],
+  imports: [RouterLink, TranslocoDirective, AfPageComponent, DatePipe],
   template: `
     <af-page>
-      <af-page-header [title]="title()" />
-      <p class="text-slate-600">
-        Welcome to AlpenFlight. Pick a section from the nav bar to get started.
-      </p>
-      <p class="text-sm text-slate-500 mt-4" data-testid="start-placeholder">
-        A real dashboard surface lands in a future story.
-      </p>
+      <ng-container *transloco="let t; read: 'home'">
+        <header class="mb-8 space-y-1">
+          <h1 class="text-2xl font-medium text-slate-900" data-testid="start-greeting">
+            {{ t('greeting.' + greetingKey(), { name: displayName() }) }}
+          </h1>
+          <p class="text-slate-500" data-testid="start-today">
+            {{ today() | date: 'longDate' : undefined : locale() }}
+          </p>
+        </header>
+
+        <!-- min-[900px] is the AC's exact breakpoint; matches legacy
+             screens-home.jsx:249-261. Not a custom Tailwind token. -->
+        <div class="grid grid-cols-1 gap-6 min-[900px]:grid-cols-2 mb-8">
+          @if (store.showLastFlight()) {
+            <a
+              class="block border border-slate-200 p-5 hover:border-brand-500 cursor-pointer"
+              data-testid="start-last-flight-card"
+              [routerLink]="['/flights', flightId(), 'edit']"
+            >
+              <header class="flex items-baseline justify-between gap-3 mb-3">
+                <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
+                <span class="text-sm tabular text-slate-500">{{ lastFlightDate() }}</span>
+              </header>
+              <dl class="grid grid-cols-[8rem_1fr] gap-y-1 text-sm text-slate-700">
+                <dt class="text-slate-500">{{ t('lastFlight.aircraft') }}</dt>
+                <dd class="tabular">{{ aircraftImmat() }}</dd>
+                <dt class="text-slate-500">{{ t('lastFlight.route') }}</dt>
+                <dd>{{ routeLabel() }}</dd>
+                <dt class="text-slate-500">{{ t('lastFlight.flightType') }}</dt>
+                <dd>{{ flightTypeLabel() }}</dd>
+                <dt class="text-slate-500">{{ t('lastFlight.role') }}</dt>
+                <dd>{{ myRoleLabel(t) }}</dd>
+              </dl>
+            </a>
+          } @else if (store.showEmptyState()) {
+            <div
+              class="border border-slate-200 p-5 space-y-3"
+              data-testid="start-last-flight-empty"
+            >
+              <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
+              <p class="text-slate-600">{{ t('lastFlight.empty.message') }}</p>
+              <a
+                class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] bg-brand-500 text-white hover:bg-brand-600"
+                data-testid="start-empty-cta"
+                [routerLink]="['/flights', 'new']"
+              >
+                {{ t('lastFlight.empty.cta') }}
+              </a>
+            </div>
+          } @else {
+            <div class="border border-slate-200 p-5" aria-busy="true">
+              <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
+              <p class="text-slate-400">…</p>
+            </div>
+          }
+
+          <div
+            class="border border-slate-200 p-5 space-y-2"
+            data-testid="start-reservation-placeholder"
+          >
+            <h2 class="text-lg font-medium text-slate-900">{{ t('reservations.title') }}</h2>
+            <p class="text-slate-500">{{ t('reservations.placeholder') }}</p>
+          </div>
+        </div>
+
+        <nav class="flex flex-wrap gap-3">
+          <a
+            class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] border border-slate-300 text-slate-800 hover:border-slate-500"
+            data-testid="start-quick-open-logbook"
+            [routerLink]="['/flights']"
+          >
+            {{ t('quickActions.openLogbook') }}
+          </a>
+          <a
+            class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] bg-brand-500 text-white hover:bg-brand-600"
+            data-testid="start-quick-log-flight"
+            [routerLink]="['/flights', 'new']"
+          >
+            {{ t('quickActions.logFlight') }}
+          </a>
+        </nav>
+      </ng-container>
     </af-page>
   `,
 })
 export class StartPage {
   private readonly session = inject(SessionStore);
+  protected readonly store = inject(StartStore);
+  private readonly aircraft = inject(AircraftStore);
+  private readonly locations = inject(LocationsStore);
+  private readonly flightTypes = inject(FlightTypesStore);
+  private readonly transloco = inject(TranslocoService);
 
-  protected readonly title = computed(() => {
+  protected readonly today = computed(() => new Date());
+  protected readonly locale = computed(() => this.transloco.getActiveLang() || DEFAULT_LOCALE);
+
+  protected readonly displayName = computed(() => {
     const user = this.session.authenticatedUser();
-    if (!user) return 'AlpenFlight';
-    const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.username;
-    return `Welcome, ${name}`;
+    if (!user) return '';
+    return user.firstName?.trim() || user.username || '';
   });
+
+  protected readonly greetingKey = computed<Greeting>(() => pickGreeting(this.today().getHours()));
+
+  protected readonly flightId = computed(() => this.store.lastFlight()?.id ?? null);
+
+  protected readonly lastFlightDate = computed(() => this.store.lastFlight()?.flightDate ?? '—');
+
+  protected readonly aircraftImmat = computed(() => {
+    const f = this.store.lastFlight();
+    if (!f) return '—';
+    return this.aircraft.entityMap()[f.aircraftId]?.immatriculation ?? '—';
+  });
+
+  protected readonly routeLabel = computed(() => {
+    const f = this.store.lastFlight();
+    if (!f) return '—';
+    const start = f.startLocationId
+      ? (this.locations.entityMap()[f.startLocationId]?.icaoCode ??
+        this.locations.entityMap()[f.startLocationId]?.locationName ??
+        '—')
+      : '—';
+    const ldg = f.ldgLocationId
+      ? (this.locations.entityMap()[f.ldgLocationId]?.icaoCode ??
+        this.locations.entityMap()[f.ldgLocationId]?.locationName ??
+        '—')
+      : '—';
+    return `${start} → ${ldg}`;
+  });
+
+  protected readonly flightTypeLabel = computed(() => {
+    const f = this.store.lastFlight();
+    if (!f?.flightTypeId) return '—';
+    return this.flightTypes.entityMap()[f.flightTypeId]?.flightTypeName ?? '—';
+  });
+
+  protected myRoleLabel(t: (key: string) => string): string {
+    const me = this.session.authenticatedUser()?.personId;
+    const f = this.store.lastFlight();
+    if (!me || !f?.crew) return '—';
+    const myRow = f.crew.find((c) => c.personId === me);
+    if (!myRow) return '—';
+    const key = CREW_ROLE_LABEL[myRow.flightCrewTypeId];
+    return key ? t('lastFlight.roles.' + key) : '—';
+  }
+
+  constructor() {
+    effect(() => {
+      const personId = this.session.authenticatedUser()?.personId ?? null;
+      if (personId) {
+        this.store.load(personId);
+      } else if (this.session.isAuthenticated()) {
+        // /me resolved but the user has no linked Person — render the empty
+        // state directly per the AC (no flights round-trip, no warn log).
+        this.store.markNoPersonLink();
+      }
+    });
+  }
 }

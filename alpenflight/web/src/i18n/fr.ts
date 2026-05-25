@@ -25,6 +25,41 @@ const fr: Translations = {
     tagline:
       'Pensé pour les clubs aéronautiques qui existent déjà et volent déjà. Un outil discret pour le carnet de vol, le calendrier des réservations et le registre des membres.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Bon après-midi, {{name}}',
+      evening: 'Bonsoir, {{name}}',
+      morning: 'Bonjour, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Avion',
+      empty: {
+        cta: 'Enregistrer le premier',
+        message: 'Aucun vol pour l’instant — enregistre ton premier.',
+      },
+      flightType: 'Type de vol',
+      role: 'Rôle',
+      roles: {
+        coPilot: 'Copilote',
+        instructor: 'Instructeur',
+        passenger: 'Passager',
+        pic: 'PIC',
+        student: 'Élève',
+        towPilot: 'Pilote remorqueur',
+        winchOperator: 'Treuilliste',
+      },
+      route: 'Route',
+      title: 'Ton dernier vol',
+    },
+    quickActions: {
+      logFlight: 'Enregistrer un vol',
+      openLogbook: 'Ouvrir le carnet',
+    },
+    reservations: {
+      placeholder: 'Réservations bientôt disponibles.',
+      title: 'Prochaine réservation',
+    },
+  },
   locations: {
     admin: {
       banner:

@@ -25,6 +25,7 @@ const sampleUser: User = {
   firstName: 'Alice',
   lastName: 'Doe',
   clubId: 'club-1',
+  personId: null,
   roles: ['PILOT'],
 };
 

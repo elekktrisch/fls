@@ -57,6 +57,9 @@ export function mapClaimsToUser(claims: unknown): User | null {
     firstName: asString(c.given_name),
     lastName: asString(c.family_name),
     clubId: asNullableString(c.clubId),
+    // Resolved by SessionStore.loadMe() post-login from the /me endpoint
+    // (S-165) — the JWT carries no personId claim.
+    personId: null,
     roles: extractRoles(c),
   };
 }
