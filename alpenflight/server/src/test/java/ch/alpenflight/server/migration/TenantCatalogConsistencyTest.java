@@ -251,10 +251,12 @@ class TenantCatalogConsistencyTest {
 
     @Test
     void reference_tables_have_no_club_id() throws Exception {
+        // `role` was dropped at S-052 (Keycloak owns realm roles); not in
+        // this catalogue anymore.
         List<String> refs = List.of(
                 "country", "language", "start_type",
                 "length_unit_type", "elevation_unit_type", "counter_unit_type",
-                "club_state", "extension_type", "role");
+                "club_state", "extension_type");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : refs) {
                 assertTableExists(conn, t);

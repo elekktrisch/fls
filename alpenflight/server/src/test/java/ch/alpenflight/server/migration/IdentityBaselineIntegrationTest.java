@@ -200,7 +200,7 @@ class IdentityBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection()) {
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT data_type, is_nullable FROM information_schema.columns "
-                            + "WHERE table_schema = 'public' AND table_name = 'user' "
+                            + "WHERE table_schema = 'public' AND table_name = 't_user' "
                             + "AND column_name = 'keycloak_sub'")) {
                 assertThat(rs.next()).as("user.keycloak_sub must exist").isTrue();
                 assertThat(rs.getString("data_type")).isEqualTo("uuid");
@@ -208,7 +208,7 @@ class IdentityBaselineIntegrationTest {
             }
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT indexdef FROM pg_indexes "
-                            + "WHERE schemaname = 'public' AND tablename = 'user' "
+                            + "WHERE schemaname = 'public' AND tablename = 't_user' "
                             + "AND indexdef ILIKE '%keycloak_sub%'")) {
                 List<String> defs = new ArrayList<>();
                 while (rs.next()) defs.add(rs.getString("indexdef"));
@@ -467,7 +467,7 @@ class IdentityBaselineIntegrationTest {
     void username_lower_functional_unique_index() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='user'")) {
+                        "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='t_user'")) {
             List<String> defs = new ArrayList<>();
             while (rs.next()) defs.add(rs.getString(1));
             // Postgres pretty-prints functional indexes as `lower((username)::text)` —
