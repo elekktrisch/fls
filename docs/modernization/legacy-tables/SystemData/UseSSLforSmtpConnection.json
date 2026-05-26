@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "SystemData",
+  "column" : "UseSSLforSmtpConnection",
+  "ordinal" : 16,
+  "data_type" : "bit",
+  "is_nullable" : false,
+  "default_expression" : "((1))",
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 1,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

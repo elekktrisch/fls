@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "PlanningDays",
+  "column" : "DeletedOn",
+  "ordinal" : 10,
+  "data_type" : "datetime2",
+  "is_nullable" : true,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 27,
+  "scale" : 7,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

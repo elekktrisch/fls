@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "UserRoles",
+  "entity" : "UserRole",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

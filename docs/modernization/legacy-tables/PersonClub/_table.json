@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "PersonClub",
+  "entity" : "PersonClub",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

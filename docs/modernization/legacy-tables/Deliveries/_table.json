@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "Deliveries",
+  "entity" : "Delivery",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

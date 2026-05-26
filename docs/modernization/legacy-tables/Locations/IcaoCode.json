@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "Locations",
+  "column" : "IcaoCode",
+  "ordinal" : 6,
+  "data_type" : "nvarchar",
+  "is_nullable" : true,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : 10,
+  "precision" : null,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}
