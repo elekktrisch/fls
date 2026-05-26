@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { DestroyRef, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { tapResponse } from '@ngrx/operators';
@@ -92,8 +92,7 @@ export const StartStore = signalStore(
                       isLoading: false,
                       hasNoFlights: false,
                     }),
-                  error: (_e: HttpErrorResponse) =>
-                    patchState(store, { isLoading: false, hasError: true }),
+                  error: () => patchState(store, { isLoading: false, hasError: true }),
                 }),
               );
             }),

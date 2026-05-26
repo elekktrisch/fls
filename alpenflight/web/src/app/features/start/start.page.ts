@@ -29,12 +29,15 @@ function formatLocaleDate(date: Date | null, locale: string, style: 'long' | 'me
   }
 }
 
-type Greeting = 'morning' | 'afternoon' | 'evening';
+// Full transloco paths so the i18n-key-coverage spec resolves them via
+// static regex scan — that spec only matches literal strings inside the
+// transloco directive call, so a dynamic-concat prefix would slip through.
+type GreetingKey = 'greeting.morning' | 'greeting.afternoon' | 'greeting.evening';
 
-function pickGreeting(hourOfDay: number): Greeting {
-  if (hourOfDay < 12) return 'morning';
-  if (hourOfDay < 18) return 'afternoon';
-  return 'evening';
+function pickGreeting(hourOfDay: number): GreetingKey {
+  if (hourOfDay < 12) return 'greeting.morning';
+  if (hourOfDay < 18) return 'greeting.afternoon';
+  return 'greeting.evening';
 }
 
 // FlightCrewType seed UUIDs per V3 — canonical source is
@@ -42,14 +45,18 @@ function pickGreeting(hourOfDay: number): Greeting {
 // the map in lockstep; a seed re-id would surface here as "—" until this
 // map is patched (or as a wrong label, which the e2e spec's `PIC`
 // assertion catches for the populated path).
+// Values are full transloco paths (not bare leaf names) so the
+// i18n-key-coverage spec's static-scan regex resolves them — that spec only
+// matches literal strings inside the directive call, so a dynamic-concat
+// prefix would slip through. Same reason greetingKey returns a full path.
 const CREW_ROLE_LABEL: Record<string, string> = {
-  '019e2e15-2c00-76b0-8000-0000000036b0': 'pic', // PILOT_OR_STUDENT
-  '019e2e15-2c00-76b1-8000-0000000036b1': 'coPilot',
-  '019e2e15-2c00-76b2-8000-0000000036b2': 'instructor',
-  '019e2e15-2c00-76b3-8000-0000000036b3': 'passenger',
-  '019e2e15-2c00-76b4-8000-0000000036b4': 'winchOperator',
-  '019e2e15-2c00-76b5-8000-0000000036b5': 'observer',
-  '019e2e15-2c00-76b6-8000-0000000036b6': 'flightCostInvoiceRecipient',
+  '019e2e15-2c00-76b0-8000-0000000036b0': 'lastFlight.roles.pic', // PILOT_OR_STUDENT
+  '019e2e15-2c00-76b1-8000-0000000036b1': 'lastFlight.roles.coPilot',
+  '019e2e15-2c00-76b2-8000-0000000036b2': 'lastFlight.roles.instructor',
+  '019e2e15-2c00-76b3-8000-0000000036b3': 'lastFlight.roles.passenger',
+  '019e2e15-2c00-76b4-8000-0000000036b4': 'lastFlight.roles.winchOperator',
+  '019e2e15-2c00-76b5-8000-0000000036b5': 'lastFlight.roles.observer',
+  '019e2e15-2c00-76b6-8000-0000000036b6': 'lastFlight.roles.flightCostInvoiceRecipient',
 };
 
 @Component({
@@ -62,7 +69,7 @@ const CREW_ROLE_LABEL: Record<string, string> = {
       <ng-container *transloco="let t; read: 'home'">
         <header class="mb-8 space-y-1">
           <h1 class="text-2xl font-medium text-slate-900" data-testid="start-greeting">
-            {{ t('greeting.' + greetingKey(), { name: displayName() }) }}
+            {{ t(greetingKey(), { name: displayName() }) }}
           </h1>
           <p class="text-slate-500" data-testid="start-today">{{ formattedToday() }}</p>
         </header>
@@ -110,7 +117,10 @@ const CREW_ROLE_LABEL: Record<string, string> = {
               </a>
             </div>
           } @else if (store.hasError()) {
-            <div class="border border-slate-200 p-5 space-y-2" data-testid="start-last-flight-error">
+            <div
+              class="border border-slate-200 p-5 space-y-2"
+              data-testid="start-last-flight-error"
+            >
               <h2 class="text-lg font-medium text-slate-900">{{ t('lastFlight.title') }}</h2>
               <p class="text-red-600">{{ t('lastFlight.error') }}</p>
             </div>
@@ -119,7 +129,6 @@ const CREW_ROLE_LABEL: Record<string, string> = {
                "spinner only after 300ms" — a single-line title card with no
                body content reads as a layout glitch). The reservations
                placeholder keeps the row's grid shape stable. -->
-
 
           <div
             class="border border-slate-200 p-5 space-y-2"
@@ -180,7 +189,9 @@ export class StartPage {
     return user.firstName?.trim() || user.username || '';
   });
 
-  protected readonly greetingKey = computed<Greeting>(() => pickGreeting(this.today().getHours()));
+  protected readonly greetingKey = computed<GreetingKey>(() =>
+    pickGreeting(this.today().getHours()),
+  );
 
   protected readonly flightId = computed(() => this.store.lastFlight()?.id ?? null);
 
@@ -219,7 +230,7 @@ export class StartPage {
     const myRow = f.crew.find((c) => c.personId === me);
     if (!myRow) return '—';
     const key = CREW_ROLE_LABEL[myRow.flightCrewTypeId];
-    return key ? t('lastFlight.roles.' + key) : '—';
+    return key ? t(key) : '—';
   }
 
   constructor() {

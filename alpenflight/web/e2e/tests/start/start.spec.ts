@@ -31,8 +31,20 @@ const mockAircraft = [
 ];
 
 const mockLocations = [
-  { id: START_LOC_ID, locationName: 'Grenchen', icaoCode: 'LSZG', isAirfield: true, isFastEntryRecord: false },
-  { id: LDG_LOC_ID, locationName: 'Speck', icaoCode: 'LSZK', isAirfield: true, isFastEntryRecord: false },
+  {
+    id: START_LOC_ID,
+    locationName: 'Grenchen',
+    icaoCode: 'LSZG',
+    isAirfield: true,
+    isFastEntryRecord: false,
+  },
+  {
+    id: LDG_LOC_ID,
+    locationName: 'Speck',
+    icaoCode: 'LSZK',
+    isAirfield: true,
+    isFastEntryRecord: false,
+  },
 ];
 
 const mockFlightTypes = [
