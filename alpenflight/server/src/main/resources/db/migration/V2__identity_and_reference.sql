@@ -275,8 +275,10 @@ CREATE INDEX ix_person_email_priv_lower
     ON person (lower(email_private))
     WHERE email_private IS NOT NULL;
 
--- user is a reserved word in Postgres; quote consistently.
-CREATE TABLE "user" (
+-- `user` is a Postgres reserved word. Tables in this baseline use a `t_`
+-- prefix only where the unprefixed name would collide with a reserved
+-- word; broader t_-prefix conventions are deferred to a follow-up.
+CREATE TABLE t_user (
     id                          UUID          NOT NULL PRIMARY KEY,
     club_id                     UUID          NOT NULL,
     username                    VARCHAR(256)  NOT NULL,
@@ -304,12 +306,12 @@ CREATE TABLE "user" (
 -- user's username be recycled, while still blocking duplicates among live
 -- rows. Lower-cased to keep "Foo" vs "foo" collapsed.
 CREATE UNIQUE INDEX ux_user_username_lower_alive
-    ON "user" (lower(username))
+    ON t_user (lower(username))
     WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_user_keycloak_sub
-    ON "user" (keycloak_sub) WHERE keycloak_sub IS NOT NULL;
-CREATE        INDEX ix_user_club           ON "user" (club_id);
-CREATE        INDEX ix_user_person         ON "user" (person_id) WHERE person_id IS NOT NULL;
+    ON t_user (keycloak_sub) WHERE keycloak_sub IS NOT NULL;
+CREATE        INDEX ix_user_club           ON t_user (club_id);
+CREATE        INDEX ix_user_person         ON t_user (person_id) WHERE person_id IS NOT NULL;
 
 
 -- =============================================================================
@@ -471,17 +473,17 @@ COMMENT ON COLUMN person.id IS
     'UUID v7. Aggregate root (ADR 0018). External form psn_<crockford-base32>. See ADR 0019.';
 COMMENT ON COLUMN club.id IS
     'UUID v7. Aggregate root (ADR 0018). External form clb_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN "user".id IS
+COMMENT ON COLUMN t_user.id IS
     'UUID v7. Aggregate root (ADR 0018). External form usr_<crockford-base32>. See ADR 0019.';
 
-COMMENT ON COLUMN "user".club_id IS
+COMMENT ON COLUMN t_user.club_id IS
     'Principal-subject home club. NOT a @TenantId discriminator — do NOT add @TenantId on the User entity (would chicken-and-egg the user load).';
 
 COMMENT ON COLUMN person.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
 COMMENT ON COLUMN club.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
-COMMENT ON COLUMN "user".created_by_user_id IS
+COMMENT ON COLUMN t_user.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
 
 

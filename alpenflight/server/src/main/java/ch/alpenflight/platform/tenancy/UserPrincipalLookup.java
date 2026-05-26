@@ -39,9 +39,9 @@ public class UserPrincipalLookup {
 
     private static final Logger LOG = LoggerFactory.getLogger(UserPrincipalLookup.class);
 
-    private static final String SELECT_CLUB_ID = "SELECT club_id FROM \"user\" "
+    private static final String SELECT_CLUB_ID = "SELECT club_id FROM t_user "
             + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
-    private static final String SELECT_USER_ID = "SELECT id FROM \"user\" "
+    private static final String SELECT_USER_ID = "SELECT id FROM t_user "
             + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
 
     private final JdbcTemplate jdbc;

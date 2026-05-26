@@ -77,7 +77,7 @@ class IdentityBaselineIntegrationTest {
     void identity_baseline_tables_present() throws Exception {
         Set<String> expected = new LinkedHashSet<>(Arrays.asList(
                 "club", "club_extension", "club_state",
-                "user",
+                "t_user",
                 "person", "person_club",
                 "country", "language",
                 "member_state", "person_category",
@@ -132,7 +132,7 @@ class IdentityBaselineIntegrationTest {
                           AND c.column_name = k.column_name
                         WHERE t.table_schema = 'public'
                           AND t.table_name IN (
-                            'club','club_extension','club_state','user',
+                            'club','club_extension','club_state','t_user',
                             'person','person_club','country','language','member_state','person_category',
                             'length_unit_type','elevation_unit_type','counter_unit_type','start_type',
                             'email_template','extension_value','extension_type'
@@ -151,7 +151,7 @@ class IdentityBaselineIntegrationTest {
         assertThat(seenTables)
                 .as("every one of the 19 in-scope tables must contribute a PK row to the join")
                 .containsExactlyInAnyOrder(
-                        "club", "club_extension", "club_state", "user",
+                        "club", "club_extension", "club_state", "t_user",
                         "person", "person_club", "country", "language", "member_state", "person_category",
                         "length_unit_type", "elevation_unit_type", "counter_unit_type", "start_type",
                         "email_template", "extension_value", "extension_type");
@@ -271,7 +271,7 @@ class IdentityBaselineIntegrationTest {
         List<CommentExpect> expects = List.of(
                 new CommentExpect("person", "psn"),
                 new CommentExpect("club",   "clb"),
-                new CommentExpect("user",   "usr"));
+                new CommentExpect("t_user", "usr"));
 
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement(
@@ -299,9 +299,9 @@ class IdentityBaselineIntegrationTest {
     void user_club_id_principal_subject_comment_present() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT col_description('\"user\"'::regclass, "
+                        "SELECT col_description('t_user'::regclass, "
                                 + "(SELECT attnum FROM pg_attribute "
-                                + " WHERE attrelid = '\"user\"'::regclass AND attname = 'club_id'))")) {
+                                + " WHERE attrelid = 't_user'::regclass AND attname = 'club_id'))")) {
             assertThat(rs.next()).isTrue();
             String comment = rs.getString(1);
             assertThat(comment)
@@ -538,7 +538,7 @@ class IdentityBaselineIntegrationTest {
         // Aggregate roots + the internal collection that's mutated outside its
         // root. Reference tables intentionally skip the quad per design notes
         // (audit goes via S-027's audit_event table).
-        List<String> mutables = List.of("person", "club", "user", "person_club");
+        List<String> mutables = List.of("person", "club", "t_user", "person_club");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : mutables) {
                 for (String col : List.of("created_on", "created_by_user_id", "modified_on", "modified_by_user_id")) {

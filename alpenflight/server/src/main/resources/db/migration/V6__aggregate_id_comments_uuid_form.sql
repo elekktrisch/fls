@@ -10,7 +10,7 @@ COMMENT ON COLUMN person.id IS
     'UUID v7. Aggregate root (ADR 0018). External form psn-<uuid>. See ADR 0019.';
 COMMENT ON COLUMN club.id IS
     'UUID v7. Aggregate root (ADR 0018). External form clb-<uuid>. See ADR 0019.';
-COMMENT ON COLUMN "user".id IS
+COMMENT ON COLUMN t_user.id IS
     'UUID v7. Aggregate root (ADR 0018). External form usr-<uuid>. See ADR 0019.';
 
 COMMENT ON COLUMN flight.id IS

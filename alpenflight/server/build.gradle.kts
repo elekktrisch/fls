@@ -275,8 +275,8 @@ flyway {
 tasks.withType<Test> {
     useJUnitPlatform()
     testLogging {
-        // Surface full stack traces on failure so context-load errors don't
-        // collapse to a single "NoSuchBeanDefinitionException" line in CI.
+        // Surface full stack traces on failure so a CI context-load error
+        // doesn't collapse to a single `NoSuchBeanDefinitionException` line.
         events("failed")
         showExceptions = true
         showCauses = true

@@ -19,7 +19,7 @@
 -- dev bring-up cycle without it.
 -- =============================================================================
 
-INSERT INTO "user" (
+INSERT INTO t_user (
     id,
     club_id,
     username,

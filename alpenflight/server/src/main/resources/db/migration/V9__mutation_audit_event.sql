@@ -42,7 +42,7 @@ CREATE TABLE mutation_audit_event (
     http_status         SMALLINT,
     failure_reason      TEXT,
     CONSTRAINT fk_mutation_audit_event_actor_user_id
-        FOREIGN KEY (actor_user_id) REFERENCES "user" (id) ON DELETE SET NULL,
+        FOREIGN KEY (actor_user_id) REFERENCES t_user (id) ON DELETE SET NULL,
     CONSTRAINT fk_mutation_audit_event_tenant_club_id
         FOREIGN KEY (tenant_club_id) REFERENCES club (id) ON DELETE CASCADE
 );

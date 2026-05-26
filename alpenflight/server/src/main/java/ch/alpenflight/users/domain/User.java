@@ -39,12 +39,10 @@ import org.jspecify.annotations.Nullable;
  * writes them via the KC admin REST API.
  */
 @Entity
-// `user` is a Postgres reserved word — V2 quotes it in DDL ("user"). JPA's
-// `@Table` value must round-trip the same quote shape, otherwise Hibernate
-// emits unquoted SQL and every query fails at runtime + the metadata
-// initialiser fails at context startup with NoSuchBeanDefinitionException
-// (the EntityManagerFactory bean never instantiates).
-@Table(name = "\"user\"")
+// `user` is a Postgres reserved word; the table uses the `t_user` name
+// instead of relying on quoting (broader t_ prefix convention is a
+// follow-up). V2 DDL matches.
+@Table(name = "t_user")
 public class User {
 
     private static final int MAX_USERNAME_LENGTH = 256;
