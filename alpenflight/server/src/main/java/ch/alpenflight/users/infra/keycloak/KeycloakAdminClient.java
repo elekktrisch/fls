@@ -2,8 +2,8 @@ package ch.alpenflight.users.infra.keycloak;
 
 import ch.alpenflight.users.domain.UserDirectoryException;
 import ch.alpenflight.users.domain.UserDirectoryPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
+import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
