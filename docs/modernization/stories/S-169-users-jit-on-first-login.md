@@ -6,6 +6,7 @@ status: todo
 estimate: S
 parity_test: none
 depends_on: [S-052]
+integration_base: integration/users-suite
 adr_refs: [0007, 0022]
 refined: false
 origin: scope-split

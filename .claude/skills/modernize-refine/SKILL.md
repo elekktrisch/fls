@@ -34,14 +34,23 @@ Things that **do not** belong in the story:
 
 Soft target: design + edge cases + test plan + security + performance combined ≈ 150 lines. If you blow past it, ask whether a competent implementer would actually re-derive what you wrote — and cut.
 
+## Base branch resolution
+
+The story's base branch — the branch story branches are cut from + PRs target + finalize merges into — is resolved as:
+
+- `integration_base: <branch>` in the story frontmatter, if present.
+- else the repo's default branch (typically `main`).
+
+This is the `<base>` placeholder used throughout the rest of this skill. Operator workflow: create `integration/<name>` off main, set `integration_base: integration/<name>` on each story in the cluster, run refine / implement / finalize as normal — stories branch off integration, PRs target integration. Operator merges integration → main once the cluster is tested together.
+
 ## Preconditions
 
 1. Single `S-NNN` arg.
 2. Story file at top-level `stories/` (refuse if in `implemented/`).
 3. Not `status: done` (else ask re-refine).
-4. If `refined: true` — ask: re-refine (overwrite) or abort. Re-refine on an existing `story/S-NNN-*` branch adds another commit; re-refine from `main` switches into the existing branch first.
+4. If `refined: true` — ask: re-refine (overwrite) or abort. Re-refine on an existing `story/S-NNN-*` branch adds another commit; re-refine from `<base>` switches into the existing branch first.
 5. Working tree clean — or the only dirty file is the target story file (refine is about to write to it anyway).
-6. Current branch is either `main` (or configured default) OR already `story/S-NNN-<slug>` matching the resolved story ID.
+6. Current branch is either `<base>` (resolved above) OR already `story/S-NNN-<slug>` matching the resolved story ID.
 
 ## Procedure
 
@@ -216,13 +225,13 @@ If frontmatter pre-set `refine_specialists:` (override), preserve it verbatim.
 
 The refinement diff should be reviewable on GitHub before implement runs, so refine owns the GH bootstrap (issue + branch + draft PR). Implement Step 2 then resumes on the existing branch instead of creating one.
 
-**Branch.** If not already on `story/S-NNN-<slug>`: `git checkout -b story/S-NNN-<slug>` off the current branch (precondition #6 guarantees that's `main` or the matching story branch).
+**Branch.** If not already on `story/S-NNN-<slug>`: `git checkout -b story/S-NNN-<slug>` off the current branch (precondition #6 guarantees that's `<base>` or the matching story branch).
 
 **GH issue.** If `gh auth status` OK + remote exists + no `github_issue:` already stamped: `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist from frontmatter + back-link to the MD path. Capture issue number; stamp `github_issue: N`. If already stamped, verify still open via `gh issue view`.
 
 **Commit.** Single commit covering frontmatter + story body delta + the `legacy-migration-plan.md` diff from Step 4.5 (+ issue stamp if just minted). Subject: `#N: refine` (or `S-NNN: refine` fallback when no issue exists). Re-refine on an existing branch: `#N: re-refine — <one-line headline of what changed>`.
 
-**Push + draft PR.** `git push -u origin story/S-NNN-<slug>`. Then `gh pr create --draft --base main --head story/S-NNN-<slug>` if no PR exists yet. PR body:
+**Push + draft PR.** `git push -u origin story/S-NNN-<slug>`. Then `gh pr create --draft --base <base> --head story/S-NNN-<slug>` if no PR exists yet. PR body:
 
 ```
 Closes #N

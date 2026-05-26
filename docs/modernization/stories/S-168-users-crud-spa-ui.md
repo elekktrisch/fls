@@ -6,6 +6,7 @@ status: todo
 estimate: M
 parity_test: tests/masterdata/27-user-crud.spec.ts
 depends_on: [S-052]
+integration_base: integration/users-suite
 adr_refs: [0007, 0022, 0023]
 refined: false
 origin: scope-split

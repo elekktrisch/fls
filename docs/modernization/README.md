@@ -9,7 +9,7 @@ A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite
 >
 > Skill + agent files target ≤ 200 / ≤ 100 lines. When a procedure here disagrees with the directives, the directives win.
 
-**Skill set:** the seven numbered phases (discover → vision → adrs → decompose → refine → implement → finalize) plus the operator-invoked `/modernize-rework` side path, plus two orchestration extensions for throughput (`/modernize-sweep-finalize`, `/modernize-fleet`) — see [Orchestration extensions](#orchestration-extensions) below.
+**Skill set:** the seven numbered phases (discover → vision → adrs → decompose → refine → implement → finalize) plus the operator-invoked `/modernize-rework` side path, plus `/modernize-sweep-finalize` for unattended finalize cadence — see [Orchestration extensions](#orchestration-extensions) below.
 
 ## Strategic anchors (fixed for this project)
 
@@ -41,7 +41,7 @@ Phases 1–4 are one-shot planning. Phases 5–7 are per-story execution — inv
 
 **Side skill — `/modernize-rework <S-NNN>`** — operator-invoked only. Use when the implement auto-fix loop escalates (couldn't converge after 2 rounds; reviewer flagged something that needs scope/design pivot), or when the operator decides post-hoc that a shipped story's shape needs revisiting. Not part of the linear phase progression.
 
-The throughput orchestration extensions (`/modernize-sweep-finalize`, `/modernize-fleet`) wrap these per-story skills without changing the per-story state machine.
+`/modernize-sweep-finalize` wraps the per-story skills for unattended finalize cadence without changing the per-story state machine.
 
 ## Specialist subagents
 
@@ -105,7 +105,6 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 # ...
 
 # Throughput extensions (optional, layer on top):
-/modernize-fleet 3          # run refine→implement on 3 stories concurrently in worktrees
 /modernize-sweep-finalize   # auto-finalize every story that satisfies the gate (no judgment calls)
 ```
 
@@ -113,14 +112,33 @@ Re-running a planning phase (1–4) regenerates its artifact in place. Re-runnin
 
 ## Orchestration extensions
 
-Two skills layer on top of the seven phases to improve throughput without compromising the per-story state-machine guarantees. Both opt-in.
+One skill layers on top of the seven phases to improve throughput without compromising the per-story state-machine guarantees. Opt-in.
 
 | Skill | Purpose | Typical use |
 |---|---|---|
-| `/modernize-sweep-finalize` | Daemon-style finalize — scans `stories/implemented/`, auto-finalizes anything that satisfies the gate without judgment calls. Defers ADR amendments, `CHANGES_REQUESTED` PRs, and unclear docs-prune cases. | Wrap in `/loop 30m /modernize-sweep-finalize` or `/schedule` for unattended cadence. |
-| `/modernize-fleet [N]` | Parallel-fleet orchestrator — dispatches up to N independent unblocked stories to isolated worktrees and runs refine→implement concurrently (implement's Step 7 reviewer panel runs per worktree). Batches operator checkpoints. | Run on the long tail of leaf stories (CRUDs, observability, scheduled jobs). Foundational stories stay JIT. |
+| `/modernize-sweep-finalize` | Daemon-style finalize — scans `stories/implemented/`, auto-finalizes anything that satisfies the gate without judgment calls. Defers ADR amendments, `CHANGES_REQUESTED` PRs, unclear docs-prune cases, and stories with `integration_base` set (those land into integration, not main). | Wrap in `/loop 30m /modernize-sweep-finalize` or `/schedule` for unattended cadence. |
 
-*(Note: a speculative buffer-fill variant `/modernize-refine-ahead` existed in earlier revisions. Retired — refine is no longer speculative: Step 3.5 grills the operator on every unpinned fork, so refinement only happens when the operator is in the loop. Existing stories with the historical `refined_speculative: true` stamp trigger automatic re-refine in implement's Step 1.)*
+*(Note: retired variants — `/modernize-refine-ahead` (speculative buffer-fill; refine is no longer speculative — Step 3.5 grills the operator on every unpinned fork), and `/modernize-fleet` (parallel worktree orchestrator; unused in practice).)*
+
+## Integration-branch workflow
+
+For story clusters that the operator wants to test together before landing on main (typical: a story + its scope-split follow-ups), opt into an integration branch:
+
+1. **Create the integration branch off main** and push it:
+   ```bash
+   git checkout -b integration/<name> main
+   git push -u origin integration/<name>
+   ```
+2. **Stamp every cluster story** with the integration branch in its frontmatter:
+   ```yaml
+   integration_base: integration/<name>
+   ```
+3. **Run refine / implement / finalize as normal.** Each skill resolves `<base>` from `integration_base` — stories branch off the integration branch, PRs target the integration branch, per-story finalize squash-merges into integration.
+4. **When the cluster is ready**, run `/modernize-finalize integration/<name>` (Mode B). The skill verifies every cluster story is `merged: true`, opens a single squash-merge PR `integration/<name>` → `main`, stamps `merged_to_main_at` on every cluster story, deletes the integration branch.
+
+ADR amendments still commit to `main` directly even when the cluster is on an integration branch — governance is cross-cutting.
+
+`/modernize-sweep-finalize` **skips stories with `integration_base` set** — those finalize per-story into integration, then the operator runs the Mode B finalize explicitly when the cluster is ready.
 
 ## File layout
 
@@ -145,14 +163,14 @@ docs/modernization/
         └── ...
 ```
 
-Selection skills (`/modernize-fleet`, `/modernize-sweep-finalize`) enumerate only the top-level `stories/S-*.md` glob — implemented stories never re-appear as work candidates. Skills that need to read an implemented story (e.g. `/modernize-refine` resolving a `depends_on:` predecessor, or `/modernize-rework` minting the next free `S-NNN`) glob both locations.
+`/modernize-sweep-finalize` enumerates only the top-level `stories/S-*.md` glob — implemented stories never re-appear as work candidates. Skills that need to read an implemented story (e.g. `/modernize-refine` resolving a `depends_on:` predecessor, or `/modernize-rework` minting the next free `S-NNN`) glob both locations.
 
 A story file evolves over its lifetime:
 1. **After phase 4** — `status: todo`, body has Context / Acceptance / Tasks / Notes.
 2. **After phase 5** (`refined: true`) — body gains Design notes / Legacy table migration / Edge cases / Security plan / Test plan / Performance plan (and Open design questions only if the Step 3.5 grill left something the operator explicitly deferred). Story branch + GH issue + draft PR open. Historical-only: `refined_speculative: true` from the retired `/modernize-refine-ahead`; triggers automatic re-refine in implement.
 3. **During phase 6** — `status: in_progress`, `started_at: <date>`, `github_issue:`, `github_pr:` stamped.
 4. **After phase 6** — `status: done`, `done_at: <date>`, body pruned to load-bearing decisions, **file moved to `stories/implemented/S-NNN-*.md`** in the mark-done commit. Reviewer findings (maintainability / security / tech-writer / usability / parity) were auto-fixed inline by Step 7's reviewer panel; no `## Review` section is written — the code commits + the PR diff are the evidence trail.
-5. **After phase 7** (`merged: true`) — `merged_at` stamped, PR squash-merged to `main`, branch gone, issue closed; the finalize docs-prune pass deleted prose the code now sources more reliably (file trees, method signatures, stale citations after renames). `merge_commit` is not stamped — recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` if needed.
+5. **After phase 7** (`merged: true`) — `merged_at` stamped, PR squash-merged into the story's `<base>` (typically `main`; an integration branch if `integration_base` is set), branch gone, issue closed; the finalize docs-prune pass deleted prose the code now sources more reliably (file trees, method signatures, stale citations after renames). `merge_commit` is not stamped — recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` if needed. For integration-branch clusters, a later Mode B finalize stamps `merged_to_main_at` on every cluster story when the integration branch lands on main.
 
 **Side path — rework.** If `/modernize-rework <S-NNN>` is invoked (operator-only), `reworked: true` + `reworked_at` stamp; follow-up stories filed under `rework_followups: [S-XXX, ...]`. Most stories never see this state.
 
