@@ -56,6 +56,8 @@ Two write paths, no Keycloak SPI:
 
 New `ch.alpenflight.users/` module, mirror the `persons/` four-package layout. `User` aggregate root is **cross-tenant** (the principal subject — tenant-scoping the principal is circular); CLUB_ADMIN scoping is `WHERE club_id = callerClub` in the repo, gated by `@PreAuthorize`.
 
+**Architectural principle (operator, 2026-05-26):** *Users are managed by CLUB_ADMINISTRATOR only; SYSTEM_ADMINISTRATOR manages clubs, not users.* No `/api/v1/admin/users/**` path exists — not deferred, not future work. Sysadmin user-mgmt for cutover lives in S-028 (bulk-provision); for one-off prod intervention, the Keycloak admin UI is the path. This is the architectural rule that propagates to S-163 and any future user-touching story.
+
 Java-side invariants (not in DB, per ADR 0022 directive 2):
 - `keycloak_sub` immutable post-create (identity binding).
 - `club_id` immutable post-create (move-club = delete + recreate).
@@ -66,12 +68,13 @@ Java-side invariants (not in DB, per ADR 0022 directive 2):
 **Schema delta (V14 — rip-out + cleanup):**
 - DROP `user_role` + `role` tables (and the V2 stale seed). Roles live in Keycloak; the seed catalog (`ADMIN/FLIGHT_OPS/INSTRUCTOR/PILOT/READER`) does not even match the realm-role catalog (`SYSTEM_ADMINISTRATOR/CLUB_ADMINISTRATOR/FLIGHT_OPERATOR/PILOT/OFFICE_USER/GUEST`) — a latent footgun.
 - DROP `user.account_state_id` — dangling FK-shaped column with no target table; ADR 0022 directive 2 deviation that should not survive the port. The KC `enabled` flag + `deleted_on` cover the states.
-- **Operator call (see Open design questions):** DROP `lockout_enabled`, `lockout_end_date_utc`, `access_failed_count`, `two_factor_enabled`, `phone_number_confirmed`, `email_confirmed` — all KC-owned. Keep risk: stale columns become a parallel-truth attack surface.
-- DELETE `V8__dev_user_seed.sql` once JIT-on-login proves itself; until then keep V8 (idempotent on conflict) for fast-start parity.
+- DROP `lockout_enabled`, `lockout_end_date_utc`, `access_failed_count`, `two_factor_enabled`, `phone_number_confirmed`, `email_confirmed` from `user`. All Keycloak-owned. Migration plan does not need these columns: KC fresh-counters lockout state at cutover, MFA setup data doesn't port across protocols anyway, `email_confirmed` maps to KC `emailVerified` at importer time (S-028/S-141) without persisting locally. Keeping them is a parallel-truth attack surface per the security threat model.
+- REPLACE `ux_user_username_lower` (full unique) with partial-on-alive: `CREATE UNIQUE INDEX ux_user_username_lower_alive ON "user" (lower(username)) WHERE deleted_on IS NULL`. Matches PersonClub's `member_number` partial-unique pattern; preserves legacy "soft-delete then re-create same username" behavior.
+- KEEP `V8__dev_user_seed.sql` (idempotent on conflict). Rip in a follow-up once JIT-on-login has passed one full dev-bring-up cycle without it.
 
 ### API surface
 
-CLUB_ADMINISTRATOR cabin only (sysadmin variant deferred — see Open design questions):
+CLUB_ADMINISTRATOR cabin only (no sysadmin variant — see architectural principle above):
 
 | Endpoint | Notes |
 |---|---|
@@ -183,14 +186,5 @@ Legacy `e2e/tests/masterdata/users-crud.spec.ts` is **parity-excluded as the act
 ## Performance plan
 
 (N/A — per-club user counts are tens to low hundreds; no hot path; KC admin calls are admin-UI initiated, not request-path. List endpoint returns unbounded `List<UserListItem>` matching S-051's deferred-pagination posture; promote to `Page<>` when first club crosses ~200 users.)
-
-## Open design questions
-
-1. **Sysadmin cross-cutting `/api/v1/admin/users/**` — ship now or defer?** Recommendation: defer. S-159 stripped sysadmin from tenant-scoped paths; S-028 covers cutover-time provisioning. No current operational driver for sysadmin ongoing user-mgmt — Keycloak admin UI suffices in the interim. Re-file when a concrete need surfaces.
-2. **Drop legacy KC-shadow columns now (V14) or defer until after S-028 cutover?** Columns: `lockout_enabled`, `lockout_end_date_utc`, `access_failed_count`, `two_factor_enabled`, `phone_number_confirmed`, `email_confirmed`. Recommendation: drop now — S-028 writes Keycloak users, not these columns; keeping them is a parallel-truth attack surface (security threat-model row). If kept: S-028 must zero them on every import.
-3. **`notification_email` decoupled from KC login email — confirm.** Recommendation: yes, decoupled. Notification email = transactional contact; KC email = login identifier. Sync would re-create the legacy entanglement ADR 0007 aimed to escape.
-4. **Soft-deleted username re-use — allow or block?** Recommendation: flip `ux_user_username_lower` to partial-on-alive (matches `member_number` pattern in PersonClub). Legacy behavior was reuse-on-delete; user-friendliness wins.
-5. **Realm-export `alpenflight-backend-admin` client — land in S-052 PR or file as S-019 amendment?** Recommendation: land in S-052 (this story owns the consumer; the realm delta has no value without the admin code).
-6. **Delete V8 dev seed in V14, or keep as idempotent fast-start?** Recommendation: keep until JIT-on-login passes one dev-bring-up cycle; rip in a follow-up.
 
 <!-- modernize-refine: end -->

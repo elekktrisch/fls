@@ -83,15 +83,15 @@ If a story needs a semantics value not in this list, add it via refine's Step 3.
 | PlanningDayAssignment | PlanningDayAssignments | TBD | TBD | TBD | | [columns](legacy-tables/PlanningDayAssignments/) |
 | PlanningDayAssignmentType | PlanningDayAssignmentTypes | TBD | TBD | TBD | | [columns](legacy-tables/PlanningDayAssignmentTypes/) |
 | PlanningDay | PlanningDays | TBD | TBD | TBD | | [columns](legacy-tables/PlanningDays/) |
-| Role | Roles | TBD | TBD | TBD | | [columns](legacy-tables/Roles/) |
+| Role | Roles | (dropped) | drop | S-052 | Realm-role catalog lives in Keycloak per ADR 0007; the legacy seed (ADMIN/FLIGHT_OPS/INSTRUCTOR/PILOT/READER) doesn't even match the realm catalog. Importer ignores legacy rows. | [columns](legacy-tables/Roles/) |
 | Setting | Settings | TBD | TBD | TBD | | [columns](legacy-tables/Settings/) |
 | StartType | StartTypes | TBD | TBD | TBD | | [columns](legacy-tables/StartTypes/) |
 | SystemData | SystemData | TBD | TBD | TBD | | [columns](legacy-tables/SystemData/) |
 | SystemLog | SystemLogs | TBD | TBD | TBD | | [columns](legacy-tables/SystemLogs/) |
 | SystemVersion | SystemVersion | TBD | TBD | TBD | | [columns](legacy-tables/SystemVersion/) |
-| UserAccountState | UserAccountStates | TBD | TBD | TBD | | [columns](legacy-tables/UserAccountStates/) |
-| UserRole | UserRoles | TBD | TBD | TBD | | [columns](legacy-tables/UserRoles/) |
-| User | Users | TBD | TBD | TBD | | [columns](legacy-tables/Users/) |
+| UserAccountState | UserAccountStates | (dropped) | drop | S-052 | KC `enabled` flag + `deleted_on` cover the states. Importer ignores legacy rows. | [columns](legacy-tables/UserAccountStates/) |
+| UserRole | UserRoles | (dropped) | drop | S-052 | Roles live in Keycloak realm-roles per ADR 0007. Importer maps legacy role names to KC realm roles at provisioning time (S-028) without persisting the junction. | [columns](legacy-tables/UserRoles/) |
+| User | Users | `"user"` (V2) | port-as-rows | S-052 | `keycloak_sub` minted by S-028 bulk-provision; passwords NEVER copied (C14). Legacy KC-shadow columns (`lockout_*`, `access_failed_count`, `two_factor_enabled`, `phone_number_confirmed`, `email_confirmed`) NOT mapped — KC owns those; importer maps legacy `email_confirmed=true` → KC `emailVerified=true` at provisioning. | [columns](legacy-tables/Users/) |
 
 ## Coverage check
 
