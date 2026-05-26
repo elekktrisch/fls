@@ -56,9 +56,9 @@ class MeControllerIT extends PostgresIntegrationTest {
                 personId.toString(), "MeIT", "Linked");
         jdbc.update("""
                 INSERT INTO "user" (id, club_id, username, friendly_name, person_id,
-                                    notification_email, email_confirmed, language_id,
+                                    notification_email, language_id,
                                     keycloak_sub)
-                VALUES (?::uuid, ?::uuid, ?, ?, ?::uuid, ?, true, ?::uuid, ?::uuid)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?::uuid, ?, ?::uuid, ?::uuid)
                 """,
                 userId.toString(), CLUB_UUID.toString(),
                 "me-it-linked", "Me IT Linked", personId.toString(),
@@ -131,9 +131,9 @@ class MeControllerIT extends PostgresIntegrationTest {
         UUID kcSub = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO "user" (id, club_id, username, friendly_name, person_id,
-                                    notification_email, email_confirmed, language_id,
+                                    notification_email, language_id,
                                     keycloak_sub)
-                VALUES (?::uuid, ?::uuid, ?, ?, NULL, ?, true, ?::uuid, ?::uuid)
+                VALUES (?::uuid, ?::uuid, ?, ?, NULL, ?, ?::uuid, ?::uuid)
                 """,
                 userId.toString(), CLUB_UUID.toString(),
                 "me-it-nopers", "Me IT No Person",
