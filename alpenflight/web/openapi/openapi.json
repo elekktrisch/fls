@@ -41,6 +41,9 @@
     "name" : "CounterUnitTypes",
     "description" : "Counter-unit-type reference catalog."
   }, {
+    "name" : "me",
+    "description" : "Authenticated-principal view"
+  }, {
     "name" : "flights",
     "description" : "Flight CRUD"
   }, {
@@ -1178,7 +1181,7 @@
     "/api/v1/flights" : {
       "get" : {
         "tags" : [ "flights" ],
-        "summary" : "List flights (keyset-cursor paginated)",
+        "summary" : "List flights (keyset-cursor paginated). When `personId` is supplied (prefixed `pn-<uuid>` per ADR 0019), rows are filtered to flights with a non-deleted FlightCrew row for that person, and the sort order is the AC-defined `flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC` (the third key tie-breaks via UUIDv7 id, which is monotonic-in-creation-time).",
         "operationId" : "list",
         "parameters" : [ {
           "name" : "from",
@@ -1210,6 +1213,15 @@
           "schema" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }, {
+          "name" : "personId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         } ],
         "responses" : {
@@ -1770,6 +1782,25 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/FlightProcessStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Authenticated-principal projection (id, personId, clubId, roles, firstName, lastName, email, username). personId is null for sysadmins / unmapped federated users.",
+        "operationId" : "get_1",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
                 }
               }
             }
@@ -4489,6 +4520,47 @@
           }
         },
         "required" : [ "firstname", "id", "isActive", "isGliderInstructor", "isGliderPilot", "isGliderTrainee", "isMotorInstructor", "isMotorPilot", "isTowPilot", "isWinchOperator", "lastname" ]
+      },
+      "MeResponse" : {
+        "type" : "object",
+        "description" : "Authenticated-principal projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Internal user.id (UUID). Null when the JWT sub matches no active user row."
+          },
+          "personId" : {
+            "type" : "string",
+            "description" : "Linked Person id, prefixed external form `pn-<uuid>`. Null when user.person_id is null (sysadmin / unmapped federated user)."
+          },
+          "clubId" : {
+            "type" : "string",
+            "description" : "Caller's home club, prefixed external form `clb-<uuid>`. Null when no user row matches the JWT sub."
+          },
+          "roles" : {
+            "type" : "array",
+            "description" : "AlpenFlight realm roles (no `ROLE_` prefix). Filtered to the canonical role catalog server-side; Keycloak built-ins (`uma_authorization`, `offline_access`, `default-roles-*`) are stripped.",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "firstName" : {
+            "type" : "string",
+            "description" : "First name. Resolved from the linked Person row when present, otherwise from the JWT `given_name` claim."
+          },
+          "lastName" : {
+            "type" : "string",
+            "description" : "Last name. Same resolution as firstName."
+          },
+          "email" : {
+            "type" : "string",
+            "description" : "Notification email from the user row, or JWT `email` claim when no user matches."
+          },
+          "username" : {
+            "type" : "string",
+            "description" : "Username from the user row, or JWT `preferred_username` claim when no user matches."
+          }
+        }
       },
       "LocationListItem" : {
         "type" : "object",
