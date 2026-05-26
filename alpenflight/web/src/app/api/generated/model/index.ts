@@ -75,6 +75,7 @@ export * from './locationListItem';
 export * from './locationTypeResponse';
 export * from './locationUpdateRequest';
 export * from './memberStateListItem';
+export * from './meResponse';
 export * from './newTemplateParams';
 export * from './newTemplateType';
 export * from './personClubRequest';

@@ -11,4 +11,8 @@ from?: string;
 to?: string;
 after?: string;
 limit?: number;
+/**
+ * @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+ */
+personId?: string;
 };
