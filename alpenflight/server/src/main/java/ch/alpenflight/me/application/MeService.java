@@ -1,10 +1,10 @@
 package ch.alpenflight.me.application;
 
-import ch.alpenflight.users.domain.Role;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -42,12 +42,21 @@ import org.springframework.stereotype.Service;
 @Service
 public class MeService {
 
-    // Realm-role catalogue is owned by `ch.alpenflight.users.domain.Role`
-    // (the single source for both BE and the SPA's `AppRole` union). Roles
-    // outside that set — Keycloak built-ins (`uma_authorization`,
-    // `offline_access`, `default-roles-*`) and the `proffix-sync` client
-    // role — are filtered out here so SPA consumers couple only to the
-    // application's own role vocabulary.
+    // Realm-role catalogue. The same set lives in `users.domain.Role` —
+    // duplicated here because Spring Modulith treats `users.domain` as
+    // module-internal (a cross-module reference fails ApplicationModulesTest).
+    // Drift between the two lists is detected by `MeServiceRoleCatalogTest`
+    // (and the SPA's `AppRole` test), not by sharing a type. Roles outside
+    // this set — Keycloak built-ins (`uma_authorization`, `offline_access`,
+    // `default-roles-*`) and the `proffix-sync` client role — are dropped
+    // at the wire boundary.
+    private static final Set<String> KNOWN_REALM_ROLES = Set.of(
+            "SYSTEM_ADMINISTRATOR",
+            "CLUB_ADMINISTRATOR",
+            "FLIGHT_OPERATOR",
+            "PILOT",
+            "OFFICE_USER",
+            "GUEST");
 
     private static final String SELECT_USER_AND_PERSON = """
             SELECT u.id              AS user_id,
@@ -107,7 +116,7 @@ public class MeService {
         return raw.stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
-                .filter(Role::isKnown)
+                .filter(KNOWN_REALM_ROLES::contains)
                 .toList();
     }
 

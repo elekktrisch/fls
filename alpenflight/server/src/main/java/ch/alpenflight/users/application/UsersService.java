@@ -245,6 +245,11 @@ public class UsersService {
             throw new UserConflictException("User " + id + " is not linked to a Keycloak identity");
         }
         kc.sendExecuteActions(kcSub, List.of("UPDATE_PASSWORD"), Duration.ofHours(12));
+        // Audit the operator-initiated re-send so a compromised CLUB_ADMIN
+        // spamming password-reset emails is visible in the forensic trail.
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.created(AUDIT_USER_ROLE, requireId(u),
+                        new UserRoleAuditPayload("RESEND_INVITE", "UPDATE_PASSWORD")));
     }
 
     /**
