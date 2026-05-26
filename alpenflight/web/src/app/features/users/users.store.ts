@@ -226,6 +226,10 @@ export const UsersStore = signalStore(
     onInit(store) {
       const bus = inject(MUTATION_BUS);
       const destroyRef = inject(DestroyRef);
+      // Cold-start fetch fires here; `clubAdminGuard` on the `/users` route
+      // is the structural guard that prevents non-admin construction. If
+      // future code injects this store outside the guarded route, gate the
+      // load at that consumer.
       store.loadAll();
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
         if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {

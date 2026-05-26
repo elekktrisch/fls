@@ -5,15 +5,18 @@ import { expect, test, type Route } from '@playwright/test';
  * e2e is S-109/S-110 territory. The mock-auth principal carries both
  * SYSTEM_ADMINISTRATOR and CLUB_ADMINISTRATOR; the surface itself is
  * gated on CLUB_ADMINISTRATOR via `clubAdminGuard`, so direct
- * `page.goto('/users')` is the entry point in this spec (nav-bar
- * visibility for CLUB_ADMIN-only is exercised elsewhere).
+ * `page.goto('/users')` is the entry point.
  *
  * Coverage:
- *   - List + seeded-row visibility, role chips, invite-pending badge.
- *   - Invite round-trip: form → POST `/api/v1/users` → list row appears.
+ *   - List + seeded rows (chips, invite-pending badge, per-row resend).
+ *   - Invite round-trip: form → POST `/api/v1/users` → row appears.
+ *   - Person picker on invite uses `POST /api/v1/persons/lookup` exact-match.
  *   - Role round-trip: edit page → diff PUT → reload reflects update.
- *   - Deactivate happy-path + 409 self-delete refusal inline.
- *   - Resend invite affordance on invitePending rows.
+ *   - Diff-and-PUT preserves SYSTEM_ADMINISTRATOR (out-of-band role) on edit.
+ *   - Deactivate happy-path + 409 self-delete refusal inline + dialog
+ *     stays open on conflict.
+ *   - Username-conflict 409 surfaces inline.
+ *   - Resend-invite affordance gated on `invitePending`.
  */
 
 interface MockUserListItem {
@@ -34,10 +37,20 @@ interface MockUserResponse extends MockUserListItem {
   languageId: string;
 }
 
+interface MockPersonLookupMatch {
+  id: string;
+  firstname: string;
+  lastname: string;
+  birthday?: string;
+  email?: string;
+  alreadyInThisClub: boolean;
+}
+
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const SELF_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000001';
 const SEED_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000002';
 const PENDING_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000003';
+const SYSADMIN_USER_ID = 'usr-019e30c3-2c00-7100-8000-000000000004';
 
 const LANG_DE = '019e2e15-2c00-77d0-8000-0000000007d0';
 
@@ -75,7 +88,26 @@ const seedUsers: MockUserResponse[] = [
     enabled: true,
     invitePending: true,
   },
+  {
+    id: SYSADMIN_USER_ID,
+    clubId: CLUB_A_ID,
+    username: 's.admin',
+    friendlyName: 'Sandra Admin',
+    notificationEmail: 'sandra@example.test',
+    languageId: LANG_DE,
+    roles: ['SYSTEM_ADMINISTRATOR', 'PILOT'],
+    enabled: true,
+    invitePending: false,
+  },
 ];
+
+const seedLookupPerson: MockPersonLookupMatch = {
+  id: 'pn-019e30c3-2c00-7001-8000-000000000a01',
+  firstname: 'Anna',
+  lastname: 'Bühler',
+  email: 'anna.buehler@example.test',
+  alreadyInThisClub: true,
+};
 
 function toListItem(u: MockUserResponse): MockUserListItem {
   const item: MockUserListItem = {
@@ -126,7 +158,26 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
   );
   await page.route('**/api/v1/persons**', (route) => {
     const u = new URL(route.request().url());
-    if (u.pathname === '/api/v1/persons' || u.pathname === '/api/v1/persons/lookup') {
+    const method = route.request().method();
+    if (method === 'POST' && u.pathname === '/api/v1/persons/lookup') {
+      const body = route.request().postDataJSON() as {
+        email?: string;
+        firstname?: string;
+        lastname?: string;
+        birthday?: string;
+      };
+      const matched =
+        (body.email && body.email === seedLookupPerson.email) ||
+        (body.firstname === seedLookupPerson.firstname &&
+          body.lastname === seedLookupPerson.lastname &&
+          body.birthday !== undefined);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ matches: matched ? [seedLookupPerson] : [] }),
+      });
+    }
+    if (u.pathname === '/api/v1/persons') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     }
     return route.fallback();
@@ -243,7 +294,6 @@ function setupUsersBackend(users: MockUserResponse[]) {
     }
     if (method === 'DELETE' && idMatch) {
       const id = idMatch[1];
-      // Mock the backend's self-delete + last-admin refusals.
       if (id === SELF_USER_ID) {
         await route.fulfill({
           status: 409,
@@ -285,7 +335,10 @@ test('users: lists seeded rows at /users with chips + invite-pending badge', asy
   await expect(page.getByTestId('users-table')).toBeVisible();
   await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).toContainText('Hans Meier');
   await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).toContainText('h.meier');
-  await expect(page.getByTestId(`user-row-${PENDING_USER_ID}`)).toContainText('Invite pending');
+  await expect(page.getByTestId(`user-role-${SEED_USER_ID}-PILOT`)).toContainText('Pilot');
+  await expect(page.getByTestId(`user-invite-pending-${PENDING_USER_ID}`)).toBeVisible();
+
+  await page.screenshot({ path: 'screenshots/users/01-list-populated.png', fullPage: true });
 });
 
 test('users: invite round-trip → row visible in list', async ({ page }) => {
@@ -302,9 +355,46 @@ test('users: invite round-trip → row visible in list', async ({ page }) => {
   await page.getByTestId('notificationEmail-input').locator('input').fill('marie@example.test');
   await page.getByTestId('role-PILOT').check();
 
+  await page.screenshot({ path: 'screenshots/users/02-invite-form.png', fullPage: true });
+
   await page.getByTestId('user-save-button').click();
   await expect(page).toHaveURL('/users');
   await expect(page.getByText('Marie Gandhi')).toBeVisible();
+
+  await page.screenshot({ path: 'screenshots/users/03-list-after-invite.png', fullPage: true });
+});
+
+test('users: person picker uses /persons/lookup exact-match', async ({ page }) => {
+  const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
+  await stubReferenceData(page);
+  await page.route('**/api/v1/users**', setupUsersBackend(users));
+
+  await page.goto('/users/new');
+
+  await page.getByTestId('person-picker-email').locator('input').fill(seedLookupPerson.email!);
+  // Wait for the picker matches to populate after lookup.
+  const lookupPromise = page.waitForResponse(
+    (resp) => resp.url().endsWith('/api/v1/persons/lookup') && resp.request().method() === 'POST',
+  );
+  await page.getByTestId('person-picker-search').click();
+  await lookupPromise;
+
+  await page.getByTestId(`person-picker-match-${seedLookupPerson.id}`).click();
+  await expect(page.getByTestId('person-picker-pinned')).toContainText('Bühler, Anna');
+
+  await page.getByTestId('username-input').locator('input').fill('a.bueh');
+  await page.getByTestId('friendlyName-input').locator('input').fill('Anna Bühler');
+  await page.getByTestId('notificationEmail-input').locator('input').fill('a@example.test');
+  await page.getByTestId('role-PILOT').check();
+
+  const postPromise = page.waitForRequest(
+    (req) =>
+      req.url().endsWith('/api/v1/users') &&
+      req.method() === 'POST' &&
+      (req.postDataJSON() as { personId?: string }).personId === seedLookupPerson.id,
+  );
+  await page.getByTestId('user-save-button').click();
+  await postPromise;
 });
 
 test('users: role round-trip — edit page diff PUTs + reload reflects', async ({ page }) => {
@@ -313,15 +403,41 @@ test('users: role round-trip — edit page diff PUTs + reload reflects', async (
   await page.route('**/api/v1/users**', setupUsersBackend(users));
 
   await page.goto('/users');
-  await page.getByTestId(`user-row-${SEED_USER_ID}`).getByRole('link').click();
+  await page.getByTestId(`user-row-${SEED_USER_ID}`).click();
   await expect(page).toHaveURL(`/users/${SEED_USER_ID}/edit`);
 
   // Grant CLUB_ADMINISTRATOR on top of existing PILOT.
   await page.getByTestId('role-CLUB_ADMINISTRATOR').check();
+  await page.screenshot({ path: 'screenshots/users/04-edit-roles.png', fullPage: true });
   await page.getByTestId('user-save-button').click();
 
   await expect(page).toHaveURL('/users');
-  await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).toContainText('CLUB_ADMINISTRATOR');
+  // Cutover gate (S-052): role-change-visible-on-reload. Force a fresh GET.
+  await page.reload();
+  await expect(page.getByTestId(`user-role-${SEED_USER_ID}-CLUB_ADMINISTRATOR`)).toBeVisible();
+});
+
+test('users: edit preserves SYSTEM_ADMINISTRATOR (out-of-band role) on save', async ({ page }) => {
+  const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
+  await stubReferenceData(page);
+  await page.route('**/api/v1/users**', setupUsersBackend(users));
+
+  await page.goto(`/users/${SYSADMIN_USER_ID}/edit`);
+  await expect(page.getByTestId('user-out-of-band-roles-banner')).toContainText(
+    'System administrator',
+  );
+
+  // Bump a profile field; do not touch the role boxes.
+  await page.getByTestId('friendlyName-input').locator('input').fill('Sandra Admin (Updated)');
+
+  const putPromise = page.waitForRequest(
+    (req) => req.url().endsWith(`/api/v1/users/${SYSADMIN_USER_ID}`) && req.method() === 'PUT',
+  );
+  await page.getByTestId('user-save-button').click();
+  const putReq = await putPromise;
+  const body = putReq.postDataJSON() as { roles: string[] };
+  expect(body.roles).toContain('SYSTEM_ADMINISTRATOR');
+  expect(body.roles).toContain('PILOT');
 });
 
 test('users: deactivate removes the row', async ({ page }) => {
@@ -332,10 +448,11 @@ test('users: deactivate removes the row', async ({ page }) => {
   await page.goto(`/users/${SEED_USER_ID}/edit`);
 
   await page.getByTestId('user-deactivate-button').click();
+  await page.screenshot({ path: 'screenshots/users/05-deactivate-confirm.png', fullPage: true });
   await page.getByTestId('af-dialog-confirm').click();
 
   await expect(page).toHaveURL('/users');
-  await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).not.toBeVisible();
+  await expect(page.getByTestId(`user-row-${SEED_USER_ID}`)).toHaveCount(0);
 });
 
 test('users: self-deactivate refused inline (409)', async ({ page }) => {
@@ -355,17 +472,40 @@ test('users: self-deactivate refused inline (409)', async ({ page }) => {
   await expect(page).toHaveURL(`/users/${SELF_USER_ID}/edit`);
 });
 
-test('users: resend-invite affordance is visible only on invitePending rows', async ({ page }) => {
+test('users: invite refuses on duplicate username (409)', async ({ page }) => {
+  const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
+  await stubReferenceData(page);
+  await page.route('**/api/v1/users**', setupUsersBackend(users));
+
+  await page.goto('/users/new');
+
+  await page.getByTestId('username-input').locator('input').fill('h.meier');
+  await page.getByTestId('friendlyName-input').locator('input').fill('Conflict User');
+  await page.getByTestId('notificationEmail-input').locator('input').fill('c@example.test');
+  await page.getByTestId('role-PILOT').check();
+  await page.getByTestId('user-save-button').click();
+
+  await expect(page.getByTestId('user-form-error')).toContainText('already in use');
+  await expect(page).toHaveURL('/users/new');
+});
+
+test('users: resend-invite is visible only on invitePending rows + POSTs on click', async ({
+  page,
+}) => {
   const users: MockUserResponse[] = seedUsers.map((u) => ({ ...u, roles: [...u.roles] }));
   await stubReferenceData(page);
   await page.route('**/api/v1/users**', setupUsersBackend(users));
 
   await page.goto('/users');
 
-  await expect(
-    page.getByTestId(`user-row-${PENDING_USER_ID}`).getByTestId('user-resend-invite-button'),
-  ).toBeVisible();
-  await expect(
-    page.getByTestId(`user-row-${SEED_USER_ID}`).getByTestId('user-resend-invite-button'),
-  ).toHaveCount(0);
+  await expect(page.getByTestId(`user-resend-invite-${PENDING_USER_ID}`)).toBeVisible();
+  await expect(page.getByTestId(`user-resend-invite-${SEED_USER_ID}`)).toHaveCount(0);
+
+  const postPromise = page.waitForRequest(
+    (req) =>
+      req.url().endsWith(`/api/v1/users/${PENDING_USER_ID}/resend-invite`) &&
+      req.method() === 'POST',
+  );
+  await page.getByTestId(`user-resend-invite-${PENDING_USER_ID}`).click();
+  await postPromise;
 });

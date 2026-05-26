@@ -29,11 +29,3 @@ export const LANGUAGE_OPTIONS: readonly LanguageOption[] = [
   { id: LANGUAGE_BY_LOCALE.it, label: 'Italiano', locale: 'it' },
   { id: LANGUAGE_BY_LOCALE.en, label: 'English', locale: 'en' },
 ];
-
-export function localeForLanguageId(id: string | undefined): AppLocale | null {
-  if (!id) return null;
-  for (const opt of LANGUAGE_OPTIONS) {
-    if (opt.id === id) return opt.locale;
-  }
-  return null;
-}

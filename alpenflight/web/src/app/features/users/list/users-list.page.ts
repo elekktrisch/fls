@@ -7,6 +7,7 @@ import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfDataTableComponent } from '@ui/organisms/af-data-table';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { roleLabel } from '../role-catalog';
 import { UsersStore } from '../users.store';
 
 @Component({
@@ -41,6 +42,15 @@ import { UsersStore } from '../users.store';
         data-testid="users-error"
       />
 
+      @if (!store.isLoading() && store.entities().length === 0 && !store.loadError()) {
+        <div
+          class="px-3 py-6 text-sm text-slate-500 border border-slate-200 bg-slate-50"
+          data-testid="users-empty"
+        >
+          No users yet — start with “New user”.
+        </div>
+      }
+
       <af-data-table
         data-testid="users-table"
         [items]="store.entities()"
@@ -48,45 +58,49 @@ import { UsersStore } from '../users.store';
       >
         <ng-template #primary let-u>
           <a
-            class="text-slate-900 font-medium no-underline hover:text-brand-700"
+            class="text-slate-900 font-medium no-underline hover:text-brand-700 flex flex-col"
             [routerLink]="['/users', u.id, 'edit']"
             [attr.data-testid]="'user-row-' + u.id"
           >
             <span>{{ u.friendlyName }}</span>
+            <span class="text-xs text-slate-500 font-normal tabular">{{ u.username }}</span>
           </a>
         </ng-template>
         <ng-template #secondary let-u>
-          <span class="text-slate-600 tabular">{{ u.username }}</span>
-          @for (role of u.roles; track role) {
-            <span
-              class="inline-block ml-1 text-xs px-2 py-0.5 bg-slate-50 text-slate-600"
-              [attr.data-testid]="'user-role-' + u.id + '-' + role"
-            >
-              {{ role }}
-            </span>
-          }
+          <span class="flex flex-wrap gap-1">
+            @for (role of u.roles; track role) {
+              <span
+                class="inline-block text-xs px-2 py-0.5 bg-slate-50 text-slate-600"
+                [attr.data-testid]="'user-role-' + u.id + '-' + role"
+              >
+                {{ roleLabel(role) }}
+              </span>
+            }
+          </span>
         </ng-template>
         <ng-template #meta let-u>
-          @if (u.invitePending) {
-            <span
-              class="inline-block text-xs px-2 py-0.5 bg-amber-50 text-amber-700"
-              data-testid="user-invite-pending-badge"
-            >
-              Invite pending
-            </span>
-            <af-button
-              type="default"
-              htmlType="button"
-              [disabled]="store.isResendingInvite()"
-              (clicked)="onResend(u.id)"
-              data-testid="user-resend-invite-button"
-            >
-              Resend invite
-            </af-button>
-          }
-          @if (!u.enabled) {
-            <span class="text-xs text-slate-500 ml-2">Inactive</span>
-          }
+          <span class="flex flex-wrap items-center gap-2">
+            @if (u.invitePending) {
+              <span
+                class="inline-block text-xs px-2 py-0.5 bg-amber-50 text-amber-700"
+                [attr.data-testid]="'user-invite-pending-' + u.id"
+              >
+                Invite pending
+              </span>
+              <af-button
+                type="default"
+                htmlType="button"
+                [disabled]="store.isResendingInvite()"
+                (clicked)="onResend(u.id)"
+                [attr.data-testid]="'user-resend-invite-' + u.id"
+              >
+                Resend invite
+              </af-button>
+            }
+            @if (!u.enabled) {
+              <span class="text-xs text-slate-500">Inactive</span>
+            }
+          </span>
         </ng-template>
       </af-data-table>
     </af-page>
@@ -95,6 +109,7 @@ import { UsersStore } from '../users.store';
 export class UsersListPage {
   protected readonly store = inject(UsersStore);
   protected readonly router = inject(Router);
+  protected readonly roleLabel = roleLabel;
 
   protected onResend(id: string): void {
     this.store.resendInvite(id);

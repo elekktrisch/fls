@@ -27,6 +27,7 @@ import { AfDialogComponent } from '@ui/organisms/af-dialog';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import type {
+  PersonLookupMatch,
   UserInviteRequest,
   UserResponse,
   UserUpdateRequest,
@@ -36,8 +37,9 @@ import { LocaleService } from '@shared/ui/locale';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS } from '../language-options';
-import { CLUB_ADMIN_GRANTABLE_ROLES, mergeManagedRoles } from '../role-catalog';
+import { CLUB_ADMIN_GRANTABLE_ROLES, mergeManagedRoles, roleLabel } from '../role-catalog';
 import { UsersStore } from '../users.store';
+import { UserPersonPickerComponent } from './person-picker.component';
 
 type UserForm = FormGroup<{
   username: FormControl<string>;
@@ -55,7 +57,11 @@ type UserForm = FormGroup<{
 
 const MANAGED_ROLE_SET = new Set<string>(CLUB_ADMIN_GRANTABLE_ROLES);
 
+// Mirrors UserInviteRequest.username @Pattern in
+// `ch.alpenflight.users.application.UserDtos`. Drift here means inline
+// validation accepts what the backend later 400s — change both together.
 const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
+const USERNAME_HELP = 'Letters, digits, dot, underscore, dash; 3-256 chars.';
 
 @Component({
   selector: 'af-users-edit',
@@ -72,6 +78,7 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
     AfPageComponent,
     AfPageHeaderComponent,
     AfPageErrorComponent,
+    UserPersonPickerComponent,
   ],
   template: `
     <af-page>
@@ -106,12 +113,13 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
             data-testid="user-out-of-band-roles-banner"
           >
             Additional roles managed outside this screen:
-            <span class="tabular">{{ outOfBandRoles().join(', ') }}</span>
+            <span class="tabular">{{ outOfBandRoleLabels() }}</span>
           </div>
         }
 
         <af-page-error
           [message]="formError()"
+          retryLabel="Dismiss"
           (retry)="clearError()"
           data-testid="user-form-error"
         />
@@ -135,8 +143,8 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
                 formControlName="username"
                 data-testid="username-input"
                 autocomplete="username"
-                placeholder="letters, digits, dot, underscore, dash; 3-256 chars"
               />
+              <span class="block text-xs text-slate-500 mt-1">{{ usernameHelp }}</span>
             </af-form-field>
           }
 
@@ -171,6 +179,9 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
               data-testid="notificationEmail-input"
               autocomplete="email"
             />
+            <span class="block text-xs text-slate-500 mt-1">
+              Used for in-app notifications. The login email is managed in Keycloak.
+            </span>
           </af-form-field>
 
           <af-form-field label="Phone" for="PhoneNumber">
@@ -195,9 +206,15 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
             />
           </af-form-field>
 
+          @if (isCreate()) {
+            <af-form-field label="Linked person (optional)" for="PersonPicker">
+              <af-user-person-picker [(pinned)]="pinnedPerson" data-testid="user-person-picker" />
+            </af-form-field>
+          }
+
           <fieldset
             class="border border-slate-200 p-3 flex flex-col gap-2"
-            [class.border-rose-400]="rolesTouchedEmpty()"
+            [class.border-red-600]="rolesEmptyError()"
           >
             <legend class="text-sm text-slate-600 px-1">Roles</legend>
             @for (role of grantableRoles; track role) {
@@ -207,11 +224,11 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
                   [formControlName]="role"
                   [attr.data-testid]="'role-' + role"
                 />
-                {{ role }}
+                {{ roleLabel(role) }}
               </label>
             }
-            @if (rolesTouchedEmpty()) {
-              <span class="text-xs text-rose-600" data-testid="roles-empty-error">
+            @if (rolesEmptyError()) {
+              <span class="text-xs text-red-600" data-testid="roles-empty-error">
                 Pick at least one role.
               </span>
             }
@@ -253,7 +270,7 @@ const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,256}$/;
         [visible]="deactivateOpen()"
         title="Deactivate user"
         [message]="dialogMessage()"
-        confirmLabel="Deactivate"
+        [confirmLabel]="deactivateError() ? 'Close' : 'Deactivate'"
         dismissLabel="Cancel"
         (confirm)="onConfirmDeactivate()"
         (dismiss)="onDismissDeactivate()"
@@ -271,6 +288,8 @@ export class UsersEditPage {
   private readonly locale = inject(LocaleService);
 
   protected readonly grantableRoles = CLUB_ADMIN_GRANTABLE_ROLES;
+  protected readonly roleLabel = roleLabel;
+  protected readonly usernameHelp = USERNAME_HELP;
   protected readonly languageOptions: readonly AfSelectOption<string>[] = LANGUAGE_OPTIONS.map(
     (o) => ({ value: o.id, label: o.label }),
   );
@@ -279,6 +298,14 @@ export class UsersEditPage {
   protected readonly isCreate = computed(() => this.routeId() === null);
   protected readonly saving = signal(false);
   protected readonly deactivateOpen = signal(false);
+  protected readonly pinnedPerson = signal<PersonLookupMatch | null>(null);
+
+  // Deactivate-specific error: set when the dialog is open and a save error
+  // surfaces. Decoupled from `formError()` so the dialog body doesn't show a
+  // stale invite/update error after a 409.
+  private readonly deactivateErrorMessage = signal<string | null>(null);
+  protected readonly deactivateError = computed(() => this.deactivateErrorMessage());
+
   protected readonly selectedUser = computed(() => this.store.selectedUser());
 
   protected readonly outOfBandRoles = computed(() => {
@@ -286,6 +313,10 @@ export class UsersEditPage {
     if (!detail || this.isCreate()) return [];
     return detail.roles.filter((r) => !MANAGED_ROLE_SET.has(r));
   });
+
+  protected readonly outOfBandRoleLabels = computed(() =>
+    this.outOfBandRoles().map(roleLabel).join(', '),
+  );
 
   protected readonly form: UserForm = this.fb.group({
     username: this.fb.control('', {
@@ -312,31 +343,23 @@ export class UsersEditPage {
     GUEST: this.fb.control(false),
   });
 
-  // Touched + no checkbox set surfaces the "pick at least one role" hint.
-  // Counted as a signal-derived expression so the template re-renders.
-  protected readonly rolesTouchedEmpty = computed(() => {
-    const c = this.form.controls;
-    const anyTouched =
-      c.CLUB_ADMINISTRATOR.touched ||
-      c.FLIGHT_OPERATOR.touched ||
-      c.PILOT.touched ||
-      c.OFFICE_USER.touched ||
-      c.GUEST.touched ||
-      this.submissionAttempted();
-    return anyTouched && this.checkedRoles().length === 0;
-  });
+  // Surfaces only after the operator attempts submit so the field doesn't
+  // shout on first render. Checkbox `touched` flags are unreliable on
+  // groups; track explicit submission instead.
+  protected readonly rolesEmptyError = computed(
+    () => this.submissionAttempted() && this.checkedRoles().length === 0,
+  );
   private readonly submissionAttempted = signal(false);
 
   protected readonly formError = computed(() => this.store.saveError());
 
   protected readonly dialogMessage = computed(() => {
-    const detail = this.store.selectedUser();
-    if (this.formError() !== null) {
-      // After the backend 409 lands, swap the dialog body to the
-      // ProblemDetail copy so the operator sees the constraint.
-      return this.formError();
+    const err = this.deactivateErrorMessage();
+    if (err !== null) {
+      return err;
     }
-    return `Deactivate user ${detail?.friendlyName ?? ''}? They will lose login access.`;
+    const detail = this.store.selectedUser();
+    return `Deactivate user ${detail?.friendlyName ?? ''}? Login access will be revoked.`;
   });
 
   constructor() {
@@ -358,8 +381,12 @@ export class UsersEditPage {
     });
 
     effect(() => {
-      if (this.store.saveError() !== null) {
+      const err = this.store.saveError();
+      if (err !== null) {
         this.saving.set(false);
+        if (this.deactivateOpen()) {
+          this.deactivateErrorMessage.set(err);
+        }
       }
     });
 
@@ -370,6 +397,7 @@ export class UsersEditPage {
       ) {
         this.saving.set(false);
         this.deactivateOpen.set(false);
+        this.deactivateErrorMessage.set(null);
         this.router.navigateByUrl('/users');
       }
     });
@@ -381,15 +409,22 @@ export class UsersEditPage {
 
   protected openDeactivate(): void {
     this.store.clearSaveError();
+    this.deactivateErrorMessage.set(null);
     this.deactivateOpen.set(true);
   }
 
   protected onDismissDeactivate(): void {
     this.deactivateOpen.set(false);
+    this.deactivateErrorMessage.set(null);
     this.store.clearSaveError();
   }
 
   protected onConfirmDeactivate(): void {
+    if (this.deactivateErrorMessage() !== null) {
+      // "Close" mode — the 409 already landed; confirm dismisses.
+      this.onDismissDeactivate();
+      return;
+    }
     const id = this.routeId();
     if (id === null) return;
     this.saving.set(true);
@@ -428,6 +463,8 @@ export class UsersEditPage {
       if (phone.length > 0) req.phoneNumber = phone;
       const remarks = v.remarks.trim();
       if (remarks.length > 0) req.remarks = remarks;
+      const pinned = this.pinnedPerson();
+      if (pinned !== null) req.personId = pinned.id;
       this.store.invite(req);
       return;
     }
@@ -477,8 +514,6 @@ export class UsersEditPage {
       OFFICE_USER: detail.roles.includes('OFFICE_USER'),
       GUEST: detail.roles.includes('GUEST'),
     });
-    // Username is identity-binding; disable on edit so the form value is
-    // preserved (controls.disabled doesn't strip from getRawValue).
     this.form.controls.username.disable({ emitEvent: false });
   }
 }

@@ -17,6 +17,19 @@ export const CLUB_ADMIN_GRANTABLE_ROLES: readonly UserUpdateRequestRolesItem[] =
 
 const MANAGED = new Set<string>(CLUB_ADMIN_GRANTABLE_ROLES);
 
+const ROLE_LABELS: Readonly<Record<string, string>> = {
+  SYSTEM_ADMINISTRATOR: 'System administrator',
+  CLUB_ADMINISTRATOR: 'Club administrator',
+  FLIGHT_OPERATOR: 'Flight operator',
+  PILOT: 'Pilot',
+  OFFICE_USER: 'Office user',
+  GUEST: 'Guest',
+};
+
+export function roleLabel(role: string): string {
+  return ROLE_LABELS[role] ?? role;
+}
+
 /**
  * Compose the PUT-payload role set as
  * `(currentFromServer \ uiManagedRoles) ∪ checkedBoxes`.
