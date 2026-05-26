@@ -59,6 +59,18 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
+# S-052: backend → Keycloak admin-REST machine client (alpenflight-backend-admin).
+# Service-account scoped to manage-users + view-users + query-users only — see
+# alpenflight/auth/scripts/check-realm-shape.sh for the realm-shape pin.
+keycloak:
+  admin:
+    base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}
+    realm: ${ALPENFLIGHT_KC_ADMIN_REALM:alpenflight}
+    client-id: ${ALPENFLIGHT_KC_ADMIN_CLIENT_ID:alpenflight-backend-admin}
+    # Dev placeholder matches the committed realm-export; production overrides via env.
+    client-secret: ${ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET:alpenflight-backend-admin-dev-secret}
+    refresh-skew-seconds: ${ALPENFLIGHT_KC_ADMIN_REFRESH_SKEW_SECONDS:30}
+
 # S-027: default-deny audit serialization. Entries here whitelist fields that
 # may land verbatim in `mutation_audit_event.before_state` / `after_state`;
 # everything else is replaced by the `[redacted]` sentinel. `deny-all` is the
@@ -174,6 +186,39 @@ audit:
           - active
           - deletedOn
           - deletedByUserId
+      User:
+        # S-052 — Email + friendlyName + phone are PII and omitted; the audit
+        # row carries them as `[redacted]`. The id-shaped + tenant-shaped
+        # columns ride verbatim so a forensic timeline reads cleanly. Soft-
+        # delete actor fields are allowed so DELETE rows show who flipped it.
+        allow:
+          - id
+          - clubId
+          - keycloakSub
+          - personId
+          - languageId
+          - active
+          - enabled
+          - deletedOn
+          - deletedByUserId
+      UserResponse:
+        # DTO mirror — same allow-list as User. The `roles` array is a wire
+        # primitive (enum strings) and is fine to log; `username` is a login
+        # identifier (not PII).
+        allow:
+          - id
+          - clubId
+          - username
+          - languageId
+          - personId
+          - roles
+          - enabled
+          - invitePending
+      UserRole:
+        # USER_ROLE_GRANTED / REVOKED payload — tiny diagnostic record. No PII.
+        allow:
+          - action
+          - targetRole
       LookupAuditPayload:
         # Lookup-audit payload (PersonsService.lookup → LOOKUP_HIT/MISS).
         # Three forensic primitives, all non-PII: tenant uuid + byEmail flag

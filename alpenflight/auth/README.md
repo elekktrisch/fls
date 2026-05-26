@@ -44,6 +44,7 @@ docker compose -p alpenflight-dev up -d keycloak
 |---|---|---|---|
 | `alpenflight-web` | public | Authorization Code + PKCE-S256 | SPA. No direct-grants, no implicit. Redirect URIs: `http://localhost:{4200,3000}/*`. |
 | `alpenflight-backend` | bearer-only | (token validator) | Spring Security 7 resource server (S-020 wires this in). |
+| `alpenflight-backend-admin` | confidential | client-credentials only | Backend → KC admin REST machine client (S-052). Service-account scoped to **`manage-users` + `view-users` + `query-users`** on `realm-management` only — NOT `manage-realm` / `manage-clients` / `impersonation`. Dev secret `alpenflight-backend-admin-dev-secret`; prod secret via `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`. Rotate at deploy. |
 | `alpenflight-proffix` | confidential | client-credentials only | Machine client. Service-account role `proffix-sync`. Dev secret `alpenflight-proffix-dev-secret` — rotate at deploy. |
 
 ### Realm roles
@@ -101,7 +102,7 @@ The committed export is bit-stable across round-trips (deep-sorted, no timestamp
 - **Bootstrap admin (`admin`/`admin`)** — `KC_BOOTSTRAP_ADMIN_*` only seeds on a fresh H2 DB. Forbidden in prod; an operator must change before any non-localhost exposure.
 - **Embedded H2** — fine for dev (single-process, single-realm, throwaway). Production uses Postgres via `KC_DB=postgres` + a managed `keycloak_db` schema. The realm-export.json is the source of truth — DB loss is recoverable by re-importing.
 - **Plain HTTP** — `start-dev` + `sslRequired=external` allows plain HTTP on localhost. Production uses `start` (production mode) + TLS + `KC_HOSTNAME_URL=https://idp.example.com`.
-- **Dev secrets** — `alpenflight-proffix-dev-secret` is dev-committed. Rotate at deploy.
+- **Dev secrets** — `alpenflight-proffix-dev-secret` + `alpenflight-backend-admin-dev-secret` are dev-committed (matches alpenflight-proffix precedent). Rotate both at deploy via env (`ALPENFLIGHT_KC_PROFFIX_CLIENT_SECRET` / `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`); the committed export carries placeholders that `check-realm-shape.sh` asserts on so a real secret can't ride in unnoticed.
 - **Issuer URL** — host-pinned to `http://localhost:8090`. Production re-pins to the real public URL; downstream resource-server config must be env-driven (the same JSON works for both — only env differs).
 - **Brute-force tuning** — Keycloak defaults (5 fails → 60s lockout, escalating). Production may want longer / permanent lockout.
 - **Event log retention** — `jboss-logging` listener is dev-mode. Production extends with a forwarder (S-031) for centralized audit.
@@ -114,8 +115,9 @@ The committed export is bit-stable across round-trips (deep-sorted, no timestamp
 | S-021 Angular OIDC client | Issuer URL + `clientId=alpenflight-web` + PKCE-S256 |
 | S-022 `@TenantId` resolver | `clubId` claim (+ DB fallback for federated users) |
 | S-026 `@PreAuthorize` mapping | Realm-role names → `ROLE_*` authorities |
-| S-028 bulk-provision users | Admin REST API + `requiredActions: ["UPDATE_PASSWORD"]` flag (C14) |
+| S-028 bulk-provision users | `clientId=alpenflight-backend-admin` (S-052 wired it in) + `requiredActions: ["UPDATE_PASSWORD"]` flag (C14) |
 | S-029 Proffix machine client | `clientId=alpenflight-proffix` + client-credentials grant + secret-rotation procedure |
+| S-052 Users CRUD | `clientId=alpenflight-backend-admin` + `KeycloakAdminClient` typed façade in `users.infra.keycloak/` + admin-token caching with refresh-30s-before-expiry |
 
 ## Mock-auth status (post-S-026)
 

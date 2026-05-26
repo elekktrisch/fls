@@ -6,6 +6,10 @@
 #
 #   - alpenflight-web is PKCE-S256 public; standardFlow only.
 #   - alpenflight-backend is bearer-only.
+#   - alpenflight-backend-admin is confidential service-accounts-only, scoped
+#     to manage-users + view-users + query-users on realm-management (NOT
+#     manage-realm / manage-clients / impersonation), with the dev-placeholder
+#     secret.
 #   - alpenflight-proffix is service-accounts-only (no interactive flows).
 #   - 7 realm roles present (SYSTEM_ADMINISTRATOR, CLUB_ADMINISTRATOR, ...).
 #   - 3 seed users (sysadmin, clubadmin1, pilot1) with expected role + clubId.
@@ -46,6 +50,30 @@ PROFFIX=$(jq '.clients[] | select(.clientId=="alpenflight-proffix")' "$EXPORT")
 [[ $(jq -r '.standardFlowEnabled' <<<"$PROFFIX") == "false" ]] || fail "alpenflight-proffix must have standardFlowEnabled=false"
 [[ $(jq -r '.directAccessGrantsEnabled' <<<"$PROFFIX") == "false" ]] || fail "alpenflight-proffix must have directAccessGrantsEnabled=false"
 ok "alpenflight-proffix: service-accounts only"
+
+ADMIN=$(jq '.clients[] | select(.clientId=="alpenflight-backend-admin")' "$EXPORT")
+[[ -n "$ADMIN" ]] || fail "alpenflight-backend-admin client missing"
+[[ $(jq -r '.bearerOnly' <<<"$ADMIN") == "false" ]] || fail "alpenflight-backend-admin must NOT be bearerOnly (it needs a service-account token endpoint)"
+[[ $(jq -r '.serviceAccountsEnabled' <<<"$ADMIN") == "true" ]] || fail "alpenflight-backend-admin must have serviceAccountsEnabled=true"
+[[ $(jq -r '.standardFlowEnabled' <<<"$ADMIN") == "false" ]] || fail "alpenflight-backend-admin must have standardFlowEnabled=false"
+[[ $(jq -r '.directAccessGrantsEnabled' <<<"$ADMIN") == "false" ]] || fail "alpenflight-backend-admin must have directAccessGrantsEnabled=false"
+[[ $(jq -r '.publicClient' <<<"$ADMIN") == "false" ]] || fail "alpenflight-backend-admin must be confidential"
+[[ $(jq -r '.secret' <<<"$ADMIN") == "alpenflight-backend-admin-dev-secret" ]] || fail "alpenflight-backend-admin must carry the dev-placeholder secret in source (rotate at deploy)"
+
+# Service-account role binding: exactly manage-users + view-users + query-users,
+# scoped to realm-management. Anything broader (manage-realm / manage-clients /
+# impersonation) makes this client a tenant-escalation surface — fail loud.
+ADMIN_SA_ROLES=$(jq -r '
+  .users[]
+  | select(.serviceAccountClientId == "alpenflight-backend-admin")
+  | .clientRoles["realm-management"]
+  | sort
+  | join(",")
+' "$EXPORT")
+EXPECTED_SA_ROLES="manage-users,query-users,view-users"
+[[ "$ADMIN_SA_ROLES" == "$EXPECTED_SA_ROLES" ]] \
+  || fail "alpenflight-backend-admin realm-management role grant drifted: have [$ADMIN_SA_ROLES], want [$EXPECTED_SA_ROLES]"
+ok "alpenflight-backend-admin: confidential, service-accounts only, manage/view/query-users scope"
 
 # --- roles ---
 EXPECTED_ROLES="CLUB_ADMINISTRATOR FLIGHT_OPERATOR GUEST OFFICE_USER PILOT SYSTEM_ADMINISTRATOR proffix-sync"

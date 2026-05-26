@@ -1658,6 +1658,50 @@
       "authenticationFlowBindingOverrides": {},
       "bearerOnly": false,
       "clientAuthenticatorType": "client-secret",
+      "clientId": "alpenflight-backend-admin",
+      "consentRequired": false,
+      "defaultClientScopes": [
+        "acr",
+        "basic",
+        "email",
+        "profile",
+        "roles",
+        "service_account",
+        "web-origins"
+      ],
+      "directAccessGrantsEnabled": false,
+      "enabled": true,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "id": "00000000-0000-0000-0000-000000000004",
+      "implicitFlowEnabled": false,
+      "name": "AlpenFlight backend → Keycloak admin (machine client)",
+      "nodeReRegistrationTimeout": -1,
+      "optionalClientScopes": [
+        "address",
+        "microprofile-jwt",
+        "offline_access",
+        "organization",
+        "phone"
+      ],
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "redirectUris": [],
+      "secret": "alpenflight-backend-admin-dev-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "surrogateAuthRequired": false,
+      "webOrigins": []
+    },
+    {
+      "alwaysDisplayInConsole": false,
+      "attributes": {
+        "post.logout.redirect.uris": "+",
+        "realm_client": "false"
+      },
+      "authenticationFlowBindingOverrides": {},
+      "bearerOnly": false,
+      "clientAuthenticatorType": "client-secret",
       "clientId": "alpenflight-proffix",
       "consentRequired": false,
       "defaultClientScopes": [
@@ -3189,6 +3233,27 @@
         ]
       },
       "username": "sysadmin"
+    },
+    {
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "query-users",
+          "view-users"
+        ]
+      },
+      "createdTimestamp": 1716393600000,
+      "disableableCredentialTypes": [],
+      "emailVerified": false,
+      "enabled": true,
+      "id": "00000000-0000-0000-0000-000000000005",
+      "notBefore": 0,
+      "realmRoles": [
+        "default-roles-alpenflight"
+      ],
+      "serviceAccountClientId": "alpenflight-backend-admin",
+      "totp": false,
+      "username": "service-account-alpenflight-backend-admin"
     }
   ],
   "verifiableCredentialsEnabled": false,

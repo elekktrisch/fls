@@ -68,12 +68,16 @@ class IdentityBaselineIntegrationTest {
 
     @Autowired DataSource dataSource;
 
-    /** AC1 — every domain table listed in S-012 is present. */
+    /**
+     * AC1 — every domain table listed in S-012 is present. {@code role} +
+     * {@code user_role} are intentionally absent: per S-052, Keycloak owns
+     * role assignment and a local role catalogue would be parallel-truth.
+     */
     @Test
-    void all_19_tables_present() throws Exception {
+    void identity_baseline_tables_present() throws Exception {
         Set<String> expected = new LinkedHashSet<>(Arrays.asList(
                 "club", "club_extension", "club_state",
-                "user", "role", "user_role",
+                "user",
                 "person", "person_club",
                 "country", "language",
                 "member_state", "person_category",
@@ -128,7 +132,7 @@ class IdentityBaselineIntegrationTest {
                           AND c.column_name = k.column_name
                         WHERE t.table_schema = 'public'
                           AND t.table_name IN (
-                            'club','club_extension','club_state','user','role','user_role',
+                            'club','club_extension','club_state','user',
                             'person','person_club','country','language','member_state','person_category',
                             'length_unit_type','elevation_unit_type','counter_unit_type','start_type',
                             'email_template','extension_value','extension_type'
@@ -147,7 +151,7 @@ class IdentityBaselineIntegrationTest {
         assertThat(seenTables)
                 .as("every one of the 19 in-scope tables must contribute a PK row to the join")
                 .containsExactlyInAnyOrder(
-                        "club", "club_extension", "club_state", "user", "role", "user_role",
+                        "club", "club_extension", "club_state", "user",
                         "person", "person_club", "country", "language", "member_state", "person_category",
                         "length_unit_type", "elevation_unit_type", "counter_unit_type", "start_type",
                         "email_template", "extension_value", "extension_type");
@@ -401,18 +405,6 @@ class IdentityBaselineIntegrationTest {
         }
     }
 
-    @Test
-    void role_seeded_with_canonical_codes() throws Exception {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT code FROM role ORDER BY code")) {
-            List<String> codes = new ArrayList<>();
-            while (rs.next()) codes.add(rs.getString(1));
-            assertThat(codes).containsExactlyInAnyOrder(
-                    "ADMIN", "FLIGHT_OPS", "INSTRUCTOR", "PILOT", "READER");
-        }
-    }
-
     /**
      * V2 must not contain {@code INSERT INTO member_state} / {@code person_category}
      * statements — those are per-club seeds populated at S-016 cutover, not in V2.
@@ -544,8 +536,8 @@ class IdentityBaselineIntegrationTest {
     @Test
     void audit_columns_present_on_mutable_tables() throws Exception {
         // Aggregate roots + the internal collection that's mutated outside its
-        // root — user_role + reference tables intentionally skip the quad per
-        // design notes (audit goes via S-027's audit_event table).
+        // root. Reference tables intentionally skip the quad per design notes
+        // (audit goes via S-027's audit_event table).
         List<String> mutables = List.of("person", "club", "user", "person_club");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : mutables) {

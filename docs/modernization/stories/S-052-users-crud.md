@@ -7,12 +7,12 @@ started_at: 2026-05-26
 depends_on: [S-051, S-026, S-019, S-020]
 acceptance:
   - `User` entity ported, with `keycloak_sub` column linking to the IdP user.
-  - Roles are assigned via Keycloak (admin UI or API); the FLS `User` row is created in lockstep when a Keycloak user is added (event handler or batch sync).
-  - Spec `27-user-crud.spec.ts` passes.
-  - A user-edit screen on the SPA shows roles read from Keycloak; saves trigger Keycloak role updates.
+  - Backend Users REST API for CLUB_ADMINISTRATOR (list / get / invite / update / soft-delete / resend-invite), with role assignment delegated to the Keycloak admin REST API via the new `alpenflight-backend-admin` machine client.
+  - First-login JIT projection — `UsersService.materializeFromJwt` is in place; the filter that fires it on first authenticated request moves to S-169 (Users — JIT projection on first authenticated login).
+  - SPA admin UI + the new-stack e2e spec move to S-168 (Users CRUD — SPA admin UI). Legacy parity spec `27-user-crud.spec.ts` is parity-excluded; the carve-out lands with S-168.
+follow_ups: [S-168, S-169]
 estimate: L
 adr_refs: [0007, 0008, 0018, 0022, 0023]
-parity_test: tests/masterdata/27-user-crud.spec.ts
 refined: true
 refined_at: 2026-05-26
 refined_specialists: [requirements-engineer, solution-architect, security-engineer, qa-engineer]

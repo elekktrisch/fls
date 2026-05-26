@@ -26,11 +26,17 @@
 --       - under Person: person_club
 --       - under Club: club_extension, member_state, person_category,
 --         email_template/extension_value rows where club_id IS NOT NULL
---       - under User: user_role
 --   * Plain JPA / system-global lookups: country, language, start_type,
---     club_state, role, extension_type, length_unit_type,
+--     club_state, extension_type, length_unit_type,
 --     elevation_unit_type, counter_unit_type, and system-default
 --     email_template/extension_value rows where club_id IS NULL.
+--
+-- Roles + user_role intentionally absent: per ADR 0007 + S-052, Keycloak
+-- is the source of truth for role assignment. The realm-role catalogue
+-- (SYSTEM_ADMINISTRATOR / CLUB_ADMINISTRATOR / FLIGHT_OPERATOR / PILOT /
+-- OFFICE_USER / GUEST) lives in the realm export; assignment goes through
+-- the KC admin API. A local `role` table + `user_role` join would be
+-- parallel-truth — read live from `realm_access.roles` on the JWT instead.
 --
 -- Multi-tenancy (ADR 0008):
 --   * Tenant discriminator column is `club_id uuid` on TENANT_SCOPED tables.
@@ -68,10 +74,12 @@
 -- DO NOT add columns named `password_hash`, `password_salt`, `password`,
 -- `refresh_token`, `access_token`, `mfa_secret`, `totp_seed`, `security_stamp`,
 -- or any equivalent. Keycloak owns password storage, rotation, MFA, and
--- session lifecycle. The S-052 backfill that populates `keycloak_sub`
--- finalises the contract. A future PR adding a password-shaped column on
--- `user` is wrong — flag it at PR review and re-direct to Keycloak realm
--- config.
+-- session lifecycle. Account lifecycle (lockout, MFA enrolment, email /
+-- phone verification) also lives in Keycloak: re-introducing a local
+-- `lockout_enabled` / `email_confirmed` / `two_factor_enabled` would create
+-- parallel-truth (S-052 threat-model row). A future PR adding either an
+-- auth-credential or an account-state column on `user` is wrong — flag at
+-- PR review and re-direct to Keycloak realm config.
 -- ============================================================================
 
 -- =============================================================================
@@ -153,13 +161,6 @@ CREATE TABLE extension_type (
     comment TEXT
 );
 CREATE UNIQUE INDEX ux_extension_type_code ON extension_type (code);
-
-CREATE TABLE role (
-    id          UUID         NOT NULL PRIMARY KEY,
-    code        VARCHAR(32)  NOT NULL,
-    description VARCHAR(250)
-);
-CREATE UNIQUE INDEX ux_role_code ON role (code);
 
 
 -- =============================================================================
@@ -282,18 +283,11 @@ CREATE TABLE "user" (
     friendly_name               VARCHAR(100)  NOT NULL,
     person_id                   UUID,
     notification_email          VARCHAR(256)  NOT NULL,
-    email_confirmed             BOOLEAN       NOT NULL DEFAULT false,
     phone_number                VARCHAR(30),
-    phone_number_confirmed      BOOLEAN       NOT NULL DEFAULT false,
-    two_factor_enabled          BOOLEAN       NOT NULL DEFAULT false,
-    lockout_enabled             BOOLEAN       NOT NULL DEFAULT false,
-    lockout_end_date_utc        TIMESTAMPTZ,
-    access_failed_count         INTEGER       NOT NULL DEFAULT 0,
     remarks                     VARCHAR(250),
-    account_state_id            SMALLINT      NOT NULL DEFAULT 1,
-    -- Legacy `last_password_change_on` + `force_password_change_next` are
-    -- intentionally NOT carried over. Keycloak owns password lifecycle
-    -- (ADR 0007). See the header block: no password-shaped columns on `user`.
+    -- Account state (enabled / disabled) + email-verified / phone-verified
+    -- + lockout + MFA enrolment all live in Keycloak. See the auth-artifacts
+    -- header block above for the deny-list and the rationale.
     language_id                 UUID          NOT NULL,
     keycloak_sub                UUID,
     created_on                  TIMESTAMPTZ   NOT NULL DEFAULT now(),
@@ -306,8 +300,14 @@ CREATE TABLE "user" (
     CONSTRAINT fk_user_person_id   FOREIGN KEY (person_id)   REFERENCES person (id)   ON DELETE SET NULL,
     CONSTRAINT fk_user_language_id FOREIGN KEY (language_id) REFERENCES language (id) ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX ux_user_username_lower ON "user" (lower(username));
-CREATE UNIQUE INDEX ux_user_keycloak_sub   ON "user" (keycloak_sub) WHERE keycloak_sub IS NOT NULL;
+-- Partial-on-alive matches person_club.member_number: lets a soft-deleted
+-- user's username be recycled, while still blocking duplicates among live
+-- rows. Lower-cased to keep "Foo" vs "foo" collapsed.
+CREATE UNIQUE INDEX ux_user_username_lower_alive
+    ON "user" (lower(username))
+    WHERE deleted_on IS NULL;
+CREATE UNIQUE INDEX ux_user_keycloak_sub
+    ON "user" (keycloak_sub) WHERE keycloak_sub IS NOT NULL;
 CREATE        INDEX ix_user_club           ON "user" (club_id);
 CREATE        INDEX ix_user_person         ON "user" (person_id) WHERE person_id IS NOT NULL;
 
@@ -387,16 +387,6 @@ CREATE INDEX ix_person_club_club_person
 CREATE INDEX ix_person_club_member_number
     ON person_club (club_id, member_number)
     WHERE member_number IS NOT NULL;
-
-CREATE TABLE user_role (
-    id      UUID NOT NULL PRIMARY KEY,
-    user_id UUID NOT NULL,
-    role_id UUID NOT NULL,
-    CONSTRAINT fk_user_role_user_id FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_role_role_id FOREIGN KEY (role_id) REFERENCES role    (id) ON DELETE RESTRICT
-);
-CREATE UNIQUE INDEX ux_user_role_pair ON user_role (user_id, role_id);
-CREATE        INDEX ix_user_role_role ON user_role (role_id);
 
 CREATE TABLE club_extension (
     id                  UUID          NOT NULL PRIMARY KEY,
@@ -550,14 +540,6 @@ INSERT INTO extension_type (id, code, name, comment) VALUES
     ('019e2e15-2c00-7f42-8000-000000001f42', 'BOOLEAN', 'Boolean flag',         NULL),
     ('019e2e15-2c00-7f43-8000-000000001f43', 'DATE',    'Date value',           NULL),
     ('019e2e15-2c00-7f44-8000-000000001f44', 'LIST',    'Single-select list',   NULL);
-
--- role (5 canonical roles — S-026 finalises permission matrix)
-INSERT INTO role (id, code, description) VALUES
-    ('019e2e15-2c00-7328-8000-000000002328', 'ADMIN',      'Administrator — full club control'),
-    ('019e2e15-2c00-7329-8000-000000002329', 'FLIGHT_OPS', 'Flight operations — daily flight + planning ops'),
-    ('019e2e15-2c00-732a-8000-00000000232a', 'INSTRUCTOR', 'Flight instructor — training records + sign-offs'),
-    ('019e2e15-2c00-732b-8000-00000000232b', 'PILOT',      'Active pilot — read own flights, file own records'),
-    ('019e2e15-2c00-732c-8000-00000000232c', 'READER',     'Read-only — admin views, no mutation');
 
 -- country (ISO 3166-1 alpha-2 + alpha-3 + canonical English name; 248 rows.
 -- Generated by GenerateCanonicalUuids.java; per-row UUIDs deterministic.)
