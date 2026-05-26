@@ -105,8 +105,9 @@ const seedLookupPerson: MockPersonLookupMatch = {
   id: 'pn-019e30c3-2c00-7001-8000-000000000a01',
   firstname: 'Anna',
   lastname: 'Bühler',
+  birthday: '1985-04-12',
   email: 'anna.buehler@example.test',
-  alreadyInThisClub: true,
+  alreadyInThisClub: false,
 };
 
 function toListItem(u: MockUserResponse): MockUserListItem {
@@ -170,7 +171,7 @@ async function stubReferenceData(page: import('@playwright/test').Page): Promise
         (body.email && body.email === seedLookupPerson.email) ||
         (body.firstname === seedLookupPerson.firstname &&
           body.lastname === seedLookupPerson.lastname &&
-          body.birthday !== undefined);
+          body.birthday === seedLookupPerson.birthday);
       return route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -37,7 +37,12 @@ import { LocaleService } from '@shared/ui/locale';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS } from '../language-options';
-import { CLUB_ADMIN_GRANTABLE_ROLES, mergeManagedRoles, roleLabel } from '../role-catalog';
+import {
+  CLUB_ADMIN_GRANTABLE_ROLES,
+  MANAGED_ROLE_NAMES,
+  mergeManagedRoles,
+  roleLabel,
+} from '../role-catalog';
 import { UsersStore } from '../users.store';
 import { UserPersonPickerComponent } from './person-picker.component';
 
@@ -54,8 +59,6 @@ type UserForm = FormGroup<{
   OFFICE_USER: FormControl<boolean>;
   GUEST: FormControl<boolean>;
 }>;
-
-const MANAGED_ROLE_SET = new Set<string>(CLUB_ADMIN_GRANTABLE_ROLES);
 
 // Mirrors UserInviteRequest.username @Pattern in
 // `ch.alpenflight.users.application.UserDtos`. Drift here means inline
@@ -311,7 +314,7 @@ export class UsersEditPage {
   protected readonly outOfBandRoles = computed(() => {
     const detail = this.store.selectedUser();
     if (!detail || this.isCreate()) return [];
-    return detail.roles.filter((r) => !MANAGED_ROLE_SET.has(r));
+    return detail.roles.filter((r) => !MANAGED_ROLE_NAMES.has(r));
   });
 
   protected readonly outOfBandRoleLabels = computed(() =>

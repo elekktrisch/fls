@@ -20,8 +20,11 @@ import {
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
+import { PersonsService } from '@api/generated/persons/persons.service';
 import { UsersService } from '@api/generated/users/users.service';
 import type {
+  PersonLookupMatch,
+  PersonLookupRequest,
   UserInviteRequest,
   UserListItem,
   UserResponse,
@@ -52,6 +55,10 @@ interface UsersExtraState {
   saveErrorKind: SaveErrorKind | null;
   isResendingInvite: boolean;
   lastRefreshedAt: number | null;
+  lookupMatches: readonly PersonLookupMatch[];
+  lookupBusy: boolean;
+  lookupError: string | null;
+  lookupSearched: boolean;
 }
 
 const initialExtra: UsersExtraState = {
@@ -64,6 +71,10 @@ const initialExtra: UsersExtraState = {
   saveErrorKind: null,
   isResendingInvite: false,
   lastRefreshedAt: null,
+  lookupMatches: [],
+  lookupBusy: false,
+  lookupError: null,
+  lookupSearched: false,
 };
 
 function withListItemId(u: UserListItem): UserItem {
@@ -103,125 +114,172 @@ export const UsersStore = signalStore(
     hasError: computed(() => loadError() !== null || saveError() !== null),
     selectedUser: computed(() => selectedDetail()),
   })),
-  withMethods((store, usersApi = inject(UsersService), bus = inject(MUTATION_BUS)) => {
-    const loadAll = rxMethod<void>(
-      pipe(
-        tap(() => patchState(store, { isLoading: true, loadError: null })),
-        switchMap(() =>
-          usersApi.listUsers().pipe(
-            tapResponse({
-              next: (items: UserListItem[]) =>
-                patchState(store, setAllEntities(items.map(withListItemId)), {
-                  isLoading: false,
-                  lastRefreshedAt: Date.now(),
-                }),
-              error: (e: HttpErrorResponse) =>
-                patchState(store, { loadError: e.message, isLoading: false }),
-            }),
-          ),
-        ),
-      ),
-    );
-    return {
-      select(id: string | null): void {
-        patchState(store, { selectedId: id, selectedDetail: null });
-      },
-      clearSaveError(): void {
-        patchState(store, { saveError: null, saveErrorKind: null });
-      },
-      loadAll,
-      loadOne: rxMethod<string>(
+  withMethods(
+    (
+      store,
+      usersApi = inject(UsersService),
+      personsApi = inject(PersonsService),
+      bus = inject(MUTATION_BUS),
+    ) => {
+      const loadAll = rxMethod<void>(
         pipe(
-          tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),
-          switchMap((id) =>
-            usersApi.getUser(id).pipe(
+          tap(() => patchState(store, { isLoading: true, loadError: null })),
+          switchMap(() =>
+            usersApi.listUsers().pipe(
               tapResponse({
-                next: (d: UserResponse) =>
-                  patchState(store, {
-                    selectedDetail: withDetailId(d),
-                    isLoadingDetail: false,
+                next: (items: UserListItem[]) =>
+                  patchState(store, setAllEntities(items.map(withListItemId)), {
+                    isLoading: false,
+                    lastRefreshedAt: Date.now(),
                   }),
                 error: (e: HttpErrorResponse) =>
-                  patchState(store, { saveError: e.message, isLoadingDetail: false }),
+                  patchState(store, { loadError: e.message, isLoading: false }),
               }),
             ),
           ),
         ),
-      ),
-      invite: rxMethod<UserInviteRequest>(
-        pipe(
-          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap((req) =>
-            usersApi.inviteUser(req).pipe(
-              tapResponse({
-                next: (d: UserResponse) => {
-                  const detail = withDetailId(d);
-                  patchState(store, addEntity(listItemFromDetail(detail)), {
-                    selectedDetail: detail,
-                  });
-                  bus.next({ kind: 'user.created', id: detail.id });
-                  loadAll();
-                },
-                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, 'invite')),
-              }),
+      );
+      return {
+        select(id: string | null): void {
+          patchState(store, { selectedId: id, selectedDetail: null });
+        },
+        clearSaveError(): void {
+          patchState(store, { saveError: null, saveErrorKind: null });
+        },
+        loadAll,
+        loadOne: rxMethod<string>(
+          pipe(
+            tap(() => patchState(store, { isLoadingDetail: true, saveError: null })),
+            switchMap((id) =>
+              usersApi.getUser(id).pipe(
+                tapResponse({
+                  next: (d: UserResponse) =>
+                    patchState(store, {
+                      selectedDetail: withDetailId(d),
+                      isLoadingDetail: false,
+                    }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, { saveError: e.message, isLoadingDetail: false }),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      update: rxMethod<{ id: string; req: UserUpdateRequest }>(
-        pipe(
-          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap(({ id, req }) =>
-            usersApi.updateUser(id, req).pipe(
-              tapResponse({
-                next: (d: UserResponse) => {
-                  const detail = withDetailId(d);
-                  patchState(store, setEntity(listItemFromDetail(detail)), {
-                    selectedDetail: detail,
-                  });
-                  bus.next({ kind: 'user.updated', id: detail.id });
-                  loadAll();
-                },
-                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, 'update')),
-              }),
+        invite: rxMethod<UserInviteRequest>(
+          pipe(
+            tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+            switchMap((req) =>
+              usersApi.inviteUser(req).pipe(
+                tapResponse({
+                  next: (d: UserResponse) => {
+                    const detail = withDetailId(d);
+                    patchState(store, addEntity(listItemFromDetail(detail)), {
+                      selectedDetail: detail,
+                    });
+                    bus.next({ kind: 'user.created', id: detail.id });
+                    loadAll();
+                  },
+                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, 'invite')),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      deactivate: rxMethod<string>(
-        pipe(
-          tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
-          switchMap((id) =>
-            usersApi.deleteUser(id).pipe(
-              tapResponse({
-                next: () => {
-                  patchState(store, removeEntity(id), { selectedDetail: null });
-                  bus.next({ kind: 'user.deleted', id });
-                },
-                error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, 'delete')),
-              }),
+        update: rxMethod<{ id: string; req: UserUpdateRequest }>(
+          pipe(
+            tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+            switchMap(({ id, req }) =>
+              usersApi.updateUser(id, req).pipe(
+                tapResponse({
+                  next: (d: UserResponse) => {
+                    const detail = withDetailId(d);
+                    patchState(store, setEntity(listItemFromDetail(detail)), {
+                      selectedDetail: detail,
+                    });
+                    bus.next({ kind: 'user.updated', id: detail.id });
+                    loadAll();
+                  },
+                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, 'update')),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-      resendInvite: rxMethod<string>(
-        pipe(
-          tap(() =>
-            patchState(store, { isResendingInvite: true, saveError: null, saveErrorKind: null }),
-          ),
-          switchMap((id) =>
-            usersApi.resendInvite(id).pipe(
-              tapResponse({
-                next: () => patchState(store, { isResendingInvite: false }),
-                error: (e: HttpErrorResponse) =>
-                  patchState(store, { isResendingInvite: false, ...errorPatch(e, 'resend') }),
-              }),
+        deactivate: rxMethod<string>(
+          pipe(
+            tap(() => patchState(store, { saveError: null, saveErrorKind: null })),
+            switchMap((id) =>
+              usersApi.deleteUser(id).pipe(
+                tapResponse({
+                  next: () => {
+                    patchState(store, removeEntity(id), { selectedDetail: null });
+                    bus.next({ kind: 'user.deleted', id });
+                  },
+                  error: (e: HttpErrorResponse) => patchState(store, errorPatch(e, 'delete')),
+                }),
+              ),
             ),
           ),
         ),
-      ),
-    };
-  }),
+        resendInvite: rxMethod<string>(
+          pipe(
+            tap(() =>
+              patchState(store, { isResendingInvite: true, saveError: null, saveErrorKind: null }),
+            ),
+            switchMap((id) =>
+              usersApi.resendInvite(id).pipe(
+                tapResponse({
+                  next: () => patchState(store, { isResendingInvite: false }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, { isResendingInvite: false, ...errorPatch(e, 'resend') }),
+                }),
+              ),
+            ),
+          ),
+        ),
+        lookupPerson: rxMethod<PersonLookupRequest>(
+          pipe(
+            tap(() =>
+              patchState(store, {
+                lookupBusy: true,
+                lookupError: null,
+                lookupMatches: [],
+                lookupSearched: false,
+              }),
+            ),
+            switchMap((req) =>
+              personsApi.lookupPerson(req).pipe(
+                tapResponse({
+                  next: (result) =>
+                    patchState(store, {
+                      lookupMatches: result.matches ?? [],
+                      lookupBusy: false,
+                      lookupSearched: true,
+                    }),
+                  error: (e: HttpErrorResponse) => {
+                    const body = (e.error ?? null) as { detail?: string; message?: string } | null;
+                    patchState(store, {
+                      lookupBusy: false,
+                      lookupSearched: true,
+                      lookupError: body?.detail ?? body?.message ?? 'Lookup failed.',
+                    });
+                  },
+                }),
+              ),
+            ),
+          ),
+        ),
+        clearLookup(): void {
+          patchState(store, {
+            lookupMatches: [],
+            lookupBusy: false,
+            lookupError: null,
+            lookupSearched: false,
+          });
+        },
+      };
+    },
+  ),
   withHooks({
     onInit(store) {
       const bus = inject(MUTATION_BUS);

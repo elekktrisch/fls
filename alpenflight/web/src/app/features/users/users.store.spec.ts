@@ -4,8 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { PersonsService } from '@api/generated/persons/persons.service';
 import { UsersService } from '@api/generated/users/users.service';
 import type {
+  PersonLookupResult,
   UserInviteRequest,
   UserListItem,
   UserResponse,
@@ -82,13 +84,23 @@ function usersServiceStub(stubs: Partial<ApiStubs>): UsersService {
   return api as unknown as UsersService;
 }
 
-function configure(api: UsersService): Subject<MutationEvent> {
+function configure(
+  api: UsersService,
+  lookup: (req: unknown) => Observable<PersonLookupResult> = () => of({ matches: [] }),
+): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
+  const personsApi = {
+    lookupPerson: ((req: unknown, options?: unknown) => {
+      void options;
+      return lookup(req);
+    }) as PersonsService['lookupPerson'],
+  } as unknown as PersonsService;
   TestBed.configureTestingModule({
     providers: [
       provideZonelessChangeDetection(),
       { provide: MUTATION_BUS, useValue: bus },
       { provide: UsersService, useValue: api },
+      { provide: PersonsService, useValue: personsApi },
     ],
   });
   return bus;
@@ -272,6 +284,37 @@ describe('UsersStore', () => {
     const store = TestBed.inject(UsersStore);
     store.resendInvite(SEED_USER_ID);
     expect(store.saveError()).toBeNull();
+  });
+
+  it('lookupPerson populates matches + flips busy/searched flags', () => {
+    const match = {
+      id: 'pn-019e30c3-2c00-7001-8000-000000000a01',
+      firstname: 'Anna',
+      lastname: 'Bühler',
+      alreadyInThisClub: false,
+    };
+    configure(usersServiceStub({ list: () => of([]) }), () => of({ matches: [match] }));
+    const store = TestBed.inject(UsersStore);
+    store.lookupPerson({ email: 'a@example.test' });
+    expect(store.lookupMatches()).toEqual([match]);
+    expect(store.lookupBusy()).toBe(false);
+    expect(store.lookupSearched()).toBe(true);
+  });
+
+  it('clearLookup resets matches + searched flag', () => {
+    const match = {
+      id: 'pn-019e30c3-2c00-7001-8000-000000000a02',
+      firstname: 'X',
+      lastname: 'Y',
+      alreadyInThisClub: false,
+    };
+    configure(usersServiceStub({ list: () => of([]) }), () => of({ matches: [match] }));
+    const store = TestBed.inject(UsersStore);
+    store.lookupPerson({ email: 'a@example.test' });
+    expect(store.lookupMatches().length).toBe(1);
+    store.clearLookup();
+    expect(store.lookupMatches().length).toBe(0);
+    expect(store.lookupSearched()).toBe(false);
   });
 
   it('session.logout clears state', () => {

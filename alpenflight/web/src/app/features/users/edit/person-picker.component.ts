@@ -1,26 +1,21 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  computed,
   inject,
-  input,
   model,
-  output,
   signal,
 } from '@angular/core';
 import { FormBuilder, FormControl, ReactiveFormsModule, type FormGroup } from '@angular/forms';
-import { catchError, of } from 'rxjs';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfInputComponent } from '@ui/atoms/af-input';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 
-import { PersonsService } from '@api/generated/persons/persons.service';
-import type {
-  PersonLookupMatch,
-  PersonLookupRequest,
-  PersonLookupResult,
-} from '@api/generated/model';
+import type { PersonLookupMatch, PersonLookupRequest } from '@api/generated/model';
+
+import { UsersStore } from '../users.store';
 
 type PickerForm = FormGroup<{
   email: FormControl<string>;
@@ -30,15 +25,16 @@ type PickerForm = FormGroup<{
 }>;
 
 /**
- * Inline Person picker for the User invite form. Reuses S-051's exact-match
- * `POST /api/v1/persons/lookup` — never `GET /api/v1/persons?q=`
- * (enumeration). The lookup endpoint is rate-limited + audited on both hit
- * and miss; the picker is the only entry point so a free-text UUID never
- * reaches the wire.
+ * Inline Person picker for the User invite form. Drives lookup state
+ * through `UsersStore` — the only entry point for `personId` on the wire.
+ * Reuses S-051's exact-match `POST /api/v1/persons/lookup`; never
+ * `GET /api/v1/persons?q=` (enumeration risk; the lookup endpoint is
+ * rate-limited + audited on both hit and miss).
  *
- * Two-input rule: email alone, OR the full identity triple
+ * Two-input rule: email OR the full identity triple
  * (firstname + lastname + birthday). Mixed / partial triples are rejected
- * by the backend with 400.
+ * by the backend with 400; the form disables Search until one side has
+ * the data it needs.
  */
 @Component({
   selector: 'af-user-person-picker',
@@ -67,7 +63,7 @@ type PickerForm = FormGroup<{
         </af-button>
       </div>
     } @else {
-      <div class="flex flex-col gap-2 px-3 py-2 border border-slate-200">
+      <div class="flex flex-col gap-3 px-3 py-2 border border-slate-200">
         <p class="text-xs text-slate-500">
           Optional. Either email, or all three of first name, last name, birthday.
         </p>
@@ -75,7 +71,7 @@ type PickerForm = FormGroup<{
           [formGroup]="form"
           (ngSubmit)="onSearch()"
           novalidate
-          class="flex flex-col gap-2"
+          class="flex flex-col gap-3"
           data-testid="person-picker-form"
         >
           <af-form-field label="Email" for="LookupEmail">
@@ -87,7 +83,7 @@ type PickerForm = FormGroup<{
               autocomplete="email"
             />
           </af-form-field>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-3 gap-2" [class.opacity-50]="emailMode()">
             <af-form-field label="First name" for="LookupFirstname">
               <af-input
                 inputId="LookupFirstname"
@@ -116,45 +112,48 @@ type PickerForm = FormGroup<{
           <af-button
             type="default"
             htmlType="submit"
-            [disabled]="busy()"
+            [disabled]="!canSearch() || store.lookupBusy()"
             data-testid="person-picker-search"
           >
-            Search
+            Look up
           </af-button>
         </form>
 
-        @if (lookupError() !== null) {
-          <span class="text-xs text-rose-600" data-testid="person-picker-error">
-            {{ lookupError() }}
+        @if (store.lookupError() !== null) {
+          <span class="text-xs text-red-600" data-testid="person-picker-error">
+            {{ store.lookupError() }}
           </span>
         }
 
-        @if (matches().length > 0) {
+        @if (store.lookupMatches().length > 0) {
           <ul
             role="list"
             class="flex flex-col gap-1 list-none p-0 m-0"
             data-testid="person-picker-matches"
           >
-            @for (m of matches(); track m.id) {
+            @for (m of store.lookupMatches(); track m.id) {
               <li>
                 <button
                   type="button"
-                  class="w-full text-left px-3 py-2 bg-white border border-slate-200 hover:border-slate-300 cursor-pointer"
+                  class="w-full text-left min-h-[44px] px-3 py-3 bg-white border border-slate-200 enabled:hover:border-slate-300 disabled:opacity-60 disabled:cursor-not-allowed flex items-center"
                   (click)="onPin(m)"
+                  [disabled]="m.alreadyInThisClub"
                   [attr.data-testid]="'person-picker-match-' + m.id"
                 >
-                  <span class="font-medium">{{ m.lastname }}, {{ m.firstname }}</span>
-                  @if (m.email) {
-                    <span class="ml-2 text-slate-500">{{ m.email }}</span>
-                  }
-                  @if (m.alreadyInThisClub) {
-                    <span class="ml-2 text-xs text-amber-700">Already in this club</span>
-                  }
+                  <span>
+                    <span class="font-medium">{{ m.lastname }}, {{ m.firstname }}</span>
+                    @if (m.email) {
+                      <span class="ml-2 text-slate-500">{{ m.email }}</span>
+                    }
+                    @if (m.alreadyInThisClub) {
+                      <span class="ml-2 text-xs text-amber-700">Already in this club</span>
+                    }
+                  </span>
                 </button>
               </li>
             }
           </ul>
-        } @else if (searched()) {
+        } @else if (store.lookupSearched()) {
           <span class="text-xs text-slate-500" data-testid="person-picker-no-matches">
             No matching person found.
           </span>
@@ -165,11 +164,10 @@ type PickerForm = FormGroup<{
 })
 export class UserPersonPickerComponent {
   private readonly fb = inject(FormBuilder).nonNullable;
-  private readonly personsApi = inject(PersonsService);
+  protected readonly store = inject(UsersStore);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly pinned = model<PersonLookupMatch | null>(null);
-  readonly disabled = input<boolean>(false);
-  readonly cleared = output<void>();
 
   protected readonly form: PickerForm = this.fb.group({
     email: this.fb.control(''),
@@ -178,59 +176,52 @@ export class UserPersonPickerComponent {
     birthday: this.fb.control(''),
   });
 
-  protected readonly busy = signal(false);
-  protected readonly searched = signal(false);
-  protected readonly matches = signal<readonly PersonLookupMatch[]>([]);
-  protected readonly lookupError = signal<string | null>(null);
+  // Track form values as a signal so template predicates re-evaluate.
+  private readonly formValue = signal(this.form.getRawValue());
+
+  // Visual two-input mutex: when email has content, the identity-triple
+  // group dims; same the other way. Backend's precedence is email-first.
+  protected readonly emailMode = computed(() => this.formValue().email.trim().length > 0);
+
+  protected readonly canSearch = computed(() => {
+    const v = this.formValue();
+    if (v.email.trim().length > 0) return true;
+    return (
+      v.firstname.trim().length > 0 && v.lastname.trim().length > 0 && v.birthday.trim().length > 0
+    );
+  });
+
+  constructor() {
+    this.form.valueChanges.pipe().subscribe(() => {
+      this.formValue.set(this.form.getRawValue());
+    });
+    this.destroyRef.onDestroy(() => this.store.clearLookup());
+  }
 
   protected onSearch(): void {
+    if (!this.canSearch()) return;
     const v = this.form.getRawValue();
     const email = v.email.trim();
-    const firstname = v.firstname.trim();
-    const lastname = v.lastname.trim();
-    const birthday = v.birthday.trim();
-
-    const req: PersonLookupRequest = {};
-    if (email.length > 0) {
-      req.email = email;
-    } else if (firstname.length > 0 && lastname.length > 0 && birthday.length > 0) {
-      req.firstname = firstname;
-      req.lastname = lastname;
-      req.birthday = birthday;
-    } else {
-      this.lookupError.set('Provide email, or all three of first name, last name, and birthday.');
-      return;
-    }
-
-    this.lookupError.set(null);
-    this.busy.set(true);
-    this.personsApi
-      .lookupPerson(req)
-      .pipe(
-        catchError((e: HttpErrorResponse) => {
-          const body = (e.error ?? null) as { detail?: string; message?: string } | null;
-          this.lookupError.set(body?.detail ?? body?.message ?? 'Lookup failed.');
-          return of<PersonLookupResult>({ matches: [] });
-        }),
-      )
-      .subscribe((result) => {
-        this.matches.set(result.matches ?? []);
-        this.searched.set(true);
-        this.busy.set(false);
-      });
+    const req: PersonLookupRequest =
+      email.length > 0
+        ? { email }
+        : {
+            firstname: v.firstname.trim(),
+            lastname: v.lastname.trim(),
+            birthday: v.birthday.trim(),
+          };
+    this.store.lookupPerson(req);
   }
 
   protected onPin(m: PersonLookupMatch): void {
+    if (m.alreadyInThisClub) return;
     this.pinned.set(m);
-    this.matches.set([]);
-    this.searched.set(false);
+    this.store.clearLookup();
   }
 
   protected onClear(): void {
     this.pinned.set(null);
-    this.matches.set([]);
-    this.searched.set(false);
+    this.store.clearLookup();
     this.form.reset({ email: '', firstname: '', lastname: '', birthday: '' });
-    this.cleared.emit();
   }
 }

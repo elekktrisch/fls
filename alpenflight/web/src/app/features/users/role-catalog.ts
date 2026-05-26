@@ -15,7 +15,7 @@ export const CLUB_ADMIN_GRANTABLE_ROLES: readonly UserUpdateRequestRolesItem[] =
   'GUEST',
 ] as const;
 
-const MANAGED = new Set<string>(CLUB_ADMIN_GRANTABLE_ROLES);
+export const MANAGED_ROLE_NAMES: ReadonlySet<string> = new Set<string>(CLUB_ADMIN_GRANTABLE_ROLES);
 
 const ROLE_LABELS: Readonly<Record<string, string>> = {
   SYSTEM_ADMINISTRATOR: 'System administrator',
@@ -44,6 +44,6 @@ export function mergeManagedRoles(
   currentFromServer: readonly UserUpdateRequestRolesItem[],
   checkedBoxes: readonly UserUpdateRequestRolesItem[],
 ): UserUpdateRequestRolesItem[] {
-  const preserved = currentFromServer.filter((r) => !MANAGED.has(r));
+  const preserved = currentFromServer.filter((r) => !MANAGED_ROLE_NAMES.has(r));
   return Array.from(new Set<UserUpdateRequestRolesItem>([...preserved, ...checkedBoxes]));
 }
