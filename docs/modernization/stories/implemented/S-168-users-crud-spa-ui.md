@@ -2,8 +2,9 @@
 id: S-168
 title: Users CRUD — SPA admin UI (invite, edit roles, deactivate)
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-05-26
+done_at: 2026-05-26
 estimate: M
 parity_test: alpenflight/web/e2e/tests/users/users-invite.spec.ts
 parity_excluded:
