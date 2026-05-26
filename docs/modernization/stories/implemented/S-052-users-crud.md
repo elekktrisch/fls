@@ -2,8 +2,9 @@
 id: S-052
 title: Users CRUD + role assignment
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-05-26
+done_at: 2026-05-26
 depends_on: [S-051, S-026, S-019, S-020]
 acceptance:
   - `User` entity ported, with `keycloak_sub` column linking to the IdP user.
