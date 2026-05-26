@@ -28,7 +28,7 @@ Bail if any fail:
 3. `status: todo` (in_progress → ask to resume; done/blocked → refuse).
 4. Every `depends_on` story is `done` AND its `github_pr` is `MERGED` (or no PR exists).
 5. Working tree clean.
-6. On `main` (or configured default) — unless resuming an `in_progress` story on its own branch.
+6. On `main` (or configured default) OR on `story/S-NNN-<slug>` matching the resolved story ID. The latter is the recommended path — `/modernize-refine` opens the branch (+ GH issue + draft PR) so the refinement diff is reviewable on GitHub before implement runs.
 
 ## Procedure
 
@@ -40,7 +40,7 @@ Read in parallel: the full story file, each ADR in `adr_refs`, the legacy code p
 
 **Context7 freshness (when story touches a library / framework):** `mcp__context7__resolve-library-id` → `mcp__context7__query-docs` for each library mentioned in `adr_refs` or design notes. Library facts override training-data assumptions. Skip for general programming concepts.
 
-### Step 2 — Status flip + GitHub issue + branch
+### Step 2 — Status flip + bootstrap GH artifacts (if refine didn't)
 
 Update frontmatter:
 
@@ -49,11 +49,15 @@ status: in_progress
 started_at: <ISO date>
 ```
 
-**GitHub issue:** if `gh auth status` OK + remote exists + no `github_issue:` yet, `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist + link back to MD. Capture issue number; stamp `github_issue: N` on frontmatter. If already stamped, verify open via `gh issue view`.
+**Path A — refine already opened branch + issue + PR (recommended).** Current branch is `story/S-NNN-<slug>` and frontmatter carries `github_issue` + `github_pr`. Verify both are open (`gh issue view N`, `gh pr view M`). Commit the status flip as `#N: start (status: in_progress)` and push immediately — the PR already exists; pushing a metadata commit costs nothing and makes the "is being worked on" signal visible.
 
-**Branch:** `git checkout -b story/S-NNN-<slug>` off main. The initial commit (status + issue stamp) lands here: `#N: start`.
+**Path B — fallback bootstrap (refine ran without `gh` / on legacy story refined before this contract / `--no-refine` opportunistic).** Current branch is `main` and `github_issue` / `github_pr` may be missing.
 
-**Fallback (no `gh` / no remote / `gh issue create` fails):** skip issue lifecycle; use `S-NNN: <summary>` commit prefix instead of `#N:`.
+- Branch: `git checkout -b story/S-NNN-<slug>` off main.
+- GH issue: if `gh auth status` OK + remote exists + no `github_issue:` yet, `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist + link back to MD. Stamp `github_issue: N`.
+- Status-flip commit: `#N: start` (or `S-NNN: start` fallback when no issue). Don't push yet — draft PR opens at Step 5 first-green-push per the empty-PR-avoidance rule. (Path A doesn't need that rule because the PR isn't empty — refine's diff already populated it.)
+
+**Sub-fallback (no `gh` / no remote / `gh issue create` fails):** skip issue lifecycle; use `S-NNN: <summary>` commit prefix instead of `#N:` everywhere downstream.
 
 ### Step 3 — Parity strategy + red tests FIRST
 
@@ -79,7 +83,9 @@ Order:
 
 - **Commit per work-package, not per file.** Target 3-5 commits for M stories, 5-8 for L.
 - **Subject:** `#N: <one-line summary>` (or `S-NNN: …` fallback). No Conventional Commits prefix.
-- **First push** happens after the backend slice is locally green → opens **draft PR** (`gh pr create --draft --base main --head story/S-NNN-<slug>`, body `Closes #N` + AC checklist). Stamp `github_pr: M` on frontmatter.
+- **First push:**
+  - **Path A (PR already exists from refine):** push the Step 2 status-flip commit immediately. The PR's "draft" state stays until Step 8 marks ready.
+  - **Path B (no PR yet):** push happens after the backend slice is locally green → opens **draft PR** (`gh pr create --draft --base main --head story/S-NNN-<slug>`, body `Closes #N` + AC checklist). Stamp `github_pr: M` on frontmatter. The wait-until-green delay avoids an empty draft PR.
 - **Subsequent pushes** at locally-green work-package boundaries. Watch CI in background:
   ```
   gh run watch <run-id> --exit-status   # run_in_background: true

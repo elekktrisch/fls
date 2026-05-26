@@ -130,7 +130,7 @@ Print to the user:
 - **Hard cap at `N = 20`.** Beyond that, refinement decays faster than implement can consume the buffer; you'd be doing work that has to be redone.
 - **Eligible-only selection.** A story whose `depends_on` is unmerged is *not* eligible — refining against a moving foundation produces advice that won't survive contact with reality.
 - **Continue on per-story failure.** One bad story doesn't abort the batch. Report and move on; the operator addresses skipped stories individually.
-- **Skill does not commit.** Markdown edits land in the working tree; the operator commits when they're happy. This matches `/modernize-refine`'s non-committing posture.
+- **Skill does not commit, branch, or open PRs.** Markdown edits land in the working tree; the operator commits when they're happy. Deliberate divergence from JIT `/modernize-refine`, which DOES open a story branch + GH issue + draft PR per story. Speculative buffer-fill of N stories would otherwise mean N draft PRs on the remote for work that might not be implemented soon.
 
 ## What this skill does *not* do
 
@@ -138,7 +138,7 @@ Print to the user:
 - It does not re-refine `refined: true` stories. If the operator wants a re-refine, they invoke `/modernize-refine S-NNN` directly.
 - It does not edit `_ORDER.md`. Order is set at decompose / rework time.
 - It does not modify acceptance criteria, ADRs, or epics. Refinement is read-only on those artifacts.
-- It does not push, commit, or open PRs. Working-tree only.
+- It does not push, commit, or open PRs. Working-tree only. (JIT `/modernize-refine` does — opt in by running it explicitly per story.)
 - It does not refine across worktrees. That's the fleet skill.
 - It does not promise freshness. Speculatively-refined stories may go stale before implement starts; the `refined_speculative_at` stamp + the implement skill's re-refine heuristic is the mitigation.
 

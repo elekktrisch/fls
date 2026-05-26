@@ -1,6 +1,6 @@
 ---
 name: modernize-refine
-description: Phase 5 — refine one story via specialist subagents. Conditional dispatch by story shape. Synthesises into the story file. Trigger: /modernize-refine S-NNN.
+description: Phase 5 — refine one story via specialist subagents, then open a story branch + GH issue + draft PR so the refinement diff is reviewable on GitHub before implement runs. Trigger: /modernize-refine S-NNN.
 ---
 
 # Phase 5 — Story Refinement (just-in-time)
@@ -36,7 +36,9 @@ Soft target: design + edge cases + test plan + security + performance combined �
 1. Single `S-NNN` arg.
 2. Story file at top-level `stories/` (refuse if in `implemented/`).
 3. Not `status: done` (else ask re-refine).
-4. If `refined: true` — ask: re-refine (overwrite) or abort.
+4. If `refined: true` — ask: re-refine (overwrite) or abort. Re-refine on an existing `story/S-NNN-*` branch adds another commit; re-refine from `main` switches into the existing branch first.
+5. Working tree clean — or the only dirty file is the target story file (refine is about to write to it anyway).
+6. Current branch is either `main` (or configured default) OR already `story/S-NNN-<slug>` matching the resolved story ID.
 
 ## Procedure
 
@@ -148,19 +150,54 @@ refined: true
 refined_at: <ISO date>
 refined_specialists: [requirements, solution, qa, security, performance]  # only the ones that ran
 context7_last_checked: <ISO date>  # only when Step 1.5 ran
+github_issue: N                    # stamped in Step 6 when created
+github_pr: M                       # stamped in Step 6 when created
 ```
 
 `refined_specialists` reflects what *actually ran*. Skipped specialists' sections show `(N/A)`; don't list them.
 
 If frontmatter pre-set `refine_specialists:` (override), preserve it verbatim.
 
-### Step 6 — Report
+### Step 6 — Branch + GH issue + commit + draft PR
+
+The refinement diff should be reviewable on GitHub before implement runs, so refine owns the GH bootstrap (issue + branch + draft PR). Implement Step 2 then resumes on the existing branch instead of creating one.
+
+**Branch.** If not already on `story/S-NNN-<slug>`: `git checkout -b story/S-NNN-<slug>` off the current branch (precondition #6 guarantees that's `main` or the matching story branch).
+
+**GH issue.** If `gh auth status` OK + remote exists + no `github_issue:` already stamped: `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist from frontmatter + back-link to the MD path. Capture issue number; stamp `github_issue: N`. If already stamped, verify still open via `gh issue view`.
+
+**Commit.** Single commit covering frontmatter + story body delta (+ issue stamp if just minted). Subject: `#N: refine` (or `S-NNN: refine` fallback when no issue exists). Re-refine on an existing branch: `#N: re-refine — <one-line headline of what changed>`.
+
+**Push + draft PR.** `git push -u origin story/S-NNN-<slug>`. Then `gh pr create --draft --base main --head story/S-NNN-<slug>` if no PR exists yet. PR body:
+
+```
+Closes #N
+
+Refinement diff for S-NNN. Decisions are in the story body under
+`<!-- modernize-refine: start --> / end -->`.
+
+Specialist headlines:
+- <one-line per specialist that ran>
+
+Open design questions: <count, or "none">
+
+Implementation starts when `/modernize-implement S-NNN` runs on this branch.
+```
+
+Stamp `github_pr: M` on frontmatter and commit the stamp as a separate `#N: stamp PR` follow-up (so the first push isn't held until after PR creation — race-free).
+
+**Fallback — no `gh` / no remote / `gh` call fails.** Branch + commit still happen (local-only is useful). Skip push, issue, PR. Report the fallback explicitly so the operator knows the PR didn't open. Do NOT bail — refinement value already landed in the story body.
+
+### Step 7 — Report
 
 - Story ID + title.
 - One-line summary per specialist (the headline of each section).
 - Whether `## Open design questions` was populated + count.
 - Size delta (lines added).
-- Next: `/modernize-implement S-NNN`.
+- Branch: `story/S-NNN-<slug>` (current).
+- Issue: `#N <url>` (or `(fallback — no GH issue)`).
+- PR: `#M <url>` DRAFT (or `(fallback — no PR; local-only)`).
+- Next: `/modernize-implement S-NNN` (run on this branch).
 
 ## Quality bar
 
@@ -175,7 +212,9 @@ If frontmatter pre-set `refine_specialists:` (override), preserve it verbatim.
 - Frontmatter reflects reality (`refined_specialists` = who ran).
 - Open design questions surface real conflicts, not "things to think about."
 - Per ADR 0022 directive 2: schema-level business logic in design notes = call out as deviation requiring rationale.
+- Refinement opens the story branch + GH issue + draft PR (Step 6). Implement resumes on the existing branch.
+- `/modernize-refine-ahead` (speculative buffer-fill) is the explicit opt-out: working-tree-only, no branch / commit / PR. Don't propagate Step 6 there.
 
 ## Not in scope
 
-AC edits (`/modernize-decompose`'s job — surface conflict in `## Open design questions` instead). Code generation (`/modernize-implement`). Epic refinement. `depends_on` validation (`/modernize-implement`'s precondition). Commits (operator's call).
+AC edits (`/modernize-decompose`'s job — surface conflict in `## Open design questions` instead). Code generation (`/modernize-implement`). Status flip to `in_progress` (`/modernize-implement` owns). Epic refinement. `depends_on` validation (`/modernize-implement`'s precondition).
