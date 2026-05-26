@@ -169,7 +169,10 @@ describe('UsersStore', () => {
 
   it('deactivate removes the entity and emits user.deleted on success', () => {
     const bus = configure(
-      usersServiceStub({ list: () => of([seedItem]), remove: () => of(undefined as unknown as void) }),
+      usersServiceStub({
+        list: () => of([seedItem]),
+        remove: () => of(undefined as unknown as void),
+      }),
     );
     const events: MutationEvent[] = [];
     bus.subscribe((e) => events.push(e));
@@ -188,7 +191,9 @@ describe('UsersStore', () => {
         detail: 'A user cannot deactivate themselves.',
       },
     });
-    configure(usersServiceStub({ list: () => of([seedItem]), remove: () => throwError(() => err) }));
+    configure(
+      usersServiceStub({ list: () => of([seedItem]), remove: () => throwError(() => err) }),
+    );
     const store = TestBed.inject(UsersStore);
     store.deactivate(SELF_USER_ID);
     expect(store.saveErrorKind()).toBe('conflict-self-delete');
@@ -203,7 +208,9 @@ describe('UsersStore', () => {
         detail: 'Cannot deactivate the last CLUB_ADMINISTRATOR of a club.',
       },
     });
-    configure(usersServiceStub({ list: () => of([seedItem]), remove: () => throwError(() => err) }));
+    configure(
+      usersServiceStub({ list: () => of([seedItem]), remove: () => throwError(() => err) }),
+    );
     const store = TestBed.inject(UsersStore);
     store.deactivate(SEED_USER_ID);
     expect(store.saveErrorKind()).toBe('conflict-last-admin');
@@ -217,7 +224,9 @@ describe('UsersStore', () => {
         detail: 'username "h.meier" already in use',
       },
     });
-    configure(usersServiceStub({ list: () => of([seedItem]), invite: () => throwError(() => err) }));
+    configure(
+      usersServiceStub({ list: () => of([seedItem]), invite: () => throwError(() => err) }),
+    );
     const store = TestBed.inject(UsersStore);
     store.invite({
       username: 'h.meier',
@@ -237,7 +246,9 @@ describe('UsersStore', () => {
         detail: 'Caller may not grant SYSTEM_ADMINISTRATOR',
       },
     });
-    configure(usersServiceStub({ list: () => of([seedItem]), update: () => throwError(() => err) }));
+    configure(
+      usersServiceStub({ list: () => of([seedItem]), update: () => throwError(() => err) }),
+    );
     const store = TestBed.inject(UsersStore);
     store.update({
       id: SEED_USER_ID,
@@ -253,7 +264,10 @@ describe('UsersStore', () => {
 
   it('resendInvite returns 204 and clears save error', () => {
     configure(
-      usersServiceStub({ list: () => of([seedItem]), resend: () => of(undefined as unknown as void) }),
+      usersServiceStub({
+        list: () => of([seedItem]),
+        resend: () => of(undefined as unknown as void),
+      }),
     );
     const store = TestBed.inject(UsersStore);
     store.resendInvite(SEED_USER_ID);
