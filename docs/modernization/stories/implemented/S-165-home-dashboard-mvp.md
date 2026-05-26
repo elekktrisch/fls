@@ -51,6 +51,20 @@ already in the schema. Replaces the prior placeholder at `/start`.
 - No legacy oracle — `flsweb/src/main/dashboard/` is intentionally not ported; vision §F reduced the home surface.
 - Stats / license / METAR / activity feed / safety gauge are all out of scope here; each becomes its own story once data deps exist.
 
+## Post-mark-done additions
+
+After the reviewer panel signed off and the story was marked done, two
+small in-scope wirings landed to thread the new home dashboard into the
+post-login + chrome surfaces — both are coherent extensions of "if `/start`
+IS the home, that's where you arrive + where the brand link points":
+
+- `AppComponent` passes `brandHref="/start"` to `<af-nav-bar>` so clicking
+  the logo / wordmark in the top bar navigates to the home dashboard.
+- `DEFAULT_POST_LOGIN_ROUTE` (in `core/auth/post-login-redirect.ts`) flips
+  `/clubs` → `/start`; deep-link redirects (`consumePostLoginRedirect()`)
+  still win when set, falling back to `/start` otherwise. `core/auth/README.md`
+  flow diagrams updated to match.
+
 ## Open design questions (deferred to operator at follow-up)
 
 - `KNOWN_REALM_ROLES` in `MeService` mirrors the FE `AppRole` union and `alpenflight/auth/realm-export.json` — three hand-maintained copies of the same vocabulary. A CI cross-check (or codegen from realm-export) is a follow-up.
