@@ -16,6 +16,10 @@ export interface SessionPort {
   isAuthenticated(): boolean;
   isLoadingSession(): boolean;
   bootstrapPrefetch(): void;
+  // S-165: after the JWT-derived User is in place, /me upgrades
+  // `personId` + linked-Person firstName/lastName so the home
+  // dashboard can filter the flights list by the caller's Person.
+  loadMe(): void;
 }
 
 /**
@@ -34,6 +38,7 @@ export function applyClaimsToSession(claims: unknown, session: SessionPort): voi
   if (user) {
     session.login(user, user.clubId);
     session.bootstrapPrefetch();
+    session.loadMe();
     return;
   }
   if (session.isAuthenticated()) {

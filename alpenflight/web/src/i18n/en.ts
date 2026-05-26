@@ -25,6 +25,42 @@ const en: Translations = {
     tagline:
       'Built for flying clubs that already exist and already fly. One quiet tool for the logbook, the reservation calendar, and the member roster.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Good afternoon, {{name}}',
+      evening: 'Good evening, {{name}}',
+      morning: 'Good morning, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Aircraft',
+      empty: {
+        cta: 'Log your first flight',
+        message: 'No flights yet — log your first.',
+      },
+      error: 'Could not load your last flight.',
+      flightType: 'Flight type',
+      role: 'Role',
+      roles: {
+        coPilot: 'Co-pilot',
+        flightCostInvoiceRecipient: 'Cost recipient',
+        instructor: 'Instructor',
+        observer: 'Observer',
+        passenger: 'Passenger',
+        pic: 'PIC',
+        winchOperator: 'Winch operator',
+      },
+      route: 'Route',
+      title: 'Your last flight',
+    },
+    quickActions: {
+      logFlight: 'Log flight',
+      openLogbook: 'Open logbook',
+    },
+    reservations: {
+      placeholder: 'Reservations coming soon.',
+      title: 'Next reservation',
+    },
+  },
   locations: {
     admin: {
       banner:

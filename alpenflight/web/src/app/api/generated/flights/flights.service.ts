@@ -241,7 +241,7 @@ export class FlightsService {
     );
   }
 /**
- * @summary List flights (keyset-cursor paginated)
+ * @summary List flights (keyset-cursor paginated). When `personId` is supplied (prefixed `pn-<uuid>` per ADR 0019), rows are filtered to flights with a non-deleted FlightCrew row for that person, and the sort order is the AC-defined `flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC` (the third key tie-breaks via UUIDv7 id, which is monotonic-in-creation-time).
  */
  list<TData = FlightListResponse>(params?: ListParams, options?: HttpClientBodyOptions): Observable<TData>;
  list<TData = FlightListResponse>(params?: ListParams, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;

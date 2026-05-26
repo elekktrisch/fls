@@ -157,6 +157,9 @@ The airfield hot-path (vision C23). Where most user value lands.
 - S-069 — L — Reservation scheduler (deps S-068)
 - S-070 — M — PlanningDay CRUD (deps S-068, S-051)
 - S-071 — M — Planning-setup wizard (deps S-070)
+- S-165 — M — Home/dashboard page MVP — greeting + last flight + quick actions (deps S-062a, S-062b, S-026) — *MVP walking-skeleton, pilot variant only; stats tiles / license card / METAR deferred.*
+- S-166 — M — Home/dashboard page — club-admin variant (deps S-165) — *scope TBD at refine.*
+- S-167 — M — Home/dashboard page — sysadmin variant (deps S-165) — *scope TBD at refine.*
 
 ## Phase G — Scheduled jobs infrastructure + ports
 

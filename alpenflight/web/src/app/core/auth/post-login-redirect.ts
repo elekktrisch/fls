@@ -5,7 +5,7 @@
 
 const KEY = 'alpenflight.post-login-redirect';
 
-export const DEFAULT_POST_LOGIN_ROUTE = '/clubs';
+export const DEFAULT_POST_LOGIN_ROUTE = '/start';
 
 function storage(): Storage | null {
   // eslint-disable-next-line no-restricted-globals

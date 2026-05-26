@@ -25,6 +25,42 @@ const it: Translations = {
     tagline:
       'Pensato per i club di volo che già esistono e già volano. Uno strumento discreto per diario di volo, calendario delle prenotazioni e registro dei soci.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Buon pomeriggio, {{name}}',
+      evening: 'Buona sera, {{name}}',
+      morning: 'Buongiorno, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Aeromobile',
+      empty: {
+        cta: 'Registra il primo',
+        message: 'Nessun volo ancora — registra il primo.',
+      },
+      error: 'Impossibile caricare il tuo ultimo volo.',
+      flightType: 'Tipo di volo',
+      role: 'Ruolo',
+      roles: {
+        coPilot: 'Copilota',
+        flightCostInvoiceRecipient: 'Destinatario fattura',
+        instructor: 'Istruttore',
+        observer: 'Osservatore',
+        passenger: 'Passeggero',
+        pic: 'PIC',
+        winchOperator: 'Operatore verricello',
+      },
+      route: 'Rotta',
+      title: 'Il tuo ultimo volo',
+    },
+    quickActions: {
+      logFlight: 'Registra volo',
+      openLogbook: 'Apri diario',
+    },
+    reservations: {
+      placeholder: 'Prenotazioni in arrivo.',
+      title: 'Prossima prenotazione',
+    },
+  },
   locations: {
     admin: {
       banner:

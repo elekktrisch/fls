@@ -45,6 +45,12 @@ import { SessionStore, type User } from './core/session/session.store';
 
 const MOCK_CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 
+// Synthetic personId (prefixed `pn-` external form per ADR 0019) so the
+// mock principal exercises the S-165 home dashboard's populated state
+// (the `personId` filter on /flights). Specs that want the empty-state
+// branch return [] for the flights stub.
+const MOCK_PERSON_ID = 'pn-019e30c3-2c00-7100-8000-0000000000a5';
+
 const MOCK_USER: User = {
   id: 'mock-sysadmin',
   username: 'mock-sysadmin',
@@ -52,6 +58,7 @@ const MOCK_USER: User = {
   firstName: 'Mock',
   lastName: 'Sysadmin',
   clubId: MOCK_CLUB_ID,
+  personId: MOCK_PERSON_ID,
   // Both roles: SYSTEM_ADMINISTRATOR unlocks sysadmin-only screens,
   // CLUB_ADMINISTRATOR unlocks the per-tenant mutation gates
   // (`session.isClubAdmin`, used by e.g. `aircraft-edit`'s canMutate
