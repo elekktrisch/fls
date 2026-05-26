@@ -19,7 +19,7 @@ the application's `SessionStore`.
 ## How auth flows
 
 ```
-   user hits /clubs (private)
+   user hits /start (private; default post-login landing)
         │
         ▼
    authGuard reads SessionStore.isAuthenticated()
@@ -42,7 +42,7 @@ the application's `SessionStore`.
                 OidcSessionBridge effect → mapClaimsToUser → SessionStore.login(user, clubId)
                                     │
                                     ▼
-                          guard re-evaluates, routes to /clubs
+                          guard re-evaluates, routes to /start
 ```
 
 Silent refresh: `silentRenew: true` + `useRefreshToken: true`. The library

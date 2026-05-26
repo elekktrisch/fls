@@ -27,7 +27,7 @@ const CROSS_CUTTING_SECTIONS: readonly NavItem[] = [
   imports: [RouterOutlet, AfNavBarComponent],
   template: `
     @if (showNavBar()) {
-      <af-nav-bar [items]="sections()" [user]="userSummary()" />
+      <af-nav-bar [items]="sections()" [user]="userSummary()" brandHref="/start" />
     }
     <router-outlet />
   `,
