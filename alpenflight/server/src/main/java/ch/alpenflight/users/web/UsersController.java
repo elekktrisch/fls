@@ -67,9 +67,12 @@ public class UsersController {
     @ApiResponse(responseCode = "200", description = "User detail.")
     @ApiResponse(responseCode = "404", description = "Not found or not visible to caller's club.")
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR') and @userAccess.canView(#id, #jwt)")
-    public UserResponse getUser(@PathVariable UserId id,
-                                @AuthenticationPrincipal @Nullable Jwt jwt) {
+    @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
+    public UserResponse getUser(@PathVariable UserId id) {
+        // No @userAccess.canView SpEL gate: it would short-circuit
+        // cross-tenant reads at 403, breaking the documented S-051 404-not-403
+        // IDOR contract. Service-layer load enforces the tenant scope and
+        // throws UserNotFoundException → 404.
         return service.getUser(id);
     }
 

@@ -2,8 +2,8 @@ package ch.alpenflight.users.web;
 
 import ch.alpenflight.users.application.ForbiddenRoleGrantException;
 import ch.alpenflight.users.domain.UserConflictException;
+import ch.alpenflight.users.domain.UserDirectoryException;
 import ch.alpenflight.users.domain.UserNotFoundException;
-import ch.alpenflight.users.infra.keycloak.KeycloakAdminException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -50,8 +50,8 @@ class UsersExceptionHandler {
         return problem(pd);
     }
 
-    @ExceptionHandler(KeycloakAdminException.class)
-    ResponseEntity<ProblemDetail> handleKc(KeycloakAdminException e) {
+    @ExceptionHandler(UserDirectoryException.class)
+    ResponseEntity<ProblemDetail> handleKc(UserDirectoryException e) {
         // 502: the upstream IdP failed mid-flow. Don't bubble the cause text —
         // KC error payloads occasionally include the user's email.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);

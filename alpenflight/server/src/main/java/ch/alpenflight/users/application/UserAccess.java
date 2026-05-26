@@ -4,28 +4,25 @@ import ch.alpenflight.platform.id.UserId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.users.domain.User;
 import ch.alpenflight.users.domain.UserRepository;
-import java.util.Collection;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 /**
- * SpEL bean wired into {@code @PreAuthorize("@userAccess.canEdit(...)")}
- * expressions on the Users controller. Mirrors {@code AircraftAccess}.
+ * SpEL bean wired into {@code @PreAuthorize("@userAccess.canEdit(...)")} on
+ * the Users controller's mutating endpoints. Mirrors {@code AircraftAccess}.
  *
- * <ul>
- *   <li>{@link #canView canView} — load by id is allowed when the user
- *       belongs to the caller's home club. Returns {@code false} otherwise
- *       so the service-layer 404 keeps the existence opaque.</li>
- *   <li>{@link #canEdit canEdit} — same predicate as {@code canView} plus
- *       the role check (CLUB_ADMINISTRATOR). The {@code @PreAuthorize}
- *       expression usually combines this with {@code hasRole(...)} too —
- *       we don't trust either gate alone.</li>
- * </ul>
+ * <p>{@link #canEdit canEdit} is the tenant-scope gate — the controller's
+ * {@code hasRole('CLUB_ADMINISTRATOR')} on the same {@code @PreAuthorize}
+ * expression is the role-check half. We split the two so a future
+ * "sysadmin shadow read" surface wouldn't need to re-implement the tenant
+ * predicate.
  *
- * <p>Sysadmin is intentionally NOT admitted here. Per the S-052
- * architectural rule, sysadmin manages clubs, not users.
+ * <p>GET endpoints intentionally do NOT use a SpEL gate — the service-layer
+ * 404-not-403 IDOR contract requires that cross-tenant reads return 404,
+ * but a {@code @PreAuthorize} failure raises 403. Tenant scoping for GETs
+ * lives in {@code UsersService.loadInCurrentTenantOrThrow}.
  */
 @Component("userAccess")
 public class UserAccess {
@@ -36,21 +33,7 @@ public class UserAccess {
         this.users = users;
     }
 
-    public boolean canView(UserId id, @Nullable Jwt jwt) {
-        return sameClub(id, jwt);
-    }
-
     public boolean canEdit(UserId id, @Nullable Jwt jwt) {
-        if (jwt == null) {
-            return false;
-        }
-        if (!hasRealmRole(jwt, "CLUB_ADMINISTRATOR")) {
-            return false;
-        }
-        return sameClub(id, jwt);
-    }
-
-    private boolean sameClub(UserId id, @Nullable Jwt jwt) {
         if (jwt == null) {
             return false;
         }
@@ -80,20 +63,4 @@ public class UserAccess {
         }
     }
 
-    private static boolean hasRealmRole(Jwt jwt, String name) {
-        Object realmAccess = jwt.getClaim("realm_access");
-        if (!(realmAccess instanceof java.util.Map<?, ?> ra)) {
-            return false;
-        }
-        Object roles = ra.get("roles");
-        if (!(roles instanceof Collection<?> raw)) {
-            return false;
-        }
-        for (Object role : raw) {
-            if (role instanceof String s && name.equals(s)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

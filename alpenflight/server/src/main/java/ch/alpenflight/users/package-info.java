@@ -34,7 +34,8 @@
  *   <li>{@code users.web} — REST controller + RFC 7807 exception handler.</li>
  *   <li>{@code users.infra} — Spring Data JPA repository + the Keycloak
  *       admin-REST machine client (typed façade, service-account token
- *       supplier, redacting WebClient interceptor).</li>
+ *       supplier, bearer-token + redaction interceptors on a Spring
+ *       {@code RestClient}).</li>
  * </ul>
  */
 @org.jspecify.annotations.NullMarked

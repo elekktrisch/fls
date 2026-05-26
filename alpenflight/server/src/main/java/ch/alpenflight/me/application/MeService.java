@@ -1,10 +1,10 @@
 package ch.alpenflight.me.application;
 
+import ch.alpenflight.users.domain.Role;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -42,19 +42,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class MeService {
 
-    // AlpenFlight realm-role catalog (mirrors `alpenflight/auth/realm-export.json`
-    // and the FE's AppRole union in `core/session/session.store.ts`). Roles
-    // outside this set (Keycloak built-ins like `uma_authorization`,
-    // `offline_access`, `default-roles-*`) are dropped at the wire boundary
-    // so SPA consumers + downstream stories couple only to the project's
-    // own role vocabulary.
-    private static final Set<String> KNOWN_REALM_ROLES = Set.of(
-            "SYSTEM_ADMINISTRATOR",
-            "CLUB_ADMINISTRATOR",
-            "FLIGHT_OPERATOR",
-            "PILOT",
-            "OFFICE_USER",
-            "GUEST");
+    // Realm-role catalogue is owned by `ch.alpenflight.users.domain.Role`
+    // (the single source for both BE and the SPA's `AppRole` union). Roles
+    // outside that set — Keycloak built-ins (`uma_authorization`,
+    // `offline_access`, `default-roles-*`) and the `proffix-sync` client
+    // role — are filtered out here so SPA consumers couple only to the
+    // application's own role vocabulary.
 
     private static final String SELECT_USER_AND_PERSON = """
             SELECT u.id              AS user_id,
@@ -114,7 +107,7 @@ public class MeService {
         return raw.stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
-                .filter(KNOWN_REALM_ROLES::contains)
+                .filter(Role::isKnown)
                 .toList();
     }
 

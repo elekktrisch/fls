@@ -12,13 +12,13 @@ import ch.alpenflight.users.application.UserDtos.UserUpdateRequest;
 import ch.alpenflight.users.domain.Role;
 import ch.alpenflight.users.domain.User;
 import ch.alpenflight.users.domain.UserConflictException;
+import ch.alpenflight.users.domain.UserDirectoryException;
+import ch.alpenflight.users.domain.UserDirectoryPort;
+import ch.alpenflight.users.domain.UserDirectoryPort.RealmRoleRef;
+import ch.alpenflight.users.domain.UserDirectoryPort.UserDirectoryRow;
+import ch.alpenflight.users.domain.UserDirectoryPort.UserDirectorySpec;
 import ch.alpenflight.users.domain.UserNotFoundException;
 import ch.alpenflight.users.domain.UserRepository;
-import ch.alpenflight.users.infra.keycloak.KeycloakAdminClient;
-import ch.alpenflight.users.infra.keycloak.KeycloakAdminClient.KcRealmRoleRef;
-import ch.alpenflight.users.infra.keycloak.KeycloakAdminClient.KcUserRow;
-import ch.alpenflight.users.infra.keycloak.KeycloakAdminClient.KcUserSpec;
-import ch.alpenflight.users.infra.keycloak.KeycloakAdminException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.HashMap;
@@ -37,24 +37,24 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Transactional service for the {@code User} aggregate.
  *
- * <p>The two write paths the S-052 design notes describe:
+ * <p>Two write paths:
  *
  * <ol>
- *   <li><strong>Admin invite</strong> ({@link #invite}) — KC-first, DB-second
- *       inside one Spring transaction. KC create on failure throws; DB
- *       insert on failure compensates with a KC {@code DELETE} (best-effort
- *       — failure logs at {@code USER_INVITE_KC_ORPHAN} for operator
- *       reconciliation).</li>
+ *   <li><strong>Admin invite</strong> ({@link #invite}) — Keycloak-first,
+ *       DB-second inside one Spring transaction. KC create on failure
+ *       throws; DB insert on failure compensates with a KC {@code DELETE}
+ *       (best-effort — failure logs at {@code USER_INVITE_KC_ORPHAN} at
+ *       error level for operator reconciliation).</li>
  *   <li><strong>First-login JIT</strong> ({@link #materializeFromJwt}) —
- *       called by {@code UserPrincipalLookup} when the JWT carries
- *       {@code clubId} + non-empty realm roles but no row matches
- *       {@code sub}. Idempotent via {@code findActiveByKeycloakSub} +
- *       {@code save} (the DB partial unique on {@code keycloak_sub}
- *       provides the structural safety net).</li>
+ *       intended for the first-login filter (lands in a follow-up; the
+ *       method is in place so the orchestrator pattern is reviewable
+ *       today). Idempotent via {@code findActiveByKeycloakSub} +
+ *       {@code save}; the DB partial unique on {@code keycloak_sub} is
+ *       the structural net for the dual-request race.</li>
  * </ol>
  *
- * <p>Role reads + writes go through the {@link KeycloakAdminClient} façade;
- * the application never touches Keycloak data outside that boundary.
+ * <p>Role reads + writes go through {@link UserDirectoryPort}; the
+ * application never imports the Keycloak adapter directly (ADR 0023).
  */
 @Service
 @Transactional
@@ -62,17 +62,18 @@ public class UsersService {
 
     private static final Logger LOG = LoggerFactory.getLogger(UsersService.class);
     private static final String AUDIT_USER = "User";
+    private static final String AUDIT_USER_ROLE = "UserRole";
     private static final int LIST_MAX = 200;
 
     private final UserRepository users;
-    private final KeycloakAdminClient kc;
+    private final UserDirectoryPort kc;
     private final RoleAssignmentPolicy rolePolicy;
     private final ClubTenantIdentifierResolver tenantResolver;
     private final AuditTrail auditTrail;
     private final Clock clock;
 
     public UsersService(UserRepository users,
-                        KeycloakAdminClient kc,
+                        UserDirectoryPort kc,
                         RoleAssignmentPolicy rolePolicy,
                         ClubTenantIdentifierResolver tenantResolver,
                         AuditTrail auditTrail,
@@ -89,20 +90,25 @@ public class UsersService {
     public List<UserListItem> listInCurrentTenant() {
         UUID tenant = currentTenantOrThrow();
         List<UserRepository.ListRow> rows = users.findActiveInClub(tenant);
-        // One KC list call scoped to clubId — gives us roles[] / enabled /
-        // requiredActions in one round-trip, avoiding an N+1 per row.
-        Map<UUID, KcUserRow> kcBySub = indexBySub(kc.findUsersInClub(tenant, LIST_MAX));
+        // One KC list call scoped to clubId gives enabled / requiredActions
+        // for every row in a single round-trip. Role mappings still cost
+        // one KC call per row (KC has no batch role-mapping endpoint);
+        // accepted at per-club user counts ≤ a few hundred — revisit when
+        // the perf plan promotes this endpoint to Page<>.
+        Map<UUID, UserDirectoryRow> kcBySub = indexBySub(kc.findUsersInClub(tenant, LIST_MAX));
+        if (kcBySub.size() >= LIST_MAX) {
+            LOG.warn("Keycloak users-in-club list hit cap={} for club={} — list view may understate enabled/invitePending",
+                    LIST_MAX, tenant);
+        }
         return rows.stream().map(row -> {
-            User entity = users.findActiveById(row.id())
-                    .orElseThrow(() -> new IllegalStateException("listed user vanished mid-read: " + row.id()));
-            KcUserRow kcRow = entity.getKeycloakSub() == null ? null : kcBySub.get(entity.getKeycloakSub());
+            UserDirectoryRow kcRow = row.keycloakSub() == null ? null : kcBySub.get(row.keycloakSub());
             return new UserListItem(
                     UserId.of(row.id()),
                     row.username(),
                     row.friendlyName(),
                     row.notificationEmail(),
                     row.personId(),
-                    rolesForKcSub(entity.getKeycloakSub()),
+                    rolesForKcSub(row.keycloakSub()),
                     kcRow != null && Boolean.TRUE.equals(kcRow.enabled()),
                     invitePending(kcRow));
         }).toList();
@@ -117,17 +123,15 @@ public class UsersService {
     public UserResponse invite(UserInviteRequest req, @Nullable Jwt callerJwt) {
         UUID tenant = currentTenantOrThrow();
         if (!rolePolicy.isGrantable(callerJwt, req.roles())) {
-            auditTrail.recordFailed(AuditAction.CREATE,
-                    AuditedTarget.created(AUDIT_USER, UUID.randomUUID(),
-                            new InvitePayloadStub(req.username(), req.roles())),
-                    403, "USER_ROLE_GRANT_REJECTED");
+            recordRoleGrantRejected(tenant, req.username(),
+                    rolePolicy.rejectedRoles(callerJwt, req.roles()));
             throw new ForbiddenRoleGrantException(rolePolicy.rejectedRoles(callerJwt, req.roles()));
         }
         users.findActiveByUsernameLower(req.username()).ifPresent(existing -> {
             throw new UserConflictException("username " + req.username() + " already in use in club " + existing.getClubId());
         });
 
-        UUID kcSub = kc.createUser(new KcUserSpec(
+        UUID kcSub = kc.createUser(new UserDirectorySpec(
                 req.username(),
                 req.notificationEmail(),
                 req.friendlyName(),
@@ -158,14 +162,14 @@ public class UsersService {
             throw e;
         }
 
-        applyRoleDelta(kcSub, Set.of(), req.roles());
+        UUID rowId = requireId(saved);
+        applyRoleDelta(rowId, kcSub, Set.of(), req.roles());
         try {
             kc.sendExecuteActions(kcSub, List.of("UPDATE_PASSWORD"), Duration.ofHours(12));
-        } catch (KeycloakAdminException ex) {
+        } catch (UserDirectoryException ex) {
             // Don't roll back; the operator can re-send via resendInvite.
             LOG.warn("send invite email failed sub={} — operator can resend-invite", kcSub, ex);
         }
-        UUID rowId = requireId(saved);
         UserResponse response = toResponse(saved);
         auditTrail.record(AuditAction.CREATE, AuditedTarget.created(AUDIT_USER, rowId, response));
         return response;
@@ -174,10 +178,8 @@ public class UsersService {
     public UserResponse update(UserId id, UserUpdateRequest req, @Nullable Jwt callerJwt) {
         User u = loadInCurrentTenantOrThrow(id);
         if (!rolePolicy.isGrantable(callerJwt, req.roles())) {
-            auditTrail.recordFailed(AuditAction.UPDATE,
-                    AuditedTarget.created(AUDIT_USER, requireId(u),
-                            new InvitePayloadStub(u.getUsername(), req.roles())),
-                    403, "USER_ROLE_GRANT_REJECTED");
+            recordRoleGrantRejected(u.getClubId(), u.getUsername(),
+                    rolePolicy.rejectedRoles(callerJwt, req.roles()));
             throw new ForbiddenRoleGrantException(rolePolicy.rejectedRoles(callerJwt, req.roles()));
         }
         UserResponse beforeSnapshot = toResponse(u);
@@ -190,21 +192,29 @@ public class UsersService {
         }
         User saved = users.save(u);
         users.flush();
+        UUID rowId = requireId(saved);
         UUID kcSub = saved.getKeycloakSub();
         if (kcSub != null) {
             Set<Role> existing = currentRoles(kcSub);
-            applyRoleDelta(kcSub, existing, req.roles());
+            applyRoleDelta(rowId, kcSub, existing, req.roles());
         }
         UserResponse after = toResponse(saved);
         auditTrail.record(AuditAction.UPDATE,
-                AuditedTarget.updated(AUDIT_USER, requireId(saved), beforeSnapshot, after));
+                AuditedTarget.updated(AUDIT_USER, rowId, beforeSnapshot, after));
         return after;
     }
 
     public void softDelete(UserId id, @Nullable UUID callerUserId, @Nullable Jwt callerJwt) {
         User u = loadInCurrentTenantOrThrow(id);
         UUID rowId = requireId(u);
-        if (callerUserId != null && callerUserId.equals(rowId)) {
+        if (callerUserId == null) {
+            // Fail-closed: a caller with a valid CLUB_ADMINISTRATOR JWT but
+            // no matching local row is an anomaly (the JIT projection should
+            // have run); refuse the delete rather than admit one that
+            // would skip the self-delete check.
+            throw new UserConflictException("Refusing delete — caller has no resolved user row");
+        }
+        if (callerUserId.equals(rowId)) {
             throw new UserConflictException("Refusing self-delete");
         }
         Set<Role> targetRoles = u.getKeycloakSub() == null ? Set.of() : currentRoles(u.getKeycloakSub());
@@ -220,7 +230,7 @@ public class UsersService {
         if (u.getKeycloakSub() != null) {
             try {
                 kc.setEnabled(u.getKeycloakSub(), false);
-            } catch (KeycloakAdminException ex) {
+            } catch (UserDirectoryException ex) {
                 LOG.warn("Keycloak disable failed sub={} — reconcile manually", u.getKeycloakSub(), ex);
             }
         }
@@ -239,19 +249,60 @@ public class UsersService {
 
     /**
      * Materialise a local row from JWT claims when the lookup-by-sub misses.
-     * Called by {@code UserPrincipalLookup} on every authenticated request
-     * (cheap when a row already exists — the read returns immediately) so
-     * the bulk-provision / federated-IdP flows converge on first hit.
+     * Intended to be wired into a first-login filter (S-169) — not currently
+     * invoked from production code, but lands here so the orchestrator
+     * pattern is reviewable in isolation.
+     *
+     * <p>Identity fields ({@code keycloakSub}, {@code clubId}) are taken
+     * authoritatively from the JWT — never from a caller-supplied value —
+     * so a future caller can't mint a JIT row in a tenant the principal
+     * doesn't belong to. {@code languageId} comes from the caller because
+     * the JWT carries {@code locale} as an opaque BCP-47 string that the
+     * application has to map onto a row in the {@code language} table.
      *
      * @return the local {@code user.id} after materialise (or pre-existing match).
      */
-    public UUID materializeFromJwt(UUID keycloakSub, UUID clubId, String username,
-                                   String friendlyName, String notificationEmail, UUID languageId) {
+    public UUID materializeFromJwt(Jwt jwt, UUID languageId) {
+        if (jwt == null) {
+            throw new IllegalArgumentException("jwt must not be null");
+        }
+        String subClaim = jwt.getSubject();
+        if (subClaim == null || subClaim.isBlank()) {
+            throw new IllegalArgumentException("jwt sub claim missing");
+        }
+        UUID keycloakSub;
+        try {
+            keycloakSub = UUID.fromString(subClaim);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("jwt sub claim is not a UUID", e);
+        }
+        String rawClubId = jwt.getClaimAsString("clubId");
+        if (rawClubId == null || rawClubId.isBlank()) {
+            throw new IllegalArgumentException("jwt clubId claim missing — refusing materialise");
+        }
+        UUID clubId;
+        try {
+            clubId = UUID.fromString(rawClubId);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("jwt clubId claim is not a UUID", e);
+        }
+        String username = jwt.getClaimAsString("preferred_username");
+        String friendlyName = jwt.getClaimAsString("given_name");
+        String email = jwt.getClaimAsString("email");
+        if (username == null || friendlyName == null || email == null) {
+            throw new IllegalArgumentException(
+                    "jwt missing one of preferred_username / given_name / email — refusing materialise");
+        }
+        final UUID finalClubId = clubId;
+        final UUID finalSub = keycloakSub;
+        final String finalUsername = username;
+        final String finalFriendly = friendlyName;
+        final String finalEmail = email;
         return users.findActiveByKeycloakSub(keycloakSub)
                 .map(UsersService::requireId)
                 .orElseGet(() -> {
-                    User u = User.register(clubId, keycloakSub, username, friendlyName,
-                            notificationEmail, languageId, /*personId=*/ null);
+                    User u = User.register(finalClubId, finalSub, finalUsername, finalFriendly,
+                            finalEmail, languageId, /*personId=*/ null);
                     User saved = users.save(u);
                     users.flush();
                     UUID rowId = requireId(saved);
@@ -261,38 +312,59 @@ public class UsersService {
                 });
     }
 
-    private void applyRoleDelta(UUID sub, Set<Role> existing, Set<Role> desired) {
+    private void applyRoleDelta(UUID localUserId, UUID sub, Set<Role> existing, Set<Role> desired) {
         Set<Role> toGrant = desired.stream()
                 .filter(r -> !existing.contains(r))
                 .collect(Collectors.toUnmodifiableSet());
         Set<Role> toRevoke = existing.stream()
-                .filter(r -> !desired.contains(r) && Role.isKnown(r.name()))
+                .filter(r -> !desired.contains(r))
                 .collect(Collectors.toUnmodifiableSet());
         if (!toGrant.isEmpty()) {
-            List<KcRealmRoleRef> grantRefs = kc.findRealmRolesByName(
+            List<RealmRoleRef> grantRefs = kc.findRealmRolesByName(
                     toGrant.stream().map(Enum::name).collect(Collectors.toSet()));
             kc.grantRealmRoles(sub, grantRefs);
             for (Role r : toGrant) {
                 auditTrail.record(AuditAction.UPDATE,
-                        AuditedTarget.created("UserRole", sub,
-                                Map.of("action", "GRANT", "targetRole", r.name())));
+                        AuditedTarget.created(AUDIT_USER_ROLE, localUserId,
+                                new UserRoleAuditPayload("GRANT", r.name())));
             }
         }
         if (!toRevoke.isEmpty()) {
-            List<KcRealmRoleRef> revokeRefs = kc.findRealmRolesByName(
+            List<RealmRoleRef> revokeRefs = kc.findRealmRolesByName(
                     toRevoke.stream().map(Enum::name).collect(Collectors.toSet()));
             kc.revokeRealmRoles(sub, revokeRefs);
             for (Role r : toRevoke) {
                 auditTrail.record(AuditAction.UPDATE,
-                        AuditedTarget.created("UserRole", sub,
-                                Map.of("action", "REVOKE", "targetRole", r.name())));
+                        AuditedTarget.created(AUDIT_USER_ROLE, localUserId,
+                                new UserRoleAuditPayload("REVOKE", r.name())));
             }
         }
     }
 
+    /**
+     * Stable target-id for the rejection row so repeated rejections for the
+     * same (club, username, attempted-role) correlate in the audit trail
+     * without leaking the username verbatim. SHA-1 first 16 bytes folded
+     * into a UUID — same pattern as PersonsService.hashLookupKey.
+     */
+    private void recordRoleGrantRejected(UUID clubId, String username, Set<Role> rejected) {
+        for (Role r : rejected) {
+            UUID stableTarget = stableRejectionId(clubId, username, r);
+            auditTrail.recordFailed(AuditAction.UPDATE,
+                    AuditedTarget.created(AUDIT_USER_ROLE, stableTarget,
+                            new UserRoleAuditPayload("REJECT_GRANT", r.name())),
+                    403, "USER_ROLE_GRANT_REJECTED");
+        }
+    }
+
+    private static UUID stableRejectionId(UUID clubId, String username, Role role) {
+        String canonical = clubId + "|" + username.toLowerCase(java.util.Locale.ROOT) + "|" + role.name();
+        return UUID.nameUUIDFromBytes(canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     private Set<Role> currentRoles(UUID sub) {
         return kc.getRealmRoleMappings(sub).stream()
-                .map(KcRealmRoleRef::name)
+                .map(RealmRoleRef::name)
                 .map(Role::fromWire)
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
@@ -305,18 +377,18 @@ public class UsersService {
         return currentRoles(sub).stream().toList();
     }
 
-    private static Map<UUID, KcUserRow> indexBySub(@Nullable List<KcUserRow> rows) {
+    private static Map<UUID, UserDirectoryRow> indexBySub(@Nullable List<UserDirectoryRow> rows) {
         if (rows == null) {
             return Map.of();
         }
-        Map<UUID, KcUserRow> map = new HashMap<>(rows.size());
-        for (KcUserRow row : rows) {
+        Map<UUID, UserDirectoryRow> map = new HashMap<>(rows.size());
+        for (UserDirectoryRow row : rows) {
             map.put(row.id(), row);
         }
         return map;
     }
 
-    private static boolean invitePending(@Nullable KcUserRow row) {
+    private static boolean invitePending(@Nullable UserDirectoryRow row) {
         return row != null && row.requiredActions() != null && !row.requiredActions().isEmpty();
     }
 
@@ -324,17 +396,23 @@ public class UsersService {
         if (excludingSub == null) {
             return false;
         }
-        long admins = users.findActiveInClub(clubId).stream()
-                .filter(row -> {
-                    UUID rowKcSub = users.findActiveById(row.id())
-                            .map(User::getKeycloakSub)
-                            .orElse(null);
-                    if (rowKcSub == null || rowKcSub.equals(excludingSub)) {
-                        return false;
-                    }
-                    return currentRoles(rowKcSub).contains(Role.CLUB_ADMINISTRATOR);
-                }).count();
-        return admins == 0;
+        // Read CLUB_ADMINISTRATOR's role-membership in one KC call rather
+        // than per-row. KC returns every user in the realm with the role;
+        // we intersect with the club's active users in the loop.
+        Set<UUID> adminSubs = kc.findUsersByRoleName(Role.CLUB_ADMINISTRATOR.name())
+                .stream()
+                .map(UserDirectoryRow::id)
+                .collect(Collectors.toUnmodifiableSet());
+        for (UserRepository.ListRow row : users.findActiveInClub(clubId)) {
+            UUID rowSub = row.keycloakSub();
+            if (rowSub == null || rowSub.equals(excludingSub)) {
+                continue;
+            }
+            if (adminSubs.contains(rowSub)) {
+                return false; // another live CLUB_ADMINISTRATOR exists in this club
+            }
+        }
+        return true;
     }
 
     private User loadInCurrentTenantOrThrow(UserId id) {
@@ -379,6 +457,11 @@ public class UsersService {
         return id.value();
     }
 
-    /** Audit-payload stub for the role-grant rejection path — no PII. */
-    private record InvitePayloadStub(String username, Set<Role> requestedRoles) {}
+    /**
+     * Typed audit-event payload for the {@code UserRole} entity-type rows
+     * (grant / revoke / reject). Fields match the {@code UserRole} block
+     * in {@code application.yml}'s redaction allow-list — neither carries
+     * PII, both ride verbatim into the audit trail.
+     */
+    private record UserRoleAuditPayload(String action, String targetRole) {}
 }

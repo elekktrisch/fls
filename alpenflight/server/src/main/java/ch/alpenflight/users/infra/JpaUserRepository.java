@@ -21,7 +21,7 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     @Override
     @Query("select new ch.alpenflight.users.domain.UserRepository$ListRow("
             + "u.id, u.clubId, u.username, u.friendlyName, u.notificationEmail, "
-            + "u.personId, u.phoneNumber, u.languageId) "
+            + "u.personId, u.phoneNumber, u.languageId, u.keycloakSub) "
             + "from User u "
             + "where u.clubId = :clubId and u.deletedOn is null "
             + "order by lower(u.friendlyName) asc, lower(u.username) asc")

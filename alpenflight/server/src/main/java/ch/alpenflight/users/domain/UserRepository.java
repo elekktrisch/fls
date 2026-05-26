@@ -17,7 +17,12 @@ import org.jspecify.annotations.Nullable;
  */
 public interface UserRepository {
 
-    /** Compact projection for the {@code GET /api/v1/users} list. */
+    /**
+     * Compact projection for the {@code GET /api/v1/users} list. Carries
+     * {@code keycloakSub} so the service layer can index live KC fields
+     * (enabled / requiredActions) per row without re-loading the User
+     * entity.
+     */
     record ListRow(UUID id,
                    UUID clubId,
                    String username,
@@ -25,7 +30,8 @@ public interface UserRepository {
                    String notificationEmail,
                    @Nullable UUID personId,
                    @Nullable String phoneNumber,
-                   UUID languageId) {}
+                   UUID languageId,
+                   @Nullable UUID keycloakSub) {}
 
     List<ListRow> findActiveInClub(UUID clubId);
 

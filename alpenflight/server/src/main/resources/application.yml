@@ -191,20 +191,22 @@ audit:
         # row carries them as `[redacted]`. The id-shaped + tenant-shaped
         # columns ride verbatim so a forensic timeline reads cleanly. Soft-
         # delete actor fields are allowed so DELETE rows show who flipped it.
+        # `active` / `enabled` are intentionally absent — they're not entity
+        # fields (active is derived from deletedOn at read-time; enabled is
+        # a Keycloak-side concept that only appears on UserResponse).
         allow:
           - id
           - clubId
           - keycloakSub
           - personId
           - languageId
-          - active
-          - enabled
           - deletedOn
           - deletedByUserId
       UserResponse:
         # DTO mirror — same allow-list as User. The `roles` array is a wire
         # primitive (enum strings) and is fine to log; `username` is a login
-        # identifier (not PII).
+        # identifier (not PII). `phoneNumber` + `remarks` intentionally
+        # absent — PII; ride as `[redacted]`.
         allow:
           - id
           - clubId
@@ -214,8 +216,10 @@ audit:
           - roles
           - enabled
           - invitePending
-      UserRole:
-        # USER_ROLE_GRANTED / REVOKED payload — tiny diagnostic record. No PII.
+      UserRoleAuditPayload:
+        # USER_ROLE_GRANTED / REVOKED / REJECT_GRANT payload. Tiny
+        # diagnostic record (typed; matches the record's simple class name).
+        # No PII.
         allow:
           - action
           - targetRole

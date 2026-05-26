@@ -1,5 +1,6 @@
 package ch.alpenflight.users.infra.keycloak;
 
+import ch.alpenflight.users.domain.UserDirectoryException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,7 +24,7 @@ import org.springframework.web.client.RestClient;
 @Component
 public class KeycloakAdminTokenSupplier {
 
-    private final RestClient http;
+    private final RestClient http = RestClient.create();
     private final KeycloakAdminProperties props;
     private final Clock clock;
     private final ReentrantLock lock = new ReentrantLock();
@@ -31,10 +32,7 @@ public class KeycloakAdminTokenSupplier {
     private @Nullable String cachedToken;
     private Instant expiresAt = Instant.EPOCH;
 
-    public KeycloakAdminTokenSupplier(RestClient.Builder builder,
-                                      KeycloakAdminProperties props,
-                                      Clock clock) {
-        this.http = builder.build();
+    public KeycloakAdminTokenSupplier(KeycloakAdminProperties props, Clock clock) {
         this.props = props;
         this.clock = clock;
     }
@@ -47,7 +45,6 @@ public class KeycloakAdminTokenSupplier {
         }
         lock.lock();
         try {
-            // Re-check after acquiring — another caller may have rotated.
             snapshot = cachedToken;
             Instant after = clock.instant();
             if (snapshot != null && after.isBefore(expiresAt.minusSeconds(props.refreshSkewSeconds()))) {
@@ -75,13 +72,13 @@ public class KeycloakAdminTokenSupplier {
                     .retrieve()
                     .body(TokenResponse.class);
             if (body == null || body.accessToken == null || body.accessToken.isBlank()) {
-                throw new KeycloakAdminException("Keycloak token endpoint returned empty access_token");
+                throw new UserDirectoryException("Keycloak token endpoint returned empty access_token");
             }
             return body;
         } catch (HttpStatusCodeException e) {
             // Status only; never the response body — it may carry the
             // service-account-client error grant context.
-            throw new KeycloakAdminException(
+            throw new UserDirectoryException(
                     "Keycloak token endpoint refused client-credentials grant (status "
                             + e.getStatusCode().value() + ")", e);
         }
