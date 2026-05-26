@@ -36,7 +36,7 @@ Bail if any fail:
 
 Read in parallel: the full story file, each ADR in `adr_refs`, the legacy code paths cited in design notes (open them, don't paraphrase), the `parity_test` if any, `00-seed.md`.
 
-**Speculative-refinement freshness (when `refined_speculative: true`):** re-refine if `refined_speculative_at` > 14 days old, or any `adr_refs` file or `depends_on` story changed since. Invoke `/modernize-refine S-NNN` JIT before continuing.
+**Legacy speculative-refinement (when `refined_speculative: true`):** historical stamp from the retired `/modernize-refine-ahead`. Treat it as "refine again" regardless of age — current `/modernize-refine` includes the Step 3.5 grill that the speculative variant skipped. Invoke `/modernize-refine S-NNN` JIT before continuing.
 
 **Context7 freshness (when story touches a library / framework):** `mcp__context7__resolve-library-id` → `mcp__context7__query-docs` for each library mentioned in `adr_refs` or design notes. Library facts override training-data assumptions. Skip for general programming concepts.
 

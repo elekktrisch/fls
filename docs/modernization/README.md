@@ -9,7 +9,7 @@ A spec-kit-inspired pipeline for planning **and** executing a greenfield rewrite
 >
 > Skill + agent files target ≤ 200 / ≤ 100 lines. When a procedure here disagrees with the directives, the directives win.
 
-**Skill set:** the seven numbered phases (discover → vision → adrs → decompose → refine → implement → finalize) plus the operator-invoked `/modernize-rework` side path, plus three orchestration extensions for throughput (`/modernize-refine-ahead`, `/modernize-sweep-finalize`, `/modernize-fleet`) — see [Orchestration extensions](#orchestration-extensions) below.
+**Skill set:** the seven numbered phases (discover → vision → adrs → decompose → refine → implement → finalize) plus the operator-invoked `/modernize-rework` side path, plus two orchestration extensions for throughput (`/modernize-sweep-finalize`, `/modernize-fleet`) — see [Orchestration extensions](#orchestration-extensions) below.
 
 ## Strategic anchors (fixed for this project)
 
@@ -30,7 +30,7 @@ Everything else — backend language, frontend framework, database, auth, hostin
 | 2 | `/modernize-vision` | interactive | phase 1 + elicitation + seed | `02-vision-and-constraints.md` |
 | 3 | `/modernize-adrs` | interactive | phases 1–2 + decisions | `adrs/0001-*.md`, `adrs/0002-*.md`, ... |
 | 4 | `/modernize-decompose` | batch | phases 1–3 | `epics/E-NN-*.md`, `stories/S-NNN-*.md`, `_ORDER.md` |
-| 5 | `/modernize-refine <S-NNN>` | **per-story** | one story + ADRs + 5 subagents | new sections + `refined: true` in that story file |
+| 5 | `/modernize-refine <S-NNN>` | **per-story** | one story + ADRs + 5 subagents | new sections + `refined: true` in that story file; rows updated in [`legacy-migration-plan.md`](legacy-migration-plan.md) (Step 4.5); story branch + GH issue + draft PR opened (Step 6) |
 | 6 | `/modernize-implement <S-NNN>` | **per-story** | one refined story + Step 7 reviewer panel + auto-fix loop | code in `alpenflight/`, tests, `status: done`, GitHub issue + draft→ready-for-review PR. Reviewer findings (maintainability + security + tech-writer/usability + parity-when-applicable) auto-fixed inline; escalates to operator only on scope/design pivots. |
 | 7 | `/modernize-finalize <S-NNN>` | **per-story** | one implemented story + ADR amendments + operator confirm | docs-prune pass (delete prose the code now sources; carve out future-story plans + `stories/implemented/` archive; surface unclear cases to operator), pre-merge bookkeeping commit on PR branch (stamps `merged: true`), squash-merge, branch delete, issue close |
 
@@ -41,7 +41,7 @@ Phases 1–4 are one-shot planning. Phases 5–7 are per-story execution — inv
 
 **Side skill — `/modernize-rework <S-NNN>`** — operator-invoked only. Use when the implement auto-fix loop escalates (couldn't converge after 2 rounds; reviewer flagged something that needs scope/design pivot), or when the operator decides post-hoc that a shipped story's shape needs revisiting. Not part of the linear phase progression.
 
-The throughput orchestration extensions (`/modernize-refine-ahead`, `/modernize-sweep-finalize`, `/modernize-fleet`) wrap these per-story skills without changing the per-story state machine.
+The throughput orchestration extensions (`/modernize-sweep-finalize`, `/modernize-fleet`) wrap these per-story skills without changing the per-story state machine.
 
 ## Specialist subagents
 
@@ -105,7 +105,6 @@ Defined in `.claude/agents/`. Read-only — they analyze and report; synthesis i
 # ...
 
 # Throughput extensions (optional, layer on top):
-/modernize-refine-ahead 5   # speculatively refine the next 5 unblocked stories
 /modernize-fleet 3          # run refine→implement on 3 stories concurrently in worktrees
 /modernize-sweep-finalize   # auto-finalize every story that satisfies the gate (no judgment calls)
 ```
@@ -114,13 +113,14 @@ Re-running a planning phase (1–4) regenerates its artifact in place. Re-runnin
 
 ## Orchestration extensions
 
-Three skills layer on top of the seven phases to improve throughput without compromising the per-story state-machine guarantees. All are opt-in.
+Two skills layer on top of the seven phases to improve throughput without compromising the per-story state-machine guarantees. Both opt-in.
 
 | Skill | Purpose | Typical use |
 |---|---|---|
-| `/modernize-refine-ahead [N]` | Speculative buffer-fill — refines the next N unblocked stories ahead of when implement needs them. Stamps `refined_speculative: true` so implement can re-refine if stale. | Run before a fleet batch, or on a `/loop` cadence to keep a rolling buffer of refined stories. |
 | `/modernize-sweep-finalize` | Daemon-style finalize — scans `stories/implemented/`, auto-finalizes anything that satisfies the gate without judgment calls. Defers ADR amendments, `CHANGES_REQUESTED` PRs, and unclear docs-prune cases. | Wrap in `/loop 30m /modernize-sweep-finalize` or `/schedule` for unattended cadence. |
 | `/modernize-fleet [N]` | Parallel-fleet orchestrator — dispatches up to N independent unblocked stories to isolated worktrees and runs refine→implement concurrently (implement's Step 7 reviewer panel runs per worktree). Batches operator checkpoints. | Run on the long tail of leaf stories (CRUDs, observability, scheduled jobs). Foundational stories stay JIT. |
+
+*(Note: a speculative buffer-fill variant `/modernize-refine-ahead` existed in earlier revisions. Retired — refine is no longer speculative: Step 3.5 grills the operator on every unpinned fork, so refinement only happens when the operator is in the loop. Existing stories with the historical `refined_speculative: true` stamp trigger automatic re-refine in implement's Step 1.)*
 
 ## File layout
 
@@ -130,6 +130,7 @@ docs/modernization/
 ├── 00-seed.md                      project-specific anchors, sacred cows, glossary
 ├── 01-current-state.md             phase 1 output: feature inventory + architecture digest
 ├── 02-vision-and-constraints.md    phase 2 output: target outcomes + non-negotiables
+├── legacy-migration-plan.md        single source of truth: every legacy DB table → destination + semantics + owning story. Maintained by /modernize-refine Step 4.5; the diff lands in the same PR as the story refinement.
 ├── adrs/
 │   ├── 0001-<topic>.md             one ADR per major decision
 │   └── ...
@@ -144,11 +145,11 @@ docs/modernization/
         └── ...
 ```
 
-Selection skills (`/modernize-refine-ahead`, `/modernize-fleet`, `/modernize-sweep-finalize`) enumerate only the top-level `stories/S-*.md` glob — implemented stories never re-appear as work candidates. Skills that need to read an implemented story (e.g. `/modernize-refine` resolving a `depends_on:` predecessor, or `/modernize-rework` minting the next free `S-NNN`) glob both locations.
+Selection skills (`/modernize-fleet`, `/modernize-sweep-finalize`) enumerate only the top-level `stories/S-*.md` glob — implemented stories never re-appear as work candidates. Skills that need to read an implemented story (e.g. `/modernize-refine` resolving a `depends_on:` predecessor, or `/modernize-rework` minting the next free `S-NNN`) glob both locations.
 
 A story file evolves over its lifetime:
 1. **After phase 4** — `status: todo`, body has Context / Acceptance / Tasks / Notes.
-2. **After phase 5** (`refined: true`) — body gains Design notes / Edge cases / Security plan / Test plan / Performance plan (and Open design questions if conflicts surfaced). Speculative variant adds `refined_speculative: true`.
+2. **After phase 5** (`refined: true`) — body gains Design notes / Legacy table migration / Edge cases / Security plan / Test plan / Performance plan (and Open design questions only if the Step 3.5 grill left something the operator explicitly deferred). Story branch + GH issue + draft PR open. Historical-only: `refined_speculative: true` from the retired `/modernize-refine-ahead`; triggers automatic re-refine in implement.
 3. **During phase 6** — `status: in_progress`, `started_at: <date>`, `github_issue:`, `github_pr:` stamped.
 4. **After phase 6** — `status: done`, `done_at: <date>`, body pruned to load-bearing decisions, **file moved to `stories/implemented/S-NNN-*.md`** in the mark-done commit. Reviewer findings (maintainability / security / tech-writer / usability / parity) were auto-fixed inline by Step 7's reviewer panel; no `## Review` section is written — the code commits + the PR diff are the evidence trail.
 5. **After phase 7** (`merged: true`) — `merged_at` stamped, PR squash-merged to `main`, branch gone, issue closed; the finalize docs-prune pass deleted prose the code now sources more reliably (file trees, method signatures, stale citations after renames). `merge_commit` is not stamped — recoverable via `git log -- docs/modernization/stories/implemented/S-NNN-*.md` if needed.

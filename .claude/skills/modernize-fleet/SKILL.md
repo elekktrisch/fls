@@ -14,7 +14,7 @@ Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-dire
 
 ## When to use / not
 
-**Use:** long tail of leaf stories (CRUDs, observability, scheduled jobs, small follow-ups); stories from different epics with no shared paths; after `/modernize-refine-ahead N` filled the buffer.
+**Use:** long tail of leaf stories (CRUDs, observability, scheduled jobs, small follow-ups); stories from different epics with no shared paths.
 
 **Don't use:** foundational stories (E-01 / E-02 / E-03); stories that share a file path; stories in a parity-flagged epic where the parity oracle is itself being built; first few stories of an epic (establish pattern sequentially first).
 
@@ -181,7 +181,7 @@ For finalized worktrees: `git worktree prune`. Remote branches deleted by sweep-
 - Aggregate diff (commits / files / lines).
 - Port-offset issues (which subagents couldn't honor + why).
 - Cross-worktree merge conflicts (operator addresses manually).
-- Next: another fleet run if eligible stories remain; else `/modernize-refine-ahead` to refill.
+- Next: another fleet run if eligible stories remain.
 
 ## Quality bar
 

@@ -19,7 +19,10 @@ Refinement is a **decision document**, not a design document. It exists because 
 - Rip-out plans, deprecation flags, and other non-obvious lifecycle notes.
 - Parity exclusions + the reason.
 - Non-obvious decisions where a competent implementer would otherwise pick differently.
-- Open questions that didn't get answered.
+
+**Refinement does not speculate.** Anything the legacy code + ADRs don't pin, the operator gets grilled on in Step 3.5 via the grill-me skill. `## Open design questions` is the residual section for items the operator *explicitly* defers post-grill — empty by default, not a dumping ground.
+
+**Legacy table migration tracking is global, not per-story.** Refine updates [`docs/modernization/legacy-migration-plan.md`](../../../docs/modernization/legacy-migration-plan.md) (single source of truth, exhaustive over the legacy DB) with the rows this story owns. The story body itself stays silent — readers go to the global plan. See Step 4.5.
 
 Things that **do not** belong in the story:
 
@@ -86,7 +89,11 @@ ONE message, multiple `Agent` calls. Each prompt must include:
 - Output format (each agent specifies; call it out).
 - **Brevity rule:** "Decisions over enumeration. If a competent implementer would derive it from the code, tests, or ADRs, omit it. Target ≤ 30 lines per section." Restate this in every spawn prompt — it overrides the agent's default output template when they conflict.
 
-### Step 3 — Synthesise (editorial)
+**Solution-architect prompt MUST additionally include:**
+
+- A mandate to produce a separate output block titled `## Legacy table migration deltas (for global plan)`. One row per legacy DB table this story consumes / replaces / drops, in the same shape used by [`docs/modernization/legacy-migration-plan.md`](../../../docs/modernization/legacy-migration-plan.md). These rows are NOT pasted into the story body — refine's Step 4.5 reconciles them into the global plan. Cite the legacy table by the name it has in `flsserver/database/FLS/Updates/DBUpdate_v*.sql` (final-state name after all DBUpdates). Allowed semantics: `port-as-rows` · `port-as-schema-only` · `drop` · `fold-into-<table>` · `split-into-<tables>` · `replaced-by-<external-system>`. Empty block is allowed ONLY when the story genuinely has zero schema impact (pure frontend, devops, doc-only) — say so explicitly with a one-line reason.
+
+### Step 3 — First-pass synthesise (editorial)
 
 Specialists produce outputs; you cut what the code will document anyway, then compose into the story. **The job is editorial: trim to decisions.** A specialist who returns a 60-line section gets cut to the 10-15 lines that carry weight; the rest is restated in code when the implementer touches it.
 
@@ -113,6 +120,37 @@ Specialists produce outputs; you cut what the code will document anyway, then co
 
 **Per ADR 0022 directive 2:** when the architect proposes schema-level business logic (CHECK constraints encoding state machines / ranges / calculations, generated columns for domain math, triggers), the synthesised design notes must call it out as a *deviation requiring rationale* — not silently accept. Default position: business logic on aggregates.
 
+### Step 3.5 — Grill the operator on unresolved forks
+
+Refine is **not speculative**. Anything the legacy doesn't pin AND the specialists can't unambiguously derive is escalated to the operator before the story body locks in. Implementation: invoke the **grill-me skill** with the unresolved fork as the topic — it drives a focused multi-turn interrogation and returns a decision.
+
+**Identify forks worth grilling:**
+
+- Two specialists disagree on the same decision.
+- An architect recommendation deviates from observable legacy behavior (port-of-feature stories) without an explicit cited reason.
+- A schema-level deviation per ADR 0022 directive 2 with no rationale in the design notes.
+- A "Recommendation: X" line in any specialist's output where the legacy code doesn't observably support X and no ADR pins it.
+- A migration semantic the architect picked (port-as-rows vs drop vs split — see Step 4's Legacy table migration section) where the legacy data shape doesn't dictate the answer.
+
+**Skip the grill when:**
+
+- The fork is fully derivable from grep'ping legacy code (refine should resolve it itself, not bug the operator).
+- The fork is already explicitly answered in an ADR or upstream story refinement.
+- The story is greenfield (no legacy to be unclear about) AND the architect's recommendation is internally consistent.
+
+**Invoke pattern** — for each unresolved fork:
+
+```
+Skill("grill-me", "S-NNN refine — <fork topic in one line>. Context:
+<legacy citation or specialist disagreement summary>. Need: pick one of
+[option A | option B | option C] or surface a new option. Bake the
+resolution back into the story's design notes / migration plan.")
+```
+
+Bake each grill outcome into the relevant section of the synthesis (Design / Migration / Edge / Security / Test). Only what survives grilling and *still* needs operator-async-decision lands in `## Open design questions`. Default is that section is EMPTY post-grill.
+
+If you skip the grill, say so in the report — "no unresolved forks; legacy + ADRs pinned every decision."
+
 ### Step 4 — Write back
 
 Append (or replace) inside `<!-- modernize-refine: start --> / end -->` delimiters, in order:
@@ -136,12 +174,28 @@ Append (or replace) inside `<!-- modernize-refine: start --> / end -->` delimite
 <performance-engineer or N/A>
 
 ## Open design questions
-<only if conflicts surfaced — else omit entirely>
+<only if forks SURVIVED the Step 3.5 grill — else omit entirely>
 
 <!-- modernize-refine: end -->
 ```
 
-Re-runs replace atomically; everything else preserved.
+Re-runs replace atomically; everything else preserved. Legacy table migration mappings go to the global plan (Step 4.5), not into the story body.
+
+### Step 4.5 — Update the global legacy-migration plan
+
+The single source of truth for "every legacy DB table → where it lands in the new stack" is [`docs/modernization/legacy-migration-plan.md`](../../../docs/modernization/legacy-migration-plan.md). Every story that touches DB schema MUST update the rows it owns. The story body itself stays silent — readers go to the global plan.
+
+**For each row the solution-architect emitted in its `## Legacy table migration deltas (for global plan)` block:**
+
+1. Locate the row in the plan (by legacy table name). Every legacy table is pre-seeded — if the row doesn't exist, that's a bug (file a follow-up to fix the plan, then proceed).
+2. Update its columns: `Destination`, `Semantics`, `Owned by` (set to `S-NNN`), `Notes`.
+3. If two stories both legitimately touch the same table (e.g. S-NNN ports the data, S-MMM splits a column out later), `Owned by` is the **most recent** owner; previous owner is captured in `Notes` as `also touched by S-XXX (<what it did>)`.
+
+**Conflict handling:** if the architect proposes a semantics that contradicts an existing row's `Semantics` (e.g. an earlier story said `port-as-rows`, this one says `drop`), surface to the operator via grill-me in Step 3.5 — don't silently overwrite. The plan is contract; conflicts mean a design pivot.
+
+**Empty deltas:** if the architect's block was empty (story has zero schema impact), Step 4.5 is a no-op. Note this in the report.
+
+**Plan-as-contract:** the plan is committed in the same Step 6 commit as the story refinement, so the diff lands in the same PR. Reviewers can see both the story decisions AND their schema fallout in one place.
 
 ### Step 5 — Frontmatter
 
@@ -166,7 +220,7 @@ The refinement diff should be reviewable on GitHub before implement runs, so ref
 
 **GH issue.** If `gh auth status` OK + remote exists + no `github_issue:` already stamped: `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist from frontmatter + back-link to the MD path. Capture issue number; stamp `github_issue: N`. If already stamped, verify still open via `gh issue view`.
 
-**Commit.** Single commit covering frontmatter + story body delta (+ issue stamp if just minted). Subject: `#N: refine` (or `S-NNN: refine` fallback when no issue exists). Re-refine on an existing branch: `#N: re-refine — <one-line headline of what changed>`.
+**Commit.** Single commit covering frontmatter + story body delta + the `legacy-migration-plan.md` diff from Step 4.5 (+ issue stamp if just minted). Subject: `#N: refine` (or `S-NNN: refine` fallback when no issue exists). Re-refine on an existing branch: `#N: re-refine — <one-line headline of what changed>`.
 
 **Push + draft PR.** `git push -u origin story/S-NNN-<slug>`. Then `gh pr create --draft --base main --head story/S-NNN-<slug>` if no PR exists yet. PR body:
 
@@ -210,10 +264,10 @@ Stamp `github_pr: M` on frontmatter and commit the stamp as a separate `#N: stam
 - Soft body target: design + edge + test + security + perf ≈ 150 lines combined. Blow past it only when the story is genuinely that thorny — and say why in the report.
 - Replace, don't append, on re-run.
 - Frontmatter reflects reality (`refined_specialists` = who ran).
-- Open design questions surface real conflicts, not "things to think about."
+- **No speculation.** Step 3.5 grills the operator on every fork the legacy + ADRs don't pin. `## Open design questions` is EMPTY by default — only survives when the operator explicitly defers.
+- **Legacy table migration tracking is global, not per-story.** Refine updates `docs/modernization/legacy-migration-plan.md` (Step 4.5) with the rows this story owns. Story body stays silent. The plan is exhaustive over the legacy DB; every table has a row from day one.
 - Per ADR 0022 directive 2: schema-level business logic in design notes = call out as deviation requiring rationale.
 - Refinement opens the story branch + GH issue + draft PR (Step 6). Implement resumes on the existing branch.
-- `/modernize-refine-ahead` (speculative buffer-fill) is the explicit opt-out: working-tree-only, no branch / commit / PR. Don't propagate Step 6 there.
 
 ## Not in scope
 
