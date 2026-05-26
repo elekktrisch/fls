@@ -409,12 +409,3 @@ export class PersonsService {
   }
 };
 
-export type GetPersonClientResult = NonNullable<PersonResponse>
-export type UpdatePersonClientResult = NonNullable<PersonResponse>
-export type DeletePersonClientResult = NonNullable<void>
-export type UpdateCurrentClubMembershipClientResult = NonNullable<PersonResponse>
-export type LeaveCurrentClubClientResult = NonNullable<void>
-export type ListPersonsClientResult = NonNullable<PersonListItem[]>
-export type CreatePersonClientResult = NonNullable<PersonResponse>
-export type AttachExistingPersonClientResult = NonNullable<PersonResponse>
-export type LookupPersonClientResult = NonNullable<PersonLookupResult>
