@@ -1,0 +1,31 @@
+name: regen-openapi
+
+# One-off helper: runs OpenApiSnapshotRegenerationIT in CI (where Docker /
+# Testcontainers Postgres is available) and uploads the regenerated
+# alpenflight/web/openapi/openapi.json as an artifact for the operator
+# to download + commit. Triggered manually.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Regenerate snapshot
+        working-directory: alpenflight/server
+        env:
+          ALPENFLIGHT_OPENAPI_REFRESH: "true"
+        run: ./gradlew test --tests "ch.alpenflight.platform.openapi.OpenApiSnapshotRegenerationIT" --no-daemon
+      - name: Upload regenerated openapi.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-snapshot
+          path: alpenflight/web/openapi/openapi.json
+          if-no-files-found: error
