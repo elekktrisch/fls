@@ -6,7 +6,9 @@ name: regen-openapi
 # to download + commit. Triggered manually.
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [story/S-052-users-crud]
+    paths: ['.github/workflows/regen-openapi.yml']
 
 jobs:
   regen:
