@@ -14,9 +14,8 @@ worked around the collision by naming the table `t_user` instead of
 double-quoting `"user"` — quoting works but ripples into every JPA
 annotation, every native SQL string, and every `regclass` cast, and is
 easy to get wrong. The operator chose the `t_` prefix as a project-wide
-convention; [S-170](../stories/implemented/S-170-t-prefix-table-rename.md)
-swept the convention across every remaining table so the schema reads
-consistently.
+convention; S-170 swept the convention across every remaining table so
+the schema reads consistently.
 
 [ADR 0022](0022-modernization-primary-directives.md) Directive 1 (working
 software over comprehensive documentation) prefers an automated guardrail
@@ -54,10 +53,9 @@ accepted as the cost-vs-consistency tradeoff.
     domain table.
   - JPA `@Table(name = "...")` annotations + native SQL strings are
     greppable for a table by its full identifier.
-  - A new {@code @Entity} class without an explicit
-    {@code @Table(name = "t_…")} fails the build via the
-    `NamingRulesTest` ArchUnit rule — the convention is enforced, not
-    documented.
+  - A new `@Entity` class without an explicit `@Table(name = "t_…")`
+    fails the build via the `NamingRulesTest` ArchUnit rule — the
+    convention is enforced, not documented.
   - `TableNamingConventionTest` (DB-side) catches drift at runtime;
     `FixtureTableNamingConventionTest` catches it in raw-JDBC test
     fixtures.

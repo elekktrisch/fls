@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       slug IS NOT NULL} (source of truth — wins races).
  * </ol>
  *
- * <p>FK references to {@code country} / {@code club_state} are pre-checked
+ * <p>FK references to {@code t_country} / {@code t_club_state} are pre-checked
  * against the {@link CountryRepository} / {@link ClubStateRepository} domain
  * ports so a bad id surfaces as {@link InvalidClubReferenceException} (HTTP
  * 400) instead of leaking the Postgres FK-violation message; the FK

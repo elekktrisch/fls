@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Audit-trail row written by the {@link AuditTrail} listener in its own
- * {@code REQUIRES_NEW} transaction. Mapped to {@code mutation_audit_event}.
+ * {@code REQUIRES_NEW} transaction. Mapped to {@code t_mutation_audit_event}.
  *
  * <p>TENANT_SCOPED via {@link TenantId} on {@code tenantClubId}: every read
  * is auto-filtered to the caller's tenant, so {@code S-056}'s list endpoint

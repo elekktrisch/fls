@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Club aggregate root. Mapped to the V2 {@code club} table extended by V5
+ * Club aggregate root. Mapped to the V2 {@code t_club} table extended by V5
  * with {@code slug} + {@code public_registration_enabled}.
  *
  * <p>Per ADR 0022 directive 2 the business rules (slug format, blank-name

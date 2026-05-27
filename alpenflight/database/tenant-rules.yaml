@@ -261,12 +261,6 @@ overrides:
     rationale_ref: tenant-catalog.md#system-global
     # Created and managed by Flyway autoconfig. Operator-only writes via
     # `flyway repair`. Read-only from application code.
-  app_meta:
-    kind: system
-    target_entity: AppMeta
-    rationale_ref: tenant-catalog.md#system-global
-    # S-009 sentinel: tracks schema generation (S-009, S-012, ...). System
-    # ops table, not tenant data.
 
   # ---- Tenant-scoped — most of the domain ----
   # No override needed when the column-presence rule fires (ClubId present).

@@ -21,7 +21,7 @@ import org.springframework.data.repository.query.Param;
  * rows from any club; the catalog is intentionally shared.
  *
  * <p>List + picker rows are flat projection DTOs to avoid N+1 across
- * {@code aircraft_type} + current {@code aircraft_aircraft_state}. The
+ * {@code t_aircraft_type} + current {@code t_aircraft_aircraft_state}. The
  * partial-unique {@code ux_aas_current_state_per_aircraft} index lets the
  * "current state" LEFT JOIN serve as an Index Only Scan.
  */

@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 /**
  * Spring Data implementation of {@link PersonRepository}. Honors the port's
  * tenant-discipline contract: no {@code findAll}, no unscoped list query;
- * the only multi-row reads JOIN through {@code person_club} so Hibernate's
+ * the only multi-row reads JOIN through {@code t_person_club} so Hibernate's
  * {@code @TenantId} predicate fires automatically.
  *
  * <p>The two membership-existence checks use {@code @Query} so they can

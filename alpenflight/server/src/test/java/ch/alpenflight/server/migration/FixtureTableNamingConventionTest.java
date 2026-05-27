@@ -55,20 +55,30 @@ class FixtureTableNamingConventionTest {
             // CTE / subquery aliases used in fixtures
             "t", "u", "c", "k", "col", "tc", "p", "rs", "kc", "tg",
             // Aliases in JOIN context — false-positive guard
-            "a", "b", "i");
+            "a", "b", "i",
+            // English prose words that appear after FROM/JOIN/UPDATE in
+            // assertion messages — none of these will ever be a table name.
+            "legacy", "scratch", "source", "target", "above", "below");
 
     /**
      * Narrowed to SQL-context-only patterns: {@code DELETE FROM} /
      * {@code INSERT INTO} / {@code TRUNCATE} are unambiguous; {@code UPDATE}
      * requires a trailing {@code SET}; {@code FROM} / {@code JOIN} require
-     * a trailing SQL clause keyword. Avoids matching English prose like
-     * "from another tenant" or "update the value".
+     * either a trailing SQL clause keyword OR a string-literal terminator
+     * OR an optional alias before the clause keyword. Avoids matching
+     * English prose like "from another tenant" or "update the value" while
+     * still catching {@code "SELECT * FROM t_person_club"} (string ends at
+     * the identifier) and {@code "FROM t_aircraft a JOIN t_club c ON …"}
+     * (alias before next clause).
      */
     private static final Pattern FROM_LIKE = Pattern.compile(
             "(?i)\\b(?:"
                     + "(?:DELETE\\s+FROM|INSERT\\s+INTO|TRUNCATE(?:\\s+TABLE)?)\\s+([A-Za-z_][A-Za-z0-9_]*)"
                     + "|UPDATE\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+SET\\b"
-                    + "|(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s+(?:WHERE|ON|JOIN|GROUP|ORDER|LIMIT|HAVING|;|UNION|INNER|LEFT|RIGHT|FULL|CROSS|AS|\\)|$))"
+                    + "|(?:FROM|JOIN)\\s+([A-Za-z_][A-Za-z0-9_]*)"
+                    + "(?=\\s*(?:[\"';)]|$)"
+                    + "|\\s+[A-Za-z_][A-Za-z0-9_]*\\s+(?:ON|WHERE|JOIN|GROUP|ORDER|LIMIT|HAVING|UNION|INNER|LEFT|RIGHT|FULL|CROSS|AS|;)"
+                    + "|\\s+(?:WHERE|ON|JOIN|GROUP|ORDER|LIMIT|HAVING|UNION|INNER|LEFT|RIGHT|FULL|CROSS|AS))"
                     + ")");
 
     private static final Path TEST_ROOT = Path.of("src/test/java");
@@ -153,7 +163,15 @@ class FixtureTableNamingConventionTest {
             return true;
         }
         // JPQL: `from User u`, `from Aircraft a` — first letter of the
-        // identifier after FROM is uppercase in JPQL.
-        return !identifier.isEmpty() && Character.isUpperCase(identifier.charAt(0));
+        // identifier after FROM is uppercase. Applied ONLY to bare
+        // FROM/JOIN matches; INSERT INTO / DELETE FROM / UPDATE / TRUNCATE
+        // are SQL-only and an upper-cased target there is a fixture typo,
+        // not a JPQL reference.
+        if (identifier.isEmpty() || !Character.isUpperCase(identifier.charAt(0))) {
+            return false;
+        }
+        String prefix = line.substring(0, matchStart).toLowerCase();
+        return prefix.endsWith("from") || prefix.endsWith("join")
+                || prefix.endsWith("from ") || prefix.endsWith("join ");
     }
 }

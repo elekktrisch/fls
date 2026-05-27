@@ -38,7 +38,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * <p>Runs after Spring Security so 401 / 403 responses get an audit trail
  * (which is itself useful for incident response — Actuator owns the
  * auth-event trail, but a failed business-mutation attempt by an
- * authenticated user still belongs in {@code mutation_audit_event}).
+ * authenticated user still belongs in {@code t_mutation_audit_event}).
  *
  * <p>Per the refinement: the entity-type recorded for the synthetic row
  * is the request path's resource segment ({@code "Club"} for
@@ -80,7 +80,7 @@ class RequestAuditFilter extends OncePerRequestFilter {
 
     /**
      * Auth events (401 / 403) are NOT duplicated into
-     * {@code mutation_audit_event} — Spring Boot Actuator's
+     * {@code t_mutation_audit_event} — Spring Boot Actuator's
      * {@code AuditEventRepository} is the canonical surface for those, and
      * S-020's {@code Authentication{Success,Failure}Event}s already feed
      * it. Duplicating risks divergence between the two trails and

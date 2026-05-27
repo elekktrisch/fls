@@ -31,7 +31,7 @@ public interface LocationRepository {
     /**
      * Returns active (non-soft-deleted) locations ordered by
      * {@code sort_indicator ASC NULLS LAST, location_name ASC}, joined with
-     * {@code location_type} to surface the type code + airfield flag on a
+     * {@code t_location_type} to surface the type code + airfield flag on a
      * single row. Single SQL statement; no per-row IOP fetch.
      */
     List<ListRow> findAllActiveListRows();

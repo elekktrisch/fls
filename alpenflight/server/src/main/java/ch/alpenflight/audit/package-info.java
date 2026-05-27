@@ -23,7 +23,7 @@
  *
  * <p>Naming: {@code MutationAuditEvent} (not {@code AuditEvent}) so Spring
  * Boot Actuator's {@code org.springframework.boot.actuate.audit.AuditEvent}
- * (auth events) cannot collide. The DB table is {@code mutation_audit_event}.
+ * (auth events) cannot collide. The DB table is {@code t_mutation_audit_event}.
  */
 @ApplicationModule(type = ApplicationModule.Type.OPEN)
 @NullMarked

@@ -23,12 +23,12 @@ import org.springframework.stereotype.Service;
  *       {@code platform.tenancy.UserPrincipalLookup}; the schemas overlap
  *       deliberately — both serve the JWT-sub-to-internal-row resolution
  *       seam but project different field sets.</li>
- *   <li>The linked {@code person} row (when {@code user.person_id} is set)
+ *   <li>The linked {@code t_person} row (when {@code user.person_id} is set)
  *       — supplies {@code firstName} + {@code lastName}.</li>
  *   <li>JWT claims — fallbacks for {@code username} ({@code preferred_username}),
  *       {@code email}, {@code firstName} ({@code given_name}),
  *       {@code lastName} ({@code family_name}) when no {@code user} / no
- *       {@code person} is linked.</li>
+ *       {@code t_person} is linked.</li>
  * </ol>
  *
  * <p>Roles are read directly from the JWT's {@code realm_access.roles[]}
