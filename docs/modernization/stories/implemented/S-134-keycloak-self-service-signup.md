@@ -5,6 +5,8 @@ epic: E-15
 status: done
 started_at: 2026-05-27
 done_at: 2026-05-27
+merged: true
+merged_at: 2026-05-27
 depends_on: [S-019, S-021]
 acceptance:
   - The Keycloak realm export (S-019) is amended to enable self-service registration on the `alpenflight` realm: the login page surfaces a "Sign up" link; the registration form requires email + password (+ first/last name as Keycloak built-ins).
