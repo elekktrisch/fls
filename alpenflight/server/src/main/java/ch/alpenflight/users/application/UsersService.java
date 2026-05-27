@@ -141,6 +141,19 @@ public class UsersService {
                 List.of("UPDATE_PASSWORD"),
                 /*enabled=*/ true));
 
+        // Re-entry path (S-169): if a soft-deleted tombstone is still
+        // holding this KC sub, detach it so the partial UNIQUE on
+        // keycloak_sub admits the new row. The tombstone keeps its audit
+        // history; linkage between old + new is via username + KC user id,
+        // not a FK chain.
+        users.findAnyByKeycloakSub(kcSub).ifPresent(existing -> {
+            if (!existing.isActive()) {
+                existing.detachKeycloakSub();
+                users.save(existing);
+                users.flush();
+            }
+        });
+
         User saved;
         try {
             User u = User.register(tenant, kcSub, req.username(), req.friendlyName(),

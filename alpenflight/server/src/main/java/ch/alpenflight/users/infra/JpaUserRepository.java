@@ -36,6 +36,10 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     Optional<User> findActiveByKeycloakSub(@Param("sub") UUID keycloakSub);
 
     @Override
+    @Query("select u from User u where u.keycloakSub = :sub")
+    Optional<User> findAnyByKeycloakSub(@Param("sub") UUID keycloakSub);
+
+    @Override
     @Query("select u from User u where lower(u.username) = lower(:username) and u.deletedOn is null")
     Optional<User> findActiveByUsernameLower(@Param("username") String username);
 

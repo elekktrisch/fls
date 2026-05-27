@@ -1,13 +1,18 @@
 package ch.alpenflight.platform.tenancy;
 
+import ch.alpenflight.platform.security.JitUserMaterializationFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Resolves the authenticated user's tenant ({@code club_id}) and internal
@@ -60,9 +65,44 @@ public class UserPrincipalLookup {
      * {@code jwt.getSubject()}: callers wanting "who did this" for audit
      * should prefer this method so federated-IdP paths resolve consistently
      * with realm-token paths.
+     *
+     * <p>Consults the {@link JitUserMaterializationFilter#USER_ID_ATTRIBUTE}
+     * request attribute first so the realm-token cheap path doesn't
+     * double-query {@code t_user} (JIT filter + downstream audit /
+     * controller). Falls through to JDBC when no attribute is present
+     * (non-HTTP context, filter skipped, federated baseline).
      */
     public Optional<UUID> resolveUserIdFor(Jwt jwt) {
+        Object stashed = stashedUserIdOnRequest();
+        if (stashed == JitUserMaterializationFilter.ABSENT) {
+            return Optional.empty();
+        }
+        if (stashed instanceof UUID uuid) {
+            return Optional.of(uuid);
+        }
         return querySingleUuid(jwt, SELECT_USER_ID, "user_id");
+    }
+
+    /**
+     * @return {@link JitUserMaterializationFilter#ABSENT} when the filter
+     *         decided no row applies, a {@link UUID} when it resolved one,
+     *         or {@code null} when no decision is on the current request
+     *         (non-HTTP context, filter skipped path).
+     */
+    private static @Nullable Object stashedUserIdOnRequest() {
+        HttpServletRequest req = currentRequest();
+        if (req == null) {
+            return null;
+        }
+        return req.getAttribute(JitUserMaterializationFilter.USER_ID_ATTRIBUTE);
+    }
+
+    private static @Nullable HttpServletRequest currentRequest() {
+        var attrs = RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof ServletRequestAttributes sra) {
+            return sra.getRequest();
+        }
+        return null;
     }
 
     private Optional<UUID> querySingleUuid(Jwt jwt, String sql, String columnLabel) {

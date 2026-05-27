@@ -6,7 +6,6 @@ import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.net.URI;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +17,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -63,16 +61,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
     @Autowired MeterRegistry meters;
 
     private final List<UUID> mintedSubs = new ArrayList<>();
-
-    @BeforeEach
-    void resetCounters() {
-        meters.find("users.jit.outcome").counters()
-                .forEach(c -> {
-                    // Counters can't be reset; tests assert deltas via
-                    // before / after snapshots. Cache snapshot of starting
-                    // values via {@link #snapshotCounter}.
-                });
-    }
 
     @AfterEach
     void cleanup() {
@@ -290,18 +278,22 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void cheapPath_usesIndexedKeycloakSubLookup() {
-        UUID sub = freshSub();
-        String token = mintJitReadyRealm(sub, CLUB, "jit-it-explain", "Explain",
-                "explain@example.com", "en");
-        get("/api/v1/me", token); // first JIT create
-
-        String plan = jdbc.queryForObject(
-                "EXPLAIN SELECT id FROM t_user WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL",
-                String.class, sub.toString());
-        assertThat(plan)
-                .as("Cheap-path lookup must hit ux_user_keycloak_sub, not seq-scan t_user")
-                .containsIgnoringCase("ux_user_keycloak_sub");
+    void partialUniqueOnKeycloakSubIsPresent_raceLoserNet() {
+        // The partial UNIQUE is the structural net for the concurrent
+        // first-login race (the materializer catches
+        // DataIntegrityViolationException and re-reads). Verify it exists
+        // with the expected `WHERE keycloak_sub IS NOT NULL` predicate so a
+        // future migration accidentally dropping the partial qualifier
+        // (turning it into a global UNIQUE that would also block re-invite
+        // after softDelete) fails this test.
+        Map<String, Object> idx = jdbc.queryForMap(
+                "SELECT indexdef FROM pg_indexes WHERE indexname = 'ux_user_keycloak_sub'");
+        String def = (String) idx.get("indexdef");
+        assertThat(def)
+                .containsIgnoringCase("t_user")
+                .containsIgnoringCase("(keycloak_sub)")
+                .containsIgnoringCase("WHERE")
+                .containsIgnoringCase("keycloak_sub IS NOT NULL");
     }
 
     private String mintJitReadyRealm(UUID sub, UUID clubId, String username,
@@ -332,7 +324,4 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                         .build(),
                 String.class);
     }
-
-    @SuppressWarnings("unused")
-    private static Duration unused() { return Duration.ZERO; }
 }

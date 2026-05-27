@@ -79,7 +79,12 @@ public class User {
     @Column(name = "language_id", nullable = false)
     private UUID languageId;
 
-    @Column(name = "keycloak_sub", updatable = false)
+    // {@code keycloak_sub} is immutable during the active lifecycle, but
+    // {@link #detachKeycloakSub()} clears it as part of a re-invite (frees
+    // the partial UNIQUE so the next invite can re-use the sub). JPA needs
+    // to include the column in UPDATE for that path, hence no
+    // {@code updatable = false}.
+    @Column(name = "keycloak_sub")
     private @Nullable UUID keycloakSub;
 
     @Column(name = "created_on", nullable = false)
@@ -210,7 +215,8 @@ public class User {
     /**
      * Soft-delete. Pairs with a Keycloak {@code enabled=false} flip at the
      * service layer — KC stays as the source-of-truth event log; we never
-     * hard-delete the KC user.
+     * hard-delete the KC user. The {@code keycloak_sub} stays set so the
+     * JIT soft-delete gate (S-169) can refuse residual-JWT requests.
      */
     public void softDelete(@Nullable UUID actorUserId, Clock clock) {
         if (deletedOn != null) {
@@ -218,6 +224,19 @@ public class User {
         }
         this.deletedOn = clock.instant();
         this.deletedByUserId = actorUserId;
+    }
+
+    /**
+     * Detach the Keycloak identity from a tombstoned row, freeing it from
+     * the partial UNIQUE so a CLUB_ADMIN can re-invite the same KC user.
+     * Refuses to fire on an active row — only the soft-delete tombstone
+     * may surrender its identity binding.
+     */
+    public void detachKeycloakSub() {
+        if (deletedOn == null) {
+            throw new IllegalStateException("Cannot detach keycloak_sub from an active user row");
+        }
+        this.keycloakSub = null;
     }
 
     private static <T> T requireNonNull(@Nullable T value, String field) {

@@ -39,6 +39,15 @@ public interface UserRepository {
 
     Optional<User> findActiveByKeycloakSub(UUID keycloakSub);
 
+    /**
+     * Lookup by {@code keycloak_sub} including soft-deleted rows. The JIT
+     * filter (S-169) calls this to fire the soft-delete gate on the
+     * residual-JWT window. The {@code invite} flow calls it to detect a
+     * tombstone that needs its {@code keycloak_sub} cleared before a
+     * new row can re-use the identity.
+     */
+    Optional<User> findAnyByKeycloakSub(UUID keycloakSub);
+
     Optional<User> findActiveByUsernameLower(String username);
 
     /**
