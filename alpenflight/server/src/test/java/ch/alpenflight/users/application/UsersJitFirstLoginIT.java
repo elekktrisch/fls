@@ -65,7 +65,7 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
     @AfterEach
     void cleanup() {
         for (UUID sub : mintedSubs) {
-            jdbc.update("DELETE FROM mutation_audit_event WHERE actor_keycloak_sub = ?",
+            jdbc.update("DELETE FROM t_mutation_audit_event WHERE actor_keycloak_sub = ?",
                     sub.toString());
             jdbc.update("DELETE FROM t_user WHERE keycloak_sub = ?::uuid", sub.toString());
         }

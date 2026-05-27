@@ -167,7 +167,6 @@
 --   8. Operational: club_delivery_number_counter.
 --   9. SQL COMMENT ON COLUMN block (forensic clarity).
 --  10. Reference-data seeds (fixed canonical UUID v7 literals).
---  11. Update app_meta sentinel to S-014.
 -- ============================================================================
 
 
@@ -182,7 +181,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 -- 2. Reservations cluster
 -- =============================================================================
 
-CREATE TABLE aircraft_reservation_type (
+CREATE TABLE t_aircraft_reservation_type (
     id                          UUID          NOT NULL PRIMARY KEY,
     operating_club_id           UUID          NOT NULL,
     reservation_type_name       VARCHAR(100)  NOT NULL,
@@ -197,12 +196,12 @@ CREATE TABLE aircraft_reservation_type (
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
     CONSTRAINT fk_arvt_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE RESTRICT
+        FOREIGN KEY (operating_club_id) REFERENCES t_club (id) ON DELETE RESTRICT
 );
-CREATE INDEX ix_arvt_club ON aircraft_reservation_type (operating_club_id)
+CREATE INDEX ix_arvt_club ON t_aircraft_reservation_type (operating_club_id)
     WHERE deleted_on IS NULL;
 
-CREATE TABLE aircraft_reservation (
+CREATE TABLE t_aircraft_reservation (
     id                          UUID          NOT NULL PRIMARY KEY,
     operating_club_id           UUID          NOT NULL,
     aircraft_id                 UUID          NOT NULL,
@@ -224,19 +223,19 @@ CREATE TABLE aircraft_reservation (
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
     CONSTRAINT fk_arv_operating_club_id
-        FOREIGN KEY (operating_club_id)       REFERENCES club (id)                    ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id)       REFERENCES t_club (id)                    ON DELETE RESTRICT,
     CONSTRAINT fk_arv_aircraft_id
-        FOREIGN KEY (aircraft_id)             REFERENCES aircraft (id)                ON DELETE RESTRICT,
+        FOREIGN KEY (aircraft_id)             REFERENCES t_aircraft (id)                ON DELETE RESTRICT,
     CONSTRAINT fk_arv_pilot_person_id
-        FOREIGN KEY (pilot_person_id)         REFERENCES person (id)                  ON DELETE RESTRICT,
+        FOREIGN KEY (pilot_person_id)         REFERENCES t_person (id)                  ON DELETE RESTRICT,
     CONSTRAINT fk_arv_second_crew_person_id
-        FOREIGN KEY (second_crew_person_id)   REFERENCES person (id)                  ON DELETE SET NULL,
+        FOREIGN KEY (second_crew_person_id)   REFERENCES t_person (id)                  ON DELETE SET NULL,
     CONSTRAINT fk_arv_location_id
-        FOREIGN KEY (location_id)             REFERENCES location (id)                ON DELETE RESTRICT,
+        FOREIGN KEY (location_id)             REFERENCES t_location (id)                ON DELETE RESTRICT,
     CONSTRAINT fk_arv_reservation_type_id
-        FOREIGN KEY (reservation_type_id)     REFERENCES aircraft_reservation_type (id) ON DELETE RESTRICT,
+        FOREIGN KEY (reservation_type_id)     REFERENCES t_aircraft_reservation_type (id) ON DELETE RESTRICT,
     CONSTRAINT fk_arv_flight_type_id
-        FOREIGN KEY (flight_type_id)          REFERENCES flight_type (id)             ON DELETE RESTRICT
+        FOREIGN KEY (flight_type_id)          REFERENCES t_flight_type (id)             ON DELETE RESTRICT
     -- ck_arv_end_after_start + ck_arv_max_30_days removed per ADR 0022
     -- directive 2: end-after-start (incl. empty-range degenerate where
     -- lower=upper produces an empty tstzrange GiST would silently miss)
@@ -247,23 +246,23 @@ CREATE INDEX ix_arv_aircraft_range_gist
     ON aircraft_reservation USING gist (aircraft_id, reservation_range)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_arv_club_start_end
-    ON aircraft_reservation (operating_club_id, reservation_start, reservation_end)
+    ON t_aircraft_reservation (operating_club_id, reservation_start, reservation_end)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_arv_pilot
-    ON aircraft_reservation (pilot_person_id, reservation_start DESC)
+    ON t_aircraft_reservation (pilot_person_id, reservation_start DESC)
     WHERE pilot_person_id IS NOT NULL AND deleted_on IS NULL;
 -- covers tombstones: deferred-perf-tuning S-108 — index shape (DESC ordering +
 -- partial predicate) pending production-scale query-plan analysis. Full-range
 -- scan acceptable at current per-club reservation counts; revisit at S-108.
 CREATE INDEX ix_arv_location
-    ON aircraft_reservation (operating_club_id, location_id, reservation_start);
+    ON t_aircraft_reservation (operating_club_id, location_id, reservation_start);
 
 
 -- =============================================================================
 -- 3. Planning cluster
 -- =============================================================================
 
-CREATE TABLE planning_day_assignment_type (
+CREATE TABLE t_planning_day_assignment_type (
     id                              UUID          NOT NULL PRIMARY KEY,
     operating_club_id               UUID          NOT NULL,
     assignment_type_name            VARCHAR(100)  NOT NULL,
@@ -275,14 +274,14 @@ CREATE TABLE planning_day_assignment_type (
     deleted_on                      TIMESTAMPTZ,
     deleted_by_user_id              UUID,
     CONSTRAINT fk_pdat_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE RESTRICT
+        FOREIGN KEY (operating_club_id) REFERENCES t_club (id) ON DELETE RESTRICT
     -- ck_pdat_required_nr_nonnegative removed per ADR 0022 directive 2:
     -- AssignmentCount VO at S-022.
 );
-CREATE INDEX ix_pdat_club ON planning_day_assignment_type (operating_club_id)
+CREATE INDEX ix_pdat_club ON t_planning_day_assignment_type (operating_club_id)
     WHERE deleted_on IS NULL;
 
-CREATE TABLE planning_day (
+CREATE TABLE t_planning_day (
     id                  UUID          NOT NULL PRIMARY KEY,
     operating_club_id   UUID          NOT NULL,
     planning_date       DATE          NOT NULL,
@@ -295,17 +294,17 @@ CREATE TABLE planning_day (
     deleted_on          TIMESTAMPTZ,
     deleted_by_user_id  UUID,
     CONSTRAINT fk_pln_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id)     ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id) REFERENCES t_club (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_pln_location_id
-        FOREIGN KEY (location_id)       REFERENCES location (id) ON DELETE RESTRICT
+        FOREIGN KEY (location_id)       REFERENCES t_location (id) ON DELETE RESTRICT
     -- ck_pln_planning_date_reasonable removed per ADR 0022 directive 2:
     -- date-range invariant on PlanningDay constructor at S-022.
 );
 CREATE UNIQUE INDEX ux_pln_club_date_loc
-    ON planning_day (operating_club_id, planning_date, location_id)
+    ON t_planning_day (operating_club_id, planning_date, location_id)
     WHERE deleted_on IS NULL;
 
-CREATE TABLE planning_day_assignment (
+CREATE TABLE t_planning_day_assignment (
     id                          UUID          NOT NULL PRIMARY KEY,
     operating_club_id           UUID          NOT NULL,
     planning_day_id             UUID          NOT NULL,
@@ -319,26 +318,26 @@ CREATE TABLE planning_day_assignment (
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
     CONSTRAINT fk_pda_operating_club_id
-        FOREIGN KEY (operating_club_id)  REFERENCES club (id)                          ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id)  REFERENCES t_club (id)                          ON DELETE RESTRICT,
     CONSTRAINT fk_pda_planning_day_id
-        FOREIGN KEY (planning_day_id)    REFERENCES planning_day (id)                  ON DELETE CASCADE,
+        FOREIGN KEY (planning_day_id)    REFERENCES t_planning_day (id)                  ON DELETE CASCADE,
     CONSTRAINT fk_pda_assigned_person_id
-        FOREIGN KEY (assigned_person_id) REFERENCES person (id)                        ON DELETE RESTRICT,
+        FOREIGN KEY (assigned_person_id) REFERENCES t_person (id)                        ON DELETE RESTRICT,
     CONSTRAINT fk_pda_assignment_type_id
-        FOREIGN KEY (assignment_type_id) REFERENCES planning_day_assignment_type (id)  ON DELETE RESTRICT
+        FOREIGN KEY (assignment_type_id) REFERENCES t_planning_day_assignment_type (id)  ON DELETE RESTRICT
 );
 -- covers tombstones: CASCADE join target on planning_day deletion needs to find
 -- soft-deleted child rows too so the parent's ON DELETE CASCADE cleans them.
 CREATE INDEX ix_pda_planning_day
-    ON planning_day_assignment (planning_day_id);
+    ON t_planning_day_assignment (planning_day_id);
 CREATE INDEX ix_pda_person
-    ON planning_day_assignment (assigned_person_id, planning_day_id)
+    ON t_planning_day_assignment (assigned_person_id, planning_day_id)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_pda_club_person_type
-    ON planning_day_assignment (operating_club_id, assigned_person_id, assignment_type_id)
+    ON t_planning_day_assignment (operating_club_id, assigned_person_id, assignment_type_id)
     WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_pda_composite
-    ON planning_day_assignment (planning_day_id, assigned_person_id, assignment_type_id)
+    ON t_planning_day_assignment (planning_day_id, assigned_person_id, assignment_type_id)
     WHERE deleted_on IS NULL;
 
 
@@ -346,32 +345,32 @@ CREATE UNIQUE INDEX ux_pda_composite
 -- 4. Accounting cluster — reference tables
 -- =============================================================================
 
-CREATE TABLE accounting_rule_filter_type (
+CREATE TABLE t_accounting_rule_filter_type (
     id              UUID         NOT NULL PRIMARY KEY,
     code            VARCHAR(50)  NOT NULL,
     legacy_int_id   SMALLINT     NOT NULL,
     name            VARCHAR(100) NOT NULL,
     description     TEXT
 );
-CREATE UNIQUE INDEX ux_arft_code            ON accounting_rule_filter_type (code);
-CREATE UNIQUE INDEX ux_arft_legacy_int_id   ON accounting_rule_filter_type (legacy_int_id);
+CREATE UNIQUE INDEX ux_arft_code            ON t_accounting_rule_filter_type (code);
+CREATE UNIQUE INDEX ux_arft_legacy_int_id   ON t_accounting_rule_filter_type (legacy_int_id);
 
-CREATE TABLE accounting_unit_type (
+CREATE TABLE t_accounting_unit_type (
     id              UUID         NOT NULL PRIMARY KEY,
     code            VARCHAR(50)  NOT NULL,
     legacy_int_id   SMALLINT     NOT NULL,
     name            VARCHAR(100) NOT NULL,
     short_name      VARCHAR(30)
 );
-CREATE UNIQUE INDEX ux_aut_code             ON accounting_unit_type (code);
-CREATE UNIQUE INDEX ux_aut_legacy_int_id    ON accounting_unit_type (legacy_int_id);
+CREATE UNIQUE INDEX ux_aut_code             ON t_accounting_unit_type (code);
+CREATE UNIQUE INDEX ux_aut_legacy_int_id    ON t_accounting_unit_type (legacy_int_id);
 
 
 -- =============================================================================
 -- 5. Accounting cluster — rule filter aggregate root
 -- =============================================================================
 
-CREATE TABLE accounting_rule_filter (
+CREATE TABLE t_accounting_rule_filter (
     id                                  UUID          NOT NULL PRIMARY KEY,
     operating_club_id                   UUID          NOT NULL,
     filter_type_id                      UUID          NOT NULL,
@@ -392,24 +391,24 @@ CREATE TABLE accounting_rule_filter (
     deleted_on                          TIMESTAMPTZ,
     deleted_by_user_id                  UUID,
     CONSTRAINT fk_arf_operating_club_id
-        FOREIGN KEY (operating_club_id)         REFERENCES club (id)                            ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id)         REFERENCES t_club (id)                            ON DELETE RESTRICT,
     CONSTRAINT fk_arf_filter_type_id
-        FOREIGN KEY (filter_type_id)            REFERENCES accounting_rule_filter_type (id)     ON DELETE RESTRICT,
+        FOREIGN KEY (filter_type_id)            REFERENCES t_accounting_rule_filter_type (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_arf_accounting_unit_type_id
-        FOREIGN KEY (accounting_unit_type_id)   REFERENCES accounting_unit_type (id)            ON DELETE RESTRICT
+        FOREIGN KEY (accounting_unit_type_id)   REFERENCES t_accounting_unit_type (id)            ON DELETE RESTRICT
     -- ck_arf_sort_indicator_nonnegative removed per ADR 0022 directive 2:
     -- SortIndicator VO at S-022.
 );
 CREATE INDEX ix_arf_club_active_sort
-    ON accounting_rule_filter (operating_club_id, is_active, sort_indicator)
+    ON t_accounting_rule_filter (operating_club_id, is_active, sort_indicator)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_arf_club_type_sort
-    ON accounting_rule_filter (operating_club_id, filter_type_id, sort_indicator)
+    ON t_accounting_rule_filter (operating_club_id, filter_type_id, sort_indicator)
     WHERE is_active = true AND deleted_on IS NULL;
 CREATE INDEX ix_arf_filter_config_gin
     ON accounting_rule_filter USING gin (filter_config jsonb_path_ops);
 CREATE UNIQUE INDEX ux_arf_club_sort_partial
-    ON accounting_rule_filter (operating_club_id, sort_indicator)
+    ON t_accounting_rule_filter (operating_club_id, sort_indicator)
     WHERE deleted_on IS NULL;
 
 
@@ -417,7 +416,7 @@ CREATE UNIQUE INDEX ux_arf_club_sort_partial
 -- 6. Delivery aggregate root + DeliveryItem internal entity
 -- =============================================================================
 
-CREATE TABLE delivery (
+CREATE TABLE t_delivery (
     id                                          UUID          NOT NULL PRIMARY KEY,
     operating_club_id                           UUID          NOT NULL,
     process_state_id                            SMALLINT      NOT NULL DEFAULT 10,
@@ -444,11 +443,11 @@ CREATE TABLE delivery (
     deleted_on                                  TIMESTAMPTZ,
     deleted_by_user_id                          UUID,
     CONSTRAINT fk_dlv_operating_club_id
-        FOREIGN KEY (operating_club_id)     REFERENCES club (id)    ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id)     REFERENCES t_club (id)    ON DELETE RESTRICT,
     CONSTRAINT fk_dlv_flight_id
-        FOREIGN KEY (flight_id)             REFERENCES flight (id)  ON DELETE RESTRICT,
+        FOREIGN KEY (flight_id)             REFERENCES t_flight (id)  ON DELETE RESTRICT,
     CONSTRAINT fk_dlv_recipient_person_id
-        FOREIGN KEY (recipient_person_id)   REFERENCES person (id)  ON DELETE SET NULL
+        FOREIGN KEY (recipient_person_id)   REFERENCES t_person (id)  ON DELETE SET NULL
     -- All 6 CHECK constraints previously on delivery removed per ADR 0022
     -- directive 2:
     --   * process_state_id IN (10,20,30,99) → Delivery.ProcessState enum
@@ -460,25 +459,25 @@ CREATE TABLE delivery (
     --     legal records stays structurally enforced by ux_dlv_club_number_partial.
 );
 CREATE INDEX ix_dlv_club_state_date
-    ON delivery (operating_club_id, process_state_id, delivered_on DESC)
+    ON t_delivery (operating_club_id, process_state_id, delivered_on DESC)
     WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_dlv_club_number_partial
-    ON delivery (operating_club_id, delivery_number)
+    ON t_delivery (operating_club_id, delivery_number)
     WHERE delivery_number IS NOT NULL AND deleted_on IS NULL;
 CREATE INDEX ix_dlv_flight
-    ON delivery (flight_id)
+    ON t_delivery (flight_id)
     WHERE flight_id IS NOT NULL AND deleted_on IS NULL;
 CREATE INDEX ix_dlv_club_batch
-    ON delivery (operating_club_id, batch_id)
+    ON t_delivery (operating_club_id, batch_id)
     WHERE deleted_on IS NULL;
 CREATE UNIQUE INDEX ux_dlv_club_batch_partial
-    ON delivery (operating_club_id, batch_id)
+    ON t_delivery (operating_club_id, batch_id)
     WHERE batch_id <> 0 AND deleted_on IS NULL;
 CREATE INDEX ix_dlv_recipient_person
-    ON delivery (operating_club_id, recipient_person_id)
+    ON t_delivery (operating_club_id, recipient_person_id)
     WHERE recipient_person_id IS NOT NULL;
 
-CREATE TABLE delivery_item (
+CREATE TABLE t_delivery_item (
     id                          UUID            NOT NULL PRIMARY KEY,
     operating_club_id           UUID            NOT NULL,
     delivery_id                 UUID            NOT NULL,
@@ -502,20 +501,20 @@ CREATE TABLE delivery_item (
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
     CONSTRAINT fk_dli_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id)     ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id) REFERENCES t_club (id)     ON DELETE RESTRICT,
     CONSTRAINT fk_dli_delivery_id
-        FOREIGN KEY (delivery_id)       REFERENCES delivery (id) ON DELETE CASCADE,
+        FOREIGN KEY (delivery_id)       REFERENCES t_delivery (id) ON DELETE CASCADE,
     CONSTRAINT fk_dli_article_id
-        FOREIGN KEY (article_id)        REFERENCES article (id)  ON DELETE RESTRICT
+        FOREIGN KEY (article_id)        REFERENCES t_article (id)  ON DELETE RESTRICT
     -- All 4 CHECK constraints previously on delivery_item removed per
     -- ADR 0022 directive 2: Position / Quantity / Money (unit_price) /
     -- DiscountPercent VO constructors at S-022.
 );
 CREATE INDEX ix_dli_delivery
-    ON delivery_item (delivery_id)
+    ON t_delivery_item (delivery_id)
     INCLUDE (article_id, article_number, quantity, unit_price);
 CREATE UNIQUE INDEX ux_dli_delivery_pos
-    ON delivery_item (delivery_id, position)
+    ON t_delivery_item (delivery_id, position)
     WHERE deleted_on IS NULL;
 
 
@@ -523,7 +522,7 @@ CREATE UNIQUE INDEX ux_dli_delivery_pos
 -- 7. Delivery-creation-test harness (aggregate + internal)
 -- =============================================================================
 
-CREATE TABLE delivery_creation_test (
+CREATE TABLE t_delivery_creation_test (
     id                                      UUID          NOT NULL PRIMARY KEY,
     operating_club_id                       UUID          NOT NULL,
     flight_id                               UUID          NOT NULL,
@@ -554,18 +553,18 @@ CREATE TABLE delivery_creation_test (
     deleted_on                              TIMESTAMPTZ,
     deleted_by_user_id                      UUID,
     CONSTRAINT fk_dct_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id)   ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id) REFERENCES t_club (id)   ON DELETE RESTRICT,
     CONSTRAINT fk_dct_flight_id
-        FOREIGN KEY (flight_id)         REFERENCES flight (id) ON DELETE CASCADE
+        FOREIGN KEY (flight_id)         REFERENCES t_flight (id) ON DELETE CASCADE
 );
 CREATE UNIQUE INDEX ux_dct_club_flight_partial
-    ON delivery_creation_test (operating_club_id, flight_id)
+    ON t_delivery_creation_test (operating_club_id, flight_id)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_dct_club_created
-    ON delivery_creation_test (operating_club_id, created_on DESC)
+    ON t_delivery_creation_test (operating_club_id, created_on DESC)
     WHERE deleted_on IS NULL;
 
-CREATE TABLE delivery_creation_test_item (
+CREATE TABLE t_delivery_creation_test_item (
     id                              UUID            NOT NULL PRIMARY KEY,
     operating_club_id               UUID            NOT NULL,
     delivery_creation_test_id       UUID            NOT NULL,
@@ -580,28 +579,28 @@ CREATE TABLE delivery_creation_test_item (
     created_on                      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     created_by_user_id              UUID,
     CONSTRAINT fk_dcti_operating_club_id
-        FOREIGN KEY (operating_club_id)         REFERENCES club (id)                    ON DELETE RESTRICT,
+        FOREIGN KEY (operating_club_id)         REFERENCES t_club (id)                    ON DELETE RESTRICT,
     CONSTRAINT fk_dcti_delivery_creation_test_id
-        FOREIGN KEY (delivery_creation_test_id) REFERENCES delivery_creation_test (id)  ON DELETE CASCADE
+        FOREIGN KEY (delivery_creation_test_id) REFERENCES t_delivery_creation_test (id)  ON DELETE CASCADE
     -- All 4 CHECK constraints previously on delivery_creation_test_item
     -- removed per ADR 0022 directive 2: same Position / Quantity / Money /
     -- DiscountPercent VOs as DeliveryItem (S-022).
 );
 -- delivery_creation_test_item has no soft-delete (snapshot rows die with parent
 -- on CASCADE); index covers all rows by design.
-CREATE INDEX ix_dcti_test ON delivery_creation_test_item (delivery_creation_test_id);
+CREATE INDEX ix_dcti_test ON t_delivery_creation_test_item (delivery_creation_test_id);
 
 
 -- =============================================================================
 -- 8. Operational counter — per-club monotonic delivery numbering
 -- =============================================================================
 
-CREATE TABLE club_delivery_number_counter (
+CREATE TABLE t_club_delivery_number_counter (
     operating_club_id   UUID          NOT NULL PRIMARY KEY,
     next_number         INTEGER       NOT NULL DEFAULT 1,
     modified_on         TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT fk_cdnc_operating_club_id
-        FOREIGN KEY (operating_club_id) REFERENCES club (id) ON DELETE CASCADE
+        FOREIGN KEY (operating_club_id) REFERENCES t_club (id) ON DELETE CASCADE
     -- ck_cdnc_next_number_positive removed per ADR 0022 directive 2:
     -- DeliveryNumberCounter VO + Delivery.allocateNextNumber() at S-064.
 );
@@ -612,75 +611,75 @@ CREATE TABLE club_delivery_number_counter (
 -- =============================================================================
 
 -- Aggregate-root id columns (prefix + ADR 0019).
-COMMENT ON COLUMN aircraft_reservation.id IS
+COMMENT ON COLUMN t_aircraft_reservation.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: arv_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN planning_day.id IS
+COMMENT ON COLUMN t_planning_day.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: pln_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN accounting_rule_filter.id IS
+COMMENT ON COLUMN t_accounting_rule_filter.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: arf_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN delivery.id IS
+COMMENT ON COLUMN t_delivery.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: dlv_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN delivery_creation_test.id IS
+COMMENT ON COLUMN t_delivery_creation_test.id IS
     'UUID v7. Aggregate root (ADR 0018). External form: dct_<crockford-base32>. See ADR 0019.';
 
 -- Cross-tenant aircraft FK (2026-05-16 amendment).
-COMMENT ON COLUMN aircraft_reservation.aircraft_id IS
+COMMENT ON COLUMN t_aircraft_reservation.aircraft_id IS
     'Cross-tenant FK per 2026-05-16 Aircraft-cross-tenant amendment. FK loads NOT @TenantId-filtered. Service layer (S-026/S-064) enforces "may operating_club reserve this aircraft?" via owner / charter / public-rental check. Audit event carries cross_tenant: true when aircraft.owner_club_id != aircraft_reservation.operating_club_id. S-024 leakage CI must include this column in the cross-tenant FK roster.';
 
-COMMENT ON COLUMN aircraft_reservation.pilot_person_id IS
+COMMENT ON COLUMN t_aircraft_reservation.pilot_person_id IS
     'Cross-tenant Person FK (sacred cow per ADR 0008). RESTRICT on delete preserves reservation history; DSAR scrubs PII on Person row, not row-delete.';
-COMMENT ON COLUMN aircraft_reservation.second_crew_person_id IS
+COMMENT ON COLUMN t_aircraft_reservation.second_crew_person_id IS
     'Cross-tenant ride-through; SET NULL on delete.';
-COMMENT ON COLUMN aircraft_reservation.location_id IS
+COMMENT ON COLUMN t_aircraft_reservation.location_id IS
     'Cross-tenant Location FK (sacred-cow shared resource); RESTRICT on delete.';
 
-COMMENT ON COLUMN planning_day_assignment.assigned_person_id IS
+COMMENT ON COLUMN t_planning_day_assignment.assigned_person_id IS
     'Cross-tenant Person FK (sacred cow per ADR 0008). RESTRICT on delete preserves planning history. Service layer (S-064) must verify PersonClub membership before INSERT.';
-COMMENT ON COLUMN planning_day.location_id IS
+COMMENT ON COLUMN t_planning_day.location_id IS
     'Cross-tenant Location FK (sacred-cow shared resource); RESTRICT on delete.';
 
 -- Delivery state machine + numbering + frozen-recipient PII.
-COMMENT ON COLUMN delivery.process_state_id IS
+COMMENT ON COLUMN t_delivery.process_state_id IS
     'State machine: 10=Prepared, 20=Booked (terminal-on-mutation, gap-free numbering), 30=Error (retryable), 99=Cancelled. Reshape from legacy flight.process_state_id + delivery.is_further_processed; see S-016 cutover mapping in migration header.';
-COMMENT ON COLUMN delivery.delivery_number IS
+COMMENT ON COLUMN t_delivery.delivery_number IS
     'Per-club gap-free invoice number per Swiss OR Art. 957a. Assigned at Book transition only (S-064 allocator via club_delivery_number_counter). Hard DELETE forbidden once non-NULL (soft-delete via deleted_on; gap-detection report at S-027).';
-COMMENT ON COLUMN delivery.flight_id IS
+COMMENT ON COLUMN t_delivery.flight_id IS
     'Same-tenant FK (Flight is TENANT_SCOPED). Service layer (S-022) asserts flight.operating_club_id == delivery.operating_club_id on write. RESTRICT preserves invoice trail integrity.';
-COMMENT ON COLUMN delivery.recipient_person_id IS
+COMMENT ON COLUMN t_delivery.recipient_person_id IS
     'Cross-tenant ride-through; SET NULL on delete. Frozen recipient_* snapshot survives Person deletion per Swiss OR Art. 957a.';
 -- Canonical comment for the recipient_* snapshot column family (9 cols total).
 -- All other recipient_* columns share this invariant — comment lives on
 -- recipient_lastname rather than 9 lockstep copies. recipient_country_name
 -- carries its own distinct comment (NOT FK to country).
-COMMENT ON COLUMN delivery.recipient_lastname IS
+COMMENT ON COLUMN t_delivery.recipient_lastname IS
     'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). Same invariant applies to recipient_firstname / recipient_name / recipient_address_line1 / recipient_address_line2 / recipient_zip_code / recipient_city / recipient_person_club_member_number. NEVER re-resolve from recipient_person_id. DSAR-exempt once process_state_id >= 20.';
-COMMENT ON COLUMN delivery.recipient_country_name IS
+COMMENT ON COLUMN t_delivery.recipient_country_name IS
     'Frozen snapshot at invoice booking per Swiss OR Art. 957a (10-year retention). NOT FK to country — text is preserved verbatim from the booking-time resolution. Same OR Art. 957a invariant as recipient_lastname (see column comment there).';
-COMMENT ON COLUMN delivery.batch_id IS
+COMMENT ON COLUMN t_delivery.batch_id IS
     'Operational sequence for batch-cancel via DeliveryBatchDeleteRequest. NOT an aggregate UUID (ADR 0019 escape hatch for operational counters). Per-club scoping enforced at schema level via ux_dlv_club_batch_partial UNIQUE (batch_id <> 0 AND deleted_on IS NULL) + service-layer allocator at S-064.';
 
 -- delivery_item — article + unit snapshot. (total_amount column removed per
 -- ADR 0022 directive 2; DeliveryItem.totalAmount() value-object compute-on-read
 -- at S-022 replaces the GENERATED STORED column.)
-COMMENT ON COLUMN delivery_item.article_number IS
+COMMENT ON COLUMN t_delivery_item.article_number IS
     'Frozen snapshot from article.article_number at booking. Invoice integrity per Swiss OR Art. 957a — never re-resolved from article_id.';
-COMMENT ON COLUMN delivery_item.unit_type_code IS
+COMMENT ON COLUMN t_delivery_item.unit_type_code IS
     'Frozen snapshot from accounting_unit_type.code at booking. Invoice integrity.';
 
 -- accounting_rule_filter jsonb hardening (A03 mitigation).
-COMMENT ON COLUMN accounting_rule_filter.filter_config IS
+COMMENT ON COLUMN t_accounting_rule_filter.filter_config IS
     'jsonb predicate bag. Engine reads typed keys per filter_type_id; allow-list validated at S-064 write path. Jackson default-typing DISABLED globally; NEVER deserialize polymorphic types from this column (A03 injection mitigation). PII redaction: pii_blob: true.';
-COMMENT ON COLUMN accounting_rule_filter.filter_type_id IS
+COMMENT ON COLUMN t_accounting_rule_filter.filter_type_id IS
     'Discriminator FK to accounting_rule_filter_type (8 canonical rows). Drives the filter_config jsonb shape allow-list at S-064.';
 
 -- delivery_creation_test jsonb hardening (same A03 concern).
-COMMENT ON COLUMN delivery_creation_test.expected_delivery IS
+COMMENT ON COLUMN t_delivery_creation_test.expected_delivery IS
     'jsonb snapshot of the expected DeliveryDetails graph (recipient + flight info + items + info fields). PII redaction: pii_blob: true. Jackson default-typing DISABLED.';
-COMMENT ON COLUMN delivery_creation_test.last_test_created_delivery IS
+COMMENT ON COLUMN t_delivery_creation_test.last_test_created_delivery IS
     'jsonb snapshot of the most recent test run''s actually-created delivery. PII redaction: pii_blob: true.';
-COMMENT ON COLUMN delivery_creation_test.expected_matched_filter_ids IS
+COMMENT ON COLUMN t_delivery_creation_test.expected_matched_filter_ids IS
     'BIGINT[] of accounting_rule_filter.legacy_int_id values (NOT .id; type is BIGINT, not UUID per ADR 0019) — intentional for S-016 legacy-test-data import where harness fixtures reference the legacy integer ID. NOT FK-enforced — a deleted filter is a legitimate regression signal (the test fails loudly rather than silently dropping).';
-COMMENT ON COLUMN delivery_creation_test.flight_id IS
+COMMENT ON COLUMN t_delivery_creation_test.flight_id IS
     'Same-tenant FK. CASCADE on flight delete — the harness payload dies with its subject.';
 
 
@@ -696,7 +695,7 @@ COMMENT ON COLUMN delivery_creation_test.flight_id IS
 -- accounting_rule_filter_type (8 rows per legacy
 -- database/FLSTest/3 insert/3 Insert Static Data.sql; AccountingRuleFilterTypeId
 -- values 10, 20, 30, 40, 50, 60, 70, 80).
-INSERT INTO accounting_rule_filter_type (id, code, legacy_int_id, name, description) VALUES
+INSERT INTO t_accounting_rule_filter_type (id, code, legacy_int_id, name, description) VALUES
     ('019e2e15-2c00-7650-8000-000000004650'::uuid, 'RECIPIENT',           10, 'Recipient accounting rule filter',           'Routes the recipient/invoice target for matching flights'),
     ('019e2e15-2c00-7651-8000-000000004651'::uuid, 'NO_LANDING_TAX',      20, 'No landing tax accounting rule filter',      'Suppresses landing-tax line items for matching flights'),
     ('019e2e15-2c00-7652-8000-000000004652'::uuid, 'FLIGHT_TIME',         30, 'Flight time accounting rule filter',         'Emits flight-time-based line item for matching flights'),
@@ -709,15 +708,8 @@ INSERT INTO accounting_rule_filter_type (id, code, legacy_int_id, name, descript
 -- accounting_unit_type (4 rows per legacy
 -- database/FLSTest/3 insert/3 Insert Static Data.sql; AccountingUnitTypeId
 -- values 10, 20, 30, 40).
-INSERT INTO accounting_unit_type (id, code, legacy_int_id, name, short_name) VALUES
+INSERT INTO t_accounting_unit_type (id, code, legacy_int_id, name, short_name) VALUES
     ('019e2e15-2c00-7a38-8000-000000004a38'::uuid, 'MINUTES',         10, 'Minuten',         'Min'),
     ('019e2e15-2c00-7a39-8000-000000004a39'::uuid, 'SECONDS',         20, 'Sekunden',        'Sec'),
     ('019e2e15-2c00-7a3a-8000-000000004a3a'::uuid, 'LANDINGS',        30, 'Landungen',       'Ldgs'),
     ('019e2e15-2c00-7a3b-8000-000000004a3b'::uuid, 'START_OR_FLIGHT', 40, 'Start oder Flug', 'StartOrFlight');
-
-
--- =============================================================================
--- 11. Update app_meta sentinel to reflect the S-014 generation.
--- =============================================================================
-
-UPDATE app_meta SET meta_value = 'S-014' WHERE meta_key = 'schema_baseline_version';

@@ -1,19 +1,10 @@
 -- V1__baseline.sql
 --
--- S-009 placeholder baseline. S-012 ships V2__identity_and_reference.sql on
--- top; S-013 / S-014 add the real schema in V3+ / V4+.
+-- Intentionally empty baseline. Flyway's own `flyway_schema_history` table
+-- is the source-of-truth for which migrations have run; a hand-maintained
+-- sentinel duplicating that information drifts at the first missed update.
 --
--- This table is intentionally SYSTEM_GLOBAL (no club_id): it tracks schema
--- generation only. Classified accordingly in alpenflight/database/tenant-rules.yaml
--- so S-011's classifier doesn't emit UNKNOWN.
---
--- Once V1 is applied to any environment its checksum is locked. Adding /
--- removing / amending content here would require flyway:repair on every
--- affected DB. Convention: never amend a shipped migration — ship V2.
+-- V2..V13 ship the actual schema. Convention: never amend a shipped
+-- migration — ship V<N+1>.
 
-CREATE TABLE app_meta (
-    meta_key   VARCHAR(64)  PRIMARY KEY,
-    meta_value VARCHAR(255) NOT NULL
-);
-
-INSERT INTO app_meta (meta_key, meta_value) VALUES ('schema_baseline_version', 'S-009');
+-- (no DDL)

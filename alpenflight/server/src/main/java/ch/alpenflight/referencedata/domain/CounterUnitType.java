@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
  * form needs the catalog as dropdown fuel.
  */
 @Entity
-@Table(name = "counter_unit_type")
+@Table(name = "t_counter_unit_type")
 public class CounterUnitType {
 
     @Id

@@ -61,7 +61,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
      */
     @Override
     @Query(value = "SELECT EXISTS ("
-            + "  SELECT 1 FROM person_club "
+            + "  SELECT 1 FROM t_person_club "
             + "  WHERE person_id = :personId "
             + "    AND deleted_on IS NULL "
             + "    AND club_id <> :currentTenantId"
@@ -74,7 +74,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
      * sees rows in tenants other than the caller's.
      */
     @Override
-    @Query(value = "SELECT COUNT(*) FROM person_club "
+    @Query(value = "SELECT COUNT(*) FROM t_person_club "
             + "WHERE person_id = :personId AND deleted_on IS NULL", nativeQuery = true)
     long countActiveMembershipsAcrossTenants(@Param("personId") UUID personId);
 

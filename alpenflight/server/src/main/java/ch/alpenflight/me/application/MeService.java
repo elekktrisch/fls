@@ -67,7 +67,7 @@ public class MeService {
                    p.firstname       AS first_name,
                    p.lastname        AS last_name
             FROM t_user u
-            LEFT JOIN person p ON p.id = u.person_id AND p.deleted_on IS NULL
+            LEFT JOIN t_person p ON p.id = u.person_id AND p.deleted_on IS NULL
             WHERE u.keycloak_sub = ?::uuid AND u.deleted_on IS NULL
             """;
 

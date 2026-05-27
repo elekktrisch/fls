@@ -44,7 +44,7 @@ class MeControllerIT extends PostgresIntegrationTest {
     @BeforeEach
     void cleanFixtures() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'me-it-%'");
-        jdbc.update("DELETE FROM person WHERE firstname = 'MeIT'");
+        jdbc.update("DELETE FROM t_person WHERE firstname = 'MeIT'");
     }
 
     @Test
@@ -52,7 +52,7 @@ class MeControllerIT extends PostgresIntegrationTest {
         UUID personId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID kcSub = UUID.randomUUID();
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "MeIT", "Linked");
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, person_id,

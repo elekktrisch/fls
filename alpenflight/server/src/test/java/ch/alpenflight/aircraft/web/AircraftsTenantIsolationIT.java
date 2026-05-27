@@ -66,7 +66,7 @@ class AircraftsTenantIsolationIT extends PostgresIntegrationTest {
     void register_persists_managing_club_id_from_resolver() {
         AircraftDetail row = aircrafts.registerAircraft(payload(uniqueImmat()));
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM aircraft WHERE id = ?::uuid AND managing_club_id = ?::uuid",
+                "SELECT count(*) FROM t_aircraft WHERE id = ?::uuid AND managing_club_id = ?::uuid",
                 Integer.class, row.id().value().toString(), CLUB_A.toString());
         assertThat(matches).isEqualTo(1);
     }

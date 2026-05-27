@@ -33,7 +33,7 @@ import org.jspecify.annotations.Nullable;
  * Structural append-only via DB-role grant is deferred to S-160).
  */
 @Entity
-@Table(name = "mutation_audit_event")
+@Table(name = "t_mutation_audit_event")
 public class MutationAuditEvent {
 
     @Id

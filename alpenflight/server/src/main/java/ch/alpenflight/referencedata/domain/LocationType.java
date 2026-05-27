@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * mutating methods.
  */
 @Entity
-@Table(name = "location_type")
+@Table(name = "t_location_type")
 public class LocationType {
 
     @Id

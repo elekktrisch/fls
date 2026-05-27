@@ -185,7 +185,7 @@ class ClubsControllerIT extends PostgresIntegrationTest {
 
         // Row must still exist in the DB with deleted_on stamped — soft, not hard.
         Integer rowCount = jdbc.queryForObject(
-                "SELECT count(*) FROM club WHERE id = ?::uuid AND deleted_on IS NOT NULL",
+                "SELECT count(*) FROM t_club WHERE id = ?::uuid AND deleted_on IS NOT NULL",
                 Integer.class, rawId.toString());
         assertThat(rowCount)
                 .as("Soft-delete must leave the row in place with deleted_on stamped")

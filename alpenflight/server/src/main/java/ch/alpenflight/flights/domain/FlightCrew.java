@@ -24,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  * PK-load resolves Person regardless of the caller's tenant scope.
  */
 @Entity
-@Table(name = "flight_crew")
+@Table(name = "t_flight_crew")
 public class FlightCrew {
 
     @Id

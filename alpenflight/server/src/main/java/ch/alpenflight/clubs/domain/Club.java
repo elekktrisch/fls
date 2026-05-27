@@ -28,7 +28,7 @@ import org.jspecify.annotations.Nullable;
  * read/write those columns will extend the entity.
  */
 @Entity
-@Table(name = "club")
+@Table(name = "t_club")
 public class Club {
 
     private static final Pattern SLUG_PATTERN = Pattern.compile("^[a-z0-9-]{3,64}$");

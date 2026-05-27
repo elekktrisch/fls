@@ -25,7 +25,7 @@
 -- to the FK action + the `[redacted]` default-deny serializer.
 -- =============================================================================
 
-CREATE TABLE mutation_audit_event (
+CREATE TABLE t_mutation_audit_event (
     id                  UUID         NOT NULL PRIMARY KEY,
     occurred_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
     actor_user_id       UUID,
@@ -44,33 +44,33 @@ CREATE TABLE mutation_audit_event (
     CONSTRAINT fk_mutation_audit_event_actor_user_id
         FOREIGN KEY (actor_user_id) REFERENCES t_user (id) ON DELETE SET NULL,
     CONSTRAINT fk_mutation_audit_event_tenant_club_id
-        FOREIGN KEY (tenant_club_id) REFERENCES club (id) ON DELETE CASCADE
+        FOREIGN KEY (tenant_club_id) REFERENCES t_club (id) ON DELETE CASCADE
 );
 
-COMMENT ON COLUMN mutation_audit_event.tenant_club_id IS
+COMMENT ON COLUMN t_mutation_audit_event.tenant_club_id IS
     'Per-row tenancy: the operating tenant of the audited mutation. @TenantId discriminator.'
     ' NULL only for true cross-tenant system events (tenant-creation etc.); readable via S-023.'
     ' ON DELETE CASCADE — when a tenant is offboarded (hard club delete), its audit history goes'
     ' with it; same lifecycle attachment as the tenant''s domain rows.';
-COMMENT ON COLUMN mutation_audit_event.actor_user_id IS
+COMMENT ON COLUMN t_mutation_audit_event.actor_user_id IS
     'Internal user.id for the JWT subject. ON DELETE SET NULL so GDPR/FADP erasure of the user row'
     ' does not orphan the audit history. PII inside before_state/after_state is scrubbed by a separate erasure job.';
-COMMENT ON COLUMN mutation_audit_event.actor_keycloak_sub IS
+COMMENT ON COLUMN t_mutation_audit_event.actor_keycloak_sub IS
     'Immutable forensic key — raw JWT subject string. Survives actor_user_id being nulled by erasure.'
     ' TEXT (not UUID) because federated IdPs (Google numeric, Auth0 custom) hand us non-UUID subjects;'
     ' the audit trail records the principal''s identity verbatim and lets S-056 / forensics handle parsing.';
-COMMENT ON COLUMN mutation_audit_event.action IS
+COMMENT ON COLUMN t_mutation_audit_event.action IS
     'AuditAction enum (CREATE, UPDATE, DELETE, STATE_TRANSITION, BULK_IMPORT). Pinned in Java per ADR 0022 directive 2.';
 
 -- Per Performance plan: every list query is tenant-prefixed.
 CREATE INDEX ix_mutation_audit_event_tenant_time
-    ON mutation_audit_event (tenant_club_id, occurred_at DESC);
+    ON t_mutation_audit_event (tenant_club_id, occurred_at DESC);
 CREATE INDEX ix_mutation_audit_event_tenant_target
-    ON mutation_audit_event (tenant_club_id, target_entity_type, occurred_at DESC);
+    ON t_mutation_audit_event (tenant_club_id, target_entity_type, occurred_at DESC);
 CREATE INDEX ix_mutation_audit_event_tenant_actor
-    ON mutation_audit_event (tenant_club_id, actor_user_id, occurred_at DESC);
+    ON t_mutation_audit_event (tenant_club_id, actor_user_id, occurred_at DESC);
 CREATE INDEX ix_mutation_audit_event_request_id
-    ON mutation_audit_event (request_id)
+    ON t_mutation_audit_event (request_id)
     WHERE request_id IS NOT NULL;
 
 -- NOTE: Defense-in-depth append-only via DB-role grant (refinement threat-

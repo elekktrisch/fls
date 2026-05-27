@@ -47,9 +47,9 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
         // Seed a Person attached only to CLUB_B.
         UUID personId = UUID.fromString("019e30c3-2c00-7001-8000-00000000cccd");
         UUID pcId = UUID.fromString("019e30c3-2c00-7001-8000-00000000ccce");
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "MultiClub", "Pilot");
-        jdbc.update("INSERT INTO person_club (id, person_id, club_id) "
+        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 pcId.toString(), personId.toString(), CLUB_B.toString());
 
@@ -82,9 +82,9 @@ class PersonsCrossTenantRideThroughIT extends PostgresIntegrationTest {
     void findActiveListRowsInCurrentTenant_returns_empty_for_tenant_without_memberships() {
         UUID personId = UUID.fromString("019e30c3-2c00-7001-8000-00000000cce0");
         UUID pcId = UUID.fromString("019e30c3-2c00-7001-8000-00000000cce1");
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "BInB", "Only");
-        jdbc.update("INSERT INTO person_club (id, person_id, club_id) "
+        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 pcId.toString(), personId.toString(), CLUB_B.toString());
 

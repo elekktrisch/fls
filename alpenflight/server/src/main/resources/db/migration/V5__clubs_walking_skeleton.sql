@@ -13,11 +13,11 @@
 -- structural-constraint flavor ADR 0022 directive 2 explicitly permits.
 -- =============================================================================
 
-ALTER TABLE club
+ALTER TABLE t_club
     ADD COLUMN slug                         VARCHAR(64),
     ADD COLUMN public_registration_enabled  BOOLEAN NOT NULL DEFAULT false;
 
-CREATE UNIQUE INDEX ux_club_slug ON club (slug) WHERE slug IS NOT NULL;
+CREATE UNIQUE INDEX ux_club_slug ON t_club (slug) WHERE slug IS NOT NULL;
 
 
 -- -----------------------------------------------------------------------------
@@ -27,7 +27,7 @@ CREATE UNIQUE INDEX ux_club_slug ON club (slug) WHERE slug IS NOT NULL;
 -- canonical seed JSON (see reference-seeds-canonical-uuids.json).
 -- -----------------------------------------------------------------------------
 
-INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
+INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
 VALUES (
     '019e30c3-2c00-7001-8000-000000000001',
     'Seed Club',

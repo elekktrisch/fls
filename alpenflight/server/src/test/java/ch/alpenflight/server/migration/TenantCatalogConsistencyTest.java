@@ -52,7 +52,7 @@ class TenantCatalogConsistencyTest {
         // legacy `ClubId` / `OwnerClubId` per the new-schema convention).
         // flight_crew is aggregate-internal to flight and inherits via FK (no
         // own operating_club_id column).
-        List<String> tables = List.of("flight", "flight_type", "article");
+        List<String> tables = List.of("t_flight", "t_flight_type", "t_article");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : tables) {
                 try (var stmt = conn.prepareStatement(
@@ -76,9 +76,9 @@ class TenantCatalogConsistencyTest {
         // S-049b removed `location` from this list: now tenant-scoped.
         // `location_type` stays reference data (categorical code).
         List<String> refs = List.of(
-                "aircraft_type", "aircraft_state", "location_type",
-                "flight_crew_type", "flight_process_state",
-                "flight_cost_balance_type");
+                "t_aircraft_type", "t_aircraft_state", "t_location_type",
+                "t_flight_crew_type", "t_flight_process_state",
+                "t_flight_cost_balance_type");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : refs) {
                 assertTableExists(conn, t);
@@ -106,10 +106,10 @@ class TenantCatalogConsistencyTest {
     @Test
     void location_has_club_id_uuid_not_null() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "location");
+            assertTableExists(conn, "t_location");
             try (var stmt = conn.prepareStatement(
                     "SELECT data_type, is_nullable FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='location' "
+                            + "WHERE table_schema='public' AND table_name='t_location' "
                             + "AND column_name='club_id'")) {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertThat(rs.next()).as("location must carry club_id (S-049b)").isTrue();
@@ -132,7 +132,7 @@ class TenantCatalogConsistencyTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT indexdef FROM pg_indexes "
-                                + "WHERE schemaname='public' AND tablename='location' "
+                                + "WHERE schemaname='public' AND tablename='t_location' "
                                 + "AND indexname='ux_location_club_icao'")) {
             assertThat(rs.next())
                     .as("ux_location_club_icao partial UNIQUE must exist (S-049b)")
@@ -153,10 +153,10 @@ class TenantCatalogConsistencyTest {
     @Test
     void inoutbound_point_has_no_own_club_id() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "inoutbound_point");
+            assertTableExists(conn, "t_inoutbound_point");
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT 1 FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='inoutbound_point' "
+                            + "WHERE table_schema='public' AND table_name='t_inoutbound_point' "
                             + "AND column_name IN ('club_id', 'operating_club_id')")) {
                 assertThat(rs.next())
                         .as("inoutbound_point inherits tenancy via parent Location — no own club_id")
@@ -176,7 +176,7 @@ class TenantCatalogConsistencyTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, is_nullable FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='aircraft' "
+                                + "WHERE table_schema='public' AND table_name='t_aircraft' "
                                 + "AND column_name='owner_club_id'")) {
             assertThat(rs.next()).as("aircraft.owner_club_id must exist").isTrue();
             assertThat(rs.getString("data_type")).isEqualTo("uuid");
@@ -198,7 +198,7 @@ class TenantCatalogConsistencyTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, is_nullable FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='aircraft' "
+                                + "WHERE table_schema='public' AND table_name='t_aircraft' "
                                 + "AND column_name='managing_club_id'")) {
             assertThat(rs.next()).as("aircraft.managing_club_id must exist").isTrue();
             assertThat(rs.getString("data_type")).isEqualTo("uuid");
@@ -211,7 +211,7 @@ class TenantCatalogConsistencyTest {
     @Test
     void every_tenant_scoped_table_has_club_id_uuid_not_null() throws Exception {
         List<String> tables = List.of(
-                "club_extension", "member_state", "person_category");
+                "t_club_extension", "t_member_state", "t_person_category");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : tables) {
                 try (var stmt = conn.prepareStatement(
@@ -237,10 +237,10 @@ class TenantCatalogConsistencyTest {
         // that the person table exists at all (otherwise the absence-check
         // would trivially pass when the migration is missing).
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "person");
+            assertTableExists(conn, "t_person");
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT 1 FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='person' "
+                            + "WHERE table_schema='public' AND table_name='t_person' "
                             + "AND column_name='club_id'")) {
                 assertThat(rs.next())
                         .as("person must NOT carry a club_id column (cross-tenant sacred cow)")
@@ -254,9 +254,9 @@ class TenantCatalogConsistencyTest {
         // `role` was dropped at S-052 (Keycloak owns realm roles); not in
         // this catalogue anymore.
         List<String> refs = List.of(
-                "country", "language", "start_type",
-                "length_unit_type", "elevation_unit_type", "counter_unit_type",
-                "club_state", "extension_type");
+                "t_country", "t_language", "t_start_type",
+                "t_length_unit_type", "t_elevation_unit_type", "t_counter_unit_type",
+                "t_club_state", "t_extension_type");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : refs) {
                 assertTableExists(conn, t);
@@ -283,11 +283,11 @@ class TenantCatalogConsistencyTest {
     @Test
     void every_s014_tenant_scoped_table_has_operating_club_id_uuid_not_null() throws Exception {
         List<String> tables = List.of(
-                "aircraft_reservation", "aircraft_reservation_type",
-                "planning_day", "planning_day_assignment", "planning_day_assignment_type",
-                "accounting_rule_filter",
-                "delivery", "delivery_item",
-                "delivery_creation_test", "delivery_creation_test_item");
+                "t_aircraft_reservation", "t_aircraft_reservation_type",
+                "t_planning_day", "t_planning_day_assignment", "t_planning_day_assignment_type",
+                "t_accounting_rule_filter",
+                "t_delivery", "t_delivery_item",
+                "t_delivery_creation_test", "t_delivery_creation_test_item");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : tables) {
                 try (var stmt = conn.prepareStatement(
@@ -309,7 +309,7 @@ class TenantCatalogConsistencyTest {
     /** S-014 system-global reference tables — accounting_rule_filter_type + accounting_unit_type. */
     @Test
     void every_s014_system_global_reference_table_has_no_operating_club_id() throws Exception {
-        List<String> refs = List.of("accounting_rule_filter_type", "accounting_unit_type");
+        List<String> refs = List.of("t_accounting_rule_filter_type", "t_accounting_unit_type");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : refs) {
                 assertTableExists(conn, t);
@@ -332,10 +332,10 @@ class TenantCatalogConsistencyTest {
     @Test
     void aircraft_reservation_type_reclassified_to_tenant_scoped() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "aircraft_reservation_type");
+            assertTableExists(conn, "t_aircraft_reservation_type");
             try (var stmt = conn.prepareStatement(
                     "SELECT data_type, is_nullable FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='aircraft_reservation_type' "
+                            + "WHERE table_schema='public' AND table_name='t_aircraft_reservation_type' "
                             + "AND column_name='operating_club_id'")) {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertThat(rs.next())
@@ -352,10 +352,10 @@ class TenantCatalogConsistencyTest {
     @Test
     void planning_day_assignment_type_reclassified_to_tenant_scoped() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "planning_day_assignment_type");
+            assertTableExists(conn, "t_planning_day_assignment_type");
             try (var stmt = conn.prepareStatement(
                     "SELECT data_type, is_nullable FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='planning_day_assignment_type' "
+                            + "WHERE table_schema='public' AND table_name='t_planning_day_assignment_type' "
                             + "AND column_name='operating_club_id'")) {
                 try (ResultSet rs = stmt.executeQuery()) {
                     assertThat(rs.next())

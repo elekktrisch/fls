@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * comparisons against the {@code AircraftTypeId} enum).
  */
 @Entity
-@Table(name = "aircraft_type")
+@Table(name = "t_aircraft_type")
 public class AircraftType {
 
     @Id

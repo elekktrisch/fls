@@ -49,28 +49,28 @@ class ReservationsBaselineIntegrationTest {
 
     /** The 12 in-scope domain tables (5 aggregate roots + 3 internal entities + 2 per-club ref + 2 system-global ref). */
     private static final List<String> S014_DOMAIN_TABLES = List.of(
-            "aircraft_reservation", "aircraft_reservation_type",
-            "planning_day", "planning_day_assignment", "planning_day_assignment_type",
-            "accounting_rule_filter", "accounting_rule_filter_type", "accounting_unit_type",
-            "delivery", "delivery_item",
-            "delivery_creation_test", "delivery_creation_test_item");
+            "t_aircraft_reservation", "t_aircraft_reservation_type",
+            "t_planning_day", "t_planning_day_assignment", "t_planning_day_assignment_type",
+            "t_accounting_rule_filter", "t_accounting_rule_filter_type", "t_accounting_unit_type",
+            "t_delivery", "t_delivery_item",
+            "t_delivery_creation_test", "t_delivery_creation_test_item");
 
     /** 3 internal-entity tables — no aggregate prefix; cross boundaries only via parent. */
     private static final List<String> S014_INTERNAL_ENTITIES = List.of(
-            "delivery_item", "planning_day_assignment", "delivery_creation_test_item");
+            "t_delivery_item", "t_planning_day_assignment", "t_delivery_creation_test_item");
 
     /** TENANT_SCOPED tables in S-014 (10 = 5 roots + 3 internals + 2 per-club ref tables).
      * Each must carry operating_club_id uuid NOT NULL → club(id). */
     private static final List<String> S014_TENANT_SCOPED_TABLES = List.of(
-            "aircraft_reservation", "aircraft_reservation_type",
-            "planning_day", "planning_day_assignment", "planning_day_assignment_type",
-            "accounting_rule_filter",
-            "delivery", "delivery_item",
-            "delivery_creation_test", "delivery_creation_test_item");
+            "t_aircraft_reservation", "t_aircraft_reservation_type",
+            "t_planning_day", "t_planning_day_assignment", "t_planning_day_assignment_type",
+            "t_accounting_rule_filter",
+            "t_delivery", "t_delivery_item",
+            "t_delivery_creation_test", "t_delivery_creation_test_item");
 
     /** SYSTEM_GLOBAL reference tables (no operating_club_id). */
     private static final List<String> S014_SYSTEM_GLOBAL_REF_TABLES = List.of(
-            "accounting_rule_filter_type", "accounting_unit_type");
+            "t_accounting_rule_filter_type", "t_accounting_unit_type");
 
     @BeforeAll
     static void loadCanonicalSeeds() throws Exception {
@@ -112,7 +112,7 @@ class ReservationsBaselineIntegrationTest {
                 .containsAll(S014_DOMAIN_TABLES);
         assertThat(actual)
                 .as("V4 migration must create the club_delivery_number_counter operational table")
-                .contains("club_delivery_number_counter");
+                .contains("t_club_delivery_number_counter");
     }
 
     @Test
@@ -130,7 +130,7 @@ class ReservationsBaselineIntegrationTest {
     void all_pk_columns_are_uuid_not_null() throws Exception {
         record PkRow(String table, String column, String type, String nullable) {}
         List<String> allTables = new ArrayList<>(S014_DOMAIN_TABLES);
-        allTables.add("club_delivery_number_counter");
+        allTables.add("t_club_delivery_number_counter");
         List<PkRow> rows = new ArrayList<>();
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement("""
@@ -174,7 +174,7 @@ class ReservationsBaselineIntegrationTest {
     @Test
     void all_fk_columns_are_uuid() throws Exception {
         List<String> allTables = new ArrayList<>(S014_DOMAIN_TABLES);
-        allTables.add("club_delivery_number_counter");
+        allTables.add("t_club_delivery_number_counter");
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement("""
                         SELECT c.table_name, k.column_name, col.data_type
@@ -244,7 +244,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery' "
+                                + "WHERE table_schema='public' AND table_name='t_delivery' "
                                 + "AND column_name='process_state_id'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1))
@@ -265,7 +265,7 @@ class ReservationsBaselineIntegrationTest {
             for (String col : required) {
                 try (var stmt = conn.prepareStatement(
                         "SELECT data_type FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery' AND column_name=?")) {
+                                + "WHERE table_schema='public' AND table_name='t_delivery' AND column_name=?")) {
                     stmt.setString(1, col);
                     try (ResultSet rs = stmt.executeQuery()) {
                         assertThat(rs.next())
@@ -282,17 +282,17 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void delivery_recipient_person_fk_on_delete_set_null() throws Exception {
-        assertFkDeleteRule("delivery", "recipient_person_id", "SET NULL");
+        assertFkDeleteRule("t_delivery", "recipient_person_id", "SET NULL");
     }
 
     @Test
     void delivery_flight_fk_on_delete_restrict() throws Exception {
-        assertFkDeleteRule("delivery", "flight_id", "RESTRICT");
+        assertFkDeleteRule("t_delivery", "flight_id", "RESTRICT");
     }
 
     @Test
     void delivery_unique_per_club_delivery_number_partial() throws Exception {
-        List<String> defs = indexDefs("delivery");
+        List<String> defs = indexDefs("t_delivery");
         assertThat(defs)
                 .as("delivery must carry partial UNIQUE (operating_club_id, delivery_number) WHERE delivery_number IS NOT NULL AND deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -313,12 +313,12 @@ class ReservationsBaselineIntegrationTest {
                 String clubA = seedMinimalClub(conn, "TST_DLV_A");
                 String clubB = seedMinimalClub(conn, "TST_DLV_B");
                 insertDeliveryWithNumber(conn,
-                        newDeterministicUuid("delivery", "uniq_A_1"), clubA, 1, 10);
+                        newDeterministicUuid("t_delivery", "uniq_A_1"), clubA, 1, 10);
                 insertDeliveryWithNumber(conn,
-                        newDeterministicUuid("delivery", "uniq_B_1"), clubB, 1, 10);
+                        newDeterministicUuid("t_delivery", "uniq_B_1"), clubB, 1, 10);
 
                 Throwable dup = catchThrowable(() -> insertDeliveryWithNumber(
-                        conn, newDeterministicUuid("delivery", "uniq_A_1_dup"), clubA, 1, 10));
+                        conn, newDeterministicUuid("t_delivery", "uniq_A_1_dup"), clubA, 1, 10));
                 assertThat(dup).isInstanceOf(SQLException.class);
                 assertThat(((SQLException) dup).getSQLState())
                         .as("SQLSTATE 23505 (unique_violation) — same delivery_number within same club")
@@ -341,14 +341,14 @@ class ReservationsBaselineIntegrationTest {
             try {
                 String clubA = seedMinimalClub(conn, "TST_BUA");
                 String clubB = seedMinimalClub(conn, "TST_BUB");
-                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_A_42"), clubA, 42);
-                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_B_42"), clubB, 42);
+                insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_A_42"), clubA, 42);
+                insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_B_42"), clubB, 42);
                 // Default batch_id=0 must NOT collide (predicate excludes it).
-                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_A_0_first"), clubA, 0);
-                insertDeliveryWithBatch(conn, newDeterministicUuid("delivery", "batch_A_0_second"), clubA, 0);
+                insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_A_0_first"), clubA, 0);
+                insertDeliveryWithBatch(conn, newDeterministicUuid("t_delivery", "batch_A_0_second"), clubA, 0);
 
                 Throwable dup = catchThrowable(() -> insertDeliveryWithBatch(
-                        conn, newDeterministicUuid("delivery", "batch_A_42_dup"), clubA, 42));
+                        conn, newDeterministicUuid("t_delivery", "batch_A_42_dup"), clubA, 42));
                 assertThat(dup).isInstanceOf(SQLException.class);
                 assertThat(((SQLException) dup).getSQLState())
                         .as("SQLSTATE 23505 — same non-zero batch_id within same club")
@@ -367,17 +367,17 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void delivery_item_article_fk_restrict() throws Exception {
-        assertFkDeleteRule("delivery_item", "article_id", "RESTRICT");
+        assertFkDeleteRule("t_delivery_item", "article_id", "RESTRICT");
     }
 
     @Test
     void delivery_item_delivery_fk_cascade() throws Exception {
-        assertFkDeleteRule("delivery_item", "delivery_id", "CASCADE");
+        assertFkDeleteRule("t_delivery_item", "delivery_id", "CASCADE");
     }
 
     @Test
     void delivery_item_position_unique_per_delivery_partial() throws Exception {
-        List<String> defs = indexDefs("delivery_item");
+        List<String> defs = indexDefs("t_delivery_item");
         assertThat(defs)
                 .as("delivery_item must carry partial UNIQUE (delivery_id, position) WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -401,7 +401,7 @@ class ReservationsBaselineIntegrationTest {
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT a.attgenerated, t.typname FROM pg_attribute a "
                                 + "JOIN pg_type t ON t.oid = a.atttypid "
-                                + "WHERE a.attrelid = 'aircraft_reservation'::regclass "
+                                + "WHERE a.attrelid = 't_aircraft_reservation'::regclass "
                                 + "AND a.attname = 'reservation_range'")) {
             assertThat(rs.next()).as("reservation_range column must exist").isTrue();
             assertThat(rs.getString("attgenerated"))
@@ -417,7 +417,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void aircraft_reservation_gist_index_on_aircraft_range_present() throws Exception {
-        List<String> defs = indexDefs("aircraft_reservation");
+        List<String> defs = indexDefs("t_aircraft_reservation");
         assertThat(defs)
                 .as("aircraft_reservation must carry GiST partial index on (aircraft_id, reservation_range)")
                 .anyMatch(d -> {
@@ -436,7 +436,7 @@ class ReservationsBaselineIntegrationTest {
      */
     @Test
     void aircraft_reservation_aircraft_id_cross_tenant_column_comment() throws Exception {
-        String comment = columnComment("aircraft_reservation", "aircraft_id");
+        String comment = columnComment("t_aircraft_reservation", "aircraft_id");
         assertThat(comment)
                 .as("aircraft_reservation.aircraft_id COMMENT must flag cross-tenant per amendment")
                 .isNotNull()
@@ -445,22 +445,22 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void aircraft_reservation_aircraft_fk_restrict() throws Exception {
-        assertFkDeleteRule("aircraft_reservation", "aircraft_id", "RESTRICT");
+        assertFkDeleteRule("t_aircraft_reservation", "aircraft_id", "RESTRICT");
     }
 
     @Test
     void aircraft_reservation_pilot_fk_restrict() throws Exception {
-        assertFkDeleteRule("aircraft_reservation", "pilot_person_id", "RESTRICT");
+        assertFkDeleteRule("t_aircraft_reservation", "pilot_person_id", "RESTRICT");
     }
 
     @Test
     void aircraft_reservation_second_crew_fk_set_null() throws Exception {
-        assertFkDeleteRule("aircraft_reservation", "second_crew_person_id", "SET NULL");
+        assertFkDeleteRule("t_aircraft_reservation", "second_crew_person_id", "SET NULL");
     }
 
     @Test
     void aircraft_reservation_location_fk_restrict() throws Exception {
-        assertFkDeleteRule("aircraft_reservation", "location_id", "RESTRICT");
+        assertFkDeleteRule("t_aircraft_reservation", "location_id", "RESTRICT");
     }
 
     // ============================================================================
@@ -469,7 +469,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void planning_day_unique_per_club_date_location_partial() throws Exception {
-        List<String> defs = indexDefs("planning_day");
+        List<String> defs = indexDefs("t_planning_day");
         assertThat(defs)
                 .as("planning_day must carry partial UNIQUE (operating_club_id, planning_date, location_id) WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -484,18 +484,18 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void planning_day_assignment_planning_day_fk_cascade() throws Exception {
-        assertFkDeleteRule("planning_day_assignment", "planning_day_id", "CASCADE");
+        assertFkDeleteRule("t_planning_day_assignment", "planning_day_id", "CASCADE");
     }
 
     /** Sacred-cow cross-tenant Person FK: RESTRICT to preserve planning history. */
     @Test
     void planning_day_assignment_person_fk_restrict() throws Exception {
-        assertFkDeleteRule("planning_day_assignment", "assigned_person_id", "RESTRICT");
+        assertFkDeleteRule("t_planning_day_assignment", "assigned_person_id", "RESTRICT");
     }
 
     @Test
     void planning_day_assignment_unique_composite_partial() throws Exception {
-        List<String> defs = indexDefs("planning_day_assignment");
+        List<String> defs = indexDefs("t_planning_day_assignment");
         assertThat(defs)
                 .as("planning_day_assignment must carry partial UNIQUE composite")
                 .anyMatch(d -> {
@@ -511,7 +511,7 @@ class ReservationsBaselineIntegrationTest {
     @Test
     void planning_day_assignment_has_operating_club_id_denormalized() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertColumnNotNull(conn, "planning_day_assignment", "operating_club_id", "uuid");
+            assertColumnNotNull(conn, "t_planning_day_assignment", "operating_club_id", "uuid");
         }
     }
 
@@ -524,7 +524,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, is_nullable FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='accounting_rule_filter' "
+                                + "WHERE table_schema='public' AND table_name='t_accounting_rule_filter' "
                                 + "AND column_name='filter_config'")) {
             assertThat(rs.next()).as("filter_config column must exist").isTrue();
             assertThat(rs.getString("data_type"))
@@ -538,7 +538,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void accounting_rule_filter_gin_index_on_filter_config_jsonb_path_ops() throws Exception {
-        List<String> defs = indexDefs("accounting_rule_filter");
+        List<String> defs = indexDefs("t_accounting_rule_filter");
         assertThat(defs)
                 .as("accounting_rule_filter must carry GIN index on filter_config jsonb_path_ops (admin search)")
                 .anyMatch(d -> {
@@ -551,7 +551,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void accounting_rule_filter_hot_index_on_club_active_sort() throws Exception {
-        List<String> defs = indexDefs("accounting_rule_filter");
+        List<String> defs = indexDefs("t_accounting_rule_filter");
         assertThat(defs)
                 .as("accounting_rule_filter must carry hot index on (operating_club_id, is_active, sort_indicator) WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -565,7 +565,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void accounting_rule_filter_sort_indicator_unique_per_club_partial() throws Exception {
-        List<String> defs = indexDefs("accounting_rule_filter");
+        List<String> defs = indexDefs("t_accounting_rule_filter");
         assertThat(defs)
                 .as("accounting_rule_filter must carry partial UNIQUE (operating_club_id, sort_indicator) WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -579,7 +579,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void accounting_rule_filter_filter_type_fk_restrict() throws Exception {
-        assertFkDeleteRule("accounting_rule_filter", "filter_type_id", "RESTRICT");
+        assertFkDeleteRule("t_accounting_rule_filter", "filter_type_id", "RESTRICT");
     }
 
     // ============================================================================
@@ -591,10 +591,10 @@ class ReservationsBaselineIntegrationTest {
         List<String> expectedCodes = List.of(
                 "RECIPIENT", "NO_LANDING_TAX", "FLIGHT_TIME", "INSTRUCTOR_FEE",
                 "ADDITIONAL_FUEL_FEE", "LANDING_TAX", "VSF_FEE", "ENGINE_TIME");
-        assertSeededCodes("accounting_rule_filter_type", expectedCodes);
+        assertSeededCodes("t_accounting_rule_filter_type", expectedCodes);
         for (String code : expectedCodes) {
-            assertCodeMapsToUuid("accounting_rule_filter_type", code,
-                    canonicalSeedUuid("accounting_rule_filter_type", "code", code));
+            assertCodeMapsToUuid("t_accounting_rule_filter_type", code,
+                    canonicalSeedUuid("t_accounting_rule_filter_type", "code", code));
         }
     }
 
@@ -602,7 +602,7 @@ class ReservationsBaselineIntegrationTest {
     void accounting_rule_filter_type_legacy_int_ids_match_legacy() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT legacy_int_id FROM accounting_rule_filter_type ORDER BY legacy_int_id")) {
+                        "SELECT legacy_int_id FROM t_accounting_rule_filter_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
             assertThat(ids)
@@ -614,10 +614,10 @@ class ReservationsBaselineIntegrationTest {
     @Test
     void accounting_unit_type_seeded_with_4_canonical_codes() throws Exception {
         List<String> expectedCodes = List.of("MINUTES", "SECONDS", "LANDINGS", "START_OR_FLIGHT");
-        assertSeededCodes("accounting_unit_type", expectedCodes);
+        assertSeededCodes("t_accounting_unit_type", expectedCodes);
         for (String code : expectedCodes) {
-            assertCodeMapsToUuid("accounting_unit_type", code,
-                    canonicalSeedUuid("accounting_unit_type", "code", code));
+            assertCodeMapsToUuid("t_accounting_unit_type", code,
+                    canonicalSeedUuid("t_accounting_unit_type", "code", code));
         }
     }
 
@@ -625,7 +625,7 @@ class ReservationsBaselineIntegrationTest {
     void accounting_unit_type_legacy_int_ids_match_legacy() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT legacy_int_id FROM accounting_unit_type ORDER BY legacy_int_id")) {
+                        "SELECT legacy_int_id FROM t_accounting_unit_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
             assertThat(ids).containsExactly(10, 20, 30, 40);
@@ -635,12 +635,12 @@ class ReservationsBaselineIntegrationTest {
     /** Per-club ref tables: operator creates via API; migration does NOT seed. */
     @Test
     void aircraft_reservation_type_NOT_seeded_in_migration() throws Exception {
-        assertTableEmpty("aircraft_reservation_type");
+        assertTableEmpty("t_aircraft_reservation_type");
     }
 
     @Test
     void planning_day_assignment_type_NOT_seeded_in_migration() throws Exception {
-        assertTableEmpty("planning_day_assignment_type");
+        assertTableEmpty("t_planning_day_assignment_type");
     }
 
     // ============================================================================
@@ -649,12 +649,12 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void delivery_creation_test_flight_fk_cascade() throws Exception {
-        assertFkDeleteRule("delivery_creation_test", "flight_id", "CASCADE");
+        assertFkDeleteRule("t_delivery_creation_test", "flight_id", "CASCADE");
     }
 
     @Test
     void delivery_creation_test_unique_per_club_flight_partial() throws Exception {
-        List<String> defs = indexDefs("delivery_creation_test");
+        List<String> defs = indexDefs("t_delivery_creation_test");
         assertThat(defs)
                 .as("delivery_creation_test must carry partial UNIQUE (operating_club_id, flight_id) WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -671,7 +671,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, is_nullable FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery_creation_test' "
+                                + "WHERE table_schema='public' AND table_name='t_delivery_creation_test' "
                                 + "AND column_name='expected_delivery'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString("data_type")).isEqualTo("jsonb");
@@ -691,7 +691,7 @@ class ReservationsBaselineIntegrationTest {
             for (String col : required) {
                 try (var stmt = conn.prepareStatement(
                         "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery_creation_test' "
+                                + "WHERE table_schema='public' AND table_name='t_delivery_creation_test' "
                                 + "AND column_name=?")) {
                     stmt.setString(1, col);
                     try (ResultSet rs = stmt.executeQuery()) {
@@ -718,7 +718,7 @@ class ReservationsBaselineIntegrationTest {
             for (String col : required) {
                 try (var stmt = conn.prepareStatement(
                         "SELECT 1 FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery_creation_test' "
+                                + "WHERE table_schema='public' AND table_name='t_delivery_creation_test' "
                                 + "AND column_name=?")) {
                     stmt.setString(1, col);
                     try (ResultSet rs = stmt.executeQuery()) {
@@ -735,7 +735,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, udt_name FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery_creation_test' "
+                                + "WHERE table_schema='public' AND table_name='t_delivery_creation_test' "
                                 + "AND column_name='expected_matched_filter_ids'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString("data_type"))
@@ -749,7 +749,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void delivery_creation_test_item_fk_cascade() throws Exception {
-        assertFkDeleteRule("delivery_creation_test_item", "delivery_creation_test_id", "CASCADE");
+        assertFkDeleteRule("t_delivery_creation_test_item", "delivery_creation_test_id", "CASCADE");
     }
 
     // ============================================================================
@@ -762,7 +762,7 @@ class ReservationsBaselineIntegrationTest {
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT a.attname FROM pg_index i "
                                 + "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
-                                + "WHERE i.indrelid = 'club_delivery_number_counter'::regclass AND i.indisprimary")) {
+                                + "WHERE i.indrelid = 't_club_delivery_number_counter'::regclass AND i.indisprimary")) {
             List<String> cols = new ArrayList<>();
             while (rs.next()) cols.add(rs.getString(1));
             assertThat(cols)
@@ -776,7 +776,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT column_default FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='club_delivery_number_counter' "
+                                + "WHERE table_schema='public' AND table_name='t_club_delivery_number_counter' "
                                 + "AND column_name='next_number'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1)).isEqualTo("1");
@@ -785,7 +785,7 @@ class ReservationsBaselineIntegrationTest {
 
     @Test
     void club_delivery_number_counter_club_fk_cascade() throws Exception {
-        assertFkDeleteRule("club_delivery_number_counter", "operating_club_id", "CASCADE");
+        assertFkDeleteRule("t_club_delivery_number_counter", "operating_club_id", "CASCADE");
     }
 
     // ============================================================================
@@ -796,11 +796,11 @@ class ReservationsBaselineIntegrationTest {
     void aggregate_root_column_comments_reference_adr_0019() throws Exception {
         record CommentExpect(String table, String prefix) {}
         List<CommentExpect> expects = List.of(
-                new CommentExpect("aircraft_reservation",   "arv"),
-                new CommentExpect("planning_day",           "pln"),
-                new CommentExpect("accounting_rule_filter", "arf"),
-                new CommentExpect("delivery",               "dlv"),
-                new CommentExpect("delivery_creation_test", "dct"));
+                new CommentExpect("t_aircraft_reservation",   "arv"),
+                new CommentExpect("t_planning_day",           "pln"),
+                new CommentExpect("t_accounting_rule_filter", "arf"),
+                new CommentExpect("t_delivery",               "dlv"),
+                new CommentExpect("t_delivery_creation_test", "dct"));
         for (CommentExpect e : expects) {
             String comment = columnComment(e.table(), "id");
             assertThat(comment)
@@ -886,7 +886,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT 1 FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='delivery_item' "
+                                + "WHERE table_schema='public' AND table_name='t_delivery_item' "
                                 + "AND column_name='total_amount'")) {
             assertThat(rs.next())
                     .as("delivery_item.total_amount must not exist — calculation moves to"
@@ -900,7 +900,7 @@ class ReservationsBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT indexdef FROM pg_indexes "
-                                + "WHERE schemaname='public' AND tablename='delivery_item' "
+                                + "WHERE schemaname='public' AND tablename='t_delivery_item' "
                                 + "AND indexname='ix_dli_delivery'")) {
             assertThat(rs.next()).as("ix_dli_delivery must still exist").isTrue();
             String def = rs.getString(1);
@@ -991,11 +991,11 @@ class ReservationsBaselineIntegrationTest {
      * even within a savepoint-free path.
      */
     private String seedMinimalClub(Connection conn, String clubKey) throws SQLException {
-        String chId = canonicalSeedUuid("country", "iso2", "CH");
-        String clubStateActive = canonicalSeedUuid("club_state", "code", "ACTIVE");
-        String clubId = newDeterministicUuid("club", clubKey);
+        String chId = canonicalSeedUuid("t_country", "iso2", "CH");
+        String clubStateActive = canonicalSeedUuid("t_club_state", "code", "ACTIVE");
+        String clubId = newDeterministicUuid("t_club", clubKey);
         try (var s = conn.prepareStatement(
-                "INSERT INTO club (id, clubname, club_key, country_id, club_state_id) "
+                "INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id) "
                         + "VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid)")) {
             s.setString(1, clubId);
             s.setString(2, "Test " + clubKey);
@@ -1010,7 +1010,7 @@ class ReservationsBaselineIntegrationTest {
     private void insertDeliveryWithNumber(Connection conn, String id, String clubId,
             int deliveryNumber, int processStateId) throws SQLException {
         try (var s = conn.prepareStatement(
-                "INSERT INTO delivery (id, operating_club_id, process_state_id, "
+                "INSERT INTO t_delivery (id, operating_club_id, process_state_id, "
                         + "  delivery_number, delivered_on, recipient_lastname, recipient_firstname) "
                         + "VALUES (?::uuid, ?::uuid, ?, ?, now(), 'X', 'Y')")) {
             s.setString(1, id);
@@ -1024,7 +1024,7 @@ class ReservationsBaselineIntegrationTest {
     private void insertDeliveryWithBatch(Connection conn, String id, String clubId, int batchId)
             throws SQLException {
         try (var s = conn.prepareStatement(
-                "INSERT INTO delivery (id, operating_club_id, process_state_id, batch_id) "
+                "INSERT INTO t_delivery (id, operating_club_id, process_state_id, batch_id) "
                         + "VALUES (?::uuid, ?::uuid, 10, ?)")) {
             s.setString(1, id);
             s.setString(2, clubId);

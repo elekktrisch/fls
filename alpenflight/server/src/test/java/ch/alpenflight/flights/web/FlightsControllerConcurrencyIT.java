@@ -60,7 +60,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
         cleanFlightRowsFor(jdbc, CLUB_UUID);
-        jdbc.update("DELETE FROM aircraft WHERE managing_club_id = ?::uuid AND "
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid AND "
                 + "immatriculation LIKE 'HB-FT%'", CLUB_ID);
         UUID aid = seedAircraftFor(jdbc, CLUB_UUID);
         aircraftIdExternal = "ac-" + aid;
@@ -146,7 +146,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
         String id = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         UUID flightUuid = UUID.fromString(id.substring(3));
-        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+        jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                 DELIVERY_BOOKED_ID, flightUuid.toString());
 
         ResponseEntity<String> res = rest.exchange(
@@ -181,7 +181,7 @@ class FlightsControllerConcurrencyIT extends PostgresIntegrationTest {
         assertThat(linkRes.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         UUID towUuid = UUID.fromString(towId.substring(3));
-        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+        jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                 DELIVERY_BOOKED_ID, towUuid.toString());
 
         ResponseEntity<String> del = rest.exchange(

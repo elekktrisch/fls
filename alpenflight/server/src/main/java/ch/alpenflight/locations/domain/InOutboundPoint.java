@@ -23,7 +23,7 @@ import org.jspecify.annotations.Nullable;
  * only {@link Location} drives them.
  */
 @Entity
-@Table(name = "inoutbound_point")
+@Table(name = "t_inoutbound_point")
 public class InOutboundPoint {
 
     @Id

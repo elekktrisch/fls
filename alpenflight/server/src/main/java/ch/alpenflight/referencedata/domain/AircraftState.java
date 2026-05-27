@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  * on the picker endpoint and the airworthiness badge on the list view.
  */
 @Entity
-@Table(name = "aircraft_state")
+@Table(name = "t_aircraft_state")
 public class AircraftState {
 
     @Id

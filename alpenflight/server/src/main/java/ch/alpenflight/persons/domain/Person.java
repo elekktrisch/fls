@@ -50,7 +50,7 @@ import org.jspecify.annotations.Nullable;
  * </ul>
  */
 @Entity
-@Table(name = "person")
+@Table(name = "t_person")
 public class Person {
 
     private static final int MAX_NAME_LENGTH = 100;
@@ -203,7 +203,7 @@ public class Person {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "person",
+    @OneToMany(mappedBy = "t_person",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<PersonClub> personClubs = new ArrayList<>();

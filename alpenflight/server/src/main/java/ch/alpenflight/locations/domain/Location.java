@@ -38,7 +38,7 @@ import org.jspecify.annotations.Nullable;
  * upsert-with-orphan-cleanup semantics on PUT.
  */
 @Entity
-@Table(name = "location")
+@Table(name = "t_location")
 public class Location {
 
     private static final Pattern ICAO_PATTERN = Pattern.compile("^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$");
@@ -123,7 +123,7 @@ public class Location {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "location",
+    @OneToMany(mappedBy = "t_location",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<InOutboundPoint> inOutboundPoints = new ArrayList<>();

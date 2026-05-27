@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * table; data lives in the V2 Flyway seed.
  */
 @Entity
-@Table(name = "club_state")
+@Table(name = "t_club_state")
 public class ClubState {
 
     @Id

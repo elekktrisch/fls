@@ -72,7 +72,7 @@ import org.jspecify.annotations.Nullable;
  * methods only. No top-level CRUD endpoint for either.
  */
 @Entity
-@Table(name = "aircraft")
+@Table(name = "t_aircraft")
 public class Aircraft {
 
     private static final int MAX_MANUFACTURER_LENGTH = 100;
@@ -176,12 +176,12 @@ public class Aircraft {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "aircraft",
+    @OneToMany(mappedBy = "t_aircraft",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<AircraftStateHistoryEntry> stateHistory = new ArrayList<>();
 
-    @OneToMany(mappedBy = "aircraft",
+    @OneToMany(mappedBy = "t_aircraft",
             cascade = CascadeType.ALL)
     private List<AircraftOperatingCounter> operatingCounters = new ArrayList<>();
 

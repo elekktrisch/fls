@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * seed. No setters, no mutating methods — the API does not write here.
  */
 @Entity
-@Table(name = "country")
+@Table(name = "t_country")
 public class Country {
 
     @Id

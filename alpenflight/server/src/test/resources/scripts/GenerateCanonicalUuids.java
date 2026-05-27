@@ -42,31 +42,31 @@ public class GenerateCanonicalUuids {
     private static final Map<String, Long> TABLE_OFFSETS = new java.util.LinkedHashMap<>();
     static {
         // S-012 reference tables (offsets locked; Flyway checksum-protected once shipped).
-        TABLE_OFFSETS.put("country",                  1_000L);
-        TABLE_OFFSETS.put("language",                 2_000L);
-        TABLE_OFFSETS.put("club_state",               3_000L);
-        TABLE_OFFSETS.put("start_type",               4_000L);
-        TABLE_OFFSETS.put("length_unit_type",         5_000L);
-        TABLE_OFFSETS.put("elevation_unit_type",      6_000L);
-        TABLE_OFFSETS.put("counter_unit_type",        7_000L);
-        TABLE_OFFSETS.put("extension_type",           8_000L);
+        TABLE_OFFSETS.put("t_country",                  1_000L);
+        TABLE_OFFSETS.put("t_language",                 2_000L);
+        TABLE_OFFSETS.put("t_club_state",               3_000L);
+        TABLE_OFFSETS.put("t_start_type",               4_000L);
+        TABLE_OFFSETS.put("t_length_unit_type",         5_000L);
+        TABLE_OFFSETS.put("t_elevation_unit_type",      6_000L);
+        TABLE_OFFSETS.put("t_counter_unit_type",        7_000L);
+        TABLE_OFFSETS.put("t_extension_type",           8_000L);
         TABLE_OFFSETS.put("role",                     9_000L);
-        TABLE_OFFSETS.put("email_template",          10_000L); // system-default rows (club_id IS NULL)
+        TABLE_OFFSETS.put("t_email_template",          10_000L); // system-default rows (club_id IS NULL)
 
         // S-013 reference tables.
-        TABLE_OFFSETS.put("aircraft_type",           11_000L);
-        TABLE_OFFSETS.put("aircraft_state",          12_000L);
-        TABLE_OFFSETS.put("location_type",           13_000L);
-        TABLE_OFFSETS.put("flight_crew_type",        14_000L);
-        TABLE_OFFSETS.put("flight_process_state",    15_000L);
-        TABLE_OFFSETS.put("flight_air_state",        16_000L);
-        TABLE_OFFSETS.put("flight_cost_balance_type",17_000L);
+        TABLE_OFFSETS.put("t_aircraft_type",           11_000L);
+        TABLE_OFFSETS.put("t_aircraft_state",          12_000L);
+        TABLE_OFFSETS.put("t_location_type",           13_000L);
+        TABLE_OFFSETS.put("t_flight_crew_type",        14_000L);
+        TABLE_OFFSETS.put("t_flight_process_state",    15_000L);
+        TABLE_OFFSETS.put("t_flight_air_state",        16_000L);
+        TABLE_OFFSETS.put("t_flight_cost_balance_type",17_000L);
 
         // S-014 reference tables (system-global; per-club AircraftReservationType /
         // PlanningDayAssignmentType are NOT seeded by migration — operator creates
         // via API per club).
-        TABLE_OFFSETS.put("accounting_rule_filter_type", 18_000L);
-        TABLE_OFFSETS.put("accounting_unit_type",        19_000L);
+        TABLE_OFFSETS.put("t_accounting_rule_filter_type", 18_000L);
+        TABLE_OFFSETS.put("t_accounting_unit_type",        19_000L);
     }
 
     static String uuidV7(long counter) {
@@ -124,21 +124,21 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# country (ISO 3166-1 alpha-2 → UUID v7):");
         for (int i = 0; i < countryIso2.length; i++) {
-            out.printf("  %s = %s%n", countryIso2[i], uuidV7(TABLE_OFFSETS.get("country") + i));
+            out.printf("  %s = %s%n", countryIso2[i], uuidV7(TABLE_OFFSETS.get("t_country") + i));
         }
 
         String[] languageCodes = {"de", "fr", "it", "en", "rm", "de-CH", "fr-CH", "it-CH"};
         out.println();
         out.println("# language (BCP-47 → UUID v7):");
         for (int i = 0; i < languageCodes.length; i++) {
-            out.printf("  %s = %s%n", languageCodes[i], uuidV7(TABLE_OFFSETS.get("language") + i));
+            out.printf("  %s = %s%n", languageCodes[i], uuidV7(TABLE_OFFSETS.get("t_language") + i));
         }
 
         String[] clubStates = {"ACTIVE", "SUSPENDED", "CLOSED"};
         out.println();
         out.println("# club_state:");
         for (int i = 0; i < clubStates.length; i++) {
-            out.printf("  %s = %s%n", clubStates[i], uuidV7(TABLE_OFFSETS.get("club_state") + i));
+            out.printf("  %s = %s%n", clubStates[i], uuidV7(TABLE_OFFSETS.get("t_club_state") + i));
         }
 
         // start_type carries applicable_categories TEXT[] per ADR 0020 (collapse
@@ -157,35 +157,35 @@ public class GenerateCanonicalUuids {
         for (int i = 0; i < startTypes.length; i++) {
             out.printf("  %s applicable_categories=%s uuid=%s%n",
                     startTypes[i][0], startTypes[i][1],
-                    uuidV7(TABLE_OFFSETS.get("start_type") + i));
+                    uuidV7(TABLE_OFFSETS.get("t_start_type") + i));
         }
 
         String[] lengthUnits = {"METER", "FEET"};
         out.println();
         out.println("# length_unit_type:");
         for (int i = 0; i < lengthUnits.length; i++) {
-            out.printf("  %s = %s%n", lengthUnits[i], uuidV7(TABLE_OFFSETS.get("length_unit_type") + i));
+            out.printf("  %s = %s%n", lengthUnits[i], uuidV7(TABLE_OFFSETS.get("t_length_unit_type") + i));
         }
 
         String[] elevationUnits = {"METER", "FEET"};
         out.println();
         out.println("# elevation_unit_type:");
         for (int i = 0; i < elevationUnits.length; i++) {
-            out.printf("  %s = %s%n", elevationUnits[i], uuidV7(TABLE_OFFSETS.get("elevation_unit_type") + i));
+            out.printf("  %s = %s%n", elevationUnits[i], uuidV7(TABLE_OFFSETS.get("t_elevation_unit_type") + i));
         }
 
         String[] counterUnits = {"HOURS_DECIMAL", "HOURS_MINUTES", "LANDINGS", "STARTS"};
         out.println();
         out.println("# counter_unit_type:");
         for (int i = 0; i < counterUnits.length; i++) {
-            out.printf("  %s = %s%n", counterUnits[i], uuidV7(TABLE_OFFSETS.get("counter_unit_type") + i));
+            out.printf("  %s = %s%n", counterUnits[i], uuidV7(TABLE_OFFSETS.get("t_counter_unit_type") + i));
         }
 
         String[] extensionTypes = {"STRING", "INTEGER", "BOOLEAN", "DATE", "LIST"};
         out.println();
         out.println("# extension_type:");
         for (int i = 0; i < extensionTypes.length; i++) {
-            out.printf("  %s = %s%n", extensionTypes[i], uuidV7(TABLE_OFFSETS.get("extension_type") + i));
+            out.printf("  %s = %s%n", extensionTypes[i], uuidV7(TABLE_OFFSETS.get("t_extension_type") + i));
         }
 
         String[] roles = {"ADMIN", "FLIGHT_OPS", "INSTRUCTOR", "PILOT", "READER"};
@@ -205,7 +205,7 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# aircraft_type:");
         for (int i = 0; i < aircraftTypes.length; i++) {
-            out.printf("  %s = %s%n", aircraftTypes[i], uuidV7(TABLE_OFFSETS.get("aircraft_type") + i));
+            out.printf("  %s = %s%n", aircraftTypes[i], uuidV7(TABLE_OFFSETS.get("t_aircraft_type") + i));
         }
 
         // aircraft_state — per AircraftStateKey.cs; legacy_int_id sparse (1..6, 99).
@@ -215,7 +215,7 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# aircraft_state:");
         for (int i = 0; i < aircraftStates.length; i++) {
-            out.printf("  %s = %s%n", aircraftStates[i], uuidV7(TABLE_OFFSETS.get("aircraft_state") + i));
+            out.printf("  %s = %s%n", aircraftStates[i], uuidV7(TABLE_OFFSETS.get("t_aircraft_state") + i));
         }
 
         // location_type — 6 rows from legacy "3 Insert Static Data.sql"; LocationTypeCupId in {1,2,3,4,5,99}.
@@ -225,7 +225,7 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# location_type:");
         for (int i = 0; i < locationTypes.length; i++) {
-            out.printf("  %s = %s%n", locationTypes[i], uuidV7(TABLE_OFFSETS.get("location_type") + i));
+            out.printf("  %s = %s%n", locationTypes[i], uuidV7(TABLE_OFFSETS.get("t_location_type") + i));
         }
 
         // flight_crew_type — 7 rows from legacy seed; legacy_int_id in {1..6, 10}.
@@ -235,7 +235,7 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# flight_crew_type:");
         for (int i = 0; i < flightCrewTypes.length; i++) {
-            out.printf("  %s = %s%n", flightCrewTypes[i], uuidV7(TABLE_OFFSETS.get("flight_crew_type") + i));
+            out.printf("  %s = %s%n", flightCrewTypes[i], uuidV7(TABLE_OFFSETS.get("t_flight_crew_type") + i));
         }
 
         // flight_process_state — per FlightProcessState.cs enum; legacy_int_id in {0,28,30,40,45,50,60,99}.
@@ -246,7 +246,7 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# flight_process_state:");
         for (int i = 0; i < flightProcessStates.length; i++) {
-            out.printf("  %s = %s%n", flightProcessStates[i], uuidV7(TABLE_OFFSETS.get("flight_process_state") + i));
+            out.printf("  %s = %s%n", flightProcessStates[i], uuidV7(TABLE_OFFSETS.get("t_flight_process_state") + i));
         }
 
         // flight_air_state — per FlightAirState.cs enum; legacy_int_id in {0,5,8,10,15,20,25}.
@@ -256,7 +256,7 @@ public class GenerateCanonicalUuids {
         out.println();
         out.println("# flight_air_state:");
         for (int i = 0; i < flightAirStates.length; i++) {
-            out.printf("  %s = %s%n", flightAirStates[i], uuidV7(TABLE_OFFSETS.get("flight_air_state") + i));
+            out.printf("  %s = %s%n", flightAirStates[i], uuidV7(TABLE_OFFSETS.get("t_flight_air_state") + i));
         }
 
         // flight_cost_balance_type — 5 rows from legacy seed; is_for_glider / is_for_tow /
@@ -269,7 +269,7 @@ public class GenerateCanonicalUuids {
         out.println("# flight_cost_balance_type:");
         for (int i = 0; i < flightCostBalanceTypes.length; i++) {
             out.printf("  %s = %s%n",
-                    flightCostBalanceTypes[i], uuidV7(TABLE_OFFSETS.get("flight_cost_balance_type") + i));
+                    flightCostBalanceTypes[i], uuidV7(TABLE_OFFSETS.get("t_flight_cost_balance_type") + i));
         }
 
         // S-014 reference tables.
@@ -289,7 +289,7 @@ public class GenerateCanonicalUuids {
         for (int i = 0; i < accountingRuleFilterTypes.length; i++) {
             out.printf("  %s = %s%n",
                     accountingRuleFilterTypes[i],
-                    uuidV7(TABLE_OFFSETS.get("accounting_rule_filter_type") + i));
+                    uuidV7(TABLE_OFFSETS.get("t_accounting_rule_filter_type") + i));
         }
 
         // accounting_unit_type — 4 rows per legacy
@@ -303,7 +303,7 @@ public class GenerateCanonicalUuids {
         for (int i = 0; i < accountingUnitTypes.length; i++) {
             out.printf("  %s = %s%n",
                     accountingUnitTypes[i],
-                    uuidV7(TABLE_OFFSETS.get("accounting_unit_type") + i));
+                    uuidV7(TABLE_OFFSETS.get("t_accounting_unit_type") + i));
         }
     }
 }

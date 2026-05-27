@@ -24,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  * extend it without reshaping.
  */
 @Entity
-@Table(name = "member_state")
+@Table(name = "t_member_state")
 public class MemberState {
 
     private static final int MAX_NAME_LENGTH = 50;

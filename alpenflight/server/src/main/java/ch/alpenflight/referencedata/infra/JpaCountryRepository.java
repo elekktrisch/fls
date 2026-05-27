@@ -17,7 +17,7 @@ import org.springframework.data.jpa.repository.Query;
 public interface JpaCountryRepository extends JpaRepository<Country, UUID>, CountryRepository {
 
     @Override
-    @Query(value = "SELECT * FROM country ORDER BY name COLLATE \"de-CH-x-icu\"",
+    @Query(value = "SELECT * FROM t_country ORDER BY name COLLATE \"de-CH-x-icu\"",
             nativeQuery = true)
     List<Country> findAllOrdered();
 }

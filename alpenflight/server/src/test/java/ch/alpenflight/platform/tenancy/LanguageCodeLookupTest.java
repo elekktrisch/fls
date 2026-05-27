@@ -29,7 +29,7 @@ class LanguageCodeLookupTest {
     @Test
     void resolve_knownLocale_returnsLanguageRowId() {
         when(jdbc.queryForObject(
-                "SELECT id FROM language WHERE lower(code) = ?", UUID.class, "de"))
+                "SELECT id FROM t_language WHERE lower(code) = ?", UUID.class, "de"))
                 .thenReturn(DE_ID);
 
         assertThat(lookup.resolve("DE")).isEqualTo(DE_ID);
@@ -38,7 +38,7 @@ class LanguageCodeLookupTest {
     @Test
     void resolve_unknownLocale_returnsEnFallback_andDoesNotPoisonCache() {
         when(jdbc.queryForObject(
-                eq("SELECT id FROM language WHERE lower(code) = ?"), eq(UUID.class), eq("xx")))
+                eq("SELECT id FROM t_language WHERE lower(code) = ?"), eq(UUID.class), eq("xx")))
                 .thenThrow(new EmptyResultDataAccessException(1));
 
         assertThat(lookup.resolve("xx")).isEqualTo(LanguageCodeLookup.FALLBACK_EN_ID);
@@ -46,7 +46,7 @@ class LanguageCodeLookupTest {
         // late-arriving seed (operator dev path) can take effect without a
         // JVM restart.
         when(jdbc.queryForObject(
-                eq("SELECT id FROM language WHERE lower(code) = ?"), eq(UUID.class), eq("xx")))
+                eq("SELECT id FROM t_language WHERE lower(code) = ?"), eq(UUID.class), eq("xx")))
                 .thenThrow(new EmptyResultDataAccessException(1));
         assertThat(lookup.resolve("xx")).isEqualTo(LanguageCodeLookup.FALLBACK_EN_ID);
     }
@@ -62,7 +62,7 @@ class LanguageCodeLookupTest {
     @Test
     void resolve_knownLocale_isCachedAfterFirstHit() {
         when(jdbc.queryForObject(
-                eq("SELECT id FROM language WHERE lower(code) = ?"), eq(UUID.class), eq("de-ch")))
+                eq("SELECT id FROM t_language WHERE lower(code) = ?"), eq(UUID.class), eq("de-ch")))
                 .thenReturn(DE_ID);
 
         lookup.resolve("de-CH");
@@ -70,6 +70,6 @@ class LanguageCodeLookupTest {
         lookup.resolve("DE-CH");
 
         verify(jdbc, times(1)).queryForObject(
-                "SELECT id FROM language WHERE lower(code) = ?", UUID.class, "de-ch");
+                "SELECT id FROM t_language WHERE lower(code) = ?", UUID.class, "de-ch");
     }
 }
