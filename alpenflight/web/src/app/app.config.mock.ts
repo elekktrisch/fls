@@ -86,12 +86,28 @@ function mockAuthBootstrap(): void {
 
 // LandingComponent injects OidcSecurityService to drive the sign-in
 // redirect; under mock-auth there's no Keycloak, so we stub the service.
-// `authorize()` is a no-op — the landing's sign-in / try-demo buttons
-// are clickable but don't navigate out. Real-OIDC e2e lives in the
-// separate Keycloak-up project (S-021 follow-up). Narrow stub shape
-// guards against a future OidcSecurityService API drift going silent.
+// `authorize()` records its last-call args to `window.__lastAuthorizeArgs`
+// so the Playwright signup spec can assert the customParams shape
+// (prompt=create, kc_idp_hint=google, ui_locales=...) without a live
+// Keycloak round-trip. Real-OIDC end-to-end lives in the separate
+// Keycloak-up project (S-021 follow-up). Narrow stub shape guards
+// against a future OidcSecurityService API drift going silent.
+//
+// S-134 contract for the spec seam:
+//   - window.__lastAuthorizeArgs is undefined until authorize() fires.
+//   - Each call overwrites; specs clear before exercising.
 const MOCK_OIDC_SECURITY_SERVICE: Pick<OidcSecurityService, 'authorize'> = {
-  authorize: () => undefined,
+  authorize: (configId?: string | undefined, params?: unknown): undefined => {
+    type AuthorizeWindow = Window & {
+      __lastAuthorizeArgs?: { configId?: string; params?: unknown };
+    };
+    if (typeof window !== 'undefined') {
+      const recordable: { configId?: string; params?: unknown } = { params };
+      if (configId !== undefined) recordable.configId = configId;
+      (window as AuthorizeWindow).__lastAuthorizeArgs = recordable;
+    }
+    return undefined;
+  },
 };
 
 export const appConfig: ApplicationConfig = {

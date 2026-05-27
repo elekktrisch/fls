@@ -116,6 +116,21 @@ const de = {
     scenicFlight: 'Mitflug',
     title: 'Demnächst verfügbar',
   },
+  signup: {
+    actions: {
+      continueWithGoogle: 'Mit Google fortfahren',
+      signIn: 'Anmelden',
+      signUp: 'Registrieren',
+    },
+    alreadyHaveAccount: 'Bereits ein Konto?',
+    headline: 'AlpenFlight-Konto erstellen',
+    postLanding: {
+      body: 'Wir richten dein Konto ein. Der Migrationsassistent öffnet sich gleich.',
+      headline: 'Konto erstellt',
+    },
+    tagline:
+      'E-Mail-Verifizierung folgt per Mail. Dein Verein wird nach dem ersten erfolgreichen Import angelegt.',
+  },
 };
 
 export type Translations = typeof de;

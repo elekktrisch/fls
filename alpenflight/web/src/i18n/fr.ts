@@ -112,6 +112,21 @@ const fr: Translations = {
     scenicFlight: 'Vol panoramique',
     title: 'Bientôt disponible',
   },
+  signup: {
+    actions: {
+      continueWithGoogle: 'Continuer avec Google',
+      signIn: 'Se connecter',
+      signUp: 'Créer un compte',
+    },
+    alreadyHaveAccount: 'Déjà un compte ?',
+    headline: 'Créer votre compte AlpenFlight',
+    postLanding: {
+      body: 'Configuration de votre compte… L’assistant de migration s’ouvre dans un instant.',
+      headline: 'Compte créé',
+    },
+    tagline:
+      'Un e-mail de vérification suivra. Votre club est créé après votre premier import réussi.',
+  },
 };
 
 export default fr;
