@@ -2,7 +2,8 @@
 id: S-171
 title: Keycloak login/account/email visual theme — brand parity with the SPA
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-27
 estimate: M
 depends_on: [S-019, S-134]
 adr_refs: [0007, 0024]
