@@ -2198,7 +2198,7 @@
       "displayName": "Google",
       "enabled": true,
       "firstBrokerLoginFlowAlias": "first broker login",
-      "hideOnLoginPage": false,
+      "hideOnLogin": false,
       "linkOnly": false,
       "providerId": "google",
       "storeToken": false,

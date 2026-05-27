@@ -68,11 +68,7 @@ type Pending = 'local' | 'google' | null;
           </div>
 
           @if (error()) {
-            <p
-              class="mt-4 text-sm text-red-600"
-              role="alert"
-              data-testid="signup-error"
-            >
+            <p class="mt-4 text-sm text-red-600" role="alert" data-testid="signup-error">
               {{ t('errors.unreachable') }}
             </p>
           }
