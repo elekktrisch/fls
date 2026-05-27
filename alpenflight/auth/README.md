@@ -204,6 +204,19 @@ Per `check-realm-shape.sh`: the committed `realm-export.json` MUST keep the
 config values as `${env:KEYCLOAK_GOOGLE_CLIENT_*}` placeholders. A real secret
 slipping into the file via a sloppy `export-realm.sh` round-trip fails CI loudly.
 
+### Substitution layers
+
+Three substitution layers stack:
+
+| Layer | Marker syntax | What it covers | Who substitutes |
+|---|---|---|---|
+| docker-compose | `${VAR:-default}` in `docker-compose.yml` | All env vars the container sees | docker compose at compose-up |
+| Keycloak (built-in) | `${env:VAR}` in `realm-export.json` | SMTP server config, IdP config | Keycloak at realm-import |
+| entrypoint.sh (S-173) | `${VAR}` in `realm-export.json` | `client.baseUrl` (Keycloak's `${env:}` does NOT cover this — URL validator runs first) | `alpenflight/auth/entrypoint.sh` via `sed -i` before `kc.sh` runs |
+
+The `alpenflight-web` client's `baseUrl` uses the third layer because
+Keycloak's URL validator rejects literal `${env:...}` text on import.
+
 ### CI integration probe
 
 CI (`compose-smoke` workflow) brings the stack up under

@@ -19,3 +19,10 @@ COPY realm-export.json /opt/keycloak/data/import/realm-export.json
 # Docker Desktop Windows hosts; edits to assets need `docker compose
 # build keycloak` to take effect.
 COPY themes/ /opt/keycloak/themes/
+
+# entrypoint.sh substitutes ${ALPENFLIGHT_WEB_BASE_URL} in the realm-export
+# at container boot, BEFORE kc.sh runs the import. Keycloak's `${env:VAR}`
+# substitution covers SMTP + IdP config but NOT client.baseUrl (URL validator
+# fires before substitution), so we own this substitution layer ourselves.
+COPY --chmod=755 entrypoint.sh /opt/keycloak/entrypoint.sh
+ENTRYPOINT ["/opt/keycloak/entrypoint.sh"]
