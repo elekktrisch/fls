@@ -188,6 +188,15 @@ services:
     #   docker compose -p alpenflight-dev build keycloak && \
     #   docker compose -p alpenflight-dev up -d keycloak
     command: ["start-dev", "--http-port=8080", "--import-realm"]
+    # S-173 — per-developer overrides for the env-substituted realm-export.
+    # File is gitignored; `.env.example` is the committed template. Compose
+    # reads env_file at container start (NOT during variable interpolation),
+    # so the `:-default` blocks below still fire when both the shell env AND
+    # the .env file are empty. `required: false` keeps a fresh clone (no
+    # .env yet) booting; docker compose 2.24+ supports the typed form.
+    env_file:
+      - path: alpenflight/auth/.env
+        required: false
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
@@ -214,6 +223,11 @@ services:
       KEYCLOAK_SMTP_PASSWORD: "${KEYCLOAK_SMTP_PASSWORD:-}"
       KEYCLOAK_SMTP_AUTH: "${KEYCLOAK_SMTP_AUTH:-false}"
       KEYCLOAK_SMTP_STARTTLS: "${KEYCLOAK_SMTP_STARTTLS:-false}"
+      # S-173 — alpenflight-web client baseUrl. Feeds the login footer
+      # "Back to Start" href + Keycloak's account-console "back to
+      # application" link. Trailing slash is load-bearing (rendered
+      # verbatim into href). Production sets the real SPA origin.
+      ALPENFLIGHT_WEB_BASE_URL: "${ALPENFLIGHT_WEB_BASE_URL:-http://localhost:4200/}"
     ports:
       - "127.0.0.1:8090:8080"
       - "127.0.0.1:9090:9000"   # management interface (/health/ready)

@@ -1747,6 +1747,7 @@
         "realm_client": "false"
       },
       "authenticationFlowBindingOverrides": {},
+      "baseUrl": "${env:ALPENFLIGHT_WEB_BASE_URL}",
       "bearerOnly": false,
       "clientAuthenticatorType": "client-secret",
       "clientId": "alpenflight-web",
