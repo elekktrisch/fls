@@ -110,6 +110,24 @@ const en: Translations = {
     scenicFlight: 'Scenic flight',
     title: 'Coming soon',
   },
+  signup: {
+    actions: {
+      continueWithGoogle: 'Continue with Google',
+      signIn: 'Sign in',
+      signUp: 'Sign up',
+    },
+    alreadyHaveAccount: 'Already have an account?',
+    errors: {
+      unreachable: 'Sign-up is unavailable right now. Please try again later.',
+    },
+    headline: 'Create your AlpenFlight account',
+    postLanding: {
+      body: 'Your account is ready. The import workflow lands in a future release.',
+      headline: 'Account created',
+    },
+    tagline:
+      "We'll send a verification email. Your club is created on your first successful import.",
+  },
 };
 
 export default en;

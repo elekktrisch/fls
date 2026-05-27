@@ -22,6 +22,14 @@ export const routes: Routes = [
     loadChildren: () => import('./core/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   {
+    path: 'signup',
+    loadChildren: () => import('@features/signup/signup.routes').then((m) => m.SIGNUP_ROUTES),
+  },
+  {
+    path: 'migrate',
+    loadChildren: () => import('@features/signup/signup.routes').then((m) => m.MIGRATE_ROUTES),
+  },
+  {
     path: 'start',
     loadChildren: () => import('@features/start/start.routes').then((m) => m.START_ROUTES),
   },

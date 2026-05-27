@@ -137,10 +137,61 @@ CLUBID_EDIT=$(jq -r '
 ok "clubId user-profile: admin-edit-only (tenant-escalation gate)"
 
 # --- realm security hygiene ---
-[[ $(jq -r '.registrationAllowed' "$EXPORT")  == "false" ]] || fail "registrationAllowed must be false"
+# S-134: self-service signup is ON (was OFF until E-15). Verify-email + brute-force
+# protection are the surviving guards; throwaway-account purge + per-IP rate-limit
+# are deferred follow-ups (S-038 / S-041).
+[[ $(jq -r '.registrationAllowed' "$EXPORT")  == "true"  ]] || fail "registrationAllowed must be true (S-134)"
+[[ $(jq -r '.verifyEmail' "$EXPORT")          == "true"  ]] || fail "verifyEmail must be true (S-134 signup verification)"
 [[ $(jq -r '.bruteForceProtected' "$EXPORT")  == "true"  ]] || fail "bruteForceProtected must be true"
 [[ $(jq -r '.eventsEnabled' "$EXPORT")        == "true"  ]] || fail "eventsEnabled must be true"
 [[ $(jq -r '.adminEventsEnabled' "$EXPORT")   == "true"  ]] || fail "adminEventsEnabled must be true"
-ok "realm hygiene: registration off, bruteforce on, events + admin events on"
+ok "realm hygiene: registration on + verifyEmail on, bruteforce on, events + admin events on"
+
+# --- password policy (S-134; bot-signup floor) ---
+# Anchored matches per rule — substring match would silently pass if a future
+# round-trip mutated `notUsername` into `notUsernameLowercase` or similar.
+# Keycloak emits parameterized rules as `name(arg)`; non-parameterized as
+# `name` (token-boundary).
+PWPOL=$(jq -r '.passwordPolicy // ""' "$EXPORT")
+for rx in 'length\(12\)' 'notUsername(\(|[^a-zA-Z])' 'notEmail(\(|[^a-zA-Z])' 'specialChars\(1\)'; do
+  [[ "$PWPOL" =~ $rx ]] || fail "passwordPolicy missing rule matching /$rx/ (got: '$PWPOL')"
+done
+ok "password policy: length(12) + notUsername + notEmail + specialChars(1)"
+
+# --- SMTP server (S-134; load-bearing for verify-email) ---
+[[ $(jq -e '.smtpServer | length > 0' "$EXPORT") == "true" ]] || fail "smtpServer block must be non-empty (S-134 verify-email)"
+for key in host port from user password auth starttls; do
+  VAL=$(jq -r --arg k "$key" '.smtpServer[$k] // ""' "$EXPORT")
+  [[ "$VAL" == '${env:'*'}' ]] || fail "smtpServer.$key must be a \${env:...} substitution (got: '$VAL') — no real SMTP secrets in source"
+done
+ok "smtpServer: env-substituted host/port/from/user/password/auth/starttls"
+
+# --- Google identity provider (S-134; federation entry + secret-leak guard) ---
+GOOGLE=$(jq '.identityProviders[]? | select(.alias=="google")' "$EXPORT")
+[[ -n "$GOOGLE" ]] || fail "Google identity provider missing (alias=google)"
+[[ $(jq -r '.providerId' <<<"$GOOGLE") == "google" ]] || fail "Google IdP providerId must be 'google'"
+[[ $(jq -r '.enabled' <<<"$GOOGLE") == "true" ]] || fail "Google IdP must be enabled"
+[[ $(jq -r '.trustEmail' <<<"$GOOGLE") == "false" ]] || fail "Google IdP trustEmail must be false (S-134 hijack-vector guard: verify-mail challenge stays in the flow)"
+[[ $(jq -r '.firstBrokerLoginFlowAlias' <<<"$GOOGLE") == "first broker login" ]] || fail "Google IdP must reference the stock 'first broker login' flow (no accidental custom-flow swap)"
+
+# Secrets are env-substitution placeholders, never literal hex/random strings.
+# The substring '${env:' anchors the assertion against a sloppy export-realm.sh
+# round-trip that pulled a real prod secret into the committed file.
+G_CLIENT_ID=$(jq -r '.config.clientId // ""' <<<"$GOOGLE")
+G_CLIENT_SECRET=$(jq -r '.config.clientSecret // ""' <<<"$GOOGLE")
+[[ "$G_CLIENT_ID" == '${env:'*'}' ]] || fail "Google IdP config.clientId must be a \${env:...} substitution (got: '$G_CLIENT_ID')"
+[[ "$G_CLIENT_SECRET" == '${env:'*'}' ]] || fail "Google IdP config.clientSecret must be a \${env:...} substitution (got: '$G_CLIENT_SECRET' — looks like a real secret leaked into the export)"
+
+# No per-IdP token overrides. ADR 0007 token policy (set at realm-level above) MUST
+# apply uniformly to federated sessions; an entry in the IdP config that overrides
+# accessTokenLifespan / refreshTokenMaxReuse / etc. is a drift surface.
+IDP_TOKEN_OVERRIDES=$(jq -r '
+  .config
+  | to_entries
+  | map(select(.key | test("Lifespan|Token|refresh|access"; "i")))
+  | length
+' <<<"$GOOGLE")
+[[ "$IDP_TOKEN_OVERRIDES" == "0" ]] || fail "Google IdP config carries per-IdP token override(s) — token policy must stay realm-level (ADR 0007)"
+ok "Google IdP: providerId=google, trustEmail=false, stock first-broker-login, env-substituted secrets, no per-IdP token overrides"
 
 echo "PASS"

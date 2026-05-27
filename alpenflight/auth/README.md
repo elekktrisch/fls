@@ -51,13 +51,15 @@ docker compose -p alpenflight-dev up -d keycloak
 
 `SYSTEM_ADMINISTRATOR`, `CLUB_ADMINISTRATOR`, `FLIGHT_OPERATOR`, `PILOT`, `OFFICE_USER`, `GUEST` — mirror the legacy role catalog, consumed by S-026's `@PreAuthorize` mapping. Plus `proffix-sync` for the machine client.
 
-### Seed users (dev only — passwords match usernames)
+### Seed users (dev only — password is `<username>-dev-2026!`)
 
-| Username | Roles | `clubId` |
-|---|---|---|
-| `sysadmin` | `SYSTEM_ADMINISTRATOR` | *(unset — cross-tenant)* |
-| `clubadmin1` | `CLUB_ADMINISTRATOR`, `OFFICE_USER` | `club-1` |
-| `pilot1` | `PILOT` | `club-1` |
+| Username | Password | Roles | `clubId` |
+|---|---|---|---|
+| `sysadmin` | `sysadmin-dev-2026!` | `SYSTEM_ADMINISTRATOR` | *(unset — cross-tenant)* |
+| `clubadmin1` | `clubadmin1-dev-2026!` | `CLUB_ADMINISTRATOR`, `OFFICE_USER` | `club-1` |
+| `pilot1` | `pilot1-dev-2026!` | `PILOT` | `club-1` |
+
+S-134 ships a realm `passwordPolicy="length(12) and notUsername and notEmail and specialChars(1)"`; the bare-username form (`sysadmin` / `clubadmin1` / `pilot1`) no longer satisfies it. `--import-realm` validates the seed-user credentials against the policy.
 
 All three: `emailVerified=true`, `locale="de"`, `@example.com` emails (RFC 2606 reserved test domain).
 
@@ -118,6 +120,65 @@ The committed export is bit-stable across round-trips (deep-sorted, no timestamp
 | S-028 bulk-provision users | `clientId=alpenflight-backend-admin` (S-052 wired it in) + `requiredActions: ["UPDATE_PASSWORD"]` flag (C14) |
 | S-029 Proffix machine client | `clientId=alpenflight-proffix` + client-credentials grant + secret-rotation procedure |
 | S-052 Users CRUD | `clientId=alpenflight-backend-admin` + `KeycloakAdminClient` typed façade in `users.infra.keycloak/` + admin-token caching with refresh-30s-before-expiry |
+| S-134 self-service signup | `registrationAllowed=true`, `passwordPolicy`, `smtpServer`, `identityProviders[google]` (`trustEmail=false`, env-substituted `clientId`/`clientSecret`) |
+
+## Self-service signup + Google IdP (S-134)
+
+Self-service registration is on (`registrationAllowed=true`); the realm runs Keycloak's
+stock `registration` + `first broker login` flows. Two surfaces light up:
+
+- **Local signup** — the Keycloak login page shows a "Sign up" link; the SPA's
+  `/signup` route deep-links into it via OIDC `prompt=create`.
+- **Google federation** — `identityProviders[google]` is wired with
+  `trustEmail=false` (the verify-mail challenge stays in the flow, closing the
+  auto-link-to-unverified-local hijack vector). The SPA's `/signup` route deep-links
+  via `kc_idp_hint=google`.
+
+Both flavors hit `verifyEmail=true`, so first signup requires an inbox click;
+subsequent logins do not re-verify (Keycloak flips `emailVerified=true` after
+the first verification).
+
+### Env vars
+
+| Variable | Dev value | Prod value | Notes |
+|---|---|---|---|
+| `KEYCLOAK_GOOGLE_CLIENT_ID` | unset (button shows but errors on click) | from Google Cloud Console | OAuth 2.0 client ID, type "Web application". |
+| `KEYCLOAK_GOOGLE_CLIENT_SECRET` | unset | from Google Cloud Console | Rotate at deploy. |
+| `KEYCLOAK_SMTP_HOST` | `mailpit` (compose service) | real SMTP host | Required for verify-mail delivery. |
+| `KEYCLOAK_SMTP_PORT` | `1025` | provider port | |
+| `KEYCLOAK_SMTP_FROM` | `noreply@alpenflight.local` | `noreply@alpenflight.ch` | |
+| `KEYCLOAK_SMTP_USER` | `""` | provider user | |
+| `KEYCLOAK_SMTP_PASSWORD` | `""` | provider password | Never commit. |
+| `KEYCLOAK_SMTP_AUTH` | `false` | `true` | |
+| `KEYCLOAK_SMTP_STARTTLS` | `false` | `true` | |
+
+Mailpit's web UI is at `http://localhost:8025` (compose). Outbound mail from
+Keycloak lands there during local signup smokes — click the verify link to
+complete the flow.
+
+### Google Cloud Console — one-time setup (prod / per-developer)
+
+1. Google Cloud Console → APIs & Services → Credentials → "Create credentials" → OAuth client ID.
+2. Application type: **Web application**.
+3. Authorized redirect URI: `${KEYCLOAK_PUBLIC_URL}/realms/alpenflight/broker/google/endpoint`
+   — for local dev that's `http://localhost:8090/realms/alpenflight/broker/google/endpoint`.
+4. Copy the generated client ID + secret into the env vars above.
+
+Per `check-realm-shape.sh`: the committed `realm-export.json` MUST keep the
+config values as `${env:KEYCLOAK_GOOGLE_CLIENT_*}` placeholders. A real secret
+slipping into the file via a sloppy `export-realm.sh` round-trip fails CI loudly.
+
+### Orphan KC users
+
+Self-signup creates a Keycloak user (email + first/last name) BEFORE any tenant
+exists in AlpenFlight. Cleanup of unverified-and-abandoned accounts is **deferred**:
+
+- Per-IP rate-limit on `/login-actions/registration` → owned by **S-041** (reverse proxy).
+- Nightly purge of `email_verified=false` users older than 14 d → owned by **S-038** (scheduled jobs) or new follow-up.
+
+Right-to-deletion before first ingest: manual KC admin delete via
+`http://localhost:8090/admin/master/console/#/alpenflight/users` (or the Admin REST
+client S-052 already wired in). No app DB rows exist yet.
 
 ## Mock-auth status (post-S-026)
 

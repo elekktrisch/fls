@@ -196,6 +196,24 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_LOG_LEVEL: INFO
+      # S-134 — realm-export.json `${env:...}` substitutions. Dev defaults
+      # keep Keycloak booting even when the operator hasn't configured a
+      # real Google OAuth client; clicking the Google CTA in that case
+      # surfaces Keycloak's "invalid_client" page. Operator's runbook in
+      # alpenflight/auth/README.md covers Google Cloud Console setup.
+      KEYCLOAK_GOOGLE_CLIENT_ID: "${KEYCLOAK_GOOGLE_CLIENT_ID:-set-via-env-for-google-signup}"
+      KEYCLOAK_GOOGLE_CLIENT_SECRET: "${KEYCLOAK_GOOGLE_CLIENT_SECRET:-set-via-env-for-google-signup}"
+      # SMTP for verifyEmail. Compose service `mailpit` listens on 1025 in
+      # the compose network; bring it up alongside keycloak for the local
+      # signup smoke (`docker compose -p alpenflight-dev up -d postgres pgadmin keycloak mailpit`).
+      # Production swaps via env at deploy.
+      KEYCLOAK_SMTP_HOST: "${KEYCLOAK_SMTP_HOST:-mailpit}"
+      KEYCLOAK_SMTP_PORT: "${KEYCLOAK_SMTP_PORT:-1025}"
+      KEYCLOAK_SMTP_FROM: "${KEYCLOAK_SMTP_FROM:-noreply@alpenflight.local}"
+      KEYCLOAK_SMTP_USER: "${KEYCLOAK_SMTP_USER:-}"
+      KEYCLOAK_SMTP_PASSWORD: "${KEYCLOAK_SMTP_PASSWORD:-}"
+      KEYCLOAK_SMTP_AUTH: "${KEYCLOAK_SMTP_AUTH:-false}"
+      KEYCLOAK_SMTP_STARTTLS: "${KEYCLOAK_SMTP_STARTTLS:-false}"
     ports:
       - "127.0.0.1:8090:8080"
       - "127.0.0.1:9090:9000"   # management interface (/health/ready)

@@ -2184,7 +2184,28 @@
   "groups": [],
   "id": "e2848ddc-c3ec-4f96-800e-bb58506f780f",
   "identityProviderMappers": [],
-  "identityProviders": [],
+  "identityProviders": [
+    {
+      "addReadTokenRoleOnCreate": false,
+      "alias": "google",
+      "authenticateByDefault": false,
+      "config": {
+        "clientId": "${env:KEYCLOAK_GOOGLE_CLIENT_ID}",
+        "clientSecret": "${env:KEYCLOAK_GOOGLE_CLIENT_SECRET}",
+        "defaultScope": "openid profile email",
+        "syncMode": "FORCE"
+      },
+      "displayName": "Google",
+      "enabled": true,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "hideOnLogin": false,
+      "linkOnly": false,
+      "providerId": "google",
+      "storeToken": false,
+      "trustEmail": false,
+      "updateProfileFirstLoginMode": "on"
+    }
+  ],
   "internationalizationEnabled": true,
   "keycloakVersion": "26.5.7",
   "localizationTexts": {},
@@ -2216,7 +2237,8 @@
   "quickLoginCheckMilliSeconds": 1000,
   "realm": "alpenflight",
   "refreshTokenMaxReuse": 0,
-  "registrationAllowed": false,
+  "passwordPolicy": "length(12) and notUsername(undefined) and notEmail(undefined) and specialChars(1)",
+  "registrationAllowed": true,
   "registrationEmailAsUsername": false,
   "registrationFlow": "registration",
   "rememberMe": true,
@@ -2787,7 +2809,17 @@
       ]
     }
   ],
-  "smtpServer": {},
+  "smtpServer": {
+    "auth": "${env:KEYCLOAK_SMTP_AUTH}",
+    "from": "${env:KEYCLOAK_SMTP_FROM}",
+    "fromDisplayName": "AlpenFlight",
+    "host": "${env:KEYCLOAK_SMTP_HOST}",
+    "password": "${env:KEYCLOAK_SMTP_PASSWORD}",
+    "port": "${env:KEYCLOAK_SMTP_PORT}",
+    "ssl": "false",
+    "starttls": "${env:KEYCLOAK_SMTP_STARTTLS}",
+    "user": "${env:KEYCLOAK_SMTP_USER}"
+  },
   "sslRequired": "external",
   "ssoSessionIdleTimeout": 2592000,
   "ssoSessionIdleTimeoutRememberMe": 0,
@@ -2817,7 +2849,7 @@
         {
           "temporary": false,
           "type": "password",
-          "value": "clubadmin1"
+          "value": "clubadmin1-dev-2026!"
         }
       ],
       "disableableCredentialTypes": [],
@@ -2963,7 +2995,7 @@
         {
           "temporary": false,
           "type": "password",
-          "value": "pilot1"
+          "value": "pilot1-dev-2026!"
         }
       ],
       "disableableCredentialTypes": [],
@@ -3105,7 +3137,7 @@
         {
           "temporary": false,
           "type": "password",
-          "value": "sysadmin"
+          "value": "sysadmin-dev-2026!"
         }
       ],
       "disableableCredentialTypes": [],

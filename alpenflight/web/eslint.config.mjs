@@ -159,6 +159,16 @@ export default tseslint.config(
     },
   },
   {
+    // signup-pending is the S-134 sessionStorage stamp that gates one-shot
+    // funnel-event emission across the Keycloak round-trip. Auth-adjacent in
+    // the same sense as core/auth/post-login-redirect.ts — same risk profile.
+    files: ['src/app/features/signup/signup-pending.ts', 'src/app/features/signup/signup-pending.spec.ts'],
+    rules: {
+      'no-restricted-globals': 'off',
+      'no-restricted-syntax': 'off',
+    },
+  },
+  {
     files: ['src/app/features/**/*.store.ts'],
     rules: {
       'no-restricted-imports': [
