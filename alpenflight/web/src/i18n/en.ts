@@ -114,12 +114,15 @@ const en: Translations = {
     actions: {
       continueWithGoogle: 'Continue with Google',
       signIn: 'Sign in',
-      signUp: 'Create account',
+      signUp: 'Sign up',
     },
     alreadyHaveAccount: 'Already have an account?',
+    errors: {
+      unreachable: 'Sign-up is unavailable right now. Please try again later.',
+    },
     headline: 'Create your AlpenFlight account',
     postLanding: {
-      body: "We're setting up your account. The migration wizard will open in a moment.",
+      body: 'Your account is ready. The import workflow lands in a future release.',
       headline: 'Account created',
     },
     tagline:

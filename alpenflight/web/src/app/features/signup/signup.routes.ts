@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import { authGuard } from '../../core/session/session.guard';
+
 export const SIGNUP_ROUTES: Routes = [
   {
     path: '',
@@ -8,15 +10,13 @@ export const SIGNUP_ROUTES: Routes = [
   },
 ];
 
+// /migrate/* is a temporary home inside features/signup/ until S-141 lands
+// the JAR-download / upload wizard in its own features/migrate/ folder.
 export const MIGRATE_ROUTES: Routes = [
-  // /migrate/start placeholder — S-141 replaces with the real JAR-download flow.
-  // authGuard is the route-level default for non-public routes (see app.routes.ts +
-  // alpenflight/web/CLAUDE.md §2); not adding `publicAccess: true` keeps the
-  // unverified-user gate in front of this landing.
   {
     path: 'start',
-    loadComponent: () =>
-      import('./post-signup-landing.component').then((m) => m.MigrateStartComponent),
+    loadComponent: () => import('./migrate-start.component').then((m) => m.MigrateStartComponent),
+    canActivate: [authGuard],
     data: { showNavBar: false },
   },
 ];

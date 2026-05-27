@@ -6,11 +6,9 @@ import { SessionStore } from '../../core/session/session.store';
 import { emitFunnelEvent } from './funnel-telemetry';
 import { consumeSignupPending } from './signup-pending';
 
-// `/migrate/start` placeholder (S-141 replaces with the JAR-download workflow).
-// Two concerns owned here:
-//   - fire `signup.completed` once per signup round-trip (per S-134 design;
-//     S-147 will swap the emitter for the structured pipeline).
-//   - render a holding page until S-141 lands the real flow.
+// `/migrate/start` placeholder; the JAR-download / upload wizard replaces this
+// later. Two concerns owned here: fire `signup.completed` once per signup
+// round-trip, and render a holding page meanwhile.
 
 @Component({
   selector: 'af-migrate-start',

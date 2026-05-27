@@ -119,9 +119,12 @@ const fr: Translations = {
       signUp: 'Créer un compte',
     },
     alreadyHaveAccount: 'Déjà un compte ?',
+    errors: {
+      unreachable: 'Inscription indisponible pour le moment. Veuillez réessayer plus tard.',
+    },
     headline: 'Créer votre compte AlpenFlight',
     postLanding: {
-      body: 'Configuration de votre compte… L’assistant de migration s’ouvre dans un instant.',
+      body: 'Votre compte est prêt. Le flux d’import arrive dans une prochaine version.',
       headline: 'Compte créé',
     },
     tagline:

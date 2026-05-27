@@ -47,6 +47,22 @@ test.describe('signup — SPA-side wiring (mock-auth)', () => {
     await page.screenshot({ path: 'screenshots/public/01-signup.png', fullPage: true });
   });
 
+  // Vision §2 NFR (touch targets at <md, retained on the gloves rationale post
+  // amendment 2026-05-20d). Same shape as landing.spec.ts AC-DIR-2.
+  test('every signup CTA hits >= 44 x 44 CSS px at <md', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 640 });
+    await page.goto('/signup');
+
+    for (const testId of ['signup-local', 'signup-google', 'signup-sign-in-link']) {
+      const btn = page.getByTestId(testId);
+      await expect(btn).toBeVisible();
+      const box = await btn.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+    }
+  });
+
   test('clicking "Sign up" calls authorize with prompt=create + ui_locales', async ({ page }) => {
     await page.goto('/signup?lang=de');
     await page.getByTestId('signup-local').click();

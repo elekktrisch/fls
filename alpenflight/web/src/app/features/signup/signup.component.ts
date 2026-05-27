@@ -9,18 +9,11 @@ import { AfIconComponent } from '@ui/atoms/af-icon';
 
 import { rememberPostLoginRedirect } from '../../core/auth/post-login-redirect';
 
+import { SIGNUP_FEATURE_FLAGS } from './signup.config';
 import { postSignupLandingPath, resolveSignupIntent } from './signup-intent';
 import { markSignupPending } from './signup-pending';
 
-// Default `true`: the Keycloak realm export ships a Google IdP entry, so the
-// realm renders a Google button on its own login form anyway. Flip locally
-// when running against a dev Keycloak whose `${env:KEYCLOAK_GOOGLE_CLIENT_*}`
-// vars are unset — clicking the realm-side Google button surfaces a 500 from
-// Keycloak; hiding the SPA-side CTA keeps the demo path looking unbroken.
-//
-// S-041 prod cutover will hoist this into the env-driven config alongside
-// the OIDC `authority` value.
-const GOOGLE_SIGNUP_ENABLED = true;
+type Pending = 'local' | 'google' | null;
 
 @Component({
   selector: 'af-signup',
@@ -50,7 +43,8 @@ const GOOGLE_SIGNUP_ENABLED = true;
               type="primary"
               htmlType="button"
               data-testid="signup-local"
-              [disabled]="busy()"
+              [disabled]="pending() !== null"
+              [loading]="pending() === 'local'"
               (clicked)="signupLocal()"
             >
               <div class="flex flex-1 justify-center items-center gap-2">
@@ -64,7 +58,8 @@ const GOOGLE_SIGNUP_ENABLED = true;
                 type="default"
                 htmlType="button"
                 data-testid="signup-google"
-                [disabled]="busy()"
+                [disabled]="pending() !== null"
+                [loading]="pending() === 'google'"
                 (clicked)="signupGoogle()"
               >
                 {{ t('actions.continueWithGoogle') }}
@@ -72,16 +67,31 @@ const GOOGLE_SIGNUP_ENABLED = true;
             }
           </div>
 
-          <p class="mt-8 text-xs text-slate-500" data-testid="signup-already-have-account">
-            {{ t('alreadyHaveAccount') }}
-            <a
-              class="text-brand-600 underline"
-              href="#"
-              data-testid="signup-sign-in-link"
-              (click)="$event.preventDefault(); signIn()"
-              >{{ t('actions.signIn') }}</a
+          @if (error()) {
+            <p
+              class="mt-4 text-sm text-red-600"
+              role="alert"
+              data-testid="signup-error"
             >
-          </p>
+              {{ t('errors.unreachable') }}
+            </p>
+          }
+
+          <div
+            class="mt-8 flex flex-wrap items-baseline gap-x-2 text-sm text-slate-500"
+            data-testid="signup-already-have-account"
+          >
+            <span>{{ t('alreadyHaveAccount') }}</span>
+            <af-button
+              type="link"
+              htmlType="button"
+              data-testid="signup-sign-in-link"
+              [disabled]="pending() !== null"
+              (clicked)="signIn()"
+            >
+              {{ t('actions.signIn') }}
+            </af-button>
+          </div>
         </section>
       </main>
     </ng-container>
@@ -92,8 +102,9 @@ export class SignupComponent {
   readonly #locale = inject(LocaleService);
   readonly #route = inject(ActivatedRoute);
 
-  protected readonly busy = signal(false);
-  protected readonly googleEnabled = GOOGLE_SIGNUP_ENABLED;
+  protected readonly pending = signal<Pending>(null);
+  protected readonly error = signal(false);
+  protected readonly googleEnabled = SIGNUP_FEATURE_FLAGS.googleSignupEnabled;
 
   protected signupLocal(): void {
     this.#prepareAndAuthorize('local', {
@@ -110,18 +121,28 @@ export class SignupComponent {
   }
 
   protected signIn(): void {
-    // Existing-user fallback — round-trips through Keycloak's login screen,
-    // no signup-pending stamp (this isn't a signup attempt).
-    this.#oidc.authorize(undefined, {
-      customParams: { ui_locales: this.#locale.current() },
-    });
+    // Existing-user fallback — Keycloak login screen, no signup-pending stamp.
+    this.#authorizeSafely({ customParams: { ui_locales: this.#locale.current() } });
   }
 
   #prepareAndAuthorize(idp: 'local' | 'google', customParams: Record<string, string>): void {
-    this.busy.set(true);
+    this.pending.set(idp);
+    this.error.set(false);
     const intent = resolveSignupIntent(this.#route.snapshot.queryParamMap.get('intent'));
     rememberPostLoginRedirect(postSignupLandingPath(intent));
     markSignupPending(idp);
-    this.#oidc.authorize(undefined, { customParams });
+    this.#authorizeSafely({ customParams });
+  }
+
+  // Reset the pending lock on synchronous failure so the user can retry.
+  // OIDC library's async failures route through PublicEventsService — handled
+  // upstream by OidcSessionBridge, not here.
+  #authorizeSafely(args: { customParams: Record<string, string> }): void {
+    try {
+      this.#oidc.authorize(undefined, args);
+    } catch {
+      this.pending.set(null);
+      this.error.set(true);
+    }
   }
 }

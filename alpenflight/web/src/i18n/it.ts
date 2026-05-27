@@ -118,9 +118,12 @@ const it: Translations = {
       signUp: 'Crea account',
     },
     alreadyHaveAccount: 'Hai già un account?',
+    errors: {
+      unreachable: 'Iscrizione non disponibile al momento. Riprova più tardi.',
+    },
     headline: 'Crea il tuo account AlpenFlight',
     postLanding: {
-      body: 'Stiamo preparando il tuo account. La procedura di migrazione si apre fra poco.',
+      body: 'Il tuo account è pronto. La procedura di import arriverà in una prossima versione.',
       headline: 'Account creato',
     },
     tagline: 'Riceverai una email di verifica. Il club nasce al primo import riuscito.',

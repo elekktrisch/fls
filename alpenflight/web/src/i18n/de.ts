@@ -123,9 +123,12 @@ const de = {
       signUp: 'Registrieren',
     },
     alreadyHaveAccount: 'Bereits ein Konto?',
+    errors: {
+      unreachable: 'Anmeldung nicht erreichbar. Bitte später erneut versuchen.',
+    },
     headline: 'AlpenFlight-Konto erstellen',
     postLanding: {
-      body: 'Wir richten dein Konto ein. Der Migrationsassistent öffnet sich gleich.',
+      body: 'Dein Konto ist bereit. Der Import-Workflow folgt in einer späteren Version.',
       headline: 'Konto erstellt',
     },
     tagline:

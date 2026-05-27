@@ -18,8 +18,10 @@ export interface FunnelEvent {
 }
 
 export function emitFunnelEvent(event: FunnelEvent): void {
-  // S-147 swaps console.info for the structured-logging pipeline. The
-  // current sink is dev-loop visibility + a single grep target for the
-  // Playwright PII assertion.
+  // S-147 swaps console.info for the structured-logging pipeline. Until then,
+  // dev-loop visibility + a grep target for the Playwright PII assertion in
+  // alpenflight/web/e2e/tests/public/signup.spec.ts (which gates on the
+  // "[funnel]" prefix + `console.info` message type — swapping either breaks
+  // that test, intentionally).
   console.info('[funnel]', JSON.stringify(event));
 }

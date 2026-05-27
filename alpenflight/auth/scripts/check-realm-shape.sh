@@ -148,9 +148,13 @@ ok "clubId user-profile: admin-edit-only (tenant-escalation gate)"
 ok "realm hygiene: registration on + verifyEmail on, bruteforce on, events + admin events on"
 
 # --- password policy (S-134; bot-signup floor) ---
+# Anchored matches per rule — substring match would silently pass if a future
+# round-trip mutated `notUsername` into `notUsernameLowercase` or similar.
+# Keycloak emits parameterized rules as `name(arg)`; non-parameterized as
+# `name` (token-boundary).
 PWPOL=$(jq -r '.passwordPolicy // ""' "$EXPORT")
-for rule in 'length(12)' 'notUsername' 'notEmail' 'specialChars(1)'; do
-  [[ "$PWPOL" == *"$rule"* ]] || fail "passwordPolicy missing '$rule' (got: '$PWPOL')"
+for rx in 'length\(12\)' 'notUsername(\(|[^a-zA-Z])' 'notEmail(\(|[^a-zA-Z])' 'specialChars\(1\)'; do
+  [[ "$PWPOL" =~ $rx ]] || fail "passwordPolicy missing rule matching /$rx/ (got: '$PWPOL')"
 done
 ok "password policy: length(12) + notUsername + notEmail + specialChars(1)"
 
