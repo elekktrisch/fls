@@ -21,9 +21,11 @@ import ch.alpenflight.users.domain.UserNotFoundException;
 import ch.alpenflight.users.domain.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -324,10 +326,49 @@ public class UsersService {
                     User saved = users.save(u);
                     users.flush();
                     UUID rowId = requireId(saved);
+                    // Audit snapshot reads roles from the JWT's
+                    // realm_access.roles claim — KC is the issuer, so the
+                    // JWT carries the same set of roles `kc.getRealmRoleMappings`
+                    // would return. Avoids one KC round-trip on the
+                    // first-login hot path.
+                    UserResponse snapshot = toJitResponse(saved, rolesFromJwt(jwt));
                     auditTrail.record(AuditAction.CREATE,
-                            AuditedTarget.created(AUDIT_USER, rowId, toResponse(saved)));
+                            AuditedTarget.created(AUDIT_USER, rowId, snapshot));
                     return rowId;
                 });
+    }
+
+    private UserResponse toJitResponse(User u, List<Role> roles) {
+        return new UserResponse(
+                UserId.of(requireId(u)),
+                u.getClubId(),
+                u.getUsername(),
+                u.getFriendlyName(),
+                u.getNotificationEmail(),
+                u.getPhoneNumber(),
+                u.getRemarks(),
+                u.getLanguageId(),
+                u.getPersonId(),
+                roles,
+                /*enabled=*/ u.isActive(),
+                /*invitePending=*/ false);
+    }
+
+    private static List<Role> rolesFromJwt(Jwt jwt) {
+        Object claim = jwt.getClaim("realm_access");
+        if (!(claim instanceof Map<?, ?> realmAccess)) {
+            return List.of();
+        }
+        Object roles = realmAccess.get("roles");
+        if (!(roles instanceof Collection<?> raw)) {
+            return List.of();
+        }
+        return raw.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(Role::fromWire)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private void applyRoleDelta(UUID localUserId, UUID sub, Set<Role> existing, Set<Role> desired) {

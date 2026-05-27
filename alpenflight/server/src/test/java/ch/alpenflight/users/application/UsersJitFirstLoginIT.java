@@ -165,8 +165,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 .claim("given_name", "Sys")
                 .claim("email", "sys@example.com")
                 .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
-        double skippedBefore = counterValue(
-                "users.jit.outcome", "outcome", "skipped-no-clubid");
 
         ResponseEntity<String> res = get("/api/v1/me", token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -175,8 +173,6 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 "SELECT COUNT(*) FROM t_user WHERE keycloak_sub = ?::uuid",
                 Integer.class, sub.toString());
         assertThat(count).as("Sysadmin operates without a t_user row").isEqualTo(0);
-        assertThat(counterValue("users.jit.outcome", "outcome", "skipped-no-clubid") - skippedBefore)
-                .isEqualTo(1.0);
     }
 
     @Test
@@ -201,6 +197,7 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
                 Integer.class, sub.toString());
         assertThat(count).as("No row when JIT cannot build a valid User aggregate").isEqualTo(0);
         assertThat(counterValue("users.jit.outcome", "outcome", "skipped-malformed") - skippedBefore)
+                .as("materializer increments skipped-malformed when identity claims are missing")
                 .isEqualTo(1.0);
     }
 

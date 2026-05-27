@@ -14,14 +14,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Wires the cross-cutting {@link JitUserMaterializer} port to the Users
- * aggregate. Each path runs in its own {@code REQUIRES_NEW} transaction —
- * a failing JIT insert must not roll back the inbound request's own
- * transaction.
+ * aggregate. The materializer itself is non-transactional; each call into
+ * {@link UsersService#materializeFromJwt} flows through the {@code UsersService}
+ * proxy and opens its own {@code @Transactional} boundary. That tx is
+ * independent of the inbound request's transaction, so a materialise
+ * failure rolls back without poisoning the controller's tx — and the
+ * race-loser catch can re-read in a fresh tx after the winner's commit.
  *
  * <p>Soft-delete gate: any matching row with {@code deleted_on IS NOT
  * NULL} surfaces as {@link UserDeactivatedException}. The tombstone's
@@ -63,7 +64,6 @@ class JitUserMaterializerImpl implements JitUserMaterializer {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<UUID> materialize(Jwt jwt) {
         String rawSub = jwt.getSubject();
         if (rawSub == null || rawSub.isBlank()) {
