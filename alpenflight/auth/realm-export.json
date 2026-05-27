@@ -2849,7 +2849,7 @@
         {
           "temporary": false,
           "type": "password",
-          "value": "clubadmin1"
+          "value": "clubadmin1-dev-2026!"
         }
       ],
       "disableableCredentialTypes": [],
@@ -2995,7 +2995,7 @@
         {
           "temporary": false,
           "type": "password",
-          "value": "pilot1"
+          "value": "pilot1-dev-2026!"
         }
       ],
       "disableableCredentialTypes": [],
@@ -3137,7 +3137,7 @@
         {
           "temporary": false,
           "type": "password",
-          "value": "sysadmin"
+          "value": "sysadmin-dev-2026!"
         }
       ],
       "disableableCredentialTypes": [],

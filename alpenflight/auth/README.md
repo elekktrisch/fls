@@ -51,13 +51,15 @@ docker compose -p alpenflight-dev up -d keycloak
 
 `SYSTEM_ADMINISTRATOR`, `CLUB_ADMINISTRATOR`, `FLIGHT_OPERATOR`, `PILOT`, `OFFICE_USER`, `GUEST` — mirror the legacy role catalog, consumed by S-026's `@PreAuthorize` mapping. Plus `proffix-sync` for the machine client.
 
-### Seed users (dev only — passwords match usernames)
+### Seed users (dev only — password is `<username>-dev-2026!`)
 
-| Username | Roles | `clubId` |
-|---|---|---|
-| `sysadmin` | `SYSTEM_ADMINISTRATOR` | *(unset — cross-tenant)* |
-| `clubadmin1` | `CLUB_ADMINISTRATOR`, `OFFICE_USER` | `club-1` |
-| `pilot1` | `PILOT` | `club-1` |
+| Username | Password | Roles | `clubId` |
+|---|---|---|---|
+| `sysadmin` | `sysadmin-dev-2026!` | `SYSTEM_ADMINISTRATOR` | *(unset — cross-tenant)* |
+| `clubadmin1` | `clubadmin1-dev-2026!` | `CLUB_ADMINISTRATOR`, `OFFICE_USER` | `club-1` |
+| `pilot1` | `pilot1-dev-2026!` | `PILOT` | `club-1` |
+
+S-134 ships a realm `passwordPolicy="length(12) and notUsername and notEmail and specialChars(1)"`; the bare-username form (`sysadmin` / `clubadmin1` / `pilot1`) no longer satisfies it. `--import-realm` validates the seed-user credentials against the policy.
 
 All three: `emailVerified=true`, `locale="de"`, `@example.com` emails (RFC 2606 reserved test domain).
 

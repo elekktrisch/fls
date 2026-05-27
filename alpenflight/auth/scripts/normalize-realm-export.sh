@@ -28,14 +28,15 @@ partial = json.load(open(sys.argv[1]))
 users = json.load(open(sys.argv[2]))
 user_roles = json.load(open(sys.argv[3]))
 
-# Dev-only passwords baked alongside the realm. Same as the username for the
-# seed users; README marks dev-only and instructs rotation at deploy. CI grep
-# rejects any password not in this allow-set or any user outside this set
-# carrying a hardcoded credential.
+# Dev-only passwords baked alongside the realm. `<username>-dev-2026!` form
+# satisfies the realm `passwordPolicy` shipped in S-134 (length(12) +
+# specialChars(1) + notUsername); README marks dev-only and instructs rotation
+# at deploy. CI grep rejects any password not in this allow-set or any user
+# outside this set carrying a hardcoded credential.
 DEV_PASSWORDS = {
-    'sysadmin': 'sysadmin',
-    'clubadmin1': 'clubadmin1',
-    'pilot1': 'pilot1',
+    'sysadmin': 'sysadmin-dev-2026!',
+    'clubadmin1': 'clubadmin1-dev-2026!',
+    'pilot1': 'pilot1-dev-2026!',
 }
 
 # Drop fields that change on every boot/export.
