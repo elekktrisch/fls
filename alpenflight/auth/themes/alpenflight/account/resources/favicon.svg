@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- S-171 AlpenFlight favicon — plane glyph only (no wordmark; too small to read).
+     v3 account/index.ftl references this via ${properties.favIcon!'/favicon.svg'}.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 48 48"
+     role="img" aria-label="AlpenFlight"
+     fill="currentColor"
+     style="color: #1E5BB8">
+  <rect width="48" height="48" fill="#FFFFFF" />
+  <path d="M8 24 L28 14 L28 18 L14 24 L28 30 L28 34 Z M28 22 L36 19 L36 29 L28 26 Z" />
+</svg>

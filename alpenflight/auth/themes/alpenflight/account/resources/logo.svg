@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- S-171 AlpenFlight wordmark for the v3 account console header.
+     source: alpenflight/branding/wordmark.svg (not yet extracted; tracked separately)
+     v3 references this via template-level `${resourceUrl}/logo.svg`.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 220 48"
+     role="img" aria-label="AlpenFlight"
+     fill="currentColor"
+     style="color: #1E5BB8">
+  <path d="M14 24 L34 14 L34 18 L20 24 L34 30 L34 34 Z M34 22 L42 19 L42 29 L34 26 Z" />
+  <text x="52" y="32"
+        font-family="Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-weight="500"
+        font-size="22"
+        letter-spacing="0.5">AlpenFlight</text>
+</svg>
