@@ -163,22 +163,24 @@ class MeControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void me_returnsNullsForUnknownSub_butEchoesJwtClaims() {
+    void me_returnsNullsForSysadminSub_butEchoesJwtClaims() {
+        // Sysadmin (S-022) and federated baseline (S-134) tokens carry no
+        // `clubId` claim — the S-169 JIT filter skips them, and MeService
+        // falls back to JWT echoes for missing fields.
         UUID unknownSub = UUID.randomUUID();
         String token = jwts.mint(c -> c
                 .subject(unknownSub.toString())
-                .claim("clubId", CLUB_UUID.toString())
                 .claim("preferred_username", "federated-newcomer")
                 .claim("given_name", "Federated")
                 .claim("family_name", "Newcomer")
                 .claim("email", "federated@example.com")
-                .claim("realm_access", Map.of("roles", List.of("PILOT"))));
+                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
 
         ResponseEntity<String> res = get("/api/v1/me", token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
         assertThat(body.get("id").isNull())
-                .as("Unknown JWT sub → id null (no user row to bind to)")
+                .as("Sysadmin/federated sub → id null (no user row to bind to)")
                 .isTrue();
         assertThat(body.get("personId").isNull()).isTrue();
         assertThat(body.get("clubId").isNull()).isTrue();

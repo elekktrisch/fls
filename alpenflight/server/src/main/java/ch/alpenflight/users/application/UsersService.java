@@ -21,9 +21,11 @@ import ch.alpenflight.users.domain.UserNotFoundException;
 import ch.alpenflight.users.domain.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -46,11 +49,13 @@ import org.springframework.transaction.annotation.Transactional;
  *       (best-effort — failure logs at {@code USER_INVITE_KC_ORPHAN} at
  *       error level for operator reconciliation).</li>
  *   <li><strong>First-login JIT</strong> ({@link #materializeFromJwt}) —
- *       intended for the first-login filter (lands in a follow-up; the
- *       method is in place so the orchestrator pattern is reviewable
- *       today). Idempotent via {@code findActiveByKeycloakSub} +
- *       {@code save}; the DB partial unique on {@code keycloak_sub} is
- *       the structural net for the dual-request race.</li>
+ *       invoked from the {@code JitUserMaterializationFilter} via the
+ *       {@code JitUserMaterializer} port. Runs in its own
+ *       {@code REQUIRES_NEW} transaction so a materialise failure rolls
+ *       back independently of the inbound request's tx. Idempotent via
+ *       {@code findActiveByKeycloakSub} + {@code save}; the DB partial
+ *       unique on {@code keycloak_sub} is the structural net for the
+ *       dual-request race.</li>
  * </ol>
  *
  * <p>Role reads + writes go through {@link UserDirectoryPort}; the
@@ -140,6 +145,19 @@ public class UsersService {
                 req.languageId().toString(),
                 List.of("UPDATE_PASSWORD"),
                 /*enabled=*/ true));
+
+        // Re-entry path: if a soft-deleted tombstone is still holding
+        // this KC sub, detach it so the partial UNIQUE on keycloak_sub
+        // admits the new row. The tombstone keeps its audit history;
+        // linkage between old + new is via username + KC user id, not a
+        // FK chain.
+        users.findAnyByKeycloakSub(kcSub).ifPresent(existing -> {
+            if (!existing.isActive()) {
+                existing.detachKeycloakSub();
+                users.save(existing);
+                users.flush();
+            }
+        });
 
         User saved;
         try {
@@ -254,19 +272,24 @@ public class UsersService {
 
     /**
      * Materialise a local row from JWT claims when the lookup-by-sub misses.
-     * Intended to be wired into a first-login filter (S-169) — not currently
-     * invoked from production code, but lands here so the orchestrator
-     * pattern is reviewable in isolation.
+     * Invoked from {@code JitUserMaterializationFilter} via the
+     * {@code JitUserMaterializer} port.
+     *
+     * <p>{@code REQUIRES_NEW} so a materialise failure rolls back
+     * independently of the inbound request's transaction and the
+     * race-loser re-read runs in a fresh session after the winner's
+     * commit becomes visible.
      *
      * <p>Identity fields ({@code keycloakSub}, {@code clubId}) are taken
      * authoritatively from the JWT — never from a caller-supplied value —
-     * so a future caller can't mint a JIT row in a tenant the principal
-     * doesn't belong to. {@code languageId} comes from the caller because
-     * the JWT carries {@code locale} as an opaque BCP-47 string that the
+     * so a caller can't mint a JIT row in a tenant the principal doesn't
+     * belong to. {@code languageId} comes from the caller because the JWT
+     * carries {@code locale} as an opaque BCP-47 string that the
      * application has to map onto a row in the {@code language} table.
      *
      * @return the local {@code user.id} after materialise (or pre-existing match).
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UUID materializeFromJwt(Jwt jwt, UUID languageId) {
         if (jwt == null) {
             throw new IllegalArgumentException("jwt must not be null");
@@ -311,10 +334,49 @@ public class UsersService {
                     User saved = users.save(u);
                     users.flush();
                     UUID rowId = requireId(saved);
+                    // Audit snapshot reads roles from the JWT's
+                    // realm_access.roles claim — KC is the issuer, so the
+                    // JWT carries the same set of roles `kc.getRealmRoleMappings`
+                    // would return. Avoids one KC round-trip on the
+                    // first-login hot path.
+                    UserResponse snapshot = toJitResponse(saved, rolesFromJwt(jwt));
                     auditTrail.record(AuditAction.CREATE,
-                            AuditedTarget.created(AUDIT_USER, rowId, toResponse(saved)));
+                            AuditedTarget.created(AUDIT_USER, rowId, snapshot));
                     return rowId;
                 });
+    }
+
+    private UserResponse toJitResponse(User u, List<Role> roles) {
+        return new UserResponse(
+                UserId.of(requireId(u)),
+                u.getClubId(),
+                u.getUsername(),
+                u.getFriendlyName(),
+                u.getNotificationEmail(),
+                u.getPhoneNumber(),
+                u.getRemarks(),
+                u.getLanguageId(),
+                u.getPersonId(),
+                roles,
+                /*enabled=*/ u.isActive(),
+                /*invitePending=*/ false);
+    }
+
+    private static List<Role> rolesFromJwt(Jwt jwt) {
+        Object claim = jwt.getClaim("realm_access");
+        if (!(claim instanceof Map<?, ?> realmAccess)) {
+            return List.of();
+        }
+        Object roles = realmAccess.get("roles");
+        if (!(roles instanceof Collection<?> raw)) {
+            return List.of();
+        }
+        return raw.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(Role::fromWire)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private void applyRoleDelta(UUID localUserId, UUID sub, Set<Role> existing, Set<Role> desired) {

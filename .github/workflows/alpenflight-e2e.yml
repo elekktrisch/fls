@@ -22,11 +22,12 @@ name: alpenflight e2e
 
 on:
   push:
-    branches: [main]
+    branches: [main, "integration/**"]
     paths:
       - 'alpenflight/web/**'
       - '.github/workflows/alpenflight-e2e.yml'
   pull_request:
+    branches: [main, "integration/**"]
     paths:
       - 'alpenflight/web/**'
       - '.github/workflows/alpenflight-e2e.yml'

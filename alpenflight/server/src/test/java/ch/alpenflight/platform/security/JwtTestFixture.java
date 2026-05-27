@@ -70,6 +70,28 @@ public class JwtTestFixture {
         return sign(builder.build());
     }
 
+    /**
+     * Mint a token pre-shaped for the JIT first-login filter (S-169): sub
+     * is a bare UUID string, {@code clubId} claim set, identity claims
+     * ({@code preferred_username} / {@code given_name} / {@code email})
+     * defaulted. Roles default to {@code PILOT}. Tests override any of
+     * these via {@code extra}.
+     */
+    public String mintJitReady(UUID sub, UUID clubId, Consumer<JWTClaimsSet.Builder> extra) {
+        JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
+                .issuer(TEST_ISSUER)
+                .subject(sub.toString())
+                .issueTime(Date.from(Instant.now().minusSeconds(5)))
+                .expirationTime(Date.from(Instant.now().plusSeconds(60)))
+                .claim("clubId", clubId.toString())
+                .claim("preferred_username", "jit-default-" + sub)
+                .claim("given_name", "Jit")
+                .claim("email", "jit-default-" + sub + "@example.com")
+                .claim("realm_access", Map.of("roles", List.of("PILOT")));
+        extra.accept(builder);
+        return sign(builder.build());
+    }
+
     public String mintWithoutSignature(Consumer<JWTClaimsSet.Builder> customiser) {
         JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder()
                 .issuer(TEST_ISSUER)
