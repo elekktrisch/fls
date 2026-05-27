@@ -241,8 +241,9 @@ docker compose -p alpenflight-dev up -d keycloak
 
 ```bash
 bash alpenflight/auth/scripts/check-theme-load.sh
-# Asserts: rendered HTML references /login/alpenflight/ + /account/alpenflight/,
-# stock DE/FR/IT labels render via parent fallback.
+# Asserts: login HTML references /login/alpenflight/; account console
+# returns HTTP 200; <html lang="xx"> matches for DE/FR/IT (parent-
+# bundle fallback).
 ```
 
 ### S-151 (production cutover) flag

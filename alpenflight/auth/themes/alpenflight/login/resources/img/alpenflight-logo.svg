@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- source: alpenflight/branding/wordmark.svg (extraction deferred).
-     Fill is hard-coded because keycloak.v2's login template paints the
-     wordmark via background-image, which does not inherit currentColor. -->
+<!-- Wordmark; copy under each theme type until a shared alpenflight/branding/
+     extraction lands. Fill is hard-coded because keycloak.v2's login template
+     paints via background-image, which does not inherit currentColor. -->
 <svg xmlns="http://www.w3.org/2000/svg"
      viewBox="0 0 220 48"
      role="img" aria-label="AlpenFlight"

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- source: alpenflight/branding/wordmark.svg (extraction deferred).
+<!-- Wordmark; copy until a shared alpenflight/branding/ extraction lands.
      Referenced by v3 account/index.ftl via ${resourceUrl}/logo.svg as <img>;
      <img>-loaded SVGs do not inherit currentColor, so fill is hard-coded. -->
 <svg xmlns="http://www.w3.org/2000/svg"
