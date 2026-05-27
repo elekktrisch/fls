@@ -25,8 +25,48 @@ jobs:
       - name: compose config parses (default profile)
         run: docker compose -f docker-compose.yml config -q
 
-      - name: compose config parses (--profile next)
-        run: docker compose -f docker-compose.yml --profile next config -q
+      - name: compose config parses (--profile next --profile infra)
+        run: docker compose -f docker-compose.yml --profile next --profile infra config -q
 
       - name: every new-stack service declares a healthcheck
         run: bash alpenflight/ops/lint-compose.sh
+
+  shared-network-smoke:
+    name: shared-network round-trip
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Inspect-first network create — same idiom dev-up-*.sh uses.
+      - name: create shared network (inspect-first)
+        run: |
+          docker network inspect alpenflight_shared >/dev/null 2>&1 \
+            || docker network create alpenflight_shared --driver bridge
+
+      - name: compose up --profile infra --wait (mailpit)
+        run: |
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra \
+            up -d --wait --wait-timeout 30
+
+      - name: probe mailpit on host port
+        run: curl -fsS --retry 3 --retry-delay 2 http://localhost:8025/api/v1/info >/dev/null
+
+      # Idempotency: re-up must be a no-op, not a port-collision failure.
+      - name: re-up is idempotent
+        run: |
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra \
+            up -d --wait --wait-timeout 30
+
+      # Tear-down asymmetry: down -v removes Mailpit + its volume but leaves
+      # the external network in place so other projects (alpenflight-dev,
+      # fls-e2e) don't lose their attachment mid-shutdown.
+      - name: down -v leaves shared network intact
+        run: |
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra \
+            down -v
+          docker network inspect alpenflight_shared >/dev/null
+
+      - name: tear down shared network
+        if: always()
+        run: docker network rm alpenflight_shared || true
