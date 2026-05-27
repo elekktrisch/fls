@@ -313,18 +313,39 @@ div.pf-v5-c-login__main-header {
   box-sizing: border-box;
 }
 
-/* The form-control is a CSS grid (input | utilities | toggle-icon). PF5
- * positions the chevron via `padding-block-start` calibrated against
- * PF5's default ~36px control height; our 44px control left the chevron
- * mispositioned. Center the WHOLE grid via `align-items: center` so the
- * input text + chevron + any utility icons all share the same vertical
- * baseline regardless of control height. */
-.pf-v5-c-form-control {
-  align-items: center;
+/* PF5's chevron lives in `grid-column: 3` of the form-control grid with
+ * a `padding-block-start` calibrated against PF5's default ~36px control
+ * height — at our 44px height it rode high, and `align-items: center`
+ * on the grid (previous attempt) collapsed the implicit columns and put
+ * the chevron in front of the text. Hide PF5's chevron span entirely
+ * and paint our own via a `::before` on the locale-selector form-control,
+ * absolute-positioned at the right edge so it never lands on the text. */
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control__toggle-icon {
+  display: none;
 }
-.pf-v5-c-form-control__toggle-icon {
-  padding-block-start: 0;
-  padding-block-end: 0;
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
+  position: relative;
+}
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 12px;
+  width: 8px;
+  margin-block: auto;
+  height: 6px;
+  background:
+    linear-gradient(45deg, transparent 45%, var(--af-slate-500) 45% 55%, transparent 55%) 0 0 / 50% 100%,
+    linear-gradient(-45deg, transparent 45%, var(--af-slate-500) 45% 55%, transparent 55%) 100% 0 / 50% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+/* The native <select> also paints its own browser-default arrow on the
+ * right — strip it via `appearance: none` so only our chevron shows. */
+.pf-v5-c-login__main-header-utilities select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: 28px;
 }
 
 /* Native <select> dropdown panel — the locale selector is rendered as
@@ -355,10 +376,13 @@ select.pf-v5-c-form-control option:checked,
   font-weight: 500;
 }
 
-/* "Back to AlpenFlight" link — rendered by footer.ftl below the login
- * form. Centered, brand-blue, sentence-case (ADR 0024 voice). */
+/* "Back to Start" link — rendered by footer.ftl below the login form.
+ * Centered, brand-blue, sentence-case (ADR 0024 voice). Tight top margin
+ * (the social-providers band already gives enough breathing room above);
+ * generous bottom so the link doesn't crowd the card's bottom edge. */
 .af-back-to-landing-band {
-  margin-block-start: var(--pf-v5-global--spacer--lg);
+  margin-block-start: var(--pf-v5-global--spacer--sm);
+  margin-block-end: var(--pf-v5-global--spacer--lg);
   text-align: center;
 }
 .af-back-to-landing {

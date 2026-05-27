@@ -1,9 +1,11 @@
 <#--
-  Overrides keycloak.v2's empty footer macro to inject a "Back to
-  AlpenFlight" link below the login form. The link reads the OIDC
-  client's `baseUrl` attribute (set on the `alpenflight-web` client) and
-  falls back to the dev default if unset — production deployments should
-  set baseUrl on the client so this resolves correctly per-environment.
+  Overrides keycloak.v2's empty footer macro to inject a "Back to Start"
+  link below the login form (the login page is part of AlpenFlight from
+  the user's perspective, so the label is route-relative, not brand-
+  scoped). The link reads the OIDC client's `baseUrl` attribute (set on
+  the `alpenflight-web` client) and falls back to the dev default if
+  unset — production deployments should set baseUrl on the client so
+  this resolves correctly per-environment.
 
   Rendered inside `.pf-v5-c-login__main-footer` (see template.ftl line
   258), below the social-providers + info bands.
