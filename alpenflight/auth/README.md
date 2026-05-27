@@ -140,8 +140,8 @@ the first verification).
 
 | Variable | Dev value | Prod value | Notes |
 |---|---|---|---|
-| `KEYCLOAK_GOOGLE_CLIENT_ID` | unset (button shows but errors on click) | from Google Cloud Console | OAuth 2.0 client ID, type "Web application". |
-| `KEYCLOAK_GOOGLE_CLIENT_SECRET` | unset | from Google Cloud Console | Rotate at deploy. |
+| `KEYCLOAK_GOOGLE_CLIENT_ID` | compose default `set-via-env-for-google-signup` (CTA serves `invalid_client` on click) | from Google Cloud Console | OAuth 2.0 client ID, type "Web application". |
+| `KEYCLOAK_GOOGLE_CLIENT_SECRET` | compose default `set-via-env-for-google-signup` | from Google Cloud Console | Rotate at deploy. |
 | `KEYCLOAK_SMTP_HOST` | `mailpit` (compose service) | real SMTP host | Required for verify-mail delivery. |
 | `KEYCLOAK_SMTP_PORT` | `1025` | provider port | |
 | `KEYCLOAK_SMTP_FROM` | `noreply@alpenflight.local` | `noreply@alpenflight.ch` | |
@@ -149,22 +149,81 @@ the first verification).
 | `KEYCLOAK_SMTP_PASSWORD` | `""` | provider password | Never commit. |
 | `KEYCLOAK_SMTP_AUTH` | `false` | `true` | |
 | `KEYCLOAK_SMTP_STARTTLS` | `false` | `true` | |
+| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4200/` | real SPA origin (trailing slash) | Feeds login footer + account-console "back to application" link. |
 
 Mailpit's web UI is at `http://localhost:8025` (compose). Outbound mail from
 Keycloak lands there during local signup smokes — click the verify link to
 complete the flow.
 
+### Operator env workflow
+
+Per-laptop Google OAuth client + SMTP overrides + SPA base URL live in
+`alpenflight/auth/.env` (gitignored). The committed `.env.example` is the
+template.
+
+```bash
+cp alpenflight/auth/.env.example alpenflight/auth/.env
+$EDITOR alpenflight/auth/.env             # fill the values you want to override
+docker compose -p alpenflight-dev up -d --force-recreate keycloak
+```
+
+`--force-recreate` re-evaluates `env_file` on the container without dropping
+the H2 volume — preserves any federated-login user accounts you've already
+created locally. `rebuild-keycloak.sh` is the heavier alternative (drops H2,
+wipes federated users).
+
+A fresh clone with NO `.env` file still boots: docker-compose's `:-default`
+fallbacks supply the placeholder `set-via-env-for-google-signup` sentinel
+for the Google secrets and `http://localhost:4200/` for the SPA base URL.
+Clicking "Continue with Google" against the sentinel renders Keycloak's
+stock `invalid_client` page — that's the "feature is off" signal, not a
+setup bug.
+
 ### Google Cloud Console — one-time setup (prod / per-developer)
+
+Each developer needs their own OAuth client — Google policy disallows
+sharing OAuth secrets across developers. Use a throwaway test Gmail
+account; the OAuth client counts against the account's free-tier quota
+but is otherwise disposable.
 
 1. Google Cloud Console → APIs & Services → Credentials → "Create credentials" → OAuth client ID.
 2. Application type: **Web application**.
-3. Authorized redirect URI: `${KEYCLOAK_PUBLIC_URL}/realms/alpenflight/broker/google/endpoint`
-   — for local dev that's `http://localhost:8090/realms/alpenflight/broker/google/endpoint`.
-4. Copy the generated client ID + secret into the env vars above.
+3. Authorized JavaScript origin: `http://localhost:8090` (verbatim — no trailing slash).
+4. Authorized redirect URI: `http://localhost:8090/realms/alpenflight/broker/google/endpoint` (verbatim).
+5. Copy the generated client ID + secret into `alpenflight/auth/.env` (NEVER paste real values into this README — the example below is a deliberately-fake format).
+6. If the OAuth consent screen is in "testing" mode, add your own Google account under OAuth consent screen → Test users so Google permits the redirect.
+
+Placeholder example (DO NOT use as real credentials — purely shape illustration):
+
+```
+KEYCLOAK_GOOGLE_CLIENT_ID=123456789012-fake-dev-only.apps.googleusercontent.com
+KEYCLOAK_GOOGLE_CLIENT_SECRET=GOCSPX-fake-dev-only-secret
+```
 
 Per `check-realm-shape.sh`: the committed `realm-export.json` MUST keep the
 config values as `${env:KEYCLOAK_GOOGLE_CLIENT_*}` placeholders. A real secret
 slipping into the file via a sloppy `export-realm.sh` round-trip fails CI loudly.
+
+### CI integration probe
+
+CI (`compose-smoke` workflow) brings the stack up under
+`docker compose --profile next up --wait` and runs
+`alpenflight/auth/scripts/check-keycloak-integration.sh` to cover the
+end-to-end paths that `check-realm-shape.sh` can't reach from JSON alone:
+
+- alpenflight-web `baseUrl` env-substitution resolves into the login HTML
+  footer href (S-173 wiring).
+- Verify-email round-trip via the admin API delivers a message to mailpit
+  (catches the FreeMarker `Failed to template email` regression).
+
+You can run the same script locally against any running stack:
+
+```bash
+bash alpenflight/auth/scripts/check-keycloak-integration.sh
+```
+
+It expects `localhost:8090` (Keycloak) + `localhost:8025` (mailpit) by
+default; override via `KEYCLOAK_URL=` / `MAILPIT_URL=` / `EXPECTED_BASE_URL=`.
 
 ### Orphan KC users
 
