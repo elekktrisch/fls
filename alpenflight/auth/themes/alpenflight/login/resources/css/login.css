@@ -1,22 +1,11 @@
-/* S-171 — AlpenFlight login/account theme overrides.
- *
- * Layered ON TOP OF keycloak.v2/login/resources/css/styles.css (listed
- * first in theme.properties styles=). Override surface:
- *   - PatternFly v5 globals where PF5 surfaces a CSS variable
- *   - non-variable component-class rules where PF5 forces it (radius)
- *   - keycloak.v2 wordmark variables (logo URL + dimensions + card top
- *     accent stripe color)
- *
- * Token sources: docs/modernization/design-reference/tokens.css +
- * alpenflight/web/src/styles.css. Hex/rgb-equivalents emitted at the
- * variable assignment because PF5 v5 color-math uses filter / mix-
- * blend-mode internally — OKLCH source on the SPA, hex/rgb at the PF5
- * bridge.
+/* Layered ON TOP OF keycloak.v2/login/resources/css/styles.css (listed
+ * first in theme.properties styles=). PF5 v5 colors use filter / mix-
+ * blend-mode internally, so the SPA's OKLCH source values get emitted
+ * as hex/rgb-equivalents at the variable assignment for PF5 to consume.
+ * Tokens mirror docs/modernization/design-reference/tokens.css.
  */
 
 :root {
-  /* Brand palette (mirrors --brand-* + --slate-* in
-   * docs/modernization/design-reference/tokens.css). */
   --af-brand-500: #1E5BB8;
   --af-brand-600: #184B98;
   --af-brand-700: #133C7A;
@@ -33,14 +22,15 @@
   --af-warn-500:   #B54708;
   --af-ok-500:     #027A48;
 
-  /* Wordmark — overrides the parent's --keycloak-logo-url. SVG is
-   * `fill: currentColor` so the brand-500 color below tints it. */
+  --af-font-stack: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* Wordmark — overrides the parent's --keycloak-logo-url. */
   --keycloak-logo-url: url('../img/alpenflight-logo.svg');
   --keycloak-logo-height: 48px;
   --keycloak-logo-width: 220px;
   --keycloak-card-top-color: var(--af-brand-500);
 
-  /* PF5 v5 globals. The login template paints chrome through these. */
+  /* PF5 v5 globals — the login template paints chrome through these. */
   --pf-v5-global--primary-color--100: var(--af-brand-500);
   --pf-v5-global--primary-color--200: var(--af-brand-600);
   --pf-v5-global--link--Color: var(--af-brand-500);
@@ -50,21 +40,16 @@
   --pf-v5-global--success-color--100: var(--af-ok-500);
   --pf-v5-global--BackgroundColor--100: var(--af-slate-50);
   --pf-v5-global--BorderColor--100: var(--af-slate-200);
-  --pf-v5-global--FontFamily--sans-serif:
-    "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --pf-v5-global--FontFamily--text:
-    "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --pf-v5-global--FontFamily--heading:
-    "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --pf-v5-global--FontFamily--sans-serif: var(--af-font-stack);
+  --pf-v5-global--FontFamily--text: var(--af-font-stack);
+  --pf-v5-global--FontFamily--heading: var(--af-font-stack);
 
-  /* Body / surface text */
   --pf-v5-global--Color--100: var(--af-slate-900);
   --pf-v5-global--Color--200: var(--af-slate-500);
 }
 
-/* Sharp corners — ADR 0024 Option A. PF5 component padding/radius is
- * not surfaced as a token, so component classes get rules directly.
- * Avoid !important; specificity (two classes) wins over parent stock. */
+/* PF5 component padding/radius is not surfaced as a token, so component
+ * classes get rules directly. ADR 0024: sharp corners. */
 .pf-v5-c-card,
 .pf-v5-c-button,
 .pf-v5-c-form-control,
@@ -73,27 +58,23 @@
   border-radius: 0;
 }
 
-/* The parent paints a darken-overlay background image. AlpenFlight's
- * visual stance is flat; replace with the slate-50 surface tone. */
+/* Replace the parent's darken-overlay background image with a flat
+ * surface tone — ADR 0024's visual stance is flat. */
 .login-pf body {
   background: var(--af-slate-50) none;
 }
 
-/* The login card sits flat against the surface (no drop shadow). The
- * parent's --keycloak-card-top-color stripe still draws via the inline
- * rule in styles.css. */
 .card-pf,
 .pf-v5-c-login__main {
   box-shadow: none;
   border: 1px solid var(--af-slate-200);
 }
 
-/* Body font-family inheritance — Keycloak's reset sets body font-family
- * directly in the parent stylesheet, ahead of the PF5 variable
- * cascade. Re-pin so Roboto wins for surrounding chrome (headings,
- * helper text, links). */
+/* Re-pin Roboto for surrounding chrome — Keycloak's reset sets body
+ * font-family directly in the parent stylesheet, ahead of the PF5
+ * variable cascade. */
 body,
 .login-pf,
 .pf-v5-c-login__main {
-  font-family: var(--pf-v5-global--FontFamily--sans-serif);
+  font-family: var(--af-font-stack);
 }

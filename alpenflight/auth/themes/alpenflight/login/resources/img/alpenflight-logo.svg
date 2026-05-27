@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- S-171 AlpenFlight wordmark v1.
-     source: alpenflight/branding/wordmark.svg (not yet extracted; tracked separately)
-     Single-color SVG tints via `fill: currentColor` + the brand-500 color
-     painted by the parent v2 theme's logo rule.
--->
+<!-- source: alpenflight/branding/wordmark.svg (extraction deferred).
+     Fill is hard-coded because keycloak.v2's login template paints the
+     wordmark via background-image, which does not inherit currentColor. -->
 <svg xmlns="http://www.w3.org/2000/svg"
      viewBox="0 0 220 48"
      role="img" aria-label="AlpenFlight"
-     fill="currentColor"
-     style="color: #1E5BB8">
+     fill="#1E5BB8">
   <!-- plane glyph (Lucide-style line aesthetic, filled for legibility at small sizes) -->
   <path d="M14 24 L34 14 L34 18 L20 24 L34 30 L34 34 Z M34 22 L42 19 L42 29 L34 26 Z" />
   <!-- AlpenFlight wordmark (Roboto Medium-ish stroke; hand-built glyphs sized to viewBox) -->

@@ -58,15 +58,22 @@ for u in users:
 for f in VOLATILE_REALM:
     partial.pop(f, None)
 
-# S-171: Keycloak's partial-export does NOT carry loginTheme/accountTheme/
-# emailTheme when the realm holds them as plain root-level keys (verified
-# empirically against K26.5). Inject them post-export so the committed
-# export stays zero-diff across round-trips. check-realm-shape.sh asserts
-# all three == "alpenflight" — if a future story re-pins them, update both
-# this injection and the shape-check together.
-partial['loginTheme'] = 'alpenflight'
-partial['accountTheme'] = 'alpenflight'
-partial['emailTheme'] = 'alpenflight'
+# Keycloak's partial-export does NOT carry loginTheme/accountTheme/
+# emailTheme when the realm holds them as plain root-level keys
+# (verified empirically against K26.5). Re-inject post-export so the
+# committed JSON stays zero-diff across round-trips.
+#
+# Failure mode worth knowing: if an operator deliberately unsets a theme
+# via the admin UI to debug a stock-theme regression, this re-injection
+# silently masks that intent in the committed export. To investigate
+# stock-theme behavior, edit this block first.
+#
+# Keep THEME_NAME aligned with check-realm-shape.sh + the
+# alpenflight/auth/themes/<name>/ directory.
+THEME_NAME = 'alpenflight'
+partial['loginTheme'] = THEME_NAME
+partial['accountTheme'] = THEME_NAME
+partial['emailTheme'] = THEME_NAME
 
 # Strip private signing key — Keycloak regenerates on first --import-realm.
 # CI guard rejects any export with privateKey / privateKeyPem present.

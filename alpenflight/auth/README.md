@@ -12,9 +12,9 @@ The `alpenflight` Keycloak realm: committed source-of-truth, baked into a custom
 | `Dockerfile` | Bakes `realm-export.json` into a custom `alpenflight-keycloak:local` image. Used by the `keycloak` service in the root `docker-compose.yml`. |
 | `scripts/export-realm.sh` | Re-export the realm from a running Keycloak. Writes to `realm-export.json`; `git diff` shows drift. |
 | `scripts/normalize-realm-export.sh` | Deterministic-sorts the export. Strips volatile fields, dev-passwords-only injection, deep-sorts set-shaped arrays. |
-| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.) plus the S-171 theme-ref pins. |
+| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.) plus the theme-ref pins. |
 | `scripts/check-theme-load.sh` | Operator smoke against a running Keycloak — asserts the alpenflight theme is loaded and locale fallback to parent works. Not wired to CI (no live Keycloak for the alpenflight realm). |
-| `themes/alpenflight/` | Custom Keycloak theme (login, account, email). Per-type parents pinned per refinement Design notes — `keycloak.v2` for login, `keycloak.v3` for account, `keycloak` for email. |
+| `themes/alpenflight/` | Custom Keycloak theme (login, account, email). Per-type parents: `keycloak.v2` for login, `keycloak.v3` for account, `keycloak` for email (only email parent shipped). |
 
 ## Bring up
 
@@ -182,22 +182,22 @@ Right-to-deletion before first ingest: manual KC admin delete via
 `http://localhost:8090/admin/master/console/#/alpenflight/users` (or the Admin REST
 client S-052 already wired in). No app DB rows exist yet.
 
-## Theme (S-171)
+## Theme
 
 The `alpenflight` Keycloak theme bridges the login / account / email
 chrome to the SPA's visual stance (ADR 0024 — Swiss-precision + brand
 blue + sharp corners + Roboto). Source under `themes/alpenflight/`:
 
-| Path | Notes |
+| Path | Load-bearing fact |
 |---|---|
-| `login/theme.properties` | `parent=keycloak.v2`, `import=common/keycloak`, `styles=css/styles.css css/login.css` (parent first), `locales=de,en,fr,it`. |
-| `login/resources/css/login.css` | PF5 v5 global overrides (primary / link / danger / warn / ok / surface / border / font) + sharp-corner rules on `.pf-v5-c-card / .pf-v5-c-button / .pf-v5-c-form-control / .pf-v5-c-alert / .card-pf`. |
-| `login/resources/img/alpenflight-logo.svg` | Wordmark (plane glyph + AlpenFlight). `fill: currentColor` so the brand-500 paints. |
-| `login/resources/img/favicon.ico` | Multi-resolution ICO; same source as `alpenflight/web/public/favicon.ico` (extraction to `alpenflight/branding/` deferred). |
-| `account/theme.properties` | `parent=keycloak.v3` (K26.5 default React account console), `locales=de,en,fr,it`. |
-| `account/resources/logo.svg` | v3 reads this at the React-app header position. |
-| `account/resources/favicon.svg` | v3 reads this via `${properties.favIcon!'/favicon.svg'}`. |
-| `email/theme.properties` | `parent=keycloak`, `locales=de,en,fr,it`. Brand inheritance only — no FTL rewrites in scope. |
+| `login/theme.properties` | parent=keycloak.v2; styles= must list parent CSS first then `login.css` |
+| `login/resources/css/login.css` | PF5 v5 global overrides + sharp-corner rules on `pf-v5-c-*` |
+| `login/resources/img/alpenflight-logo.svg` | wordmark; hard-coded brand-500 fill (loaded via `background-image`) |
+| `login/resources/img/favicon.ico` | shared with `alpenflight/web/public/favicon.ico` (extraction to `alpenflight/branding/` deferred) |
+| `account/theme.properties` | parent=keycloak.v3 (K26.5 default React account console) |
+| `account/resources/logo.svg` | v3 header logo (`${resourceUrl}/logo.svg`) |
+| `account/resources/favicon.svg` | v3 favicon (`${properties.favIcon!'/favicon.svg'}`) |
+| `email/theme.properties` | parent=keycloak; brand inheritance only — no FTL rewrites in scope |
 
 ### Dev round-trip
 
@@ -214,9 +214,9 @@ docker compose -p alpenflight-dev up -d keycloak
 
 | Page | URL |
 |---|---|
-| Login (default DE) | `http://localhost:8090/realms/alpenflight/account/` → triggers login redirect |
-| Login (French)     | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http://localhost:4200/&state=preview&kc_locale=fr` |
-| Account console    | `http://localhost:8090/realms/alpenflight/account/` (after login) |
+| Login (default DE) | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http%3A%2F%2Flocalhost%3A4200%2F&state=preview` |
+| Login (French)     | same URL + `&kc_locale=fr` |
+| Account console    | `http://localhost:8090/realms/alpenflight/account/` (redirects to login when no session) |
 | Verify-email       | trigger via `/signup` SPA route → mailpit at `http://localhost:8025` |
 | Google IdP confirm | `/signup` SPA route → "Continue with Google" → KC's first-broker-login screen |
 
