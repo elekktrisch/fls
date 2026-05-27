@@ -167,7 +167,7 @@
 .pf-v5-c-form-control:focus-within,
 .pf-v5-c-form-control input:focus,
 .pf-v5-c-form-control select:focus {
-  border-color: var(--af-brand-500);
+  border: 1px solid var(--af-brand-500);
   outline: none;
 }
 
@@ -182,14 +182,26 @@
   color-scheme: light;
 }
 
-/* The eye-toggle button next to the password input picks up the dark
- * chrome by default — push it back to the card surface. */
-.pf-v5-c-input-group,
-.pf-v5-c-input-group__text,
+/* The eye-toggle (password show/hide) is a `pf-v5-c-button pf-m-control`
+ * inside an input-group with the password input. PF5 paints its border
+ * via the ::after pseudo (different cascade from form-control), so the
+ * eye-toggle ends up with a different-looking border than the input.
+ * Mirror the input's chrome: white bg, slate-500 icon, explicit 1px
+ * slate-300 border on the element itself, ::after pseudo hidden. */
 .pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
   background-color: #ffffff;
   color: var(--af-slate-500);
-  border-color: var(--af-slate-200);
+  border: 1px solid var(--af-slate-300);
+}
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control::after {
+  display: none;
+}
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control:hover,
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control:focus {
+  background-color: #ffffff;
+  color: var(--af-slate-900);
+  border-color: var(--af-brand-500);
+  outline: none;
 }
 
 /* Native <select> dropdown panel — the locale selector is rendered as
