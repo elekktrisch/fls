@@ -157,9 +157,11 @@ complete the flow.
 
 ### Operator env workflow
 
-Per-laptop Google OAuth client + SMTP overrides + SPA base URL live in
-`alpenflight/auth/.env` (gitignored). The committed `.env.example` is the
-template.
+Per-laptop Google OAuth client + SMTP overrides live in
+`alpenflight/auth/.env` (gitignored). The committed `.env.example` carries
+the working defaults (sentinel `set-via-env-for-google-signup` for the
+Google secrets, `mailpit` for SMTP) and is loaded as the first env_file;
+`.env` is loaded second and overrides line-by-line.
 
 ```bash
 cp alpenflight/auth/.env.example alpenflight/auth/.env
@@ -167,17 +169,27 @@ $EDITOR alpenflight/auth/.env             # fill the values you want to override
 docker compose -p alpenflight-dev up -d --force-recreate keycloak
 ```
 
-`--force-recreate` re-evaluates `env_file` on the container without dropping
-the H2 volume — preserves any federated-login user accounts you've already
-created locally. `rebuild-keycloak.sh` is the heavier alternative (drops H2,
-wipes federated users).
+`--force-recreate` re-evaluates `env_file` on the container without
+dropping the H2 volume — preserves any federated-login user accounts
+you've already created locally. **But:** realm-import only fires on a
+fresh DB (H2 IGNORE_EXISTING), so the env values are only *read* on
+first boot. Rotating an existing realm's `${env:KEYCLOAK_GOOGLE_*}` /
+`${env:KEYCLOAK_SMTP_*}` value requires `rebuild-keycloak.sh` (drops H2,
+wipes federated users, re-imports).
 
-A fresh clone with NO `.env` file still boots: docker-compose's `:-default`
-fallbacks supply the placeholder `set-via-env-for-google-signup` sentinel
-for the Google secrets and `http://localhost:4200/` for the SPA base URL.
-Clicking "Continue with Google" against the sentinel renders Keycloak's
-stock `invalid_client` page — that's the "feature is off" signal, not a
-setup bug.
+**Compose layering gotcha:** the per-var defaults live in `.env.example`,
+NOT in the `environment:` block of `docker-compose.yml`. `environment:`
+ALWAYS overrides `env_file`, so a `${VAR:-default}` in `environment:`
+would silently shadow whatever the operator put in `.env`. See the
+inline comment on the keycloak service in `docker-compose.yml`.
+
+A fresh clone with NO `.env` file still boots — `.env.example` carries
+all the working defaults. Clicking "Continue with Google" against the
+`set-via-env-for-google-signup` sentinel renders Keycloak's stock
+`invalid_client` page — that's the "feature is off" signal, not a setup
+bug. The `ALPENFLIGHT_WEB_BASE_URL` build-arg has its own
+`http://localhost:4200/` fallback at the `docker-compose.yml` build-args
+layer, so the SPA root link also works out of the box.
 
 ### Google Cloud Console — one-time setup (prod / per-developer)
 

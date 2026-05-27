@@ -195,13 +195,22 @@ services:
     #   docker compose -p alpenflight-dev build keycloak && \
     #   docker compose -p alpenflight-dev up -d keycloak
     command: ["start-dev", "--http-port=8080", "--import-realm"]
-    # S-173 — per-developer overrides for the env-substituted realm-export.
-    # File is gitignored; `.env.example` is the committed template. Compose
-    # reads env_file at container start (NOT during variable interpolation),
-    # so the `:-default` blocks below still fire when both the shell env AND
-    # the .env file are empty. `required: false` keeps a fresh clone (no
-    # .env yet) booting; docker compose 2.24+ supports the typed form.
+    # S-173 — defaults + per-laptop overrides for the realm-export
+    # ${env:VAR} substitutions (KEYCLOAK_GOOGLE_*, KEYCLOAK_SMTP_*).
+    # Layering: `.env.example` is committed and provides sentinel defaults
+    # (Google client_id falls back to "set-via-env-for-google-signup",
+    # SMTP points at the compose `mailpit` service). `.env` is gitignored
+    # and loaded second — operators override the lines they care about.
+    # Docker compose 2.24+ env_file typed form: `required: false` keeps a
+    # fresh clone booting before the operator copies the example.
+    #
+    # IMPORTANT: env-var defaults MUST live in `.env.example`, NOT in the
+    # `environment:` block below — compose's `environment:` always
+    # overrides `env_file`, so `${VAR:-default}` here would silently
+    # clobber whatever the operator set in `.env`.
     env_file:
+      - path: alpenflight/auth/.env.example
+        required: true
       - path: alpenflight/auth/.env
         required: false
     environment:
@@ -212,24 +221,6 @@ services:
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_LOG_LEVEL: INFO
-      # S-134 — realm-export.json `${env:...}` substitutions. Dev defaults
-      # keep Keycloak booting even when the operator hasn't configured a
-      # real Google OAuth client; clicking the Google CTA in that case
-      # surfaces Keycloak's "invalid_client" page. Operator's runbook in
-      # alpenflight/auth/README.md covers Google Cloud Console setup.
-      KEYCLOAK_GOOGLE_CLIENT_ID: "${KEYCLOAK_GOOGLE_CLIENT_ID:-set-via-env-for-google-signup}"
-      KEYCLOAK_GOOGLE_CLIENT_SECRET: "${KEYCLOAK_GOOGLE_CLIENT_SECRET:-set-via-env-for-google-signup}"
-      # SMTP for verifyEmail. Compose service `mailpit` listens on 1025 in
-      # the compose network; bring it up alongside keycloak for the local
-      # signup smoke (`docker compose -p alpenflight-dev up -d postgres pgadmin keycloak mailpit`).
-      # Production swaps via env at deploy.
-      KEYCLOAK_SMTP_HOST: "${KEYCLOAK_SMTP_HOST:-mailpit}"
-      KEYCLOAK_SMTP_PORT: "${KEYCLOAK_SMTP_PORT:-1025}"
-      KEYCLOAK_SMTP_FROM: "${KEYCLOAK_SMTP_FROM:-noreply@alpenflight.local}"
-      KEYCLOAK_SMTP_USER: "${KEYCLOAK_SMTP_USER:-}"
-      KEYCLOAK_SMTP_PASSWORD: "${KEYCLOAK_SMTP_PASSWORD:-}"
-      KEYCLOAK_SMTP_AUTH: "${KEYCLOAK_SMTP_AUTH:-false}"
-      KEYCLOAK_SMTP_STARTTLS: "${KEYCLOAK_SMTP_STARTTLS:-false}"
       # ALPENFLIGHT_WEB_BASE_URL is consumed at IMAGE BUILD time (see
       # build.args above), not as a container env var — Keycloak's
       # ${env:VAR} substitution doesn't reach client.baseUrl. Rotation

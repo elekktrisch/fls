@@ -7,10 +7,13 @@
 #
 # Covers S-173 acceptance criteria that the static shape guard can't reach:
 #
-#   1. alpenflight-web client baseUrl env-substitution resolved at boot —
-#      login HTML's "Back to Start" footer href renders to the env-set value
-#      (validates realm-export ${env:ALPENFLIGHT_WEB_BASE_URL} substitution +
-#      footer.ftl shape + alpenflight-web.baseUrl wiring end-to-end).
+#   1. alpenflight-web client baseUrl substitution resolved at image build —
+#      admin REST API confirms the realm-imported client carries the
+#      env-set value (validates the Dockerfile build-arg ${ALPENFLIGHT_WEB_BASE_URL}
+#      substitution end-to-end through realm-import into H2). footer.ftl
+#      renders ${client.baseUrl} verbatim, so the H2 value IS the rendered
+#      href — exercising the OIDC auth flow to scrape the rendered HTML
+#      would force a PKCE-S256 ceremony that adds nothing over this check.
 #
 #   2. Verify-email FreeMarker template (S-173 boy-scout) — admin-API trigger
 #      a send-verify-email and assert mailpit received it. FreeMarker template
@@ -59,21 +62,57 @@ admin_token() {
     | jq -r '.access_token'
 }
 
-# Login HTML rendered by the standard authorization-code flow. The header /
-# footer macros (S-171 footer.ftl) substitute against the resolved client
-# baseUrl, so this is the canonical end-to-end probe.
-login_html() {
-  local redirect; redirect=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${EXPECTED_BASE_URL}")
-  curl -fsS -L "${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/auth?client_id=${WEB_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${redirect}&state=probe&nonce=probe"
+urlencode() {
+  python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+}
+
+# PKCE-S256 ceremony: alpenflight-web enforces PKCE (realm-export attribute
+# pkce.code.challenge.method=S256), so /auth refuses the request without
+# code_challenge + code_challenge_method=S256 and 302s to redirect_uri with
+# ?error=invalid_request. Pre-compute the verifier + challenge so the auth
+# endpoint serves the login HTML (200) directly.
+pkce_pair() {
+  local verifier; verifier=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)
+  local challenge; challenge=$(printf '%s' "$verifier" \
+    | openssl dgst -sha256 -binary \
+    | openssl base64 \
+    | tr -d '=\n' \
+    | tr '/+' '_-')
+  printf '%s %s' "$verifier" "$challenge"
 }
 
 # ---------------------------------------------------------------------------
-# 1. Footer "Back to Start" href reflects ${env:ALPENFLIGHT_WEB_BASE_URL}
+# 1. Footer "Back to Start" href + admin-API direct check on
+#    alpenflight-web.baseUrl. Both invariants come from the same H2 row,
+#    but the FTL render path is its own surface — keep both as separate
+#    assertions so a footer.ftl regression doesn't slip behind an OK
+#    admin-API check.
 # ---------------------------------------------------------------------------
-HTML=$(login_html) || fail "could not reach ${KEYCLOAK_URL} login page — is Keycloak up?"
+
+TOKEN=$(admin_token) || fail "could not acquire admin token — KC_BOOTSTRAP_ADMIN_* not seeded?"
+[[ -n "$TOKEN" && "$TOKEN" != "null" ]] || fail "admin token empty"
+
+# 1a. Admin REST API: the realm-imported alpenflight-web carries the
+# substituted baseUrl (catches a Dockerfile build-arg miswire end-to-end
+# through realm-import into H2).
+ADMIN_BASE_URL=$(curl -fsS -G "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
+  -H "Authorization: Bearer ${TOKEN}" \
+  --data-urlencode "clientId=${WEB_CLIENT_ID}" \
+  | jq -r '.[0].baseUrl // ""')
+[[ "$ADMIN_BASE_URL" == "$EXPECTED_BASE_URL" ]] \
+  || fail "alpenflight-web.baseUrl in H2 = '${ADMIN_BASE_URL}' — expected '${EXPECTED_BASE_URL}'. Build-arg substitution failed?"
+ok "alpenflight-web.baseUrl in H2 = ${ADMIN_BASE_URL} (build-arg substitution resolved)"
+
+# 1b. Login HTML — exercises the footer.ftl FreeMarker render path. PKCE is
+# required since the client enforces S256; precomputing the challenge keeps
+# the script self-contained (no SPA dev-server needed).
+read -r CODE_VERIFIER CODE_CHALLENGE <<<"$(pkce_pair)"
+REDIRECT=$(urlencode "${EXPECTED_BASE_URL}")
+LOGIN_URL="${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/auth?client_id=${WEB_CLIENT_ID}&response_type=code&scope=openid&redirect_uri=${REDIRECT}&state=probe&nonce=probe&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256"
+HTML=$(curl -fsS -L -c /tmp/kc-cookies -b /tmp/kc-cookies "$LOGIN_URL") \
+  || fail "auth endpoint did not return login HTML (PKCE present; check Keycloak logs for the redirect cause)"
 
 # footer.ftl emits <a class="af-back-to-landing" href="${client.baseUrl}">.
-# Scrape the href attribute on the link with the class we own.
 FOOTER_HREF=$(printf '%s' "$HTML" \
   | python3 -c "
 import re, sys
@@ -81,10 +120,10 @@ m = re.search(r'<a[^>]*class=\"af-back-to-landing\"[^>]*href=\"([^\"]+)\"', sys.
 print(m.group(1) if m else '')
 ")
 
-[[ -n "$FOOTER_HREF" ]] || fail "footer.ftl 'af-back-to-landing' link not found in login HTML (S-171 macro broken?)"
+[[ -n "$FOOTER_HREF" ]] || fail "footer.ftl 'af-back-to-landing' link not found in login HTML (S-171 footer macro broken?)"
 [[ "$FOOTER_HREF" == "$EXPECTED_BASE_URL" ]] \
-  || fail "footer href mismatch — expected '${EXPECTED_BASE_URL}', got '${FOOTER_HREF}'. alpenflight-web.baseUrl env-substitution not resolved correctly."
-ok "footer 'Back to Start' href = ${FOOTER_HREF} (env-substitution resolved end-to-end)"
+  || fail "footer href mismatch — expected '${EXPECTED_BASE_URL}', got '${FOOTER_HREF}'. footer.ftl is rendering against a stale or wrong baseUrl."
+ok "footer 'Back to Start' href = ${FOOTER_HREF} (FreeMarker render exercised end-to-end)"
 
 # ---------------------------------------------------------------------------
 # 2. Verify-email FreeMarker template (S-173 boy-scout)
