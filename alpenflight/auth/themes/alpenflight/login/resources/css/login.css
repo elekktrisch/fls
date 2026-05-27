@@ -344,8 +344,11 @@ div.pf-v5-c-login__main-header {
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1 L5 5 L9 1' stroke='%2362707F' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
-  background-position: right 14px center;
-  padding-inline-end: 36px;
+  /* Chevron sits closer to the right edge so the breathing room around
+   * it reads as visually balanced with the top/bottom margins of the
+   * 44px-tall control. */
+  background-position: right 10px center;
+  padding-inline-end: 32px;
   width: 100%;
 }
 
@@ -358,6 +361,14 @@ select.pf-v5-c-form-control option,
 .pf-v5-c-form-control select option {
   background-color: #ffffff;
   color: var(--af-slate-900);
+  /* Chrome + Edge honor padding on <option> (partially — leading/
+   * trailing padding renders but the height of the item is still OS-
+   * determined). Firefox + Safari ignore it. Best-effort: pushes the
+   * native dropdown items toward the SPA's roomier feel where the
+   * browser allows. The real fix is a custom dropdown (out of scope
+   * here; would replace the native <select> with a CDK overlay or
+   * similar — much bigger change, flag as a follow-up). */
+  padding: 8px 12px;
 }
 select.pf-v5-c-form-control option:checked,
 .pf-v5-c-form-control select option:checked {
