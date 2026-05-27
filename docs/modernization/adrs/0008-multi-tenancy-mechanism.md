@@ -70,7 +70,7 @@ SYSTEM_ADMINISTRATOR is no longer co-allowed on tenant-scoped HTTP endpoints. Sy
 
 `Tenants.runAs(...)` survives only as an in-process seam for: the audit listener / `RequestAuditFilter`, OGN ingestion, scheduled jobs, cutover import. It is never wired through to an HTTP path that exists to "act as a club from the outside." Tenant data is acted on by members of that tenant; nothing else.
 
-Reclassifies the `alpenflight/database/tenant-rules.yaml` 2026-05-16 Aircraft-cross-tenant amendment as **superseded**: Aircraft is now tenant-scoped via `managing_club_id`. The aircraft_id FK on `aircraft_reservation` / `flight` becomes a same-tenant FK by construction; S-058 (Flight) and S-068 (AircraftReservation) inherit the new contract.
+Reclassifies the `alpenflight/database/tenant-rules.yaml` 2026-05-16 Aircraft-cross-tenant amendment as **superseded**: Aircraft is now tenant-scoped via `managing_club_id`. The aircraft_id FK on `t_aircraft_reservation` / `t_flight` becomes a same-tenant FK by construction; S-058 (Flight) and S-068 (AircraftReservation) inherit the new contract.
 
 ## Amendment — 2026-05-24 (S-058, reverts the S-159 Aircraft scoping above)
 

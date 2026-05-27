@@ -23,12 +23,12 @@ another schema change.
 
 The shipped state at the close of S-013:
 
-- V2 (`identity_and_reference`) — ~28 BOOLEAN columns across `club`,
-  `person`, `person_club`, plus per-club flag booleans.
-- V3 (`flights_aircraft_locations`) — ~30 BOOLEAN columns across `flight`,
-  `aircraft`, `flight_type`, `flight_crew`, `aircraft_type`,
-  `aircraft_state`, `location_type`, `location`,
-  `flight_cost_balance_type`, `article`.
+- V2 (`identity_and_reference`) — ~28 BOOLEAN columns across `t_club`,
+  `t_person`, `t_person_club`, plus per-club flag booleans.
+- V3 (`flights_aircraft_locations`) — ~30 BOOLEAN columns across `t_flight`,
+  `t_aircraft`, `t_flight_type`, `t_flight_crew`, `t_aircraft_type`,
+  `t_aircraft_state`, `t_location_type`, `t_location`,
+  `t_flight_cost_balance_type`, `t_article`.
 
 `aircraft_type` already carries 3 nullable booleans (`has_engine`,
 `requires_towing_info`, `may_be_towing_aircraft`) which give implicit
