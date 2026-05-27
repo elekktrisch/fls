@@ -5,6 +5,8 @@ epic: E-06
 status: done
 started_at: 2026-05-26
 done_at: 2026-05-26
+merged: true
+merged_at: 2026-05-27
 estimate: M
 parity_test: alpenflight/web/e2e/tests/users/users-invite.spec.ts
 parity_excluded:
