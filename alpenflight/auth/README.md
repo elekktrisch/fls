@@ -30,13 +30,13 @@ curl -sS http://localhost:8090/realms/alpenflight/.well-known/openid-configurati
 # → "http://localhost:8090/realms/alpenflight"
 ```
 
-After editing `realm-export.json`, rebuild the image:
+After editing `realm-export.json` or anything under `themes/`, rebuild the image:
 
 ```bash
-docker compose -p alpenflight-dev down -v keycloak
-docker compose -p alpenflight-dev build keycloak
-docker compose -p alpenflight-dev up -d keycloak
+bash alpenflight/ops/rebuild-keycloak.sh
 ```
+
+(equivalent to `docker compose -p alpenflight-dev down -v keycloak && build keycloak && up -d --wait keycloak` — the `down -v` is load-bearing; without dropping the H2 volume Keycloak's default IGNORE_EXISTING import strategy silently preserves the old realm.)
 
 ## What's seeded
 
@@ -92,11 +92,7 @@ The published issuer (`KC_HOSTNAME_URL`) is host-side: every token's `iss` claim
 bash alpenflight/auth/scripts/export-realm.sh
 git diff alpenflight/auth/realm-export.json
 # Rebuild the image AND wipe the H2 volume so the import re-runs cleanly.
-# Without `down -v`, Keycloak's default IGNORE_EXISTING strategy silently
-# preserves H2-resident entities and the rebuild appears not to take effect.
-docker compose -p alpenflight-dev down -v keycloak
-docker compose -p alpenflight-dev build keycloak
-docker compose -p alpenflight-dev up -d keycloak
+bash alpenflight/ops/rebuild-keycloak.sh
 ```
 
 The committed export is bit-stable across round-trips (deep-sorted, no timestamps, no private keys, no auto-generated UUIDs in volatile positions).
@@ -206,9 +202,7 @@ blue + sharp corners + Roboto). Source under `themes/alpenflight/`:
 the theme files live inside the baked image — edits need a rebuild:
 
 ```bash
-docker compose -p alpenflight-dev down -v keycloak
-docker compose -p alpenflight-dev build keycloak
-docker compose -p alpenflight-dev up -d keycloak
+bash alpenflight/ops/rebuild-keycloak.sh
 ```
 
 ### Preview
