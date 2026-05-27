@@ -31,6 +31,17 @@ set -eu
 EMAIL="${1:-}"
 [ -n "$EMAIL" ] || { echo "usage: $0 <email>"; exit 2; }
 
+# Argument validation — the email lands in both an admin REST query string
+# (curl --data-urlencode handles that safely) AND a psql parameter; reject
+# obviously-malformed input up front. RFC-5321 permits quoted-local-parts
+# like `"o'brien"@x.com`, but those are vanishingly rare in real signups
+# and the cleanup workflow doesn't need to handle them.
+case "$EMAIL" in
+  *[!A-Za-z0-9._%+@-]*|*@*@*|*'@'|'@'*) echo "invalid email '$EMAIL'"; exit 2 ;;
+  *@*.*) ;;
+  *) echo "invalid email '$EMAIL' (no domain)"; exit 2 ;;
+esac
+
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8090}"
 REALM="${REALM:-alpenflight}"
 ADMIN_USER="${KC_ADMIN_USER:-admin}"
@@ -88,15 +99,20 @@ fi
 
 if docker ps --format '{{.Names}}' | grep -q "^${PG_CONTAINER}$"; then
   log "deleting t_user rows in postgres where notification_email = ${EMAIL}"
+  # psql's `--set=email=...` defines a server-side variable; `:'email'`
+  # expands as a properly-quoted SQL string literal. Avoids the shell
+  # interpolation that would break on a `'` in the local-part and gives
+  # us SQL-injection-safe parameter binding without `EXECUTE … USING`.
   ROWS=$(docker exec "${PG_CONTAINER}" psql -U "${PG_USER}" -d "${PG_DB}" -At \
-    -c "DELETE FROM t_user WHERE notification_email = '${EMAIL}' RETURNING id;")
+    --set=email="${EMAIL}" \
+    -c "DELETE FROM t_user WHERE notification_email = :'email' RETURNING id;")
   if [ -n "$ROWS" ]; then
     log "deleted t_user rows: ${ROWS}"
   else
     log "no t_user rows matched (the JIT projection fires on first authenticated /me — a verify-email signup that never completed login leaves no row)"
   fi
 else
-  log "postgres container ${PG_CONTAINER} not running — skipping DB cleanup"
+  log "postgres container '${PG_CONTAINER}' not running — skipping DB cleanup (compose project default is 'alpenflight-dev'; override PG_CONTAINER if you used a different -p)"
 fi
 
 log "done — sign up again with ${EMAIL} for a fresh end-to-end run"

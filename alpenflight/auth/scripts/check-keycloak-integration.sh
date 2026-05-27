@@ -15,10 +15,10 @@
 #      href — exercising the OIDC auth flow to scrape the rendered HTML
 #      would force a PKCE-S256 ceremony that adds nothing over this check.
 #
-#   2. Verify-email FreeMarker template (S-173 boy-scout) — admin-API trigger
-#      a send-verify-email and assert mailpit received it. FreeMarker template
-#      failures suppress the SMTP send entirely, so mailpit-received is the
-#      load-bearing positive signal.
+#   2. Verify-email FreeMarker template — admin-API trigger a send-verify-email
+#      and assert mailpit received it with the realm action-token link in the
+#      body. FreeMarker template failures suppress the SMTP send entirely,
+#      so mailpit-received is the load-bearing positive signal.
 #
 # Usage (local, against a running stack):
 #
@@ -171,8 +171,8 @@ if [[ -n "$PREEXIST_ID" ]]; then
     -H "Authorization: Bearer ${TOKEN}"
 fi
 
-# Create the test user. Locale=de matches the real failure case (operator's
-# 2026-05-27 trace) and exercises the de message-bundle path.
+# Create the test user. locale=de exercises the parent email theme's
+# de message-bundle path (the original verify-email regression locale).
 CREATE_BODY=$(cat <<JSON
 {
   "username": "${TEST_USER}",
@@ -207,7 +207,7 @@ trap cleanup EXIT
 
 # Trigger verify-email. The redirect_uri must match the alpenflight-web client's
 # redirectUris allowlist; the canonical SPA root is the safest choice.
-REDIRECT=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${EXPECTED_BASE_URL}")
+REDIRECT=$(urlencode "${EXPECTED_BASE_URL}")
 HTTP=$(curl -fsS -o /tmp/kc-verify.out -w '%{http_code}' \
   -X PUT "${KEYCLOAK_URL}/admin/realms/${REALM}/users/${USER_ID}/send-verify-email?client_id=${WEB_CLIENT_ID}&redirect_uri=${REDIRECT}" \
   -H "Authorization: Bearer ${TOKEN}")

@@ -420,19 +420,11 @@ body,
   font-family: var(--af-font-stack);
 }
 
-/* PF5 inline-warning alert — keycloak.v2's stock styling for
- * `.pf-v5-c-alert.pf-m-inline.pf-m-warning` paints a dark slate fill
- * that breaks visual continuity with the light card on required-action
- * screens (verify-email, update-password). Pull the alert back into the
- * alpenflight light palette: warn-50 fill, warn-500 accent border +
- * title. Mirrors the danger-50 pin above (--pf-v5-global--palette--red-50)
- * but targets the alert component directly since v2 hardcodes the dark
- * surface against the global tokens.
- *
- * Selector targets the v2 template's resolved class string from
- * keycloak.v2/login/theme.properties (`kcAlertClass=pf-v5-c-alert
- * pf-m-inline pf-v5-u-mb-md` + a `pf-m-${type}` suffix at the macro
- * site in template.ftl). */
+/* PF5 inline-warning alert — keycloak.v2 paints the warning surface
+ * dark slate by default, which breaks visual continuity with the light
+ * card on required-action screens (verify-email, update-password).
+ * Pull back into the alpenflight light palette: warn-50 fill, warn-500
+ * accent border + title. */
 .pf-v5-c-alert.pf-m-inline.pf-m-warning {
   background-color: var(--af-warn-50);
   color: var(--af-slate-900);

@@ -9,8 +9,8 @@
 
   No FreeMarker fallback — the build-arg sed + check-realm-shape.sh shape
   guard + docker-compose `${VAR:-default}` block collectively close every
-  "client.baseUrl unset" path. If the link raises in production, the
-  deploy env didn't set ALPENFLIGHT_WEB_BASE_URL.
+  "client.baseUrl unset" path. (`${client.baseUrl}` would render an empty
+  href rather than raise if unset; the shape guard is the real safety net.)
 
   Rendered inside `.pf-v5-c-login__main-footer` from Keycloak's v2
   template.ftl, below the social-providers + info bands. Styling lives in
