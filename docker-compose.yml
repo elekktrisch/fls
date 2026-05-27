@@ -181,11 +181,11 @@ services:
       context: ./alpenflight/auth
       dockerfile: Dockerfile
       args:
-        # S-173 — substituted into realm-export.json at build time
-        # (Keycloak's ${env:VAR} substitution does NOT cover client.baseUrl;
-        # URL validator runs before substitution). `:-` default keeps fresh
-        # clones building. Rotation requires `rebuild-keycloak.sh` (image
-        # rebuild + H2 wipe — same constraint as KEYCLOAK_GOOGLE_*).
+        # Substituted into realm-export.json at image build (Keycloak's
+        # realm-import `${VAR}` substitution does NOT cover client.baseUrl
+        # — URL validator runs before substitution). `:-` default keeps
+        # fresh clones building. Rotation requires `rebuild-keycloak.sh`
+        # (image rebuild + H2 wipe — same constraint as KEYCLOAK_GOOGLE_*).
         ALPENFLIGHT_WEB_BASE_URL: "${ALPENFLIGHT_WEB_BASE_URL:-http://localhost:4200/}"
     image: alpenflight-keycloak:local
     # --import-realm runs on every boot. Keycloak's default IGNORE_EXISTING
@@ -195,8 +195,11 @@ services:
     #   docker compose -p alpenflight-dev build keycloak && \
     #   docker compose -p alpenflight-dev up -d keycloak
     command: ["start-dev", "--http-port=8080", "--import-realm"]
-    # S-173 — defaults + per-laptop overrides for the realm-export
-    # ${env:VAR} substitutions (KEYCLOAK_GOOGLE_*, KEYCLOAK_SMTP_*).
+    # Defaults + per-laptop overrides for the realm-export `${VAR}`
+    # substitutions (KEYCLOAK_GOOGLE_*, KEYCLOAK_SMTP_*) — see
+    # alpenflight/auth/README.md § Substitution layers for the full story
+    # on why the syntax is bare `${VAR}` and not `${env:VAR}`.
+    #
     # Layering: `.env.example` is committed and provides sentinel defaults
     # (Google client_id falls back to "set-via-env-for-google-signup",
     # SMTP points at the compose `mailpit` service). `.env` is gitignored
@@ -223,10 +226,11 @@ services:
       KC_LOG_LEVEL: INFO
       # ALPENFLIGHT_WEB_BASE_URL is consumed at IMAGE BUILD time (see
       # build.args above), not as a container env var — Keycloak's
-      # ${env:VAR} substitution doesn't reach client.baseUrl. Rotation
-      # workflow: `rebuild-keycloak.sh` rebuilds the image with the new
-      # value baked into realm-export.json. Documented in
-      # alpenflight/auth/README.md § "Substitution layers".
+      # realm-import substitution doesn't reach client.baseUrl (URL
+      # validator runs before substitution). Rotation workflow:
+      # `rebuild-keycloak.sh` rebuilds the image with the new value baked
+      # into realm-export.json. Documented in alpenflight/auth/README.md
+      # § "Substitution layers".
     ports:
       - "127.0.0.1:8090:8080"
       - "127.0.0.1:9090:9000"   # management interface (/health/ready)

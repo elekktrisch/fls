@@ -40,15 +40,11 @@ WEB=$(jq '.clients[] | select(.clientId=="alpenflight-web")' "$EXPORT")
 [[ $(jq -r '.implicitFlowEnabled' <<<"$WEB") == "false" ]] || fail "alpenflight-web must have implicitFlowEnabled=false"
 [[ $(jq -r '.attributes["pkce.code.challenge.method"]' <<<"$WEB") == "S256" ]] || fail "alpenflight-web must enforce PKCE-S256"
 
-# S-173: alpenflight-web.baseUrl is substituted at image-build time by the
-# Dockerfile's `RUN sed` against the ALPENFLIGHT_WEB_BASE_URL build-arg.
-# Keycloak's realm-import resolver does NOT cover client.baseUrl (URL
-# validator runs before substitution) AND its `${env:VAR}` syntax doesn't
-# work either — the resolver calls System.getenv on the literal property
-# name (e.g. "env:KEYCLOAK_*"), which always returns null, then the
-# StringPropertyReplacer colon-fallback substitutes the post-colon literal
-# var name. Realm-import substitution actually only works with `${VAR}`
-# (no `env:` prefix) — see other shape guards below.
+# alpenflight-web.baseUrl is substituted at image-build time by the
+# Dockerfile's `RUN sed` against the ALPENFLIGHT_WEB_BASE_URL build-arg —
+# see alpenflight/auth/README.md § Substitution layers. The committed file
+# must keep the literal `${ALPENFLIGHT_WEB_BASE_URL}` marker; a sloppy
+# `export-realm.sh` round-trip would bake the resolved URL.
 WEB_BASE_URL=$(jq -r '.baseUrl // ""' <<<"$WEB")
 [[ -n "$WEB_BASE_URL" ]] || fail "alpenflight-web.baseUrl is empty — substitution marker dropped on round-trip?"
 [[ "$WEB_BASE_URL" == '${ALPENFLIGHT_WEB_BASE_URL}' ]] \
@@ -187,11 +183,10 @@ done
 ok "password policy: length(12) + notUsername + notEmail + specialChars(1)"
 
 # --- SMTP server (S-134; load-bearing for verify-email) ---
-# Realm-import substitution at startup is `${VAR}` (NOT `${env:VAR}` — that
-# syntax silently fails: the resolver does System.getenv("env:VAR") which is
-# always null, then StringPropertyReplacer's colon-fallback substitutes the
-# post-colon literal var name into the realm. Empirically verified in CI on
-# S-173 — see https://github.com/keycloak/keycloak/blob/26.5.0/model/storage-services/src/main/java/org/keycloak/exportimport/AbstractFileBasedImportProvider.java).
+# Realm-import substitution syntax is bare `${VAR}` — see alpenflight/auth/README.md
+# § Substitution layers for why `${env:VAR}` silently fails (resolver does
+# System.getenv on the literal "env:VAR" string, then colon-fallback bakes
+# the post-colon substring into the realm).
 [[ $(jq -e '.smtpServer | length > 0' "$EXPORT") == "true" ]] || fail "smtpServer block must be non-empty (S-134 verify-email)"
 for key in host port from user password auth starttls; do
   VAL=$(jq -r --arg k "$key" '.smtpServer[$k] // ""' "$EXPORT")
@@ -208,10 +203,8 @@ GOOGLE=$(jq '.identityProviders[]? | select(.alias=="google")' "$EXPORT")
 [[ $(jq -r '.firstBrokerLoginFlowAlias' <<<"$GOOGLE") == "first broker login" ]] || fail "Google IdP must reference the stock 'first broker login' flow (no accidental custom-flow swap)"
 
 # Secrets are env-substitution placeholders, never literal hex/random strings.
-# The substring '${KEYCLOAK_GOOGLE_' anchors the assertion against a sloppy
-# export-realm.sh round-trip that pulled a real prod secret into the committed
-# file. Realm-import substitution syntax is `${VAR}` (NOT `${env:VAR}` — see
-# the SMTP block comment above).
+# The full-string match anchors against a sloppy export-realm.sh round-trip
+# that pulled a real prod secret into the committed file.
 G_CLIENT_ID=$(jq -r '.config.clientId // ""' <<<"$GOOGLE")
 G_CLIENT_SECRET=$(jq -r '.config.clientSecret // ""' <<<"$GOOGLE")
 [[ "$G_CLIENT_ID" == '${KEYCLOAK_GOOGLE_CLIENT_ID}' ]] || fail "Google IdP config.clientId must be \${KEYCLOAK_GOOGLE_CLIENT_ID} (got: '$G_CLIENT_ID')"

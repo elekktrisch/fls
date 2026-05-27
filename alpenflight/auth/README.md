@@ -173,9 +173,11 @@ docker compose -p alpenflight-dev up -d --force-recreate keycloak
 dropping the H2 volume — preserves any federated-login user accounts
 you've already created locally. **But:** realm-import only fires on a
 fresh DB (H2 IGNORE_EXISTING), so the env values are only *read* on
-first boot. Rotating an existing realm's `${env:KEYCLOAK_GOOGLE_*}` /
-`${env:KEYCLOAK_SMTP_*}` value requires `rebuild-keycloak.sh` (drops H2,
-wipes federated users, re-imports).
+first boot. Rotating an existing realm's `${KEYCLOAK_GOOGLE_*}` /
+`${KEYCLOAK_SMTP_*}` value requires `rebuild-keycloak.sh` (drops H2,
+wipes federated users, re-imports). Cleaning up just your own test user
+(without nuking H2) is what `bash alpenflight/ops/cleanup-test-user.sh
+<email>` is for.
 
 **Compose layering gotcha:** the per-var defaults live in `.env.example`,
 NOT in the `environment:` block of `docker-compose.yml`. `environment:`
@@ -205,16 +207,18 @@ but is otherwise disposable.
 5. Copy the generated client ID + secret into `alpenflight/auth/.env` (NEVER paste real values into this README — the example below is a deliberately-fake format).
 6. If the OAuth consent screen is in "testing" mode, add your own Google account under OAuth consent screen → Test users so Google permits the redirect.
 
-Placeholder example (DO NOT use as real credentials — purely shape illustration):
+Placeholder example (DO NOT use as real credentials — purely shape illustration; the secret prefix is deliberately broken so secret-scanners like gitleaks / trufflehog don't false-positive on it):
 
 ```
 KEYCLOAK_GOOGLE_CLIENT_ID=123456789012-fake-dev-only.apps.googleusercontent.com
-KEYCLOAK_GOOGLE_CLIENT_SECRET=GOCSPX-fake-dev-only-secret
+KEYCLOAK_GOOGLE_CLIENT_SECRET=EXAMPLE-fake-dev-only-not-a-real-secret
 ```
 
 Per `check-realm-shape.sh`: the committed `realm-export.json` MUST keep the
-config values as `${env:KEYCLOAK_GOOGLE_CLIENT_*}` placeholders. A real secret
-slipping into the file via a sloppy `export-realm.sh` round-trip fails CI loudly.
+config values as `${KEYCLOAK_GOOGLE_CLIENT_*}` placeholders (bare form — see
+the Substitution-layers gotcha below for why `${env:VAR}` does NOT work).
+A real secret slipping into the file via a sloppy `export-realm.sh` round-trip
+fails CI loudly.
 
 ### Substitution layers
 
