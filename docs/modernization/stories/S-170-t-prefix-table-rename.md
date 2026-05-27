@@ -12,6 +12,7 @@ refined: true
 refined_at: 2026-05-27
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer]
 github_issue: 141
+github_pr: 142
 origin: scope-split
 origin_story: S-052
 ---
