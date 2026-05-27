@@ -313,15 +313,18 @@ div.pf-v5-c-login__main-header {
   box-sizing: border-box;
 }
 
-/* The form-control's chevron icon sits in `grid-column: 3` with a
- * `padding-block-start` token that was calibrated against PF5's
- * default ~36px form-control height. We bumped the control to 44px to
- * match the SPA's `<af-input>`, which left the chevron riding too high.
- * Zero the padding and center via grid-row alignment instead. */
+/* The form-control is a CSS grid (input | utilities | toggle-icon). PF5
+ * positions the chevron via `padding-block-start` calibrated against
+ * PF5's default ~36px control height; our 44px control left the chevron
+ * mispositioned. Center the WHOLE grid via `align-items: center` so the
+ * input text + chevron + any utility icons all share the same vertical
+ * baseline regardless of control height. */
+.pf-v5-c-form-control {
+  align-items: center;
+}
 .pf-v5-c-form-control__toggle-icon {
   padding-block-start: 0;
   padding-block-end: 0;
-  align-self: center;
 }
 
 /* Native <select> dropdown panel — the locale selector is rendered as
@@ -350,6 +353,25 @@ select.pf-v5-c-form-control option:checked,
   text-shadow: 0 1px 3px rgba(14, 22, 32, 0.5);
   font-family: var(--af-font-stack);
   font-weight: 500;
+}
+
+/* "Back to AlpenFlight" link — rendered by footer.ftl below the login
+ * form. Centered, brand-blue, sentence-case (ADR 0024 voice). */
+.af-back-to-landing-band {
+  margin-block-start: var(--pf-v5-global--spacer--lg);
+  text-align: center;
+}
+.af-back-to-landing {
+  color: var(--af-brand-500);
+  font-family: var(--af-font-stack);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.af-back-to-landing:hover,
+.af-back-to-landing:focus {
+  color: var(--af-brand-600);
+  text-decoration: underline;
+  outline: none;
 }
 
 /* Re-pin Roboto for surrounding chrome — Keycloak's reset sets body
