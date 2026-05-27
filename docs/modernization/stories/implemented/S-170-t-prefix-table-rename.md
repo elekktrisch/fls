@@ -5,6 +5,8 @@ epic: E-04
 status: done
 started_at: 2026-05-27
 done_at: 2026-05-27
+merged: true
+merged_at: 2026-05-27
 estimate: M
 parity_test: none
 depends_on: [S-052]
