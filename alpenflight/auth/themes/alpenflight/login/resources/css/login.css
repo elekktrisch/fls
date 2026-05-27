@@ -52,7 +52,14 @@
   --pf-v5-global--warning-color--100: var(--af-warn-500);
   --pf-v5-global--success-color--100: var(--af-ok-500);
   --pf-v5-global--BackgroundColor--100: var(--af-slate-50);
+  /* PF5 paints form-control borders with two tokens: ::before (top + sides)
+   * uses BorderColor--300 (default `#f0f0f0` — invisible against slate-50)
+   * and ::after (bottom) uses BorderColor--200 (default `#8a8d90`). Pinning
+   * all three to slate-200 yields uniform 1px borders on all four sides
+   * of inputs + selects instead of the Material-like underline emphasis. */
   --pf-v5-global--BorderColor--100: var(--af-slate-200);
+  --pf-v5-global--BorderColor--200: var(--af-slate-300);
+  --pf-v5-global--BorderColor--300: var(--af-slate-200);
   --pf-v5-global--FontFamily--sans-serif: var(--af-font-stack);
   --pf-v5-global--FontFamily--text: var(--af-font-stack);
   --pf-v5-global--FontFamily--heading: var(--af-font-stack);
@@ -142,6 +149,22 @@
   background-color: #ffffff;
   color: var(--af-slate-500);
   border-color: var(--af-slate-200);
+}
+
+/* Native <select> dropdown panel — the locale selector is rendered as
+ * `<select>` so the OPEN panel is browser-native chrome (we can't
+ * fully style it). Setting `option` colors nudges Chrome/Edge toward
+ * the brand palette; Firefox honors only some of these. The closed
+ * state is the `pf-v5-c-form-control` wrap above. */
+select.pf-v5-c-form-control option,
+.pf-v5-c-form-control select option {
+  background-color: #ffffff;
+  color: var(--af-slate-900);
+}
+select.pf-v5-c-form-control option:checked,
+.pf-v5-c-form-control select option:checked {
+  background-color: var(--af-brand-50);
+  color: var(--af-brand-700);
 }
 
 /* Wordmark — #kc-header-wrapper renders the realm displayName as
