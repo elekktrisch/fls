@@ -24,10 +24,15 @@
 
   --af-font-stack: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
 
-  /* Wordmark — overrides the parent's --keycloak-logo-url. */
-  --keycloak-logo-url: url('../img/alpenflight-logo.svg');
-  --keycloak-logo-height: 48px;
-  --keycloak-logo-width: 220px;
+  /* Background photo (cockpit splash shared with the SPA landing). Layered
+   * with a slate-900 overlay so the wordmark + card both stay readable;
+   * overlay opacity tuned for the splash's mid-tones. */
+  --keycloak-bg-logo-url: url('../img/splash.jpg');
+
+  /* Wordmark — the v2 parent renders the realm displayName via
+   * #kc-header-wrapper as uppercase letter-spaced text. We style it
+   * directly below rather than swap to a logo image; the SVG approach
+   * needs a custom message bundle and a template override (deferred). */
   --keycloak-card-top-color: var(--af-brand-500);
 
   /* PF5 v5 globals — the login template paints chrome through these. */
@@ -58,16 +63,79 @@
   border-radius: 0;
 }
 
-/* Replace the parent's darken-overlay background image with a flat
- * surface tone — ADR 0024's visual stance is flat. */
+/* Replace the parent's darken-overlay background image with the splash
+ * photo + a slate-900 wash so the wordmark in white and the light card
+ * both stay readable. Without the overlay the card sits on competing
+ * mid-tones. */
 .login-pf body {
-  background: var(--af-slate-50) none;
+  background:
+    linear-gradient(rgba(14, 22, 32, 0.55), rgba(14, 22, 32, 0.55)),
+    var(--keycloak-bg-logo-url) no-repeat center center fixed;
+  background-size: cover;
 }
 
-.card-pf,
-.pf-v5-c-login__main {
+/* Card surface — PF5 v5's default for keycloak.v2 paints the login
+ * card with the dark-200 token. Override the component-scoped tokens
+ * AND the resolved properties directly so the override survives any
+ * future PF5 token rename. ADR 0024: flat — 1px slate-200 border, no
+ * shadow. */
+.pf-v5-c-login__main,
+.card-pf {
+  --pf-v5-c-login__main--BackgroundColor: var(--af-slate-50);
+  --pf-v5-c-login__main--Color: var(--af-slate-900);
+  background-color: var(--af-slate-50);
+  color: var(--af-slate-900);
   box-shadow: none;
   border: 1px solid var(--af-slate-200);
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer-band {
+  background-color: var(--af-slate-50);
+  color: var(--af-slate-900);
+}
+
+/* Form labels + inputs — PF5 v5 defaults render these light-on-dark
+ * inside the login chrome. Force light card + dark text. */
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text,
+.pf-v5-c-form__group-label {
+  --pf-v5-c-form__label--Color: var(--af-slate-900);
+  color: var(--af-slate-900);
+}
+
+.pf-v5-c-form-control,
+.pf-v5-c-form-control input,
+.pf-v5-c-form-control select {
+  --pf-v5-c-form-control--BackgroundColor: #ffffff;
+  --pf-v5-c-form-control--Color: var(--af-slate-900);
+  --pf-v5-c-form-control--BorderColor: var(--af-slate-200);
+  background-color: #ffffff;
+  color: var(--af-slate-900);
+  border-color: var(--af-slate-200);
+}
+
+/* The eye-toggle button next to the password input picks up the dark
+ * chrome by default — push it back to the card surface. */
+.pf-v5-c-input-group,
+.pf-v5-c-input-group__text,
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
+  background-color: #ffffff;
+  color: var(--af-slate-500);
+  border-color: var(--af-slate-200);
+}
+
+/* Wordmark — #kc-header-wrapper renders the realm displayName as
+ * uppercase letter-spaced text. The parent forces light-100 color
+ * with !important; override with white + a subtle drop shadow so it
+ * reads against the splash overlay. */
+#kc-header-wrapper {
+  color: #ffffff !important;
+  letter-spacing: 4px;
+  text-shadow: 0 1px 3px rgba(14, 22, 32, 0.5);
+  font-family: var(--af-font-stack);
+  font-weight: 500;
 }
 
 /* Re-pin Roboto for surrounding chrome — Keycloak's reset sets body

@@ -191,8 +191,9 @@ blue + sharp corners + Roboto). Source under `themes/alpenflight/`:
 | Path | Load-bearing fact |
 |---|---|
 | `login/theme.properties` | parent=keycloak.v2; styles= must list parent CSS first then `login.css` |
-| `login/resources/css/login.css` | PF5 v5 global overrides + sharp-corner rules on `pf-v5-c-*` |
-| `login/resources/img/alpenflight-logo.svg` | wordmark; hard-coded brand-500 fill (loaded via `background-image`) |
+| `login/resources/css/login.css` | PF5 v5 global + per-component token overrides (light card, white inputs, splash background, wordmark contrast) |
+| `login/resources/img/splash.jpg` | cockpit photo background (copy of `alpenflight/web/public/splash.jpg`); layered under a slate-900/55% wash via `--keycloak-bg-logo-url` |
+| `login/resources/img/alpenflight-logo.svg` | reserved for a future template-override path; the stock keycloak.v2 `template.ftl` does NOT include `div.kc-logo-text`, so today this file is unused and the wordmark is rendered as text by `#kc-header-wrapper` |
 | `login/resources/img/favicon.ico` | shared with `alpenflight/web/public/favicon.ico` (extraction to `alpenflight/branding/` deferred) |
 | `account/theme.properties` | parent=keycloak.v3 (K26.5 default React account console) |
 | `account/resources/logo.svg` | v3 header logo (`${resourceUrl}/logo.svg`) |
