@@ -264,10 +264,10 @@ CREATE TABLE t_person (
     CONSTRAINT ck_person_email_business_shape
         CHECK (email_business IS NULL OR email_business LIKE '%_@_%._%')
 );
-COMMENT ON CONSTRAINT ck_person_email_private_shape ON person IS
+COMMENT ON CONSTRAINT ck_person_email_private_shape ON t_person IS
     'ADR 0022 retained: input-shape defense-in-depth (a malformed e-mail bypasses '
     'the Email value-object only via direct SQL; cheap belt-and-braces guard).';
-COMMENT ON CONSTRAINT ck_person_email_business_shape ON person IS
+COMMENT ON CONSTRAINT ck_person_email_business_shape ON t_person IS
     'ADR 0022 retained: input-shape defense-in-depth — pairs with the private '
     'e-mail shape check; same rationale.';
 CREATE INDEX ix_person_name ON t_person (lastname, firstname);

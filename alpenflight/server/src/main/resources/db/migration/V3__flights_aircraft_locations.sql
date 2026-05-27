@@ -342,7 +342,7 @@ CREATE TABLE t_aircraft (
     CONSTRAINT ck_aircraft_spot_link_https
         CHECK (spot_link IS NULL OR spot_link ~* '^https://')
 );
-COMMENT ON CONSTRAINT ck_aircraft_spot_link_https ON aircraft IS
+COMMENT ON CONSTRAINT ck_aircraft_spot_link_https ON t_aircraft IS
     'ADR 0022 retained: A10 SSRF defense-in-depth — a non-https spot_link '
     'sneaking past the SpotLink value-object via direct SQL must not silently '
     'persist; the URL is later rendered as a clickable link in the UI.';
