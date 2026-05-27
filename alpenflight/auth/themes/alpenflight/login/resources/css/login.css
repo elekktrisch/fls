@@ -313,47 +313,39 @@ div.pf-v5-c-login__main-header {
   box-sizing: border-box;
 }
 
-/* Locale-selector chevron — use a unicode down-triangle in a `::before`
- * pseudo, absolute-positioned to the right with breathing room on
- * either side. Previous attempts (linear-gradient V, PF5's own toggle-
- * icon) both ended up in the wrong place: the gradient rendered tiny
- * marks visually-near the left edge of "Deutsch", and PF5's icon used
- * a padding-tuned-for-36px-controls that misaligned at our 44px height.
+/* Locale-selector chevron — paint as an SVG background-image directly
+ * on the `<select>` element. Previous attempts using `::before` pseudos
+ * on the form-control rendered in unpredictable positions (the form-
+ * control is a `display: grid` container, and the absolute pseudo
+ * interacted with grid flow weirdly across browsers). The background-
+ * image approach is the standard cross-browser pattern for custom
+ * select arrows: visible, positioned reliably, no grid interaction.
  *
- * Triangle stays gray (`--af-slate-500`) to match the form-control
- * chrome; brand color is reserved for actions per ADR 0024. */
+ * Triangle color = slate-500 (`%2362707F` URL-encoded). ADR 0024
+ * reserves brand color for actions. */
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control__toggle-icon {
   display: none;
 }
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
-  position: relative;
   /* Stable width so the closed/open transition doesn't visually shrink
    * the select. Native `<select>` opens a browser-rendered dropdown
    * whose option-list width is the longest option's text width; when
    * the select then re-closes, browsers re-measure and the wrapper can
-   * jitter. Fixed width pins both states to the same X-extent. */
+   * jitter. Fixed min-width pins both states to the same X-extent.
+   * Extra inline padding gives the selected-label text breathing room
+   * — matches "padding inside the dropdown selection feels tight"
+   * feedback against the username/password form-controls' 12px. */
   min-width: 11rem;
-}
-.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control::before {
-  content: "\25BE"; /* ▾ unicode down-pointing triangle */
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--af-slate-500);
-  font-size: 0.75rem;
-  line-height: 1;
-  pointer-events: none;
-  z-index: 1;
+  padding: 0 16px;
 }
 
-/* Strip the native `<select>` browser arrow (appearance: none) so only
- * our chevron paints, and reserve right-edge padding so the option text
- * doesn't collide with the triangle. */
 .pf-v5-c-login__main-header-utilities select {
   appearance: none;
   -webkit-appearance: none;
-  padding-inline-end: 32px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1 L5 5 L9 1' stroke='%2362707F' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-inline-end: 36px;
   width: 100%;
 }
 
