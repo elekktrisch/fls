@@ -27,6 +27,7 @@
   --af-danger-50:  #FEF3F2;
   --af-danger-500: #B42318;
   --af-danger-700: #7A271A;
+  --af-warn-50:    #FFFAEB;
   --af-warn-500:   #B54708;
   --af-ok-500:     #027A48;
 
@@ -417,4 +418,19 @@ body,
 .login-pf,
 .pf-v5-c-login__main {
   font-family: var(--af-font-stack);
+}
+
+/* PF5 inline-warning alert — keycloak.v2 paints the warning surface
+ * dark slate by default, which breaks visual continuity with the light
+ * card on required-action screens (verify-email, update-password).
+ * Pull back into the alpenflight light palette: warn-50 fill, warn-500
+ * accent border + title. */
+.pf-v5-c-alert.pf-m-inline.pf-m-warning {
+  background-color: var(--af-warn-50);
+  color: var(--af-slate-900);
+  border-top: 2px solid var(--af-warn-500);
+}
+.pf-v5-c-alert.pf-m-inline.pf-m-warning .pf-v5-c-alert__title,
+.pf-v5-c-alert.pf-m-inline.pf-m-warning .kc-feedback-text {
+  color: var(--af-warn-500);
 }

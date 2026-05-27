@@ -140,8 +140,8 @@ the first verification).
 
 | Variable | Dev value | Prod value | Notes |
 |---|---|---|---|
-| `KEYCLOAK_GOOGLE_CLIENT_ID` | unset (button shows but errors on click) | from Google Cloud Console | OAuth 2.0 client ID, type "Web application". |
-| `KEYCLOAK_GOOGLE_CLIENT_SECRET` | unset | from Google Cloud Console | Rotate at deploy. |
+| `KEYCLOAK_GOOGLE_CLIENT_ID` | compose default `set-via-env-for-google-signup` (CTA serves `invalid_client` on click) | from Google Cloud Console | OAuth 2.0 client ID, type "Web application". |
+| `KEYCLOAK_GOOGLE_CLIENT_SECRET` | compose default `set-via-env-for-google-signup` | from Google Cloud Console | Rotate at deploy. |
 | `KEYCLOAK_SMTP_HOST` | `mailpit` (compose service) | real SMTP host | Required for verify-mail delivery. |
 | `KEYCLOAK_SMTP_PORT` | `1025` | provider port | |
 | `KEYCLOAK_SMTP_FROM` | `noreply@alpenflight.local` | `noreply@alpenflight.ch` | |
@@ -149,22 +149,122 @@ the first verification).
 | `KEYCLOAK_SMTP_PASSWORD` | `""` | provider password | Never commit. |
 | `KEYCLOAK_SMTP_AUTH` | `false` | `true` | |
 | `KEYCLOAK_SMTP_STARTTLS` | `false` | `true` | |
+| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4200/` | real SPA origin (trailing slash) | **Build-time arg** (NOT runtime env). Feeds login footer + account-console "back to application" link. Set via shell env or repo-root `.env`; rotation requires image rebuild. |
 
 Mailpit's web UI is at `http://localhost:8025` (compose). Outbound mail from
 Keycloak lands there during local signup smokes — click the verify link to
 complete the flow.
 
+### Operator env workflow
+
+Per-laptop Google OAuth client + SMTP overrides live in
+`alpenflight/auth/.env` (gitignored). The committed `.env.example` carries
+the working defaults (sentinel `set-via-env-for-google-signup` for the
+Google secrets, `mailpit` for SMTP) and is loaded as the first env_file;
+`.env` is loaded second and overrides line-by-line.
+
+```bash
+cp alpenflight/auth/.env.example alpenflight/auth/.env
+$EDITOR alpenflight/auth/.env             # fill the values you want to override
+docker compose -p alpenflight-dev up -d --force-recreate keycloak
+```
+
+`--force-recreate` re-evaluates `env_file` on the container without
+dropping the H2 volume — preserves any federated-login user accounts
+you've already created locally. **But:** realm-import only fires on a
+fresh DB (H2 IGNORE_EXISTING), so the env values are only *read* on
+first boot. Rotating an existing realm's `${KEYCLOAK_GOOGLE_*}` /
+`${KEYCLOAK_SMTP_*}` value requires `rebuild-keycloak.sh` (drops H2,
+wipes federated users, re-imports). Cleaning up just your own test user
+(without nuking H2) is what `bash alpenflight/ops/cleanup-test-user.sh
+<email>` is for.
+
+**Compose layering gotcha:** the per-var defaults live in `.env.example`,
+NOT in the `environment:` block of `docker-compose.yml`. `environment:`
+ALWAYS overrides `env_file`, so a `${VAR:-default}` in `environment:`
+would silently shadow whatever the operator put in `.env`. See the
+inline comment on the keycloak service in `docker-compose.yml`.
+
+A fresh clone with NO `.env` file still boots — `.env.example` carries
+all the working defaults. Clicking "Continue with Google" against the
+`set-via-env-for-google-signup` sentinel renders Keycloak's stock
+`invalid_client` page — that's the "feature is off" signal, not a setup
+bug. The `ALPENFLIGHT_WEB_BASE_URL` build-arg has its own
+`http://localhost:4200/` fallback at the `docker-compose.yml` build-args
+layer, so the SPA root link also works out of the box.
+
 ### Google Cloud Console — one-time setup (prod / per-developer)
+
+Each developer needs their own OAuth client — Google policy disallows
+sharing OAuth secrets across developers. Use a throwaway test Gmail
+account; the OAuth client counts against the account's free-tier quota
+but is otherwise disposable.
 
 1. Google Cloud Console → APIs & Services → Credentials → "Create credentials" → OAuth client ID.
 2. Application type: **Web application**.
-3. Authorized redirect URI: `${KEYCLOAK_PUBLIC_URL}/realms/alpenflight/broker/google/endpoint`
-   — for local dev that's `http://localhost:8090/realms/alpenflight/broker/google/endpoint`.
-4. Copy the generated client ID + secret into the env vars above.
+3. Authorized JavaScript origin: `http://localhost:8090` (verbatim — no trailing slash).
+4. Authorized redirect URI: `http://localhost:8090/realms/alpenflight/broker/google/endpoint` (verbatim).
+5. Copy the generated client ID + secret into `alpenflight/auth/.env` (NEVER paste real values into this README — the example below is a deliberately-fake format).
+6. If the OAuth consent screen is in "testing" mode, add your own Google account under OAuth consent screen → Test users so Google permits the redirect.
+
+Placeholder example (DO NOT use as real credentials — purely shape illustration; the secret prefix is deliberately broken so secret-scanners like gitleaks / trufflehog don't false-positive on it):
+
+```
+KEYCLOAK_GOOGLE_CLIENT_ID=123456789012-fake-dev-only.apps.googleusercontent.com
+KEYCLOAK_GOOGLE_CLIENT_SECRET=EXAMPLE-fake-dev-only-not-a-real-secret
+```
 
 Per `check-realm-shape.sh`: the committed `realm-export.json` MUST keep the
-config values as `${env:KEYCLOAK_GOOGLE_CLIENT_*}` placeholders. A real secret
-slipping into the file via a sloppy `export-realm.sh` round-trip fails CI loudly.
+config values as `${KEYCLOAK_GOOGLE_CLIENT_*}` placeholders (bare form — see
+the Substitution-layers gotcha below for why `${env:VAR}` does NOT work).
+A real secret slipping into the file via a sloppy `export-realm.sh` round-trip
+fails CI loudly.
+
+### Substitution layers
+
+Three substitution layers stack. Same marker syntax (`${VAR}`) for both
+Keycloak realm-import and the Dockerfile sed — they run in series and use
+distinct variable names so they never collide.
+
+| Layer | Marker syntax | What it covers | Who substitutes |
+|---|---|---|---|
+| docker-compose | `${VAR:-default}` in `docker-compose.yml` | Variable interpolation; feeds the build-arg + the env_file values | docker compose at compose-up |
+| Docker build-arg (S-173) | `${ALPENFLIGHT_WEB_BASE_URL}` in `realm-export.json` | `alpenflight-web.client.baseUrl` (Keycloak's realm-import substitution doesn't cover client.baseUrl — URL validator runs first) | `Dockerfile RUN sed` at image build, value passed via `build.args` |
+| Keycloak realm-import | `${KEYCLOAK_GOOGLE_*}`, `${KEYCLOAK_SMTP_*}` in `realm-export.json` | SMTP server + Google IdP config | Keycloak's `AbstractFileBasedImportProvider` at startup (`start --import-realm`) |
+
+**The Keycloak resolver gotcha that bit us on S-173:** Keycloak's
+realm-import resolver is `System::getenv(propertyName)` — naïve, no
+prefix handling. The `${env:VAR}` syntax you see in Quarkus config files
+does NOT work here: the resolver calls `System.getenv("env:VAR")` which
+is always null, then `StringPropertyReplacer`'s colon-fallback substitutes
+the literal post-colon string (the variable name itself) into the realm.
+Use the bare `${VAR}` form for realm-export substitutions and add a
+shape-guard assertion against it.
+
+Rotation requires an image rebuild + H2 wipe (`rebuild-keycloak.sh`)
+for both the build-arg AND the realm-import layer — H2's
+`IGNORE_EXISTING` strategy means values are only read on first import.
+
+### CI integration probe
+
+CI (`compose-smoke` workflow) brings the stack up under
+`docker compose --profile next up --wait` and runs
+`alpenflight/auth/scripts/check-keycloak-integration.sh` to cover the
+end-to-end paths that `check-realm-shape.sh` can't reach from JSON alone:
+
+- alpenflight-web `baseUrl` env-substitution resolves into the login HTML
+  footer href (S-173 wiring).
+- Verify-email round-trip via the admin API delivers a message to mailpit
+  (catches the FreeMarker `Failed to template email` regression).
+
+You can run the same script locally against any running stack:
+
+```bash
+bash alpenflight/auth/scripts/check-keycloak-integration.sh
+```
+
+It expects `localhost:8090` (Keycloak) + `localhost:8025` (mailpit) by
+default; override via `KEYCLOAK_URL=` / `MAILPIT_URL=` / `EXPECTED_BASE_URL=`.
 
 ### Orphan KC users
 

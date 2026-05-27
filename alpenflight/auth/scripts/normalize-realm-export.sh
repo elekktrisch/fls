@@ -92,8 +92,23 @@ if 'components' in partial:
 DEV_CLIENT_SECRETS = {
     'alpenflight-proffix': 'alpenflight-proffix-dev-secret',
 }
+
+# Re-inject build-arg placeholders for client baseUrls. Keycloak's
+# partial-export emits the *resolved* baseUrl (e.g. http://localhost:4200/),
+# but the committed file needs the ${VAR} marker that the Dockerfile's
+# `RUN sed` substitutes at image build — without re-injection, round-trip
+# would bake a literal URL and check-realm-shape.sh would fail loudly.
+# Sibling to the DEV_CLIENT_SECRETS restoration above. Note: this is the
+# bash-style ${VAR} marker (NOT Keycloak's ${env:VAR} — that substitution
+# layer doesn't cover client.baseUrl).
+DEV_CLIENT_BASE_URLS = {
+    'alpenflight-web': '${ALPENFLIGHT_WEB_BASE_URL}',
+}
+
 for c in partial.get('clients', []):
     c.pop('notBefore', None)
+    if c.get('clientId') in DEV_CLIENT_BASE_URLS:
+        c['baseUrl'] = DEV_CLIENT_BASE_URLS[c['clientId']]
     if c.get('publicClient') or c.get('bearerOnly'):
         c.pop('secret', None)
         continue

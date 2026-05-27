@@ -39,7 +39,17 @@ WEB=$(jq '.clients[] | select(.clientId=="alpenflight-web")' "$EXPORT")
 [[ $(jq -r '.directAccessGrantsEnabled' <<<"$WEB") == "false" ]] || fail "alpenflight-web must have directAccessGrantsEnabled=false"
 [[ $(jq -r '.implicitFlowEnabled' <<<"$WEB") == "false" ]] || fail "alpenflight-web must have implicitFlowEnabled=false"
 [[ $(jq -r '.attributes["pkce.code.challenge.method"]' <<<"$WEB") == "S256" ]] || fail "alpenflight-web must enforce PKCE-S256"
-ok "alpenflight-web: public + PKCE-S256 + standardFlow only"
+
+# alpenflight-web.baseUrl is substituted at image-build time by the
+# Dockerfile's `RUN sed` against the ALPENFLIGHT_WEB_BASE_URL build-arg —
+# see alpenflight/auth/README.md § Substitution layers. The committed file
+# must keep the literal `${ALPENFLIGHT_WEB_BASE_URL}` marker; a sloppy
+# `export-realm.sh` round-trip would bake the resolved URL.
+WEB_BASE_URL=$(jq -r '.baseUrl // ""' <<<"$WEB")
+[[ -n "$WEB_BASE_URL" ]] || fail "alpenflight-web.baseUrl is empty — substitution marker dropped on round-trip?"
+[[ "$WEB_BASE_URL" == '${ALPENFLIGHT_WEB_BASE_URL}' ]] \
+  || fail "alpenflight-web.baseUrl must be the literal \${ALPENFLIGHT_WEB_BASE_URL} marker (Dockerfile build-arg substitutes it at image build; normalize-realm-export.sh re-injects on round-trip). Got: '$WEB_BASE_URL' — likely sloppy export-realm.sh round-trip."
+ok "alpenflight-web: public + PKCE-S256 + standardFlow only + baseUrl build-arg substituted"
 
 BACKEND=$(jq '.clients[] | select(.clientId=="alpenflight-backend")' "$EXPORT")
 [[ $(jq -r '.bearerOnly' <<<"$BACKEND") == "true" ]] || fail "alpenflight-backend must be bearerOnly=true"
@@ -173,10 +183,14 @@ done
 ok "password policy: length(12) + notUsername + notEmail + specialChars(1)"
 
 # --- SMTP server (S-134; load-bearing for verify-email) ---
+# Realm-import substitution syntax is bare `${VAR}` — see alpenflight/auth/README.md
+# § Substitution layers for why `${env:VAR}` silently fails (resolver does
+# System.getenv on the literal "env:VAR" string, then colon-fallback bakes
+# the post-colon substring into the realm).
 [[ $(jq -e '.smtpServer | length > 0' "$EXPORT") == "true" ]] || fail "smtpServer block must be non-empty (S-134 verify-email)"
 for key in host port from user password auth starttls; do
   VAL=$(jq -r --arg k "$key" '.smtpServer[$k] // ""' "$EXPORT")
-  [[ "$VAL" == '${env:'*'}' ]] || fail "smtpServer.$key must be a \${env:...} substitution (got: '$VAL') — no real SMTP secrets in source"
+  [[ "$VAL" == '${KEYCLOAK_'*'}' ]] || fail "smtpServer.$key must be a \${KEYCLOAK_...} substitution (got: '$VAL') — no real SMTP secrets in source"
 done
 ok "smtpServer: env-substituted host/port/from/user/password/auth/starttls"
 
@@ -189,12 +203,12 @@ GOOGLE=$(jq '.identityProviders[]? | select(.alias=="google")' "$EXPORT")
 [[ $(jq -r '.firstBrokerLoginFlowAlias' <<<"$GOOGLE") == "first broker login" ]] || fail "Google IdP must reference the stock 'first broker login' flow (no accidental custom-flow swap)"
 
 # Secrets are env-substitution placeholders, never literal hex/random strings.
-# The substring '${env:' anchors the assertion against a sloppy export-realm.sh
-# round-trip that pulled a real prod secret into the committed file.
+# The full-string match anchors against a sloppy export-realm.sh round-trip
+# that pulled a real prod secret into the committed file.
 G_CLIENT_ID=$(jq -r '.config.clientId // ""' <<<"$GOOGLE")
 G_CLIENT_SECRET=$(jq -r '.config.clientSecret // ""' <<<"$GOOGLE")
-[[ "$G_CLIENT_ID" == '${env:'*'}' ]] || fail "Google IdP config.clientId must be a \${env:...} substitution (got: '$G_CLIENT_ID')"
-[[ "$G_CLIENT_SECRET" == '${env:'*'}' ]] || fail "Google IdP config.clientSecret must be a \${env:...} substitution (got: '$G_CLIENT_SECRET' — looks like a real secret leaked into the export)"
+[[ "$G_CLIENT_ID" == '${KEYCLOAK_GOOGLE_CLIENT_ID}' ]] || fail "Google IdP config.clientId must be \${KEYCLOAK_GOOGLE_CLIENT_ID} (got: '$G_CLIENT_ID')"
+[[ "$G_CLIENT_SECRET" == '${KEYCLOAK_GOOGLE_CLIENT_SECRET}' ]] || fail "Google IdP config.clientSecret must be \${KEYCLOAK_GOOGLE_CLIENT_SECRET} (got: '$G_CLIENT_SECRET' — looks like a real secret leaked into the export)"
 
 # No per-IdP token overrides. ADR 0007 token policy (set at realm-level above) MUST
 # apply uniformly to federated sessions; an entry in the IdP config that overrides

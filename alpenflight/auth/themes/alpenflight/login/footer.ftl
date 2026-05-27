@@ -1,22 +1,24 @@
 <#--
   Overrides keycloak.v2's empty footer macro to inject a "Back to Start"
-  link below the login form (the login page is part of AlpenFlight from
-  the user's perspective, so the label is route-relative, not brand-
-  scoped). The link reads the OIDC client's `baseUrl` attribute (set on
-  the `alpenflight-web` client) and falls back to the dev default if
-  unset — production deployments should set baseUrl on the client so
-  this resolves correctly per-environment.
+  link below the login form. The link reads the OIDC client's `baseUrl`
+  attribute on the `alpenflight-web` client; the value lands via the
+  Dockerfile build-arg substitution of `${ALPENFLIGHT_WEB_BASE_URL}` in
+  realm-export.json (see alpenflight/auth/README.md § Substitution layers
+  — Keycloak's own realm-import substitution doesn't reach client.baseUrl
+  because the URL validator runs before substitution).
 
-  Rendered inside `.pf-v5-c-login__main-footer` (see template.ftl line
-  258), below the social-providers + info bands.
+  No FreeMarker fallback — the build-arg sed + check-realm-shape.sh shape
+  guard + docker-compose `${VAR:-default}` block collectively close every
+  "client.baseUrl unset" path. (`${client.baseUrl}` would render an empty
+  href rather than raise if unset; the shape guard is the real safety net.)
 
-  Styling lives in `alpenflight/login/resources/css/login.css` under
-  `.af-back-to-landing` — link color = brand-500, hover = brand-600,
-  matches the SPA's link convention.
+  Rendered inside `.pf-v5-c-login__main-footer` from Keycloak's v2
+  template.ftl, below the social-providers + info bands. Styling lives in
+  `alpenflight/login/resources/css/login.css` under `.af-back-to-landing`.
 -->
 <#macro content>
   <div class="af-back-to-landing-band">
-    <a class="af-back-to-landing" href="${client.baseUrl!'http://localhost:4200/'}">
+    <a class="af-back-to-landing" href="${client.baseUrl}">
       ${msg('backToLanding')}
     </a>
   </div>
