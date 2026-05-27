@@ -14,3 +14,11 @@
 FROM quay.io/keycloak/keycloak:26.5
 
 COPY realm-export.json /opt/keycloak/data/import/realm-export.json
+
+# S-171 — bake the custom `alpenflight` theme. The realm-export pins
+# loginTheme/accountTheme/emailTheme=alpenflight, so the layout under
+# themes/alpenflight/ must remain in the canonical Keycloak shape
+# (themes/<name>/<type>/...). Edits to assets need `docker compose build
+# keycloak` to take effect; `start-dev` disables theme caching but the
+# bind-mount path is unreliable on Docker Desktop Windows hosts.
+COPY themes/ /opt/keycloak/themes/
