@@ -243,7 +243,7 @@ CREATE TABLE t_aircraft_reservation (
     -- validateDuration() at S-064.
 );
 CREATE INDEX ix_arv_aircraft_range_gist
-    ON aircraft_reservation USING gist (aircraft_id, reservation_range)
+    ON t_aircraft_reservation USING gist (aircraft_id, reservation_range)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_arv_club_start_end
     ON t_aircraft_reservation (operating_club_id, reservation_start, reservation_end)
@@ -406,7 +406,7 @@ CREATE INDEX ix_arf_club_type_sort
     ON t_accounting_rule_filter (operating_club_id, filter_type_id, sort_indicator)
     WHERE is_active = true AND deleted_on IS NULL;
 CREATE INDEX ix_arf_filter_config_gin
-    ON accounting_rule_filter USING gin (filter_config jsonb_path_ops);
+    ON t_accounting_rule_filter USING gin (filter_config jsonb_path_ops);
 CREATE UNIQUE INDEX ux_arf_club_sort_partial
     ON t_accounting_rule_filter (operating_club_id, sort_indicator)
     WHERE deleted_on IS NULL;
