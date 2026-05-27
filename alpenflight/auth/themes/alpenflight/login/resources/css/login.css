@@ -152,6 +152,36 @@
   border: 1px solid var(--af-slate-300);
 }
 
+/* PF5 paints a 2px brand-color underline on focus via the ::after pseudo
+ * (rendered with a slight radius because PF5 didn't always reset it).
+ * Kill the ::after entirely and shift focus emphasis to the element's
+ * own border-color flipping to brand-500 — uniform on all four sides,
+ * sharp corners, no thick bottom line. */
+.pf-v5-c-form-control::after,
+.pf-v5-c-form-control:focus-within::after,
+.pf-v5-c-form-control:hover::after {
+  display: none;
+}
+
+.pf-v5-c-form-control:focus,
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-form-control input:focus,
+.pf-v5-c-form-control select:focus {
+  border-color: var(--af-brand-500);
+  outline: none;
+}
+
+/* Force light-theme rendering of native form widgets (checkbox, radio,
+ * the native <select> open panel) so a Windows-dark-mode operator
+ * still sees a white-themed login. Without this, accent-color tints
+ * only the checked indicator — unchecked stays OS-dark. */
+.login-pf,
+.pf-v5-c-login__main,
+.pf-v5-c-form-control,
+.pf-v5-c-check__input {
+  color-scheme: light;
+}
+
 /* The eye-toggle button next to the password input picks up the dark
  * chrome by default — push it back to the card surface. */
 .pf-v5-c-input-group,
