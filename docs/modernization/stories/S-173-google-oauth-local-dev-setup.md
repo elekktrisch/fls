@@ -2,7 +2,8 @@
 id: S-173
 title: Keycloak operator-env plumbing — Google OAuth + alpenflight-web baseUrl
 epic: E-03
-status: todo
+status: in_progress
+started_at: 2026-05-27
 estimate: S
 depends_on: [S-134, S-171]
 integration_base: integration/users-suite
