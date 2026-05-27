@@ -54,12 +54,18 @@
   --pf-v5-global--BackgroundColor--100: var(--af-slate-50);
   /* PF5 paints form-control borders with two tokens: ::before (top + sides)
    * uses BorderColor--300 (default `#f0f0f0` — invisible against slate-50)
-   * and ::after (bottom) uses BorderColor--200 (default `#8a8d90`). Pinning
-   * all three to slate-200 yields uniform 1px borders on all four sides
-   * of inputs + selects instead of the Material-like underline emphasis. */
-  --pf-v5-global--BorderColor--100: var(--af-slate-200);
+   * and ::after (bottom) uses BorderColor--200 (default `#8a8d90`). Pin to
+   * slate-300 so all four sides read clearly against the slate-50 card;
+   * slate-200 was too subtle to see. */
+  --pf-v5-global--BorderColor--100: var(--af-slate-300);
   --pf-v5-global--BorderColor--200: var(--af-slate-300);
-  --pf-v5-global--BorderColor--300: var(--af-slate-200);
+  --pf-v5-global--BorderColor--300: var(--af-slate-300);
+
+  /* Native checkbox + radio tint — single-line override via the modern
+   * `accent-color` property. Browsers apply this to the checked
+   * indicator and (Chromium 88+) to the unchecked outline. Visible on
+   * the slate-50 card without writing custom checkbox chrome. */
+  accent-color: var(--af-brand-500);
   --pf-v5-global--FontFamily--sans-serif: var(--af-font-stack);
   --pf-v5-global--FontFamily--text: var(--af-font-stack);
   --pf-v5-global--FontFamily--heading: var(--af-font-stack);
@@ -135,10 +141,15 @@
 .pf-v5-c-form-control select {
   --pf-v5-c-form-control--BackgroundColor: #ffffff;
   --pf-v5-c-form-control--Color: var(--af-slate-900);
-  --pf-v5-c-form-control--BorderColor: var(--af-slate-200);
+  --pf-v5-c-form-control--BorderColor: var(--af-slate-300);
   background-color: #ffffff;
   color: var(--af-slate-900);
-  border-color: var(--af-slate-200);
+  /* PF5's `.pf-v5-c-form-control:before { border: 0 }` reset zeroes
+   * the top/sides borders the token-based rules tried to paint, so the
+   * default-state input only shows a bottom border. Painting the border
+   * on the element itself (not the pseudo) bypasses that reset and
+   * yields a uniform 1px border on all four sides. */
+  border: 1px solid var(--af-slate-300);
 }
 
 /* The eye-toggle button next to the password input picks up the dark
