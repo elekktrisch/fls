@@ -17,7 +17,7 @@
 <#macro content>
   <div class="af-back-to-landing-band">
     <a class="af-back-to-landing" href="${client.baseUrl!'http://localhost:4200/'}">
-      &larr; ${msg('backToLanding')}
+      ${msg('backToLanding')}
     </a>
   </div>
 </#macro>
