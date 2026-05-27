@@ -14,3 +14,8 @@
 FROM quay.io/keycloak/keycloak:26.5
 
 COPY realm-export.json /opt/keycloak/data/import/realm-export.json
+
+# Bake the custom `alpenflight` theme. Bind-mount path is unreliable on
+# Docker Desktop Windows hosts; edits to assets need `docker compose
+# build keycloak` to take effect.
+COPY themes/ /opt/keycloak/themes/

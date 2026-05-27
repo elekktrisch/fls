@@ -1,0 +1,420 @@
+/* Layered ON TOP OF keycloak.v2/login/resources/css/styles.css (listed
+ * first in theme.properties styles=). PF5 v5 colors use filter / mix-
+ * blend-mode internally, so the SPA's OKLCH source values get emitted
+ * as hex/rgb-equivalents at the variable assignment for PF5 to consume.
+ * Tokens mirror docs/modernization/design-reference/tokens.css.
+ *
+ * Roboto is loaded from Google Fonts. Keycloak's default CSP allows
+ * external stylesheets; if a hardened deployment blocks fonts.googleapis,
+ * bundle the Roboto subset under resources/fonts/ and switch to a local
+ * @font-face declaration.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+:root {
+  --af-brand-500: #1E5BB8;
+  --af-brand-600: #184B98;
+  --af-brand-700: #133C7A;
+  --af-brand-50:  #EBF1FA;
+
+  --af-slate-50:  #F7F9FB;
+  --af-slate-100: #EEF2F6;
+  --af-slate-200: #E0E6ED;
+  --af-slate-300: #C4CDD8;
+  --af-slate-500: #62707F;
+  --af-slate-900: #0E1620;
+
+  --af-danger-50:  #FEF3F2;
+  --af-danger-500: #B42318;
+  --af-danger-700: #7A271A;
+  --af-warn-500:   #B54708;
+  --af-ok-500:     #027A48;
+
+  --af-font-stack: "Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* Background photo (cockpit splash shared with the SPA landing). Layered
+   * with a slate-900 overlay so the wordmark + card both stay readable;
+   * overlay opacity tuned for the splash's mid-tones. */
+  --keycloak-bg-logo-url: url('../img/splash.jpg');
+
+  /* Wordmark — the v2 parent renders the realm displayName via
+   * #kc-header-wrapper as uppercase letter-spaced text. We style it
+   * directly below rather than swap to a logo image; the SVG approach
+   * needs a custom message bundle and a template override (deferred). */
+  --keycloak-card-top-color: var(--af-brand-500);
+
+  /* PF5 v5 globals — the login template paints chrome through these. */
+  --pf-v5-global--primary-color--100: var(--af-brand-500);
+  --pf-v5-global--primary-color--200: var(--af-brand-600);
+  --pf-v5-global--link--Color: var(--af-brand-500);
+  --pf-v5-global--link--Color--hover: var(--af-brand-600);
+  --pf-v5-global--danger-color--100: var(--af-danger-500);
+  --pf-v5-global--danger-color--200: var(--af-danger-700);
+  /* PF5's inline-danger alert background pulls from the red-50 palette
+   * token, not the danger-* scale. Pin to our brand-aligned light red
+   * so the "invalid username or password" alert matches the rest of
+   * the palette instead of PF5's stock pastel pink. */
+  --pf-v5-global--palette--red-50: var(--af-danger-50);
+  --pf-v5-global--warning-color--100: var(--af-warn-500);
+  --pf-v5-global--success-color--100: var(--af-ok-500);
+  --pf-v5-global--BackgroundColor--100: var(--af-slate-50);
+  /* PF5 paints form-control borders with two tokens: ::before (top + sides)
+   * uses BorderColor--300 (default `#f0f0f0` — invisible against slate-50)
+   * and ::after (bottom) uses BorderColor--200 (default `#8a8d90`). Pin to
+   * slate-300 so all four sides read clearly against the slate-50 card;
+   * slate-200 was too subtle to see. */
+  --pf-v5-global--BorderColor--100: var(--af-slate-300);
+  --pf-v5-global--BorderColor--200: var(--af-slate-300);
+  --pf-v5-global--BorderColor--300: var(--af-slate-300);
+
+  /* Native checkbox + radio tint — single-line override via the modern
+   * `accent-color` property. Browsers apply this to the checked
+   * indicator and (Chromium 88+) to the unchecked outline. Visible on
+   * the slate-50 card without writing custom checkbox chrome. */
+  accent-color: var(--af-brand-500);
+  --pf-v5-global--FontFamily--sans-serif: var(--af-font-stack);
+  --pf-v5-global--FontFamily--text: var(--af-font-stack);
+  --pf-v5-global--FontFamily--heading: var(--af-font-stack);
+
+  --pf-v5-global--Color--100: var(--af-slate-900);
+  --pf-v5-global--Color--200: var(--af-slate-500);
+
+  /* ADR 0024: sharp corners. PF5 derives every "small radius" surface
+   * (button main + ::after, form-control main + focus ring, dropdown,
+   * badge, alert) from this single global token — flipping it to 0
+   * gives consistent sharpness everywhere without selector whack-a-mole.
+   * The legacy --keycloak-card-top-color band sits on top of this. */
+  --pf-v5-global--BorderRadius--sm: 0;
+}
+
+/* Belt-and-braces: a few PF5 components hard-code BorderRadius--sm
+ * resolutions instead of going through the token. Keep these selectors
+ * targeted so we're not blanket-resetting unrelated chrome. */
+.pf-v5-c-card,
+.pf-v5-c-button,
+.pf-v5-c-button::after,
+.pf-v5-c-form-control,
+.pf-v5-c-form-control::after,
+.pf-v5-c-alert,
+.card-pf {
+  border-radius: 0;
+}
+
+/* Replace the parent's darken-overlay background image with the splash
+ * photo + a slate-900 wash so the wordmark in white and the light card
+ * both stay readable. Without the overlay the card sits on competing
+ * mid-tones. */
+.login-pf body {
+  background:
+    linear-gradient(rgba(14, 22, 32, 0.55), rgba(14, 22, 32, 0.55)),
+    var(--keycloak-bg-logo-url) no-repeat center center fixed;
+  background-size: cover;
+}
+
+/* Card surface — PF5 v5's default for keycloak.v2 paints the login
+ * card with the dark-200 token. Override the component-scoped tokens
+ * AND the resolved properties directly so the override survives any
+ * future PF5 token rename. ADR 0024: flat — 1px slate-200 border, no
+ * shadow. */
+.pf-v5-c-login__main,
+.card-pf {
+  --pf-v5-c-login__main--BackgroundColor: var(--af-slate-50);
+  --pf-v5-c-login__main--Color: var(--af-slate-900);
+  background-color: var(--af-slate-50);
+  color: var(--af-slate-900);
+  box-shadow: none;
+  border: 1px solid var(--af-slate-200);
+}
+
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer-band {
+  background-color: var(--af-slate-50);
+  color: var(--af-slate-900);
+}
+
+/* Form labels + inputs — PF5 v5 defaults render these light-on-dark
+ * inside the login chrome. Force light card + dark text. */
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text,
+.pf-v5-c-form__group-label {
+  --pf-v5-c-form__label--Color: var(--af-slate-900);
+  color: var(--af-slate-900);
+}
+
+/* Border lives on the wrapper only. The inner `<input>`/`<select>` is
+ * stripped (border: 0 + outline: none) so we don't paint two stacked
+ * 1px borders that read visually as a single 2px border.
+ *
+ * Sizing mirrors the SPA's `<af-input>` atom: 44px tall (touch-target
+ * floor per ADR 0024 + vision §2 gloves NFR) with 12px horizontal
+ * padding. Inputs inside the form body and the header utilities cell
+ * (locale selector) share the same chrome. */
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: #ffffff;
+  --pf-v5-c-form-control--Color: var(--af-slate-900);
+  --pf-v5-c-form-control--BorderColor: var(--af-slate-300);
+  --pf-v5-c-form-control--PaddingTop: 0;
+  --pf-v5-c-form-control--PaddingBottom: 0;
+  --pf-v5-c-form-control--PaddingLeft: 12px;
+  --pf-v5-c-form-control--PaddingRight: 12px;
+  background-color: #ffffff;
+  color: var(--af-slate-900);
+  border: 1px solid var(--af-slate-300);
+  box-sizing: border-box;
+  height: 44px;
+  padding: 0 12px;
+}
+
+/* Inner element must have NO border, even on focus. Two FTL macros
+ * stamp `pf-v5-c-form-control` differently: `<@input>` (login) puts the
+ * class on the wrapping `<span>` only; `<@inputTag>` (register / user-
+ * profile) puts the class on BOTH the wrapping `<span>` AND the inner
+ * `<input>`. Without element-typed selectors, the focus rule paints a
+ * 1px brand border on both → visual 2px on register, 1px on login.
+ *
+ * Element-typed selectors (`input.pf-v5-c-form-control`, etc.) win
+ * specificity over `.pf-v5-c-form-control:focus` so the inner element
+ * stays chrome-less regardless of which macro produced it. The trailing
+ * `.pf-v5-c-form-control input`/`select`/`textarea` selectors cover the
+ * login case where the inner has no class. */
+input.pf-v5-c-form-control,
+input.pf-v5-c-form-control:focus,
+select.pf-v5-c-form-control,
+select.pf-v5-c-form-control:focus,
+textarea.pf-v5-c-form-control,
+textarea.pf-v5-c-form-control:focus,
+.pf-v5-c-form-control input,
+.pf-v5-c-form-control input:focus,
+.pf-v5-c-form-control select,
+.pf-v5-c-form-control select:focus,
+.pf-v5-c-form-control textarea,
+.pf-v5-c-form-control textarea:focus {
+  background-color: transparent;
+  color: var(--af-slate-900);
+  border: 0;
+  outline: none;
+  height: 100%;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* PF5's `::after` pseudo paints a 2px brand-color bottom underline on
+ * focus (with a residual radius from earlier in the cascade). Kill it
+ * entirely and shift focus emphasis to the wrapper's border-color
+ * flipping to brand-500 — uniform 1px on all four sides, sharp corners. */
+.pf-v5-c-form-control::after,
+.pf-v5-c-form-control:focus-within::after,
+.pf-v5-c-form-control:hover::after {
+  display: none;
+}
+
+.pf-v5-c-form-control:focus,
+.pf-v5-c-form-control:focus-within {
+  border: 1px solid var(--af-brand-500);
+  outline: none;
+}
+
+/* Force light-theme rendering of native form widgets (checkbox, radio,
+ * the native <select> open panel) so a Windows-dark-mode operator
+ * still sees a white-themed login. Without this, accent-color tints
+ * only the checked indicator — unchecked stays OS-dark. */
+.login-pf,
+.pf-v5-c-login__main,
+.pf-v5-c-form-control,
+.pf-v5-c-check__input {
+  color-scheme: light;
+}
+
+/* Password input + eye-toggle live inside `.pf-v5-c-input-group` as two
+ * `.pf-v5-c-input-group__item` cells. PF5 paints borders on the cell
+ * AND draws the m-control button border via ::after — separate cascades
+ * that produce a mismatched-color seam where the two adjacent borders
+ * meet. Strip the cell borders and pin both the form-control and the
+ * eye-toggle to identical 1px slate-300 borders so the seam reads as a
+ * single uniform slate-300 line. */
+.pf-v5-c-input-group__item {
+  border: 0;
+  background-color: transparent;
+}
+
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
+  background-color: #ffffff;
+  color: var(--af-slate-500);
+  border: 1px solid var(--af-slate-300);
+  height: 44px;
+}
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control::after {
+  display: none;
+}
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control:hover,
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control:focus {
+  background-color: #ffffff;
+  color: var(--af-slate-900);
+  border-color: var(--af-brand-500);
+  outline: none;
+}
+
+/* When the password input is focused, propagate the "focused" emphasis
+ * to the adjacent eye-toggle so the input-group reads as one focused
+ * unit. Without this, the password input's right border flips to
+ * brand-500 but the eye-toggle's still-slate-300 left border overlaps
+ * it (PF5 sets `margin-inline-start: -1px` to merge adjacent borders),
+ * so the visual right edge of the password stays slate-300. */
+.pf-v5-c-input-group:focus-within .pf-v5-c-button.pf-m-control {
+  border-color: var(--af-brand-500);
+}
+
+/* Social-login buttons (Google, etc.) use `pf-v5-c-button pf-m-secondary`.
+ * PF5 paints the visible border via the ::after pseudo and bumps its
+ * width to 2px on hover (`--hover--after--BorderWidth: --BorderWidth--md`).
+ * Same pattern as the form-control: kill the ::after, paint a real 1px
+ * slate-300 border on the element itself, and flip the color (not width)
+ * on hover — matching the SPA's secondary-button convention. */
+.pf-v5-c-button.pf-m-secondary {
+  background-color: #ffffff;
+  color: var(--af-brand-500);
+  border: 1px solid var(--af-slate-300);
+}
+.pf-v5-c-button.pf-m-secondary::after {
+  display: none;
+}
+.pf-v5-c-button.pf-m-secondary:hover,
+.pf-v5-c-button.pf-m-secondary:focus {
+  background-color: #ffffff;
+  color: var(--af-brand-600);
+  border-color: var(--af-brand-500);
+  outline: none;
+}
+
+/* Header utilities (locale selector) — keycloak.v2's parent CSS pins
+ * the header grid to `70% 30%` at ≥768px. With the column-gap, the 30%
+ * column's right edge doesn't always land exactly at the header's
+ * padding-right boundary — it drifts a few pixels past, putting the
+ * locale selector's right edge to the right of the input row below.
+ *
+ * Override the header grid to `1fr auto` so the locale-selector column
+ * is auto-sized to its content. Combined with `justify-self: end` on
+ * the cell, the selector's right edge sits flush at the header's
+ * padding-right — same X coordinate as the body inputs below. */
+/* `div.pf-v5-c-login__main-header` (with the element-typed selector) is
+ * what keycloak.v2's media-query uses to pin the header to `70% 30%`
+ * at ≥768px; matching the specificity is the only way our override
+ * wins. */
+div.pf-v5-c-login__main-header {
+  grid-template-columns: 1fr auto;
+}
+.pf-v5-c-login__main-header-utilities {
+  justify-self: end;
+  min-width: 0;
+}
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
+  width: auto;
+  box-sizing: border-box;
+}
+
+/* Locale-selector chevron — paint as an SVG background-image directly
+ * on the `<select>` element. Previous attempts using `::before` pseudos
+ * on the form-control rendered in unpredictable positions (the form-
+ * control is a `display: grid` container, and the absolute pseudo
+ * interacted with grid flow weirdly across browsers). The background-
+ * image approach is the standard cross-browser pattern for custom
+ * select arrows: visible, positioned reliably, no grid interaction.
+ *
+ * Triangle color = slate-500 (`%2362707F` URL-encoded). ADR 0024
+ * reserves brand color for actions. */
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control__toggle-icon {
+  display: none;
+}
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
+  /* Stable width so the closed/open transition doesn't visually shrink
+   * the select. Native `<select>` opens a browser-rendered dropdown
+   * whose option-list width is the longest option's text width; when
+   * the select then re-closes, browsers re-measure and the wrapper can
+   * jitter. Fixed min-width pins both states to the same X-extent.
+   * Extra inline padding gives the selected-label text breathing room
+   * — matches "padding inside the dropdown selection feels tight"
+   * feedback against the username/password form-controls' 12px. */
+  min-width: 11rem;
+  padding: 0 16px;
+}
+
+.pf-v5-c-login__main-header-utilities select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1 L5 5 L9 1' stroke='%2362707F' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  /* Chevron sits closer to the right edge so the breathing room around
+   * it reads as visually balanced with the top/bottom margins of the
+   * 44px-tall control. */
+  background-position: right 10px center;
+  padding-inline-end: 32px;
+  width: 100%;
+}
+
+/* Native <select> dropdown panel — the locale selector is rendered as
+ * `<select>` so the OPEN panel is browser-native chrome (we can't
+ * fully style it). Setting `option` colors nudges Chrome/Edge toward
+ * the brand palette; Firefox honors only some of these. The closed
+ * state is the `pf-v5-c-form-control` wrap above. */
+select.pf-v5-c-form-control option,
+.pf-v5-c-form-control select option {
+  background-color: #ffffff;
+  color: var(--af-slate-900);
+  /* Chrome + Edge honor padding on <option> (partially — leading/
+   * trailing padding renders but the height of the item is still OS-
+   * determined). Firefox + Safari ignore it. Best-effort: pushes the
+   * native dropdown items toward the SPA's roomier feel where the
+   * browser allows. The real fix is a custom dropdown (out of scope
+   * here; would replace the native <select> with a CDK overlay or
+   * similar — much bigger change, flag as a follow-up). */
+  padding: 8px 12px;
+}
+select.pf-v5-c-form-control option:checked,
+.pf-v5-c-form-control select option:checked {
+  background-color: var(--af-brand-50);
+  color: var(--af-brand-700);
+}
+
+/* Wordmark — #kc-header-wrapper renders the realm displayName as
+ * uppercase letter-spaced text. The parent forces light-100 color
+ * with !important; override with white + a subtle drop shadow so it
+ * reads against the splash overlay. */
+#kc-header-wrapper {
+  color: #ffffff !important;
+  letter-spacing: 4px;
+  text-shadow: 0 1px 3px rgba(14, 22, 32, 0.5);
+  font-family: var(--af-font-stack);
+  font-weight: 500;
+}
+
+/* "Back to Start" link — rendered by footer.ftl below the login form.
+ * Centered, brand-blue, sentence-case (ADR 0024 voice). Tight top margin
+ * (the social-providers band already gives enough breathing room above);
+ * generous bottom so the link doesn't crowd the card's bottom edge. */
+.af-back-to-landing-band {
+  margin-block-start: var(--pf-v5-global--spacer--sm);
+  margin-block-end: var(--pf-v5-global--spacer--lg);
+  text-align: center;
+}
+.af-back-to-landing {
+  color: var(--af-brand-500);
+  font-family: var(--af-font-stack);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.af-back-to-landing:hover,
+.af-back-to-landing:focus {
+  color: var(--af-brand-600);
+  text-decoration: underline;
+  outline: none;
+}
+
+/* Re-pin Roboto for surrounding chrome — Keycloak's reset sets body
+ * font-family directly in the parent stylesheet, ahead of the PF5
+ * variable cascade. */
+body,
+.login-pf,
+.pf-v5-c-login__main {
+  font-family: var(--af-font-stack);
+}

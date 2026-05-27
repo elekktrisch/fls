@@ -114,6 +114,20 @@ BAD_EMAILS=$(jq -r '[.users[]?.email // empty | select(test("@(example\\.(com|or
 [[ -z "$BAD_EMAILS" ]] || fail "non-test-domain email(s) in seed users: $BAD_EMAILS"
 ok "seed user emails use test domains only"
 
+# --- theme refs ---
+# A freshly-imported realm with no theme keys is the default-state catch —
+# fail closed on null/missing, not only on wrong-value, so a sloppy admin-UI
+# export that drops the keys silently regresses CI rather than slipping
+# through. Keep THEME_NAME aligned with normalize-realm-export.sh + the
+# alpenflight/auth/themes/<name>/ directory.
+THEME_NAME="alpenflight"
+for theme_key in loginTheme accountTheme emailTheme; do
+  VAL=$(jq -r --arg k "$theme_key" '.[$k] // ""' "$EXPORT")
+  [[ "$VAL" == "$THEME_NAME" ]] \
+    || fail "$theme_key must be \"$THEME_NAME\" (got: '$VAL')"
+done
+ok "theme refs: loginTheme/accountTheme/emailTheme = $THEME_NAME"
+
 # --- token policy (ADR 0007) ---
 [[ $(jq -r '.accessTokenLifespan'        "$EXPORT") == "900"     ]] || fail "accessTokenLifespan must be 900 (got $(jq -r .accessTokenLifespan "$EXPORT"))"
 [[ $(jq -r '.ssoSessionIdleTimeout'      "$EXPORT") == "2592000" ]] || fail "ssoSessionIdleTimeout must be 2592000 (30d)"
