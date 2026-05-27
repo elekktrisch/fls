@@ -11,6 +11,7 @@ acceptance:
 estimate: S
 adr_refs: [0007]
 parity_test: none
+integration_base: integration/users-suite
 ---
 
 ## Context

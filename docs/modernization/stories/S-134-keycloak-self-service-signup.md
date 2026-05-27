@@ -13,6 +13,7 @@ acceptance:
   - No tenant is created at signup. Tenant creation happens at first-successful-ingest (S-138).
 estimate: M
 adr_refs: [0007, 0018]
+integration_base: integration/users-suite
 parity_test: tests/public/signup.spec.ts (new)
 ---
 
