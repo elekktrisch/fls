@@ -3,7 +3,13 @@
  * blend-mode internally, so the SPA's OKLCH source values get emitted
  * as hex/rgb-equivalents at the variable assignment for PF5 to consume.
  * Tokens mirror docs/modernization/design-reference/tokens.css.
+ *
+ * Roboto is loaded from Google Fonts. Keycloak's default CSP allows
+ * external stylesheets; if a hardened deployment blocks fonts.googleapis,
+ * bundle the Roboto subset under resources/fonts/ and switch to a local
+ * @font-face declaration.
  */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
 
 :root {
   --af-brand-500: #1E5BB8;
@@ -138,24 +144,59 @@
 
 /* Border lives on the wrapper only. The inner `<input>`/`<select>` is
  * stripped (border: 0 + outline: none) so we don't paint two stacked
- * 1px borders that read visually as a single 2px border — which is
- * what previous iterations of this file did. */
+ * 1px borders that read visually as a single 2px border.
+ *
+ * Sizing mirrors the SPA's `<af-input>` atom: 44px tall (touch-target
+ * floor per ADR 0024 + vision §2 gloves NFR) with 12px horizontal
+ * padding. Inputs inside the form body and the header utilities cell
+ * (locale selector) share the same chrome. */
 .pf-v5-c-form-control {
   --pf-v5-c-form-control--BackgroundColor: #ffffff;
   --pf-v5-c-form-control--Color: var(--af-slate-900);
   --pf-v5-c-form-control--BorderColor: var(--af-slate-300);
+  --pf-v5-c-form-control--PaddingTop: 0;
+  --pf-v5-c-form-control--PaddingBottom: 0;
+  --pf-v5-c-form-control--PaddingLeft: 12px;
+  --pf-v5-c-form-control--PaddingRight: 12px;
   background-color: #ffffff;
   color: var(--af-slate-900);
   border: 1px solid var(--af-slate-300);
   box-sizing: border-box;
+  height: 44px;
+  padding: 0 12px;
 }
 
+/* Inner element must have NO border, even on focus. Two FTL macros
+ * stamp `pf-v5-c-form-control` differently: `<@input>` (login) puts the
+ * class on the wrapping `<span>` only; `<@inputTag>` (register / user-
+ * profile) puts the class on BOTH the wrapping `<span>` AND the inner
+ * `<input>`. Without element-typed selectors, the focus rule paints a
+ * 1px brand border on both → visual 2px on register, 1px on login.
+ *
+ * Element-typed selectors (`input.pf-v5-c-form-control`, etc.) win
+ * specificity over `.pf-v5-c-form-control:focus` so the inner element
+ * stays chrome-less regardless of which macro produced it. The trailing
+ * `.pf-v5-c-form-control input`/`select`/`textarea` selectors cover the
+ * login case where the inner has no class. */
+input.pf-v5-c-form-control,
+input.pf-v5-c-form-control:focus,
+select.pf-v5-c-form-control,
+select.pf-v5-c-form-control:focus,
+textarea.pf-v5-c-form-control,
+textarea.pf-v5-c-form-control:focus,
 .pf-v5-c-form-control input,
-.pf-v5-c-form-control select {
+.pf-v5-c-form-control input:focus,
+.pf-v5-c-form-control select,
+.pf-v5-c-form-control select:focus,
+.pf-v5-c-form-control textarea,
+.pf-v5-c-form-control textarea:focus {
   background-color: transparent;
   color: var(--af-slate-900);
   border: 0;
   outline: none;
+  height: 100%;
+  padding: 0;
+  box-shadow: none;
 }
 
 /* PF5's `::after` pseudo paints a 2px brand-color bottom underline on
@@ -185,16 +226,23 @@
   color-scheme: light;
 }
 
-/* The eye-toggle (password show/hide) is a `pf-v5-c-button pf-m-control`
- * inside an input-group with the password input. PF5 paints its border
- * via the ::after pseudo (different cascade from form-control), so the
- * eye-toggle ends up with a different-looking border than the input.
- * Mirror the input's chrome: white bg, slate-500 icon, explicit 1px
- * slate-300 border on the element itself, ::after pseudo hidden. */
+/* Password input + eye-toggle live inside `.pf-v5-c-input-group` as two
+ * `.pf-v5-c-input-group__item` cells. PF5 paints borders on the cell
+ * AND draws the m-control button border via ::after — separate cascades
+ * that produce a mismatched-color seam where the two adjacent borders
+ * meet. Strip the cell borders and pin both the form-control and the
+ * eye-toggle to identical 1px slate-300 borders so the seam reads as a
+ * single uniform slate-300 line. */
+.pf-v5-c-input-group__item {
+  border: 0;
+  background-color: transparent;
+}
+
 .pf-v5-c-input-group .pf-v5-c-button.pf-m-control {
   background-color: #ffffff;
   color: var(--af-slate-500);
   border: 1px solid var(--af-slate-300);
+  height: 44px;
 }
 .pf-v5-c-input-group .pf-v5-c-button.pf-m-control::after {
   display: none;
@@ -207,24 +255,25 @@
   outline: none;
 }
 
-/* Header utilities (locale selector) — keycloak.v2's parent CSS pins the
- * header grid to `70% 30%` at ≥768px. The form-control wrapping the
- * `<select>` is itself a 3-column CSS grid (input | utilities | toggle-
- * icon); with `width: auto` it sized to content + grid-column paddings
- * and bled a few pixels past the 30% column boundary, putting its right
- * edge to the right of the username/password inputs below.
+/* Header utilities (locale selector) — keycloak.v2's parent CSS pins
+ * the header grid to `70% 30%` at ≥768px. With the column-gap, the 30%
+ * column's right edge doesn't always land exactly at the header's
+ * padding-right boundary — it drifts a few pixels past, putting the
+ * locale selector's right edge to the right of the input row below.
  *
- * Stretch the cell to fill its column and force the form-control to
- * `width: 100% + box-sizing: border-box` so the chevron-icon padding
- * eats into the wrapper's own width budget instead of overflowing it.
- * Result: locale-selector right edge sits exactly at the same X as the
- * input row below it (both end at card-right minus padding-right). */
+ * Override the header grid to `1fr auto` so the locale-selector column
+ * is auto-sized to its content. Combined with `justify-self: end` on
+ * the cell, the selector's right edge sits flush at the header's
+ * padding-right — same X coordinate as the body inputs below. */
+.pf-v5-c-login__main-header {
+  grid-template-columns: 1fr auto;
+}
 .pf-v5-c-login__main-header-utilities {
-  justify-self: stretch;
+  justify-self: end;
   min-width: 0;
 }
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
-  width: 100%;
+  width: auto;
   box-sizing: border-box;
 }
 
