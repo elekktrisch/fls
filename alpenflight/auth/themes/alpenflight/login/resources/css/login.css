@@ -51,13 +51,23 @@
 
   --pf-v5-global--Color--100: var(--af-slate-900);
   --pf-v5-global--Color--200: var(--af-slate-500);
+
+  /* ADR 0024: sharp corners. PF5 derives every "small radius" surface
+   * (button main + ::after, form-control main + focus ring, dropdown,
+   * badge, alert) from this single global token — flipping it to 0
+   * gives consistent sharpness everywhere without selector whack-a-mole.
+   * The legacy --keycloak-card-top-color band sits on top of this. */
+  --pf-v5-global--BorderRadius--sm: 0;
 }
 
-/* PF5 component padding/radius is not surfaced as a token, so component
- * classes get rules directly. ADR 0024: sharp corners. */
+/* Belt-and-braces: a few PF5 components hard-code BorderRadius--sm
+ * resolutions instead of going through the token. Keep these selectors
+ * targeted so we're not blanket-resetting unrelated chrome. */
 .pf-v5-c-card,
 .pf-v5-c-button,
+.pf-v5-c-button::after,
 .pf-v5-c-form-control,
+.pf-v5-c-form-control::after,
 .pf-v5-c-alert,
 .card-pf {
   border-radius: 0;
