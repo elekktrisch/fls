@@ -18,7 +18,9 @@
   --af-slate-500: #62707F;
   --af-slate-900: #0E1620;
 
+  --af-danger-50:  #FEF3F2;
   --af-danger-500: #B42318;
+  --af-danger-700: #7A271A;
   --af-warn-500:   #B54708;
   --af-ok-500:     #027A48;
 
@@ -41,6 +43,12 @@
   --pf-v5-global--link--Color: var(--af-brand-500);
   --pf-v5-global--link--Color--hover: var(--af-brand-600);
   --pf-v5-global--danger-color--100: var(--af-danger-500);
+  --pf-v5-global--danger-color--200: var(--af-danger-700);
+  /* PF5's inline-danger alert background pulls from the red-50 palette
+   * token, not the danger-* scale. Pin to our brand-aligned light red
+   * so the "invalid username or password" alert matches the rest of
+   * the palette instead of PF5's stock pastel pink. */
+  --pf-v5-global--palette--red-50: var(--af-danger-50);
   --pf-v5-global--warning-color--100: var(--af-warn-500);
   --pf-v5-global--success-color--100: var(--af-ok-500);
   --pf-v5-global--BackgroundColor--100: var(--af-slate-50);
