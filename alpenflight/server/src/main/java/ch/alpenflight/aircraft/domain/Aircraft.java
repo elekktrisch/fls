@@ -176,12 +176,12 @@ public class Aircraft {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "t_aircraft",
+    @OneToMany(mappedBy = "aircraft",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<AircraftStateHistoryEntry> stateHistory = new ArrayList<>();
 
-    @OneToMany(mappedBy = "t_aircraft",
+    @OneToMany(mappedBy = "aircraft",
             cascade = CascadeType.ALL)
     private List<AircraftOperatingCounter> operatingCounters = new ArrayList<>();
 

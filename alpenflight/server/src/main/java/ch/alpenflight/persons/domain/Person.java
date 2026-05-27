@@ -203,7 +203,7 @@ public class Person {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "t_person",
+    @OneToMany(mappedBy = "person",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<PersonClub> personClubs = new ArrayList<>();

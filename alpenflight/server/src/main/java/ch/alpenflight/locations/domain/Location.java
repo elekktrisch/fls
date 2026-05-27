@@ -123,7 +123,7 @@ public class Location {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "t_location",
+    @OneToMany(mappedBy = "location",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<InOutboundPoint> inOutboundPoints = new ArrayList<>();

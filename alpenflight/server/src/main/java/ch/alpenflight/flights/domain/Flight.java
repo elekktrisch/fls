@@ -200,7 +200,7 @@ public class Flight {
     @SuppressWarnings("UnusedVariable")
     private @Nullable UUID deletedByUserId;
 
-    @OneToMany(mappedBy = "t_flight",
+    @OneToMany(mappedBy = "flight",
             cascade = CascadeType.ALL,
             orphanRemoval = true)
     private List<FlightCrew> crew = new ArrayList<>();
