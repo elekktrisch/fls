@@ -149,7 +149,7 @@ the first verification).
 | `KEYCLOAK_SMTP_PASSWORD` | `""` | provider password | Never commit. |
 | `KEYCLOAK_SMTP_AUTH` | `false` | `true` | |
 | `KEYCLOAK_SMTP_STARTTLS` | `false` | `true` | |
-| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4200/` | real SPA origin (trailing slash) | Feeds login footer + account-console "back to application" link. |
+| `ALPENFLIGHT_WEB_BASE_URL` | `http://localhost:4200/` | real SPA origin (trailing slash) | **Build-time arg** (NOT runtime env). Feeds login footer + account-console "back to application" link. Set via shell env or repo-root `.env`; rotation requires image rebuild. |
 
 Mailpit's web UI is at `http://localhost:8025` (compose). Outbound mail from
 Keycloak lands there during local signup smokes — click the verify link to
@@ -210,12 +210,15 @@ Three substitution layers stack:
 
 | Layer | Marker syntax | What it covers | Who substitutes |
 |---|---|---|---|
-| docker-compose | `${VAR:-default}` in `docker-compose.yml` | All env vars the container sees | docker compose at compose-up |
+| docker-compose | `${VAR:-default}` in `docker-compose.yml` | All env vars the container sees + the build-arg below | docker compose at compose-up |
 | Keycloak (built-in) | `${env:VAR}` in `realm-export.json` | SMTP server config, IdP config | Keycloak at realm-import |
-| entrypoint.sh (S-173) | `${VAR}` in `realm-export.json` | `client.baseUrl` (Keycloak's `${env:}` does NOT cover this — URL validator runs first) | `alpenflight/auth/entrypoint.sh` via `sed -i` before `kc.sh` runs |
+| Docker build-arg (S-173) | `${VAR}` in `realm-export.json` | `client.baseUrl` (Keycloak's `${env:}` does NOT cover this — URL validator runs first) | `Dockerfile` `RUN sed` at image build, value passed via `build.args` |
 
 The `alpenflight-web` client's `baseUrl` uses the third layer because
 Keycloak's URL validator rejects literal `${env:...}` text on import.
+Rotation requires an image rebuild (`rebuild-keycloak.sh`) — same
+workflow as `KEYCLOAK_GOOGLE_*` since H2's `IGNORE_EXISTING` import
+strategy means re-import only fires on a fresh DB.
 
 ### CI integration probe
 

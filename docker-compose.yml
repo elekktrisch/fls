@@ -180,6 +180,13 @@ services:
     build:
       context: ./alpenflight/auth
       dockerfile: Dockerfile
+      args:
+        # S-173 — substituted into realm-export.json at build time
+        # (Keycloak's ${env:VAR} substitution does NOT cover client.baseUrl;
+        # URL validator runs before substitution). `:-` default keeps fresh
+        # clones building. Rotation requires `rebuild-keycloak.sh` (image
+        # rebuild + H2 wipe — same constraint as KEYCLOAK_GOOGLE_*).
+        ALPENFLIGHT_WEB_BASE_URL: "${ALPENFLIGHT_WEB_BASE_URL:-http://localhost:4200/}"
     image: alpenflight-keycloak:local
     # --import-realm runs on every boot. Keycloak's default IGNORE_EXISTING
     # strategy preserves H2-resident edits; new entities from the JSON are
@@ -223,11 +230,12 @@ services:
       KEYCLOAK_SMTP_PASSWORD: "${KEYCLOAK_SMTP_PASSWORD:-}"
       KEYCLOAK_SMTP_AUTH: "${KEYCLOAK_SMTP_AUTH:-false}"
       KEYCLOAK_SMTP_STARTTLS: "${KEYCLOAK_SMTP_STARTTLS:-false}"
-      # S-173 — alpenflight-web client baseUrl. Feeds the login footer
-      # "Back to Start" href + Keycloak's account-console "back to
-      # application" link. Trailing slash is load-bearing (rendered
-      # verbatim into href). Production sets the real SPA origin.
-      ALPENFLIGHT_WEB_BASE_URL: "${ALPENFLIGHT_WEB_BASE_URL:-http://localhost:4200/}"
+      # ALPENFLIGHT_WEB_BASE_URL is consumed at IMAGE BUILD time (see
+      # build.args above), not as a container env var — Keycloak's
+      # ${env:VAR} substitution doesn't reach client.baseUrl. Rotation
+      # workflow: `rebuild-keycloak.sh` rebuilds the image with the new
+      # value baked into realm-export.json. Documented in
+      # alpenflight/auth/README.md § "Substitution layers".
     ports:
       - "127.0.0.1:8090:8080"
       - "127.0.0.1:9090:9000"   # management interface (/health/ready)

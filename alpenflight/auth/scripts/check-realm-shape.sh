@@ -40,17 +40,17 @@ WEB=$(jq '.clients[] | select(.clientId=="alpenflight-web")' "$EXPORT")
 [[ $(jq -r '.implicitFlowEnabled' <<<"$WEB") == "false" ]] || fail "alpenflight-web must have implicitFlowEnabled=false"
 [[ $(jq -r '.attributes["pkce.code.challenge.method"]' <<<"$WEB") == "S256" ]] || fail "alpenflight-web must enforce PKCE-S256"
 
-# S-173: alpenflight-web.baseUrl is substituted at container boot by
-# alpenflight/auth/entrypoint.sh (Keycloak's ${env:VAR} substitution doesn't
-# cover client.baseUrl — URL validator runs first). The committed file MUST
-# keep the literal ${ALPENFLIGHT_WEB_BASE_URL} marker — a sloppy
-# export-realm.sh round-trip would bake the resolved URL instead, breaking
-# the env-driven per-environment baseUrl contract.
+# S-173: alpenflight-web.baseUrl is substituted at image-build time by the
+# Dockerfile's `RUN sed` against the ALPENFLIGHT_WEB_BASE_URL build-arg
+# (Keycloak's ${env:VAR} substitution doesn't cover client.baseUrl — URL
+# validator runs first). The committed file MUST keep the literal
+# ${ALPENFLIGHT_WEB_BASE_URL} marker — a sloppy export-realm.sh round-trip
+# would bake the resolved URL instead, breaking the per-environment contract.
 WEB_BASE_URL=$(jq -r '.baseUrl // ""' <<<"$WEB")
 [[ -n "$WEB_BASE_URL" ]] || fail "alpenflight-web.baseUrl is empty — substitution marker dropped on round-trip?"
 [[ "$WEB_BASE_URL" == '${ALPENFLIGHT_WEB_BASE_URL}' ]] \
-  || fail "alpenflight-web.baseUrl must be the literal \${ALPENFLIGHT_WEB_BASE_URL} marker substituted by alpenflight/auth/entrypoint.sh (got: '$WEB_BASE_URL' — likely sloppy export-realm.sh round-trip; normalize-realm-export.sh re-injects on round-trip)"
-ok "alpenflight-web: public + PKCE-S256 + standardFlow only + baseUrl substituted by entrypoint.sh"
+  || fail "alpenflight-web.baseUrl must be the literal \${ALPENFLIGHT_WEB_BASE_URL} marker (Dockerfile build-arg substitutes it at image build; normalize-realm-export.sh re-injects on round-trip). Got: '$WEB_BASE_URL' — likely sloppy export-realm.sh round-trip."
+ok "alpenflight-web: public + PKCE-S256 + standardFlow only + baseUrl build-arg substituted"
 
 BACKEND=$(jq '.clients[] | select(.clientId=="alpenflight-backend")' "$EXPORT")
 [[ $(jq -r '.bearerOnly' <<<"$BACKEND") == "true" ]] || fail "alpenflight-backend must be bearerOnly=true"

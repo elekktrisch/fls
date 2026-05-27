@@ -93,14 +93,14 @@ DEV_CLIENT_SECRETS = {
     'alpenflight-proffix': 'alpenflight-proffix-dev-secret',
 }
 
-# Re-inject sed-substitution placeholders for client baseUrls. Keycloak's
+# Re-inject build-arg placeholders for client baseUrls. Keycloak's
 # partial-export emits the *resolved* baseUrl (e.g. http://localhost:4200/),
-# but the committed file needs the ${VAR} marker that alpenflight/auth/
-# entrypoint.sh substitutes at boot — without re-injection, round-trip
+# but the committed file needs the ${VAR} marker that the Dockerfile's
+# `RUN sed` substitutes at image build — without re-injection, round-trip
 # would bake a literal URL and check-realm-shape.sh would fail loudly.
 # Sibling to the DEV_CLIENT_SECRETS restoration above. Note: this is the
 # bash-style ${VAR} marker (NOT Keycloak's ${env:VAR} — that substitution
-# layer doesn't cover client.baseUrl; entrypoint.sh owns this one).
+# layer doesn't cover client.baseUrl).
 DEV_CLIENT_BASE_URLS = {
     'alpenflight-web': '${ALPENFLIGHT_WEB_BASE_URL}',
 }
