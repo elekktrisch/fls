@@ -11,6 +11,7 @@ refined: true
 refined_at: 2026-05-27
 refined_specialists: [requirements, solution, qa, security]
 github_issue: 147
+github_pr: 148
 origin: punch-list
 ---
 
