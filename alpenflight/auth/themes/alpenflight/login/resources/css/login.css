@@ -204,6 +204,21 @@
   outline: none;
 }
 
+/* Header utilities (locale selector) — PF5's header grid (1fr auto)
+ * lets the locale-selector form-control extend slightly past the right
+ * edge of the inputs below it because the wrapping form-control gets
+ * extra inline padding for the chevron-icon overlay. Pin the cell to
+ * `justify-self: end` and cap the form-control width so the right
+ * edge aligns with the username/password inputs in the body. */
+.pf-v5-c-login__main-header-utilities {
+  justify-self: end;
+  min-width: 0;
+}
+.pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
+  width: auto;
+  max-width: 100%;
+}
+
 /* Native <select> dropdown panel — the locale selector is rendered as
  * `<select>` so the OPEN panel is browser-native chrome (we can't
  * fully style it). Setting `option` colors nudges Chrome/Edge toward
