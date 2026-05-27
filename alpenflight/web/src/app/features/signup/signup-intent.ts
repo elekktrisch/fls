@@ -11,10 +11,11 @@ export const POST_SIGNUP_DEFAULT_PATH = '/migrate/start';
 /**
  * Normalize the raw `?intent=` query string into the SignupIntent enum. The
  * enum exists so the router can switch on a known value rather than
- * `navigateByUrl(rawIntent)` — that path would be an open redirect.
+ * `navigateByUrl(rawIntent)` — that path would be an open redirect. Single-arm
+ * today; reintroduce an `if (raw === ...) return ...` when a second intent lands.
  */
 export function resolveSignupIntent(raw: string | null | undefined): SignupIntent {
-  if (raw === 'migrate') return 'migrate';
+  void raw;
   return 'migrate';
 }
 

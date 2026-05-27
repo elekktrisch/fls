@@ -140,7 +140,10 @@ export class SignupComponent {
   #authorizeSafely(args: { customParams: Record<string, string> }): void {
     try {
       this.#oidc.authorize(undefined, args);
-    } catch {
+    } catch (err) {
+      // Dev-loop diagnostic so a misconfigured OIDC client surfaces on the
+      // console rather than dying silently behind a user-facing toast.
+      console.error('[signup] authorize failed', err);
       this.pending.set(null);
       this.error.set(true);
     }

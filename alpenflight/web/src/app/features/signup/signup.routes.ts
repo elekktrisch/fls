@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { authGuard } from '../../core/session/session.guard';
+import { authGuard } from '@core/session/session.guard';
 
 export const SIGNUP_ROUTES: Routes = [
   {
