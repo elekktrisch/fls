@@ -72,7 +72,8 @@ urlencode() {
 # ?error=invalid_request. Pre-compute the verifier + challenge so the auth
 # endpoint serves the login HTML (200) directly.
 pkce_pair() {
-  local verifier; verifier=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 64)
+  # `head -c 64` closes the pipe early; suppress tr's broken-pipe noise.
+  local verifier; verifier=$(tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 64)
   local challenge; challenge=$(printf '%s' "$verifier" \
     | openssl dgst -sha256 -binary \
     | openssl base64 \
@@ -102,6 +103,26 @@ ADMIN_BASE_URL=$(curl -fsS -G "${KEYCLOAK_URL}/admin/realms/${REALM}/clients" \
 [[ "$ADMIN_BASE_URL" == "$EXPECTED_BASE_URL" ]] \
   || fail "alpenflight-web.baseUrl in H2 = '${ADMIN_BASE_URL}' — expected '${EXPECTED_BASE_URL}'. Build-arg substitution failed?"
 ok "alpenflight-web.baseUrl in H2 = ${ADMIN_BASE_URL} (build-arg substitution resolved)"
+
+# 1c. Realm-level env-substitutions resolved at import. Keycloak's
+# `${env:VAR}` falls back to substituting the LITERAL var name (post-colon
+# substring) when the resolver can't find it — so an unset KEYCLOAK_SMTP_FROM
+# bakes "KEYCLOAK_SMTP_FROM" into H2.smtpServer.from, which then trips a
+# NullPointerException in DefaultEmailSenderProvider at send time
+# (isValidEmail rejects the literal var name → convertEmail returns null →
+# from=null → mail.from setProperty NPE). This is the surface that catches
+# the resolver-fallback-fire path early.
+REALM_CFG=$(curl -fsS "${KEYCLOAK_URL}/admin/realms/${REALM}" -H "Authorization: Bearer ${TOKEN}")
+SMTP_FROM=$(jq -r '.smtpServer.from // ""' <<<"$REALM_CFG")
+SMTP_HOST=$(jq -r '.smtpServer.host // ""' <<<"$REALM_CFG")
+GOOGLE_CLIENT_ID=$(jq -r '[.identityProviders[]? | select(.alias=="google") | .config.clientId][0] // ""' <<<"$REALM_CFG")
+[[ "$SMTP_FROM" == *@*.* ]] \
+  || fail "smtpServer.from in H2 looks unresolved (got '$SMTP_FROM'). Likely the KEYCLOAK_SMTP_FROM env var is unset/empty and Keycloak's \${env:VAR} fallback baked the literal var name into the realm import. Check docker-compose env_file ordering."
+[[ "$SMTP_HOST" == "mailpit" ]] \
+  || fail "smtpServer.host in H2 = '$SMTP_HOST' — expected 'mailpit'. env-substitution failure or wrong override?"
+[[ "$GOOGLE_CLIENT_ID" != "KEYCLOAK_GOOGLE_CLIENT_ID" ]] \
+  || fail "Google IdP clientId in H2 = literal 'KEYCLOAK_GOOGLE_CLIENT_ID' — Keycloak's \${env:KEYCLOAK_GOOGLE_CLIENT_ID} fell back to substituting the post-colon literal because the env var was unset at import time. Operator must drop H2 (rebuild-keycloak.sh) after fixing the .env."
+ok "realm SMTP + Google-IdP env-substitutions resolved (from=${SMTP_FROM}, host=${SMTP_HOST}, google clientId != literal)"
 
 # 1b. Login HTML — exercises the footer.ftl FreeMarker render path. PKCE is
 # required since the client enforces S256; precomputing the challenge keeps
