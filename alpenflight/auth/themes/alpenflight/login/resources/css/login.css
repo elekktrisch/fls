@@ -136,27 +136,32 @@
   color: var(--af-slate-900);
 }
 
-.pf-v5-c-form-control,
-.pf-v5-c-form-control input,
-.pf-v5-c-form-control select {
+/* Border lives on the wrapper only. The inner `<input>`/`<select>` is
+ * stripped (border: 0 + outline: none) so we don't paint two stacked
+ * 1px borders that read visually as a single 2px border — which is
+ * what previous iterations of this file did. */
+.pf-v5-c-form-control {
   --pf-v5-c-form-control--BackgroundColor: #ffffff;
   --pf-v5-c-form-control--Color: var(--af-slate-900);
   --pf-v5-c-form-control--BorderColor: var(--af-slate-300);
   background-color: #ffffff;
   color: var(--af-slate-900);
-  /* PF5's `.pf-v5-c-form-control:before { border: 0 }` reset zeroes
-   * the top/sides borders the token-based rules tried to paint, so the
-   * default-state input only shows a bottom border. Painting the border
-   * on the element itself (not the pseudo) bypasses that reset and
-   * yields a uniform 1px border on all four sides. */
   border: 1px solid var(--af-slate-300);
+  box-sizing: border-box;
 }
 
-/* PF5 paints a 2px brand-color underline on focus via the ::after pseudo
- * (rendered with a slight radius because PF5 didn't always reset it).
- * Kill the ::after entirely and shift focus emphasis to the element's
- * own border-color flipping to brand-500 — uniform on all four sides,
- * sharp corners, no thick bottom line. */
+.pf-v5-c-form-control input,
+.pf-v5-c-form-control select {
+  background-color: transparent;
+  color: var(--af-slate-900);
+  border: 0;
+  outline: none;
+}
+
+/* PF5's `::after` pseudo paints a 2px brand-color bottom underline on
+ * focus (with a residual radius from earlier in the cascade). Kill it
+ * entirely and shift focus emphasis to the wrapper's border-color
+ * flipping to brand-500 — uniform 1px on all four sides, sharp corners. */
 .pf-v5-c-form-control::after,
 .pf-v5-c-form-control:focus-within::after,
 .pf-v5-c-form-control:hover::after {
@@ -164,9 +169,7 @@
 }
 
 .pf-v5-c-form-control:focus,
-.pf-v5-c-form-control:focus-within,
-.pf-v5-c-form-control input:focus,
-.pf-v5-c-form-control select:focus {
+.pf-v5-c-form-control:focus-within {
   border: 1px solid var(--af-brand-500);
   outline: none;
 }
@@ -204,19 +207,25 @@
   outline: none;
 }
 
-/* Header utilities (locale selector) — PF5's header grid (1fr auto)
- * lets the locale-selector form-control extend slightly past the right
- * edge of the inputs below it because the wrapping form-control gets
- * extra inline padding for the chevron-icon overlay. Pin the cell to
- * `justify-self: end` and cap the form-control width so the right
- * edge aligns with the username/password inputs in the body. */
+/* Header utilities (locale selector) — keycloak.v2's parent CSS pins the
+ * header grid to `70% 30%` at ≥768px. The form-control wrapping the
+ * `<select>` is itself a 3-column CSS grid (input | utilities | toggle-
+ * icon); with `width: auto` it sized to content + grid-column paddings
+ * and bled a few pixels past the 30% column boundary, putting its right
+ * edge to the right of the username/password inputs below.
+ *
+ * Stretch the cell to fill its column and force the form-control to
+ * `width: 100% + box-sizing: border-box` so the chevron-icon padding
+ * eats into the wrapper's own width budget instead of overflowing it.
+ * Result: locale-selector right edge sits exactly at the same X as the
+ * input row below it (both end at card-right minus padding-right). */
 .pf-v5-c-login__main-header-utilities {
-  justify-self: end;
+  justify-self: stretch;
   min-width: 0;
 }
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
-  width: auto;
-  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Native <select> dropdown panel — the locale selector is rendered as
