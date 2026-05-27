@@ -78,11 +78,11 @@ urlencode() {
 # `pkce.code.challenge.method=S256`), so /auth refuses the request without
 # `code_challenge` + `code_challenge_method=S256` and 302s to redirect_uri
 # with ?error=invalid_request. We only need the challenge (we don't
-# complete the auth exchange) — emit it from a fresh 64-char verifier
-# without exposing the verifier the script never uses.
+# complete the auth exchange) — emit it from a fresh 64-hex-char verifier.
+# `openssl rand -hex 32` avoids the `tr </dev/urandom | head -c` pipeline
+# that triggers a SIGPIPE on tr under `set -o pipefail`.
 pkce_challenge() {
-  # `head -c 64` closes the pipe early; suppress tr's broken-pipe noise.
-  tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 64 \
+  openssl rand -hex 32 \
     | openssl dgst -sha256 -binary \
     | openssl base64 \
     | tr -d '=\n' \
