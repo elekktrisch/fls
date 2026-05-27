@@ -39,7 +39,16 @@ WEB=$(jq '.clients[] | select(.clientId=="alpenflight-web")' "$EXPORT")
 [[ $(jq -r '.directAccessGrantsEnabled' <<<"$WEB") == "false" ]] || fail "alpenflight-web must have directAccessGrantsEnabled=false"
 [[ $(jq -r '.implicitFlowEnabled' <<<"$WEB") == "false" ]] || fail "alpenflight-web must have implicitFlowEnabled=false"
 [[ $(jq -r '.attributes["pkce.code.challenge.method"]' <<<"$WEB") == "S256" ]] || fail "alpenflight-web must enforce PKCE-S256"
-ok "alpenflight-web: public + PKCE-S256 + standardFlow only"
+
+# S-173: alpenflight-web.baseUrl is env-substituted so the login footer + account-console
+# "back to application" link resolve per-environment. Same shape-guard shelf as the
+# Google IdP secret check below — fails loudly if a sloppy export-realm.sh round-trip
+# baked a literal localhost URL. Closing brace anchored so ${env:..._EXTRA} doesn't slip.
+WEB_BASE_URL=$(jq -r '.baseUrl // ""' <<<"$WEB")
+[[ -n "$WEB_BASE_URL" ]] || fail "alpenflight-web.baseUrl is empty — env-substitution dropped on round-trip?"
+[[ "$WEB_BASE_URL" == '${env:ALPENFLIGHT_WEB_BASE_URL'*'}' ]] \
+  || fail "alpenflight-web.baseUrl must be \${env:ALPENFLIGHT_WEB_BASE_URL...} substitution (got: '$WEB_BASE_URL' — sloppy export-realm.sh round-trip?)"
+ok "alpenflight-web: public + PKCE-S256 + standardFlow only + baseUrl env-substituted"
 
 BACKEND=$(jq '.clients[] | select(.clientId=="alpenflight-backend")' "$EXPORT")
 [[ $(jq -r '.bearerOnly' <<<"$BACKEND") == "true" ]] || fail "alpenflight-backend must be bearerOnly=true"
