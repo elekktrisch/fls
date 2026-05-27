@@ -25,6 +25,13 @@ import { LogLevel, type OpenIdConfiguration } from 'angular-auth-oidc-client';
  *   renders in German for the AlpenFlight audience.
  */
 export const alpenflightOidcConfig: OpenIdConfiguration = {
+  // Pinned configId so localStorage keys (`<configId>_authStateControl`,
+  // etc.) stay stable across tabs. Without it, the library auto-generates
+  // a fresh id per app instance — a new tab opened from the Mailpit
+  // verify-email link then can't find the auth-state stored by the
+  // original /signup tab and raises "could not find matching config for
+  // state" at /auth/callback. Value mirrors the Keycloak client_id.
+  configId: 'alpenflight-web',
   // TODO(S-041): swap to env-pinned hosted-IdP URL at prod cutover.
   authority: 'http://localhost:8090/realms/alpenflight',
   clientId: 'alpenflight-web',
