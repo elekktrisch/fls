@@ -255,6 +255,38 @@ textarea.pf-v5-c-form-control:focus,
   outline: none;
 }
 
+/* When the password input is focused, propagate the "focused" emphasis
+ * to the adjacent eye-toggle so the input-group reads as one focused
+ * unit. Without this, the password input's right border flips to
+ * brand-500 but the eye-toggle's still-slate-300 left border overlaps
+ * it (PF5 sets `margin-inline-start: -1px` to merge adjacent borders),
+ * so the visual right edge of the password stays slate-300. */
+.pf-v5-c-input-group:focus-within .pf-v5-c-button.pf-m-control {
+  border-color: var(--af-brand-500);
+}
+
+/* Social-login buttons (Google, etc.) use `pf-v5-c-button pf-m-secondary`.
+ * PF5 paints the visible border via the ::after pseudo and bumps its
+ * width to 2px on hover (`--hover--after--BorderWidth: --BorderWidth--md`).
+ * Same pattern as the form-control: kill the ::after, paint a real 1px
+ * slate-300 border on the element itself, and flip the color (not width)
+ * on hover — matching the SPA's secondary-button convention. */
+.pf-v5-c-button.pf-m-secondary {
+  background-color: #ffffff;
+  color: var(--af-brand-500);
+  border: 1px solid var(--af-slate-300);
+}
+.pf-v5-c-button.pf-m-secondary::after {
+  display: none;
+}
+.pf-v5-c-button.pf-m-secondary:hover,
+.pf-v5-c-button.pf-m-secondary:focus {
+  background-color: #ffffff;
+  color: var(--af-brand-600);
+  border-color: var(--af-brand-500);
+  outline: none;
+}
+
 /* Header utilities (locale selector) — keycloak.v2's parent CSS pins
  * the header grid to `70% 30%` at ≥768px. With the column-gap, the 30%
  * column's right edge doesn't always land exactly at the header's
@@ -265,7 +297,11 @@ textarea.pf-v5-c-form-control:focus,
  * is auto-sized to its content. Combined with `justify-self: end` on
  * the cell, the selector's right edge sits flush at the header's
  * padding-right — same X coordinate as the body inputs below. */
-.pf-v5-c-login__main-header {
+/* `div.pf-v5-c-login__main-header` (with the element-typed selector) is
+ * what keycloak.v2's media-query uses to pin the header to `70% 30%`
+ * at ≥768px; matching the specificity is the only way our override
+ * wins. */
+div.pf-v5-c-login__main-header {
   grid-template-columns: 1fr auto;
 }
 .pf-v5-c-login__main-header-utilities {
@@ -275,6 +311,17 @@ textarea.pf-v5-c-form-control:focus,
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
   width: auto;
   box-sizing: border-box;
+}
+
+/* The form-control's chevron icon sits in `grid-column: 3` with a
+ * `padding-block-start` token that was calibrated against PF5's
+ * default ~36px form-control height. We bumped the control to 44px to
+ * match the SPA's `<af-input>`, which left the chevron riding too high.
+ * Zero the padding and center via grid-row alignment instead. */
+.pf-v5-c-form-control__toggle-icon {
+  padding-block-start: 0;
+  padding-block-end: 0;
+  align-self: center;
 }
 
 /* Native <select> dropdown panel — the locale selector is rendered as
