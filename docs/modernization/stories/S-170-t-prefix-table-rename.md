@@ -2,7 +2,8 @@
 id: S-170
 title: Apply `t_` prefix to all tables for naming consistency
 epic: E-04
-status: todo
+status: in_progress
+started_at: 2026-05-27
 estimate: M
 parity_test: none
 depends_on: [S-052]
