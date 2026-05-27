@@ -84,7 +84,7 @@ class IdentityBaselineIntegrationTest {
                 "t_length_unit_type", "t_elevation_unit_type", "t_counter_unit_type",
                 "t_start_type",
                 "t_email_template",
-                "t_extension_type", "extension_value"
+                "t_extension_type", "t_extension_value"
         ));
         Set<String> actual = new LinkedHashSet<>();
         try (Connection conn = dataSource.getConnection();
@@ -135,7 +135,7 @@ class IdentityBaselineIntegrationTest {
                             't_club','t_club_extension','t_club_state','t_user',
                             't_person','t_person_club','t_country','t_language','t_member_state','t_person_category',
                             't_length_unit_type','t_elevation_unit_type','t_counter_unit_type','t_start_type',
-                            't_email_template','t_extension_value','extension_type'
+                            't_email_template','t_extension_value','t_extension_type'
                           )
                         """)) {
             while (rs.next()) {
@@ -569,7 +569,8 @@ class IdentityBaselineIntegrationTest {
     }
 
     private static String canonicalSeedUuid(String table, String keyField, String keyValue) {
-        for (JsonNode row : canonicalSeeds.get(table)) {
+        String seedKey = table.startsWith("t_") ? table.substring(2) : table;
+        for (JsonNode row : canonicalSeeds.get(seedKey)) {
             if (keyValue.equals(row.get(keyField).asText())) {
                 return row.get("uuid").asText();
             }

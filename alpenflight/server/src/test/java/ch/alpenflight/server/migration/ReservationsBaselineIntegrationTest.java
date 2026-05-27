@@ -974,7 +974,8 @@ class ReservationsBaselineIntegrationTest {
     }
 
     private static String canonicalSeedUuid(String table, String keyField, String keyValue) {
-        for (JsonNode row : canonicalSeeds.get(table)) {
+        String seedKey = table.startsWith("t_") ? table.substring(2) : table;
+        for (JsonNode row : canonicalSeeds.get(seedKey)) {
             JsonNode keyNode = row.get(keyField);
             if (keyNode != null && keyValue.equals(keyNode.asText())) {
                 return row.get("uuid").asText();
