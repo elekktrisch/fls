@@ -218,19 +218,28 @@ slipping into the file via a sloppy `export-realm.sh` round-trip fails CI loudly
 
 ### Substitution layers
 
-Three substitution layers stack:
+Three substitution layers stack. Same marker syntax (`${VAR}`) for both
+Keycloak realm-import and the Dockerfile sed — they run in series and use
+distinct variable names so they never collide.
 
 | Layer | Marker syntax | What it covers | Who substitutes |
 |---|---|---|---|
-| docker-compose | `${VAR:-default}` in `docker-compose.yml` | All env vars the container sees + the build-arg below | docker compose at compose-up |
-| Keycloak (built-in) | `${env:VAR}` in `realm-export.json` | SMTP server config, IdP config | Keycloak at realm-import |
-| Docker build-arg (S-173) | `${VAR}` in `realm-export.json` | `client.baseUrl` (Keycloak's `${env:}` does NOT cover this — URL validator runs first) | `Dockerfile` `RUN sed` at image build, value passed via `build.args` |
+| docker-compose | `${VAR:-default}` in `docker-compose.yml` | Variable interpolation; feeds the build-arg + the env_file values | docker compose at compose-up |
+| Docker build-arg (S-173) | `${ALPENFLIGHT_WEB_BASE_URL}` in `realm-export.json` | `alpenflight-web.client.baseUrl` (Keycloak's realm-import substitution doesn't cover client.baseUrl — URL validator runs first) | `Dockerfile RUN sed` at image build, value passed via `build.args` |
+| Keycloak realm-import | `${KEYCLOAK_GOOGLE_*}`, `${KEYCLOAK_SMTP_*}` in `realm-export.json` | SMTP server + Google IdP config | Keycloak's `AbstractFileBasedImportProvider` at startup (`start --import-realm`) |
 
-The `alpenflight-web` client's `baseUrl` uses the third layer because
-Keycloak's URL validator rejects literal `${env:...}` text on import.
-Rotation requires an image rebuild (`rebuild-keycloak.sh`) — same
-workflow as `KEYCLOAK_GOOGLE_*` since H2's `IGNORE_EXISTING` import
-strategy means re-import only fires on a fresh DB.
+**The Keycloak resolver gotcha that bit us on S-173:** Keycloak's
+realm-import resolver is `System::getenv(propertyName)` — naïve, no
+prefix handling. The `${env:VAR}` syntax you see in Quarkus config files
+does NOT work here: the resolver calls `System.getenv("env:VAR")` which
+is always null, then `StringPropertyReplacer`'s colon-fallback substitutes
+the literal post-colon string (the variable name itself) into the realm.
+Use the bare `${VAR}` form for realm-export substitutions and add a
+shape-guard assertion against it.
+
+Rotation requires an image rebuild + H2 wipe (`rebuild-keycloak.sh`)
+for both the build-arg AND the realm-import layer — H2's
+`IGNORE_EXISTING` strategy means values are only read on first import.
 
 ### CI integration probe
 

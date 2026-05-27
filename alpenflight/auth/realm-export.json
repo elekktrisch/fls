@@ -2193,8 +2193,8 @@
       "alias": "google",
       "authenticateByDefault": false,
       "config": {
-        "clientId": "${env:KEYCLOAK_GOOGLE_CLIENT_ID}",
-        "clientSecret": "${env:KEYCLOAK_GOOGLE_CLIENT_SECRET}",
+        "clientId": "${KEYCLOAK_GOOGLE_CLIENT_ID}",
+        "clientSecret": "${KEYCLOAK_GOOGLE_CLIENT_SECRET}",
         "defaultScope": "openid profile email",
         "syncMode": "FORCE"
       },
@@ -2814,15 +2814,15 @@
     }
   ],
   "smtpServer": {
-    "auth": "${env:KEYCLOAK_SMTP_AUTH}",
-    "from": "${env:KEYCLOAK_SMTP_FROM}",
+    "auth": "${KEYCLOAK_SMTP_AUTH}",
+    "from": "${KEYCLOAK_SMTP_FROM}",
     "fromDisplayName": "AlpenFlight",
-    "host": "${env:KEYCLOAK_SMTP_HOST}",
-    "password": "${env:KEYCLOAK_SMTP_PASSWORD}",
-    "port": "${env:KEYCLOAK_SMTP_PORT}",
+    "host": "${KEYCLOAK_SMTP_HOST}",
+    "password": "${KEYCLOAK_SMTP_PASSWORD}",
+    "port": "${KEYCLOAK_SMTP_PORT}",
     "ssl": "false",
-    "starttls": "${env:KEYCLOAK_SMTP_STARTTLS}",
-    "user": "${env:KEYCLOAK_SMTP_USER}"
+    "starttls": "${KEYCLOAK_SMTP_STARTTLS}",
+    "user": "${KEYCLOAK_SMTP_USER}"
   },
   "sslRequired": "external",
   "ssoSessionIdleTimeout": 2592000,
