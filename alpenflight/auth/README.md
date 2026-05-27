@@ -12,7 +12,9 @@ The `alpenflight` Keycloak realm: committed source-of-truth, baked into a custom
 | `Dockerfile` | Bakes `realm-export.json` into a custom `alpenflight-keycloak:local` image. Used by the `keycloak` service in the root `docker-compose.yml`. |
 | `scripts/export-realm.sh` | Re-export the realm from a running Keycloak. Writes to `realm-export.json`; `git diff` shows drift. |
 | `scripts/normalize-realm-export.sh` | Deterministic-sorts the export. Strips volatile fields, dev-passwords-only injection, deep-sorts set-shaped arrays. |
-| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.). |
+| `scripts/check-realm-shape.sh` | CI / pre-commit guard. Asserts the load-bearing security invariants (PKCE-S256, bearer-only, no private key, etc.) plus the S-171 theme-ref pins. |
+| `scripts/check-theme-load.sh` | Operator smoke against a running Keycloak — asserts the alpenflight theme is loaded and locale fallback to parent works. Not wired to CI (no live Keycloak for the alpenflight realm). |
+| `themes/alpenflight/` | Custom Keycloak theme (login, account, email). Per-type parents pinned per refinement Design notes — `keycloak.v2` for login, `keycloak.v3` for account, `keycloak` for email. |
 
 ## Bring up
 
@@ -179,6 +181,75 @@ exists in AlpenFlight. Cleanup of unverified-and-abandoned accounts is **deferre
 Right-to-deletion before first ingest: manual KC admin delete via
 `http://localhost:8090/admin/master/console/#/alpenflight/users` (or the Admin REST
 client S-052 already wired in). No app DB rows exist yet.
+
+## Theme (S-171)
+
+The `alpenflight` Keycloak theme bridges the login / account / email
+chrome to the SPA's visual stance (ADR 0024 — Swiss-precision + brand
+blue + sharp corners + Roboto). Source under `themes/alpenflight/`:
+
+| Path | Notes |
+|---|---|
+| `login/theme.properties` | `parent=keycloak.v2`, `import=common/keycloak`, `styles=css/styles.css css/login.css` (parent first), `locales=de,en,fr,it`. |
+| `login/resources/css/login.css` | PF5 v5 global overrides (primary / link / danger / warn / ok / surface / border / font) + sharp-corner rules on `.pf-v5-c-card / .pf-v5-c-button / .pf-v5-c-form-control / .pf-v5-c-alert / .card-pf`. |
+| `login/resources/img/alpenflight-logo.svg` | Wordmark (plane glyph + AlpenFlight). `fill: currentColor` so the brand-500 paints. |
+| `login/resources/img/favicon.ico` | Multi-resolution ICO; same source as `alpenflight/web/public/favicon.ico` (extraction to `alpenflight/branding/` deferred). |
+| `account/theme.properties` | `parent=keycloak.v3` (K26.5 default React account console), `locales=de,en,fr,it`. |
+| `account/resources/logo.svg` | v3 reads this at the React-app header position. |
+| `account/resources/favicon.svg` | v3 reads this via `${properties.favIcon!'/favicon.svg'}`. |
+| `email/theme.properties` | `parent=keycloak`, `locales=de,en,fr,it`. Brand inheritance only — no FTL rewrites in scope. |
+
+### Dev round-trip
+
+`start-dev` (the default compose command) disables theme caching, but
+the theme files live inside the baked image — edits need a rebuild:
+
+```bash
+docker compose -p alpenflight-dev down -v keycloak
+docker compose -p alpenflight-dev build keycloak
+docker compose -p alpenflight-dev up -d keycloak
+```
+
+### Preview
+
+| Page | URL |
+|---|---|
+| Login (default DE) | `http://localhost:8090/realms/alpenflight/account/` → triggers login redirect |
+| Login (French)     | `http://localhost:8090/realms/alpenflight/protocol/openid-connect/auth?client_id=alpenflight-web&response_type=code&scope=openid&redirect_uri=http://localhost:4200/&state=preview&kc_locale=fr` |
+| Account console    | `http://localhost:8090/realms/alpenflight/account/` (after login) |
+| Verify-email       | trigger via `/signup` SPA route → mailpit at `http://localhost:8025` |
+| Google IdP confirm | `/signup` SPA route → "Continue with Google" → KC's first-broker-login screen |
+
+### Manual smoke matrix (per theme edit)
+
+- Login form renders with the AlpenFlight wordmark + brand-blue primary
+  button + sharp corners.
+- Sign-up form (clicking "Sign up" on the login page) inherits the same
+  chrome.
+- Account console at `/realms/alpenflight/account/` shows the wordmark
+  in the header and brand color on primary actions.
+- Locale switch via `?kc_locale=fr` (or `?ui_locales=fr`) flips Keycloak
+  labels to French — confirms the message-bundle fallback to the parent
+  theme works (we ship no custom bundles).
+- IdP-broker confirmation page (Google first-login) inherits the
+  alpenflight login theme.
+- Mailpit-delivered verify-email body uses brand colors via parent
+  email-template inheritance (wordmark-in-email intentionally not in
+  scope — needs FTL).
+
+### Live smoke (operator-driven)
+
+```bash
+bash alpenflight/auth/scripts/check-theme-load.sh
+# Asserts: rendered HTML references /login/alpenflight/ + /account/alpenflight/,
+# stock DE/FR/IT labels render via parent fallback.
+```
+
+### S-151 (production cutover) flag
+
+`start-dev` auto-disables theme cache; production `start` mode caches
+theme assets. S-151 will need either `--spi-theme-cache-themes=false`
+during cutover or a forced image rebuild on each theme change.
 
 ## Mock-auth status (post-S-026)
 
