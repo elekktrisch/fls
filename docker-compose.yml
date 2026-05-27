@@ -9,44 +9,17 @@
 #   - alpenflight-dev    (profile=next)     → Postgres + pgAdmin + Keycloak.
 #       Managed by alpenflight/ops/dev-up-alpenflight.sh.
 #
-# All three projects attach their services to the external network
-# `alpenflight_shared`, so cross-project DNS works (e.g. Keycloak's
-# `KEYCLOAK_SMTP_HOST=mailpit` resolves to the Mailpit container even
-# though Mailpit lives in a different compose project).
+# All three attach to the external network `alpenflight_shared` so
+# cross-project DNS works (Keycloak's `KEYCLOAK_SMTP_HOST=mailpit`
+# resolves to the Mailpit container in a different compose project).
+# `external: true` means no compose project owns the network's
+# lifecycle; the dev-up-*.sh scripts create it idempotently and
+# operators remove it manually when retiring the stack entirely.
 #
-# `external: true` means no compose project owns the network's lifecycle.
-# Each dev-up-*.sh creates it idempotently (`docker network inspect ...
-# || docker network create ...`). Operators remove it manually with
-# `docker network rm alpenflight_shared` when retiring the dev stack.
+# The legacy FLS Web API (Mono + .NET 4.5) and flsweb webpack-dev-server
+# are not containerized — see TESTING.md Milestones 2-3 and 5.
 #
-# What is intentionally NOT in here:
-#
-#   - The FLS Web API (Mono + .NET 4.5 + OWIN self-host, console exe)
-#   - The flsweb webpack-dev-server (Node 8 + webpack 1 + babel ES2015)
-#
-# Both are awkward to containerize cleanly: the server needs Mono 6.12
-# plus a hand-built FLS.Server.Console.exe and a copy of
-# EntityFramework.SqlServer.dll dropped next to it; the client needs
-# Node 8 via nvm and a couple of case-sensitivity sed fixes against
-# the legacy webpack-1 bundle. Until someone invests in proper images
-# for them, dev-up.sh starts the legacy database via this file and
-# TESTING.md (Milestones 2-3 and 5) covers building / running the
-# two app processes locally.
-#
-# Bring up:
-#
-#   bash alpenflight/ops/dev-up-full.sh                   # everything
-#   bash alpenflight/ops/dev-up-infra.sh                  # mailpit only
-#   bash alpenflight/ops/dev-up-alpenflight.sh            # new stack only
-#   bash e2e/scripts/dev-up.sh                            # legacy db only
-#
-# Tear-down order: alpenflight-dev → fls-e2e → alpenflight-infra.
-# Reverse order leaves orphan containers attached to a removed network.
-#
-#   docker compose -p alpenflight-dev down [-v]
-#   docker compose -p fls-e2e down [-v]                   # (e2e/scripts/dev-down.sh)
-#   docker compose -p alpenflight-infra down [-v]
-#   docker network rm alpenflight_shared                  # only when retiring entirely
+# Bring up + tear down — see alpenflight/ops/README.md.
 # ----------------------------------------------------------------------------
 
 # All ports bound to 127.0.0.1 so the dev stack is reachable only from the
@@ -84,13 +57,8 @@ services:
 
   # ---------------------------------------------------------------------------
   # alpenflight-infra — Mailpit as a shared mail sink. Profile-gated so the
-  # default `docker compose up` (under -p fls-e2e) does NOT bring Mailpit up
-  # alongside mssql — that was the historical default and silently created
-  # the cross-project DNS contract that S-172 makes explicit.
-  #
-  # Always brought up under its own project name:
-  #
-  #   docker compose -p alpenflight-infra --profile infra up -d --wait
+  # default `docker compose up` (under -p fls-e2e) does not bring Mailpit
+  # up alongside mssql.
   #
   # `--profile infra` MUST only be activated under `-p alpenflight-infra` —
   # using it under another project (e.g. `-p alpenflight-dev --profile infra`)

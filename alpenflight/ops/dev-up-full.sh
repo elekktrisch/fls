@@ -3,8 +3,7 @@
 #
 # One-shot orchestrator: brings up infra (Mailpit) + legacy (MSSQL) + seeds
 # the legacy DB + brings up the AlpenFlight target stack (Postgres + pgAdmin
-# + Keycloak) with Flyway migrations applied. Idempotent — re-running brings
-# everything to the same end-state.
+# + Keycloak) with Flyway migrations applied. Idempotent.
 #
 # Composed from four single-purpose scripts; edit those, not this:
 #
@@ -14,7 +13,7 @@
 #   alpenflight/ops/dev-up-alpenflight.sh   Postgres + pgAdmin + Keycloak + Flyway
 #
 # Requires: Docker Engine 27+ with compose-v2 plugin, Java 25 (sdkman),
-# Gradle wrapper (alpenflight/server/gradlew is committed).
+# the committed Gradle wrapper.
 #
 # Tear-down order: alpenflight-dev → fls-e2e → alpenflight-infra (target →
 # legacy → infra). Reverse order leaves orphan containers attached to a
@@ -27,14 +26,13 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 cd "${REPO_ROOT}"
 
-bash "${SCRIPT_DIR}/dev-up-infra.sh"
-bash e2e/scripts/dev-up.sh
-bash e2e/scripts/seed.sh
-bash "${SCRIPT_DIR}/dev-up-alpenflight.sh"
+bash "${SCRIPT_DIR}/dev-up-infra.sh" \
+    && bash e2e/scripts/dev-up.sh \
+    && bash e2e/scripts/seed.sh \
+    && bash "${SCRIPT_DIR}/dev-up-alpenflight.sh"
 
+printf '\033[1;32m==> Dev stack ready\033[0m\n'
 cat <<INFO
-
-\033[1;32m==> Dev stack ready\033[0m
 
   Legacy SQL Server          localhost:1433  (sa / Demo#FLS#2026)
   Mailpit SMTP                localhost:1025

@@ -5,14 +5,13 @@
 # project so this stack can run alongside any manually-started containers
 # (e.g. an existing `fls-mssql` for dev work).
 #
-# Mailpit (formerly co-located here under `fls-e2e`) now lives in
-# `alpenflight-infra`. Bring it up first via:
+# Mailpit lives in `alpenflight-infra` — bring it up first via:
 #
 #     bash alpenflight/ops/dev-up-infra.sh
 #
 # This script asserts both `alpenflight_shared` and Mailpit are reachable
-# before exiting — without them, the legacy server's verify-email path
-# silently fails.
+# before starting MSSQL — without them, the legacy server's verify-email
+# path silently fails.
 #
 # Assumed environment (see TESTING.md for the full playbook):
 #
@@ -50,7 +49,6 @@
 set -euo pipefail
 
 PROJECT="fls-e2e"
-NETWORK="alpenflight_shared"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
@@ -60,10 +58,14 @@ if [[ ! -f "${COMPOSE_FILE}" ]]; then
   exit 1
 fi
 
-# Shared network must exist (Mailpit + Keycloak + future containerized
-# legacy server all need it). Direct the operator to dev-up-infra.sh.
-if ! docker network inspect "${NETWORK}" >/dev/null 2>&1; then
-  echo "error: shared network '${NETWORK}' is missing" >&2
+# shellcheck source=../../alpenflight/ops/lib/shared-network.sh
+source "${REPO_ROOT}/alpenflight/ops/lib/shared-network.sh"
+
+# Pre-flight before mutating any state: assert shared network exists AND
+# Mailpit is reachable. Failing here leaves no half-started MSSQL behind.
+require_shared_network
+if ! curl -fsS --max-time 5 http://localhost:8025/api/v1/info >/dev/null 2>&1; then
+  echo "error: Mailpit unreachable at http://localhost:8025/api/v1/info" >&2
   echo "       run: bash alpenflight/ops/dev-up-infra.sh" >&2
   exit 1
 fi
@@ -111,15 +113,6 @@ wait_for_health() {
 }
 
 wait_for_health mssql 240
-
-# Mailpit lives in `alpenflight-infra` post-S-172. Assert it's reachable
-# via host port 8025 — without it, the legacy server's verify-email path
-# silently fails. We do NOT bring it up here; that's dev-up-infra.sh's job.
-if ! curl -fsS --max-time 5 http://localhost:8025/api/v1/info >/dev/null 2>&1; then
-  echo "error: Mailpit unreachable at http://localhost:8025/api/v1/info" >&2
-  echo "       run: bash alpenflight/ops/dev-up-infra.sh" >&2
-  exit 1
-fi
 
 cat <<'INFO'
 

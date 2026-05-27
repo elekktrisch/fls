@@ -126,11 +126,11 @@ All ports bind to `127.0.0.1` — nothing is reachable from the LAN.
   `dev-up-full.sh` to re-apply Flyway migrations. Add a named volume here
   if you want survival across `down`.
 
-- **Mailpit is shared, and now in its own compose project.** Mailpit lives
-  in `alpenflight-infra` (post-S-172) and reaches Keycloak by service DNS
-  over `alpenflight_shared`. The legacy stack (Playwright suite) and the
-  new stack (Spring Boot `JavaMailSender`) both target `localhost:1025`.
-  One inbox; expect legacy + new mails interleaved during a side-by-side
+- **Mailpit is shared across both stacks.** Mailpit lives in
+  `alpenflight-infra` and reaches Keycloak by service DNS over
+  `alpenflight_shared`. The legacy stack (Playwright suite) and the new
+  stack (Spring Boot `JavaMailSender`) both target `localhost:1025`. One
+  inbox; expect legacy + new mails interleaved during a side-by-side
   bring-up.
 
 - **Port collisions.** Default ports are `5432` (Postgres), `5050`
@@ -164,11 +164,6 @@ Both workflows are gated to `docker-compose.yml` + `alpenflight/ops/**` +
 `.github/workflows/compose-*.yml` to keep PRs that don't touch the stack
 quick.
 
-## Disambiguation from `/docker-compose.yml` legacy stack
-
-There is exactly **one** `docker-compose.yml` in the repo — at the root.
-It hosts both the legacy services (default profile) and the new-stack
-services (`--profile next`). Earlier drafts of S-039 proposed a second
-file at `alpenflight/ops/docker-compose.yml`; the operator picked the
-single-file approach (2026-05-17) to avoid relocating the already-
-working Postgres + pgAdmin services.
+There is exactly **one** `docker-compose.yml` in the repo, at the root.
+Three compose projects share it, gated by the default / `infra` / `next`
+profiles.

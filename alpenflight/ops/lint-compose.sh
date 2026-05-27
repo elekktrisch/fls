@@ -31,7 +31,7 @@ green() { printf '\033[1;32m%s\033[0m\n' "$*"; }
 fail=0
 
 # Resolved config with both new-stack profiles enabled so every service
-# appears (mailpit is only visible under `--profile infra` post-S-172).
+# appears (mailpit is only visible under `--profile infra`).
 config_json="$(docker compose -f "${COMPOSE_FILE}" \
     --profile next --profile infra \
     config --format json)"

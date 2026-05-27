@@ -4,8 +4,7 @@
 # Stops + removes the `fls-e2e` compose project (mssql) and wipes its
 # anonymous volume via `down -v`.
 #
-# Mailpit now lives in `alpenflight-infra` (post-S-172) — tear that down
-# separately:
+# Mailpit lives in `alpenflight-infra` — tear it down separately:
 #     docker compose -p alpenflight-infra down [-v]
 #
 # Tear-down order target → legacy → infra: see alpenflight/ops/README.md.
