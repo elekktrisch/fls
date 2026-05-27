@@ -191,6 +191,8 @@ blue + sharp corners + Roboto). Source under `themes/alpenflight/`:
 | `login/resources/img/splash.jpg` | cockpit photo background (copy of `alpenflight/web/public/splash.jpg`); layered under a slate-900/55% wash via `--keycloak-bg-logo-url` |
 | `login/resources/img/alpenflight-logo.svg` | reserved for a future template-override path; the stock keycloak.v2 `template.ftl` does NOT include `div.kc-logo-text`, so today this file is unused and the wordmark is rendered as text by `#kc-header-wrapper` |
 | `login/resources/img/favicon.ico` | shared with `alpenflight/web/public/favicon.ico` (extraction to `alpenflight/branding/` deferred) |
+| `login/footer.ftl` | overrides keycloak.v2's empty footer macro to render the "« Back to Start" link; href reads `${client.baseUrl}` (set per-environment on the alpenflight-web client — S-173 wires the env-substitution) |
+| `login/messages/messages_{de,en,fr,it}.properties` | shorter locale labels (`locale_de=Deutsch` etc.), one-word page title (`loginAccountTitle=Sign in` / `Anmelden` / `Connexion` / `Accedi`), and the `backToLanding` string ("« Back to Start" + native translations) |
 | `account/theme.properties` | parent=keycloak.v3 (K26.5 default React account console) |
 | `account/resources/logo.svg` | v3 header logo (`${resourceUrl}/logo.svg`) |
 | `account/resources/favicon.svg` | v3 favicon (`${properties.favIcon!'/favicon.svg'}`) |
@@ -224,8 +226,10 @@ bash alpenflight/ops/rebuild-keycloak.sh
 - Account console at `/realms/alpenflight/account/` shows the wordmark
   in the header and brand color on primary actions.
 - Locale switch via `?kc_locale=fr` (or `?ui_locales=fr`) flips Keycloak
-  labels to French — confirms the message-bundle fallback to the parent
-  theme works (we ship no custom bundles).
+  labels to French — confirms our `messages_fr.properties` shortened
+  strings (`loginAccountTitle=Connexion`, `backToLanding=« Retour à
+  l'accueil`) render, and unshortened keys fall back to the parent
+  bundle.
 - IdP-broker confirmation page (Google first-login) inherits the
   alpenflight login theme.
 - Mailpit-delivered verify-email body uses brand colors via parent
