@@ -26,9 +26,9 @@ import org.springframework.stereotype.Component;
  *
  * <p>Soft-delete gate: any matching row with {@code deleted_on IS NOT
  * NULL} surfaces as {@link UserDeactivatedException}. The tombstone's
- * {@code keycloak_sub} stays set after {@code softDelete} (S-052) so the
- * gate fires for residual-JWT requests; the re-invite flow clears the
- * tombstone's sub before inserting a new row.
+ * {@code keycloak_sub} stays set after soft-delete so the gate fires for
+ * residual-JWT requests; the re-invite flow clears the tombstone's sub
+ * before inserting a new row.
  *
  * <p>Race-loser: the DB partial UNIQUE on {@code keycloak_sub} is the
  * structural net for two-concurrent-first-login. The loser catches
@@ -94,8 +94,8 @@ class JitUserMaterializerImpl implements JitUserMaterializer {
             User row = existing.get();
             if (!row.isActive()) {
                 outcomeSkippedDeactivated.increment();
-                throw new UserDeactivatedException(
-                        "Principal " + sub + " matches a soft-deleted user row");
+                LOG.warn("JIT soft-delete gate fired sub={}", sub);
+                throw new UserDeactivatedException("User account is deactivated");
             }
             outcomeAlreadyPresent.increment();
             UUID rowId = idOf(row);
@@ -122,7 +122,11 @@ class JitUserMaterializerImpl implements JitUserMaterializer {
                     sub, rawClubId, languageId, rowId);
             return Optional.of(rowId);
         } catch (DataIntegrityViolationException race) {
-            outcomeCreated.increment();
+            // Race-loser: the winning thread created the row inside its
+            // own tx; re-read and return their id. Counts as
+            // already-present so DoS alerting on `created` rate isn't
+            // inflated by the race-loser cohort.
+            outcomeAlreadyPresent.increment();
             return users.findActiveByKeycloakSub(sub)
                     .map(JitUserMaterializerImpl::idOf);
         }

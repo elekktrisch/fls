@@ -34,14 +34,15 @@ import tools.jackson.databind.ObjectMapper;
  * <p>Short-circuits, in order:
  * <ol>
  *   <li>No {@link JwtAuthenticationToken} on the security context (permitted
- *       endpoints, sysadmin-but-not-yet-authenticated paths) → forward
- *       untouched.</li>
- *   <li>JWT lacks parseable {@code sub} / {@code clubId} (sysadmin per
- *       S-022, federated baseline per S-134) → forward untouched.</li>
+ *       endpoints, anonymous paths) → forward untouched.</li>
+ *   <li>JWT lacks parseable UUID {@code sub} or parseable UUID
+ *       {@code clubId} claim — covers sysadmin tokens (no {@code clubId})
+ *       and federated baseline tokens (non-UUID sub from Google /
+ *       Auth0). Forward untouched.</li>
  *   <li>Delegate to the {@link JitUserMaterializer} port. The
  *       implementation in {@code users.application} handles the existing-row
- *       fast path + the JIT insert + the soft-delete gate inside a
- *       {@code REQUIRES_NEW} transaction.</li>
+ *       fast path, the JIT insert (inside its own transaction), and the
+ *       soft-delete gate.</li>
  * </ol>
  *
  * <p>On {@link UserDeactivatedException} the filter writes RFC 7807
@@ -100,17 +101,18 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
         try {
             userId = lookupTimer.recordCallable(() -> materializer.materialize(jwt));
         } catch (UserDeactivatedException e) {
-            writeDeactivated(response, e);
+            writeDeactivated(response);
             return;
         } catch (RuntimeException e) {
+            // Timer.recordCallable's `throws Exception` forces a checked
+            // catch; preserve RuntimeException identity for the chain's
+            // resolver rather than wrapping in ServletException.
             throw e;
         } catch (Exception e) {
             throw new ServletException("Unexpected checked exception from JIT materialise", e);
         }
-        if (userId == null) {
-            userId = Optional.empty();
-        }
-        request.setAttribute(USER_ID_ATTRIBUTE, userId.<Object>map(uuid -> (Object) uuid).orElse(ABSENT));
+        Object stash = (userId != null && userId.isPresent()) ? userId.get() : ABSENT;
+        request.setAttribute(USER_ID_ATTRIBUTE, stash);
         chain.doFilter(request, response);
     }
 
@@ -142,15 +144,16 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
         }
     }
 
-    private void writeDeactivated(HttpServletResponse response, UserDeactivatedException e)
-            throws IOException {
+    private void writeDeactivated(HttpServletResponse response) throws IOException {
+        // Detail mirrors the title — never echo the JWT sub back in the
+        // body. Forensics keep the sub in the materializer's WARN log.
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
         pd.setType(PROBLEM_TYPE_DEACTIVATED);
         pd.setTitle("User account is deactivated");
-        pd.setDetail(e.getMessage());
+        pd.setDetail("User account is deactivated");
         response.setStatus(HttpStatus.FORBIDDEN.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        response.setHeader("Cache-Control", "no-store");
         objectMapper.writeValue(response.getOutputStream(), pd);
-        LOG.info("JIT refused deactivated principal — soft-delete gate fired");
     }
 }

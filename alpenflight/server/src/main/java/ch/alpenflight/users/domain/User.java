@@ -79,11 +79,11 @@ public class User {
     @Column(name = "language_id", nullable = false)
     private UUID languageId;
 
-    // {@code keycloak_sub} is immutable during the active lifecycle, but
-    // {@link #detachKeycloakSub()} clears it as part of a re-invite (frees
-    // the partial UNIQUE so the next invite can re-use the sub). JPA needs
-    // to include the column in UPDATE for that path, hence no
-    // {@code updatable = false}.
+    // `keycloak_sub` is immutable during the active lifecycle, but
+    // `detachKeycloakSub()` clears it as part of a re-invite (frees the
+    // partial UNIQUE so the next invite can re-use the sub). JPA needs to
+    // include the column in UPDATE for that path, hence no
+    // `updatable = false`.
     @Column(name = "keycloak_sub")
     private @Nullable UUID keycloakSub;
 
@@ -216,7 +216,7 @@ public class User {
      * Soft-delete. Pairs with a Keycloak {@code enabled=false} flip at the
      * service layer — KC stays as the source-of-truth event log; we never
      * hard-delete the KC user. The {@code keycloak_sub} stays set so the
-     * JIT soft-delete gate (S-169) can refuse residual-JWT requests.
+     * JIT soft-delete gate can refuse residual-JWT requests.
      */
     public void softDelete(@Nullable UUID actorUserId, Clock clock) {
         if (deletedOn != null) {

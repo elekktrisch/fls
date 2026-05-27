@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -48,11 +49,13 @@ import org.springframework.transaction.annotation.Transactional;
  *       (best-effort — failure logs at {@code USER_INVITE_KC_ORPHAN} at
  *       error level for operator reconciliation).</li>
  *   <li><strong>First-login JIT</strong> ({@link #materializeFromJwt}) —
- *       intended for the first-login filter (lands in a follow-up; the
- *       method is in place so the orchestrator pattern is reviewable
- *       today). Idempotent via {@code findActiveByKeycloakSub} +
- *       {@code save}; the DB partial unique on {@code keycloak_sub} is
- *       the structural net for the dual-request race.</li>
+ *       invoked from the {@code JitUserMaterializationFilter} via the
+ *       {@code JitUserMaterializer} port. Runs in its own
+ *       {@code REQUIRES_NEW} transaction so a materialise failure rolls
+ *       back independently of the inbound request's tx. Idempotent via
+ *       {@code findActiveByKeycloakSub} + {@code save}; the DB partial
+ *       unique on {@code keycloak_sub} is the structural net for the
+ *       dual-request race.</li>
  * </ol>
  *
  * <p>Role reads + writes go through {@link UserDirectoryPort}; the
@@ -143,11 +146,11 @@ public class UsersService {
                 List.of("UPDATE_PASSWORD"),
                 /*enabled=*/ true));
 
-        // Re-entry path (S-169): if a soft-deleted tombstone is still
-        // holding this KC sub, detach it so the partial UNIQUE on
-        // keycloak_sub admits the new row. The tombstone keeps its audit
-        // history; linkage between old + new is via username + KC user id,
-        // not a FK chain.
+        // Re-entry path: if a soft-deleted tombstone is still holding
+        // this KC sub, detach it so the partial UNIQUE on keycloak_sub
+        // admits the new row. The tombstone keeps its audit history;
+        // linkage between old + new is via username + KC user id, not a
+        // FK chain.
         users.findAnyByKeycloakSub(kcSub).ifPresent(existing -> {
             if (!existing.isActive()) {
                 existing.detachKeycloakSub();
@@ -269,19 +272,24 @@ public class UsersService {
 
     /**
      * Materialise a local row from JWT claims when the lookup-by-sub misses.
-     * Intended to be wired into a first-login filter (S-169) — not currently
-     * invoked from production code, but lands here so the orchestrator
-     * pattern is reviewable in isolation.
+     * Invoked from {@code JitUserMaterializationFilter} via the
+     * {@code JitUserMaterializer} port.
+     *
+     * <p>{@code REQUIRES_NEW} so a materialise failure rolls back
+     * independently of the inbound request's transaction and the
+     * race-loser re-read runs in a fresh session after the winner's
+     * commit becomes visible.
      *
      * <p>Identity fields ({@code keycloakSub}, {@code clubId}) are taken
      * authoritatively from the JWT — never from a caller-supplied value —
-     * so a future caller can't mint a JIT row in a tenant the principal
-     * doesn't belong to. {@code languageId} comes from the caller because
-     * the JWT carries {@code locale} as an opaque BCP-47 string that the
+     * so a caller can't mint a JIT row in a tenant the principal doesn't
+     * belong to. {@code languageId} comes from the caller because the JWT
+     * carries {@code locale} as an opaque BCP-47 string that the
      * application has to map onto a row in the {@code language} table.
      *
      * @return the local {@code user.id} after materialise (or pre-existing match).
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UUID materializeFromJwt(Jwt jwt, UUID languageId) {
         if (jwt == null) {
             throw new IllegalArgumentException("jwt must not be null");
