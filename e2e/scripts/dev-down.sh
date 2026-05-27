@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # dev-down.sh - tear down the FLS e2e test stack dependencies
 # ----------------------------------------------------------------------------
-# Stops + removes the `fls-e2e` compose project (mssql + mailpit) and
-# wipes their anonymous volumes via `down -v`.
+# Stops + removes the `fls-e2e` compose project (mssql) and wipes its
+# anonymous volume via `down -v`.
+#
+# Mailpit now lives in `alpenflight-infra` (post-S-172) — tear that down
+# separately:
+#     docker compose -p alpenflight-infra down [-v]
+#
+# Tear-down order target → legacy → infra: see alpenflight/ops/README.md.
 #
 # NOTE: the FLS Web API (Mono console) and the flsweb webpack-dev-server
 # are NOT managed by this script - they're started manually per

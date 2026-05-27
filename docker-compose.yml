@@ -1,13 +1,23 @@
-# FLS e2e test stack
+# FLS / AlpenFlight dev-stack compose file
 # ----------------------------------------------------------------------------
-# Brings up the *out-of-process* dependencies the Playwright suite needs:
+# Three compose projects share this one file:
 #
-#   - mssql:   SQL Server 2022 Developer, seeded by hand (see TESTING.md
-#              Milestone 1). Holds the FLSTest database.
-#   - mailpit: SMTP sink + REST API + Web UI. The FLS server is pointed at
-#              its SMTP listener (1025) so the email-related specs can
-#              assert deliveries via Mailpit's /api/v1/messages endpoint
-#              (see task #24 — Mailpit helper not yet written).
+#   - fls-e2e            (default profile)  → legacy DB (mssql).
+#       Managed by e2e/scripts/dev-up.sh / dev-down.sh.
+#   - alpenflight-infra  (profile=infra)    → Mailpit (shared mail sink).
+#       Managed by alpenflight/ops/dev-up-infra.sh.
+#   - alpenflight-dev    (profile=next)     → Postgres + pgAdmin + Keycloak.
+#       Managed by alpenflight/ops/dev-up-alpenflight.sh.
+#
+# All three projects attach their services to the external network
+# `alpenflight_shared`, so cross-project DNS works (e.g. Keycloak's
+# `KEYCLOAK_SMTP_HOST=mailpit` resolves to the Mailpit container even
+# though Mailpit lives in a different compose project).
+#
+# `external: true` means no compose project owns the network's lifecycle.
+# Each dev-up-*.sh creates it idempotently (`docker network inspect ...
+# || docker network create ...`). Operators remove it manually with
+# `docker network rm alpenflight_shared` when retiring the dev stack.
 #
 # What is intentionally NOT in here:
 #
@@ -19,18 +29,24 @@
 # EntityFramework.SqlServer.dll dropped next to it; the client needs
 # Node 8 via nvm and a couple of case-sensitivity sed fixes against
 # the legacy webpack-1 bundle. Until someone invests in proper images
-# for them, dev-up.sh starts the database + email sink via this file
-# and TESTING.md (Milestones 2-3 and 5) covers building / running the
+# for them, dev-up.sh starts the legacy database via this file and
+# TESTING.md (Milestones 2-3 and 5) covers building / running the
 # two app processes locally.
 #
-# Run under a dedicated compose project name so this can live next to a
-# manually-started stack:
+# Bring up:
 #
-#   docker compose -p fls-e2e up -d
-#   docker compose -p fls-e2e down -v
+#   bash alpenflight/ops/dev-up-full.sh                   # everything
+#   bash alpenflight/ops/dev-up-infra.sh                  # mailpit only
+#   bash alpenflight/ops/dev-up-alpenflight.sh            # new stack only
+#   bash e2e/scripts/dev-up.sh                            # legacy db only
 #
-# Both helper scripts (e2e/scripts/dev-up.sh, e2e/scripts/dev-down.sh)
-# already pass the -p flag.
+# Tear-down order: alpenflight-dev → fls-e2e → alpenflight-infra.
+# Reverse order leaves orphan containers attached to a removed network.
+#
+#   docker compose -p alpenflight-dev down [-v]
+#   docker compose -p fls-e2e down [-v]                   # (e2e/scripts/dev-down.sh)
+#   docker compose -p alpenflight-infra down [-v]
+#   docker network rm alpenflight_shared                  # only when retiring entirely
 # ----------------------------------------------------------------------------
 
 # All ports bound to 127.0.0.1 so the dev stack is reachable only from the
@@ -38,6 +54,15 @@
 # / "alpenflight/alpenflight" / "Demo#FLS#2026") for operator convenience — restricting the
 # bind ensures a laptop on an untrusted network doesn't expose the DBs to
 # a one-word-guess attack.
+
+# Cross-project shared network. `external: true` means no compose project
+# owns its lifecycle — every dev-up-*.sh creates it idempotently. Services
+# in different compose projects (fls-e2e, alpenflight-infra, alpenflight-dev)
+# all attach here so Keycloak in -p alpenflight-dev can resolve `mailpit`
+# in -p alpenflight-infra by service DNS.
+networks:
+  alpenflight_shared:
+    external: true
 
 services:
   mssql:
@@ -48,6 +73,7 @@ services:
       MSSQL_PID: Developer
     ports:
       - "127.0.0.1:1433:1433"
+    networks: [alpenflight_shared]
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -56,7 +82,23 @@ services:
       timeout: 5s
       retries: 30
 
+  # ---------------------------------------------------------------------------
+  # alpenflight-infra — Mailpit as a shared mail sink. Profile-gated so the
+  # default `docker compose up` (under -p fls-e2e) does NOT bring Mailpit up
+  # alongside mssql — that was the historical default and silently created
+  # the cross-project DNS contract that S-172 makes explicit.
+  #
+  # Always brought up under its own project name:
+  #
+  #   docker compose -p alpenflight-infra --profile infra up -d --wait
+  #
+  # `--profile infra` MUST only be activated under `-p alpenflight-infra` —
+  # using it under another project (e.g. `-p alpenflight-dev --profile infra`)
+  # would pull Mailpit into that project and double-bind host ports
+  # 1025 / 8025. See alpenflight/ops/README.md § Profile matrix.
+  # ---------------------------------------------------------------------------
   mailpit:
+    profiles: ["infra"]
     image: axllent/mailpit:v1.21
     ports:
       - "127.0.0.1:1025:1025"   # SMTP listener (FLS server + AlpenFlight backend -> here)
@@ -65,6 +107,7 @@ services:
       MP_MAX_MESSAGES: "5000"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    networks: [alpenflight_shared]
     healthcheck:
       test:
         - "CMD"
@@ -77,22 +120,23 @@ services:
       retries: 10
 
   # ---------------------------------------------------------------------------
-  # alpenflight/ — target stack (Postgres + pgAdmin + Keycloak). Profile-gated so
-  # the default `docker compose up` (used by e2e/scripts/dev-up.sh under
-  # project `fls-e2e`) still starts only mssql + mailpit.
+  # alpenflight-dev — target stack (Postgres + pgAdmin + Keycloak). Profile-gated
+  # so the default `docker compose up` (under -p fls-e2e) only starts mssql.
   #
-  # Bring up the new stack under its OWN compose project name so the two
-  # stacks teardown independently. Name services explicitly rather than
-  # `--profile next` — the latter would also pull mssql + mailpit (default
-  # profile) into the `alpenflight-dev` project and double-bind host ports.
+  # Bring up under its OWN compose project name so the three projects
+  # (fls-e2e, alpenflight-infra, alpenflight-dev) teardown independently.
+  # Name services explicitly rather than passing `--profile next` alone —
+  # the latter would also pull mssql (default profile) into alpenflight-dev
+  # and double-bind 1433.
   #
   #   docker compose -p alpenflight-dev up -d postgres pgadmin keycloak
   #
-  # alpenflight/ops/dev-up-full.sh wraps the legacy + target dance + Flyway migrate
-  # in one command. pgAdmin loads alpenflight/ops/pgadmin/servers.json so the target
-  # connection appears pre-wired on first login. Operator manual + footguns
-  # live in alpenflight/ops/README.md. Mailpit (legacy stack) is reused as the
-  # AlpenFlight backend's SMTP sink — point Spring at host:1025.
+  # alpenflight/ops/dev-up-alpenflight.sh wraps the bring-up + Flyway migrate
+  # in one command. pgAdmin loads alpenflight/ops/pgadmin/servers.json so the
+  # target connection appears pre-wired on first login. Operator manual +
+  # footguns live in alpenflight/ops/README.md. Mailpit lives in the separate
+  # `alpenflight-infra` project; Keycloak reaches it via the `alpenflight_shared`
+  # network (KEYCLOAK_SMTP_HOST=mailpit → service DNS to the Mailpit container).
   # ---------------------------------------------------------------------------
 
   postgres:
@@ -104,6 +148,7 @@ services:
       POSTGRES_PASSWORD: alpenflight
     ports:
       - "127.0.0.1:5432:5432"
+    networks: [alpenflight_shared]
     # No volume — data is ephemeral. `docker compose down` wipes it; the
     # dev-up-full.sh script re-applies Flyway migrations after restart, so
     # the baseline state is reproducible without persistence. Add a named
@@ -144,6 +189,7 @@ services:
       PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
     ports:
       - "127.0.0.1:5050:80"
+    networks: [alpenflight_shared]
     healthcheck:
       # pgAdmin's /misc/ping endpoint replies "PING" once the WSGI app is up.
       # gunicorn boot takes ~7s; pad start_period to 30s so the first probe
@@ -234,6 +280,7 @@ services:
     ports:
       - "127.0.0.1:8090:8080"
       - "127.0.0.1:9090:9000"   # management interface (/health/ready)
+    networks: [alpenflight_shared]
     healthcheck:
       # Keycloak 25+ exposes /health/ready on the management port (9000) when
       # KC_HEALTH_ENABLED=true. The image ships no curl/wget, so probe via the

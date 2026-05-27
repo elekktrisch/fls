@@ -21,10 +21,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 PROJECT="alpenflight-dev"
+NETWORK="alpenflight_shared"
 
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 cd "${REPO_ROOT}"
+
+# Keycloak attaches to the external shared network; rebuilding it on a
+# clean box where infra was never brought up surfaces a confusing
+# compose error. Pre-flight and direct the operator instead.
+if ! docker network inspect "${NETWORK}" >/dev/null 2>&1; then
+    echo "error: shared network '${NETWORK}' is missing" >&2
+    echo "       run: bash alpenflight/ops/dev-up-infra.sh" >&2
+    exit 1
+fi
 
 log "Stopping keycloak + dropping H2 volume"
 docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v keycloak
