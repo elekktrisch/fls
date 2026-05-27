@@ -313,39 +313,48 @@ div.pf-v5-c-login__main-header {
   box-sizing: border-box;
 }
 
-/* PF5's chevron lives in `grid-column: 3` of the form-control grid with
- * a `padding-block-start` calibrated against PF5's default ~36px control
- * height — at our 44px height it rode high, and `align-items: center`
- * on the grid (previous attempt) collapsed the implicit columns and put
- * the chevron in front of the text. Hide PF5's chevron span entirely
- * and paint our own via a `::before` on the locale-selector form-control,
- * absolute-positioned at the right edge so it never lands on the text. */
+/* Locale-selector chevron — use a unicode down-triangle in a `::before`
+ * pseudo, absolute-positioned to the right with breathing room on
+ * either side. Previous attempts (linear-gradient V, PF5's own toggle-
+ * icon) both ended up in the wrong place: the gradient rendered tiny
+ * marks visually-near the left edge of "Deutsch", and PF5's icon used
+ * a padding-tuned-for-36px-controls that misaligned at our 44px height.
+ *
+ * Triangle stays gray (`--af-slate-500`) to match the form-control
+ * chrome; brand color is reserved for actions per ADR 0024. */
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control__toggle-icon {
   display: none;
 }
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control {
   position: relative;
+  /* Stable width so the closed/open transition doesn't visually shrink
+   * the select. Native `<select>` opens a browser-rendered dropdown
+   * whose option-list width is the longest option's text width; when
+   * the select then re-closes, browsers re-measure and the wrapper can
+   * jitter. Fixed width pins both states to the same X-extent. */
+  min-width: 11rem;
 }
 .pf-v5-c-login__main-header-utilities .pf-v5-c-form-control::before {
-  content: "";
+  content: "\25BE"; /* ▾ unicode down-pointing triangle */
   position: absolute;
-  inset-block: 0;
-  inset-inline-end: 12px;
-  width: 8px;
-  margin-block: auto;
-  height: 6px;
-  background:
-    linear-gradient(45deg, transparent 45%, var(--af-slate-500) 45% 55%, transparent 55%) 0 0 / 50% 100%,
-    linear-gradient(-45deg, transparent 45%, var(--af-slate-500) 45% 55%, transparent 55%) 100% 0 / 50% 100%;
-  background-repeat: no-repeat;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--af-slate-500);
+  font-size: 0.75rem;
+  line-height: 1;
   pointer-events: none;
+  z-index: 1;
 }
-/* The native <select> also paints its own browser-default arrow on the
- * right — strip it via `appearance: none` so only our chevron shows. */
+
+/* Strip the native `<select>` browser arrow (appearance: none) so only
+ * our chevron paints, and reserve right-edge padding so the option text
+ * doesn't collide with the triangle. */
 .pf-v5-c-login__main-header-utilities select {
   appearance: none;
   -webkit-appearance: none;
-  padding-inline-end: 28px;
+  padding-inline-end: 32px;
+  width: 100%;
 }
 
 /* Native <select> dropdown panel — the locale selector is rendered as
