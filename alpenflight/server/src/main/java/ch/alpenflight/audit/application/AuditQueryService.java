@@ -14,7 +14,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Application-layer query surface for {@code mutation_audit_event}. Sits
+ * Application-layer query surface for {@code t_mutation_audit_event}. Sits
  * between the {@code @RestController} and the
  * {@link MutationAuditEventRepository} port so the web layer stays thin
  * (presentation only) and the row → DTO translation is co-located with

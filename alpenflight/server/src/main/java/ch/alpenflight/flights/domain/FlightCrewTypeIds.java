@@ -3,7 +3,7 @@ package ch.alpenflight.flights.domain;
 import java.util.UUID;
 
 /**
- * Canonical UUIDs for the {@code flight_crew_type} seed table (V3).
+ * Canonical UUIDs for the {@code t_flight_crew_type} seed table (V3).
  * Centralised so service / validator / mapper share one source of truth —
  * a seed re-ID would otherwise need a per-call-site update.
  */

@@ -17,7 +17,7 @@
  *       aggregate, {@link ch.alpenflight.persons.domain.PersonClub},
  *       repository port, value objects, domain exceptions.</li>
  *   <li>{@code persons.application} — transactional service, DTOs (records),
- *       mappers, tenant-scoped {@code member_state} read slice.</li>
+ *       mappers, tenant-scoped {@code t_member_state} read slice.</li>
  *   <li>{@code persons.web} — REST controllers + RFC 7807 exception handler.</li>
  *   <li>{@code persons.infra} — Spring Data JPA repository implementations.</li>
  * </ul>

@@ -41,7 +41,7 @@ public class ClubTenantIdentifierResolver implements CurrentTenantIdentifierReso
      * Sentinel returned when no tenant resolves. Tenant-scoped reads
      * filter on this value and return zero rows; tenant-scoped writes
      * fail at the {@code fk_<table>_club_id} FK constraint because
-     * {@code club} has no nil-UUID row.
+     * {@code t_club} has no nil-UUID row.
      */
     public static final UUID NO_TENANT = new UUID(0L, 0L);
 

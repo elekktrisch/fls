@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 /**
  * Spring Data implementation of {@link PersonRepository}. Honors the port's
  * tenant-discipline contract: no {@code findAll}, no unscoped list query;
- * the only multi-row reads JOIN through {@code person_club} so Hibernate's
+ * the only multi-row reads JOIN through {@code t_person_club} so Hibernate's
  * {@code @TenantId} predicate fires automatically.
  *
  * <p>The two membership-existence checks use {@code @Query} so they can
@@ -61,7 +61,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
      */
     @Override
     @Query(value = "SELECT EXISTS ("
-            + "  SELECT 1 FROM person_club "
+            + "  SELECT 1 FROM t_person_club "
             + "  WHERE person_id = :personId "
             + "    AND deleted_on IS NULL "
             + "    AND club_id <> :currentTenantId"
@@ -74,7 +74,7 @@ public interface JpaPersonRepository extends JpaRepository<Person, UUID>, Person
      * sees rows in tenants other than the caller's.
      */
     @Override
-    @Query(value = "SELECT COUNT(*) FROM person_club "
+    @Query(value = "SELECT COUNT(*) FROM t_person_club "
             + "WHERE person_id = :personId AND deleted_on IS NULL", nativeQuery = true)
     long countActiveMembershipsAcrossTenants(@Param("personId") UUID personId);
 

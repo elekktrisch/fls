@@ -72,7 +72,7 @@ import org.jspecify.annotations.Nullable;
  * methods only. No top-level CRUD endpoint for either.
  */
 @Entity
-@Table(name = "aircraft")
+@Table(name = "t_aircraft")
 public class Aircraft {
 
     private static final int MAX_MANUFACTURER_LENGTH = 100;

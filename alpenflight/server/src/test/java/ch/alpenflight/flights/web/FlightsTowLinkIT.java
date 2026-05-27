@@ -172,7 +172,7 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         link(gliderId, towId);
 
         UUID gliderUuid = UUID.fromString(gliderId.substring(3));
-        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+        jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                 EXCLUDED_FROM_DELIVERY_ID, gliderUuid.toString());
 
         ResponseEntity<String> del = delete("/api/v1/flights/" + gliderId, tokenA);

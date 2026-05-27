@@ -3,7 +3,7 @@
  *
  * <ul>
  *   <li>{@link ch.alpenflight.audit.domain.MutationAuditEvent} — the entity
- *       persisted to {@code mutation_audit_event}. Carries the
+ *       persisted to {@code t_mutation_audit_event}. Carries the
  *       {@code @TenantId} discriminator on {@code tenantClubId}, so the
  *       S-024 leakage sweep covers it automatically and the S-056 list
  *       endpoint inherits per-tenant filtering for free.</li>

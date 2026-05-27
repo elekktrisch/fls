@@ -32,7 +32,7 @@ public class LanguageCodeLookup {
             UUID.fromString("019e2e15-2c00-77d3-8000-0000000007d3");
 
     private static final String SELECT_BY_CODE =
-            "SELECT id FROM language WHERE lower(code) = ?";
+            "SELECT id FROM t_language WHERE lower(code) = ?";
 
     private final JdbcTemplate jdbc;
     private final ConcurrentMap<String, UUID> cache = new ConcurrentHashMap<>();

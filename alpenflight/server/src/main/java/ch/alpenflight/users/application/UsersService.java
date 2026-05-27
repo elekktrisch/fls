@@ -285,7 +285,7 @@ public class UsersService {
      * so a caller can't mint a JIT row in a tenant the principal doesn't
      * belong to. {@code languageId} comes from the caller because the JWT
      * carries {@code locale} as an opaque BCP-47 string that the
-     * application has to map onto a row in the {@code language} table.
+     * application has to map onto a row in the {@code t_language} table.
      *
      * @return the local {@code user.id} after materialise (or pre-existing match).
      */

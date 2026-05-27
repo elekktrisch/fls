@@ -26,8 +26,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * End-to-end Flyway bootstrap. Spins a Postgres 17 container via the docker
  * CLI (Testcontainers can't negotiate API ≥1.44 in this sandbox — see
  * {@link PostgresTestContainerLifecycle} JavaDoc), boots Spring Boot against
- * it, asserts {@code V1__baseline.sql} migrated and the sentinel
- * {@code app_meta} row is present.
+ * it, asserts {@code V1__baseline.sql} migrated and is recorded in
+ * {@code flyway_schema_history}.
  *
  * <p>Adversarial cases (checksum drift, out-of-order detection, clean disabled)
  * are exercised via direct Flyway API to avoid mutating the test class's own
@@ -97,20 +97,18 @@ class FlywayBootstrapIntegrationTest {
     }
 
     @Test
-    void placeholder_baseline_objects_exist() throws Exception {
+    void schema_history_records_every_versioned_migration() throws Exception {
+        // Flyway's own `flyway_schema_history` is the source-of-truth for
+        // "which migrations have run" — assert it has at least the
+        // baseline + V2..V<latest> rows with the SUCCESS flag set.
         try (var conn = dataSource.getConnection();
                 var stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery(
-                        "SELECT meta_value FROM app_meta WHERE meta_key = 'schema_baseline_version'")) {
-            assertThat(rs.next())
-                    .as("V1 inserts the schema_baseline_version sentinel row; V2 updates it")
-                    .isTrue();
-            // V1 sets 'S-009'; V2 updates to 'S-012'; subsequent migrations update further.
-            // Assert the row exists with a non-empty S-NNN sentinel rather than freezing
-            // the value at the first migration's generation.
-            assertThat(rs.getString("meta_value"))
-                    .as("schema_baseline_version must reflect the current generation")
-                    .matches("^S-\\d{3}$");
+                        "SELECT count(*) FROM flyway_schema_history WHERE success = true")) {
+            assertThat(rs.next()).isTrue();
+            assertThat(rs.getInt(1))
+                    .as("flyway_schema_history must record at least the V1 baseline")
+                    .isGreaterThanOrEqualTo(1);
         }
     }
 

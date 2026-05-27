@@ -64,7 +64,7 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         cleanFlightRowsFor(jdbc, CLUB_UUID);
         // Pre-clean aircraft rows the previous test seeded under this club —
         // immatriculation is regulator-globally-unique, so leftovers collide.
-        jdbc.update("DELETE FROM aircraft WHERE managing_club_id = ?::uuid AND "
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid AND "
                 + "immatriculation LIKE 'HB-FT%'", CLUB_ID);
         UUID aid = seedAircraftFor(jdbc, CLUB_UUID);
         aircraftIdExternal = "ac-" + aid;
@@ -159,10 +159,10 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         // no @TenantId per S-051) must let this Person resolve as a crew
         // member on a Flight in the caller's tenant.
         UUID foreignClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c2");
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
         jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
                                   slug, public_registration_enabled)
                 VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
                 ON CONFLICT (id) DO NOTHING
@@ -392,10 +392,10 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         // leak any flight context to the caller — @TenantId on Flight makes
         // the row invisible, even though Aircraft is cross-tenant by ADR 0008.
         UUID otherClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c9");
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
         jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
                                   slug, public_registration_enabled)
                 VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
                 ON CONFLICT (id) DO NOTHING
@@ -469,7 +469,7 @@ class FlightsControllerIT extends PostgresIntegrationTest {
         String idExternal = readJson(post("/api/v1/flights",
                 createPayload("GLIDER", aircraftIdExternal, "2026-05-01"))).get("id").asText();
         UUID flightUuid = UUID.fromString(idExternal.substring(3));
-        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+        jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                 processStateId, flightUuid.toString());
         return idExternal;
     }

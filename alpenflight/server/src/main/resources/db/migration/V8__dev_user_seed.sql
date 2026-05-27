@@ -1,11 +1,11 @@
 -- =============================================================================
--- Dev/test seed for the `user` table so the JWT → tenant resolution chain
+-- Dev/test seed for the `t_user` table so the JWT → tenant resolution chain
 -- works end-to-end against the seeded Keycloak realm.
 --
 -- Today `ClubTenantIdentifierResolver` either parses a UUID `clubId` claim
 -- (realm-export currently carries the string "club-1", which fails parse) or
 -- falls back to `UserPrincipalLookup.resolveTenantFor(jwt)` which queries
--- `user` by `keycloak_sub`. Without a user row, that lookup returns empty →
+-- `t_user` by `keycloak_sub`. Without a row, that lookup returns empty →
 -- NO_TENANT (nil UUID) → every tenant-scoped write fails at
 -- `fk_<table>_club_id`.
 --

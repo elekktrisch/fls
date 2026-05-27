@@ -76,15 +76,15 @@ class IdentityBaselineIntegrationTest {
     @Test
     void identity_baseline_tables_present() throws Exception {
         Set<String> expected = new LinkedHashSet<>(Arrays.asList(
-                "club", "club_extension", "club_state",
+                "t_club", "t_club_extension", "t_club_state",
                 "t_user",
-                "person", "person_club",
-                "country", "language",
-                "member_state", "person_category",
-                "length_unit_type", "elevation_unit_type", "counter_unit_type",
-                "start_type",
-                "email_template",
-                "extension_type", "extension_value"
+                "t_person", "t_person_club",
+                "t_country", "t_language",
+                "t_member_state", "t_person_category",
+                "t_length_unit_type", "t_elevation_unit_type", "t_counter_unit_type",
+                "t_start_type",
+                "t_email_template",
+                "t_extension_type", "t_extension_value"
         ));
         Set<String> actual = new LinkedHashSet<>();
         try (Connection conn = dataSource.getConnection();
@@ -95,10 +95,10 @@ class IdentityBaselineIntegrationTest {
             while (rs.next()) actual.add(rs.getString(1));
         }
         // The test name promises "all 19" — assert the exact set including the
-        // framework tables Flyway / S-009 land. containsAll would silently allow
+        // Framework tables Flyway lands. containsAll would silently allow
         // a 20th domain table to slip in undetected; containsExactlyInAnyOrder
         // forces a deliberate update if the catalogue changes.
-        Set<String> frameworkTables = Set.of("flyway_schema_history", "app_meta");
+        Set<String> frameworkTables = Set.of("flyway_schema_history");
         Set<String> expectedRequired = new LinkedHashSet<>();
         expectedRequired.addAll(expected);
         expectedRequired.addAll(frameworkTables);
@@ -132,10 +132,10 @@ class IdentityBaselineIntegrationTest {
                           AND c.column_name = k.column_name
                         WHERE t.table_schema = 'public'
                           AND t.table_name IN (
-                            'club','club_extension','club_state','t_user',
-                            'person','person_club','country','language','member_state','person_category',
-                            'length_unit_type','elevation_unit_type','counter_unit_type','start_type',
-                            'email_template','extension_value','extension_type'
+                            't_club','t_club_extension','t_club_state','t_user',
+                            't_person','t_person_club','t_country','t_language','t_member_state','t_person_category',
+                            't_length_unit_type','t_elevation_unit_type','t_counter_unit_type','t_start_type',
+                            't_email_template','t_extension_value','t_extension_type'
                           )
                         """)) {
             while (rs.next()) {
@@ -151,10 +151,10 @@ class IdentityBaselineIntegrationTest {
         assertThat(seenTables)
                 .as("every one of the 19 in-scope tables must contribute a PK row to the join")
                 .containsExactlyInAnyOrder(
-                        "club", "club_extension", "club_state", "t_user",
-                        "person", "person_club", "country", "language", "member_state", "person_category",
-                        "length_unit_type", "elevation_unit_type", "counter_unit_type", "start_type",
-                        "email_template", "extension_value", "extension_type");
+                        "t_club", "t_club_extension", "t_club_state", "t_user",
+                        "t_person", "t_person_club", "t_country", "t_language", "t_member_state", "t_person_category",
+                        "t_length_unit_type", "t_elevation_unit_type", "t_counter_unit_type", "t_start_type",
+                        "t_email_template", "t_extension_value", "t_extension_type");
         for (PkRow row : rows) {
             assertThat(row.type())
                     .as("PK %s.%s must be uuid (ADR 0019)", row.table(), row.column())
@@ -169,7 +169,7 @@ class IdentityBaselineIntegrationTest {
     @Test
     void all_fk_columns_are_uuid() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "person");
+            assertTableExists(conn, "t_person");
         }
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery("""
@@ -224,10 +224,10 @@ class IdentityBaselineIntegrationTest {
     @Test
     void person_has_no_club_id_column() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "person");
+            assertTableExists(conn, "t_person");
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT 1 FROM information_schema.columns "
-                            + "WHERE table_schema = 'public' AND table_name = 'person' "
+                            + "WHERE table_schema = 'public' AND table_name = 't_person' "
                             + "AND column_name = 'club_id'")) {
                 assertThat(rs.next())
                         .as("person must NOT carry a club_id column (cross-tenant sacred cow)")
@@ -243,7 +243,7 @@ class IdentityBaselineIntegrationTest {
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT a.attname FROM pg_index i "
                             + "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
-                            + "WHERE i.indrelid = 'person_club'::regclass AND i.indisprimary")) {
+                            + "WHERE i.indrelid = 't_person_club'::regclass AND i.indisprimary")) {
                 List<String> pkCols = new ArrayList<>();
                 while (rs.next()) pkCols.add(rs.getString(1));
                 assertThat(pkCols)
@@ -251,7 +251,7 @@ class IdentityBaselineIntegrationTest {
                         .containsExactly("id");
             }
             try (ResultSet rs = conn.createStatement().executeQuery(
-                    "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='person_club'")) {
+                    "SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND tablename='t_person_club'")) {
                 List<String> defs = new ArrayList<>();
                 while (rs.next()) defs.add(rs.getString(1));
                 assertThat(defs)
@@ -269,8 +269,8 @@ class IdentityBaselineIntegrationTest {
     void aggregate_root_column_comments_reference_adr_0019() throws Exception {
         record CommentExpect(String table, String prefix) {}
         List<CommentExpect> expects = List.of(
-                new CommentExpect("person", "psn"),
-                new CommentExpect("club",   "clb"),
+                new CommentExpect("t_person", "psn"),
+                new CommentExpect("t_club",   "clb"),
                 new CommentExpect("t_user", "usr"));
 
         try (Connection conn = dataSource.getConnection();
@@ -314,9 +314,9 @@ class IdentityBaselineIntegrationTest {
     /** Switzerland's UUID is the canonical-seed sacred cow — pinned in the JSON. */
     @Test
     void country_seeded_with_canonical_switzerland_uuid() throws Exception {
-        String expectedSwitzerlandUuid = canonicalSeedUuid("country", "iso2", "CH");
+        String expectedSwitzerlandUuid = canonicalSeedUuid("t_country", "iso2", "CH");
         try (Connection conn = dataSource.getConnection();
-                var stmt = conn.prepareStatement("SELECT id::text FROM country WHERE iso2_code = 'CH'")) {
+                var stmt = conn.prepareStatement("SELECT id::text FROM t_country WHERE iso2_code = 'CH'")) {
             try (ResultSet rs = stmt.executeQuery()) {
                 assertThat(rs.next()).as("Switzerland must be in the seed").isTrue();
                 assertThat(rs.getString(1))
@@ -329,7 +329,7 @@ class IdentityBaselineIntegrationTest {
     @Test
     void country_count_at_least_196() throws Exception {
         try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM country")) {
+                ResultSet rs = conn.createStatement().executeQuery("SELECT count(*) FROM t_country")) {
             rs.next();
             assertThat(rs.getInt(1)).isGreaterThanOrEqualTo(196);
         }
@@ -339,7 +339,7 @@ class IdentityBaselineIntegrationTest {
     void start_type_seeded_5_canonical_values() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT code FROM start_type ORDER BY code")) {
+                        "SELECT code FROM t_start_type ORDER BY code")) {
             List<String> codes = new ArrayList<>();
             while (rs.next()) codes.add(rs.getString(1));
             assertThat(codes).containsExactlyInAnyOrder(
@@ -357,7 +357,7 @@ class IdentityBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection()) {
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT data_type, is_nullable FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='start_type' "
+                            + "WHERE table_schema='public' AND table_name='t_start_type' "
                             + "AND column_name='applicable_categories'")) {
                 assertThat(rs.next()).as("applicable_categories column must exist").isTrue();
                 assertThat(rs.getString("data_type"))
@@ -367,7 +367,7 @@ class IdentityBaselineIntegrationTest {
             }
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-                            + "WHERE conrelid = 'start_type'::regclass AND contype = 'c'")) {
+                            + "WHERE conrelid = 't_start_type'::regclass AND contype = 'c'")) {
                 List<String> defs = new ArrayList<>();
                 while (rs.next()) defs.add(rs.getString(1));
                 assertThat(defs)
@@ -381,7 +381,7 @@ class IdentityBaselineIntegrationTest {
     void start_type_seeds_have_expected_applicable_categories() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT code, applicable_categories::text FROM start_type ORDER BY code")) {
+                        "SELECT code, applicable_categories::text FROM t_start_type ORDER BY code")) {
             java.util.Map<String, String> got = new java.util.LinkedHashMap<>();
             while (rs.next()) got.put(rs.getString(1), rs.getString(2));
             // Postgres TEXT[] -> '{X,Y}' literal. Order preserved by INSERT.
@@ -398,7 +398,7 @@ class IdentityBaselineIntegrationTest {
     void club_state_seeded_3_canonical_values() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT code FROM club_state ORDER BY code")) {
+                        "SELECT code FROM t_club_state ORDER BY code")) {
             List<String> codes = new ArrayList<>();
             while (rs.next()) codes.add(rs.getString(1));
             assertThat(codes).containsExactlyInAnyOrder("ACTIVE", "SUSPENDED", "CLOSED");
@@ -406,7 +406,7 @@ class IdentityBaselineIntegrationTest {
     }
 
     /**
-     * V2 must not contain {@code INSERT INTO member_state} / {@code person_category}
+     * V2 must not contain {@code INSERT INTO t_member_state} / {@code person_category}
      * statements — those are per-club seeds populated at S-016 cutover, not in V2.
      * We assert on the migration text rather than the table row count because
      * S-022+ integration tests legitimately insert into these tables and leave
@@ -419,8 +419,8 @@ class IdentityBaselineIntegrationTest {
             v2 = Path.of("alpenflight/server/src/main/resources/db/migration/V2__identity_and_reference.sql");
         }
         String body = Files.readString(v2);
-        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO member_state\\b");
-        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO person_category\\b");
+        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO t_member_state\\b");
+        assertThat(body).doesNotContainPattern("(?im)^\\s*INSERT INTO t_person_category\\b");
     }
 
     /**
@@ -455,7 +455,7 @@ class IdentityBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type, character_maximum_length FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='country' "
+                                + "WHERE table_schema='public' AND table_name='t_country' "
                                 + "AND column_name='iso2_code'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString("data_type")).isEqualTo("character");
@@ -486,7 +486,7 @@ class IdentityBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT is_nullable FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='email_template' "
+                                + "WHERE table_schema='public' AND table_name='t_email_template' "
                                 + "AND column_name='club_id'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1))
@@ -500,7 +500,7 @@ class IdentityBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT is_nullable FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='extension_value' "
+                                + "WHERE table_schema='public' AND table_name='t_extension_value' "
                                 + "AND column_name='club_id'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1)).isEqualTo("YES");
@@ -519,7 +519,7 @@ class IdentityBaselineIntegrationTest {
             for (String flag : flags) {
                 try (var stmt = conn.prepareStatement(
                         "SELECT is_nullable, column_default, data_type FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='person_club' "
+                                + "WHERE table_schema='public' AND table_name='t_person_club' "
                                 + "AND column_name = ?")) {
                     stmt.setString(1, flag);
                     try (ResultSet rs = stmt.executeQuery()) {
@@ -538,7 +538,7 @@ class IdentityBaselineIntegrationTest {
         // Aggregate roots + the internal collection that's mutated outside its
         // root. Reference tables intentionally skip the quad per design notes
         // (audit goes via S-027's audit_event table).
-        List<String> mutables = List.of("person", "club", "t_user", "person_club");
+        List<String> mutables = List.of("t_person", "t_club", "t_user", "t_person_club");
         try (Connection conn = dataSource.getConnection()) {
             for (String t : mutables) {
                 for (String col : List.of("created_on", "created_by_user_id", "modified_on", "modified_by_user_id")) {
@@ -569,7 +569,8 @@ class IdentityBaselineIntegrationTest {
     }
 
     private static String canonicalSeedUuid(String table, String keyField, String keyValue) {
-        for (JsonNode row : canonicalSeeds.get(table)) {
+        String seedKey = table.startsWith("t_") ? table.substring(2) : table;
+        for (JsonNode row : canonicalSeeds.get(seedKey)) {
             if (keyValue.equals(row.get(keyField).asText())) {
                 return row.get("uuid").asText();
             }

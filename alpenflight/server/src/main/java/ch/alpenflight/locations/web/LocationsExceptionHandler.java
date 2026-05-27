@@ -75,7 +75,7 @@ class LocationsExceptionHandler {
     /**
      * Translate a foreign-key violation on {@code fk_location_club_id} (the
      * tenant FK) to a 404 — surfaces the rare case where the {@code @TenantId}
-     * resolver returns a {@code club_id} that does not have a {@code club}
+     * resolver returns a {@code club_id} that does not have a {@code t_club}
      * row (e.g. a stale JWT after a club was deleted). Other FK violations
      * propagate as 500 (genuine server bugs).
      */
