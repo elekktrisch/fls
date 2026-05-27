@@ -2,7 +2,8 @@
 id: S-169
 title: Users — JIT projection on first authenticated login
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-05-27
 estimate: S
 parity_test: none
 depends_on: [S-052]
