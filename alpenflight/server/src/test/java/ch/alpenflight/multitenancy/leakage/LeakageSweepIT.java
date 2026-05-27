@@ -136,7 +136,10 @@ class LeakageSweepIT extends PostgresIntegrationTest {
         Function<SweepFixtureContext, E> builder = builderFor(entityClass);
         String tableName = TenantScopedEntityCatalog.resolveTableName(entityClass);
         String tenantCol = TenantScopedEntityCatalog.resolveTenantColumnName(entityClass);
-        String expectedFkName = "fk_" + tableName + "_" + tenantCol;
+        // FK constraint names keep their legacy shape (no `t_` prefix) per
+        // ADR 0025 — strip the table prefix to reconstruct the actual name.
+        String legacyTableStem = tableName.startsWith("t_") ? tableName.substring(2) : tableName;
+        String expectedFkName = "fk_" + legacyTableStem + "_" + tenantCol;
 
         // Pin to the FK breach specifically — not "any DataIntegrityViolation".
         // If a future regression made the resolver return null instead of the
