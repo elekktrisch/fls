@@ -2,7 +2,8 @@
 id: S-172
 title: infra compose group — Mailpit as shared dependency + script split
 epic: E-05
-status: todo
+status: in_progress
+started_at: 2026-05-27
 estimate: S
 depends_on: []
 integration_base: integration/users-suite
