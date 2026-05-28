@@ -2,9 +2,11 @@
 id: S-016
 title: Legacy schema-mapping library + parity oracle
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-28
 depends_on: [S-012, S-013, S-014]
 integration_base: integration/migration
+github_issue: 157
 acceptance:
   - `alpenflight/migration-bundle/` library provides one mapper per legacy entity cluster (~60 entity types): per-entity column lists, type coercions, FK rewrites, enum re-encodings (e.g. legacy `BOOLEAN` → string-serialized enums per S-129), tenant-scoping defaults.
   - Library is consumed by S-139 (JAR bundle-writer) AND S-141 (server ingest pipeline) — single source of truth for "what's in the bundle".
