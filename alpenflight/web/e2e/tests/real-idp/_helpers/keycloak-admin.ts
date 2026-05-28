@@ -6,20 +6,18 @@ import { isCleanupCandidate, type TestUser } from './test-user';
  * Uses the `alpenflight-backend-admin` confidential client's
  * client-credentials grant against the realm-local token endpoint
  * (`/realms/alpenflight/protocol/openid-connect/token`, NOT `/realms/master`
- * — the service account lives in `alpenflight`). Service-account roles are
- * scoped to `manage-realm` + `manage-users` + `view-users` + `query-users`
- * on `realm-management` only (S-019 base + S-175 `manage-realm` for
- * accessTokenLifespan mutation); never `manage-clients` / impersonation.
+ * — the service account lives in `alpenflight`). Service-account scope is
+ * enumerated + enforced in `alpenflight/auth/scripts/check-realm-shape.sh`
+ * (`EXPECTED_SA_ROLES`); this file does not duplicate the list.
  *
  * Token caching is worker-scoped via the module-level promise — single
  * `workers: 1` for real-idp means one cached token per CI run. Refreshed
  * 30s before expiry, OR on any 401.
  *
- * **Localhost guard:** assertLocalhostIssuer() must fire before any admin
- * call. The dev secret cannot run against a non-localhost issuer; the
- * guard is the security boundary for the committed dev credential AND
- * the boundary that bounds the S-175 `manage-realm` scope expansion to
- * local dev + nightly CI.
+ * **Localhost guard:** `assertLocalhostIssuer()` must fire before any admin
+ * call. The committed dev secret cannot reach a non-localhost issuer; the
+ * guard is also the boundary that bounds the realm-mutation scope (the
+ * `manage-realm` grant) to local dev + nightly CI.
  */
 
 /**
@@ -27,37 +25,40 @@ import { isCleanupCandidate, type TestUser } from './test-user';
  * hard-401 specs to force a token-renewal cycle inside the test window.
  * Restored via `withRealmPatch`'s try/finally; globalTeardown sweeps drift.
  *
- * 30s is wide enough to absorb the SPA's `renewTimeBeforeTokenExpiresInSeconds
- * = 60` (auth.config.ts:48) — the renewal fires immediately on login, so any
- * lifespan above the renewal threshold collapses to the renewal interval. A
- * value < 60 simply guarantees the renewal-already-triggered path; 30s keeps
- * the spec deterministic without flirting with KC's minimum-lifespan rules.
+ * Sized to sit below the SPA's `renewTimeBeforeTokenExpiresInSeconds = 60`
+ * (auth.config.ts) so renewal fires immediately on login — guarantees the
+ * "renewal already triggered" path without flirting with KC's minimum-
+ * lifespan rules.
  */
 export const SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS = 30;
 
 /**
  * Canonical realm-default `accessTokenLifespan` (seconds). Matches the
- * ADR 0007 + realm-export contract checked by `check-realm-shape.sh:142-147`.
- * globalTeardown PUTs this back if a worker SIGKILL skipped `withRealmPatch`'s
- * `finally`.
+ * ADR 0007 + realm-export contract checked by `check-realm-shape.sh`.
+ * globalTeardown PUTs this back if a worker SIGKILL skipped
+ * `withRealmPatch`'s `finally`.
  */
 export const CANONICAL_ACCESS_TOKEN_LIFESPAN_SECONDS = 900;
 
 const ISSUER = process.env['E2E_KC_ISSUER'] ?? 'http://localhost:8090/realms/alpenflight';
 const ADMIN_CLIENT_ID = 'alpenflight-backend-admin';
 const ADMIN_CLIENT_SECRET_DEFAULT = 'alpenflight-backend-admin-dev-secret';
+const ADMIN_CLIENT_SECRET_OVERRIDE = process.env['ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET'];
+// Treat exported-but-empty (`export ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET=`) as
+// "no override" so a typo'd env-var assignment doesn't silently auth with
+// an empty secret AND suppress the dev-fallback warn.
 const ADMIN_CLIENT_SECRET =
-  process.env['ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET'] ?? ADMIN_CLIENT_SECRET_DEFAULT;
+  ADMIN_CLIENT_SECRET_OVERRIDE && ADMIN_CLIENT_SECRET_OVERRIDE.length > 0
+    ? ADMIN_CLIENT_SECRET_OVERRIDE
+    : ADMIN_CLIENT_SECRET_DEFAULT;
 const REALM = 'alpenflight';
 const ADMIN_BASE = ISSUER.replace(`/realms/${REALM}`, '') + `/admin/realms/${REALM}`;
 const TOKEN_ENDPOINT = `${ISSUER}/protocol/openid-connect/token`;
 
-if (
-  ADMIN_CLIENT_SECRET === ADMIN_CLIENT_SECRET_DEFAULT &&
-  !process.env['ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET']
-) {
+if (ADMIN_CLIENT_SECRET === ADMIN_CLIENT_SECRET_DEFAULT) {
   // Surface the silent fallback so an operator who intended to override but
-  // typo'd the env-var name notices. Stderr so it doesn't pollute stdout.
+  // typo'd the env-var name (or exported it empty) notices. Stderr so it
+  // doesn't pollute stdout.
   // eslint-disable-next-line no-console
   console.warn(
     `[real-idp] using committed dev secret for ${ADMIN_CLIENT_ID}; ` +
@@ -135,10 +136,7 @@ async function adminRequest(
   // check and Keycloak hand-off without a complex token-binding handshake.
   retry = true,
 ): Promise<Response> {
-  // Defense-in-depth: every admin request re-asserts the localhost
-  // boundary. Module-scoped `ISSUER` is frozen at import time, but
-  // the explicit call here means an audit reading any single function
-  // sees the gate without having to trace the call graph back to setup.
+  // Re-asserted per-call so an audit reading any single function sees the gate.
   assertLocalhostIssuer();
   const token = await getToken();
   const headers = new Headers(init.headers ?? {});
@@ -290,8 +288,6 @@ let realmMutexBusy = false;
  * Restore target is the value captured at call time, NOT a hardcoded
  * constant — protects against future ADR 0007 token-policy bumps where the
  * canonical lifespan has drifted from 900s.
- *
- * Specs never call `updateRealm` directly.
  */
 export async function withRealmPatch<T>(
   partial: Record<string, unknown>,
@@ -307,26 +303,36 @@ export async function withRealmPatch<T>(
   realmMutexBusy = true;
   try {
     const realm = await getRealm();
+    // Refuse to patch a key that has no prior value: `JSON.stringify` strips
+    // `undefined`, so a restore PUT would silently no-op and leave the
+    // patched value live. Today's callers patch `accessTokenLifespan` which
+    // is always set on the realm — refuse upfront if a future caller hits
+    // the foot-gun.
     const snapshot: Record<string, unknown> = {};
     for (const key of Object.keys(partial)) {
+      if (realm[key] === undefined) {
+        throw new Error(
+          `withRealmPatch: refusing to patch '${key}' — realm has no prior value, ` +
+            'so the restore PUT would silently no-op. Set a default in realm-export ' +
+            'first OR extend this helper with a documented restore strategy for the key.',
+        );
+      }
       snapshot[key] = realm[key];
     }
     await updateRealm(partial);
     try {
       return await fn();
     } finally {
-      // Restore the snapshot — keys absent in the snapshot (KC defaults)
-      // are restored as `undefined`, which KC accepts and treats as the
-      // default. Best-effort: a restore failure should not mask the
-      // original test failure but must be loud.
+      // Best-effort restore: a failure here must not mask the test result.
+      // globalTeardown's `restoreCanonicalAccessTokenLifespan` is the safety
+      // net if this branch loses.
       try {
         await updateRealm(snapshot);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error(
           `withRealmPatch: restore failed — ${(err as Error).message}. ` +
-            'globalTeardown will reset accessTokenLifespan to the canonical value ' +
-            'as the safety net.',
+            'globalTeardown will reset accessTokenLifespan to the canonical value.',
         );
       }
     }
@@ -337,9 +343,12 @@ export async function withRealmPatch<T>(
 
 /**
  * Toggle a user's `enabled` flag via PUT /users/{id}. Predicate-guarded
- * (`isCleanupCandidate(emailForGuard)`) identically to `deleteUser` —
- * seed users (`pilot1`, `clubadmin1`, `sysadmin`) cannot be disabled
- * through this helper even by typo.
+ * identically to `deleteUser` — seed users (pilot1, clubadmin1, sysadmin)
+ * cannot be disabled through this helper even by typo.
+ *
+ * Body is pinned to `{ enabled }` only. Do NOT widen this signature without
+ * a parallel review of the predicate guard — KC's PUT /users/{id} is a
+ * partial-merge surface and a wider payload could overwrite other fields.
  */
 export async function setUserEnabled(
   userId: string,
@@ -353,7 +362,7 @@ export async function setUserEnabled(
         `email.endsWith('@example.com').`,
     );
   }
-  const res = await adminRequest(`/users/${userId}`, {
+  const res = await adminRequest(`/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
     body: JSON.stringify({ enabled }),
   });

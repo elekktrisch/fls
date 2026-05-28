@@ -11,28 +11,11 @@ import { fillKcLogin } from './_helpers/kc-form';
 import { freshTestUser, type TestUser } from './_helpers/test-user';
 
 /**
- * S-175 — real-IdP token-lifecycle flows.
- *
- * Two `describe.serial` blocks for clarity of cleanup contracts:
- *
- *  (a) realm-mutating: silent refresh + hard 401, both wrapped in
- *      `withRealmPatch({ accessTokenLifespan: SHORTENED })` so KC issues
- *      tokens that expire inside the test window. `try/finally` restores;
- *      globalTeardown is the safety net for SIGKILL.
- *
- *  (b) per-test ephemeral user / no realm mutation: multi-tab logout +
- *      Bearer scoping. Uses the read-only seed user `pilot1` where it can
- *      (no cleanup needed).
- *
- * Assertions are observable behavior only: URL host transitions,
- * `page.on('request')` header presence/absence, HTTP status codes. Never
- * KC copy / internal SPA events / screenshot diffs.
- *
- * KC user-disable does NOT instantly invalidate already-issued JWTs
- * (offline JWT validation per ADR 0007). The 401 surfaces on next refresh
- * rotation OR token expiry; the shortened lifespan forces renewal inside
- * the test window — the assertion accepts either path (silent-refresh-fail
- * redirect OR direct API-401 redirect) via URL-transition check.
+ * Real-IdP token-lifecycle flows. Realm-mutating specs are wrapped in
+ * `withRealmPatch` + `describe.serial` — see e2e/README.md § Realm-mutating
+ * specs for the contract. All assertions are observable behavior:
+ * URL host transitions, `page.on('request')` header presence/absence,
+ * authed-shell markers. Never KC copy / internal SPA events / screenshots.
  */
 
 const SEED_USER = 'pilot1@example.com';
@@ -74,14 +57,12 @@ test.describe('token-lifecycle — realm-mutating', () => {
 
         // Navigate to an authed-only route. If silent refresh failed,
         // `SilentRenewFailed` would have fired and the session bridge
-        // would have re-authorized → KC URL. Authed-only route renders
-        // = silent refresh succeeded.
+        // would have re-authorized → KC URL. Unauthed-shell marker
+        // absent confirms the session is still live without coupling
+        // to a specific feature route.
         await page.goto('/flights');
         await page.waitForLoadState('networkidle');
-        const pathname = new URL(page.url()).pathname;
-        expect(pathname).toMatch(/^\/(flights|start|clubs)/);
-        expect(pathname).not.toMatch(/^\/realms\//);
-        // Unauthed-chrome marker absent confirms the session is still live.
+        expect(new URL(page.url()).host).not.toBe(KC_HOST);
         await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
       },
     );
@@ -110,10 +91,15 @@ test.describe('token-lifecycle — realm-mutating', () => {
           await page.goto('/flights');
           await page.waitForTimeout((SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS + 10) * 1000);
           // Force another navigation to give the guard / interceptor a
-          // chance to run with the now-invalid session.
-          await page.goto('/start').catch(() => {
-            /* may already have redirected mid-navigation */
-          });
+          // chance to run with the now-invalid session. The redirect
+          // may interrupt the navigation; surface every other error.
+          try {
+            await page.goto('/start');
+          } catch (err) {
+            if (!/interrupted|aborted|navigation/i.test((err as Error).message)) {
+              throw err;
+            }
+          }
 
           // Observable: the SPA must end up on KC's login (re-auth) or
           // the public landing — never on an authed route.
@@ -144,9 +130,10 @@ test.describe('token-lifecycle — non-mutating', () => {
     context,
   }) => {
     // Same Playwright BrowserContext means shared *live* localStorage —
-    // that's where the OIDC client persists tokens (auth.config.ts:34 +
-    // app.config.ts's DefaultLocalStorageService). `browser.newContext({
-    // storageState })` would only carry a snapshot.
+    // that's where the OIDC client persists tokens (the
+    // `AbstractSecurityStorage` → `DefaultLocalStorageService` binding in
+    // `app.config.ts`). `browser.newContext({ storageState })` would only
+    // carry a snapshot, not propagate live storage events.
     const tabA = await context.newPage();
     const tabB = await context.newPage();
 

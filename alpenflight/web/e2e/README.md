@@ -73,7 +73,7 @@ e2e/
             └── probes.ts             the four HTTP probes
 ```
 
-## Realm-mutating specs (S-175)
+## Realm-mutating specs
 
 The token-lifecycle suite mutates `accessTokenLifespan` realm-wide to force
 silent-refresh + refresh-grant-deny inside the test window. The contract:

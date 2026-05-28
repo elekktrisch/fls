@@ -9,10 +9,9 @@
 #   - alpenflight-backend-admin is confidential service-accounts-only, scoped
 #     to manage-realm + manage-users + view-users + query-users on
 #     realm-management (NOT manage-clients / impersonation), with the
-#     dev-placeholder secret. manage-realm was added in S-175 for the
-#     real-idp accessTokenLifespan-mutation Playwright spec; the
-#     assertLocalhostIssuer() guard in keycloak-admin.ts bounds the
-#     expanded scope to local dev + nightly CI.
+#     dev-placeholder secret. The localhost-issuer guard in the e2e
+#     keycloak-admin client bounds the manage-realm scope to local dev +
+#     nightly CI.
 #   - alpenflight-proffix is service-accounts-only (no interactive flows).
 #   - 7 realm roles present (SYSTEM_ADMINISTRATOR, CLUB_ADMINISTRATOR, ...).
 #   - 3 seed users (sysadmin, clubadmin1, pilot1) with expected role + clubId.
@@ -74,12 +73,10 @@ ADMIN=$(jq '.clients[] | select(.clientId=="alpenflight-backend-admin")' "$EXPOR
 [[ $(jq -r '.secret' <<<"$ADMIN") == "alpenflight-backend-admin-dev-secret" ]] || fail "alpenflight-backend-admin must carry the dev-placeholder secret in source (rotate at deploy)"
 
 # Service-account role binding: exactly manage-realm + manage-users +
-# view-users + query-users, scoped to realm-management. manage-realm
-# was added in S-175 for the accessTokenLifespan-mutation Playwright
-# spec (real-idp nightly only; localhost-issuer guard bounds the scope).
-# Anything broader (manage-clients / impersonation) makes this client a
-# tenant-escalation surface — fail loud. Equality not subset: drift in
-# either direction fails the gate.
+# view-users + query-users, scoped to realm-management. Anything broader
+# (manage-clients / impersonation) makes this client a tenant-escalation
+# surface — fail loud. Equality not subset: drift in either direction
+# fails the gate.
 ADMIN_SA_ROLES=$(jq -r '
   .users[]
   | select(.serviceAccountClientId == "alpenflight-backend-admin")

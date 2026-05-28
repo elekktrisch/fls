@@ -1,7 +1,7 @@
 import { test, expect, type Request } from '@playwright/test';
 
 /**
- * S-175 — public routes stay public against the live IdP.
+ * Public routes stay public against the live IdP.
  *
  * Each route flagged `data.publicAccess: true` in the SPA route tree
  * MUST render anonymously without (a) redirecting to Keycloak's authorize
@@ -19,8 +19,18 @@ const SPA_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4
 const KC_HOST = 'localhost:8090';
 
 // publicAccess: true routes from the SPA tree (excludes /dev/primitives,
-// which is opt-in tooling and not a production surface).
-const PUBLIC_ROUTES = ['/', '/signup', '/scenic-flight', '/discovery-flight', '/auth/logout'];
+// which is opt-in tooling and not a production surface). `/auth/callback`
+// is included as a bare GET — the OIDC library only processes the
+// callback when it sees `?code=&state=`, so an anonymous bare visit
+// renders the static "Signing in…" placeholder without side effects.
+const PUBLIC_ROUTES = [
+  '/',
+  '/signup',
+  '/scenic-flight',
+  '/discovery-flight',
+  '/auth/callback',
+  '/auth/logout',
+];
 
 test.describe('public routes stay public — real-idp', () => {
   for (const path of PUBLIC_ROUTES) {
