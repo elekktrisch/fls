@@ -60,11 +60,11 @@ class DeploymentsAdminControllerIT extends PostgresIntegrationTest {
         sysadminToken = jwts.mint(c -> c
                 .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
                 .claim("realm_access", Map.of(
-                        "roles", java.util.List.of("system-administrator"))));
+                        "roles", java.util.List.of("SYSTEM_ADMINISTRATOR"))));
         clubAdminToken = jwts.mint(c -> c
                 .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
                 .claim("realm_access", Map.of(
-                        "roles", java.util.List.of("club-administrator"))));
+                        "roles", java.util.List.of("CLUB_ADMINISTRATOR"))));
 
         UUID owner = UUID.fromString("00000000-0000-0000-0000-00000000c001");
         Deployment trial = deployments.save(

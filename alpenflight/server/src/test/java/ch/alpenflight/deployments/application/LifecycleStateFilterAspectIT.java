@@ -49,6 +49,8 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
+        jdbc.update("UPDATE club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
+                + "WHERE deployment_id IN (SELECT id FROM deployment WHERE name LIKE 'IT_AS_%')");
         jdbc.update("DELETE FROM deployment WHERE name LIKE 'IT_AS_%'");
         testJob.reset();
         new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_AS_", "IT_AS_").seed();
