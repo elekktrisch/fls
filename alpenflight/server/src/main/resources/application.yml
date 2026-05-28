@@ -65,9 +65,11 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
-# S-052: backend → Keycloak admin-REST machine client (alpenflight-backend-admin).
-# Service-account scoped to manage-users + view-users + query-users only — see
-# alpenflight/auth/scripts/check-realm-shape.sh for the realm-shape pin.
+# Backend → Keycloak admin-REST machine client (alpenflight-backend-admin).
+# Service-account scope set is pinned by alpenflight/auth/scripts/check-realm-
+# shape.sh: manage-groups + manage-realm + manage-users + query-users +
+# view-users (the deployment-provisioning adapter needs the first two on top
+# of the user-directory adapter's baseline).
 keycloak:
   admin:
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}
@@ -119,7 +121,7 @@ audit:
         # keyed by entityType="Deployment" and the redactor walks the
         # snapshot's field names. The Deployment @Entity itself never
         # serialises into an audit row directly; the @AuditRedact-annotated
-        # fields (name, ownerKeycloakSub, billingCustomerId,
+        # fields (name, ownerKeycloakSub, idempotencyKey, billingCustomerId,
         # billingSubscriptionId) cover the AuditRedactionCoverageTest
         # ArchUnit scan that walks the @Entity's fields.
         allow:
@@ -131,6 +133,9 @@ audit:
           - modifiedOn
           - version
           - pendingTransitions
+          # S-138 — Phase B (Keycloak reconcile) state. Two values: PENDING
+          # / READY. Operationally informative, never PII.
+          - keycloakState
       Location:
         # Lists both DTO field names and entity field names — see Club above.
         allow:

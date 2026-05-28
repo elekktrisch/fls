@@ -82,7 +82,7 @@ public class Deployment {
      * absent from the keys (immutable). {@link LifecycleState#DELETING}
      * exposes the {@code → CANCELLED} edge so the admin endpoint can
      * rescue an accidentally-scheduled-delete Deployment within the
-     * grace window (operator-grilled 2026-05-28).
+     * grace window.
      */
     private static final Map<LifecycleState, Set<LifecycleState>> LEGAL_TRANSITIONS;
 
@@ -126,6 +126,28 @@ public class Deployment {
 
     @Column(name = "trial_started_at")
     private @Nullable Instant trialStartedAt;
+
+    /**
+     * Bound at provisioning time to the caller's idempotency identifier
+     * (typically the upstream migration-run id). UNIQUE at the schema
+     * layer so a concurrent retry race surfaces as a constraint
+     * violation; the second caller loads the existing Deployment by
+     * this key. {@code updatable = false}: the key is set once at
+     * startTrial-and-bind and never moves.
+     */
+    @AuditRedact
+    @Column(name = "idempotency_key", updatable = false)
+    private @Nullable UUID idempotencyKey;
+
+    /**
+     * Reconcile state for the directory-side plumbing (group + per-Club
+     * admin roles + clubId user attribute). The hourly reconcile job
+     * filters on PENDING to resume work for Deployments whose post-
+     * commit half failed mid-flight.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kc_state", nullable = false, length = 16)
+    private KeycloakReconcileState keycloakState = KeycloakReconcileState.PENDING;
 
     // PCI scope adjacency — S-145 owns the billing audit story.
     @AuditRedact
@@ -179,6 +201,47 @@ public class Deployment {
         deployment.modifiedOn = now;
         deployment.recordTransition(null, LifecycleState.TRIAL, now);
         return deployment;
+    }
+
+    /**
+     * Binds this Deployment to a caller-supplied idempotency identifier —
+     * normally the upstream migration-run id, but any durable cross-
+     * attempt token works. Single-use: a retry of the same attempt loads
+     * the existing Deployment by this key rather than re-binding here.
+     * Calling twice with the same key is harmless (no-op); calling with
+     * a different key throws — moving the binding would silently drop
+     * the original idempotency contract.
+     */
+    public void bindIdempotencyKey(UUID idempotencyKey) {
+        if (idempotencyKey == null) {
+            throw new IllegalArgumentException("idempotencyKey must not be null");
+        }
+        if (this.idempotencyKey != null) {
+            if (this.idempotencyKey.equals(idempotencyKey)) {
+                return;
+            }
+            throw new IllegalStateException(
+                    "Deployment is already bound to idempotency key " + this.idempotencyKey
+                            + "; refusing to rebind to " + idempotencyKey);
+        }
+        this.idempotencyKey = idempotencyKey;
+    }
+
+    /**
+     * True if the Keycloak-side reconcile (group + role + attribute) has
+     * not yet completed. The hourly reconcile job filters on this.
+     */
+    public boolean isKeycloakPending() {
+        return this.keycloakState == KeycloakReconcileState.PENDING;
+    }
+
+    /**
+     * Flips Keycloak reconcile state to {@link KeycloakReconcileState#READY}
+     * after a successful directory reconcile. Idempotent — repeated
+     * reconcile attempts always end in this single flip.
+     */
+    public void markKeycloakReady() {
+        this.keycloakState = KeycloakReconcileState.READY;
     }
 
     /** Transition {@code TRIAL → ACTIVE} or {@code PAST_DUE → ACTIVE}. */
@@ -370,6 +433,14 @@ public class Deployment {
 
     public @Nullable Instant getTrialStartedAt() {
         return trialStartedAt;
+    }
+
+    public @Nullable UUID getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public KeycloakReconcileState getKeycloakState() {
+        return keycloakState;
     }
 
     public @Nullable String getBillingCustomerId() {

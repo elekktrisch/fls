@@ -119,6 +119,56 @@ class DeploymentTest {
         assertThat(d.getBillingSubscriptionId()).isEqualTo("sub_X");
     }
 
+    @Test
+    void bindIdempotencyKey_stamps_key_once() {
+        Deployment d = Deployment.startTrial(FIXED, "fixture", OWNER);
+        UUID key = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
+        d.bindIdempotencyKey(key);
+
+        assertThat(d.getIdempotencyKey()).isEqualTo(key);
+    }
+
+    @Test
+    void bindIdempotencyKey_is_idempotent_for_same_key() {
+        Deployment d = Deployment.startTrial(FIXED, "fixture", OWNER);
+        UUID key = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
+        d.bindIdempotencyKey(key);
+        d.bindIdempotencyKey(key);
+
+        assertThat(d.getIdempotencyKey()).isEqualTo(key);
+    }
+
+    @Test
+    void bindIdempotencyKey_rejects_rebind_to_different_key() {
+        Deployment d = Deployment.startTrial(FIXED, "fixture", OWNER);
+        d.bindIdempotencyKey(UUID.fromString("33333333-3333-3333-3333-333333333333"));
+
+        assertThatThrownBy(() -> d.bindIdempotencyKey(
+                        UUID.fromString("44444444-4444-4444-4444-444444444444")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already bound");
+    }
+
+    @Test
+    void freshly_provisioned_deployment_starts_with_pending_keycloak_state() {
+        Deployment d = Deployment.startTrial(FIXED, "fixture", OWNER);
+        assertThat(d.isKeycloakPending()).isTrue();
+        assertThat(d.getKeycloakState()).isEqualTo(KeycloakReconcileState.PENDING);
+    }
+
+    @Test
+    void markKeycloakReady_flips_state_and_is_idempotent() {
+        Deployment d = Deployment.startTrial(FIXED, "fixture", OWNER);
+
+        d.markKeycloakReady();
+        d.markKeycloakReady();
+
+        assertThat(d.isKeycloakPending()).isFalse();
+        assertThat(d.getKeycloakState()).isEqualTo(KeycloakReconcileState.READY);
+    }
+
     static Stream<Arguments> legalPairs() {
         return LEGAL_PAIRS.stream().map(p -> Arguments.of(p.get(0), p.get(1)));
     }

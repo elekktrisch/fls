@@ -25,6 +25,26 @@ public interface DeploymentRepository {
     /** Returns Deployments whose lifecycle state matches one of the given values. */
     List<Deployment> findByLifecycleStateIn(List<LifecycleState> states);
 
+    /**
+     * Returns the Deployment bound to the given idempotency key, or empty
+     * when none exists. Retried ingest of the same upload uses this
+     * lookup to short-circuit to the existing Deployment instead of
+     * provisioning a new one.
+     */
+    Optional<Deployment> findByIdempotencyKey(UUID idempotencyKey);
+
+    /**
+     * Returns the active (non-terminal) Deployment for the given owner, or
+     * empty when the owner holds none. "Active" matches the structural
+     * partial UNIQUE {@code ux_deployment_owner_active} — TRIAL / ACTIVE
+     * / PAST_DUE / CANCELLED in, SANDBOX + DELETING out.
+     *
+     * <p>Drives the second-ingest 409 path: when the structural UNIQUE
+     * violation surfaces on insert, the service re-reads through this
+     * method to populate the structured 409 body.
+     */
+    Optional<Deployment> findActiveByOwner(UUID ownerKeycloakSub);
+
     /** Persist (insert or update). Returns the managed entity. */
     Deployment save(Deployment deployment);
 }
