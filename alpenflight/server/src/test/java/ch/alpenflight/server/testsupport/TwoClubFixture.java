@@ -84,6 +84,8 @@ public final class TwoClubFixture {
     private void insertClub(UUID id, String slug) {
         UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
         UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        // deployment_id defaults to the operator Deployment via the V14
+        // column DEFAULT — IT fixtures don't need to surface it.
         jdbc.update("""
                 INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
                                   slug, public_registration_enabled)

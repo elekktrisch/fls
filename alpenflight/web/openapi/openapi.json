@@ -26,6 +26,9 @@
     "name" : "AircraftTypes",
     "description" : "Aircraft-type reference catalog."
   }, {
+    "name" : "Admin Deployments",
+    "description" : "System-administrator Deployment lifecycle management."
+  }, {
     "name" : "ClubStates",
     "description" : "Club lifecycle-state catalog."
   }, {
@@ -1750,6 +1753,75 @@
         }
       }
     },
+    "/api/v1/admin/deployments/{id}/lifecycle" : {
+      "post" : {
+        "tags" : [ "Admin Deployments" ],
+        "summary" : "Flip a Deployment's lifecycle state.",
+        "description" : "Admin-only surface for operator-driven transitions: ACTIVE for operator-owned tenants, CANCELLED for dunning-grace rescue, etc. Sandbox is immutable.",
+        "operationId" : "transitionLifecycle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LifecycleTransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated Deployment projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Caller is not SYSTEM_ADMINISTRATOR.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No Deployment with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Illegal transition (sandbox / no edge).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights/{id}/process-state" : {
       "patch" : {
         "tags" : [ "flights" ],
@@ -2094,6 +2166,44 @@
                   "items" : {
                     "$ref" : "#/components/schemas/AircraftStateResponse"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/deployments/{id}" : {
+      "get" : {
+        "tags" : [ "Admin Deployments" ],
+        "summary" : "Read a Deployment by id.",
+        "operationId" : "getDeployment",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Deployment projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No Deployment with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
                 }
               }
             }
@@ -4421,6 +4531,37 @@
           }
         },
         "required" : [ "atDateTime" ]
+      },
+      "LifecycleTransitionRequest" : {
+        "type" : "object",
+        "properties" : {
+          "targetState" : {
+            "type" : "string",
+            "enum" : [ "SANDBOX", "TRIAL", "ACTIVE", "PAST_DUE", "CANCELLED", "DELETING" ]
+          }
+        },
+        "required" : [ "targetState" ]
+      },
+      "DeploymentResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "lifecycleState" : {
+            "type" : "string",
+            "enum" : [ "SANDBOX", "TRIAL", "ACTIVE", "PAST_DUE", "CANCELLED", "DELETING" ]
+          },
+          "plan" : {
+            "type" : "string",
+            "enum" : [ "FREE", "ACTIVE" ]
+          },
+          "trialStartedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
       },
       "FlightProcessStateChangeRequest" : {
         "type" : "object",

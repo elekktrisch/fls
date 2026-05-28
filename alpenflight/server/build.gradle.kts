@@ -92,6 +92,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    // S-137: AOP runtime (aspectjweaver + Spring AOP) for the
+    // @LifecycleStateFilter @Around advice on @Scheduled job classes.
+    // Webmvc starter pulls spring-aop transitively but not aspectjweaver;
+    // @Aspect needs the weaver. Spring Boot 4 restructured the starter
+    // hierarchy — spring-boot-starter-aop is no longer published; pull
+    // spring-aop (already managed by the BOM) + aspectjweaver directly.
+    implementation("org.springframework:spring-aop")
+    implementation("org.aspectj:aspectjweaver")
     // S-048 adds JPA on top of the JDBC starter (the JDBC dep stays so Flyway
     // keeps working with its lightweight DataSource). Hibernate ships under
     // the JPA umbrella.

@@ -30,6 +30,11 @@ spring:
     # touching prod startup. Per S-009 performance plan.
     connect-retries: 5
     connect-retries-interval: 2s
+    placeholders:
+      # S-137 test sentinel — same shape as dev so the V14 backfill UPDATE
+      # writes a stable owner-sub on the operator Deployment for IT
+      # assertions to grep against.
+      alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB:00000000-0000-0000-0000-0000000000ff}
   security:
     oauth2:
       resourceserver:
