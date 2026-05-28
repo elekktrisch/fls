@@ -8,8 +8,8 @@
 #
 # Rules:
 #   1. Every service has a `healthcheck.test`.
-#   2. No `:latest` image tags on new-stack services (postgres, pgadmin, keycloak).
-#      Legacy services (mssql, mailpit) are exempt — they predate ADR 0010.
+#   2. No `:latest` image tags on new-stack services (postgres, pgadmin,
+#      keycloak, mailpit). Legacy mssql is exempt — predates ADR 0010.
 #   3. New-stack data ports bind to 127.0.0.1 (no LAN exposure).
 #
 # Exits non-zero on the first violation with a pointer to the offending service.
@@ -20,17 +20,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 
-# Services that follow ADR 0010 hygiene. Add to this list as new-stack services land.
-NEW_STACK_SERVICES=(postgres pgadmin keycloak)
+# Services that follow ADR 0010 hygiene. Mailpit joined this set when it
+# moved to the `alpenflight-infra` project under `--profile infra` — it
+# already pins `:v1.21` and binds 127.0.0.1, so rules 2+3 pass.
+NEW_STACK_SERVICES=(postgres pgadmin keycloak mailpit)
 
 red() { printf '\033[1;31m%s\033[0m\n' "$*" >&2; }
 green() { printf '\033[1;32m%s\033[0m\n' "$*"; }
 
 fail=0
 
-# Resolved config (with all profiles enabled so every service appears).
+# Resolved config with both new-stack profiles enabled so every service
+# appears (mailpit is only visible under `--profile infra`).
 config_json="$(docker compose -f "${COMPOSE_FILE}" \
-    --profile next \
+    --profile next --profile infra \
     config --format json)"
 
 # Rule 1 — every service has healthcheck.test.

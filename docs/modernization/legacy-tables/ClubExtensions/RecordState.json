@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "ClubExtensions",
+  "column" : "RecordState",
+  "ordinal" : 10,
+  "data_type" : "int",
+  "is_nullable" : true,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 10,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

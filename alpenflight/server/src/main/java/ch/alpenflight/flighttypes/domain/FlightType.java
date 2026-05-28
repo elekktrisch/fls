@@ -42,7 +42,7 @@ import org.jspecify.annotations.Nullable;
  * pre-check can't.
  */
 @Entity
-@Table(name = "flight_type")
+@Table(name = "t_flight_type")
 public class FlightType {
 
     private static final int MAX_NAME_LENGTH = 100;

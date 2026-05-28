@@ -68,7 +68,7 @@ class AuditRollbackSemanticsIT extends PostgresIntegrationTest {
         // rolled-back tx → AFTER_COMMIT listener never fires → no row for that
         // target lands.
         long successRows = jdbc.queryForObject(
-                "SELECT count(*) FROM mutation_audit_event "
+                "SELECT count(*) FROM t_mutation_audit_event "
                         + "WHERE target_entity_id = ?::uuid AND failed = false",
                 Long.class, targetId.toString());
         assertThat(successRows)
@@ -78,7 +78,7 @@ class AuditRollbackSemanticsIT extends PostgresIntegrationTest {
         // The filter's synthetic-failure path emits ONE row in its own
         // REQUIRES_NEW transaction, independent of the rolled-back outer tx.
         List<Map<String, Object>> failedRows = jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event "
+                "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true",
                 SYSADMIN_TENANT.toString());
         assertThat(failedRows)

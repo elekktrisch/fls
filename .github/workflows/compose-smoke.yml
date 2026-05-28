@@ -4,18 +4,20 @@ on:
   pull_request:
     paths:
       - 'docker-compose.yml'
+      - 'alpenflight/auth/**'
       - 'alpenflight/ops/**'
       - '.github/workflows/compose-smoke.yml'
   push:
-    branches: [main]
+    branches: [main, "integration/**"]
     paths:
       - 'docker-compose.yml'
+      - 'alpenflight/auth/**'
       - 'alpenflight/ops/**'
       - '.github/workflows/compose-smoke.yml'
 
 jobs:
   smoke:
-    name: compose --profile next up --wait
+    name: compose up (infra + next) --wait
     runs-on: ubuntu-22.04
     timeout-minutes: 12
     steps:
@@ -26,17 +28,27 @@ jobs:
           docker --version
           docker compose version
 
+      # Cross-project shared network. external: true in compose, so the
+      # smoke job creates it explicitly before any --profile up.
+      - name: create shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      - name: compose up --profile infra --wait (mailpit)
+        run: |
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra \
+            up -d --wait --wait-timeout 30
+
       - name: build pgAdmin image
         run: docker compose -f docker-compose.yml --profile next build pgadmin
 
-      - name: compose up --profile next --wait
+      - name: compose up --profile next --wait (postgres + pgadmin + keycloak)
         run: |
-          docker compose -p s039 -f docker-compose.yml --profile next \
-            up -d --wait --wait-timeout 240
+          docker compose -p alpenflight-dev -f docker-compose.yml \
+            up -d --wait --wait-timeout 240 postgres pgadmin keycloak
 
       - name: probe postgres (SELECT 1)
         run: |
-          docker exec s039-postgres-1 \
+          docker exec alpenflight-dev-postgres-1 \
             psql -U alpenflight -d alpenflight -t -c 'SELECT 1'
 
       - name: probe keycloak (/realms/master)
@@ -52,20 +64,35 @@ jobs:
       - name: probe mailpit (/api/v1/info)
         run: |
           curl -fsS --retry 6 --retry-delay 3 http://localhost:8025/api/v1/info \
-            | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); assert 'Version' in d, d; print('mailpit:', d['Version'])"
+            | jq -e '.Version' >/dev/null
 
       - name: probe pgadmin (/misc/ping)
         run: |
           curl -fsS --retry 6 --retry-delay 3 http://localhost:5050/misc/ping
 
+      # S-173 — end-to-end integration probes against the live alpenflight
+      # realm. Covers what the static realm-shape guard can't: env-substitution
+      # resolved into the login HTML footer, and the verify-email FreeMarker
+      # template's send round-trip into mailpit. Relies on Keycloak reaching
+      # Mailpit by service-DNS over alpenflight_shared.
+      - name: integration probe (alpenflight realm + verify-email)
+        run: bash alpenflight/auth/scripts/check-keycloak-integration.sh
+
       - name: collect logs on failure
         if: failure()
         run: |
-          docker compose -p s039 -f docker-compose.yml --profile next ps
-          docker compose -p s039 -f docker-compose.yml --profile next logs --tail 200
+          docker compose -p alpenflight-dev -f docker-compose.yml ps
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra ps
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra logs --tail 200
 
+      # Tear down in the documented order: alpenflight-dev → alpenflight-infra
+      # (no fls-e2e in this smoke), then the shared network manually.
       - name: tear down
         if: always()
         run: |
-          docker compose -p s039 -f docker-compose.yml --profile next \
+          docker compose -p alpenflight-dev -f docker-compose.yml \
             down -v --remove-orphans
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra \
+            down -v --remove-orphans
+          docker network rm alpenflight_shared || true

@@ -63,7 +63,7 @@ import org.jspecify.annotations.Nullable;
  * is a future flight-plan-open story.
  */
 @Entity
-@Table(name = "flight")
+@Table(name = "t_flight")
 public class Flight {
 
     private static final int MAX_RUNWAY_LENGTH = 5;

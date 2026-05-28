@@ -12,11 +12,11 @@
 -- aggregate (Flight.airState()), not in the schema — no generated column,
 -- no trigger, no CHECK.
 
-ALTER TABLE flight DROP CONSTRAINT fk_flight_air_state_id;
-ALTER TABLE flight DROP COLUMN air_state_id;
-ALTER TABLE flight ADD COLUMN flight_plan_opened_on TIMESTAMPTZ;
+ALTER TABLE t_flight DROP CONSTRAINT fk_flight_air_state_id;
+ALTER TABLE t_flight DROP COLUMN air_state_id;
+ALTER TABLE t_flight ADD COLUMN flight_plan_opened_on TIMESTAMPTZ;
 
 -- PostgreSQL implicitly drops the unique indexes on flight_air_state
 -- (ux_flight_air_state_code / ux_flight_air_state_legacy_int_id) along
 -- with the table.
-DROP TABLE flight_air_state;
+DROP TABLE t_flight_air_state;

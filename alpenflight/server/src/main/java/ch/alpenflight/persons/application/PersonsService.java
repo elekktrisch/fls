@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  * is tenant-scoped via Hibernate {@code @TenantId}. The service NEVER calls
  * {@code repository.findAll()} — the only legal multi-row read is
  * {@link PersonRepository#findActiveListRowsInCurrentTenant()} which JOINs
- * through {@code person_club} so the tenant predicate fires automatically.
+ * through {@code t_person_club} so the tenant predicate fires automatically.
  * Single-Person reads use PK-load + a caller-tenant existence check
  * ({@link PersonRepository#hasActiveMembershipInCurrentTenant}); a Person
  * whose only PersonClub is in another tenant surfaces as 404, never 403
@@ -46,7 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Per S-027, mutating methods emit {@link AuditAction#CREATE} /
  * {@link AuditAction#UPDATE} / {@link AuditAction#DELETE} via
  * {@link AuditTrail}. Person mutations land with caller-tenant scope on
- * {@code tenant_club_id}; the {@code mutation_audit_event} payload columns
+ * {@code tenant_club_id}; the {@code t_mutation_audit_event} payload columns
  * carry {@code [redacted]} for Person because {@code Person} is in the
  * {@code audit.redaction.deny-all} policy (S-027) — admins get the "what"
  * (action + actor + target id), not the "what changed."

@@ -46,7 +46,7 @@ AC1's "in V1__baseline" predates S-009 going `done`. V1's checksum is locked per
 |---|---|---|
 | `alpenflight/server/src/main/resources/db/migration/V2__shedlock.sql` | new | Canonical ShedLock DDL verbatim from `shedlock-provider-jdbc-template` 7.7.0 + header comment explaining the stub posture |
 | `alpenflight/server/build.gradle.kts` | edit | Add `implementation("net.javacrumbs.shedlock:shedlock-spring:7.7.0")` + `implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.7.0")` (`implementation` scope, not `compileOnly`/commented — honest classpath; classes load but are inert without `@EnableSchedulerLock`) |
-| `alpenflight/database/tenant-rules.yaml` | edit | Add `shedlock` SYSTEM_GLOBAL override (parallel to `flyway_schema_history` / `app_meta` entries from S-009). Without it S-011's classifier emits UNKNOWN |
+| `alpenflight/database/tenant-rules.yaml` | edit | Add `shedlock` SYSTEM_GLOBAL override (parallel to the `flyway_schema_history` entry). Without it S-011's classifier emits UNKNOWN |
 | `alpenflight/server/CONVENTIONS.md` | edit | Append "Background jobs / ShedLock — S-018" section with stub-vs-activate rule + future activation runbook |
 | `alpenflight/server/README.md` | edit | Database-migrations section gains a "ShedLock activation playbook" subsection (NOT a separate README under `db/migration/` — that folder stays SQL-only) |
 | `alpenflight/server/src/test/java/ch/alpenflight/server/migration/MigrationFolderConventionsTest.java` | extend | 3 new tests (V2 present + correct DDL shape + no `@EnableSchedulerLock` leaked in `src/main/java`) |
@@ -145,7 +145,7 @@ No new server subpackage at S-018. `ch.alpenflight.platform.scheduling` is **res
 
 ### Hidden requirements
 
-- **`shedlock` SYSTEM_GLOBAL in `tenant-rules.yaml`** (parallel to `flyway_schema_history` / `app_meta`). Without it, S-011's classifier emits UNKNOWN.
+- **`shedlock` SYSTEM_GLOBAL in `tenant-rules.yaml`** (parallel to `flyway_schema_history`). Without it, S-011's classifier emits UNKNOWN.
 - **`V2__shedlock.sql` header comment** explains the stub posture and references the activation runbook in CONVENTIONS.md.
 - **Pin ShedLock version explicitly** (`7.7.0`) — Spring Boot 4.0.6 BOM does NOT manage ShedLock. Same pattern as Flyway Gradle plugin pin in S-009.
 - **CI guard against premature activation.** Either a JUnit reflection test (`ShedLockNotActivatedTest` walking `ch.alpenflight.*` for `@EnableSchedulerLock`) OR a CI grep step. Recommend the JUnit test — same test infra as `MigrationFolderConventionsTest`, no extra CI plumbing.

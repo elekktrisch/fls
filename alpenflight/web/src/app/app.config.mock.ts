@@ -14,7 +14,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { de_DE, provideNzI18n } from 'ng-zorro-antd/i18n';
-import { Subject } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { routes } from './app.routes';
 import { provideAlpenflightIcons } from './core/icons/icon-registry';
@@ -84,14 +84,34 @@ function mockAuthBootstrap(): void {
   session.bootstrapPrefetch();
 }
 
-// LandingComponent injects OidcSecurityService to drive the sign-in
-// redirect; under mock-auth there's no Keycloak, so we stub the service.
-// `authorize()` is a no-op — the landing's sign-in / try-demo buttons
-// are clickable but don't navigate out. Real-OIDC e2e lives in the
-// separate Keycloak-up project (S-021 follow-up). Narrow stub shape
-// guards against a future OidcSecurityService API drift going silent.
-const MOCK_OIDC_SECURITY_SERVICE: Pick<OidcSecurityService, 'authorize'> = {
-  authorize: () => undefined,
+// LandingComponent + SignupComponent + logout.page inject OidcSecurityService;
+// under mock-auth there's no Keycloak, so we stub the methods they reach for.
+// `authorize()` records its last-call args to `window.__lastAuthorizeArgs` so
+// the Playwright signup spec can assert the customParams shape (prompt=create,
+// kc_idp_hint=google, ui_locales=...) without a live Keycloak. `logoff()`
+// returns an empty observable so /auth/logout's `.subscribe(...)` doesn't
+// blow up under mock-auth. Real-OIDC e2e lives in the separate Keycloak-up
+// project. The narrow stub surface guards against a future API drift going
+// silent — a method newly invoked by the SPA will now fail at TS compile.
+//
+// Spec seam contract:
+//   - window.__lastAuthorizeArgs is undefined until authorize() fires.
+//   - Each call overwrites; specs clear it before exercising.
+const MOCK_OIDC_SECURITY_SERVICE: Pick<OidcSecurityService, 'authorize' | 'logoff'> = {
+  authorize: (configId?: string | undefined, params?: unknown): undefined => {
+    type AuthorizeWindow = Window & {
+      __lastAuthorizeArgs?: { configId?: string; params?: unknown };
+    };
+    if (typeof window !== 'undefined') {
+      const recordable: { configId?: string; params?: unknown } = { params };
+      if (configId !== undefined) recordable.configId = configId;
+      (window as AuthorizeWindow).__lastAuthorizeArgs = recordable;
+    }
+    return undefined;
+  },
+  // The return type is a complex internal config object the consumer doesn't
+  // inspect — `of({})` cast back through the same type satisfies subscribe().
+  logoff: () => of({}) as ReturnType<OidcSecurityService['logoff']>,
 };
 
 export const appConfig: ApplicationConfig = {

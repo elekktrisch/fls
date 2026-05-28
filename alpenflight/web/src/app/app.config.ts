@@ -9,7 +9,7 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import {
   AbstractSecurityStorage,
-  DefaultSessionStorageService,
+  DefaultLocalStorageService,
   authInterceptor,
   provideAuth,
   withAppInitializerAuthCheck,
@@ -34,10 +34,22 @@ export const appConfig: ApplicationConfig = {
     provideAlpenflightIcons(),
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     { provide: MUTATION_BUS, useValue: new Subject<MutationEvent>() },
-    // Refresh-token + claim state die with the tab, not the browser
-    // process. Bounds the XSS-exfiltration window per S-021 security plan.
-    { provide: AbstractSecurityStorage, useClass: DefaultSessionStorageService },
     provideAuth({ config: alpenflightOidcConfig }, withAppInitializerAuthCheck()),
+    // OIDC state (refresh token, auth-request state token, nonce) in
+    // localStorage so the verify-email round-trip works: the link in the
+    // Mailpit email opens in a NEW tab — fresh sessionStorage — and
+    // angular-auth-oidc-client's state-matcher would otherwise raise
+    // "could not find matching config for state" at /auth/callback.
+    // localStorage is shared across same-origin tabs in the same browser.
+    // Trade-off vs the original S-021 sessionStorage choice: tokens
+    // survive a tab close; the XSS-exfiltration window widens accordingly,
+    // mitigated by the realm's short access-token lifespan + refresh-token
+    // rotation + no-reuse (ADR 0007). Logout still clears via storage.clear().
+    //
+    // MUST come AFTER provideAuth(...) — provideAuth registers its own
+    // default AbstractSecurityStorage (sessionStorage); the last provider
+    // for a token wins, so our override has to land after to take effect.
+    { provide: AbstractSecurityStorage, useClass: DefaultLocalStorageService },
     provideAppInitializer(() => {
       // Constructing the bridge registers the userData → SessionStore
       // effect + the SilentRenewFailed subscription before checkAuth fires.

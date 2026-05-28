@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "FlightCrew",
+  "column" : "CreatedOn",
+  "ordinal" : 5,
+  "data_type" : "datetime2",
+  "is_nullable" : false,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 27,
+  "scale" : 7,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

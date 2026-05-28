@@ -21,7 +21,7 @@ Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-dire
 2. `docs/modernization/stories/` exists with parseable story files.
 3. `gh auth status` OK + GitHub remote. Fallback (no `gh`): local bookkeeping only; log + proceed (most stories skip).
 4. Working tree clean. Bail if dirty.
-5. On `main`.
+5. On `main`. Stories whose frontmatter sets `integration_base` are skipped from this sweep (they finalize into integration via `/modernize-finalize S-NNN`, not main); operator runs `/modernize-finalize <integration-branch>` to land the cluster afterward.
 
 ## Per-story disposition
 

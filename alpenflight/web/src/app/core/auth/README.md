@@ -80,7 +80,7 @@ bash alpenflight/ops/dev-up-full.sh
 ## Security posture (per S-021 security plan)
 
 - `alpenflight-web` is `publicClient=true` — no secret, PKCE-S256 only.
-- Tokens stored in `sessionStorage` (`AbstractSecurityStorage` → `DefaultSessionStorageService`). Bounds the XSS exfiltration window to the tab lifetime.
+- Tokens stored in `localStorage` (`AbstractSecurityStorage` → `DefaultLocalStorageService`). Originally `sessionStorage` per S-021's tight-XSS-window stance, but S-134's verify-email flow exposed the cross-tab gap: the Mailpit verify link opens in a new tab → fresh sessionStorage → `angular-auth-oidc-client` raises "could not find matching config for state" at `/auth/callback`. Trade-off mitigated by short-lived access tokens + refresh-token rotation + no-reuse (ADR 0007 realm policy).
 - `secureRoutes: ['/api/v1/']` — Bearer attaches only to AlpenFlight API calls. Never to Keycloak's own JWKS / userinfo (would loop) nor to any future `/api/public/v1/*`.
 - Refresh-token rotation is mandatory (`allowUnsafeReuseRefreshToken: false`, matching realm `revokeRefreshToken=true`).
 - Logout is RP-initiated against Keycloak's `end_session_endpoint`. Local-only token clear leaves the SSO cookie live → instant re-authentication on shared devices.

@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 # dev-up.sh - bring up the FLS e2e test stack dependencies
 # ----------------------------------------------------------------------------
-# Starts SQL Server (FLSTest database host) and Mailpit (SMTP sink) under
-# the `fls-e2e` compose project so this stack can run alongside any
-# manually-started containers (e.g. an existing `fls-mssql` for dev work).
+# Starts SQL Server (FLSTest database host) under the `fls-e2e` compose
+# project so this stack can run alongside any manually-started containers
+# (e.g. an existing `fls-mssql` for dev work).
+#
+# Mailpit lives in `alpenflight-infra` — bring it up first via:
+#
+#     bash alpenflight/ops/dev-up-infra.sh
+#
+# This script asserts both `alpenflight_shared` and Mailpit are reachable
+# before starting MSSQL — without them, the legacy server's verify-email
+# path silently fails.
 #
 # Assumed environment (see TESTING.md for the full playbook):
 #
@@ -32,8 +40,8 @@
 #     e2e/.gitattributes so a default Windows clone (core.autocrlf=true)
 #     does not break the shebang.
 #
-# This script ONLY brings up the database + email sink. The FLS Web API
-# and webpack-dev-server are still started manually per TESTING.md
+# This script ONLY brings up the legacy database. The FLS Web API and
+# webpack-dev-server are still started manually per TESTING.md
 # Milestones 3 and 5 - the Playwright config's webServer block waits
 # for both to be reachable on their default ports before tests run.
 # ----------------------------------------------------------------------------
@@ -50,8 +58,20 @@ if [[ ! -f "${COMPOSE_FILE}" ]]; then
   exit 1
 fi
 
+# shellcheck source=../../alpenflight/ops/lib/shared-network.sh
+source "${REPO_ROOT}/alpenflight/ops/lib/shared-network.sh"
+
+# Pre-flight before mutating any state: assert shared network exists AND
+# Mailpit is reachable. Failing here leaves no half-started MSSQL behind.
+require_shared_network
+if ! curl -fsS --max-time 5 http://localhost:8025/api/v1/info >/dev/null 2>&1; then
+  echo "error: Mailpit unreachable at http://localhost:8025/api/v1/info" >&2
+  echo "       run: bash alpenflight/ops/dev-up-infra.sh" >&2
+  exit 1
+fi
+
 echo "==> Starting fls-e2e stack (project=${PROJECT})"
-docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" up -d
+docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" up -d mssql
 
 wait_for_health() {
   local service="$1"
@@ -93,15 +113,13 @@ wait_for_health() {
 }
 
 wait_for_health mssql 240
-wait_for_health mailpit 60
 
 cat <<'INFO'
 
 ==> fls-e2e stack is up
 
   SQL Server (sa / Demo#FLS#2026)   localhost:1433
-  Mailpit SMTP                       localhost:1025
-  Mailpit HTTP API + Web UI          http://localhost:8025
+  Mailpit (alpenflight-infra)        http://localhost:8025
 
 Next steps:
   1. Apply schema + seed to the FLSTest DB:

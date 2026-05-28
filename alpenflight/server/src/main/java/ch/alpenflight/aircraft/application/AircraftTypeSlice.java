@@ -22,7 +22,7 @@ package ch.alpenflight.aircraft.application;
  *
  * <p>Slicing client-side via {@code has_engine} would silently drop
  * {@code GLIDER_WITH_MOTOR} from the glider list and include it in motors —
- * the new {@code aircraft_type} schema has {@code has_engine=true} for both
+ * the new {@code t_aircraft_type} schema has {@code has_engine=true} for both
  * glider-with-motor and pure motor types.
  */
 public enum AircraftTypeSlice {

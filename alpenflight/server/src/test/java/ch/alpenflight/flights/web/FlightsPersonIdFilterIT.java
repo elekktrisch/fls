@@ -65,7 +65,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
         cleanFlightRowsFor(jdbc, CLUB_UUID);
-        jdbc.update("DELETE FROM aircraft WHERE managing_club_id = ?::uuid AND "
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid AND "
                 + "immatriculation LIKE 'HB-FT%'", CLUB_ID);
         UUID aid = seedAircraftFor(jdbc, CLUB_UUID);
         aircraftIdExternal = "ac-" + aid;
@@ -133,7 +133,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         String pilotExt = PersonId.of(pilot).toExternal();
         String flightId = createFlightWithCrew(pilotExt, SEED_FLIGHT_CREW_TYPE_PIC, "2026-05-01");
         UUID flightUuid = UUID.fromString(flightId.substring(3));
-        jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+        jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                 DELIVERY_BOOKED.id().toString(), flightUuid.toString());
 
         JsonNode items = readJson(get(
@@ -150,7 +150,7 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         String pilotExt = PersonId.of(pilot).toExternal();
         String flightId = createFlightWithPic(pilotExt, "2026-05-01");
         UUID flightUuid = UUID.fromString(flightId.substring(3));
-        jdbc.update("UPDATE flight_crew SET deleted_on = now() "
+        jdbc.update("UPDATE t_flight_crew SET deleted_on = now() "
                 + "WHERE flight_id = ?::uuid AND person_id = ?::uuid",
                 flightUuid.toString(), pilot.toString());
 
@@ -168,10 +168,10 @@ class FlightsPersonIdFilterIT extends PostgresIntegrationTest {
         // A person id from another tenant matches nothing. No 403 — the IDOR
         // contract is "404 / empty", not "leaks existence via status code".
         UUID foreignClub = UUID.fromString("019e30c3-2c00-7001-8000-0000000000c1");
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
         jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
                                   slug, public_registration_enabled)
                 VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
                 ON CONFLICT (id) DO NOTHING

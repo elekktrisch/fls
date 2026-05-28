@@ -24,7 +24,7 @@ final class FlightSweepFactory {
     private FlightSweepFactory() {}
 
     static Flight build(SweepFixtureContext ctx) {
-        UUID processStateId = firstIdByCode(ctx, "flight_process_state", "NOT_PROCESSED");
+        UUID processStateId = firstIdByCode(ctx, "t_flight_process_state", "NOT_PROCESSED");
         UUID currentTenant = TenantTestContext.current().orElse(null);
         // Aircraft is cross-tenant; seed under the current tenant if one is
         // bound, otherwise fall back to the V5 seed club so the aircraft FK
@@ -40,7 +40,7 @@ final class FlightSweepFactory {
     }
 
     private static UUID seedAircraftForTenant(SweepFixtureContext ctx, UUID managingClub) {
-        UUID aircraftTypeId = firstId(ctx, "aircraft_type");
+        UUID aircraftTypeId = firstId(ctx, "t_aircraft_type");
         UUID aircraftId = UUID.randomUUID();
         String stamp = Long.toString(System.nanoTime(), 36).toUpperCase(Locale.ROOT);
         if (stamp.length() > 8) {
@@ -49,7 +49,7 @@ final class FlightSweepFactory {
         String immatriculation = "HB-S" + stamp
                 + String.format(Locale.ROOT, "%02d", COUNTER.incrementAndGet() % 100);
         ctx.jdbc().update("""
-                INSERT INTO aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
+                INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
                                       immatriculation, is_towing_or_winch_required,
                                       is_towing_start_allowed, is_winch_start_allowed,
                                       is_towing_aircraft, is_fast_entry_record, nr_of_seats)

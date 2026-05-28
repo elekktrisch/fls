@@ -28,8 +28,8 @@ class LocationsCrossTenantNotFoundIT extends CrossTenantNotFoundContract {
 
     @Override
     protected String createUnderTenant(UUID clubId) {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID typeId = jdbc.queryForObject("SELECT id FROM location_type LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID typeId = jdbc.queryForObject("SELECT id FROM t_location_type LIMIT 1", UUID.class);
         String unique = Long.toString(System.nanoTime(), 36);
         LocationCreateRequest req = new LocationCreateRequest(
                 "IT_XTNF_LOC_" + unique,

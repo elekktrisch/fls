@@ -14,7 +14,7 @@ import org.springframework.data.jpa.repository.Query;
 public interface JpaClubStateRepository extends JpaRepository<ClubState, UUID>, ClubStateRepository {
 
     @Override
-    @Query(value = "SELECT * FROM club_state ORDER BY name COLLATE \"de-CH-x-icu\"",
+    @Query(value = "SELECT * FROM t_club_state ORDER BY name COLLATE \"de-CH-x-icu\"",
             nativeQuery = true)
     List<ClubState> findAllOrdered();
 }

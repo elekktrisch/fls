@@ -43,8 +43,8 @@ class MeControllerIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void cleanFixtures() {
-        jdbc.update("DELETE FROM \"user\" WHERE username LIKE 'me-it-%'");
-        jdbc.update("DELETE FROM person WHERE firstname = 'MeIT'");
+        jdbc.update("DELETE FROM t_user WHERE username LIKE 'me-it-%'");
+        jdbc.update("DELETE FROM t_person WHERE firstname = 'MeIT'");
     }
 
     @Test
@@ -52,13 +52,13 @@ class MeControllerIT extends PostgresIntegrationTest {
         UUID personId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID kcSub = UUID.randomUUID();
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "MeIT", "Linked");
         jdbc.update("""
-                INSERT INTO "user" (id, club_id, username, friendly_name, person_id,
-                                    notification_email, email_confirmed, language_id,
+                INSERT INTO t_user (id, club_id, username, friendly_name, person_id,
+                                    notification_email, language_id,
                                     keycloak_sub)
-                VALUES (?::uuid, ?::uuid, ?, ?, ?::uuid, ?, true, ?::uuid, ?::uuid)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?::uuid, ?, ?::uuid, ?::uuid)
                 """,
                 userId.toString(), CLUB_UUID.toString(),
                 "me-it-linked", "Me IT Linked", personId.toString(),
@@ -130,10 +130,10 @@ class MeControllerIT extends PostgresIntegrationTest {
         UUID userId = UUID.randomUUID();
         UUID kcSub = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO "user" (id, club_id, username, friendly_name, person_id,
-                                    notification_email, email_confirmed, language_id,
+                INSERT INTO t_user (id, club_id, username, friendly_name, person_id,
+                                    notification_email, language_id,
                                     keycloak_sub)
-                VALUES (?::uuid, ?::uuid, ?, ?, NULL, ?, true, ?::uuid, ?::uuid)
+                VALUES (?::uuid, ?::uuid, ?, ?, NULL, ?, ?::uuid, ?::uuid)
                 """,
                 userId.toString(), CLUB_UUID.toString(),
                 "me-it-nopers", "Me IT No Person",
@@ -163,22 +163,24 @@ class MeControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void me_returnsNullsForUnknownSub_butEchoesJwtClaims() {
+    void me_returnsNullsForSysadminSub_butEchoesJwtClaims() {
+        // Sysadmin (S-022) and federated baseline (S-134) tokens carry no
+        // `clubId` claim — the S-169 JIT filter skips them, and MeService
+        // falls back to JWT echoes for missing fields.
         UUID unknownSub = UUID.randomUUID();
         String token = jwts.mint(c -> c
                 .subject(unknownSub.toString())
-                .claim("clubId", CLUB_UUID.toString())
                 .claim("preferred_username", "federated-newcomer")
                 .claim("given_name", "Federated")
                 .claim("family_name", "Newcomer")
                 .claim("email", "federated@example.com")
-                .claim("realm_access", Map.of("roles", List.of("PILOT"))));
+                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
 
         ResponseEntity<String> res = get("/api/v1/me", token);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode body = readJson(res);
         assertThat(body.get("id").isNull())
-                .as("Unknown JWT sub → id null (no user row to bind to)")
+                .as("Sysadmin/federated sub → id null (no user row to bind to)")
                 .isTrue();
         assertThat(body.get("personId").isNull()).isTrue();
         assertThat(body.get("clubId").isNull()).isTrue();

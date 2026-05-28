@@ -34,7 +34,7 @@ import org.jspecify.annotations.Nullable;
  * {@code updateClubMembership}.
  */
 @Entity
-@Table(name = "person_club")
+@Table(name = "t_person_club")
 public class PersonClub {
 
     private static final int MAX_MEMBER_NUMBER_LENGTH = 20;

@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
  * REST surface for the Person aggregate (per-club view).
  *
  * <p><strong>Tenant scoping</strong>: the list query JOINs through
- * {@code person_club} so Hibernate's {@code @TenantId} filters the result
+ * {@code t_person_club} so Hibernate's {@code @TenantId} filters the result
  * to the caller's tenant. Detail / update / delete reads load by PK
  * (cross-tenant) but the service refuses with 404 if the caller's tenant
  * has no alive PersonClub for the Person — 404, not 403, so the row's

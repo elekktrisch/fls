@@ -69,10 +69,10 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
      */
     @BeforeEach
     void seedClubB() {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
         jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id, slug, public_registration_enabled)
                 VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
                 ON CONFLICT (id) DO NOTHING
                 """,

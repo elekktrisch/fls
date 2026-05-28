@@ -56,7 +56,7 @@ findings, confirmed by `columns.json`). Tenancy reaches `Flights` only via
 |---|---|---|
 | `Flights` | `INDIRECT_TENANT` | `TENANT_SCOPED` |
 
-**Precondition for S-013:** add `club_id NOT NULL` to the new `flight` table,
+**Precondition for S-013:** add `club_id NOT NULL` to the new `t_flight` table,
 populated at migration time from `aircraft.owner_club_id`. S-016 maintains
 the invariant during cutover (`flight.club_id == aircraft.owner_club_id`).
 

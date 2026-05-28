@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "MemberStates",
+  "entity" : "MemberState",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

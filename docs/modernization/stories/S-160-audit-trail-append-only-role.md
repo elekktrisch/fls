@@ -15,12 +15,12 @@ refined: false
 
 ## Context
 
-S-027 ships `mutation_audit_event` as a regular tenant-scoped table — the
+S-027 ships `t_mutation_audit_event` as a regular tenant-scoped table — the
 app role has full CRUD against it. Threat-row (d) in S-027's security plan
 ("App credentials tamper audit history") is mitigated **structurally** by
 splitting the DB roles: a `flyway_migrator` role retains DDL + DML against
 all tables, the application role gets only `INSERT, SELECT` on
-`mutation_audit_event`, no `UPDATE` / `DELETE`. Defends the audit perimeter
+`t_mutation_audit_event`, no `UPDATE` / `DELETE`. Defends the audit perimeter
 against app-credential compromise.
 
 The carve-out is intentionally deferred from S-027 because the current
@@ -33,7 +33,7 @@ future maintenance migrations. The split needs an ops-side change first.
 - Two distinct DB roles exist: `alpenflight_migrator` (DDL + DML, used
   exclusively by Flyway) and `alpenflight_app` (DML, used by the running
   application).
-- The Flyway role retains UPDATE / DELETE on `mutation_audit_event`; the
+- The Flyway role retains UPDATE / DELETE on `t_mutation_audit_event`; the
   app role is granted only INSERT, SELECT.
 - Compose, Helm / k8s manifests, and CI use the migrator role for
   `flywayMigrate` and the app role for the running service.

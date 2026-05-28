@@ -22,7 +22,7 @@ import org.jspecify.annotations.Nullable;
  * only {@link Aircraft} drives them via {@code recordCounter(...)}.
  */
 @Entity
-@Table(name = "aircraft_operating_counter")
+@Table(name = "t_aircraft_operating_counter")
 public class AircraftOperatingCounter {
 
     @Id

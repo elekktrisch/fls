@@ -58,7 +58,7 @@ class FlightTypesControllerIT extends PostgresIntegrationTest {
         // Per-test cleanup keeps the seed-club's slot empty so each test
         // starts with a known surface (the V3 seed doesn't insert
         // flight_type rows; only V3-seeded FCBTs).
-        jdbc.update("DELETE FROM flight_type WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 
     @Test

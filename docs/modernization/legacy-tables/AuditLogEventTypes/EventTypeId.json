@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "AuditLogEventTypes",
+  "column" : "EventTypeId",
+  "ordinal" : 1,
+  "data_type" : "int",
+  "is_nullable" : false,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 10,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

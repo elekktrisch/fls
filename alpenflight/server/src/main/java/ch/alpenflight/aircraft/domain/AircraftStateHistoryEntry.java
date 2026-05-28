@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  * only {@link Aircraft} drives them via {@code changeState(...)}.
  */
 @Entity
-@Table(name = "aircraft_aircraft_state")
+@Table(name = "t_aircraft_aircraft_state")
 public class AircraftStateHistoryEntry {
 
     private static final int MAX_REMARKS_LENGTH = 500;

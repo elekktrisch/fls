@@ -73,7 +73,7 @@ class MemberStateTenantIsolationIT extends PostgresIntegrationTest {
     void insert_writes_correct_club_id_to_db() {
         MemberState saved = memberStates.save(new MemberState("Honorary"));
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM member_state WHERE id = ?::uuid AND club_id = ?::uuid",
+                "SELECT count(*) FROM t_member_state WHERE id = ?::uuid AND club_id = ?::uuid",
                 Integer.class, saved.getId().toString(), CLUB_A.toString());
         assertThat(matches).isEqualTo(1);
     }
