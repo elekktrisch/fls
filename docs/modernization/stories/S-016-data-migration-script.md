@@ -19,6 +19,7 @@ parity_test: tests/migration/schema-parity.spec.ts (new)
 refined: true
 refined_at: 2026-05-28
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
+github_pr: 158
 ---
 
 ## Context
