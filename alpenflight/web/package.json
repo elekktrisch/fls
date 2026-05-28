@@ -19,6 +19,7 @@
     "format": "prettier --check \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "format:fix": "prettier --write \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "e2e": "playwright test --config=e2e/playwright.config.ts",
+    "e2e:real-idp": "E2E_REAL_IDP=1 playwright test --config=e2e/playwright.config.ts --project=real-idp",
     "e2e:install": "playwright install --with-deps chromium",
     "generate-api": "orval --config ./orval.config.ts",
     "sandbox:setup": "bash scripts/sandbox-bootstrap.sh",
