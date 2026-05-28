@@ -3,19 +3,10 @@ package ch.alpenflight.migration.bundle;
 import java.util.Locale;
 
 /**
- * Topological insert order for migration ingest.
- *
- * <p>Enum declaration order IS the ingest order — {@link #values()} returns the
- * sequence S-141 walks per Club, S-139 writes the bundle in, and the parity
- * oracle walks for FK-integrity assertions. Re-ordering the constants here is a
- * schema-level decision; the FK-target-precedes-source invariant is enforced
- * by an ArchUnit rule under S-183.
- *
- * <p>The {@link #group} field carries the V2/V3/V4 sub-package classification:
- * each mapper lives under {@code ch.alpenflight.migration.bundle.identity},
- * {@code .flight}, or {@code .accounting} matching the originating Flyway
- * migration that defined the target table. The package-to-Group binding is
- * convention until S-183 lands the ArchUnit assertion.
+ * Topological insert order — declaration order IS ingest order. FK targets
+ * must precede their sources; S-183's ArchUnit rule makes this structural.
+ * {@link Group} routes mappers to the {@code .identity}, {@code .flight}, and
+ * {@code .accounting} sub-packages matching V2/V3/V4 Flyway boundaries.
  */
 public enum EntityType {
 
@@ -53,7 +44,6 @@ public enum EntityType {
 
     AUDIT_LOG(Group.IDENTITY);
 
-    /** V2/V3/V4 Flyway-cluster grouping used to route mappers into sub-packages. */
     public enum Group { IDENTITY, FLIGHT, ACCOUNTING }
 
     private final Group group;
@@ -66,7 +56,6 @@ public enum EntityType {
         return group;
     }
 
-    /** Stable lowercased identifier for use in {@code legacy_id_map_<name>} table names. */
     public String tempTableSuffix() {
         return name().toLowerCase(Locale.ROOT);
     }

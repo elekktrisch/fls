@@ -14,7 +14,6 @@ public final class LegacyIdMapTables {
 
     private LegacyIdMapTables() { }
 
-    /** {@code legacy_id_map_<entity-suffix>} — the per-entity temp-table name. */
     public static String tempTableName(EntityType entity) {
         return PREFIX + entity.tempTableSuffix();
     }

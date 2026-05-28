@@ -1,32 +1,23 @@
 package ch.alpenflight.migration.bundle;
 
 /**
- * Per-entity bidirectional mapper.
+ * Per-entity bidirectional mapper — stateless singleton.
  *
- * <p>Mappers are stateless singletons. The export side (S-139) calls
- * {@code writeNdjson} with a JDBC {@link java.sql.ResultSet} positioned on a
- * legacy row and a Jackson {@code JsonGenerator} writing into the NDJSON entry
- * for that entity. The ingest side (S-141) calls {@code readEntity} with a
- * Jackson {@code JsonNode} for one NDJSON line and a {@code PreparedStatement}
- * bound to the matching {@code INSERT INTO t_<entity> ...} batch.
- *
- * <p><strong>Skeleton contract.</strong> Only the entity-routing surface
- * ({@link #entityType()} + {@link #columns()}) lives on the interface today.
- * The {@code writeNdjson} + {@code readEntity} method signatures land with
- * S-183 once Jackson + JDBC are in the dependency closure of the consumer
- * stories; their absence here is deferred-by-design.
- *
- * <p><strong>Column-list invariant.</strong> {@link #columns()} returns the
- * new-schema column names this mapper writes per row, in the order the
- * {@code PreparedStatement} expects. Shared by both directions so
- * {@code writeNdjson} + {@code readEntity} stay byte-aligned. Callers must not
- * mutate the returned array; implementations defensively copy.
+ * <p>The export side (S-139) reads a JDBC {@link java.sql.ResultSet} and writes
+ * one NDJSON line per row; the ingest side (S-141) reads one NDJSON line and
+ * binds a {@code PreparedStatement} for {@code StatelessSession.insert}. The
+ * two method signatures land in S-183 once Jackson + JDBC join the consumer
+ * dependency closures; only the routing surface lives on the interface today.
  */
 public interface Mapper {
 
-    /** The entity this mapper serves. Drives the routing in S-139 / S-141 dispatch tables. */
     EntityType entityType();
 
-    /** See class-level "Column-list invariant" — defensive-copied per the contract. */
+    /**
+     * New-schema column names in {@code PreparedStatement} parameter order.
+     * Implementations must defensively copy — callers may mutate the returned
+     * array. S-183 generalizes the per-mapper mutation test currently scoped to
+     * {@code CountryMapperTest}.
+     */
     String[] columns();
 }
