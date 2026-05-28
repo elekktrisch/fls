@@ -5,6 +5,7 @@ epic: E-15
 status: in_progress
 started_at: 2026-05-28
 github_issue: 159
+github_pr: 160
 depends_on: [S-048]
 acceptance:
   - New `Deployment` entity exists in Postgres with columns: `id` (UUID), `name`, `owner_keycloak_sub` (UUID NOT NULL — the KC user who provisioned the Deployment via S-138), `lifecycle_state` (enum), `trial_started_at` (nullable timestamptz), `billing_customer_id` (nullable text), `billing_subscription_id` (nullable text), `plan` (enum `{free, active}`, default `free`), audit timestamps. Flyway migration adds the table.
