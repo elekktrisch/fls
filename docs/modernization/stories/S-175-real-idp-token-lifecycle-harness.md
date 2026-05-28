@@ -12,6 +12,7 @@ refined_at: 2026-05-28
 refined_specialists: [requirements, solution, qa, security]
 context7_last_checked: 2026-05-28
 github_issue: 153
+github_pr: 154
 origin: rework-meta
 ---
 
