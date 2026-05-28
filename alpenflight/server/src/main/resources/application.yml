@@ -103,7 +103,7 @@ audit:
           - deletedOn
       Deployment:
         # S-137 lifecycle audit emission. The before/after snapshot is a
-        # LifecycleSnapshot record (lifecycleState + plan) — the policy is
+        # LifecycleSnapshot record (lifecycleState only) — the policy is
         # keyed by entityType="Deployment" and the redactor walks the
         # snapshot's field names. The Deployment @Entity itself never
         # serialises into an audit row directly; the @AuditRedact-annotated
