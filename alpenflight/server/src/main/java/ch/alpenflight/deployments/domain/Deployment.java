@@ -42,8 +42,8 @@ import org.springframework.data.domain.DomainEvents;
  *
  * <p>{@link Plan} is stored, NOT generated (ADR 0022 D2 forbids generated
  * columns). Mutators write {@code plan} atomically with state on each
- * transition; {@link #assertPlanConsistent} verifies the derivation at the
- * end of every transition.
+ * transition via {@link #derivedPlan(LifecycleState, Plan)} — the single
+ * derivation source.
  *
  * <p>Audit emission rides {@link DeploymentLifecycleTransitioned} via
  * Spring Data's {@code @DomainEvents} publication on
@@ -146,8 +146,13 @@ public class Deployment {
     @Column(name = "modified_on", nullable = false)
     private @Nullable Instant modifiedOn;
 
+    /** Per-transition staging: from-state + to-state + occurredAt, id-free. */
+    private record PendingTransition(@Nullable LifecycleState fromState,
+                                     LifecycleState toState,
+                                     java.time.Instant occurredAt) {}
+
     @Transient
-    private final List<DeploymentLifecycleTransitioned> domainEvents = new ArrayList<>();
+    private final List<PendingTransition> pendingTransitions = new ArrayList<>();
 
     protected Deployment() {
         // JPA.
@@ -160,19 +165,18 @@ public class Deployment {
      * {@code @TransactionalEventListener}.
      */
     public static Deployment startTrial(Clock clock, String name, UUID ownerKeycloakSub) {
-        Deployment deployment = new Deployment();
-        Instant now = Instant.now(clock);
-        deployment.rename(name);
         if (ownerKeycloakSub == null) {
             throw new IllegalArgumentException("ownerKeycloakSub must not be null");
         }
+        Deployment deployment = new Deployment();
+        deployment.rename(name);
         deployment.ownerKeycloakSub = ownerKeycloakSub;
+        Instant now = Instant.now(clock);
         deployment.lifecycleState = LifecycleState.TRIAL;
         deployment.plan = derivedPlan(LifecycleState.TRIAL, Plan.FREE);
         deployment.trialStartedAt = now;
         deployment.createdOn = now;
         deployment.modifiedOn = now;
-        deployment.assertPlanConsistent();
         deployment.recordTransition(null, LifecycleState.TRIAL, now);
         return deployment;
     }
@@ -279,7 +283,6 @@ public class Deployment {
         this.lifecycleState = target;
         this.plan = derivedPlan(target, this.plan);
         this.modifiedOn = now;
-        assertPlanConsistent();
         recordTransition(from, target, now);
     }
 
@@ -298,59 +301,40 @@ public class Deployment {
     private void recordTransition(@Nullable LifecycleState from,
                                   LifecycleState to,
                                   Instant occurredAt) {
-        UUID assignedId = this.id;
-        if (assignedId == null) {
-            // startTrial fires before the @UuidV7 generator runs — the id is
-            // populated by the BeforeExecutionGenerator at INSERT time. The
-            // listener resolves the id from the event before writing; here
-            // we substitute a sentinel that the listener replaces with the
-            // saved aggregate's id post-publish. Practically: the post-save
-            // @DomainEvents publication sees the populated id because save()
-            // sets it before invoking the publisher.
-            //
-            // The aggregate hasn't been assigned an id yet, but Spring Data
-            // publishes @DomainEvents AFTER save(), at which point the id is
-            // populated. We capture the deferred reference here.
-            assignedId = new UUID(0, 0);
-        }
-        domainEvents.add(new DeploymentLifecycleTransitioned(assignedId, from, to, occurredAt));
+        pendingTransitions.add(new PendingTransition(from, to, occurredAt));
     }
 
     /**
-     * Spring Data invokes this after {@link DeploymentRepository#save};
-     * each transition produces one event, the listener writes the audit
-     * row in a {@code REQUIRES_NEW} txn post-commit (S-027 listener
-     * pattern).
+     * Spring Data publishes domain events after
+     * {@link DeploymentRepository#save} — at which point the
+     * {@code @UuidV7} generator has populated {@link #id}. The pending
+     * transitions stash from/to/occurredAt only; the id is resolved here
+     * once it's guaranteed present.
      */
     @DomainEvents
     Collection<Object> domainEvents() {
-        UUID assignedId = this.id;
-        if (assignedId == null) {
-            // Same defensive path as recordTransition — if the id is still
-            // null at publication time, the events go out with the nil
-            // sentinel; the post-save id resolution is handled by the
-            // caller (S-138 re-reads). Today's flow always populates the
-            // id before save returns.
-            return List.copyOf(domainEvents);
+        UUID resolvedId = this.id;
+        if (resolvedId == null) {
+            // Save-before-publication is the Spring Data contract; if we're
+            // here without an id the aggregate-state machine has been driven
+            // outside the repository (test fixtures, etc.), and the event
+            // can't be honestly published without a target id. Fail loud
+            // rather than emit a nil-UUID audit row.
+            throw new IllegalStateException(
+                    "Deployment.id is null at domain-event publication time — "
+                            + "save() must run before events are drained.");
         }
-        // Repoint pending events to the populated id (the startTrial event
-        // captured a nil sentinel when the aggregate was constructed pre-save).
-        List<Object> resolved = new ArrayList<>(domainEvents.size());
-        for (DeploymentLifecycleTransitioned event : domainEvents) {
-            if (event.deploymentId().getMostSignificantBits() == 0L
-                    && event.deploymentId().getLeastSignificantBits() == 0L) {
-                resolved.add(new DeploymentLifecycleTransitioned(
-                        assignedId, event.fromState(), event.toState(), event.occurredAt()));
-            } else {
-                resolved.add(event);
-            }
+        List<Object> events = new ArrayList<>(pendingTransitions.size());
+        for (PendingTransition pending : pendingTransitions) {
+            events.add(new DeploymentLifecycleTransitioned(
+                    resolvedId, pending.fromState(), pending.toState(), pending.occurredAt()));
         }
-        return resolved;
+        return events;
     }
 
     @AfterDomainEventPublication
     void clearDomainEvents() {
-        domainEvents.clear();
+        pendingTransitions.clear();
     }
 
     private static Plan derivedPlan(LifecycleState state, Plan previousPlan) {
@@ -362,14 +346,6 @@ public class Deployment {
             // what was held at scheduleDelete.
             case DELETING -> previousPlan;
         };
-    }
-
-    private void assertPlanConsistent() {
-        Plan expected = derivedPlan(this.lifecycleState, this.plan);
-        if (this.plan != expected) {
-            throw new IllegalStateException(
-                    "plan/state inconsistency: state=" + this.lifecycleState + " plan=" + this.plan);
-        }
     }
 
     public @Nullable UUID getId() {
@@ -417,12 +393,20 @@ public class Deployment {
     }
 
     /**
-     * Test seam for {@link DeploymentTest} — the unit test asserts
-     * emitted-event content without going through the JPA save() that
-     * normally drives publication. Package-private on purpose.
+     * Test seam — exposes pending transitions as
+     * {@link DeploymentLifecycleTransitioned} events, fabricated with
+     * the SANDBOX-sentinel id when {@link #id} is null. Package-private;
+     * the unit test asserts transition-event content without going
+     * through the JPA save() that normally drives publication.
      */
     List<DeploymentLifecycleTransitioned> domainEventsForTest() {
-        return List.copyOf(domainEvents);
+        UUID effectiveId = this.id == null ? SANDBOX_ID : this.id;
+        List<DeploymentLifecycleTransitioned> snapshots = new ArrayList<>(pendingTransitions.size());
+        for (PendingTransition pending : pendingTransitions) {
+            snapshots.add(new DeploymentLifecycleTransitioned(
+                    effectiveId, pending.fromState(), pending.toState(), pending.occurredAt()));
+        }
+        return List.copyOf(snapshots);
     }
 
     /**

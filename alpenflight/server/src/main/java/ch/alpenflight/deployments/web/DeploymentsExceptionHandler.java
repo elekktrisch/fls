@@ -2,6 +2,7 @@ package ch.alpenflight.deployments.web;
 
 import ch.alpenflight.deployments.domain.DeploymentNotFoundException;
 import ch.alpenflight.deployments.domain.IllegalLifecycleTransitionException;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,12 +35,29 @@ class DeploymentsExceptionHandler {
 
     @ExceptionHandler(IllegalLifecycleTransitionException.class)
     ResponseEntity<ApiError> handleIllegalTransition(IllegalLifecycleTransitionException e) {
-        String code = e.getFromState() == null
-                ? "illegal_transition"
-                : "illegal_transition_" + e.getFromState().name().toLowerCase()
-                        + "_to_" + e.getTargetState().name().toLowerCase();
         String message = e.getMessage();
+        String code = resolveCode(e, message);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ApiError(code, message == null ? "Illegal transition" : message));
+    }
+
+    /**
+     * Stable error codes the operator UI parses. {@code sandbox_immutable}
+     * is pinned by the security plan; other illegal transitions surface
+     * as {@code illegal_transition_<from>_to_<target>} so a UI can render
+     * a specific "can't go there from here" affordance.
+     */
+    private static String resolveCode(IllegalLifecycleTransitionException e,
+                                      @org.jspecify.annotations.Nullable String message) {
+        if (message != null && message.contains("sandbox_immutable")) {
+            return "sandbox_immutable";
+        }
+        if (e.getFromState() == null) {
+            return "illegal_transition";
+        }
+        return "illegal_transition_"
+                + e.getFromState().name().toLowerCase(Locale.ROOT)
+                + "_to_"
+                + e.getTargetState().name().toLowerCase(Locale.ROOT);
     }
 }

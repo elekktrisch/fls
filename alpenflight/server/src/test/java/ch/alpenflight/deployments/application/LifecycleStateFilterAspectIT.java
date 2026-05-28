@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -97,11 +98,18 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
             emptyInvocations.set(0);
         }
 
+        // @Scheduled here is metadata for the aspect's pointcut only — the
+        // test never enables Spring scheduling, so the runner doesn't fire
+        // these methods. Tests invoke them directly + the @Around advice
+        // applies. The far-future cron expression keeps Spring's
+        // schedule-parser quiet if the harness ever enables scheduling.
+        @Scheduled(cron = "0 0 0 1 1 ?")
         @LifecycleStateFilter({LifecycleState.ACTIVE})
         public void runActiveOnly() {
             activeInvocations.incrementAndGet();
         }
 
+        @Scheduled(cron = "0 0 0 1 1 ?")
         @LifecycleStateFilter({})
         public void runEmptyFilter() {
             emptyInvocations.incrementAndGet();

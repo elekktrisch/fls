@@ -207,9 +207,7 @@ class DeploymentTest {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private static List<DeploymentLifecycleTransitioned> drainEvents(Deployment deployment) {
-        return (List<DeploymentLifecycleTransitioned>) (List<?>)
-                List.copyOf(deployment.domainEventsForTest());
+        return deployment.domainEventsForTest();
     }
 }

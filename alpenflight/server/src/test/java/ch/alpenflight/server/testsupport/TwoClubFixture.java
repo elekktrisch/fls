@@ -84,21 +84,18 @@ public final class TwoClubFixture {
     private void insertClub(UUID id, String slug) {
         UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
         UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
-        // S-137 — the operator Deployment hosts every test fixture Club. The
-        // V14 backfill set this for pre-S-137 rows; new test fixtures must
-        // provide it explicitly because deployment_id is structural NOT NULL.
-        UUID operatorDeploymentId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        // deployment_id defaults to the operator Deployment via the V14
+        // column DEFAULT — IT fixtures don't need to surface it.
         jdbc.update("""
                 INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
-                                  slug, public_registration_enabled, deployment_id)
-                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false, ?::uuid)
+                                  slug, public_registration_enabled)
+                VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
                 """,
                 id.toString(),
                 namePrefix + slug,
                 keyPrefix + slug.charAt(0),
                 countryId.toString(),
                 clubStateId.toString(),
-                namePrefix + slug,
-                operatorDeploymentId.toString());
+                namePrefix + slug);
     }
 }

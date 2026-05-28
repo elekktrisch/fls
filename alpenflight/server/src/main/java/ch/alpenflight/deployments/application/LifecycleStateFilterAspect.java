@@ -43,7 +43,8 @@ public class LifecycleStateFilterAspect {
         this.deploymentContext = deploymentContext;
     }
 
-    @Around("@annotation(filter)")
+    @Around("@annotation(filter) "
+            + "&& @annotation(org.springframework.scheduling.annotation.Scheduled)")
     public @Nullable Object iterateEligibleDeployments(ProceedingJoinPoint pjp,
                                                        LifecycleStateFilter filter) throws Throwable {
         EnumSet<LifecycleState> eligible = filter.value().length == 0
@@ -72,11 +73,13 @@ public class LifecycleStateFilterAspect {
         try {
             pjp.proceed();
         } catch (Throwable t) {
-            // Job-body failure propagates; the @Scheduled exception handler
-            // / Spring's ScheduledTaskRegistry log it. We don't swallow — a
-            // failing job should surface, not silently skip the rest of the
-            // tick.
-            throw new JobBodyFailure(t);
+            // Fail-fast: one bad (Deployment, Club) aborts the tick. The
+            // alternative — catch + log per Club + continue — masks
+            // systemic issues (e.g. a downstream dependency is down) by
+            // burying N×M repeats in the log; the scheduler retries on
+            // the next tick anyway.
+            throw new JobBodyFailure(
+                    "job body failure in " + methodFqn(pjp), t);
         }
     }
 
@@ -92,8 +95,8 @@ public class LifecycleStateFilterAspect {
      * job-body throw.
      */
     static final class JobBodyFailure extends RuntimeException {
-        JobBodyFailure(Throwable cause) {
-            super(cause);
+        JobBodyFailure(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 }

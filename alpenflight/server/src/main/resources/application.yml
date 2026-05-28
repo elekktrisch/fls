@@ -118,7 +118,7 @@ audit:
           - createdOn
           - modifiedOn
           - version
-          - domainEvents
+          - pendingTransitions
       Location:
         # Lists both DTO field names and entity field names — see Club above.
         allow:

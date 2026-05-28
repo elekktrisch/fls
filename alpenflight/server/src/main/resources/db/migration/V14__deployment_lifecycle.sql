@@ -87,15 +87,15 @@ ON CONFLICT (id) DO NOTHING;
 -- skip the audit-emission half of that worker.
 -- -----------------------------------------------------------------------------
 
-ALTER TABLE club ADD COLUMN deployment_id UUID;
-
--- Backfill EVERY existing Club to the operator Deployment — including the
--- V5 walking-skeleton seed row. The operator manages all pre-S-137 Clubs;
--- self-service ingest (S-138) writes new Clubs under their TRIAL Deployment.
-UPDATE club SET deployment_id = '00000000-0000-0000-0000-000000000002'
-WHERE deployment_id IS NULL;
-
-ALTER TABLE club ALTER COLUMN deployment_id SET NOT NULL;
+-- The operator-Deployment id is the backfill default — every pre-existing
+-- Club belongs to the operator until S-138's trial-ingest path moves new
+-- Clubs under their owner's TRIAL Deployment. The DEFAULT also catches
+-- direct-JDBC inserts in test fixtures + bootstrap scripts that pre-date
+-- this column; production code goes through ClubsService.createClub
+-- (S-048) which passes deploymentId explicitly via Club.create.
+ALTER TABLE club
+    ADD COLUMN deployment_id UUID NOT NULL
+        DEFAULT '00000000-0000-0000-0000-000000000002';
 
 ALTER TABLE club
     ADD CONSTRAINT fk_club_deployment_id
