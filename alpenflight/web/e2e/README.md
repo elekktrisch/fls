@@ -80,8 +80,8 @@ silent-refresh + refresh-grant-deny inside the test window. The contract:
 
 1. **Wrap every mutation in `withRealmPatch(partial, fn)`** from
    `_helpers/keycloak-admin.ts`. The HOF snapshots the affected keys
-   pre-patch and restores them in `finally`. Specs MUST NOT call
-   `updateRealm()` directly.
+   pre-patch and restores them in `finally`. All realm mutations route
+   through this HOF — the raw `updateRealm` primitive is module-private.
 2. **Wrap the whole describe in `test.describe.configure({ mode: 'serial' })`**.
    On first failure, serial stops the block — protects the restore step
    from running against a half-mutated realm in a follow-on spec.

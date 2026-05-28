@@ -141,10 +141,9 @@ test.describe('token-lifecycle — non-mutating', () => {
     // Tab B picks up the shared localStorage tokens on its first
     // navigation — same context, same storage origin.
     await tabB.goto('/start');
-    await tabB.waitForURL(
-      (url) => !url.pathname.startsWith('/realms/') && url.pathname !== '/',
-      { timeout: 15_000 },
-    );
+    await tabB.waitForURL((url) => !url.pathname.startsWith('/realms/') && url.pathname !== '/', {
+      timeout: 15_000,
+    });
     // Confirm tab B is in the authed shell (unauthed CTA absent).
     await expect(tabB.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 
@@ -153,10 +152,9 @@ test.describe('token-lifecycle — non-mutating', () => {
     // NOT `logoffLocal()` — otherwise KC's SSO cookie keeps tab B
     // silently re-authenticated on the next checkAuth().
     await tabA.goto('/auth/logout');
-    await tabA.waitForURL(
-      (url) => url.pathname === '/' && !url.searchParams.has('code'),
-      { timeout: 15_000 },
-    );
+    await tabA.waitForURL((url) => url.pathname === '/' && !url.searchParams.has('code'), {
+      timeout: 15_000,
+    });
     await expect(tabA.getByTestId('landing-topbar-sign-in')).toBeVisible();
 
     // Tab B's next route navigation must detect the missing tokens and

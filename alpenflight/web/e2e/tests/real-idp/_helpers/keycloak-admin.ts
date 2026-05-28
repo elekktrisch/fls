@@ -207,7 +207,7 @@ export async function deleteUser(userId: string, emailForGuard?: string): Promis
   // Retry-on-404 (3×, 500ms): KC's POST /users returns 201 before all
   // session writes flush. afterEach can race the create.
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await adminRequest(`/users/${userId}`, { method: 'DELETE' });
+    const res = await adminRequest(`/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
     if (res.ok || res.status === 204) return;
     if (res.status !== 404) {
       throw new Error(`deleteUser(${userId}) failed (${res.status}): ${await res.text()}`);
@@ -296,7 +296,7 @@ export async function withRealmPatch<T>(
   if (realmMutexBusy) {
     throw new Error(
       'withRealmPatch: concurrent invocation refused. Wrap realm-mutating ' +
-        'specs in `test.describe.configure({ mode: \'serial\' })` and ensure ' +
+        "specs in `test.describe.configure({ mode: 'serial' })` and ensure " +
         'only one realm-mutating describe runs at a time.',
     );
   }

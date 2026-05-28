@@ -39,10 +39,7 @@ test.describe('public routes stay public — real-idp', () => {
       const apiCalls: string[] = [];
       page.on('request', (req: Request) => {
         const u = new URL(req.url());
-        if (
-          u.host === new URL(SPA_BASE_URL).host &&
-          u.pathname.startsWith('/api/v1/')
-        ) {
+        if (u.host === new URL(SPA_BASE_URL).host && u.pathname.startsWith('/api/v1/')) {
           apiCalls.push(req.url());
         }
       });
