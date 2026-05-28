@@ -2,8 +2,9 @@
 id: S-174
 title: Playwright e2e — real-Keycloak register + login (no mock)
 epic: E-13
-status: in_progress
+status: done
 started_at: 2026-05-28
+done_at: 2026-05-28
 estimate: M
 depends_on: [S-021, S-134, S-171, S-172]
 integration_base: integration/users-suite
