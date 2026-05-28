@@ -5,6 +5,8 @@ epic: E-02
 status: done
 started_at: 2026-05-28
 done_at: 2026-05-28
+merged: true
+merged_at: 2026-05-28
 depends_on: [S-012, S-013, S-014]
 integration_base: integration/migration
 github_issue: 157
