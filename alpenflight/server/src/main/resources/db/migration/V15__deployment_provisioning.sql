@@ -22,17 +22,21 @@
 -- t_flight_type UNIQUE already exists (V11); t_flight_cost_balance_type is
 -- system-global and seeded by V3 baseline — no per-Club bootstrap.
 
+-- kc_state stored as uppercase to match @Enumerated(STRING) which writes the
+-- enum constant name verbatim. DEFAULT matches the freshly-provisioned-row
+-- contract (Phase B not yet completed); legal values are 'PENDING' / 'READY'
+-- per KeycloakReconcileState.
 ALTER TABLE t_deployment
     ADD COLUMN idempotency_key UUID,
-    ADD COLUMN kc_state        VARCHAR(16) NOT NULL DEFAULT 'pending';
+    ADD COLUMN kc_state        VARCHAR(16) NOT NULL DEFAULT 'PENDING';
 
 -- Backfill: existing Deployments (sandbox + operator + any IT rows from
 -- a prior boot of the test container) are already past provisioning. Mark
--- them 'ready' so the S-141 retry job ignores them, and stamp a generated
+-- them 'READY' so the S-141 retry job ignores them, and stamp a generated
 -- UUID idempotency_key per row so the UNIQUE doesn't reject the column
 -- promotion. Production starts empty; this path covers the test JVM's
 -- container-reuse case.
-UPDATE t_deployment SET kc_state = 'ready', idempotency_key = gen_random_uuid()
+UPDATE t_deployment SET kc_state = 'READY', idempotency_key = gen_random_uuid()
     WHERE idempotency_key IS NULL;
 
 CREATE UNIQUE INDEX ux_deployment_idempotency_key

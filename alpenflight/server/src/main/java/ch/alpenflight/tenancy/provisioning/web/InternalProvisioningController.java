@@ -5,6 +5,7 @@ import ch.alpenflight.tenancy.provisioning.application.ClubSpec;
 import ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningRequest;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningResult;
+import io.swagger.v3.oas.annotations.Hidden;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/internal/migrations")
 @Profile("test")
+@Hidden
 @AuditedBy("deploymentProvisioningService")
 class InternalProvisioningController {
 
