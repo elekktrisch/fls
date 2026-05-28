@@ -18,7 +18,10 @@ import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.tenancy.provisioning.domain.DeploymentExistsException;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
+import java.time.Clock;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,29 +35,17 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Full-stack provisioning IT — exercises {@link DeploymentProvisioningService}
- * against a real Postgres so the V14 partial UNIQUE
- * ({@code ux_deployment_owner_active}) and V15 {@code ux_deployment_idempotency_key}
- * gates fire as they would in production. The Keycloak directory is replaced
- * with a Mockito spy so Phase B's idempotency contract can be exercised
- * without an upstream KC realm.
+ * Full-stack provisioning IT — exercises
+ * {@link DeploymentProvisioningService} against a real Postgres so the
+ * partial UNIQUE indexes ({@code ux_deployment_owner_active},
+ * {@code ux_deployment_idempotency_key}) fire as they would in
+ * production. The directory port is replaced with a Mockito mock so the
+ * reconcile contract can be exercised without an upstream realm.
  *
- * <p>Covers (per S-138 test plan):
- * <ul>
- *   <li>Happy 2-Club ingest → 1 Deployment + 2 Clubs + per-Club ref-data +
- *       KC group + 2 admin roles + clubId attribute.</li>
- *   <li>Idempotency by {@code migration_run.id} — re-running with the same
- *       key returns the existing Deployment + clubIds, no second insert.</li>
- *   <li>Second-ingest 409 — actor with a TRIAL Deployment hits structured
- *       409 carrying the existing Deployment's identifiers.</li>
- *   <li>Lifecycle exemption — DELETING actor can re-provision.</li>
- *   <li>Reference-data bootstrap — defaults present after provisioning;
- *       bundle-wins ON CONFLICT path tested via re-seed.</li>
- *   <li>KC failure compensation — Phase B failure leaves
- *       {@code kc_state = PENDING}; reconcile retry completes the row.</li>
- *   <li>Deterministic primary-Club fallback — lowest UUID when manifest
- *       omits {@code primaryClubId}.</li>
- * </ul>
+ * <p>Covers: happy N-Club ingest, idempotent replay (including
+ * owner-mismatch defense), second-ingest 409 across the non-terminal
+ * lifecycle states, DELETING exemption, reference-data bootstrap,
+ * directory-failure compensation, primary-Club fallback rules.
  */
 @Import(DeploymentProvisioningServiceIT.MockDirectoryConfig.class)
 class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
@@ -129,7 +120,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         assertThat(saved.getKeycloakState()).isEqualTo(KeycloakReconcileState.READY);
         assertThat(result.clubIds()).hasSize(2);
         assertThat(result.primaryClubId())
-                .isEqualTo(result.clubIds().stream().min(java.util.Comparator.naturalOrder()).orElseThrow());
+                .isEqualTo(result.clubIds().stream().min(Comparator.naturalOrder()).orElseThrow());
 
         // Per-Club reference data landed.
         for (UUID clubId : result.clubIds()) {
@@ -203,7 +194,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
 
     @Test
     void second_ingest_blocked_for_active_past_due_and_cancelled_owners() {
-        java.time.Clock clock = java.time.Clock.systemUTC();
+        Clock clock = Clock.systemUTC();
         Map<LifecycleState, UUID> ownerByState = Map.of(
                 LifecycleState.ACTIVE,
                         UUID.fromString("00000000-0000-0000-0000-000000000ac1"),
@@ -232,7 +223,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
             ProvisioningRequest attempt = new ProvisioningRequest(
                     UUID.randomUUID(), owner, "IT_PROV_attempt_" + blockingState,
                     List.of(clubSpec("IT_PROV_attempt_club_" + blockingState,
-                            "it-prov-attempt-" + blockingState.toString().toLowerCase(java.util.Locale.ROOT),
+                            "it-prov-attempt-" + blockingState.toString().toLowerCase(Locale.ROOT),
                             "IP" + blockingState.name().charAt(0))),
                     null);
 
@@ -245,7 +236,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
     @Test
     void deleting_state_does_not_block_new_provisioning() {
         UUID owner = UUID.fromString("00000000-0000-0000-0000-000000000a05");
-        java.time.Clock clock = java.time.Clock.systemUTC();
+        Clock clock = Clock.systemUTC();
 
         Deployment first = Deployment.startTrial(clock, "IT_PROV_deleting", owner);
         first.bindIdempotencyKey(UUID.randomUUID());
@@ -281,7 +272,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         Deployment afterFailure = deployments.findById(result.deploymentId()).orElseThrow();
         assertThat(afterFailure.getKeycloakState()).isEqualTo(KeycloakReconcileState.PENDING);
         assertThat(afterFailure.getLifecycleState()).isEqualTo(LifecycleState.TRIAL);
-        assertThat(result.kcPending()).isTrue();
+        assertThat(result.keycloakPending()).isTrue();
     }
 
     @Test
@@ -327,13 +318,13 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                 null));
 
         UUID expectedPrimary = result.clubIds().stream()
-                .min(java.util.Comparator.naturalOrder())
+                .min(Comparator.naturalOrder())
                 .orElseThrow();
         assertThat(result.primaryClubId()).isEqualTo(expectedPrimary);
     }
 
     @Test
-    void primary_club_honours_manifest_declaration_when_present() {
+    void manifest_primary_club_is_ignored_on_idempotent_replay() {
         UUID owner = UUID.fromString("00000000-0000-0000-0000-000000000a09");
         UUID idempotencyKey = UUID.randomUUID();
         ProvisioningResult first = provisioning.provision(new ProvisioningRequest(
@@ -343,12 +334,12 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                         clubSpec("IT_PROV_manifest_bravo", "it-prov-manifest-bravo", "IPB")),
                 null));
 
-        // Build a second request that pretends the high-id Club is the
-        // manifest-declared primary. (The provisioning service uses the
-        // declared id only when it's in the resulting club list — this
-        // assertion is via the loaded-result path with a manifest hint.)
+        // Replay with a high-id manifest-declared primary; the service
+        // short-circuits via idempotency and returns the originally-
+        // resolved primary (lowest UUID), NOT the manifest hint —
+        // primary is bound at first provisioning, not mutable on replay.
         UUID highestClubId = first.clubIds().stream()
-                .max(java.util.Comparator.naturalOrder())
+                .max(Comparator.naturalOrder())
                 .orElseThrow();
 
         ProvisioningResult replay = provisioning.provision(new ProvisioningRequest(
@@ -358,11 +349,29 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                         clubSpec("IT_PROV_manifest_bravo", "it-prov-manifest-bravo", "IPB")),
                 highestClubId));
 
-        // Replay short-circuits via idempotency; primary on replay is the
-        // existing min club id, NOT the manifest hint (refinement: primary
-        // is bound at first provisioning, not mutable on replay).
         assertThat(replay.deploymentId()).isEqualTo(first.deploymentId());
         assertThat(replay.primaryClubId()).isEqualTo(first.primaryClubId());
+    }
+
+    @Test
+    void replay_with_mismatched_owner_is_rejected() {
+        UUID originalOwner = UUID.fromString("00000000-0000-0000-0000-000000000a0a");
+        UUID attackerOwner = UUID.fromString("00000000-0000-0000-0000-000000000a0b");
+        UUID idempotencyKey = UUID.randomUUID();
+
+        provisioning.provision(new ProvisioningRequest(
+                idempotencyKey, originalOwner, "IT_PROV_owner_first",
+                List.of(clubSpec("IT_PROV_owner_first_solo", "it-prov-owner-first-solo", "IPO")),
+                null));
+
+        ProvisioningRequest hijack = new ProvisioningRequest(
+                idempotencyKey, attackerOwner, "IT_PROV_owner_hijack",
+                List.of(clubSpec("IT_PROV_owner_hijack_solo", "it-prov-owner-hijack-solo", "IPH")),
+                null);
+
+        assertThatThrownBy(() -> provisioning.provision(hijack))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("different owner");
     }
 
     private ClubSpec clubSpec(String name, String slug, String clubKey) {

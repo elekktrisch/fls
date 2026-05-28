@@ -4,10 +4,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Phase B reconcile port for the S-138 trial-Deployment provisioning flow.
- * The DB-half (Deployment + Clubs + reference-data) commits inside the
- * ingest transaction; this port runs post-commit, best-effort, and is
- * retried by the S-141 hourly reconcile job when it fails mid-flight.
+ * Directory-side reconcile port for trial-Deployment provisioning. The
+ * DB-half (Deployment + Clubs + reference-data) commits inside the ingest
+ * transaction; this port runs post-commit, best-effort, and is retried
+ * by the hourly reconcile job when it fails mid-flight.
  *
  * <p>Implementations MUST be idempotent — every method is "create-if-absent
  * + state-if-not-already" so a retry from any failure point is safe:
@@ -34,12 +34,17 @@ import java.util.UUID;
  * {@code manage-users} so these operations succeed; the realm-shape
  * check script {@code alpenflight/auth/scripts/check-realm-shape.sh}
  * fails CI if the scope set drifts.
+ *
+ * <p>Naming helpers for the group + role labels live on
+ * {@link KeycloakDeploymentNames} so the application service, the
+ * adapter, and the cleanup cascade share one source of truth.
  */
 public interface KeycloakDeploymentDirectory {
 
     /**
      * Returns the directory id of the group named
-     * {@code deployment-{deploymentId}}, creating it if absent.
+     * {@link KeycloakDeploymentNames#deploymentGroupName(UUID)}, creating
+     * it if absent.
      */
     UUID findOrCreateDeploymentGroup(UUID deploymentId);
 
@@ -52,10 +57,10 @@ public interface KeycloakDeploymentDirectory {
 
     /**
      * Returns the directory id of the realm role named
-     * {@code deployment-{deploymentId}-club-{clubId}-admin}, creating it
-     * if absent. The verbose name is intentional — the operator never
-     * types it, and the prefix lets the trial-delete cascade (S-142)
-     * find every role to clean up.
+     * {@link KeycloakDeploymentNames#clubAdminRoleName(UUID, UUID)},
+     * creating it if absent. The verbose name is intentional — the
+     * operator never types it, and the prefix lets the trial-delete
+     * cascade find every role to clean up.
      */
     UUID findOrCreateClubAdminRole(UUID deploymentId, UUID clubId);
 
@@ -69,11 +74,10 @@ public interface KeycloakDeploymentDirectory {
     void assignRoleIfAbsent(UUID userKeycloakSub, UUID roleId, String roleName);
 
     /**
-     * Replaces the named user-attribute's value list with the given
-     * list. The S-138 caller passes {@code clubId} as the attribute name
-     * with a single-entry list whose value is the primary Club's id, so
-     * the JWT {@code clubId} claim resolves to the user's first tenant
-     * on token refresh.
+     * Replaces the named user-attribute's value list with the given list.
+     * The caller passes the primary Club's id under attribute
+     * {@code clubId} so the JWT {@code clubId} claim resolves to the
+     * user's first tenant on token refresh.
      */
     void setUserAttribute(UUID userKeycloakSub, String attributeName, List<String> values);
 }

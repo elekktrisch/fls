@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.Hidden;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,15 +21,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Test-profile-only trigger surface for IT and Playwright e2e to exercise
- * the S-138 provisioning orchestration without dragging in the S-141
- * bundle-ingest pipeline. {@code @Profile("test")} keeps the bean out
- * of production contexts; the URL is scoped under {@code /internal/} so a
- * future production filter (gateway-level) can deny the prefix wholesale.
+ * the provisioning orchestration without dragging in the bundle-ingest
+ * pipeline. {@code @Profile("test")} keeps the bean out of production
+ * contexts; {@code @Hidden} keeps the route out of the OpenAPI snapshot.
+ * The URL is scoped under {@code /internal/} so a future production
+ * filter (gateway-level) can deny the prefix wholesale.
  *
  * <p>The request body carries the owner sub explicitly so the test can
- * provision under any synthesised principal. In production S-141 derives
- * the owner from the JWT principal it has already authorized against the
- * migration upload.
+ * provision under any synthesised principal. In production the ingest
+ * pipeline derives the owner from the JWT principal it has already
+ * authorized against the migration upload.
  */
 @RestController
 @RequestMapping("/api/v1/internal/migrations")
@@ -35,6 +38,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Hidden
 @AuditedBy("deploymentProvisioningService")
 class InternalProvisioningController {
+
+    private static final Logger LOG = LoggerFactory.getLogger(InternalProvisioningController.class);
 
     private final DeploymentProvisioningService provisioningService;
 
@@ -54,24 +59,27 @@ class InternalProvisioningController {
                 body.primaryClubId());
 
         ProvisioningResult result = provisioningService.provision(request);
-        // Phase B fires synchronously after Phase A commits so the test
-        // observes the final state via this endpoint. Production wires
-        // the reconcile call as part of S-141's per-bundle pipeline +
-        // hourly retry job; the test endpoint does both inline.
-        boolean kcPending = result.kcPending();
+        // Reconcile fires synchronously after the provisioning commit so
+        // the test observes the final state via this endpoint. Production
+        // wires the reconcile call as part of the bundle-ingest pipeline
+        // + the hourly reconcile job; the test endpoint does both inline.
+        boolean keycloakPending = result.keycloakPending();
         try {
             provisioningService.reconcileKeycloak(result.deploymentId());
-            kcPending = false;
-        } catch (RuntimeException e) {
-            // Phase B failure leaves the DB intact with kc_state=PENDING;
-            // the test asserts on this outcome explicitly.
+            keycloakPending = false;
+        } catch (RuntimeException reconcileFailure) {
+            // Reconcile failure leaves the DB intact with kc_state=PENDING;
+            // the test asserts on this outcome explicitly. Log so an
+            // unexpected regression isn't silently swallowed.
+            LOG.warn("Keycloak reconcile failed for Deployment {} — kc_state stays PENDING",
+                    result.deploymentId(), reconcileFailure);
         }
 
         return ResponseEntity.ok(new ProvisioningResponse(
                 result.deploymentId(),
                 result.clubIds(),
                 result.primaryClubId(),
-                kcPending));
+                keycloakPending));
     }
 
     public record ProvisioningRequestBody(
@@ -84,5 +92,5 @@ class InternalProvisioningController {
             UUID deploymentId,
             List<UUID> clubIds,
             UUID primaryClubId,
-            boolean kcPending) {}
+            boolean keycloakPending) {}
 }

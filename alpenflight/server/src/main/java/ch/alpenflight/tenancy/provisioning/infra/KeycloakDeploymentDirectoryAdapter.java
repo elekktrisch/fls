@@ -5,8 +5,8 @@ import ch.alpenflight.platform.keycloak.KeycloakAdminProperties;
 import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
 import ch.alpenflight.platform.keycloak.RedactingRestClientInterceptor;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
+import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentNames;
 import java.net.URI;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,11 +21,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Keycloak adapter for the S-138 provisioning Phase B reconcile port.
- * Talks to the realm via the {@code alpenflight-backend-admin} machine
- * client (S-052 plumbing) extended with the {@code manage-groups} scope
- * (S-138). Every method is idempotent — see the port javadoc for the
- * "create-if-absent + state-if-not-already" semantics each call enforces.
+ * Keycloak adapter for the deployment-directory reconcile port. Talks to
+ * the realm via the {@code alpenflight-backend-admin} machine client
+ * (the same plumbing the user-directory adapter uses) extended with the
+ * {@code manage-groups} scope. Every method is idempotent — see the
+ * port javadoc for the "create-if-absent + state-if-not-already"
+ * semantics each call enforces.
  *
  * <p>Sibling-friendly: builds its own {@link RestClient} on top of
  * {@link KeycloakAdminTokenSupplier} + {@link BearerTokenInterceptor} +
@@ -53,7 +54,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
     @Override
     public UUID findOrCreateDeploymentGroup(UUID deploymentId) {
         Objects.requireNonNull(deploymentId, "deploymentId");
-        String name = deploymentGroupName(deploymentId);
+        String name = KeycloakDeploymentNames.deploymentGroupName(deploymentId);
 
         UUID existingId = findGroupIdByName(name);
         if (existingId != null) {
@@ -73,15 +74,14 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw new KeycloakProvisioningException(
-                        "Keycloak group create failed (status " + e.getStatusCode().value() + ")", e);
+                throw transportFailure("group create", e);
             }
             // Concurrent create won — fall through to the read path.
         }
         UUID afterRace = findGroupIdByName(name);
         if (afterRace == null) {
             throw new KeycloakProvisioningException(
-                    "Keycloak group create returned no Location header and post-race read missed " + name);
+                    "group create returned no Location header and post-race read missed " + name);
         }
         return afterRace;
     }
@@ -102,8 +102,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                 }
             }
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakProvisioningException(
-                    "Keycloak read user groups (status " + e.getStatusCode().value() + ")", e);
+            throw transportFailure("read user groups", e);
         }
         try {
             http.put()
@@ -111,8 +110,11 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakProvisioningException(
-                    "Keycloak add-user-to-group (status " + e.getStatusCode().value() + ")", e);
+            if (e.getStatusCode().value() == 409) {
+                // Already a member — pre-check missed the race; idempotent.
+                return;
+            }
+            throw transportFailure("add-user-to-group", e);
         }
     }
 
@@ -120,7 +122,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
     public UUID findOrCreateClubAdminRole(UUID deploymentId, UUID clubId) {
         Objects.requireNonNull(deploymentId, "deploymentId");
         Objects.requireNonNull(clubId, "clubId");
-        String name = clubAdminRoleName(deploymentId, clubId);
+        String name = KeycloakDeploymentNames.clubAdminRoleName(deploymentId, clubId);
 
         UUID existingId = findRealmRoleIdByName(name);
         if (existingId != null) {
@@ -135,14 +137,13 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() != 409) {
-                throw new KeycloakProvisioningException(
-                        "Keycloak realm-role create failed (status " + e.getStatusCode().value() + ")", e);
+                throw transportFailure("realm-role create", e);
             }
         }
         UUID afterRace = findRealmRoleIdByName(name);
         if (afterRace == null) {
             throw new KeycloakProvisioningException(
-                    "Keycloak realm-role read-after-create missed " + name);
+                    "realm-role read-after-create missed " + name);
         }
         return afterRace;
     }
@@ -164,8 +165,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                 }
             }
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakProvisioningException(
-                    "Keycloak read realm role-mappings (status " + e.getStatusCode().value() + ")", e);
+            throw transportFailure("read realm role-mappings", e);
         }
         try {
             http.post()
@@ -175,8 +175,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakProvisioningException(
-                    "Keycloak grant realm role (status " + e.getStatusCode().value() + ")", e);
+            throw transportFailure("grant realm role", e);
         }
     }
 
@@ -193,8 +192,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakProvisioningException(
-                    "Keycloak set user attribute (status " + e.getStatusCode().value() + ")", e);
+            throw transportFailure("set user attribute", e);
         }
     }
 
@@ -217,8 +215,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             }
             return null;
         } catch (HttpStatusCodeException e) {
-            throw new KeycloakProvisioningException(
-                    "Keycloak group search (status " + e.getStatusCode().value() + ")", e);
+            throw transportFailure("group search", e);
         }
     }
 
@@ -234,8 +231,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             if (e.getStatusCode().value() == 404) {
                 return null;
             }
-            throw new KeycloakProvisioningException(
-                    "Keycloak realm-role lookup (status " + e.getStatusCode().value() + ")", e);
+            throw transportFailure("realm-role lookup", e);
         }
     }
 
@@ -249,7 +245,10 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     objectMapper.getTypeFactory()
                             .constructCollectionType(List.class, KeycloakNamedRef.class));
         } catch (Exception e) {
-            throw new KeycloakProvisioningException("Keycloak: malformed JSON list", e);
+            // Body is the upstream Keycloak response; can carry the
+            // realm payload. Re-throw without the cause attached so the
+            // upstream body never reaches a forensic log forwarder.
+            throw new KeycloakProvisioningException("malformed JSON list from directory");
         }
     }
 
@@ -260,16 +259,19 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         try {
             return objectMapper.readValue(body, KeycloakNamedRef.class);
         } catch (Exception e) {
-            throw new KeycloakProvisioningException("Keycloak: malformed JSON object", e);
+            throw new KeycloakProvisioningException("malformed JSON object from directory");
         }
     }
 
-    private static String deploymentGroupName(UUID deploymentId) {
-        return "deployment-" + deploymentId;
-    }
-
-    private static String clubAdminRoleName(UUID deploymentId, UUID clubId) {
-        return "deployment-" + deploymentId + "-club-" + clubId + "-admin";
+    /**
+     * Wraps an upstream HTTP error in our own exception type with the
+     * status only — never the response body, which could leak the realm
+     * payload via cause chains in a forensic log forwarder.
+     */
+    private static KeycloakProvisioningException transportFailure(
+            String action, HttpStatusCodeException source) {
+        return new KeycloakProvisioningException(
+                "directory " + action + " refused (status " + source.getStatusCode().value() + ")");
     }
 
     private static UUID uuidFromLocation(URI location, String action) {
@@ -277,13 +279,13 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         int lastSlash = path.lastIndexOf('/');
         if (lastSlash < 0 || lastSlash + 1 >= path.length()) {
             throw new KeycloakProvisioningException(
-                    "Keycloak " + action + ": malformed Location " + path);
+                    action + ": malformed Location " + path);
         }
         try {
             return UUID.fromString(path.substring(lastSlash + 1));
         } catch (IllegalArgumentException e) {
             throw new KeycloakProvisioningException(
-                    "Keycloak " + action + ": Location tail is not a UUID — " + path, e);
+                    action + ": Location tail is not a UUID — " + path);
         }
     }
 
@@ -291,17 +293,14 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
     record KeycloakNamedRef(@Nullable UUID id, @Nullable String name) {}
 
     /**
-     * Adapter-local runtime exception. Production callers (S-141 retry
-     * job) catch + leave the row {@code PENDING}; only unit tests assert
-     * on the type. NOT a {@code @ControllerAdvice}-translated exception —
-     * Phase B doesn't surface to the SPA directly.
+     * Adapter-local runtime exception. The reconcile job catches +
+     * leaves {@code kc_state=PENDING}; the exception never reaches the
+     * SPA (the reconcile is post-commit and not surfaced through an
+     * advice).
      */
-    public static final class KeycloakProvisioningException extends RuntimeException {
-        public KeycloakProvisioningException(String message) {
+    static final class KeycloakProvisioningException extends RuntimeException {
+        KeycloakProvisioningException(String message) {
             super(message);
-        }
-        public KeycloakProvisioningException(String message, Throwable cause) {
-            super(message, cause);
         }
     }
 }

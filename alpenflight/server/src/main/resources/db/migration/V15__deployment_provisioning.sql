@@ -1,50 +1,42 @@
--- S-138 — Trial-Deployment provisioning on first successful migration ingest.
+-- Trial-Deployment provisioning columns on t_deployment.
 --
--- Adds two columns to t_deployment:
---   * idempotency_key — the parent identifier the caller binds to a durable
---     cross-attempt artifact (S-141 binds it to migration_run.id). A retried
---     ingest of the same upload short-circuits to the existing Deployment
---     instead of re-running Phase A. UNIQUE so a concurrent race surfaces
---     as a constraint violation rather than two Deployments.
---   * kc_state — 'pending' until the Keycloak Phase B reconcile (group +
---     per-Club realm roles + clubId user attribute) completes; flipped to
---     'ready' on success. The S-141 hourly retry job re-invokes Phase B
---     for every Deployment still 'pending'.
+-- idempotency_key — durable cross-attempt identifier (typically the upstream
+--   migration-run id). A retried ingest of the same attempt short-circuits to
+--   the existing Deployment instead of re-running the provisioning service.
+--   UNIQUE so a concurrent race surfaces as a constraint violation rather
+--   than two Deployments. Nullable: the operator + sandbox singletons never
+--   go through the provisioning path so they stay NULL. Multiple NULLs are
+--   permitted under a UNIQUE index in Postgres, so the column promotion is
+--   safe without backfilling synthetic values.
 --
--- Per ADR 0022 directive 2 the schema enforces structural identity only:
--- the UNIQUE on idempotency_key is identity-bearing (one Deployment per
--- migration_run); the kc_state values are not constrained at the DB level —
--- the legal-value set lives in the KeycloakReconcileState Java enum.
+-- kc_state — PENDING until the directory-side reconcile (group +
+--   per-Club realm roles + clubId user attribute) completes; READY after.
+--   The hourly reconcile job filters on PENDING. Stored uppercase to
+--   match @Enumerated(STRING) on the KeycloakReconcileState aggregate
+--   field; legal-value set lives in Java per ADR 0022 directive 2 — no
+--   schema-level CHECK.
 --
--- Adds a UNIQUE for t_member_state(club_id, name) where deleted_on IS NULL.
--- The reference-data seeder uses ON CONFLICT (club_id, name) DO NOTHING so
--- a manifest carrying a customized MemberState wins over the default. The
--- t_flight_type UNIQUE already exists (V11); t_flight_cost_balance_type is
--- system-global and seeded by V3 baseline — no per-Club bootstrap.
+-- Also adds an identity-bearing partial UNIQUE on (club_id, name) for
+-- t_member_state so the per-Club reference-data seeder can use
+-- ON CONFLICT (club_id, name) DO NOTHING against the V11 / V15 partial
+-- indexes (bundle wins on conflict).
 
--- kc_state stored as uppercase to match @Enumerated(STRING) which writes the
--- enum constant name verbatim. DEFAULT matches the freshly-provisioned-row
--- contract (Phase B not yet completed); legal values are 'PENDING' / 'READY'
--- per KeycloakReconcileState.
 ALTER TABLE t_deployment
     ADD COLUMN idempotency_key UUID,
     ADD COLUMN kc_state        VARCHAR(16) NOT NULL DEFAULT 'PENDING';
 
--- Backfill: existing Deployments (sandbox + operator + any IT rows from
--- a prior boot of the test container) are already past provisioning. Mark
--- them 'READY' so the S-141 retry job ignores them, and stamp a generated
--- UUID idempotency_key per row so the UNIQUE doesn't reject the column
--- promotion. Production starts empty; this path covers the test JVM's
--- container-reuse case.
-UPDATE t_deployment SET kc_state = 'READY', idempotency_key = gen_random_uuid()
-    WHERE idempotency_key IS NULL;
+-- Pre-existing rows (sandbox + operator + IT artifacts from prior
+-- container reuse) are already past provisioning; mark them READY so
+-- the reconcile job ignores them.
+UPDATE t_deployment SET kc_state = 'READY'
+    WHERE kc_state = 'PENDING';
 
 CREATE UNIQUE INDEX ux_deployment_idempotency_key
     ON t_deployment (idempotency_key);
 
--- Identity-bearing partial UNIQUE on (club_id, name) for the
--- reference-data seeder's ON CONFLICT target. Excludes soft-deleted rows
--- so a tenant may soft-delete and recreate the same MemberState name
+-- Identity-bearing partial UNIQUE on (club_id, name) — the reference-
+-- data seeder's ON CONFLICT target. Excludes soft-deleted rows so a
+-- tenant may soft-delete and recreate the same MemberState name
 -- (mirrors the V11 FlightType pattern).
 CREATE UNIQUE INDEX ux_member_state_club_name
     ON t_member_state (club_id, name)

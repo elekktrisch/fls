@@ -26,10 +26,9 @@ public interface DeploymentRepository {
     List<Deployment> findByLifecycleStateIn(List<LifecycleState> states);
 
     /**
-     * Returns the Deployment bound to the given S-138 idempotency key, or
-     * empty when none exists. The key is normally
-     * {@code migration_run.id}; retried ingest of the same upload uses
-     * this lookup to short-circuit to the existing Deployment instead of
+     * Returns the Deployment bound to the given idempotency key, or empty
+     * when none exists. Retried ingest of the same upload uses this
+     * lookup to short-circuit to the existing Deployment instead of
      * provisioning a new one.
      */
     Optional<Deployment> findByIdempotencyKey(UUID idempotencyKey);
@@ -40,9 +39,9 @@ public interface DeploymentRepository {
      * partial UNIQUE {@code ux_deployment_owner_active} — TRIAL / ACTIVE
      * / PAST_DUE / CANCELLED in, SANDBOX + DELETING out.
      *
-     * <p>Drives the S-138 second-ingest 409 path: when the structural
-     * UNIQUE violation surfaces on insert, the service re-reads through
-     * this method to populate the structured 409 body.
+     * <p>Drives the second-ingest 409 path: when the structural UNIQUE
+     * violation surfaces on insert, the service re-reads through this
+     * method to populate the structured 409 body.
      */
     Optional<Deployment> findActiveByOwner(UUID ownerKeycloakSub);
 

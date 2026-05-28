@@ -8,7 +8,7 @@ import java.util.UUID;
  * Owner already holds a non-terminal Deployment from a different ingest
  * attempt. Translates to a structured 409 response so the SPA can surface
  * a "go to your existing tenant" CTA. Schema-level partial UNIQUE
- * {@code ux_deployment_owner_active} (S-137) is the source of truth; this
+ * {@code ux_deployment_owner_active} is the source of truth; this
  * exception carries the existing Deployment's identifiers for the response.
  */
 public class DeploymentExistsException extends RuntimeException {

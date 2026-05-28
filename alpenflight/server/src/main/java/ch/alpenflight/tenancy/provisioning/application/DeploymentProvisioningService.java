@@ -8,8 +8,8 @@ import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.tenancy.provisioning.domain.DeploymentExistsException;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
+import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentNames;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,69 +25,60 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Trial-Deployment provisioning service (S-138). The single seam S-141's
- * ingest pipeline calls to materialize a Deployment + Clubs + per-Club
- * reference data + Keycloak group / role / attribute plumbing for a
- * freshly-signed-up user on the first successful bundle ingest.
+ * Provisions a trial Deployment + Clubs + per-Club reference data + the
+ * Keycloak group / role / attribute plumbing for a freshly-signed-up
+ * user on the first successful bundle ingest. Two-phase: the DB-half
+ * commits in the caller's transaction; the directory-half runs
+ * post-commit (either inline by the caller or by the hourly reconcile
+ * job), is idempotent, and flips {@code kc_state} to READY on success.
  *
- * <p>Two-phase execution mirrors the refinement pin:
- *
- * <ul>
- *   <li><strong>Phase A</strong> — {@link #provision} inside an ingest
- *       transaction. Idempotency check on {@code migration_run.id}, owner
- *       409 pre-check + structural UNIQUE backstop, Deployment +
- *       per-Club row creation, reference-data seed, audit emission via
- *       {@link Deployment#startTrial}'s lifecycle event. Returns a
- *       {@link ProvisioningResult} with {@code kcPending = true}.</li>
- *   <li><strong>Phase B</strong> — {@link #reconcileKeycloak} post-commit
- *       (called by the orchestrating caller or by S-141's hourly retry
- *       job). Idempotent group / role / attribute reconcile against
- *       Keycloak; on success flips {@code kc_state = READY} via
- *       {@link Deployment#markKeycloakReady}.</li>
- * </ul>
- *
- * <p>KC failure in Phase B leaves the row at {@code PENDING}; the DB is
- * untouched and the retry loop completes when the directory recovers.
+ * <p>Caller contract: invoke {@link #reconcileKeycloak} only after
+ * {@link #provision} has committed (the directory-half is
+ * {@code REQUIRES_NEW} so it self-contains its own commit; calling it
+ * inside a still-open caller transaction would commit the reconcile
+ * before the caller's outer transaction finishes, defeating the
+ * post-commit ordering).
  */
 @Service
 public class DeploymentProvisioningService {
 
     private static final Logger LOG = LoggerFactory.getLogger(DeploymentProvisioningService.class);
-    private static final String KEYCLOAK_USER_ATTRIBUTE_CLUB_ID = "clubId";
 
     private final DeploymentRepository deployments;
     private final ClubRepository clubs;
     private final ReferenceDataSeeder referenceDataSeeder;
     private final KeycloakDeploymentDirectory directory;
+    private final EntityManager entityManager;
     private final Clock clock;
-
-    @PersistenceContext
-    private EntityManager entityManager;
 
     public DeploymentProvisioningService(DeploymentRepository deployments,
                                          ClubRepository clubs,
                                          ReferenceDataSeeder referenceDataSeeder,
                                          KeycloakDeploymentDirectory directory,
+                                         EntityManager entityManager,
                                          Clock clock) {
         this.deployments = deployments;
         this.clubs = clubs;
         this.referenceDataSeeder = referenceDataSeeder;
         this.directory = directory;
+        this.entityManager = entityManager;
         this.clock = clock;
     }
 
     /**
-     * Phase A — the DB-half of provisioning. Runs inside the ingest
-     * transaction; the caller is responsible for invoking
-     * {@link #reconcileKeycloak} after commit (or letting the S-141 retry
-     * job do it).
+     * Materialises the DB state for a new trial Deployment, or short-
+     * circuits to the existing Deployment when the idempotency key has
+     * been seen before. Throws {@link DeploymentExistsException} when
+     * the owner already holds a non-terminal Deployment from a different
+     * attempt — the structural partial UNIQUE
+     * {@code ux_deployment_owner_active} is the source of truth; the
+     * pre-check + flush exists so the exception surfaces with the
+     * existing Deployment's identifiers pre-populated for the 409 body.
      *
-     * <p>Throws {@link DeploymentExistsException} when the owner already
-     * holds a non-terminal Deployment from a different ingest attempt
-     * (the structural partial UNIQUE {@code ux_deployment_owner_active}
-     * is the source of truth; the pre-check + flush exists so the
-     * exception surfaces with the existing Deployment's identifiers
-     * pre-populated for the 409 body).
+     * <p>On replay (same idempotency key), an owner-mismatch is treated
+     * as a not-found-shaped error rather than a 200 — defense in depth
+     * against a caller that forgets to re-assert the upload-vs-principal
+     * binding.
      */
     @Transactional
     public ProvisioningResult provision(ProvisioningRequest request) {
@@ -95,7 +86,13 @@ public class DeploymentProvisioningService {
 
         Optional<Deployment> alreadyProvisioned = deployments.findByIdempotencyKey(request.idempotencyKey());
         if (alreadyProvisioned.isPresent()) {
-            return loadResult(alreadyProvisioned.get());
+            Deployment existing = alreadyProvisioned.get();
+            if (!request.ownerKeycloakSub().equals(existing.getOwnerKeycloakSub())) {
+                // Reject without leaking the bound owner's identifiers.
+                throw new IllegalStateException(
+                        "Idempotency key already bound to a different owner");
+            }
+            return loadResult(existing);
         }
 
         Optional<Deployment> existingOwnerActive = deployments.findActiveByOwner(request.ownerKeycloakSub());
@@ -110,11 +107,11 @@ public class DeploymentProvisioningService {
         try {
             saved = deployments.save(deployment);
             entityManager.flush();
-        } catch (DataIntegrityViolationException e) {
+        } catch (DataIntegrityViolationException raceLost) {
             Deployment racer = deployments.findActiveByOwner(request.ownerKeycloakSub())
                     .orElseThrow(() -> new IllegalStateException(
                             "Deployment INSERT raised a constraint violation but no active "
-                                    + "Deployment found for owner " + request.ownerKeycloakSub(), e));
+                                    + "Deployment found for owner " + request.ownerKeycloakSub(), raceLost));
             throw existsExceptionFor(racer);
         }
         UUID deploymentId = Objects.requireNonNull(saved.getId(),
@@ -138,24 +135,23 @@ public class DeploymentProvisioningService {
 
         UUID primaryClubId = resolvePrimaryClubId(request, clubIds);
 
-        // Funnel-telemetry placeholder per refinement; S-147 swaps in the
-        // FunnelTelemetry.emit helper.
+        // Funnel-telemetry placeholder; the dedicated funnel emitter
+        // replaces this log line once it lands. Logged shape matches the
+        // security plan: deploymentId + clubCount + plan only — no
+        // operator display name, no per-Club names.
         LOG.info(
-                "funnel event=deployment.provisioned deploymentId={} clubCount={} userId={}",
-                deploymentId, clubIds.size(), request.ownerKeycloakSub());
+                "funnel event=deployment.provisioned deploymentId={} clubCount={} plan={}",
+                deploymentId, clubIds.size(), saved.getPlan());
 
         return new ProvisioningResult(deploymentId, clubIds, primaryClubId, true);
     }
 
     /**
-     * Phase B — Keycloak reconcile. Idempotent: re-running against a
-     * Deployment already in {@code kc_state = READY} is a no-op fast-exit.
-     * On every successful path the call ends in
-     * {@link Deployment#markKeycloakReady}.
-     *
-     * <p>Errors propagate to the caller (the orchestration layer +
-     * S-141's retry job decide whether to log + leave the row PENDING or
-     * surface to the operator).
+     * Idempotent directory-side reconcile. Runs in its own transaction so
+     * a failure does not roll back the provisioning commit; the caller
+     * MUST have committed {@link #provision} before invoking this.
+     * Re-running against a Deployment already in
+     * {@code kc_state = READY} short-circuits to a no-op.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reconcileKeycloak(UUID deploymentId) {
@@ -166,7 +162,7 @@ public class DeploymentProvisioningService {
             return;
         }
         UUID owner = Objects.requireNonNull(deployment.getOwnerKeycloakSub(),
-                "Deployment.ownerKeycloakSub must be set after Phase A");
+                "Deployment.ownerKeycloakSub must be set after provisioning");
 
         UUID groupId = directory.findOrCreateDeploymentGroup(deploymentId);
         directory.addUserToGroupIfAbsent(owner, groupId);
@@ -174,7 +170,7 @@ public class DeploymentProvisioningService {
         List<UUID> clubIds = clubs.findIdsByDeploymentId(deploymentId);
         for (UUID clubId : clubIds) {
             UUID roleId = directory.findOrCreateClubAdminRole(deploymentId, clubId);
-            String roleName = clubAdminRoleName(deploymentId, clubId);
+            String roleName = KeycloakDeploymentNames.clubAdminRoleName(deploymentId, clubId);
             directory.assignRoleIfAbsent(owner, roleId, roleName);
         }
 
@@ -182,12 +178,14 @@ public class DeploymentProvisioningService {
                 ? null
                 : clubIds.stream().min(Comparator.naturalOrder()).orElseThrow();
         if (primaryClubId != null) {
-            directory.setUserAttribute(owner, KEYCLOAK_USER_ATTRIBUTE_CLUB_ID,
+            directory.setUserAttribute(owner,
+                    KeycloakDeploymentNames.CLUB_ID_USER_ATTRIBUTE,
                     List.of(primaryClubId.toString()));
         }
 
         deployment.markKeycloakReady();
-        deployments.save(deployment);
+        // Hibernate dirty-checks the managed entity on commit; no
+        // explicit save needed.
     }
 
     private ProvisioningResult loadResult(Deployment deployment) {
@@ -215,13 +213,9 @@ public class DeploymentProvisioningService {
         if (declared != null && clubIds.contains(declared)) {
             return declared;
         }
-        // Deterministic fallback: lowest UUID. Matches the refinement's
-        // legacy-single-tenant-assumption pin (manifest carries an
-        // explicit primaryClubId once S-141 / S-183 wire it through).
+        // Deterministic fallback: lowest UUID — matches the legacy
+        // single-tenant assumption until the ingest pipeline plumbs an
+        // explicit manifest primary through.
         return clubIds.stream().min(Comparator.naturalOrder()).orElseThrow();
-    }
-
-    private static String clubAdminRoleName(UUID deploymentId, UUID clubId) {
-        return "deployment-" + deploymentId + "-club-" + clubId + "-admin";
     }
 }

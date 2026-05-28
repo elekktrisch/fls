@@ -4,9 +4,9 @@ import java.util.UUID;
 
 /**
  * One Club from the bundle manifest. The mapper that builds this from
- * {@code bundle.json} strips any inbound {@code deployment_id} field — see
- * security plan in S-138 (defends against a malicious bundle smuggling
- * a Club into another user's Deployment).
+ * the bundle envelope MUST strip any inbound {@code deployment_id} field
+ * — without that guard a malicious bundle could smuggle a Club into
+ * another user's Deployment.
  */
 public record ClubSpec(
         String name,
