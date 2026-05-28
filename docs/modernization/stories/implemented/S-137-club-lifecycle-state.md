@@ -5,6 +5,8 @@ epic: E-15
 status: done
 started_at: 2026-05-28
 done_at: 2026-05-28
+merged: true
+merged_at: 2026-05-28
 github_issue: 159
 github_pr: 160
 depends_on: [S-048]
