@@ -2,11 +2,19 @@
 id: S-172
 title: infra compose group — Mailpit as shared dependency + script split
 epic: E-05
-status: todo
+status: done
+started_at: 2026-05-27
+done_at: 2026-05-27
+merged: true
+merged_at: 2026-05-28
 estimate: S
 depends_on: []
 integration_base: integration/users-suite
-refined: false
+refined: true
+refined_at: 2026-05-27
+refined_specialists: [requirements, solution, qa]
+github_issue: 151
+github_pr: 152
 origin: punch-list
 ---
 
@@ -66,3 +74,17 @@ This story does two things:
 - The network is *external* so neither compose project owns its lifecycle — tearing down either project must not drop the network. Operators clean it up manually when retiring the dev stack entirely.
 - Keep the `KEYCLOAK_SMTP_HOST=mailpit` default; production env vars still override it. The shared network makes the dev default actually true.
 - pgAdmin and the legacy MSSQL also benefit from being on `alpenflight_shared` if a future story containerizes the legacy or new server — they need to reach Mailpit by service DNS too. Adding all four to the network now is cheap.
+
+<!-- modernize-refine: start -->
+
+## Cross-story contracts (produced for S-174 and future infra consumers)
+
+- **Network:** external bridge `alpenflight_shared`. No compose project owns its lifecycle; `alpenflight/ops/lib/shared-network.sh` carries the canonical `ensure_shared_network` / `require_shared_network` helpers.
+- **Project + profile:** `alpenflight-infra` (`profiles: [infra]`). Mailpit today; future infra services join the same project + profile + network.
+- **Script chain:** `dev-up-infra.sh` → `e2e/scripts/dev-up.sh` → `e2e/scripts/seed.sh` → `dev-up-alpenflight.sh` (chained with `&&` in the orchestrator). `dev-up-alpenflight.sh` and `rebuild-keycloak.sh` fail fast on missing network; `e2e/scripts/dev-up.sh` also pre-flights Mailpit on host:8025 before mutating MSSQL state.
+- **Mailpit:** host `127.0.0.1:1025` (SMTP) + `127.0.0.1:8025` (HTTP); in-network DNS `mailpit:1025` / `mailpit:8025`.
+- **Tear-down ordering:** target → legacy → infra. `docker network rm alpenflight_shared` is manual, only when retiring the stack entirely.
+
+Performance / Security: N/A — pure devops, no schema, no auth surface. ADR 0022 directive 2 N/A. Downstream contract validation is S-174's real-IdP e2e harness; CI here covers static lint + the shared-network round-trip smoke.
+
+<!-- modernize-refine: end -->

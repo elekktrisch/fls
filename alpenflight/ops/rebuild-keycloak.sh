@@ -22,9 +22,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 COMPOSE_FILE="${REPO_ROOT}/docker-compose.yml"
 PROJECT="alpenflight-dev"
 
+# shellcheck source=lib/shared-network.sh
+source "${SCRIPT_DIR}/lib/shared-network.sh"
+
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 
 cd "${REPO_ROOT}"
+
+require_shared_network
 
 log "Stopping keycloak + dropping H2 volume"
 docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v keycloak
@@ -35,9 +40,8 @@ docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" build keycloak
 log "Starting keycloak"
 docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" up -d --wait --wait-timeout 120 keycloak
 
+printf '\033[1;32m==> Keycloak ready\033[0m\n'
 cat <<INFO
-
-\033[1;32m==> Keycloak ready\033[0m
 
   Admin console     http://localhost:8090  (admin / admin)
   Realm discovery   http://localhost:8090/realms/alpenflight/.well-known/openid-configuration

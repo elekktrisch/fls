@@ -19,10 +19,14 @@ The `alpenflight` Keycloak realm: committed source-of-truth, baked into a custom
 ## Bring up
 
 ```bash
-# Standard: brings everything up via the wrapper.
+# Standard: everything (infra + legacy + new + seed + flyway) in one shot.
 bash alpenflight/ops/dev-up-full.sh
 
-# Or just Keycloak:
+# Or any slice:
+bash alpenflight/ops/dev-up-infra.sh           # shared network + mailpit (required for verify-email)
+bash alpenflight/ops/dev-up-alpenflight.sh     # postgres + pgadmin + keycloak + flyway
+
+# Or just Keycloak (assumes infra is already up):
 docker compose -p alpenflight-dev up -d --wait keycloak
 
 # Verify the realm is live:
@@ -30,13 +34,18 @@ curl -sS http://localhost:8090/realms/alpenflight/.well-known/openid-configurati
 # → "http://localhost:8090/realms/alpenflight"
 ```
 
+Keycloak attaches to the external `alpenflight_shared` network and reaches
+Mailpit by service-DNS (`KEYCLOAK_SMTP_HOST=mailpit`). Bring infra up before
+Keycloak — `dev-up-alpenflight.sh` fails fast if the shared network is
+missing.
+
 After editing `realm-export.json` or anything under `themes/`, rebuild the image:
 
 ```bash
 bash alpenflight/ops/rebuild-keycloak.sh
 ```
 
-(equivalent to `docker compose -p alpenflight-dev down -v keycloak && build keycloak && up -d --wait keycloak` — the `down -v` is load-bearing; without dropping the H2 volume Keycloak's default IGNORE_EXISTING import strategy silently preserves the old realm.)
+(equivalent to `docker compose -p alpenflight-dev down -v keycloak && build keycloak && up -d --wait keycloak` — the `down -v` is load-bearing; without dropping the H2 volume Keycloak's default IGNORE_EXISTING import strategy silently preserves the old realm. The script also pre-flights `alpenflight_shared`.)
 
 ## What's seeded
 
@@ -81,6 +90,8 @@ A realm-default client scope named `clubId` projects the `clubId` user-attribute
 | Management / health | `http://localhost:9090/health/ready` | `http://keycloak:9000/health/ready` |
 
 The published issuer (`KC_HOSTNAME_URL`) is host-side: every token's `iss` claim is `http://localhost:8090/realms/alpenflight`, even when minted via the compose-internal listener.
+
+**Cross-project DNS:** Keycloak runs under `-p alpenflight-dev` but reaches Mailpit under `-p alpenflight-infra` because both attach to the external bridge network `alpenflight_shared`. `KEYCLOAK_SMTP_HOST=mailpit` resolves to the Mailpit container by service-DNS. The network is `external: true` — `dev-up-infra.sh` creates it idempotently and operators clean it up manually (`docker network rm alpenflight_shared`) when retiring the dev stack. Tear-down order: `alpenflight-dev` → `fls-e2e` → `alpenflight-infra`. See `alpenflight/ops/README.md`.
 
 **Gotcha for S-020:** Spring Security 7's `spring.security.oauth2.resourceserver.jwt.issuer-uri` does a discovery call AND validates the discovered `issuer` matches the configured URL. From inside the compose network, `issuer-uri=http://localhost:8090/...` is unreachable; `issuer-uri=http://keycloak:8080/...` succeeds at discovery but mismatches `iss`. Use the split config — `jwk-set-uri=http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs` (network) + `issuer-uri=http://localhost:8090/realms/alpenflight` for the `iss` validator (or `NimbusJwtDecoder` with explicit JWKS URI + a custom `OAuth2TokenValidator`).
 
