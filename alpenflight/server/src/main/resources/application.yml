@@ -22,6 +22,12 @@ spring:
     schemas: public
     default-schema: public
     table: flyway_schema_history
+    placeholders:
+      # S-137 V14 backfill: the operator Deployment owns every pre-existing
+      # Club. Prod must set ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB; the migration
+      # fails loud if unset. application-dev.yml + application-test.yml
+      # carry a sentinel default so local dev + CI tests don't need the env.
+      alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB}
   jpa:
     # No JPA starter on the classpath yet — this is a no-op until S-012, but
     # locks the invariant so Hibernate session boundaries are correct when JPA
@@ -92,8 +98,27 @@ audit:
           - clubKey
           - countryId
           - clubStateId
+          - deploymentId
           - publicRegistrationEnabled
           - deletedOn
+      Deployment:
+        # S-137 lifecycle audit emission. The before/after snapshot is a
+        # LifecycleSnapshot record (lifecycleState + plan) — the policy is
+        # keyed by entityType="Deployment" and the redactor walks the
+        # snapshot's field names. The Deployment @Entity itself never
+        # serialises into an audit row directly; the @AuditRedact-annotated
+        # fields (name, ownerKeycloakSub, billingCustomerId,
+        # billingSubscriptionId) cover the AuditRedactionCoverageTest
+        # ArchUnit scan that walks the @Entity's fields.
+        allow:
+          - id
+          - lifecycleState
+          - plan
+          - trialStartedAt
+          - createdOn
+          - modifiedOn
+          - version
+          - domainEvents
       Location:
         # Lists both DTO field names and entity field names — see Club above.
         allow:

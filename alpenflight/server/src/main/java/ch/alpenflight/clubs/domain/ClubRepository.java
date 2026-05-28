@@ -29,6 +29,18 @@ public interface ClubRepository {
     /** True iff an active club other than {@code excludeId} exists with the given slug. */
     boolean existsBySlugExcluding(String slug, UUID excludeId);
 
+    /**
+     * Returns the ids of every Club under {@code deploymentId}, ordered by
+     * id (deterministic for partial-failure resumption per the Performance
+     * plan). Drives {@code DeploymentContext.forEachClub}; the per-Club
+     * row load runs under that Club's tenant scope.
+     *
+     * <p>Projection-only — never eager-loads the Club aggregate. Tenant
+     * scoping happens later in the iteration, after the caller switches
+     * to each Club's own context.
+     */
+    List<UUID> findIdsByDeploymentId(UUID deploymentId);
+
     /** Persist (insert or update). Returns the managed entity. */
     Club save(Club club);
 }
