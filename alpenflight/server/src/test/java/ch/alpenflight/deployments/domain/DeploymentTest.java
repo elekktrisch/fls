@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -128,7 +127,11 @@ class DeploymentTest {
         return Stream.of(LifecycleState.values())
                 .filter(s -> s != LifecycleState.SANDBOX)
                 .flatMap(from -> Stream.of(LifecycleState.values())
-                        .filter(to -> to != LifecycleState.SANDBOX)
+                        // TRIAL + SANDBOX are unreachable as targets (TRIAL is only
+                        // reached via startTrial, SANDBOX only via the Flyway seed).
+                        // applyTransition() refuses them; transitionByAdmin asserts
+                        // the same in its own dedicated tests below.
+                        .filter(to -> to != LifecycleState.SANDBOX && to != LifecycleState.TRIAL)
                         .filter(to -> from != to)
                         .filter(to -> !LEGAL_PAIRS.contains(List.of(from, to)))
                         .map(to -> Arguments.of(from, to)));
@@ -136,8 +139,33 @@ class DeploymentTest {
 
     static Stream<Arguments> allTargets() {
         return Stream.of(LifecycleState.values())
-                .filter(s -> s != LifecycleState.SANDBOX)
+                .filter(s -> s != LifecycleState.SANDBOX && s != LifecycleState.TRIAL)
                 .map(Arguments::of);
+    }
+
+    @Test
+    void transitionByAdmin_rejects_trial_target() {
+        Deployment deployment = inState(LifecycleState.ACTIVE);
+        assertThatThrownBy(() -> deployment.transitionByAdmin(LifecycleState.TRIAL, FIXED))
+                .isInstanceOf(IllegalLifecycleTransitionException.class);
+    }
+
+    @Test
+    void transitionByAdmin_rejects_sandbox_target() {
+        Deployment deployment = inState(LifecycleState.ACTIVE);
+        assertThatThrownBy(() -> deployment.transitionByAdmin(LifecycleState.SANDBOX, FIXED))
+                .isInstanceOf(IllegalLifecycleTransitionException.class);
+    }
+
+    @Test
+    void recoverFromDeletion_only_from_deleting() {
+        Deployment cancelled = inState(LifecycleState.CANCELLED);
+        assertThatThrownBy(() -> cancelled.recoverFromDeletion(FIXED))
+                .isInstanceOf(IllegalLifecycleTransitionException.class);
+
+        Deployment deleting = inState(LifecycleState.DELETING);
+        deleting.recoverFromDeletion(FIXED);
+        assertThat(deleting.getLifecycleState()).isEqualTo(LifecycleState.CANCELLED);
     }
 
     private static Deployment inState(LifecycleState target) {
