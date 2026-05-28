@@ -59,17 +59,40 @@ e2e/
     ├── *.spec.ts                   mock-auth specs (chromium project)
     ├── public/signup.spec.ts       SPA-side signup wiring (mock-auth)
     └── real-idp/
-        ├── setup.ts                pre-flight probes + e2e-occupied provision
-        ├── global-teardown.ts      e2e-* sweep (safety net for SIGKILL)
-        ├── register.spec.ts        happy + password-policy + email-in-use
-        ├── login.spec.ts           happy + wrong-pw + logout/re-login + locale
-        ├── google-redirect.spec.ts unconditional accounts.google.com smoke
+        ├── setup.ts                  pre-flight probes + e2e-occupied provision
+        ├── global-teardown.ts        e2e-* sweep + accessTokenLifespan restore
+        ├── register.spec.ts          happy + password-policy + email-in-use
+        ├── login.spec.ts             happy + wrong-pw + logout/re-login + locale
+        ├── google-redirect.spec.ts   unconditional accounts.google.com smoke
+        ├── token-lifecycle.spec.ts   silent refresh + multi-tab + hard 401 + Bearer scoping
+        ├── public-routes.spec.ts     anonymous nav stays public, no /api/v1/* calls
         └── _helpers/
-            ├── keycloak-admin.ts   token cache + cleanup-predicate guard
-            ├── mailpit-client.ts   poll + verify-link extraction
-            ├── test-user.ts        UUID email factory + canned password
-            └── probes.ts           the four HTTP probes
+            ├── keycloak-admin.ts     token cache + cleanup guard + realm/user mutation HOFs
+            ├── mailpit-client.ts     poll + verify-link extraction
+            ├── test-user.ts          UUID email factory + canned password
+            └── probes.ts             the four HTTP probes
 ```
+
+## Realm-mutating specs (S-175)
+
+The token-lifecycle suite mutates `accessTokenLifespan` realm-wide to force
+silent-refresh + refresh-grant-deny inside the test window. The contract:
+
+1. **Wrap every mutation in `withRealmPatch(partial, fn)`** from
+   `_helpers/keycloak-admin.ts`. The HOF snapshots the affected keys
+   pre-patch and restores them in `finally`. Specs MUST NOT call
+   `updateRealm()` directly.
+2. **Wrap the whole describe in `test.describe.configure({ mode: 'serial' })`**.
+   On first failure, serial stops the block — protects the restore step
+   from running against a half-mutated realm in a follow-on spec.
+3. **Single-instance invariant**: real-idp runs `workers: 1` against ONE
+   alpenflight realm. Do NOT run a second nightly job, `--shard` matrix,
+   or concurrent `--project=real-idp` invocation against the same KC —
+   realm-mutating specs would interleave.
+
+The `global-teardown.ts` safety net re-fetches `accessTokenLifespan` and
+PUTs it back to the canonical 900s if drifted; covers the SIGKILL /
+wall-clock-timeout path where `withRealmPatch`'s `finally` never runs.
 
 ## Cleanup contract (real-idp only)
 
