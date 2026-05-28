@@ -2,8 +2,9 @@
 id: S-016
 title: Legacy schema-mapping library + parity oracle
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-28
+done_at: 2026-05-28
 depends_on: [S-012, S-013, S-014]
 integration_base: integration/migration
 github_issue: 157
