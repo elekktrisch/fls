@@ -11,7 +11,7 @@ import { test, expect } from '@playwright/test';
  * alpenflight/auth/README.md).
  */
 
-test('google CTA on /signup redirects to accounts.google.com', async ({ page, context }) => {
+test('google CTA on /signup redirects to accounts.google.com', async ({ page }) => {
   await page.goto('/signup');
   await expect(page.getByTestId('signup-google')).toBeVisible();
 
@@ -38,8 +38,11 @@ test('google CTA on /signup redirects to accounts.google.com', async ({ page, co
   const url = new URL(matched.url());
   expect(url.hostname).toMatch(/(^|\.)accounts\.google\.com$/);
 
-  // Stop any further navigation so the rest of the suite doesn't
-  // mistakenly drift onto a Google-owned page. Closing the context's
-  // last page does the trick; the next test gets a fresh context.
-  await context.close();
+  // Step back to the SPA so we don't end the test parked on a Google-owned
+  // page (matches the refinement security plan's `page.goBack()` contract).
+  // Playwright disposes the per-test context after the assertion anyway;
+  // this is for the operator viewing trace replay, not isolation.
+  await page.goBack().catch(() => {
+    /* Google may have already redirected; goBack is best-effort. */
+  });
 });

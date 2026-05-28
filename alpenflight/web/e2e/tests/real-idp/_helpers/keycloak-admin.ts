@@ -1,4 +1,4 @@
-import { isCleanupCandidate, E2E_CANNED_PASSWORD, type TestUser } from './test-user';
+import { isCleanupCandidate, type TestUser } from './test-user';
 
 /**
  * Minimal Keycloak Admin REST client for the real-idp suite.
@@ -21,11 +21,25 @@ import { isCleanupCandidate, E2E_CANNED_PASSWORD, type TestUser } from './test-u
 
 const ISSUER = process.env['E2E_KC_ISSUER'] ?? 'http://localhost:8090/realms/alpenflight';
 const ADMIN_CLIENT_ID = 'alpenflight-backend-admin';
+const ADMIN_CLIENT_SECRET_DEFAULT = 'alpenflight-backend-admin-dev-secret';
 const ADMIN_CLIENT_SECRET =
-  process.env['ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET'] ?? 'alpenflight-backend-admin-dev-secret';
+  process.env['ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET'] ?? ADMIN_CLIENT_SECRET_DEFAULT;
 const REALM = 'alpenflight';
 const ADMIN_BASE = ISSUER.replace(`/realms/${REALM}`, '') + `/admin/realms/${REALM}`;
 const TOKEN_ENDPOINT = `${ISSUER}/protocol/openid-connect/token`;
+
+if (
+  ADMIN_CLIENT_SECRET === ADMIN_CLIENT_SECRET_DEFAULT &&
+  !process.env['ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET']
+) {
+  // Surface the silent fallback so an operator who intended to override but
+  // typo'd the env-var name notices. Stderr so it doesn't pollute stdout.
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[real-idp] using committed dev secret for ${ADMIN_CLIENT_ID}; ` +
+      `set ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET to override.`,
+  );
+}
 
 export interface AdminUser {
   id: string;
@@ -65,8 +79,9 @@ async function mintToken(): Promise<CachedToken> {
     body,
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`admin token mint failed (${res.status}): ${text}`);
+    // Status only — KC's response body may include the realm + client id
+    // on a 400/401; not the secret, but artifact-noise we don't need.
+    throw new Error(`admin token mint failed (${res.status} ${res.statusText})`);
   }
   const payload = (await res.json()) as { access_token: string; expires_in: number };
   return {
@@ -96,6 +111,11 @@ async function adminRequest(
   // check and Keycloak hand-off without a complex token-binding handshake.
   retry = true,
 ): Promise<Response> {
+  // Defense-in-depth: every admin request re-asserts the localhost
+  // boundary. Module-scoped `ISSUER` is frozen at import time, but
+  // the explicit call here means an audit reading any single function
+  // sees the gate without having to trace the call graph back to setup.
+  assertLocalhostIssuer();
   const token = await getToken();
   const headers = new Headers(init.headers ?? {});
   headers.set('authorization', `Bearer ${token}`);
@@ -111,9 +131,7 @@ async function adminRequest(
 }
 
 export async function findUserByEmail(email: string): Promise<AdminUser | undefined> {
-  const res = await adminRequest(
-    `/users?email=${encodeURIComponent(email)}&exact=true&max=2`,
-  );
+  const res = await adminRequest(`/users?email=${encodeURIComponent(email)}&exact=true&max=2`);
   if (!res.ok) {
     throw new Error(`findUserByEmail(${email}) failed (${res.status}): ${await res.text()}`);
   }
@@ -211,7 +229,4 @@ export const _testing = {
   TOKEN_ENDPOINT,
   ADMIN_BASE,
   ISSUER,
-  // Used by setup.ts to spell the canned password into the long-lived
-  // `e2e-occupied` user without re-import.
-  cannedPassword: E2E_CANNED_PASSWORD,
 };

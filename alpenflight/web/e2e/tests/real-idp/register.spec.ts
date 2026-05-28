@@ -1,11 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 
+import { findUserByEmail, deleteUser } from './_helpers/keycloak-admin';
 import {
-  findUserByEmail,
-  deleteUser,
-} from './_helpers/keycloak-admin';
+  KC_ERROR_SELECTOR,
+  fillKcRegistration,
+  fillKcRegistrationWithPassword,
+} from './_helpers/kc-form';
 import { waitForMessage, extractVerifyLink, purgeMailpit } from './_helpers/mailpit-client';
-import { freshTestUser, E2E_OCCUPIED_EMAIL, type TestUser } from './_helpers/test-user';
+import { E2E_CANNED_PASSWORD, E2E_OCCUPIED_EMAIL, freshTestUser } from './_helpers/test-user';
 
 /**
  * S-174 — register flows against live Keycloak + Mailpit.
@@ -20,18 +22,6 @@ import { freshTestUser, E2E_OCCUPIED_EMAIL, type TestUser } from './_helpers/tes
  * Per-test afterEach deletes the registered user; globalTeardown sweeps
  * any leaks. Mailpit inbox is purged in afterEach as a courtesy.
  */
-
-async function fillKcRegistration(page: Page, user: TestUser): Promise<void> {
-  // Keycloak's stock keycloak.v2 registration form. The field IDs are
-  // stable across themes (S-171 only changes CSS); no `data-testid`
-  // available on KC-hosted pages.
-  await page.locator('#firstName').fill(user.firstName);
-  await page.locator('#lastName').fill(user.lastName);
-  await page.locator('#email').fill(user.email);
-  await page.locator('#password').fill(user.password);
-  await page.locator('#password-confirm').fill(user.password);
-  await page.locator('input[type="submit"], button[type="submit"]').click();
-}
 
 async function startRegistration(page: Page): Promise<void> {
   // SPA → KC: /signup CTA invokes oidcSecurity.authorize({ prompt: 'create' }).
@@ -58,10 +48,13 @@ test.describe('register — real-idp', () => {
 
   test('happy path — register, verify via Mailpit, land on /migrate/start', async ({ page }) => {
     const user = freshTestUser();
-    cleanupEmails.push(user.email);
 
     await startRegistration(page);
     await fillKcRegistration(page, user);
+    // Push onto cleanup only after submit — if KC fails inline before
+    // persistence there's nothing to delete (cheap optimization for the
+    // happy-path which always persists).
+    cleanupEmails.push(user.email);
 
     // KC drops the user on its post-registration "verify-email required"
     // page. The exact URL varies (`/login-actions/required-action?...`);
@@ -78,24 +71,17 @@ test.describe('register — real-idp', () => {
 
   test('password-policy reject — short password stays on KC form', async ({ page }) => {
     const user = freshTestUser();
+    // KC validates the policy before persistence, so cleanup-on-fail is
+    // a no-op; we push anyway in case a future KC build flips that
+    // ordering. Cheaper than a leaked test user.
     cleanupEmails.push(user.email);
 
     await startRegistration(page);
-    await page.locator('#firstName').fill(user.firstName);
-    await page.locator('#lastName').fill(user.lastName);
-    await page.locator('#email').fill(user.email);
-    await page.locator('#password').fill('short');
-    await page.locator('#password-confirm').fill('short');
-    await page.locator('input[type="submit"], button[type="submit"]').click();
+    await fillKcRegistrationWithPassword(page, user, 'short');
 
     // KC re-renders the same registration page with an inline error.
-    // PF5 v5 error class (per S-171's theme assertion shape). URL must
-    // still match `/realms/alpenflight/login-actions/registration`.
     await expect(page).toHaveURL(/\/realms\/alpenflight\/login-actions\/registration/);
-    const errorRegion = page.locator(
-      '.pf-v5-c-form__helper-text, .pf-v5-c-helper-text__item-text, .alert-error, #input-error',
-    );
-    await expect(errorRegion.first()).toBeVisible();
+    await expect(page.locator(KC_ERROR_SELECTOR).first()).toBeVisible();
   });
 
   test('email-in-use reject — registering occupied address triggers KC error', async ({ page }) => {
@@ -104,15 +90,12 @@ test.describe('register — real-idp', () => {
     await startRegistration(page);
     await fillKcRegistration(page, {
       email: E2E_OCCUPIED_EMAIL,
-      password: 'E2eTest-2026!',
+      password: E2E_CANNED_PASSWORD,
       firstName: 'E2e',
       lastName: 'Duplicate',
     });
 
     await expect(page).toHaveURL(/\/realms\/alpenflight\/login-actions\/registration/);
-    const errorRegion = page.locator(
-      '.pf-v5-c-form__helper-text, .pf-v5-c-helper-text__item-text, .alert-error, #input-error',
-    );
-    await expect(errorRegion.first()).toBeVisible();
+    await expect(page.locator(KC_ERROR_SELECTOR).first()).toBeVisible();
   });
 });

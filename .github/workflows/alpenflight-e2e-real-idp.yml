@@ -122,6 +122,10 @@ jobs:
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
           SPRING_PROFILES_ACTIVE: dev
+          # Pin log level so request-body / payload logging can't leak the
+          # canned dev password into the uploaded backend.log artifact. The
+          # `dev` Spring profile must not log payloads at INFO either.
+          LOGGING_LEVEL_ROOT: INFO
         run: |
           nohup java -jar build/libs/server-*.jar > backend.log 2>&1 &
           echo "$!" > backend.pid

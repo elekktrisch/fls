@@ -10,8 +10,7 @@ import { findUserByEmail, _testing } from './keycloak-admin';
  * the right thing without paging through the full stack.
  */
 
-const BACKEND_HEALTH =
-  process.env['E2E_BACKEND_HEALTH'] ?? 'http://localhost:8080/actuator/health';
+const BACKEND_HEALTH = process.env['E2E_BACKEND_HEALTH'] ?? 'http://localhost:8080/actuator/health';
 
 export interface ProbeResult {
   ok: boolean;
@@ -24,7 +23,10 @@ export async function probeKeycloakDiscovery(): Promise<ProbeResult> {
     if (!res.ok) return { ok: false, detail: `HTTP ${res.status}` };
     const doc = (await res.json()) as { issuer?: string };
     if (doc.issuer !== _testing.ISSUER) {
-      return { ok: false, detail: `iss mismatch: doc='${doc.issuer}', expected='${_testing.ISSUER}'` };
+      return {
+        ok: false,
+        detail: `iss mismatch: doc='${doc.issuer}', expected='${_testing.ISSUER}'`,
+      };
     }
     return { ok: true };
   } catch (err) {
@@ -54,10 +56,19 @@ export async function probeBackendHealth(): Promise<ProbeResult> {
 export async function probeSeedUser(): Promise<ProbeResult> {
   try {
     const user = await findUserByEmail('pilot1@example.com');
-    if (!user) return { ok: false, detail: 'seed user pilot1@example.com not found in realm' };
+    if (!user) {
+      return {
+        ok: false,
+        detail:
+          'seed user pilot1@example.com not present in realm (admin REST reachable; user missing)',
+      };
+    }
     return { ok: true };
   } catch (err) {
-    return { ok: false, detail: (err as Error).message };
+    // findUserByEmail throws on token mint failure, network error, or
+    // non-OK admin response. Tag the surface so an operator sees
+    // "admin REST failed" vs. "user missing".
+    return { ok: false, detail: `admin REST call failed: ${(err as Error).message}` };
   }
 }
 
@@ -68,9 +79,13 @@ export async function runProbes(): Promise<{ ok: boolean; failures: string[] }> 
     ['backend /actuator/health', probeBackendHealth],
     ['admin API + seed pilot1', probeSeedUser],
   ];
+  // Parallelize: a 10s discovery timeout shouldn't add to backend's wait.
+  // Each `run()` already swallows its own error to a ProbeResult.
+  const results = await Promise.all(
+    probes.map(async ([name, run]) => [name, await run()] as const),
+  );
   const failures: string[] = [];
-  for (const [name, run] of probes) {
-    const result = await run();
+  for (const [name, result] of results) {
     if (!result.ok) failures.push(`  ✗ ${name}: ${result.detail}`);
   }
   return { ok: failures.length === 0, failures };

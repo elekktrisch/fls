@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 
+import { assertLocalhostIssuer, _testing as kcAdmin } from './_helpers/keycloak-admin';
+import { KC_ERROR_SELECTOR, fillKcLogin } from './_helpers/kc-form';
+
 /**
  * S-174 — login flows against live Keycloak.
  *
@@ -23,13 +26,6 @@ async function startLogin(page: Page, path = '/'): Promise<void> {
   // Landing page sign-in CTA; routes through OidcSecurityService.authorize.
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
-}
-
-async function fillKcLogin(page: Page, username: string, password: string): Promise<void> {
-  // Stock keycloak.v2 login form — stable across the S-171 visual theme.
-  await page.locator('#username').fill(username);
-  await page.locator('#password').fill(password);
-  await page.locator('input[type="submit"], button[type="submit"]').click();
 }
 
 test.describe('login — real-idp', () => {
@@ -57,13 +53,13 @@ test.describe('login — real-idp', () => {
 
     // Stays on the KC login URL with an inline error.
     await expect(page).toHaveURL(/\/realms\/alpenflight\/login-actions\/authenticate/);
-    const errorRegion = page.locator(
-      '.pf-v5-c-form__helper-text, .pf-v5-c-helper-text__item-text, .alert-error, #input-error',
-    );
-    await expect(errorRegion.first()).toBeVisible();
+    await expect(page.locator(KC_ERROR_SELECTOR).first()).toBeVisible();
   });
 
-  test('logout → re-login — no auto-relogin from stale refresh token', async ({ page, context }) => {
+  test('logout → re-login — no auto-relogin from stale refresh token', async ({
+    page,
+    context,
+  }) => {
     await startLogin(page);
     await fillKcLogin(page, SEED_USER, SEED_PASSWORD);
     await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
@@ -71,12 +67,11 @@ test.describe('login — real-idp', () => {
     // RP-initiated logout via the SPA route owned by S-021's
     // oidc-session-bridge. The route triggers KC's end_session_endpoint.
     await page.goto('/auth/logout');
-    // After logout the user lands on a public route. Wait for either
-    // the landing page or an /auth/* terminal state.
-    await page.waitForURL(
-      (url) => !url.pathname.startsWith('/realms/') && url.pathname !== '/auth/logout',
-      { timeout: 30_000 },
-    );
+    // Positive assertion: landing-topbar-sign-in is the unauthed-chrome
+    // marker. Surfacing it means the SPA reached an idle public state,
+    // not just that the URL stopped being /auth/logout.
+    await page.waitForURL((url) => !url.pathname.startsWith('/realms/'));
+    await expect(page.getByTestId('landing-topbar-sign-in')).toBeVisible();
 
     // Belt-and-braces: explicitly clear cookies so any stale KC SSO
     // cookie can't auto-resume the session.
@@ -99,14 +94,21 @@ test.describe('login — real-idp', () => {
     // and hit KC directly with `kc_locale=fr`. This exercises the
     // parent message-bundle fallthrough that S-171's check-theme-load.sh
     // validates locally; mock-auth can't.
-    const issuer = process.env['E2E_KC_ISSUER'] ?? 'http://localhost:8090/realms/alpenflight';
+    //
+    // Issuer comes from the same module-scoped constant the admin helper
+    // uses, so the localhost-issuer boundary is single-sourced. client_id
+    // + redirect_uri match what the realm-export registers for
+    // alpenflight-web (the SPA's public client, per
+    // alpenflight/auth/README.md § Clients).
+    assertLocalhostIssuer();
+    const baseUrl = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
     const authorize =
-      `${issuer}/protocol/openid-connect/auth?` +
+      `${kcAdmin.ISSUER}/protocol/openid-connect/auth?` +
       new URLSearchParams({
         client_id: 'alpenflight-web',
         response_type: 'code',
         scope: 'openid',
-        redirect_uri: `${process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201'}/`,
+        redirect_uri: `${baseUrl}/`,
         state: 'locale-smoke',
         kc_locale: 'fr',
       }).toString();
