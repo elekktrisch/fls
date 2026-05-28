@@ -5,6 +5,8 @@ epic: E-13
 status: done
 started_at: 2026-05-28
 done_at: 2026-05-28
+merged: true
+merged_at: 2026-05-28
 estimate: M
 depends_on: [S-174]
 integration_base: integration/users-suite
