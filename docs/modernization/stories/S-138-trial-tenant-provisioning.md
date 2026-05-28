@@ -105,3 +105,38 @@ See frontmatter.
 (N/A — provisioning is one-time per ingest at operator scale; no hot path, no streaming, no N+1. KC admin calls in Phase B are 4 sequential round-trips per Club worst case (group-create or reuse, user-add, role-create, role-assign) — acceptable inside the 15-min ingest budget. Batching deferred to S-141's retry job design.)
 
 <!-- modernize-refine: end -->
+
+## Pickup notes (2026-05-28, mid-implement)
+
+Skeleton landed on this branch (`story/S-138-trial-tenant-provisioning`); none of it has shipped to draft PR yet (Path B: first push waits for backend slice green).
+
+**What's written so far:**
+- `tenancy.provisioning.ProvisioningRequest` / `ClubSpec` / `ProvisioningResult` / `DeploymentExistsException` — standalone DTOs + exception.
+- `tenancy.provisioning.DeploymentProvisioningService` — target service shape with `provision` + `reconcileKeycloak` methods. **Does not compile** — references several APIs that need to land first.
+
+**What the service requires that doesn't exist yet (write these in order):**
+
+1. **V15 Flyway migration:** add `t_deployment.idempotency_key UUID UNIQUE` + `t_deployment.kc_state VARCHAR(16) NOT NULL DEFAULT 'pending'` (values `pending` / `ready`). UNIQUE on idempotency_key closes the retry race structurally. Keep it nullable in code — backfill column with a generated UUID per existing operator/sandbox row OR mark them `ready`.
+2. **`DeploymentRepository.findByIdempotencyKey(UUID)`** + **`findActiveByOwner(UUID)`** (queries by `owner_keycloak_sub` filtered to non-terminal lifecycle states — leverages `ux_deployment_owner_active`).
+3. **`Deployment.bindIdempotencyKey(UUID)`** + **`Deployment.isKeycloakPending()`** + **`Deployment.markKeycloakReady()`** — fields + accessors. `bindIdempotencyKey` is immutable-after-startTrial; final.
+4. **`ClubRepository.findIdsByDeploymentId(UUID)`** — single-column projection.
+5. **`tenancy.provisioning.ReferenceDataSeeder`** — JdbcTemplate-driven inserts of MemberState (active/passive/junior), FlightType (training/glider-tow/private/ferry), FlightCostBalanceType (flight-hour/landing/tow) defaults per Club, with `ON CONFLICT (club_id, code) DO NOTHING`. May need schema additions for `code` columns + UNIQUE indexes if they don't exist on each ref-data table — verify before writing the seeder.
+6. **`tenancy.provisioning.KeycloakDeploymentReconciler`** — Phase B logic: KC group `deployment-{id}` create-or-reuse, per-Club realm role `deployment-{id}-club-{cid}-admin` create-and-assign, user-add to group, user-attribute `clubId` set to primary Club. On any KC failure: catch + leave `kc_state=pending` (S-141's hourly job retries via `reconcileKeycloak`).
+7. **Extend `KeycloakAdminClient`** (`users/infra/keycloak/`) with: `findGroupByName`, `createGroup`, `addUserToGroup`, `findRealmRoleByName`, `createRealmRole`, `setUserAttribute(sub, key, value)`. Each idempotent.
+8. **Realm-export update:** add `manage-groups` + `manage-realm` to the `alpenflight-backend-admin` service-account role mappings. Update `alpenflight/auth/realm-export.json` + run `check-realm-shape.sh` locally.
+9. **ArchUnit:** extend the null-tenant write whitelist (S-141 owns `MigrationIngestTenantContext`; for now whitelist `tenancy.provisioning.*` directly + revisit when S-141 lands).
+10. **Exception handler** — `@RestControllerAdvice` for `DeploymentExistsException` → 409 with `{code, deployment_id, deployment_name, lifecycle_state, club_ids}`. The body shape is needed by the SPA's "go to your existing tenant" CTA.
+11. **Tests:**
+    - Unit: provisioning policy + KC naming + ref-data merge + 409 decision + audit-payload shape (~12).
+    - IT (extend `PostgresIntegrationTest`): happy N-Club, ref-data ON CONFLICT, 409 decision tree (`{TRIAL, ACTIVE, PAST_DUE, CANCELLED}` blocked; `{SANDBOX, DELETING}` exempt), KC Phase B failure → `kc_state=pending`, idempotency by `migration_run.id`, audit completeness, cross-tenant leakage (S-024 extension).
+12. **Test-profile trigger endpoint** (`@Profile("test")` only) — POST `/api/v1/internal/migrations/{idempotencyKey}/provision` accepting `{deploymentName, clubs:[…], primaryClubId?}`. Returns the structured ProvisioningResult. S-141 reuses the same controller surface from its bundle ingest flow.
+13. **SPA wire:** on provisioning response, call `OidcSecurityService.forceRefreshSession()` (S-021 wrapper); on `kc_pending=true`, show "finishing setup…" + poll `/me` every 2 s until the `clubId` claim matches `primaryClubId`. Lands on `/dashboard`.
+14. **Playwright e2e** — `e2e/tests/migration/trial-provisioning.spec.ts` (greenfield, no parity oracle). Happy 2-Club path + duplicate-ingest 409 surfacing the CTA.
+
+**Operator's scope choice (2026-05-28):** Backend + IT + thin internal trigger (option B from the implement-session check-in). Frontend slice can ship in this PR; full ingest pipeline integration is S-141's.
+
+**Branch state:** local-only commits on `story/S-138-trial-tenant-provisioning`:
+1. `#162: start (status: in_progress)`
+2. (skeleton commit if you commit the in-progress files as a checkpoint)
+
+**Don't push** until the backend slice compiles + at least one IT goes green (Path B). Drop a draft PR at that point with `Closes #162`.
