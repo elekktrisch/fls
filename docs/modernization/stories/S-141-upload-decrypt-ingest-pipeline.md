@@ -3,7 +3,7 @@ id: S-141
 title: Encrypted-bundle upload + streaming decrypt + ingest pipeline
 epic: E-15
 status: todo
-depends_on: [S-016, S-138, S-140]
+depends_on: [S-016, S-138, S-140, S-183]
 acceptance:
   - `POST /api/v1/migrations/{uploadId}/bundle` (authenticated, `Content-Type: application/octet-stream`, streaming upload) accepts an encrypted bundle in the format defined by ADR 0019. Max body size 2 GB (vision §2 NFR). 413 on oversize.
   - Endpoint streams the upload directly into the decrypt pipeline: header parse → unwrap session key with the per-upload private key (S-140) → AES-GCM-decrypt the archive stream → tar-extract per-entity NDJSON streams → call S-016's schema-mapping ingest function per entity stream → commit-on-success.

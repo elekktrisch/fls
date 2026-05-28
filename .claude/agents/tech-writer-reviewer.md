@@ -28,15 +28,19 @@ Read-only.
 
 ## Comment quality — flag
 
+**Default question before reading the comment's content:** could a rename, an extracted type, or an extracted method have carried this meaning without prose? If yes, the comment is a naming bug — flag it as an improvement and suggest the structural fix (the rename / extraction) rather than asking the implementer to rewrite the comment. The prevailing failure mode in this codebase is too many comments, not too few; be aggressive about cutting.
+
 1. **Restating WHAT.** `// increment counter` on `counter++`. Code says it.
 2. **Paraphrasing function name.** `/** Loads a flight by ID. */` on `loadFlightById(...)`. Signature is the docstring.
-3. **Ephemeral references.** `// added for #42` / `// see PR comment from Bob` / `// fixes the bug from standup`. Belong in commit / PR body, not code.
-4. **Commented-out code.** Usually: delete. Source control remembers. Rare exception (revisit-test) needs a one-line TODO + story / issue ID.
-5. **Restating obvious framework behavior.** `// Spring injects this` / `// JPA persists on save`.
-6. **"Special case" without the case.** `// special case for legacy users` — what about them? Worth-keeping comments say WHY a non-obvious thing is non-obvious.
-7. **Contradicting the code.** Documented behavior the implementation no longer matches. Hardest to detect; needs reading code against comment.
+3. **Comment compensates for a vague name.** `/** Returns YES/NO/UNKNOWN... */` on `boolToEnumTag(...)` — the WHAT lives in the method name; rename to `bitToTriStateTag` and the comment vanishes.
+4. **Ephemeral references.** `// added for #42` / `// see PR comment from Bob` / `// fixes the bug from standup`. Belong in commit / PR body, not code.
+5. **Commented-out code.** Usually: delete. Source control remembers. Rare exception (revisit-test) needs a one-line TODO + story / issue ID.
+6. **Restating obvious framework behavior.** `// Spring injects this` / `// JPA persists on save`.
+7. **"Special case" without the case.** `// special case for legacy users` — what about them? Worth-keeping comments say WHY a non-obvious thing is non-obvious.
+8. **Contradicting the code.** Documented behavior the implementation no longer matches. Hardest to detect; needs reading code against comment.
+9. **Class-level javadoc longer than 3 short lines.** Usually the class has two responsibilities; split it. Length of contract description is a cohesion signal — flag the cohesion gap, not the prose.
 
-Comments that **earn keep** (don't flag): hidden invariants the signature doesn't show; workarounds for specific bugs in named library/framework/OS (with version cited); regulatory / sacred-cow constraints; one-line ADR pointers (`// See ADR 0019`).
+Comments that **earn keep** (don't flag): hidden invariants the signature can't express; workarounds for specific bugs in named library/framework/OS (with version cited); regulatory / sacred-cow constraints; one-line ADR pointers (`// See ADR 0019`); contract for a method whose return shape isn't fully expressible in the type system (e.g. why the SELECT returns two columns when one would seem to suffice).
 
 ## Doc consistency — flag
 
@@ -55,6 +59,7 @@ Comments that **earn keep** (don't flag): hidden invariants the signature doesn'
 5. **Intent-hiding expressions.** Long boolean on one line where extracting two predicates (`isLockedOut(user)`, `requiresEmailVerification(user)`) would read like a sentence.
 6. **Two-paragraph functions.** First half setup/validation, second half work, no separator. Extract; name the work.
 7. **Naming hiding intent.** `processFlight`, `helper2`, `doIt`. (Overlaps maintainability-reviewer — coordinate via synthesis; drop yours if they flagged it.)
+8. **Abbreviations + acronyms.** `tempFoo`, `cfgBar`, `usrMgr`, `procFlt` — spell words out. Industry-canonical only (`id` / `uuid` / `sql` / `http` / `json` / `dto` / `url`); domain-invented abbreviations get the full form. Multi-word acronyms in identifiers use title-case (`xmlParser`, not `XMLParser`). Drop yours if maintainability-reviewer flagged it.
 8. **Asymmetric error handling.** Catch+log+return-null one branch, catch+rethrow another, same exception class.
 
 ## Don't flag
