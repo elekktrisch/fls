@@ -2,7 +2,8 @@
 id: S-175
 title: Playwright e2e — real-IdP token lifecycle (silent refresh, multi-tab logout, hard 401, Bearer scoping)
 epic: E-13
-status: todo
+status: in_progress
+started_at: 2026-05-28
 estimate: M
 depends_on: [S-174]
 integration_base: integration/users-suite
