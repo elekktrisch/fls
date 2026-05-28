@@ -2,7 +2,9 @@
 id: S-138
 title: Trial-Deployment provisioning on first successful ingest
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-05-28
+github_issue: 162
 depends_on: [S-134, S-137]
 integration_base: integration/migration
 acceptance:
