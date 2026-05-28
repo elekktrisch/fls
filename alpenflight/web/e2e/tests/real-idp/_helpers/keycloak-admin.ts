@@ -7,8 +7,9 @@ import { isCleanupCandidate, type TestUser } from './test-user';
  * client-credentials grant against the realm-local token endpoint
  * (`/realms/alpenflight/protocol/openid-connect/token`, NOT `/realms/master`
  * — the service account lives in `alpenflight`). Service-account roles are
- * scoped to `manage-users` + `view-users` + `query-users` on
- * `realm-management` only (per S-019); never `manage-realm` / `manage-clients`.
+ * scoped to `manage-realm` + `manage-users` + `view-users` + `query-users`
+ * on `realm-management` only (S-019 base + S-175 `manage-realm` for
+ * accessTokenLifespan mutation); never `manage-clients` / impersonation.
  *
  * Token caching is worker-scoped via the module-level promise — single
  * `workers: 1` for real-idp means one cached token per CI run. Refreshed
@@ -16,8 +17,31 @@ import { isCleanupCandidate, type TestUser } from './test-user';
  *
  * **Localhost guard:** assertLocalhostIssuer() must fire before any admin
  * call. The dev secret cannot run against a non-localhost issuer; the
- * guard is the security boundary for the committed dev credential.
+ * guard is the security boundary for the committed dev credential AND
+ * the boundary that bounds the S-175 `manage-realm` scope expansion to
+ * local dev + nightly CI.
  */
+
+/**
+ * Shortened `accessTokenLifespan` (seconds) used by the silent-refresh +
+ * hard-401 specs to force a token-renewal cycle inside the test window.
+ * Restored via `withRealmPatch`'s try/finally; globalTeardown sweeps drift.
+ *
+ * 30s is wide enough to absorb the SPA's `renewTimeBeforeTokenExpiresInSeconds
+ * = 60` (auth.config.ts:48) — the renewal fires immediately on login, so any
+ * lifespan above the renewal threshold collapses to the renewal interval. A
+ * value < 60 simply guarantees the renewal-already-triggered path; 30s keeps
+ * the spec deterministic without flirting with KC's minimum-lifespan rules.
+ */
+export const SHORTENED_ACCESS_TOKEN_LIFESPAN_SECONDS = 30;
+
+/**
+ * Canonical realm-default `accessTokenLifespan` (seconds). Matches the
+ * ADR 0007 + realm-export contract checked by `check-realm-shape.sh:142-147`.
+ * globalTeardown PUTs this back if a worker SIGKILL skipped `withRealmPatch`'s
+ * `finally`.
+ */
+export const CANONICAL_ACCESS_TOKEN_LIFESPAN_SECONDS = 900;
 
 const ISSUER = process.env['E2E_KC_ISSUER'] ?? 'http://localhost:8090/realms/alpenflight';
 const ADMIN_CLIENT_ID = 'alpenflight-backend-admin';
@@ -222,6 +246,136 @@ export async function sweepE2eUsers(): Promise<number> {
     }
   }
   return deleted;
+}
+
+/**
+ * Fetch the realm representation. Returns the raw JSON KC ships — callers
+ * pick the keys they need (e.g. `accessTokenLifespan`) and pass partials
+ * back through `updateRealm` / `withRealmPatch`. Never inspect outside the
+ * helper file's contract — the realm doc is large and the surface narrow.
+ */
+export async function getRealm(): Promise<Record<string, unknown>> {
+  const res = await adminRequest('');
+  if (!res.ok) {
+    throw new Error(`getRealm failed (${res.status}): ${await res.text()}`);
+  }
+  return (await res.json()) as Record<string, unknown>;
+}
+
+/**
+ * Apply a partial PUT against the realm representation. The KC Admin REST
+ * contract treats `PUT /admin/realms/{realm}` as a merge — keys NOT present
+ * in the body are left untouched. Callers should only ever route through
+ * `withRealmPatch`; this is its primitive.
+ */
+async function updateRealm(partial: Record<string, unknown>): Promise<void> {
+  const res = await adminRequest('', {
+    method: 'PUT',
+    body: JSON.stringify(partial),
+  });
+  if (!res.ok) {
+    throw new Error(`updateRealm failed (${res.status}): ${await res.text()}`);
+  }
+}
+
+let realmMutexBusy = false;
+
+/**
+ * Snapshot-apply-restore HOF for realm-policy mutation. Captures the keys
+ * named in `partial` BEFORE applying, runs `fn` with the patch live, and
+ * restores the snapshot in `finally` (even on thrown assertions). Module-
+ * scoped mutex refuses concurrent invocation — a dev-machine net; `workers:
+ * 1` makes contention impossible in CI.
+ *
+ * Restore target is the value captured at call time, NOT a hardcoded
+ * constant — protects against future ADR 0007 token-policy bumps where the
+ * canonical lifespan has drifted from 900s.
+ *
+ * Specs never call `updateRealm` directly.
+ */
+export async function withRealmPatch<T>(
+  partial: Record<string, unknown>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (realmMutexBusy) {
+    throw new Error(
+      'withRealmPatch: concurrent invocation refused. Wrap realm-mutating ' +
+        'specs in `test.describe.configure({ mode: \'serial\' })` and ensure ' +
+        'only one realm-mutating describe runs at a time.',
+    );
+  }
+  realmMutexBusy = true;
+  try {
+    const realm = await getRealm();
+    const snapshot: Record<string, unknown> = {};
+    for (const key of Object.keys(partial)) {
+      snapshot[key] = realm[key];
+    }
+    await updateRealm(partial);
+    try {
+      return await fn();
+    } finally {
+      // Restore the snapshot — keys absent in the snapshot (KC defaults)
+      // are restored as `undefined`, which KC accepts and treats as the
+      // default. Best-effort: a restore failure should not mask the
+      // original test failure but must be loud.
+      try {
+        await updateRealm(snapshot);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `withRealmPatch: restore failed — ${(err as Error).message}. ` +
+            'globalTeardown will reset accessTokenLifespan to the canonical value ' +
+            'as the safety net.',
+        );
+      }
+    }
+  } finally {
+    realmMutexBusy = false;
+  }
+}
+
+/**
+ * Toggle a user's `enabled` flag via PUT /users/{id}. Predicate-guarded
+ * (`isCleanupCandidate(emailForGuard)`) identically to `deleteUser` —
+ * seed users (`pilot1`, `clubadmin1`, `sysadmin`) cannot be disabled
+ * through this helper even by typo.
+ */
+export async function setUserEnabled(
+  userId: string,
+  enabled: boolean,
+  emailForGuard: string,
+): Promise<void> {
+  if (!isCleanupCandidate(emailForGuard)) {
+    throw new Error(
+      `cleanup-predicate violation: refusing to set enabled=${enabled} on user '${userId}' ` +
+        `with email '${emailForGuard}'. Predicate requires email.startsWith('e2e-') && ` +
+        `email.endsWith('@example.com').`,
+    );
+  }
+  const res = await adminRequest(`/users/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `setUserEnabled(${userId}, ${enabled}) failed (${res.status}): ${await res.text()}`,
+    );
+  }
+}
+
+/**
+ * Best-effort restore of `accessTokenLifespan` to the canonical value. Used
+ * by globalTeardown as the safety net for a SIGKILL'd worker that skipped
+ * `withRealmPatch`'s `finally`. Idempotent: PUTs only if the live value has
+ * drifted from canonical.
+ */
+export async function restoreCanonicalAccessTokenLifespan(): Promise<boolean> {
+  const realm = await getRealm();
+  const live = realm['accessTokenLifespan'];
+  if (live === CANONICAL_ACCESS_TOKEN_LIFESPAN_SECONDS) return false;
+  await updateRealm({ accessTokenLifespan: CANONICAL_ACCESS_TOKEN_LIFESPAN_SECONDS });
+  return true;
 }
 
 export const _testing = {
