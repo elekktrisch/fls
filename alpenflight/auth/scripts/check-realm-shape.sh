@@ -7,9 +7,11 @@
 #   - alpenflight-web is PKCE-S256 public; standardFlow only.
 #   - alpenflight-backend is bearer-only.
 #   - alpenflight-backend-admin is confidential service-accounts-only, scoped
-#     to manage-users + view-users + query-users on realm-management (NOT
-#     manage-realm / manage-clients / impersonation), with the dev-placeholder
-#     secret.
+#     to manage-realm + manage-users + view-users + query-users on
+#     realm-management (NOT manage-clients / impersonation), with the
+#     dev-placeholder secret. The localhost-issuer guard in the e2e
+#     keycloak-admin client bounds the manage-realm scope to local dev +
+#     nightly CI.
 #   - alpenflight-proffix is service-accounts-only (no interactive flows).
 #   - 7 realm roles present (SYSTEM_ADMINISTRATOR, CLUB_ADMINISTRATOR, ...).
 #   - 3 seed users (sysadmin, clubadmin1, pilot1) with expected role + clubId.
@@ -70,9 +72,11 @@ ADMIN=$(jq '.clients[] | select(.clientId=="alpenflight-backend-admin")' "$EXPOR
 [[ $(jq -r '.publicClient' <<<"$ADMIN") == "false" ]] || fail "alpenflight-backend-admin must be confidential"
 [[ $(jq -r '.secret' <<<"$ADMIN") == "alpenflight-backend-admin-dev-secret" ]] || fail "alpenflight-backend-admin must carry the dev-placeholder secret in source (rotate at deploy)"
 
-# Service-account role binding: exactly manage-users + view-users + query-users,
-# scoped to realm-management. Anything broader (manage-realm / manage-clients /
-# impersonation) makes this client a tenant-escalation surface — fail loud.
+# Service-account role binding: exactly manage-realm + manage-users +
+# view-users + query-users, scoped to realm-management. Anything broader
+# (manage-clients / impersonation) makes this client a tenant-escalation
+# surface — fail loud. Equality not subset: drift in either direction
+# fails the gate.
 ADMIN_SA_ROLES=$(jq -r '
   .users[]
   | select(.serviceAccountClientId == "alpenflight-backend-admin")
@@ -80,10 +84,10 @@ ADMIN_SA_ROLES=$(jq -r '
   | sort
   | join(",")
 ' "$EXPORT")
-EXPECTED_SA_ROLES="manage-users,query-users,view-users"
+EXPECTED_SA_ROLES="manage-realm,manage-users,query-users,view-users"
 [[ "$ADMIN_SA_ROLES" == "$EXPECTED_SA_ROLES" ]] \
   || fail "alpenflight-backend-admin realm-management role grant drifted: have [$ADMIN_SA_ROLES], want [$EXPECTED_SA_ROLES]"
-ok "alpenflight-backend-admin: confidential, service-accounts only, manage/view/query-users scope"
+ok "alpenflight-backend-admin: confidential, service-accounts only, manage-realm/manage/view/query-users scope"
 
 # --- roles ---
 EXPECTED_ROLES="CLUB_ADMINISTRATOR FLIGHT_OPERATOR GUEST OFFICE_USER PILOT SYSTEM_ADMINISTRATOR proffix-sync"
