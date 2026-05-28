@@ -2,8 +2,9 @@
 id: S-137
 title: Deployment entity + lifecycle state machine + job filter (ADR 0018)
 epic: E-15
-status: in_progress
+status: done
 started_at: 2026-05-28
+done_at: 2026-05-28
 github_issue: 159
 github_pr: 160
 depends_on: [S-048]
