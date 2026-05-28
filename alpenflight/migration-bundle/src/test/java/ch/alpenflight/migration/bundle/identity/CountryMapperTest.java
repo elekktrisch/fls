@@ -23,9 +23,12 @@ class CountryMapperTest {
     }
 
     @Test
-    void columnsArrayIsDefensivelyCopied() {
+    void columnsReturnIsCallerSafeMutation() {
         String[] first = mapper.columns();
         first[0] = "MUTATED";
-        assertThat(mapper.columns()[0]).isEqualTo("id");
+        assertThat(mapper.columns()[0])
+                .as("Mapper.columns() invariant — callers must not be able to mutate "
+                        + "the shared column list.")
+                .isEqualTo("id");
     }
 }

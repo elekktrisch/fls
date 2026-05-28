@@ -1,6 +1,5 @@
 package ch.alpenflight.migration.bundle;
 
-import java.util.Locale;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -15,16 +14,16 @@ public final class Coercions {
 
     private Coercions() { }
 
-    /** Legacy {@code bit} (boolean) → string-enum tag. {@code null} round-trips. */
-    public static @Nullable String boolToEnumTag(@Nullable Boolean value) {
+    /**
+     * Legacy {@code bit} (boolean) → tri-state enum tag {@code YES} / {@code NO} /
+     * {@code UNKNOWN}. Null input maps to {@code UNKNOWN} so a legacy nullable
+     * bit column round-trips through the S-129 string-enum encoding without
+     * losing the third state.
+     */
+    public static String boolToEnumTag(@Nullable Boolean value) {
         if (value == null) {
-            return null;
+            return "UNKNOWN";
         }
         return value ? "YES" : "NO";
-    }
-
-    /** Lowercase a non-null tag with a {@link Locale#ROOT} guarantee. */
-    public static String lowerRoot(String value) {
-        return value.toLowerCase(Locale.ROOT);
     }
 }

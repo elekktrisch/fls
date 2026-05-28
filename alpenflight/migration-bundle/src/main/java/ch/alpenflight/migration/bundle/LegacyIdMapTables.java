@@ -22,6 +22,11 @@ public final class LegacyIdMapTables {
     /**
      * Parameterised SQL that resolves a batch of legacy GUIDs to the new UUIDs via
      * the per-entity temp table. The single bind parameter is a {@code UUID[]}.
+     *
+     * <p>Returns both {@code legacy_guid} and {@code new_uuid} so the caller can
+     * map a single batched query back to its 500-item input array — Postgres
+     * does not guarantee result-row order for {@code = ANY(?)} predicates, so a
+     * single-column result would force callers to re-issue or re-order.
      */
     public static String resolveFkArrayQuery(EntityType target) {
         return "SELECT legacy_guid, new_uuid FROM "

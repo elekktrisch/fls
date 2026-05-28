@@ -10,21 +10,23 @@ package ch.alpenflight.migration.bundle;
  * Jackson {@code JsonNode} for one NDJSON line and a {@code PreparedStatement}
  * bound to the matching {@code INSERT INTO t_<entity> ...} batch.
  *
- * <p>The concrete read+write method signatures land with the follow-up story
- * (jackson + JDBC types both come in then). The skeleton interface fixes the
- * cardinality (one class per entity, both directions on that class) + the
- * shared metadata each mapper must expose: which {@link EntityType} it serves,
- * its column list, its tenant-bypass FK list.
+ * <p><strong>Skeleton contract.</strong> Only the entity-routing surface
+ * ({@link #entityType()} + {@link #columns()}) lives on the interface today.
+ * The {@code writeNdjson} + {@code readEntity} method signatures land with
+ * S-183 once Jackson + JDBC are in the dependency closure of the consumer
+ * stories; their absence here is deferred-by-design.
+ *
+ * <p><strong>Column-list invariant.</strong> {@link #columns()} returns the
+ * new-schema column names this mapper writes per row, in the order the
+ * {@code PreparedStatement} expects. Shared by both directions so
+ * {@code writeNdjson} + {@code readEntity} stay byte-aligned. Callers must not
+ * mutate the returned array; implementations defensively copy.
  */
 public interface Mapper {
 
     /** The entity this mapper serves. Drives the routing in S-139 / S-141 dispatch tables. */
     EntityType entityType();
 
-    /**
-     * New-schema column names that this mapper writes per row, in the order
-     * the {@code PreparedStatement} expects. Shared by both directions so
-     * writeNdjson + readEntity stay byte-aligned.
-     */
+    /** See class-level "Column-list invariant" — defensive-copied per the contract. */
     String[] columns();
 }

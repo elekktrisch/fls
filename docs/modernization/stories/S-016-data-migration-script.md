@@ -7,15 +7,18 @@ started_at: 2026-05-28
 depends_on: [S-012, S-013, S-014]
 integration_base: integration/migration
 github_issue: 157
+scope_split: S-183
 acceptance:
-  - `alpenflight/migration-bundle/` library provides one mapper per legacy entity cluster (~60 entity types): per-entity column lists, type coercions, FK rewrites, enum re-encodings (e.g. legacy `BOOLEAN` → string-serialized enums per S-129), tenant-scoping defaults.
-  - Library is consumed by S-139 (JAR bundle-writer) AND S-141 (server ingest pipeline) — single source of truth for "what's in the bundle".
-  - Mappers cover every legacy table in the S-011 tenant-scoped-entities catalog plus cross-tenant tables (audit, system data).
-  - Parity oracle in CI: row-count diff, FK-integrity check, 1% sampled-value diff on Flight / Delivery / PersonClub / AircraftReservation / AccountingRuleFilter against a seeded legacy SQL Server fixture. Fails loud on regression.
-  - Machine-readable verification output (JSON) alongside a human-readable report — CI asserts on the JSON.
+  - `alpenflight/migration-bundle/` walking-skeleton Gradle module (Java 25, library project) in place.
+  - `Mapper` bidirectional-per-entity interface published with `entityType()` + `columns()` metadata; concrete `writeNdjson` / `readEntity` signatures land with S-183.
+  - `EntityType` enum carries topological `INSERT_ORDER` + V2/V3/V4 sub-package routing via `Group`.
+  - `LegacyIdMapTables` exposes per-entity temp-table naming + the parameterised batch-prefetch SQL contract S-141 will wire against.
+  - `Coercions` static helpers shared by future mappers (boolean → tri-state enum tag).
+  - One concrete `identity.CountryMapper` as the walking-skeleton sample, demonstrating the SYSTEM_GLOBAL ref path via `legacy_int_id` per S-012.
+  - Unit tests on the concrete mapper assert the `Mapper.columns()` contract (`legacy_int_id` present; defensive copy invariant).
+  - Remaining scope — full mapper coverage, manifest typed class, COPY-writer byte format, parity oracle harness, Faker fixtures, ArchUnit rules, JMH bench, CI wiring — tracked under **S-183**.
 estimate: L
 adr_refs: [0002, 0003, 0019]
-parity_test: tests/migration/schema-parity.spec.ts (new)
 refined: true
 refined_at: 2026-05-28
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
@@ -52,7 +55,7 @@ S-016 is a pure-data-transport Gradle module (`alpenflight/migration-bundle/`) c
 - **Mapper granularity: one class per legacy entity, grouped into 3 sub-packages aligned with V2/V3/V4 Flyway boundaries** (`.identity.*`, `.flight.*`, `.accounting.*`). Operator-grilled 2026-05-28. ~60 mapper classes total; small per-class test surface; PRs touching one entity touch one file. Hand-rolled (codegen wins lose to legacy column quirks like `FlightAirState` packing + the BOOLEAN→string-enum re-encodings per S-129).
 - **Bidirectional read+write per mapper.** Paired methods on one class: `void writeNdjson(ResultSet rs, PreparedStatement → JsonGenerator)` (S-139 side, JDBC streaming) and `void readEntity(JsonNode row, PreparedStatement ps)` (S-141 side, `StatelessSession.insert` parameter binding). NO intermediate POJOs in the hot path (performance plan owns the rationale). Static `String[] COLUMNS` constant shared by both methods.
 - **NDJSON wire schema: new-schema column names (snake_case).** Bundle is an AlpenFlight artifact; ingest reads many more bundles than the JAR writes them, so debuggability on the ingest side wins. Manifest carries `schema_version: 1` — bumped on any wire-incompatible change so ingest rejects mismatched bundles up-front.
-- **`legacy_id_map_<entity>` ownership.** Mapper owns the byte format; S-141 owns the temp-table lifecycle (`ON COMMIT DROP`). Contract: S-016 exposes `void streamIds(JsonStream src, OutputStream copyDst)` which writes UUID-pair lines; S-141 wires `PgConnection.getCopyAPI()` to it. S-016 also exposes `String resolveFkArrayQuery(EntityType target)` returning the parameterized `SELECT new_uuid FROM legacy_id_map_<x> WHERE legacy_guid = ANY(?::uuid[])` text — keeps S-141 from hand-rolling it 60 times.
+- **`legacy_id_map_<entity>` ownership.** Mapper owns the byte format; S-141 owns the temp-table lifecycle (`ON COMMIT DROP`). Contract: S-016 exposes `void streamIds(JsonStream src, OutputStream copyDst)` which writes UUID-pair lines; S-141 wires `PgConnection.getCopyAPI()` to it. S-016 also exposes `String resolveFkArrayQuery(EntityType target)` returning the parameterized `SELECT legacy_guid, new_uuid FROM legacy_id_map_<x> WHERE legacy_guid = ANY(?::uuid[])` text — both columns so callers can map results back to the input array (Postgres does not preserve `= ANY(?)` row order).
 - **Topological insert order = static `INSERT_ORDER` enum constant in S-016.** Order: ReferenceData → Club → Person → PersonClub → User → UserRole → Location → Aircraft → AircraftAircraftState → AircraftOperatingCounter → Article → AccountingRuleFilter → FlightType → PlanningDay → PlanningDayAssignment → AircraftReservation → Flight → FlightCrew → Delivery → DeliveryItem → Audit. Hardcoded > dynamic-from-metamodel (hides the order behind reflection). ArchUnit asserts every entity with a non-null FK appears after its target.
 - **Cross-tenant Person sub-map: per-bundle, not per-Club.** `legacy_id_map_person` populated once at Person-phase ingest; subsequent Clubs reuse it (S-141's per-Club txns share the same DB session within the bundle). One `t_person` row, N `t_person_club` rows. User.PersonId rewrite (S-141 AC #10) flows through this temp table.
 - **Reference-data resolution: two-tier strategy.** SYSTEM_GLOBAL refs (`country`, `language`, `start_type`, `role`, `club_state`, unit types, `extension_type`, `accounting_rule_filter_type`, `accounting_unit_type`) resolve via the `legacy_int_id SMALLINT UNIQUE` columns that S-012/013/014 added on the new reference tables specifically as the S-016 cutover hook. TENANT_SCOPED refs (`member_state`, `person_category`, `flight_type`, `aircraft_reservation_type`, `planning_day_assignment_type`, `email_template` with `club_id IS NOT NULL`) port from the bundle via per-bundle `legacy_id_map_*` temp tables. Manifest carries per-table policy explicitly, no implicit defaults. S-138's per-Club bootstrap runs as no-op for ported-from categories (collision-handling pinned in S-141: bundle wins).
