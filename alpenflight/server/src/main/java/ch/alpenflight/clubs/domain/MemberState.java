@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Per-club lookup row for member statuses (e.g. "Active", "Suspended",
- * "Honorary"). Mapped to V2's {@code member_state} table; the discriminator
+ * "Honorary"). Mapped to V2's {@code t_member_state} table; the discriminator
  * column {@code club_id} wears {@link TenantId} so Hibernate appends
  * {@code WHERE club_id = ?} to every read driven by the
  * {@link ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver}.
@@ -24,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  * extend it without reshaping.
  */
 @Entity
-@Table(name = "member_state")
+@Table(name = "t_member_state")
 public class MemberState {
 
     private static final int MAX_NAME_LENGTH = 50;

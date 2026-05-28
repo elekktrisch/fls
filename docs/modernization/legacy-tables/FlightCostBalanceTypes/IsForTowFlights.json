@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "FlightCostBalanceTypes",
+  "column" : "IsForTowFlights",
+  "ordinal" : 6,
+  "data_type" : "bit",
+  "is_nullable" : false,
+  "default_expression" : "((0))",
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 1,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

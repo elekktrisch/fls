@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * is deferred until a downstream story requires it.
  */
 @Entity
-@Table(name = "flight_process_state")
+@Table(name = "t_flight_process_state")
 class FlightProcessStateProjection {
 
     @Id

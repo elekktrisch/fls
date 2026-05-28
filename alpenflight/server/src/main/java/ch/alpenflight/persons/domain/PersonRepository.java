@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <ul>
  *   <li>{@link #findActiveListRowsInCurrentTenant} — JOIN through
- *       {@code person_club}; Hibernate's {@code @TenantId} auto-appends
+ *       {@code t_person_club}; Hibernate's {@code @TenantId} auto-appends
  *       the tenant predicate on the junction.</li>
  *   <li>{@link #findActiveById} — by PK (cross-tenant); used by sysadmin
  *       cross-cutting paths + by Flight crew load (S-058) where the
@@ -29,12 +29,12 @@ public interface PersonRepository {
 
     /**
      * Projection row for the {@code GET /api/v1/persons} list view. Carries
-     * the caller-tenant's {@code person_club} columns (memberNumber,
+     * the caller-tenant's {@code t_person_club} columns (memberNumber,
      * memberStateId, role flags), the Person identity fields, and an opaque
      * {@code activeMembershipCount} so the response can show
      * {@code inOtherClubsCount = total - tenant-visible}.
      *
-     * <p>The query joins {@code person} × {@code person_club}; Hibernate
+     * <p>The query joins {@code t_person} × {@code t_person_club}; Hibernate
      * filters {@code pc.club_id = :currentTenant} automatically because
      * {@link PersonClub#getClubId()} carries {@code @TenantId}.
      */

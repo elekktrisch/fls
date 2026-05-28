@@ -28,14 +28,15 @@ partial = json.load(open(sys.argv[1]))
 users = json.load(open(sys.argv[2]))
 user_roles = json.load(open(sys.argv[3]))
 
-# Dev-only passwords baked alongside the realm. Same as the username for the
-# seed users; README marks dev-only and instructs rotation at deploy. CI grep
-# rejects any password not in this allow-set or any user outside this set
-# carrying a hardcoded credential.
+# Dev-only passwords baked alongside the realm. `<username>-dev-2026!` form
+# satisfies the realm `passwordPolicy` shipped in S-134 (length(12) +
+# specialChars(1) + notUsername); README marks dev-only and instructs rotation
+# at deploy. CI grep rejects any password not in this allow-set or any user
+# outside this set carrying a hardcoded credential.
 DEV_PASSWORDS = {
-    'sysadmin': 'sysadmin',
-    'clubadmin1': 'clubadmin1',
-    'pilot1': 'pilot1',
+    'sysadmin': 'sysadmin-dev-2026!',
+    'clubadmin1': 'clubadmin1-dev-2026!',
+    'pilot1': 'pilot1-dev-2026!',
 }
 
 # Drop fields that change on every boot/export.
@@ -57,6 +58,23 @@ for u in users:
 for f in VOLATILE_REALM:
     partial.pop(f, None)
 
+# Keycloak's partial-export does NOT carry loginTheme/accountTheme/
+# emailTheme when the realm holds them as plain root-level keys
+# (verified empirically against K26.5). Re-inject post-export so the
+# committed JSON stays zero-diff across round-trips.
+#
+# Failure mode worth knowing: if an operator deliberately unsets a theme
+# via the admin UI to debug a stock-theme regression, this re-injection
+# silently masks that intent in the committed export. To investigate
+# stock-theme behavior, edit this block first.
+#
+# Keep THEME_NAME aligned with check-realm-shape.sh + the
+# alpenflight/auth/themes/<name>/ directory.
+THEME_NAME = 'alpenflight'
+partial['loginTheme'] = THEME_NAME
+partial['accountTheme'] = THEME_NAME
+partial['emailTheme'] = THEME_NAME
+
 # Strip private signing key — Keycloak regenerates on first --import-realm.
 # CI guard rejects any export with privateKey / privateKeyPem present.
 if 'components' in partial:
@@ -74,8 +92,23 @@ if 'components' in partial:
 DEV_CLIENT_SECRETS = {
     'alpenflight-proffix': 'alpenflight-proffix-dev-secret',
 }
+
+# Re-inject build-arg placeholders for client baseUrls. Keycloak's
+# partial-export emits the *resolved* baseUrl (e.g. http://localhost:4200/),
+# but the committed file needs the ${VAR} marker that the Dockerfile's
+# `RUN sed` substitutes at image build — without re-injection, round-trip
+# would bake a literal URL and check-realm-shape.sh would fail loudly.
+# Sibling to the DEV_CLIENT_SECRETS restoration above. Note: this is the
+# bash-style ${VAR} marker (NOT Keycloak's ${env:VAR} — that substitution
+# layer doesn't cover client.baseUrl).
+DEV_CLIENT_BASE_URLS = {
+    'alpenflight-web': '${ALPENFLIGHT_WEB_BASE_URL}',
+}
+
 for c in partial.get('clients', []):
     c.pop('notBefore', None)
+    if c.get('clientId') in DEV_CLIENT_BASE_URLS:
+        c['baseUrl'] = DEV_CLIENT_BASE_URLS[c['clientId']]
     if c.get('publicClient') or c.get('bearerOnly'):
         c.pop('secret', None)
         continue

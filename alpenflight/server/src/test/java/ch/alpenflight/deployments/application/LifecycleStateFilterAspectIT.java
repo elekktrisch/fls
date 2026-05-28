@@ -51,9 +51,9 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void seed() {
-        jdbc.update("UPDATE club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
-                + "WHERE deployment_id IN (SELECT id FROM deployment WHERE name LIKE 'IT_AS_%')");
-        jdbc.update("DELETE FROM deployment WHERE name LIKE 'IT_AS_%'");
+        jdbc.update("UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
+                + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_AS_%')");
+        jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_AS_%'");
         testJob.reset();
         new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_AS_", "IT_AS_").seed();
 
@@ -61,7 +61,7 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
         Deployment active = Deployment.startTrial(clock, "IT_AS_active", activeOwner);
         active.activateSubscription("cus", "sub", clock);
         UUID activeId = deployments.save(active).getId();
-        jdbc.update("UPDATE club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
+        jdbc.update("UPDATE t_club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
                 activeId.toString(), CLUB_A.toString(), CLUB_B.toString());
 
         UUID trialOwner = UUID.fromString("00000000-0000-0000-0000-00000000e200");

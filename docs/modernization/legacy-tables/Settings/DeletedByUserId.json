@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "Settings",
+  "column" : "DeletedByUserId",
+  "ordinal" : 12,
+  "data_type" : "uniqueidentifier",
+  "is_nullable" : true,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : null,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

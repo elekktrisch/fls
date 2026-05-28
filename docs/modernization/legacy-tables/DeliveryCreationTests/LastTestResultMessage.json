@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "DeliveryCreationTests",
+  "column" : "LastTestResultMessage",
+  "ordinal" : 21,
+  "data_type" : "nvarchar",
+  "is_nullable" : true,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : null,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

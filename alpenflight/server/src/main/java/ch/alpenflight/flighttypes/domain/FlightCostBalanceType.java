@@ -31,7 +31,7 @@ import org.jspecify.annotations.Nullable;
  * later story per S-053 design notes — no current consumer.)
  */
 @Entity
-@Table(name = "flight_cost_balance_type")
+@Table(name = "t_flight_cost_balance_type")
 public class FlightCostBalanceType {
 
     private static final int MAX_CODE_LENGTH = 48;

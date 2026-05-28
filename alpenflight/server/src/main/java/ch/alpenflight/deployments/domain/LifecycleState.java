@@ -2,7 +2,7 @@ package ch.alpenflight.deployments.domain;
 
 /**
  * Lifecycle of a {@link Deployment}. Stored as {@code @Enumerated(STRING)}
- * in {@code deployment.lifecycle_state}; the legal-transition table lives
+ * in {@code t_deployment.lifecycle_state}; the legal-transition table lives
  * on the aggregate per ADR 0022 directive 2.
  *
  * <ul>

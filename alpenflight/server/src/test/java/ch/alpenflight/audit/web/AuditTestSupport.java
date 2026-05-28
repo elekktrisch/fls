@@ -71,14 +71,14 @@ final class AuditTestSupport {
 
     /** Delete every audit row for {@code tenantClubId}. Run as a per-test pre-clean. */
     static void truncateForTenant(JdbcTemplate jdbc, UUID tenantClubId) {
-        jdbc.update("DELETE FROM mutation_audit_event WHERE tenant_club_id = ?::uuid",
+        jdbc.update("DELETE FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 tenantClubId.toString());
     }
 
     /** Return every audit row for {@code tenantClubId}, ordered by occurred_at. */
     static List<Map<String, Object>> findByTenant(JdbcTemplate jdbc, UUID tenantClubId) {
         return jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event WHERE tenant_club_id = ?::uuid "
+                "SELECT * FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid "
                         + "ORDER BY occurred_at ASC",
                 tenantClubId.toString());
     }
@@ -91,7 +91,7 @@ final class AuditTestSupport {
                                                   UUID tenantClubId,
                                                   UUID targetEntityId) {
         return jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event "
+                "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND target_entity_id = ?::uuid "
                         + "ORDER BY occurred_at ASC",
                 tenantClubId.toString(),

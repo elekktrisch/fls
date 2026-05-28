@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "FlightCrew",
+  "entity" : "FlightCrew",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

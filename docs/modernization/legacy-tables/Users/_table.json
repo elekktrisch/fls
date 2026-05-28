@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "Users",
+  "entity" : "User",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

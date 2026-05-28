@@ -199,7 +199,7 @@ class LocationsControllerIT extends PostgresIntegrationTest {
                 Void.class);
 
         Integer count = jdbc.queryForObject(
-                "SELECT count(*) FROM location WHERE id = ?::uuid AND deleted_on IS NOT NULL",
+                "SELECT count(*) FROM t_location WHERE id = ?::uuid AND deleted_on IS NOT NULL",
                 Integer.class, raw.toString());
         assertThat(count).isEqualTo(1);
 

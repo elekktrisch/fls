@@ -45,7 +45,7 @@ class DeploymentRepositoryIT extends PostgresIntegrationTest {
     void cleanFixtureRows() {
         // ADR 0021 pre-clean by stable key — IT-owned rows are tagged by an
         // owner_keycloak_sub prefix the production seed never uses.
-        jdbc.update("DELETE FROM deployment WHERE name LIKE 'IT_DEPRO_%'");
+        jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_DEPRO_%'");
     }
 
     @Test
@@ -73,7 +73,7 @@ class DeploymentRepositoryIT extends PostgresIntegrationTest {
         // catches DataIntegrityViolationException + SQLSTATE 23505 and
         // translates to the structured 409 body.
         assertThatThrownBy(() -> jdbc.update("""
-                        INSERT INTO deployment (id, name, owner_keycloak_sub,
+                        INSERT INTO t_deployment (id, name, owner_keycloak_sub,
                                                 lifecycle_state, plan)
                         VALUES (?::uuid, 'IT_DEPRO_second', ?::uuid, 'TRIAL', 'ACTIVE')
                         """, UUID.randomUUID().toString(), owner.toString()))
@@ -86,7 +86,7 @@ class DeploymentRepositoryIT extends PostgresIntegrationTest {
 
         // owner has a DELETING Deployment (data going) ...
         jdbc.update("""
-                        INSERT INTO deployment (id, name, owner_keycloak_sub,
+                        INSERT INTO t_deployment (id, name, owner_keycloak_sub,
                                                 lifecycle_state, plan)
                         VALUES (?::uuid, 'IT_DEPRO_deleting', ?::uuid, 'DELETING', 'FREE')
                         """, UUID.randomUUID().toString(), owner.toString());

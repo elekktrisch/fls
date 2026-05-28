@@ -7,8 +7,11 @@ Mirrors ADR 0010's deployment-stack decisions in their dev-laptop form.
 
 | Path | Purpose |
 |---|---|
-| `/docker-compose.yml` (repo root) | Single compose file. Default profile holds the **legacy** e2e stack (`mssql`, `mailpit`). `--profile next` adds the **new-stack** services (`postgres`, `pgadmin`, `keycloak`). Mailpit is shared by both. |
-| `alpenflight/ops/dev-up-full.sh` | One-shot wrapper: brings up legacy + new + seeds the legacy DB + applies Flyway migrations against the new Postgres. |
+| `/docker-compose.yml` (repo root) | Single compose file, three compose projects. Default profile holds legacy `mssql`. `--profile infra` adds shared `mailpit`. `--profile next` adds new-stack services (`postgres`, `pgadmin`, `keycloak`). All services attach to the external network `alpenflight_shared`. |
+| `alpenflight/ops/dev-up-infra.sh` | Shared network + Mailpit. |
+| `alpenflight/ops/dev-up-alpenflight.sh` | Postgres + pgAdmin + Keycloak + Flyway migrations. |
+| `alpenflight/ops/dev-up-full.sh` | Thin orchestrator: infra + legacy + seed + alpenflight. |
+| `alpenflight/ops/rebuild-keycloak.sh` | Rebuild + restart Keycloak with a fresh H2 volume. |
 | `alpenflight/ops/pgadmin/` | Custom pgAdmin image (server connection pre-wired). |
 | `alpenflight/ops/lint-compose.sh` | Static checks (healthcheck, floating tags, loopback binds). Run in CI via `.github/workflows/compose-lint.yml`. |
 | `alpenflight/ops/.env.example` | Dev-only env overrides; copy to `.env` if you need them. Most contributors won't. |
@@ -21,50 +24,74 @@ for now.
 ## First-time bring-up
 
 ```bash
-# New-stack infra only (Postgres + pgAdmin + Keycloak).
-# Services named explicitly — `--profile next` would also pull in the
-# default-profile services (mssql, mailpit) under this project name,
-# colliding with anything the fls-e2e project already has running.
-docker compose -p alpenflight-dev up -d --wait postgres pgadmin keycloak
-
-# Or: everything (legacy + new + migrations + seed) in one shot.
+# Everything (infra + legacy + seed + new + migrations) in one shot.
 bash alpenflight/ops/dev-up-full.sh
+
+# Or any slice individually:
+bash alpenflight/ops/dev-up-infra.sh           # shared network + mailpit
+bash alpenflight/ops/dev-up-alpenflight.sh     # postgres + pgadmin + keycloak + flyway
+bash e2e/scripts/dev-up.sh                     # legacy mssql
 ```
 
-Tear down:
+Each `dev-up-*.sh` is idempotent and inspects-first for the
+`alpenflight_shared` network — a fresh-box first run creates it; subsequent
+runs reuse it. `dev-up-alpenflight.sh` and `e2e/scripts/dev-up.sh` fail
+fast if the network is missing and direct you to `dev-up-infra.sh`.
+
+## Tear-down
+
+**Order matters: target → legacy → infra.** Reverse order leaves orphan
+containers attached to a removed-and-recreated network.
 
 ```bash
-docker compose -p alpenflight-dev down              # keep volumes
-docker compose -p alpenflight-dev down -v --remove-orphans   # nuke
+docker compose -p alpenflight-dev   down [-v]
+bash e2e/scripts/dev-down.sh
+docker compose -p alpenflight-infra down [-v]
+
+# Only when retiring the dev stack entirely:
+docker network rm alpenflight_shared
 ```
+
+The `alpenflight_shared` network is `external: true` — no compose project
+owns its lifecycle. **Never `docker network rm` it while any project's
+containers are still attached** — compose has no watchdog, the containers
+silently lose DNS, recovery is a full stack down/up.
 
 ## Project naming
 
-The legacy and new stacks live under separate compose project names so
-they teardown independently and don't share project-scoped resources:
+Three compose projects share the single root `docker-compose.yml`:
 
-- **`fls-e2e`** — legacy stack (`mssql`, `mailpit`). The historical name
-  matches the brand (`fls-`) of the system being modernized away from.
-  Managed by `e2e/scripts/dev-up.sh` / `dev-down.sh`.
-- **`alpenflight-dev`** — new stack (`postgres`, `pgadmin`, `keycloak`).
-  Activated by `--profile next` on the same root `docker-compose.yml`.
+- **`fls-e2e`** — legacy stack (`mssql`). Historical name matches the brand
+  (`fls-`) of the system being modernized away from. Managed by
+  `e2e/scripts/dev-up.sh` / `dev-down.sh`.
+- **`alpenflight-infra`** — shared infrastructure (`mailpit`; future: log
+  aggregator, etc.). Managed by `dev-up-infra.sh`.
+- **`alpenflight-dev`** — new-stack services (`postgres`, `pgadmin`,
+  `keycloak`). Managed by `dev-up-alpenflight.sh`.
+
+All three attach their services to the external `alpenflight_shared`
+network — that's the canonical cross-project DNS plane. Keycloak (in
+`alpenflight-dev`) reaches Mailpit (in `alpenflight-infra`) via
+`KEYCLOAK_SMTP_HOST=mailpit` because both are on `alpenflight_shared`.
 
 ## Profile matrix
 
 | Invocation | What starts | Use case |
 |---|---|---|
-| `docker compose -p fls-e2e up -d` | `mssql` + `mailpit` | Legacy e2e Playwright suite (`e2e/`). |
-| `docker compose -p alpenflight-dev up -d postgres pgadmin keycloak` | `postgres` + `pgadmin` + `keycloak` | **Default new-stack dev loop.** Backend + SPA run from the IDE / dev server. Don't use `--profile next` here — it would also start the default-profile services (mssql, mailpit) under this project and double-bind ports. |
-| `bash alpenflight/ops/dev-up-full.sh` | Legacy stack under `fls-e2e` + new stack under `alpenflight-dev` + Flyway migrate + legacy DB seed | Comparing legacy vs new side-by-side. |
+| `bash e2e/scripts/dev-up.sh` | legacy `mssql` under `-p fls-e2e` (asserts shared network + Mailpit reachable) | Legacy Playwright suite. |
+| `bash alpenflight/ops/dev-up-infra.sh` | `mailpit` under `-p alpenflight-infra --profile infra` | Shared mail sink for Keycloak verify-email + legacy server SMTP. |
+| `bash alpenflight/ops/dev-up-alpenflight.sh` | `postgres` + `pgadmin` + `keycloak` under `-p alpenflight-dev` + Flyway migrate | **Default new-stack dev loop.** Backend + SPA run from the IDE / dev server. |
+| `bash alpenflight/ops/dev-up-full.sh` | All four projects in order + legacy DB seed | Comparing legacy vs new side-by-side. |
 
 **Profile-union footgun:** `--profile X` is a *union* with the default
-profile within the same compose project. When the new stack runs under
-`-p alpenflight-dev`, default-profile services declared in the root
-`docker-compose.yml` (`mssql`, `mailpit`) would come up *inside the
-`alpenflight-dev` project* — colliding on host ports with the
-`fls-e2e`-named copies. That's why the new-stack invocations above name
-services explicitly (`up -d postgres pgadmin keycloak`) instead of using
-`--profile next`. `dev-up-full.sh` follows the same pattern.
+profile within the same compose project. The rule across all three
+projects: **each profile is only ever activated under its matched
+project name** — `--profile infra` only with `-p alpenflight-infra`,
+`--profile next` only with `-p alpenflight-dev`. Mixing them
+(e.g. `-p alpenflight-dev --profile infra`) would pull Mailpit into
+`alpenflight-dev` and double-bind 1025 / 8025. `dev-up-alpenflight.sh`
+also names services explicitly (`up -d postgres pgadmin keycloak`) so
+it never pulls mssql in from the default profile.
 
 ## Service endpoints (dev)
 
@@ -99,10 +126,12 @@ All ports bind to `127.0.0.1` — nothing is reachable from the LAN.
   `dev-up-full.sh` to re-apply Flyway migrations. Add a named volume here
   if you want survival across `down`.
 
-- **Mailpit is shared.** The legacy stack (Playwright suite) and the new
-  stack (Spring Boot `JavaMailSender`) both target `localhost:1025`. There
-  is one inbox; don't be surprised to see legacy + new mails interleaved
-  during a side-by-side bring-up.
+- **Mailpit is shared across both stacks.** Mailpit lives in
+  `alpenflight-infra` and reaches Keycloak by service DNS over
+  `alpenflight_shared`. The legacy stack (Playwright suite) and the new
+  stack (Spring Boot `JavaMailSender`) both target `localhost:1025`. One
+  inbox; expect legacy + new mails interleaved during a side-by-side
+  bring-up.
 
 - **Port collisions.** Default ports are `5432` (Postgres), `5050`
   (pgAdmin), `8090` (Keycloak HTTP), `9090` (Keycloak mgmt), `8025`
@@ -116,23 +145,25 @@ All ports bind to `127.0.0.1` — nothing is reachable from the LAN.
 
 ## CI guards
 
-- `.github/workflows/compose-lint.yml` — runs `alpenflight/ops/lint-compose.sh`:
-  every service has a healthcheck; no `:latest` on new-stack services;
-  new-stack data ports bind to `127.0.0.1`.
-- `.github/workflows/compose-smoke.yml` — runs `compose --profile next up
-  -d --wait` and the same functional probes that pass locally
-  (`psql SELECT 1`, `keycloak /realms/master`, `mailpit /api/v1/info`,
-  `pgadmin /misc/ping`).
+- `.github/workflows/compose-lint.yml` — runs `alpenflight/ops/lint-compose.sh`
+  with both `--profile next` and `--profile infra` enabled (every service
+  has a healthcheck; no `:latest` on new-stack services including mailpit;
+  new-stack data ports bind to `127.0.0.1`). A sibling `shared-network-smoke`
+  job covers the network round-trip: inspect-first create → `up --profile
+  infra` → host-port probe → re-up idempotency → `down -v` leaves the
+  network intact.
+- `.github/workflows/compose-smoke.yml` — brings up infra
+  (`mailpit` under `-p alpenflight-infra --profile infra`) followed by
+  the new-stack services (`postgres pgadmin keycloak` under
+  `-p alpenflight-dev`), runs the same functional probes that pass
+  locally (`psql SELECT 1`, `keycloak /realms/master`, `mailpit /api/v1/info`,
+  `pgadmin /misc/ping`) plus `check-keycloak-integration.sh` for the
+  end-to-end verify-email round-trip over the shared network.
 
 Both workflows are gated to `docker-compose.yml` + `alpenflight/ops/**` +
 `.github/workflows/compose-*.yml` to keep PRs that don't touch the stack
 quick.
 
-## Disambiguation from `/docker-compose.yml` legacy stack
-
-There is exactly **one** `docker-compose.yml` in the repo — at the root.
-It hosts both the legacy services (default profile) and the new-stack
-services (`--profile next`). Earlier drafts of S-039 proposed a second
-file at `alpenflight/ops/docker-compose.yml`; the operator picked the
-single-file approach (2026-05-17) to avoid relocating the already-
-working Postgres + pgAdmin services.
+There is exactly **one** `docker-compose.yml` in the repo, at the root.
+Three compose projects share it, gated by the default / `infra` / `next`
+profiles.

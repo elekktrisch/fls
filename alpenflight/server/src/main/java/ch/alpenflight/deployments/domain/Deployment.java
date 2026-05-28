@@ -56,7 +56,7 @@ import org.springframework.data.domain.DomainEvents;
  * commits; the other gets a stale-version retry.
  */
 @Entity
-@Table(name = "deployment")
+@Table(name = "t_deployment")
 public class Deployment {
 
     /**

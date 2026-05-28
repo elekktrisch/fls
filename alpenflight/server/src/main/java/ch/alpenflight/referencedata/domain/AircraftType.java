@@ -11,7 +11,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Aircraft type catalog (GLIDER, GLIDER_WITH_MOTOR, MOTOR_GLIDER,
  * MOTOR_AIRCRAFT, MULTI_ENGINE, JET, HELICOPTER, UNKNOWN). System-global;
- * not tenant-scoped. Mapped to the V3 {@code aircraft_type} table; data
+ * not tenant-scoped. Mapped to the V3 {@code t_aircraft_type} table; data
  * lives in the V3 Flyway seed. Read-only.
  *
  * <p>{@code hasEngine}, {@code requiresTowingInfo}, {@code mayBeTowingAircraft}
@@ -20,7 +20,7 @@ import org.jspecify.annotations.Nullable;
  * comparisons against the {@code AircraftTypeId} enum).
  */
 @Entity
-@Table(name = "aircraft_type")
+@Table(name = "t_aircraft_type")
 public class AircraftType {
 
     @Id

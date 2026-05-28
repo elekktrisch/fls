@@ -52,9 +52,9 @@ class DeploymentContextIT extends PostgresIntegrationTest {
         // The previous test re-pointed CLUB_A/B at an IT-owned Deployment;
         // ON DELETE RESTRICT on club.deployment_id blocks the cleanup
         // DELETE unless we re-point them back first.
-        jdbc.update("UPDATE club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
-                + "WHERE deployment_id IN (SELECT id FROM deployment WHERE name LIKE 'IT_DC_%')");
-        jdbc.update("DELETE FROM deployment WHERE name LIKE 'IT_DC_%'");
+        jdbc.update("UPDATE t_club SET deployment_id = '00000000-0000-0000-0000-000000000002'::uuid "
+                + "WHERE deployment_id IN (SELECT id FROM t_deployment WHERE name LIKE 'IT_DC_%')");
+        jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_DC_%'");
         new TwoClubFixture(jdbc, CLUB_A, CLUB_B, "IT_DC_", "IT_DC_").seed();
 
         UUID owner = UUID.fromString("00000000-0000-0000-0000-00000000d100");
@@ -64,7 +64,7 @@ class DeploymentContextIT extends PostgresIntegrationTest {
         activeDeploymentId = saved.getId();
 
         // Re-point the two seed Clubs to this Deployment so forEachClub sees them.
-        jdbc.update("UPDATE club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
+        jdbc.update("UPDATE t_club SET deployment_id = ?::uuid WHERE id IN (?::uuid, ?::uuid)",
                 activeDeploymentId.toString(),
                 CLUB_A.toString(), CLUB_B.toString());
     }

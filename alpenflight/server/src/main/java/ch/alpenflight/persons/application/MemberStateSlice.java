@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Tenant-scoped read slice for {@code member_state} — feeds the form
+ * Tenant-scoped read slice for {@code t_member_state} — feeds the form
  * picker via {@code GET /api/v1/club/member-states}. Hibernate's
  * {@code @TenantId} discriminator on {@code MemberState.clubId} scopes the
  * underlying {@code findAll()} to the caller's tenant automatically, so
@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>Counterpart to S-047's cross-tenant reference-data pattern: same shape
  * (slim listitem, sorted by name, no admin CRUD here) but per-club scope.
  * The first per-club listitem endpoint in the system — establishes the
- * {@code /api/v1/club/<thing>} URL convention. Full {@code member_state}
+ * {@code /api/v1/club/<thing>} URL convention. Full {@code t_member_state}
  * admin CRUD is deferred to a follow-up story.
  */
 @Service

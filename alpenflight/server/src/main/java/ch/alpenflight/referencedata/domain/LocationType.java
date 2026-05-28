@@ -10,12 +10,12 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Location-type reference row (WAYPOINT, GRASS_RUNWAY, GLIDER_AIRFIELD, …).
- * System-global; not tenant-scoped. Mapped to the V3 {@code location_type}
+ * System-global; not tenant-scoped. Mapped to the V3 {@code t_location_type}
  * table; data lives in the V3 Flyway seed. Read-only — no setters, no
  * mutating methods.
  */
 @Entity
-@Table(name = "location_type")
+@Table(name = "t_location_type")
 public class LocationType {
 
     @Id

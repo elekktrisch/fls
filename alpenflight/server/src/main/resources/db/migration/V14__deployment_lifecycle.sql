@@ -15,7 +15,7 @@
 --     for S-138 at the DB level; the deleting + sandbox states are exempt
 --     because data is going / shared-fixed.
 
-CREATE TABLE deployment (
+CREATE TABLE t_deployment (
     id                      UUID         NOT NULL PRIMARY KEY,
     name                    VARCHAR(200) NOT NULL,
     owner_keycloak_sub      UUID         NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE deployment (
     modified_on             TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE INDEX ix_deployment_lifecycle ON deployment (lifecycle_state);
+CREATE INDEX ix_deployment_lifecycle ON t_deployment (lifecycle_state);
 
 -- Partial UNIQUE: one user holds at most one non-terminal Deployment.
 -- Source-of-truth for S-138's second-ingest 409 gate. {sandbox, deleting}
@@ -37,7 +37,7 @@ CREATE INDEX ix_deployment_lifecycle ON deployment (lifecycle_state);
 -- deleting Deployments are mid-cascade and the user may legitimately ingest
 -- again afterward.
 CREATE UNIQUE INDEX ux_deployment_owner_active
-    ON deployment (owner_keycloak_sub)
+    ON t_deployment (owner_keycloak_sub)
     WHERE lifecycle_state IN ('TRIAL', 'ACTIVE', 'PAST_DUE', 'CANCELLED');
 
 -- -----------------------------------------------------------------------------
@@ -48,7 +48,7 @@ CREATE UNIQUE INDEX ux_deployment_owner_active
 -- immutable terminal state asserted by Deployment.transitionTo.
 -- -----------------------------------------------------------------------------
 
-INSERT INTO deployment (id, name, owner_keycloak_sub, lifecycle_state, plan)
+INSERT INTO t_deployment(id, name, owner_keycloak_sub, lifecycle_state, plan)
 VALUES (
     '00000000-0000-0000-0000-000000000001',
     'sandbox',
@@ -68,7 +68,7 @@ ON CONFLICT (id) DO NOTHING;
 -- by literal without a subquery.
 -- -----------------------------------------------------------------------------
 
-INSERT INTO deployment (id, name, owner_keycloak_sub, lifecycle_state, plan)
+INSERT INTO t_deployment(id, name, owner_keycloak_sub, lifecycle_state, plan)
 VALUES (
     '00000000-0000-0000-0000-000000000002',
     'operator',
@@ -93,12 +93,12 @@ ON CONFLICT (id) DO NOTHING;
 -- direct-JDBC inserts in test fixtures + bootstrap scripts that pre-date
 -- this column; production code goes through ClubsService.createClub
 -- (S-048) which passes deploymentId explicitly via Club.create.
-ALTER TABLE club
+ALTER TABLE t_club
     ADD COLUMN deployment_id UUID NOT NULL
         DEFAULT '00000000-0000-0000-0000-000000000002';
 
-ALTER TABLE club
+ALTER TABLE t_club
     ADD CONSTRAINT fk_club_deployment_id
-    FOREIGN KEY (deployment_id) REFERENCES deployment (id) ON DELETE RESTRICT;
+    FOREIGN KEY (deployment_id) REFERENCES t_deployment (id) ON DELETE RESTRICT;
 
-CREATE INDEX ix_club_deployment_id ON club (deployment_id);
+CREATE INDEX ix_club_deployment_id ON t_club (deployment_id);

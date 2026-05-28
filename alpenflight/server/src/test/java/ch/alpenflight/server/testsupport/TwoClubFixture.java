@@ -49,7 +49,7 @@ public final class TwoClubFixture {
     }
 
     public void deleteClubs() {
-        jdbc.update("DELETE FROM club WHERE id IN (?::uuid, ?::uuid)",
+        jdbc.update("DELETE FROM t_club WHERE id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
     }
 
@@ -58,20 +58,20 @@ public final class TwoClubFixture {
         // Aggregate-internal child via parent FK chain — handled before
         // location's own delete. Today's only such case; future stories add
         // siblings here as they land.
-        jdbc.update("DELETE FROM inoutbound_point WHERE location_id IN ("
-                        + "  SELECT id FROM location WHERE club_id IN (?::uuid, ?::uuid))",
+        jdbc.update("DELETE FROM t_inoutbound_point WHERE location_id IN ("
+                        + "  SELECT id FROM t_location WHERE club_id IN (?::uuid, ?::uuid))",
                 clubA.toString(), clubB.toString());
         // Flight rows hold a FK to Aircraft (ON DELETE RESTRICT). Delete flights
         // up-front so the aircraft cleanup below isn't blocked. CASCADE handles
         // flight_crew via the schema-level FK.
-        jdbc.update("DELETE FROM flight WHERE operating_club_id IN (?::uuid, ?::uuid)",
+        jdbc.update("DELETE FROM t_flight WHERE operating_club_id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
         // Aircraft is cross-tenant since S-058 (reverts S-159), so it's no longer
         // in the catalog loop below. But managing_club_id → club is ON DELETE
         // RESTRICT, so aircraft rows under the seed clubs would block
         // deleteClubs(). Wipe explicitly; aircraft_aircraft_state and
         // aircraft_operating_counter cascade via their FKs.
-        jdbc.update("DELETE FROM aircraft WHERE managing_club_id IN (?::uuid, ?::uuid)",
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
         for (Class<?> entityClass : TenantScopedEntityCatalog.discoverTenantScopedEntities()) {
             String table = TenantScopedEntityCatalog.resolveTableName(entityClass);
@@ -82,12 +82,12 @@ public final class TwoClubFixture {
     }
 
     private void insertClub(UUID id, String slug) {
-        UUID countryId = jdbc.queryForObject("SELECT id FROM country LIMIT 1", UUID.class);
-        UUID clubStateId = jdbc.queryForObject("SELECT id FROM club_state LIMIT 1", UUID.class);
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID clubStateId = jdbc.queryForObject("SELECT id FROM t_club_state LIMIT 1", UUID.class);
         // deployment_id defaults to the operator Deployment via the V14
         // column DEFAULT — IT fixtures don't need to surface it.
         jdbc.update("""
-                INSERT INTO club (id, clubname, club_key, country_id, club_state_id,
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
                                   slug, public_registration_enabled)
                 VALUES (?::uuid, ?, ?, ?::uuid, ?::uuid, ?, false)
                 """,

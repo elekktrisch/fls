@@ -4,7 +4,7 @@ import java.util.UUID;
 
 /**
  * Flight process-state values. The aggregate persists a UUID FK to the
- * {@code flight_process_state} reference table; this enum carries the
+ * {@code t_flight_process_state} reference table; this enum carries the
  * canonical UUID + legacy SMALLINT code per row so the matrix, audit
  * payload, and API can all key off the enum constant.
  *

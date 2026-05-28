@@ -1,0 +1,186 @@
+name: alpenflight e2e real-idp
+
+# Nightly + manual-dispatch run of the real-idp Playwright project: full
+# register + login + locale + Google-redirect smoke against a live local
+# Keycloak + Mailpit + alpenflight backend. NOT a PR gate — the mock-auth
+# suite (`alpenflight-e2e.yml`) stays the gate; real-idp's cross-process
+# flakiness must not gate feature work.
+#
+# Stack on the runner:
+#   alpenflight-infra (mailpit) + fls-e2e (mssql; not actually used by the
+#   specs but seeded for parity with dev-up-full.sh's bring-up shape) +
+#   alpenflight-dev (postgres + pgadmin + keycloak) + ng serve --port=4201.
+#
+# Each project attaches to the external `alpenflight_shared` network (S-172).
+
+on:
+  schedule:
+    # 03:00 UTC nightly — well after PR merges land + before the morning
+    # dev loop kicks in.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: alpenflight-e2e-real-idp
+  cancel-in-progress: false
+
+jobs:
+  real-idp:
+    name: real-idp Playwright suite
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      E2E_REAL_IDP: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cross-project shared network. The bring-up scripts inspect-first
+      # but on a clean runner we create it explicitly first so the diag
+      # message wouldn't be ambiguous.
+      - name: Create alpenflight_shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      - name: Bring up alpenflight-infra (mailpit)
+        run: bash alpenflight/ops/dev-up-infra.sh
+
+      - name: Build pgAdmin + Keycloak images
+        run: |
+          docker compose -f docker-compose.yml --profile next build pgadmin keycloak
+
+      - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
+        run: |
+          docker compose -p alpenflight-dev -f docker-compose.yml \
+            up -d --wait --wait-timeout 240 postgres pgadmin keycloak
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Apply Flyway migrations against the target Postgres so the
+      # alpenflight backend has the schema it expects at boot. Reuses the
+      # same env-driven block dev-up-alpenflight.sh runs locally.
+      - name: Flyway migrate (alpenflight Postgres)
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          ./gradlew flywayMigrate --no-daemon --console=plain --quiet
+
+      # The alpenflight backend boots itself for the real-idp probes. We
+      # build the bootJar + run it in the background; the setup project's
+      # `/actuator/health` probe blocks until the backend is ready.
+      - name: Build alpenflight backend bootJar
+        working-directory: alpenflight/server
+        run: ./gradlew bootJar --no-daemon --console=plain --quiet
+
+      - name: Start alpenflight backend
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          SPRING_PROFILES_ACTIVE: dev
+          # Pin log level so request-body / payload logging can't leak the
+          # canned dev password into the uploaded backend.log artifact. The
+          # `dev` Spring profile must not log payloads at INFO either.
+          LOGGING_LEVEL_ROOT: INFO
+        run: |
+          nohup java -jar build/libs/server-*.jar > backend.log 2>&1 &
+          echo "$!" > backend.pid
+
+      - name: Wait for backend /actuator/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after 120s" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          exit 1
+
+      - name: Run Playwright real-idp project
+        id: pw
+        working-directory: alpenflight/web
+        timeout-minutes: 12
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=real-idp
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "── backend log ─────────────────────────────" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          echo "── keycloak log ────────────────────────────" >&2
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
+          echo "── mailpit log ─────────────────────────────" >&2
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra logs --tail 100 mailpit >&2 || true
+
+      - name: Upload Playwright artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-real-idp-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/screenshots
+            alpenflight/server/backend.log
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f alpenflight/server/backend.pid ]; then
+            kill "$(cat alpenflight/server/backend.pid)" 2>/dev/null || true
+          fi
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
+          docker network rm alpenflight_shared || true

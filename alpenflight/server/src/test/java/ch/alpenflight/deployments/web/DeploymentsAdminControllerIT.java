@@ -56,7 +56,7 @@ class DeploymentsAdminControllerIT extends PostgresIntegrationTest {
 
     @BeforeEach
     void setup() {
-        jdbc.update("DELETE FROM deployment WHERE name LIKE 'IT_AC_%'");
+        jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_AC_%'");
         sysadminToken = jwts.mint(c -> c
                 .claim("clubId", "019e30c3-2c00-7001-8000-000000000001")
                 .claim("realm_access", Map.of(

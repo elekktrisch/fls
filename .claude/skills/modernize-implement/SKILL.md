@@ -9,13 +9,22 @@ Take one refined story (`S-NNN`) and ship it: code per the design notes, tests p
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md) before starting. The two directives govern every decision below.
 
+## Base branch resolution
+
+`<base>` throughout this skill is resolved as:
+
+- `integration_base: <branch>` in the story frontmatter, if present.
+- else the repo's default branch (typically `main`).
+
+Drives: branch creation, PR base, reviewer-panel diff range, `depends_on` PR-merged check (PRs may have merged into `<base>` rather than `main` in an integration-branch cluster). See modernize-refine's "Base branch resolution" section for the operator workflow.
+
 ## Story ID resolution
 
 The story ID can be passed explicitly (`S-NNN`) or inferred from the current branch when it matches `story/S-NNN-*` (check via `git rev-parse --abbrev-ref HEAD`; pattern `^story/S-(\d{3})(-.*)?$`):
 
 - **Arg + branch match** → proceed with the arg.
 - **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail: *"current branch is `story/S-MMM-...` but you passed `S-NNN`; switch branch or correct the arg."*
-- **Arg + branch isn't a story branch** → proceed with the arg (this is the normal case for implement — branch is `main` until Step 2 creates it).
+- **Arg + branch isn't a story branch** → proceed with the arg (this is the normal case for implement — branch is `<base>` until Step 2 creates it).
 - **No arg + branch matches `story/S-NNN-*`** → use the branch's `S-NNN` (lets you resume an in-flight story without retyping the ID).
 - **No arg + branch doesn't match** → prompt the operator for the story ID via `AskUserQuestion` (single question).
 
@@ -28,7 +37,7 @@ Bail if any fail:
 3. `status: todo` (in_progress → ask to resume; done/blocked → refuse).
 4. Every `depends_on` story is `done` AND its `github_pr` is `MERGED` (or no PR exists).
 5. Working tree clean.
-6. On `main` (or configured default) — unless resuming an `in_progress` story on its own branch.
+6. On `<base>` (resolved above) OR on `story/S-NNN-<slug>` matching the resolved story ID. The latter is the recommended path — `/modernize-refine` opens the branch (+ GH issue + draft PR) so the refinement diff is reviewable on GitHub before implement runs.
 
 ## Procedure
 
@@ -36,11 +45,11 @@ Bail if any fail:
 
 Read in parallel: the full story file, each ADR in `adr_refs`, the legacy code paths cited in design notes (open them, don't paraphrase), the `parity_test` if any, `00-seed.md`.
 
-**Speculative-refinement freshness (when `refined_speculative: true`):** re-refine if `refined_speculative_at` > 14 days old, or any `adr_refs` file or `depends_on` story changed since. Invoke `/modernize-refine S-NNN` JIT before continuing.
+**Legacy speculative-refinement (when `refined_speculative: true`):** historical stamp from the retired `/modernize-refine-ahead`. Treat it as "refine again" regardless of age — current `/modernize-refine` includes the Step 3.5 grill that the speculative variant skipped. Invoke `/modernize-refine S-NNN` JIT before continuing.
 
 **Context7 freshness (when story touches a library / framework):** `mcp__context7__resolve-library-id` → `mcp__context7__query-docs` for each library mentioned in `adr_refs` or design notes. Library facts override training-data assumptions. Skip for general programming concepts.
 
-### Step 2 — Status flip + GitHub issue + branch
+### Step 2 — Status flip + bootstrap GH artifacts (if refine didn't)
 
 Update frontmatter:
 
@@ -49,11 +58,15 @@ status: in_progress
 started_at: <ISO date>
 ```
 
-**GitHub issue:** if `gh auth status` OK + remote exists + no `github_issue:` yet, `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist + link back to MD. Capture issue number; stamp `github_issue: N` on frontmatter. If already stamped, verify open via `gh issue view`.
+**Path A — refine already opened branch + issue + PR (recommended).** Current branch is `story/S-NNN-<slug>` and frontmatter carries `github_issue` + `github_pr`. Verify both are open (`gh issue view N`, `gh pr view M`). Commit the status flip as `#N: start (status: in_progress)` and push immediately — the PR already exists; pushing a metadata commit costs nothing and makes the "is being worked on" signal visible.
 
-**Branch:** `git checkout -b story/S-NNN-<slug>` off main. The initial commit (status + issue stamp) lands here: `#N: start`.
+**Path B — fallback bootstrap (refine ran without `gh` / on legacy story refined before this contract / `--no-refine` opportunistic).** Current branch is `<base>` and `github_issue` / `github_pr` may be missing.
 
-**Fallback (no `gh` / no remote / `gh issue create` fails):** skip issue lifecycle; use `S-NNN: <summary>` commit prefix instead of `#N:`.
+- Branch: `git checkout -b story/S-NNN-<slug>` off `<base>`.
+- GH issue: if `gh auth status` OK + remote exists + no `github_issue:` yet, `gh issue create` with title `S-NNN: <story title>`, body = `## Context` verbatim + AC checklist + link back to MD. Stamp `github_issue: N`.
+- Status-flip commit: `#N: start` (or `S-NNN: start` fallback when no issue). Don't push yet — draft PR opens at Step 5 first-green-push per the empty-PR-avoidance rule. (Path A doesn't need that rule because the PR isn't empty — refine's diff already populated it.)
+
+**Sub-fallback (no `gh` / no remote / `gh issue create` fails):** skip issue lifecycle; use `S-NNN: <summary>` commit prefix instead of `#N:` everywhere downstream.
 
 ### Step 3 — Parity strategy + red tests FIRST
 
@@ -79,7 +92,9 @@ Order:
 
 - **Commit per work-package, not per file.** Target 3-5 commits for M stories, 5-8 for L.
 - **Subject:** `#N: <one-line summary>` (or `S-NNN: …` fallback). No Conventional Commits prefix.
-- **First push** happens after the backend slice is locally green → opens **draft PR** (`gh pr create --draft --base main --head story/S-NNN-<slug>`, body `Closes #N` + AC checklist). Stamp `github_pr: M` on frontmatter.
+- **First push:**
+  - **Path A (PR already exists from refine):** push the Step 2 status-flip commit immediately. The PR's "draft" state stays until Step 8 marks ready.
+  - **Path B (no PR yet):** push happens after the backend slice is locally green → opens **draft PR** (`gh pr create --draft --base <base> --head story/S-NNN-<slug>`, body `Closes #N` + AC checklist). Stamp `github_pr: M` on frontmatter. The wait-until-green delay avoids an empty draft PR.
 - **Subsequent pushes** at locally-green work-package boundaries. Watch CI in background:
   ```
   gh run watch <run-id> --exit-status   # run_in_background: true
@@ -130,7 +145,7 @@ One consult per fork, no chaining. Record in the done report.
 
 ### Step 7 — Pre-push reviewer panel + auto-fix loop
 
-Before the final status-flip commit, run the full reviewer panel against `git diff main...HEAD`. Findings come back as `[blocker]` / `[improvement]` / `[nudge]`; **fix all three severities inline** (auto-fix policy — the implement skill owns its review). No `## Review` story-body section is written; the fix lives in code commits + the PR diff.
+Before the final status-flip commit, run the full reviewer panel against `git diff <base>...HEAD`. Findings come back as `[blocker]` / `[improvement]` / `[nudge]`; **fix all three severities inline** (auto-fix policy — the implement skill owns its review). No `## Review` story-body section is written; the fix lives in code commits + the PR diff.
 
 **Scope flags** (compute once before dispatch):
 - `has_frontend` — any `alpenflight/web/` path **that is NOT auto-generated** (skip OpenAPI snapshot + codegen artifacts under `alpenflight/web/src/app/api/generated/`).

@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Aggregate-internal child of {@link Location}. Represents an inbound or
  * outbound routing waypoint at an airfield. Mapped to V3
- * {@code inoutbound_point}; the row is owned by its parent Location and
+ * {@code t_inoutbound_point}; the row is owned by its parent Location and
  * lifecycle-bound via {@code @OneToMany(cascade=ALL, orphanRemoval=true)}.
  *
  * <p>No top-level CRUD endpoint exists for IOPs: per S-049 they are managed
@@ -23,7 +23,7 @@ import org.jspecify.annotations.Nullable;
  * only {@link Location} drives them.
  */
 @Entity
-@Table(name = "inoutbound_point")
+@Table(name = "t_inoutbound_point")
 public class InOutboundPoint {
 
     @Id

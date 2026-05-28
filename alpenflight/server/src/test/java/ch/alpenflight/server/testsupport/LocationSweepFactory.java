@@ -19,8 +19,8 @@ final class LocationSweepFactory {
     private LocationSweepFactory() {}
 
     static Location build(SweepFixtureContext ctx) {
-        UUID countryId = firstId(ctx, "country");
-        UUID locationTypeId = firstId(ctx, "location_type");
+        UUID countryId = firstId(ctx, "t_country");
+        UUID locationTypeId = firstId(ctx, "t_location_type");
         String unique = Long.toString(System.nanoTime(), 36);
         return Location.create(
                 TenantScopedRowBuilders.SWEEP_PREFIX + "LOC_" + unique,

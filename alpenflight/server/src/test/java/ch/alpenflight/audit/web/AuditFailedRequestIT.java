@@ -68,7 +68,7 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
         List<Map<String, Object>> failedRows = jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event "
+                "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true",
                 SYSADMIN_TENANT.toString());
         assertThat(failedRows).hasSize(1);
@@ -96,14 +96,14 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
         long failedCount = jdbc.queryForObject(
-                "SELECT count(*) FROM mutation_audit_event "
+                "SELECT count(*) FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true",
                 Long.class,
                 SYSADMIN_TENANT.toString());
         assertThat(failedCount).isZero();
 
         long successCount = jdbc.queryForObject(
-                "SELECT count(*) FROM mutation_audit_event "
+                "SELECT count(*) FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = false AND action = 'CREATE'",
                 Long.class,
                 SYSADMIN_TENANT.toString());
@@ -117,7 +117,7 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode().is2xxSuccessful()).isFalse();
 
         long rows = jdbc.queryForObject(
-                "SELECT count(*) FROM mutation_audit_event WHERE tenant_club_id = ?::uuid",
+                "SELECT count(*) FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 Long.class,
                 SYSADMIN_TENANT.toString());
         assertThat(rows).isZero();
@@ -150,7 +150,7 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         // (setUp truncated this tenant; if a row appears it can only be
         // from this request.)
         long onSysadmin = jdbc.queryForObject(
-                "SELECT count(*) FROM mutation_audit_event WHERE tenant_club_id = ?::uuid",
+                "SELECT count(*) FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 Long.class, SYSADMIN_TENANT.toString());
         assertThat(onSysadmin)
                 .as("Auth-failure 401/403 must NOT emit a row into mutation_audit_event")
@@ -177,7 +177,7 @@ class AuditFailedRequestIT extends PostgresIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event "
+                "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true",
                 SYSADMIN_TENANT.toString());
         assertThat(rows).hasSize(1);

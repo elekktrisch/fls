@@ -22,11 +22,12 @@ name: alpenflight e2e
 
 on:
   push:
-    branches: [main]
+    branches: [main, "integration/**"]
     paths:
       - 'alpenflight/web/**'
       - '.github/workflows/alpenflight-e2e.yml'
   pull_request:
+    branches: [main, "integration/**"]
     paths:
       - 'alpenflight/web/**'
       - '.github/workflows/alpenflight-e2e.yml'
@@ -111,7 +112,7 @@ jobs:
         # is still published when the suite is red — that's what makes
         # the failure surface diagnosable.
         timeout-minutes: 5
-        run: pnpm exec playwright test --config=e2e/playwright.config.ts
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
 
       - name: Assemble publishable bundle
         if: always()

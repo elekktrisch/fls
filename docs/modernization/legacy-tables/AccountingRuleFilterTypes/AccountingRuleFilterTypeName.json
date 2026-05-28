@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "AccountingRuleFilterTypes",
+  "column" : "AccountingRuleFilterTypeName",
+  "ordinal" : 2,
+  "data_type" : "nvarchar",
+  "is_nullable" : false,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : 100,
+  "precision" : null,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

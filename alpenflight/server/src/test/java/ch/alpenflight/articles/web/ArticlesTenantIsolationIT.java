@@ -69,7 +69,7 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
                 .isInstanceOf(ArticleNotFoundException.class);
 
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM article WHERE id = ?::uuid "
+                "SELECT count(*) FROM t_article WHERE id = ?::uuid "
                         + "AND operating_club_id = ?::uuid",
                 Integer.class, aRow.id().value().toString(), CLUB_A.toString());
         assertThat(matches).isEqualTo(1);
@@ -82,7 +82,7 @@ class ArticlesTenantIsolationIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(CLUB_B, () -> articles.registerArticle(payload(shared)));
 
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM article WHERE article_number = ?",
+                "SELECT count(*) FROM t_article WHERE article_number = ?",
                 Integer.class, shared);
         assertThat(matches).isEqualTo(2);
     }

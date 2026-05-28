@@ -30,3 +30,7 @@ alpenflight/web/scripts/node_modules
 alpenflight/web/dist
 alpenflight/web/.angular
 .pnpm-store/
+
+# Per-developer Keycloak env (Google OAuth client secrets, SMTP overrides,
+# SPA base URL). .env.example is the committed template.
+alpenflight/auth/.env

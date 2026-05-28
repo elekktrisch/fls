@@ -33,7 +33,7 @@ class DeploymentMigrationIT extends PostgresIntegrationTest {
     @Test
     void sandbox_deployment_seeded() {
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT lifecycle_state, plan, owner_keycloak_sub FROM deployment WHERE id = ?::uuid",
+                "SELECT lifecycle_state, plan, owner_keycloak_sub FROM t_deployment WHERE id = ?::uuid",
                 Deployment.SANDBOX_ID.toString());
         assertThat(row.get("lifecycle_state")).isEqualTo("SANDBOX");
         assertThat(row.get("plan")).isEqualTo("FREE");
@@ -44,7 +44,7 @@ class DeploymentMigrationIT extends PostgresIntegrationTest {
     @Test
     void operator_deployment_seeded_in_active_state() {
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT lifecycle_state, plan FROM deployment WHERE id = ?::uuid",
+                "SELECT lifecycle_state, plan FROM t_deployment WHERE id = ?::uuid",
                 Deployment.OPERATOR_ID.toString());
         assertThat(row.get("lifecycle_state")).isEqualTo("ACTIVE");
         assertThat(row.get("plan")).isEqualTo("ACTIVE");
@@ -53,7 +53,7 @@ class DeploymentMigrationIT extends PostgresIntegrationTest {
     @Test
     void v5_seed_club_backfilled_to_operator_deployment() {
         String deploymentId = jdbc.queryForObject(
-                "SELECT deployment_id::text FROM club WHERE id = ?::uuid",
+                "SELECT deployment_id::text FROM t_club WHERE id = ?::uuid",
                 String.class, "019e30c3-2c00-7001-8000-000000000001");
         assertThat(deploymentId).isEqualTo(Deployment.OPERATOR_ID.toString());
     }
