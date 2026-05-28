@@ -1,4 +1,4 @@
-package ch.alpenflight.users.infra.keycloak;
+package ch.alpenflight.platform.keycloak;
 
 import java.io.IOException;
 import org.springframework.http.HttpRequest;
@@ -11,12 +11,17 @@ import org.springframework.http.client.ClientHttpResponse;
  * The token is fetched lazily and rotated by
  * {@link KeycloakAdminTokenSupplier}; this interceptor just reads the
  * current value.
+ *
+ * <p>Public so adapters in sibling modules (e.g. S-138 tenancy.provisioning)
+ * can build their own admin {@link org.springframework.web.client.RestClient}
+ * instances against the same token supplier without re-implementing the
+ * bearer-injection logic.
  */
-final class BearerTokenInterceptor implements ClientHttpRequestInterceptor {
+public final class BearerTokenInterceptor implements ClientHttpRequestInterceptor {
 
     private final KeycloakAdminTokenSupplier tokens;
 
-    BearerTokenInterceptor(KeycloakAdminTokenSupplier tokens) {
+    public BearerTokenInterceptor(KeycloakAdminTokenSupplier tokens) {
         this.tokens = tokens;
     }
 

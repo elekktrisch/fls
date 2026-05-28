@@ -1,6 +1,5 @@
-package ch.alpenflight.users.infra.keycloak;
+package ch.alpenflight.platform.keycloak;
 
-import ch.alpenflight.users.domain.UserDirectoryException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -72,13 +71,13 @@ public class KeycloakAdminTokenSupplier {
                     .retrieve()
                     .body(TokenResponse.class);
             if (body == null || body.accessToken == null || body.accessToken.isBlank()) {
-                throw new UserDirectoryException("Keycloak token endpoint returned empty access_token");
+                throw new KeycloakAdminTokenException("Keycloak token endpoint returned empty access_token");
             }
             return body;
         } catch (HttpStatusCodeException e) {
             // Status only; never the response body — it may carry the
             // service-account-client error grant context.
-            throw new UserDirectoryException(
+            throw new KeycloakAdminTokenException(
                     "Keycloak token endpoint refused client-credentials grant (status "
                             + e.getStatusCode().value() + ")", e);
         }

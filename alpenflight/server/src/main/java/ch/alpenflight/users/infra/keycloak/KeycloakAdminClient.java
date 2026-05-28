@@ -1,5 +1,9 @@
 package ch.alpenflight.users.infra.keycloak;
 
+import ch.alpenflight.platform.keycloak.BearerTokenInterceptor;
+import ch.alpenflight.platform.keycloak.KeycloakAdminProperties;
+import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
+import ch.alpenflight.platform.keycloak.RedactingRestClientInterceptor;
 import ch.alpenflight.users.domain.UserDirectoryException;
 import ch.alpenflight.users.domain.UserDirectoryPort;
 import java.net.URI;

@@ -127,6 +127,24 @@ public class Deployment {
     @Column(name = "trial_started_at")
     private @Nullable Instant trialStartedAt;
 
+    // S-138 — bound at provisioning time by DeploymentProvisioningService to
+    // the caller's migration_run.id. UNIQUE at the schema layer (V15) so a
+    // concurrent retry race surfaces as a constraint violation; the second
+    // caller loads the existing Deployment by this key. updatable=false:
+    // the key is set once at startTrial-and-bind and never moves.
+    @AuditRedact
+    @Column(name = "idempotency_key", updatable = false)
+    private @Nullable UUID idempotencyKey;
+
+    // S-138 — 'pending' until the Phase B Keycloak reconcile completes,
+    // 'ready' afterward. The hourly retry job filters on 'pending' to
+    // resume KC plumbing for Deployments whose Phase B failed mid-flight.
+    // Stored as String (mapped via KeycloakReconcileState enum constants);
+    // legal-value set lives on the Java side per ADR 0022 directive 2.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kc_state", nullable = false, length = 16)
+    private KeycloakReconcileState keycloakState = KeycloakReconcileState.PENDING;
+
     // PCI scope adjacency — S-145 owns the billing audit story.
     @AuditRedact
     @Column(name = "billing_customer_id", columnDefinition = "text")
@@ -179,6 +197,47 @@ public class Deployment {
         deployment.modifiedOn = now;
         deployment.recordTransition(null, LifecycleState.TRIAL, now);
         return deployment;
+    }
+
+    /**
+     * Binds this Deployment to a caller-supplied idempotency key — the
+     * {@code migration_run.id} for S-141 ingest, or another durable
+     * cross-attempt identifier. Single-use: a retry of the same ingest
+     * attempt loads the existing Deployment by this key rather than
+     * re-binding here. Calling twice with the same key is harmless
+     * (no-op); calling with a different key throws — moving the binding
+     * would silently drop the original idempotency contract.
+     */
+    public void bindIdempotencyKey(UUID newIdempotencyKey) {
+        if (newIdempotencyKey == null) {
+            throw new IllegalArgumentException("idempotencyKey must not be null");
+        }
+        if (this.idempotencyKey != null) {
+            if (this.idempotencyKey.equals(newIdempotencyKey)) {
+                return;
+            }
+            throw new IllegalStateException(
+                    "Deployment is already bound to idempotency key " + this.idempotencyKey
+                            + "; refusing to rebind to " + newIdempotencyKey);
+        }
+        this.idempotencyKey = newIdempotencyKey;
+    }
+
+    /**
+     * True if Phase B (Keycloak group + role + attribute reconcile) has
+     * not yet completed. The S-141 hourly retry job filters on this.
+     */
+    public boolean isKeycloakPending() {
+        return this.keycloakState == KeycloakReconcileState.PENDING;
+    }
+
+    /**
+     * Flips Phase B to {@link KeycloakReconcileState#READY} after a
+     * successful directory reconcile. Idempotent — repeated calls are
+     * no-ops; repeated reconcile attempts always end in this single flip.
+     */
+    public void markKeycloakReady() {
+        this.keycloakState = KeycloakReconcileState.READY;
     }
 
     /** Transition {@code TRIAL → ACTIVE} or {@code PAST_DUE → ACTIVE}. */
@@ -370,6 +429,14 @@ public class Deployment {
 
     public @Nullable Instant getTrialStartedAt() {
         return trialStartedAt;
+    }
+
+    public @Nullable UUID getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public KeycloakReconcileState getKeycloakState() {
+        return keycloakState;
     }
 
     public @Nullable String getBillingCustomerId() {

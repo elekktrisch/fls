@@ -1,4 +1,4 @@
-package ch.alpenflight.users.infra.keycloak;
+package ch.alpenflight.platform.keycloak;
 
 import java.io.IOException;
 import org.slf4j.Logger;
@@ -13,10 +13,14 @@ import org.springframework.http.client.ClientHttpResponse;
  * Debug-log every outbound call to the Keycloak admin REST with the
  * {@code Authorization} header redacted. The admin bearer token is
  * sensitive; any sidecar log forwarder would otherwise surface it.
+ *
+ * <p>Public so adapters in sibling modules (e.g. S-138 tenancy.provisioning)
+ * can attach the same redaction interceptor to their own admin RestClient
+ * builders.
  */
-final class RedactingRestClientInterceptor implements ClientHttpRequestInterceptor {
+public final class RedactingRestClientInterceptor implements ClientHttpRequestInterceptor {
 
-    static final RedactingRestClientInterceptor INSTANCE = new RedactingRestClientInterceptor();
+    public static final RedactingRestClientInterceptor INSTANCE = new RedactingRestClientInterceptor();
 
     private static final Logger LOG = LoggerFactory.getLogger(RedactingRestClientInterceptor.class);
 

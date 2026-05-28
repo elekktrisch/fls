@@ -84,7 +84,7 @@ ADMIN_SA_ROLES=$(jq -r '
   | sort
   | join(",")
 ' "$EXPORT")
-EXPECTED_SA_ROLES="manage-realm,manage-users,query-users,view-users"
+EXPECTED_SA_ROLES="manage-groups,manage-realm,manage-users,query-users,view-users"
 [[ "$ADMIN_SA_ROLES" == "$EXPECTED_SA_ROLES" ]] \
   || fail "alpenflight-backend-admin realm-management role grant drifted: have [$ADMIN_SA_ROLES], want [$EXPECTED_SA_ROLES]"
 ok "alpenflight-backend-admin: confidential, service-accounts only, manage-realm/manage/view/query-users scope"

@@ -21,6 +21,10 @@ import java.util.function.Supplier;
  *       the audit-target tenant for the synthetic-failure path.</li>
  *   <li>{@code ch.alpenflight.deployments.application.DeploymentContext}
  *       — iterates child Clubs of a Deployment under per-Club scope.</li>
+ *   <li>{@code ch.alpenflight.tenancy.provisioning.application} (S-138)
+ *       — wraps each newly-provisioned Club in its tenant scope so the
+ *       per-Club reference-data seed runs under the right Hibernate
+ *       {@code @TenantId} carrier.</li>
  *   <li>{@code ch.alpenflight.platform.tenancy} — the carrier owner.</li>
  * </ul>
  *
@@ -41,7 +45,8 @@ class TenantsRunAsAllowlistTest {
                             "ch.alpenflight.platform.tenancy..",
                             "ch.alpenflight.audit.application..",
                             "ch.alpenflight.audit.web..",
-                            "ch.alpenflight.deployments.application..")
+                            "ch.alpenflight.deployments.application..",
+                            "ch.alpenflight.tenancy.provisioning.application..")
                     .should().callMethod(Tenants.class, "runAs", UUID.class, Runnable.class)
                     .orShould().callMethod(Tenants.class, "runAs", UUID.class, Supplier.class)
                     .as("Only allow-listed packages may call Tenants.runAs. Adding a caller is a "

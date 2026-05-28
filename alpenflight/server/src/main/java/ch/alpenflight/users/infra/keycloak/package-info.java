@@ -6,14 +6,13 @@
  * pulls RESTEasy + JBoss-Logging + Jakarta-Activation. Surface is intentionally
  * small; the cost of the dependency tree is not worth the saving.
  *
- * <p>Hardening:
+ * <p>Token caching, configuration properties + bearer-injection / log-redaction
+ * interceptors live in {@link ch.alpenflight.platform.keycloak} so the
+ * S-138 {@code tenancy.provisioning} adapter can share the transport
+ * basics without crossing the users module's boundary.
+ *
+ * <p>Hardening (specific to this adapter):
  * <ul>
- *   <li>{@link ch.alpenflight.users.infra.keycloak.KeycloakAdminTokenSupplier}
- *       caches the service-account access token and refreshes ~30s before
- *       expiry — the admin client is not request-scoped.</li>
- *   <li>The {@code RestClient} interceptor chain attaches the bearer token
- *       and redacts {@code Authorization: Bearer …} from debug logs so the
- *       admin token never lands in request logs.</li>
  *   <li>List/search calls are scoped with {@code q=clubId:<callerClub>} so
  *       a forgotten filter doesn't leak realm-wide users.</li>
  * </ul>

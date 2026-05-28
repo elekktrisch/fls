@@ -1,4 +1,4 @@
-package ch.alpenflight.tenancy.provisioning;
+package ch.alpenflight.tenancy.provisioning.application;
 
 import java.util.List;
 import java.util.UUID;
