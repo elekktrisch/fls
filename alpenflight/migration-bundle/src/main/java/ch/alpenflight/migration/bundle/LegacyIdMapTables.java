@@ -1,12 +1,9 @@
 package ch.alpenflight.migration.bundle;
 
 /**
- * Naming utility for the per-bundle {@code legacy_id_map_<entity>} temp tables.
- *
- * <p>S-141 owns the temp-table lifecycle ({@code ON COMMIT DROP}) and S-016 owns
- * the byte format + naming so the two stories don't drift. Every mapper that
- * resolves a cross-entity FK calls {@link #tempTableName(EntityType)} when
- * generating its {@code WHERE legacy_guid = ANY(?::uuid[])} batch prefetch.
+ * Naming utility for the per-bundle {@code legacy_id_map_<entity>} temporary
+ * tables. S-141 owns the table lifecycle ({@code ON COMMIT DROP}); S-016 owns
+ * the byte format and the names so the two stories don't drift.
  */
 public final class LegacyIdMapTables {
 
@@ -14,22 +11,19 @@ public final class LegacyIdMapTables {
 
     private LegacyIdMapTables() { }
 
-    public static String tempTableName(EntityType entity) {
-        return PREFIX + entity.tempTableSuffix();
+    public static String temporaryTableName(EntityType entity) {
+        return PREFIX + entity.temporaryTableSuffix();
     }
 
     /**
-     * Parameterised SQL that resolves a batch of legacy GUIDs to the new UUIDs via
-     * the per-entity temp table. The single bind parameter is a {@code UUID[]}.
-     *
-     * <p>Returns both {@code legacy_guid} and {@code new_uuid} so the caller can
-     * map a single batched query back to its 500-item input array — Postgres
-     * does not guarantee result-row order for {@code = ANY(?)} predicates, so a
-     * single-column result would force callers to re-issue or re-order.
+     * Returns both {@code legacy_guid} and {@code new_uuid} so the caller can
+     * map a single batched query back to its 500-row input array — Postgres
+     * does not guarantee result-row order for {@code = ANY(?)} predicates, so
+     * a single-column result would force callers to re-issue or re-order.
      */
-    public static String resolveFkArrayQuery(EntityType target) {
+    public static String resolveForeignKeyArrayQuery(EntityType target) {
         return "SELECT legacy_guid, new_uuid FROM "
-                + tempTableName(target)
+                + temporaryTableName(target)
                 + " WHERE legacy_guid = ANY(?::uuid[])";
     }
 }

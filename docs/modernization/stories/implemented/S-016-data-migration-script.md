@@ -36,8 +36,8 @@ S-016 owns the schema-mapping content + parity oracle that the legacy-to-new tra
 
 - **Module shape: standalone Gradle library at `alpenflight/migration-bundle/`** — Java 25, Gradle 9.4.1 wrapper, no Spring Boot. Two future consumers (S-139 JAR exporter + S-141 server ingest) take this as a project dependency. CI wiring lives in S-183.
 - **`Mapper` interface** publishes the per-entity routing surface (`entityType()` + `columns()`) + the column-list defensive-copy invariant. The `writeNdjson` / `readEntity` method signatures are deferred-by-design until S-183 brings Jackson + JDBC into the consumer-side dependency closure.
-- **`LegacyIdMapTables.resolveFkArrayQuery` returns two columns** (`legacy_guid, new_uuid`), not one. Postgres `= ANY(?)` predicates do not preserve result-row order, so a single-column return would force callers to re-issue or re-order per-row — the two-column shape lets the caller batch-map a 500-item input array in one query.
-- **`Coercions.boolToEnumTag` is tri-state** (`YES` / `NO` / `UNKNOWN`); null input maps to `UNKNOWN` so a legacy nullable bit column round-trips through the S-129 string-enum encoding without losing the third state.
+- **`LegacyIdMapTables.resolveForeignKeyArrayQuery` returns two columns** (`legacy_guid, new_uuid`), not one. Postgres `= ANY(?)` predicates do not preserve result-row order, so a single-column return would force callers to re-issue or re-order per-row — the two-column shape lets the caller batch-map a 500-row input array in one query.
+- **`Coercions.bitToTriStateTag` maps legacy nullable `bit` → tri-state tag** (`YES` / `NO` / `UNKNOWN`); null input becomes `UNKNOWN` so the S-129 string-enum encoding doesn't lose the third state.
 - **`EntityType` enum declaration order IS the ingest order.** The FK-target-precedes-source invariant is honor-system today; an ArchUnit rule under S-183 makes it structural. The `Group` field's V2/V3/V4 sub-package routing is convention-only until S-183's ArchUnit rule lands.
 
 ## Operator-grilled decisions (carry forward to S-183)

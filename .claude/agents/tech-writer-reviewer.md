@@ -59,6 +59,7 @@ Comments that **earn keep** (don't flag): hidden invariants the signature can't 
 5. **Intent-hiding expressions.** Long boolean on one line where extracting two predicates (`isLockedOut(user)`, `requiresEmailVerification(user)`) would read like a sentence.
 6. **Two-paragraph functions.** First half setup/validation, second half work, no separator. Extract; name the work.
 7. **Naming hiding intent.** `processFlight`, `helper2`, `doIt`. (Overlaps maintainability-reviewer — coordinate via synthesis; drop yours if they flagged it.)
+8. **Abbreviations + acronyms.** `tempFoo`, `cfgBar`, `usrMgr`, `procFlt` — spell words out. Industry-canonical only (`id` / `uuid` / `sql` / `http` / `json` / `dto` / `url`); domain-invented abbreviations get the full form. Multi-word acronyms in identifiers use title-case (`xmlParser`, not `XMLParser`). Drop yours if maintainability-reviewer flagged it.
 8. **Asymmetric error handling.** Catch+log+return-null one branch, catch+rethrow another, same exception class.
 
 ## Don't flag

@@ -56,7 +56,7 @@ public enum EntityType {
         return group;
     }
 
-    public String tempTableSuffix() {
+    public String temporaryTableSuffix() {
         return name().toLowerCase(Locale.ROOT);
     }
 }
