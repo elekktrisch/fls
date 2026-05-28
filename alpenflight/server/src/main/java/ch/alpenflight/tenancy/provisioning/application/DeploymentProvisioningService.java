@@ -7,6 +7,7 @@ import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.tenancy.Tenants;
 import ch.alpenflight.tenancy.provisioning.domain.DeploymentExistsException;
+import ch.alpenflight.tenancy.provisioning.domain.IdempotencyOwnerMismatchException;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentNames;
 import jakarta.persistence.EntityManager;
@@ -88,9 +89,10 @@ public class DeploymentProvisioningService {
         if (alreadyProvisioned.isPresent()) {
             Deployment existing = alreadyProvisioned.get();
             if (!request.ownerKeycloakSub().equals(existing.getOwnerKeycloakSub())) {
-                // Reject without leaking the bound owner's identifiers.
-                throw new IllegalStateException(
-                        "Idempotency key already bound to a different owner");
+                // Surfacing the bound owner's sub here would confirm to a
+                // caller racing idempotency keys that one is in flight;
+                // 404 is the agreed shape for "I don't know this key".
+                throw new IdempotencyOwnerMismatchException();
             }
             return loadResult(existing);
         }
@@ -135,10 +137,9 @@ public class DeploymentProvisioningService {
 
         UUID primaryClubId = resolvePrimaryClubId(request, clubIds);
 
-        // Funnel-telemetry placeholder; the dedicated funnel emitter
-        // replaces this log line once it lands. Logged shape matches the
-        // security plan: deploymentId + clubCount + plan only — no
-        // operator display name, no per-Club names.
+        // Funnel signal. Field set is the security-plan minimum:
+        // deploymentId + clubCount + plan only — never the operator's
+        // display name or any per-Club name.
         LOG.info(
                 "funnel event=deployment.provisioned deploymentId={} clubCount={} plan={}",
                 deploymentId, clubIds.size(), saved.getPlan());

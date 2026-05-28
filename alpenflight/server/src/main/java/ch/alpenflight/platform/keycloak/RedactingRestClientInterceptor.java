@@ -14,9 +14,8 @@ import org.springframework.http.client.ClientHttpResponse;
  * {@code Authorization} header redacted. The admin bearer token is
  * sensitive; any sidecar log forwarder would otherwise surface it.
  *
- * <p>Public so adapters in sibling modules (e.g. S-138 tenancy.provisioning)
- * can attach the same redaction interceptor to their own admin RestClient
- * builders.
+ * <p>Public so adapters in sibling business modules can attach the
+ * same redaction interceptor to their own admin RestClient builders.
  */
 public final class RedactingRestClientInterceptor implements ClientHttpRequestInterceptor {
 

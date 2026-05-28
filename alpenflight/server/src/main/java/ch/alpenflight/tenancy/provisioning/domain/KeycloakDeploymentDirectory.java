@@ -74,10 +74,18 @@ public interface KeycloakDeploymentDirectory {
     void assignRoleIfAbsent(UUID userKeycloakSub, UUID roleId, String roleName);
 
     /**
-     * Replaces the named user-attribute's value list with the given list.
-     * The caller passes the primary Club's id under attribute
-     * {@code clubId} so the JWT {@code clubId} claim resolves to the
-     * user's first tenant on token refresh.
+     * Sets the named user-attribute to the given value list. The caller
+     * passes the primary Club's id under
+     * {@link KeycloakDeploymentNames#CLUB_ID_USER_ATTRIBUTE} so the JWT
+     * {@code clubId} claim resolves to the user's first tenant on token
+     * refresh.
+     *
+     * <p>NOTE: today's adapter sends the directory's {@code PUT
+     * /users/{id}} with a single-key {@code attributes} map, which the
+     * directory treats as a full replace — fine because these freshly-
+     * provisioned users carry no other attributes, but it would silently
+     * drop sibling attributes if any were added later. Tighten to a
+     * read-then-merge if the per-user attribute surface grows.
      */
     void setUserAttribute(UUID userKeycloakSub, String attributeName, List<String> values);
 }

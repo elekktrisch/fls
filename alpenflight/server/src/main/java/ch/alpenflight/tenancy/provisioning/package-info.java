@@ -1,7 +1,7 @@
 /**
- * Tenant provisioning — wires a Keycloak user to a fresh Deployment + Clubs
- * on first successful migration ingest (S-138). The provisioning service is
- * migration-internal; S-141's ingest pipeline calls into
+ * Tenant provisioning — wires a Keycloak user to a fresh Deployment +
+ * Clubs on first successful migration ingest. The provisioning service
+ * is migration-internal; the ingest pipeline calls into
  * {@code application.DeploymentProvisioningService} at the right moment.
  *
  * <p>Module shape follows ADR 0023:

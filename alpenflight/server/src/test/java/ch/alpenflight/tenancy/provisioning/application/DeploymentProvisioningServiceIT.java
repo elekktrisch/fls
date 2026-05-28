@@ -17,6 +17,7 @@ import ch.alpenflight.deployments.domain.KeycloakReconcileState;
 import ch.alpenflight.deployments.domain.LifecycleState;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.tenancy.provisioning.domain.DeploymentExistsException;
+import ch.alpenflight.tenancy.provisioning.domain.IdempotencyOwnerMismatchException;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
 import java.time.Clock;
 import java.util.Comparator;
@@ -90,7 +91,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_deployment WHERE name LIKE 'IT_PROV_%'");
 
         // Default mock behaviour: return synthetic ids on every directory
-        // call. Per-test overrides simulate KC failure.
+        // call. Per-test overrides simulate Keycloak failure.
         reset(directory);
         when(directory.findOrCreateDeploymentGroup(any(UUID.class)))
                 .thenAnswer(inv -> UUID.randomUUID());
@@ -135,7 +136,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
             assertThat(memberStateCount).isEqualTo(3);
         }
 
-        // KC reconcile invoked once per Club for the admin role; once for
+        // Keycloak reconcile invoked once per Club for the admin role; once for
         // the group; user attribute set once.
         verify(directory, times(1)).findOrCreateDeploymentGroup(eq(result.deploymentId()));
         verify(directory, times(1)).addUserToGroupIfAbsent(eq(owner), any(UUID.class));
@@ -262,7 +263,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                 List.of(clubSpec("IT_PROV_kcfail_solo", "it-prov-kcfail-solo", "IPK")),
                 null);
 
-        doThrow(new RuntimeException("simulated KC 503"))
+        doThrow(new RuntimeException("simulated Keycloak 503"))
                 .when(directory).findOrCreateDeploymentGroup(any(UUID.class));
 
         ProvisioningResult result = provisioning.provision(request);
@@ -286,7 +287,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
         UUID stubGroupId = UUID.randomUUID();
         UUID stubRoleId = UUID.randomUUID();
         when(directory.findOrCreateDeploymentGroup(any(UUID.class)))
-                .thenThrow(new RuntimeException("simulated KC 503"))
+                .thenThrow(new RuntimeException("simulated Keycloak 503"))
                 .thenReturn(stubGroupId);
         when(directory.findOrCreateClubAdminRole(any(UUID.class), any(UUID.class)))
                 .thenReturn(stubRoleId);
@@ -370,8 +371,7 @@ class DeploymentProvisioningServiceIT extends PostgresIntegrationTest {
                 null);
 
         assertThatThrownBy(() -> provisioning.provision(hijack))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("different owner");
+                .isInstanceOf(IdempotencyOwnerMismatchException.class);
     }
 
     private ClubSpec clubSpec(String name, String slug, String clubKey) {

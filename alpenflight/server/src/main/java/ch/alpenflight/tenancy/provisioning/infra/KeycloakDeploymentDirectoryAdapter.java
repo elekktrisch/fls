@@ -76,7 +76,8 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
             if (e.getStatusCode().value() != 409) {
                 throw transportFailure("group create", e);
             }
-            // Concurrent create won — fall through to the read path.
+            // Concurrent create won — the read-after-create below
+            // resolves the id the other thread minted.
         }
         UUID afterRace = findGroupIdByName(name);
         if (afterRace == null) {
@@ -235,6 +236,12 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
     }
 
+    // The two JSON readers below intentionally strip the cause from
+    // their thrown exception: the upstream Keycloak response body can
+    // carry realm payload (audit messages, error contexts), and a
+    // forensic log forwarder grepping `e.getCause()` would surface
+    // that. Status code is preserved at the transport-failure boundary.
+
     private List<KeycloakNamedRef> readListOf(@Nullable String body) {
         if (body == null || body.isBlank()) {
             return List.of();
@@ -244,10 +251,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                     body,
                     objectMapper.getTypeFactory()
                             .constructCollectionType(List.class, KeycloakNamedRef.class));
-        } catch (Exception e) {
-            // Body is the upstream Keycloak response; can carry the
-            // realm payload. Re-throw without the cause attached so the
-            // upstream body never reaches a forensic log forwarder.
+        } catch (Exception ignored) {
             throw new KeycloakProvisioningException("malformed JSON list from directory");
         }
     }
@@ -258,7 +262,7 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
         try {
             return objectMapper.readValue(body, KeycloakNamedRef.class);
-        } catch (Exception e) {
+        } catch (Exception ignored) {
             throw new KeycloakProvisioningException("malformed JSON object from directory");
         }
     }

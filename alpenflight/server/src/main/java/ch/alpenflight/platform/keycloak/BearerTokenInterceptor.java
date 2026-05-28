@@ -12,10 +12,10 @@ import org.springframework.http.client.ClientHttpResponse;
  * {@link KeycloakAdminTokenSupplier}; this interceptor just reads the
  * current value.
  *
- * <p>Public so adapters in sibling modules (e.g. S-138 tenancy.provisioning)
- * can build their own admin {@link org.springframework.web.client.RestClient}
- * instances against the same token supplier without re-implementing the
- * bearer-injection logic.
+ * <p>Public so adapters in sibling business modules can build their
+ * own admin {@link org.springframework.web.client.RestClient} instances
+ * against the same token supplier without re-implementing the bearer-
+ * injection logic.
  */
 public final class BearerTokenInterceptor implements ClientHttpRequestInterceptor {
 

@@ -36,7 +36,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/internal/migrations")
 @Profile("test")
 @Hidden
-@AuditedBy("deploymentProvisioningService")
+// Audit emission rides through LifecycleTransitionAuditListener
+// (subscribes to the DeploymentLifecycleTransitioned event the
+// provisioning service publishes via Spring Data on save).
+@AuditedBy("lifecycleTransitionAuditListener")
 class InternalProvisioningController {
 
     private static final Logger LOG = LoggerFactory.getLogger(InternalProvisioningController.class);

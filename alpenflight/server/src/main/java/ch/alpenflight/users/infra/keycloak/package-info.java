@@ -6,10 +6,10 @@
  * pulls RESTEasy + JBoss-Logging + Jakarta-Activation. Surface is intentionally
  * small; the cost of the dependency tree is not worth the saving.
  *
- * <p>Token caching, configuration properties + bearer-injection / log-redaction
- * interceptors live in {@link ch.alpenflight.platform.keycloak} so the
- * S-138 {@code tenancy.provisioning} adapter can share the transport
- * basics without crossing the users module's boundary.
+ * <p>Token caching, configuration properties + bearer-injection / log-
+ * redaction interceptors live in {@link ch.alpenflight.platform.keycloak}
+ * so sibling business adapters can share the transport basics without
+ * crossing the users module's boundary.
  *
  * <p>Hardening (specific to this adapter):
  * <ul>

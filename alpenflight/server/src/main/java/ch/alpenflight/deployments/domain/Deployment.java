@@ -127,21 +127,24 @@ public class Deployment {
     @Column(name = "trial_started_at")
     private @Nullable Instant trialStartedAt;
 
-    // Bound at provisioning time to the caller's idempotency identifier
-    // (the upstream migration-run id). UNIQUE at the schema layer so a
-    // concurrent retry race surfaces as a constraint violation; the second
-    // caller loads the existing Deployment by this key. {@code updatable
-    // = false}: the key is set once at startTrial-and-bind and never moves.
+    /**
+     * Bound at provisioning time to the caller's idempotency identifier
+     * (typically the upstream migration-run id). UNIQUE at the schema
+     * layer so a concurrent retry race surfaces as a constraint
+     * violation; the second caller loads the existing Deployment by
+     * this key. {@code updatable = false}: the key is set once at
+     * startTrial-and-bind and never moves.
+     */
     @AuditRedact
     @Column(name = "idempotency_key", updatable = false)
     private @Nullable UUID idempotencyKey;
 
-    // PENDING until the Keycloak-side reconcile (group + per-Club admin
-    // roles + clubId user attribute) completes; flipped to READY on
-    // success. The hourly reconcile job filters on PENDING to resume
-    // directory plumbing for Deployments whose post-commit half failed
-    // mid-flight. Legal-value set lives on the Java side per ADR 0022
-    // directive 2; no DB-level CHECK.
+    /**
+     * Reconcile state for the directory-side plumbing (group + per-Club
+     * admin roles + clubId user attribute). The hourly reconcile job
+     * filters on PENDING to resume work for Deployments whose post-
+     * commit half failed mid-flight.
+     */
     @Enumerated(EnumType.STRING)
     @Column(name = "kc_state", nullable = false, length = 16)
     private KeycloakReconcileState keycloakState = KeycloakReconcileState.PENDING;
