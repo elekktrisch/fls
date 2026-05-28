@@ -89,7 +89,7 @@ class DeploymentMigrationIT extends PostgresIntegrationTest {
     void club_deployment_id_fk_constraint_present() {
         Integer count = jdbc.queryForObject("""
                         SELECT count(*) FROM information_schema.table_constraints
-                        WHERE table_name = 'club'
+                        WHERE table_name = 't_club'
                         AND constraint_name = 'fk_club_deployment_id'
                         AND constraint_type = 'FOREIGN KEY'
                         """, Integer.class);
