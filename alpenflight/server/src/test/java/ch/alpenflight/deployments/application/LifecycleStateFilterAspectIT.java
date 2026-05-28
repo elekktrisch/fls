@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 /**
  * Verifies that {@link LifecycleStateFilterAspect} dispatches the
@@ -73,13 +72,13 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
         // Only the ACTIVE Deployment has Clubs A + B; aspect fires the body
         // once per Club under that Deployment. The TRIAL Deployment has no
         // Clubs assigned in this fixture.
-        assertThat(testJob.activeInvocations.get()).isEqualTo(2);
+        assertThat(testJob.activeInvocationCount()).isEqualTo(2);
     }
 
     @Test
     void aspect_with_empty_filter_skips_body() {
         testJob.runEmptyFilter();
-        assertThat(testJob.emptyInvocations.get()).isZero();
+        assertThat(testJob.emptyInvocationCount()).isZero();
     }
 
     @TestConfiguration
@@ -90,14 +89,27 @@ class LifecycleStateFilterAspectIT extends PostgresIntegrationTest {
         }
     }
 
-    @Component
+    /**
+     * Aspect-wrapped beans run through a CGLIB proxy; field access on the
+     * proxy returns the un-initialised subclass field rather than the
+     * real target's. Counters are exposed through method getters so the
+     * test reads them via the same dispatch path the aspect wraps.
+     */
     static class TestJob {
-        final AtomicInteger activeInvocations = new AtomicInteger();
-        final AtomicInteger emptyInvocations = new AtomicInteger();
+        private final AtomicInteger activeInvocations = new AtomicInteger();
+        private final AtomicInteger emptyInvocations = new AtomicInteger();
 
         void reset() {
             activeInvocations.set(0);
             emptyInvocations.set(0);
+        }
+
+        int activeInvocationCount() {
+            return activeInvocations.get();
+        }
+
+        int emptyInvocationCount() {
+            return emptyInvocations.get();
         }
 
         // @Scheduled here is metadata for the aspect's pointcut only — the
