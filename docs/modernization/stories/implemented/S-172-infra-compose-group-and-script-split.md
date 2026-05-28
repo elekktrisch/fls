@@ -5,6 +5,8 @@ epic: E-05
 status: done
 started_at: 2026-05-27
 done_at: 2026-05-27
+merged: true
+merged_at: 2026-05-28
 estimate: S
 depends_on: []
 integration_base: integration/users-suite
