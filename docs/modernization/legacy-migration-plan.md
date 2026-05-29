@@ -27,6 +27,59 @@ This file is maintained by `/modernize-refine` (Step 4.5). Each story that touch
 
 If a story needs a semantics value not in this list, add it via refine's Step 3.5 grill and update this header before stamping the row.
 
+## End-to-end migration flow
+
+```mermaid
+flowchart TB
+    subgraph Legacy["Legacy site (SQL Server, ASP.NET)"]
+        legacyDb[(Legacy DB<br/>59 tables)]
+        producerJar["migration-tool shadowJar (S-139)<br/>SELECT + Mapper.writeNdjson"]
+        legacyDb --> producerJar
+    end
+
+    subgraph Bundle["Encrypted bundle (single .tar.gz file)"]
+        manifest["manifest.json<br/>(S-183 — schemaVersion, per-entity<br/>EntityPolicy, tenantBypassFks,<br/>unmappedReason)"]
+        ndjson["per-entity NDJSON streams<br/>(8 identity + 8 flight +<br/>4 accounting + audit log)"]
+        idMaps["legacy_id_map_&lt;entity&gt; loaders<br/>(Postgres COPY-binary format,<br/>S-183 LegacyIdMapWriter)"]
+        producerJar -. "AES-GCM<br/>(S-140 keypair)" .-> manifest
+        producerJar -. "AES-GCM" .-> ndjson
+        producerJar -. "AES-GCM" .-> idMaps
+    end
+
+    subgraph Operator["Operator browser"]
+        upload["POST /api/v1/migrations/<br/>{uploadId}/bundle<br/>(streaming, S-141)"]
+        ndjson -. "encrypted body" .-> upload
+        manifest -. "encrypted body" .-> upload
+        idMaps -. "encrypted body" .-> upload
+    end
+
+    subgraph NewStack["New stack (AlpenFlight Spring Boot + Postgres)"]
+        decrypt["Streaming decrypt + tar inflate<br/>(in-memory only, S-141)"]
+        provision["Provisioning service (S-138)<br/>1 Deployment + N Clubs<br/>+ reference data seeders<br/>(FlightType, MemberState)"]
+        ingest["Per-entity ingest in EntityType<br/>topological order:<br/>1. Identity (Country → User)<br/>2. Flight (Location → FlightCrew)<br/>3. Accounting (Article → DeliveryItem)<br/>4. Audit log (LEGACY_MIGRATED)"]
+        twoPass["Two-pass UPDATE for self-FKs<br/>(PersonCategory parent, Flight tow)"]
+        newDb[(t_* tables<br/>UUID v7 PKs)]
+        upload --> decrypt
+        decrypt --> provision
+        provision --> ingest
+        ingest --> twoPass
+        twoPass --> newDb
+    end
+
+    subgraph Parity["Pre-cutover rehearsal (S-187)"]
+        oracle["Parity oracle harness<br/>Testcontainers MSSQL + Postgres<br/>(round-trip, row-count, FK sweep,<br/>sampled values, soft-delete invariant)"]
+    end
+
+    legacyDb -. "rehearsal seed" .-> oracle
+    newDb -. "rehearsal compare" .-> oracle
+
+    classDef defended fill:#e8f4f8,stroke:#0066cc,stroke-width:2px;
+    class manifest defended
+    class decrypt defended
+```
+
+The diagram covers the end-to-end migration as designed across stories S-016 (skeleton), S-138 (provisioning), S-139 (producer jar), S-140 (encryption keypair), S-141 (ingest pipeline), S-183 (mapper contract + manifest + LegacyIdMapWriter), S-184/S-185/S-186 (per-package mappers), and S-187 (parity oracle rehearsal). The `manifest.json` `TENANT_BYPASS_ALLOW_LIST` and the streaming-decrypt path are the two defense-in-depth surfaces (highlighted) — the manifest gates cross-tenant FK widening at parse, and the decrypt-pipeline ban on disk sinks (ArchUnit) keeps plaintext bytes off local storage.
+
 ## Final-state legacy artifacts
 
 > **Bootstrapped 2026-05-26.** Tables queried from the FLSTest fixture in the local `fls-e2e-mssql-1` container (`mcr.microsoft.com/mssql/server:2022-latest`) — the e2e/integration-test seed mirrors the post-DBUpdate prod schema. Entities enumerated from [`flsserver/src/FLS.Server.Data/DbEntities/`](../../flsserver/src/FLS.Server.Data/DbEntities/), with the `DbSet<E> N` map from [`flsserver/src/FLS.Server.Data/FLSDataEntities.cs`](../../flsserver/src/FLS.Server.Data/FLSDataEntities.cs) used to bind each table to its entity class. Per-table column detail under [`legacy-tables/`](./legacy-tables/) was emitted in the same pass. Row list is exhaustive — refine's Step 4.5 updates rows in place, never adds new ones. If a prod-DB extract via [`alpenflight/database/extract/`](../../alpenflight/database/extract/) later reveals a table absent here, treat it as a bootstrap defect and re-sync rather than appending ad-hoc.

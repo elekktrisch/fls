@@ -10,10 +10,8 @@ import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.List;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Aggregate-internal crew row under {@link FlightMapper}: legacy
@@ -121,18 +119,8 @@ public final class FlightCrewMapper implements Mapper {
                 Coercions.readTimestampOrNull(source, BEGIN_INSTRUCTION_DATETIME));
         target.setTimestamp(position++,
                 Coercions.readTimestampOrNull(source, END_INSTRUCTION_DATETIME));
-        @Nullable Short nrOfLdgs = Coercions.readShortOrNull(source, NR_OF_LDGS);
-        if (nrOfLdgs == null) {
-            target.setNull(position++, Types.SMALLINT);
-        } else {
-            target.setShort(position++, nrOfLdgs);
-        }
-        @Nullable Short nrOfStarts = Coercions.readShortOrNull(source, NR_OF_STARTS);
-        if (nrOfStarts == null) {
-            target.setNull(position++, Types.SMALLINT);
-        } else {
-            target.setShort(position++, nrOfStarts);
-        }
+        Coercions.bindShortOrNull(target, position++, source, NR_OF_LDGS);
+        Coercions.bindShortOrNull(target, position++, source, NR_OF_STARTS);
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, DELETED_ON));
         target.setObject(position, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
     }

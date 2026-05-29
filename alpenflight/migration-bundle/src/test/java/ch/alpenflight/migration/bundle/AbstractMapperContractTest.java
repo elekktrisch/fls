@@ -157,6 +157,36 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
     }
 
     @Test
+    void emittedSparseEnumValuesStayInsideTheDeclaredSet() throws Exception {
+        Map<String, Set<Number>> permitted = permittedSparseEnumValues();
+        if (permitted.isEmpty()) {
+            return;
+        }
+        M underTest = mapper();
+        JsonNode emitted = invokeWriteNdjson(underTest, legacyRow(seededFaker()));
+        for (Map.Entry<String, Set<Number>> entry : permitted.entrySet()) {
+            String column = entry.getKey();
+            JsonNode node = emitted.get(column);
+            assertThat(node)
+                    .as("Mapper declared %s as a sparse-enum column but did not "
+                            + "emit it — every permittedSparseEnumValues key must "
+                            + "appear in columns()", column)
+                    .isNotNull();
+            if (node == null || node.isNull()) {
+                continue;
+            }
+            int actual = node.intValue();
+            assertThat(entry.getValue().stream().map(Number::intValue))
+                    .as("Mapper emitted sparse-enum value %d for column %s — "
+                            + "subclass legacyRow must draw from %s so the parity "
+                            + "oracle (S-187) never seeds a never-seen value the "
+                            + "aggregate would reject downstream",
+                            actual, column, entry.getValue())
+                    .contains(actual);
+        }
+    }
+
+    @Test
     void readEntityBindsEveryColumnInDeclaredOrderModuloParityIgnore() throws Exception {
         M underTest = mapper();
         JsonNode emitted = invokeWriteNdjson(underTest, legacyRow(seededFaker()));
@@ -209,7 +239,13 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         }
     }
 
-    private JsonNode invokeWriteNdjson(M underTest, Map<String, Object> legacy)
+    /**
+     * Round-trip helper exposed to subclasses with extra cases. Promoted
+     * from private so {@code FlightMapperTest}'s V13 air-state translation
+     * + sparse-enum pass-through cases share the same mock-ResultSet
+     * stubbing surface as the contract test.
+     */
+    protected JsonNode invokeWriteNdjson(M underTest, Map<String, Object> legacy)
             throws Exception {
         ResultSet rs = mock(ResultSet.class);
         lenient().when(rs.getString(anyString())).thenAnswer(invocation -> {

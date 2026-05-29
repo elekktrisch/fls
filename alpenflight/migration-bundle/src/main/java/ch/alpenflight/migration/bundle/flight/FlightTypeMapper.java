@@ -19,13 +19,12 @@ import java.util.UUID;
  * {@code @TenantId} discriminator per V3.
  *
  * <p>Seed-vs-bundle reconciliation: S-138's
- * {@code ReferenceDataSeeder} pre-creates 4 default flight types per
- * Club at trial-deployment provisioning ({@code ON CONFLICT
+ * {@code ReferenceDataSeeder} pre-creates default flight types per Club
+ * at trial-deployment provisioning ({@code ON CONFLICT
  * (operating_club_id, flight_type_name) DO NOTHING}). S-141 runs
- * provisioning first, then bundle ingest — for name collisions
- * (training, glider-tow, private, ferry) the seeded UUID wins and the
- * legacy {@code Flight.FlightTypeId} FK resolves through the natural-key
- * lookup. No mapper-side change required.
+ * provisioning first, then bundle ingest — for name collisions the
+ * seeded UUID wins and the legacy {@code Flight.FlightTypeId} FK resolves
+ * through the natural-key lookup. No mapper-side change required.
  *
  * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
  * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted},

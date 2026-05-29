@@ -21,7 +21,7 @@ import java.util.UUID;
  * the referencing-Club set is the union of {@code Flights.StartLocationId
  * / LdgLocationId}, {@code Clubs.HomebaseId}, and {@code Aircrafts.HomebaseId}
  * joined through the Aircraft's computed {@code managing_club_id}. The
- * producer supplies {@code FanoutClubId} as an aliased column on the
+ * producer is responsible for joining the fan-out partner Club into the
  * cursor; this mapper reads it as {@code ClubId}.
  *
  * <p>{@code legacy_id_map_location} is composite-keyed
@@ -123,13 +123,13 @@ public final class LocationMapper implements Mapper {
         Coercions.writeOptionalInt(target, ELEVATION,
                 source.getObject("Elevation", Integer.class));
         Coercions.writeOptionalString(target, ELEVATION_UNIT_TYPE_ID,
-                optionalLegacyIntIdAsUuid(source, "ElevationUnitType"));
+                Coercions.optionalLegacyIntIdAsUuidString(source, "ElevationUnitType"));
         Coercions.writeOptionalString(target, RUNWAY_DIRECTION,
                 source.getString("RunwayDirection"));
         Coercions.writeOptionalInt(target, RUNWAY_LENGTH,
                 source.getObject("RunwayLength", Integer.class));
         Coercions.writeOptionalString(target, RUNWAY_LENGTH_UNIT_TYPE_ID,
-                optionalLegacyIntIdAsUuid(source, "RunwayLengthUnitType"));
+                Coercions.optionalLegacyIntIdAsUuidString(source, "RunwayLengthUnitType"));
         Coercions.writeOptionalString(target, AIRPORT_FREQUENCY,
                 source.getString("AirportFrequency"));
         Coercions.writeOptionalString(target, DESCRIPTION, source.getString("Description"));
@@ -149,12 +149,6 @@ public final class LocationMapper implements Mapper {
         Coercions.writeOptionalString(target, DELETED_BY_USER_ID,
                 source.getString("DeletedByUserId"));
         target.writeEndObject();
-    }
-
-    private static @org.jspecify.annotations.Nullable String optionalLegacyIntIdAsUuid(
-            ResultSet source, String legacyColumn) throws SQLException {
-        Integer value = source.getObject(legacyColumn, Integer.class);
-        return value == null ? null : Coercions.legacyIntIdToUuidString(value);
     }
 
     @Override

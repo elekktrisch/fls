@@ -5,7 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Date;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -49,6 +53,19 @@ public final class Coercions {
                             + "the encoding. Got " + legacyIntId);
         }
         return new UUID(0L, legacyIntId).toString();
+    }
+
+    /**
+     * Convenience for FK columns that are nullable INT in legacy: returns
+     * null when the column is SQL NULL, otherwise the encoded synthetic
+     * UUID via {@link #legacyIntIdToUuidString}. Lifted out of the
+     * flight-group mappers (Location / Aircraft / Flight) where the same
+     * 4-line guard was duplicated.
+     */
+    public static @Nullable String optionalLegacyIntIdAsUuidString(
+            ResultSet source, String legacyColumn) throws SQLException {
+        Integer value = source.getObject(legacyColumn, Integer.class);
+        return value == null ? null : legacyIntIdToUuidString(value);
     }
 
     /** Returns null when the field is absent or {@code JsonNull}. */
@@ -182,5 +199,23 @@ public final class Coercions {
     public static @Nullable BigDecimal readBigDecimalOrNull(JsonNode source, String fieldName) {
         JsonNode node = source.get(fieldName);
         return (node == null || node.isNull()) ? null : node.decimalValue();
+    }
+
+    /**
+     * Binds a SMALLINT column on {@code target} preserving the primitive
+     * type contract: {@code setShort} when the JSON field carries a value,
+     * {@code setNull(SMALLINT)} when it is null or absent. Lifted out of
+     * {@code FlightMapper.readEntity} + {@code FlightCrewMapper.readEntity}
+     * where the same 4-line guard was duplicated six times.
+     */
+    public static void bindShortOrNull(
+            PreparedStatement target, int position, JsonNode source, String fieldName)
+            throws SQLException {
+        Short value = readShortOrNull(source, fieldName);
+        if (value == null) {
+            target.setNull(position, Types.SMALLINT);
+        } else {
+            target.setShort(position, value);
+        }
     }
 }

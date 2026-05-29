@@ -123,6 +123,27 @@ class ManifestTest {
     }
 
     @Test
+    void rejectsTenantBypassFksOnFlightTypeAndStartType() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("operating_club_id"),
+                List.of("id"));
+        for (EntityType referenceEntity : List.of(
+                EntityType.FLIGHT_TYPE, EntityType.START_TYPE)) {
+            Map<EntityType, EntityPolicy> policies = allFullPort();
+            policies.put(referenceEntity, withBypass);
+            assertThatThrownBy(() -> new Manifest(1, policies, Map.of()))
+                    .as("%s has no cross-tenant FK; widening the allow-list "
+                            + "with it would let a future producer smuggle a "
+                            + "bypass declaration past the structural validator",
+                            referenceEntity)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining(referenceEntity.name());
+        }
+    }
+
+    @Test
     void rejectsTenantBypassFksOnAircraftOperatingCounter() {
         EntityPolicy withBypass = new EntityPolicy(
                 EntityPolicy.PortPolicy.FULL_PORT,

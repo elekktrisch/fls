@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 
 import ch.alpenflight.migration.bundle.AbstractMapperContractTest;
 import ch.alpenflight.migration.bundle.EntityType;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
@@ -111,13 +110,11 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
     }
 
     private ObjectNode baseAircraftJson() {
+        // Minimal fully-populated NDJSON: readEntity-specific spot_link
+        // cases need every NEW-stack column present, but the spot_link
+        // tests assert only on the SQL exception path — round-trip
+        // coverage lives on the inherited contract test.
         Faker faker = seededFaker();
-        Map<String, Object> legacy = legacyRow(faker);
-        // The fully populated NDJSON the mapper would emit. We reuse the
-        // round-trip emission path from the parent class through an inner
-        // helper, but for the readEntity-specific spot_link cases we build
-        // a minimal JsonNode directly with every NEW-stack column populated
-        // so readEntity binds end-to-end.
         ObjectNode root = new ObjectMapper().createObjectNode();
         String uuid = randomUuidString(faker);
         root.put(AircraftMapper.LEGACY_GUID, uuid);
@@ -153,12 +150,6 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
         root.putNull(AircraftMapper.MODIFIED_BY_USER_ID);
         root.putNull(AircraftMapper.DELETED_ON);
         root.putNull(AircraftMapper.DELETED_BY_USER_ID);
-        // touch a faker call so the unused variable is not flagged
-        assertThat(legacy).isNotEmpty();
         return root;
-    }
-
-    private JsonNode jsonNode(ObjectNode node) {
-        return node;
     }
 }

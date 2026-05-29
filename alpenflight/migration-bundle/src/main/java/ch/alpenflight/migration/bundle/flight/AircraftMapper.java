@@ -67,6 +67,21 @@ public final class AircraftMapper implements Mapper {
     public static final String NOT_HTTPS_SPOT_LINK_ERROR =
             "BUNDLE_AIRCRAFT_SPOT_LINK_NOT_HTTPS";
 
+    /**
+     * Mapper-side {@code spot_link} scheme accepted. Matches the V3
+     * {@code ck_aircraft_spot_link_https} CHECK ({@code ~* '^https://'},
+     * case-insensitive) so producer-side hygiene + schema CHECK agree.
+     */
+    private static final String HTTPS_SCHEME = "https://";
+
+    /**
+     * Cap on the offending {@code spot_link} fragment echoed back in the
+     * row-attributable error message. Defense-in-depth: bundle-supplied
+     * URLs may carry query strings or fragments with credentials/PII that
+     * downstream loggers (S-141 error sink) capture verbatim.
+     */
+    private static final int SPOT_LINK_ECHO_LIMIT = 32;
+
     static final String LEGACY_GUID = "legacy_guid";
     static final String MANAGING_CLUB_ID = "managing_club_id";
     static final String OWNER_CLUB_ID = "owner_club_id";
@@ -170,9 +185,11 @@ public final class AircraftMapper implements Mapper {
         Coercions.writeOptionalString(target, AIRCRAFT_OWNER_PERSON_ID,
                 source.getString("AircraftOwnerPersonId"));
         Coercions.writeOptionalString(target, FLIGHT_OPERATING_COUNTER_UNIT_TYPE_ID,
-                optionalLegacyIntIdAsUuid(source, "FlightOperatingCounterUnitTypeId"));
+                Coercions.optionalLegacyIntIdAsUuidString(
+                        source, "FlightOperatingCounterUnitTypeId"));
         Coercions.writeOptionalString(target, ENGINE_OPERATING_COUNTER_UNIT_TYPE_ID,
-                optionalLegacyIntIdAsUuid(source, "EngineOperatingCounterUnitTypeId"));
+                Coercions.optionalLegacyIntIdAsUuidString(
+                        source, "EngineOperatingCounterUnitTypeId"));
         Coercions.writeOptionalString(target, HOMEBASE_ID, source.getString("HomebaseId"));
         Coercions.writeOptionalString(target, SPOT_LINK, source.getString("SpotLink"));
         target.writeBooleanField(IS_TOWING_OR_WINCH_REQUIRED,
@@ -197,20 +214,16 @@ public final class AircraftMapper implements Mapper {
         target.writeEndObject();
     }
 
-    private static @org.jspecify.annotations.Nullable String optionalLegacyIntIdAsUuid(
-            ResultSet source, String legacyColumn) throws SQLException {
-        Integer value = source.getObject(legacyColumn, Integer.class);
-        return value == null ? null : Coercions.legacyIntIdToUuidString(value);
-    }
-
     @Override
     public void readEntity(JsonNode source, PreparedStatement target) throws SQLException {
         String spotLink = Coercions.readStringOrNull(source, SPOT_LINK);
-        if (spotLink != null && !spotLink.regionMatches(true, 0, "https://", 0, 8)) {
+        if (spotLink != null
+                && !spotLink.regionMatches(true, 0, HTTPS_SCHEME, 0, HTTPS_SCHEME.length())) {
             throw new SQLException(NOT_HTTPS_SPOT_LINK_ERROR
                     + ": Aircraft.spot_link must start with 'https://' — "
                     + "producer-side hygiene fell through, would otherwise trip "
-                    + "ck_aircraft_spot_link_https mid-COPY. Got: " + spotLink);
+                    + "ck_aircraft_spot_link_https mid-COPY. Got prefix: "
+                    + safeEchoFragment(spotLink));
         }
         int position = 1;
         target.setObject(position++, UUID.fromString(source.get(LEGACY_GUID).asText()));
@@ -249,5 +262,17 @@ public final class AircraftMapper implements Mapper {
         target.setObject(position++, Coercions.readUuidOrNull(source, MODIFIED_BY_USER_ID));
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, DELETED_ON));
         target.setObject(position, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
+    }
+
+    private static String safeEchoFragment(String spotLink) {
+        int limit = Math.min(SPOT_LINK_ECHO_LIMIT, spotLink.length());
+        StringBuilder builder = new StringBuilder(limit);
+        for (int index = 0; index < limit; index++) {
+            char character = spotLink.charAt(index);
+            // Strip control characters (C0 + DEL) so the echo cannot
+            // smuggle ANSI escapes or newlines into downstream loggers.
+            builder.append(character < 0x20 || character == 0x7f ? '?' : character);
+        }
+        return builder.toString();
     }
 }

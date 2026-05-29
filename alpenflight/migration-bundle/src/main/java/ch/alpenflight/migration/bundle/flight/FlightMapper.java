@@ -12,10 +12,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.sql.Types;
 import java.util.List;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Tenant-scoped aggregate root: legacy {@code Flights.FlightId} →
@@ -71,7 +69,8 @@ public final class FlightMapper implements Mapper {
      * Legacy {@code FlightAirStates.AirStateId} for FLIGHT_PLAN_OPEN. The
      * only legacy air-state value whose timestamp survives the V13
      * translation. Sourced from
-     * {@code FlightAirStateKey.cs:8} ({@code FlightPlanOpen = 5}).
+     * {@code flsserver/src/FLS.Data.WebApi/Flight/FlightAirState.cs:10}
+     * ({@code FlightPlanOpen = 5}).
      */
     static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
 
@@ -197,7 +196,7 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalString(target, FLIGHT_TYPE_ID, source.getString("FlightTypeId"));
         target.writeBooleanField(IS_SOLO_FLIGHT, source.getBoolean("IsSoloFlight"));
         Coercions.writeOptionalString(target, START_TYPE_ID,
-                optionalLegacyIntIdAsUuid(source, "StartType"));
+                Coercions.optionalLegacyIntIdAsUuidString(source, "StartType"));
         Coercions.writeOptionalString(target, TOW_FLIGHT_ID, source.getString("TowFlightId"));
         Coercions.writeOptionalShort(target, NR_OF_LDGS,
                 source.getObject("NrOfLdgs", Short.class));
@@ -231,7 +230,7 @@ public final class FlightMapper implements Mapper {
                 source.getString("ValidationErrors"));
         Coercions.writeOptionalString(target, COUPON_NUMBER, source.getString("CouponNumber"));
         Coercions.writeOptionalString(target, FLIGHT_COST_BALANCE_TYPE_ID,
-                optionalLegacyIntIdAsUuid(source, "FlightCostBalanceType"));
+                Coercions.optionalLegacyIntIdAsUuidString(source, "FlightCostBalanceType"));
         Coercions.writeOptionalTimestamp(target, DELIVERY_CREATED_ON,
                 source.getTimestamp("DeliveryCreatedOn"));
         Coercions.writeOptionalTimestamp(target, VALIDATED_ON,
@@ -251,12 +250,6 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalString(target, DELETED_BY_USER_ID,
                 source.getString("DeletedByUserId"));
         target.writeEndObject();
-    }
-
-    private static @Nullable String optionalLegacyIntIdAsUuid(
-            ResultSet source, String legacyColumn) throws SQLException {
-        Integer value = source.getObject(legacyColumn, Integer.class);
-        return value == null ? null : Coercions.legacyIntIdToUuidString(value);
     }
 
     @Override
@@ -282,19 +275,8 @@ public final class FlightMapper implements Mapper {
         target.setObject(position++, source.get(IS_SOLO_FLIGHT).asBoolean());
         target.setObject(position++, Coercions.readUuidOrNull(source, START_TYPE_ID));
         target.setObject(position++, Coercions.readUuidOrNull(source, TOW_FLIGHT_ID));
-        Short nrOfLdgs = Coercions.readShortOrNull(source, NR_OF_LDGS);
-        if (nrOfLdgs == null) {
-            target.setNull(position++, Types.SMALLINT);
-        } else {
-            target.setShort(position++, nrOfLdgs);
-        }
-        Short nrOfLdgsOnStart =
-                Coercions.readShortOrNull(source, NR_OF_LDGS_ON_START_LOCATION);
-        if (nrOfLdgsOnStart == null) {
-            target.setNull(position++, Types.SMALLINT);
-        } else {
-            target.setShort(position++, nrOfLdgsOnStart);
-        }
+        Coercions.bindShortOrNull(target, position++, source, NR_OF_LDGS);
+        Coercions.bindShortOrNull(target, position++, source, NR_OF_LDGS_ON_START_LOCATION);
         target.setObject(position++, source.get(NO_START_TIME_INFORMATION).asBoolean());
         target.setObject(position++, source.get(NO_LDG_TIME_INFORMATION).asBoolean());
         target.setTimestamp(position++,
@@ -315,18 +297,8 @@ public final class FlightMapper implements Mapper {
         target.setTimestamp(position++,
                 Coercions.readTimestampOrNull(source, DELIVERY_CREATED_ON));
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, VALIDATED_ON));
-        Short nrOfPassengers = Coercions.readShortOrNull(source, NR_OF_PASSENGERS);
-        if (nrOfPassengers == null) {
-            target.setNull(position++, Types.SMALLINT);
-        } else {
-            target.setShort(position++, nrOfPassengers);
-        }
-        Short startPosition = Coercions.readShortOrNull(source, START_POSITION);
-        if (startPosition == null) {
-            target.setNull(position++, Types.SMALLINT);
-        } else {
-            target.setShort(position++, startPosition);
-        }
+        Coercions.bindShortOrNull(target, position++, source, NR_OF_PASSENGERS);
+        Coercions.bindShortOrNull(target, position++, source, START_POSITION);
         target.setTimestamp(position++,
                 Coercions.readTimestampOrNull(source, FLIGHT_REPORT_SENT_ON));
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, CREATED_ON));

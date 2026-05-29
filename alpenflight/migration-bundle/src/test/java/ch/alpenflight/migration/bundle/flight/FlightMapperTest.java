@@ -4,20 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyShort;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import ch.alpenflight.migration.bundle.AbstractMapperContractTest;
 import ch.alpenflight.migration.bundle.EntityType;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.ByteArrayOutputStream;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -28,9 +22,6 @@ import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
 
 class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
-
-    private static final ObjectMapper JSON = new ObjectMapper();
-    private static final JsonFactory JSON_FACTORY = new JsonFactory();
 
     private final FlightMapper mapper = new FlightMapper();
 
@@ -99,6 +90,26 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
                             otherState)
                     .isTrue();
         }
+    }
+
+    @Test
+    void softDeletedRowPreservesTowFlightIdForensicTrace() throws Exception {
+        Map<String, Object> row = rowWithAirState(
+                seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
+        String expectedTowFlightId = (String) row.get("TowFlightId");
+        // Legacy tombstone present — but the tow reference must still ride
+        // through to the new bundle row, NOT be nulled at ingest. V3 schema
+        // FK is ON DELETE SET NULL; preserving the reference at port time
+        // keeps the forensic chain intact when the tow flight also ports
+        // tombstoned in the same bundle.
+        row.put("DeletedOn", Timestamp.from(Instant.parse("2024-06-04T00:00:00Z")));
+        JsonNode emitted = invokeWriteNdjson(row);
+        assertThat(emitted.get(FlightMapper.TOW_FLIGHT_ID).asText())
+                .as("Soft-deleted Flight rows must preserve tow_flight_id — "
+                        + "forensic-preserving per the design notes; nullification "
+                        + "would lose the legacy chain even when the tow row also "
+                        + "ports tombstoned")
+                .isEqualTo(expectedTowFlightId);
     }
 
     @Test
@@ -200,50 +211,6 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     }
 
     private JsonNode invokeWriteNdjson(Map<String, Object> legacy) throws Exception {
-        ResultSet rs = mock(ResultSet.class);
-        lenient().when(rs.getString(anyString())).thenAnswer(invocation -> {
-            Object value = legacy.get(invocation.<String>getArgument(0));
-            return value == null ? null : value.toString();
-        });
-        lenient().when(rs.getObject(anyString())).thenAnswer(
-                invocation -> legacy.get(invocation.<String>getArgument(0)));
-        lenient().when(rs.getObject(anyString(), any(Class.class))).thenAnswer(invocation -> {
-            Object value = legacy.get(invocation.<String>getArgument(0));
-            Class<?> target = invocation.getArgument(1);
-            if (value == null) {
-                return null;
-            }
-            if (target == Integer.class && value instanceof Number n) {
-                return n.intValue();
-            }
-            if (target == Long.class && value instanceof Number n) {
-                return n.longValue();
-            }
-            if (target == Short.class && value instanceof Number n) {
-                return n.shortValue();
-            }
-            return value;
-        });
-        lenient().when(rs.getInt(anyString())).thenAnswer(invocation -> {
-            Object value = legacy.get(invocation.<String>getArgument(0));
-            return value instanceof Number n ? n.intValue() : 0;
-        });
-        lenient().when(rs.getLong(anyString())).thenAnswer(invocation -> {
-            Object value = legacy.get(invocation.<String>getArgument(0));
-            return value instanceof Number n ? n.longValue() : 0L;
-        });
-        lenient().when(rs.getBoolean(anyString())).thenAnswer(invocation -> {
-            Object value = legacy.get(invocation.<String>getArgument(0));
-            return value instanceof Boolean b && b;
-        });
-        lenient().when(rs.getDate(anyString())).thenAnswer(
-                invocation -> legacy.get(invocation.<String>getArgument(0)));
-        lenient().when(rs.getTimestamp(anyString())).thenAnswer(
-                invocation -> legacy.get(invocation.<String>getArgument(0)));
-        ByteArrayOutputStream sink = new ByteArrayOutputStream();
-        try (JsonGenerator generator = JSON_FACTORY.createGenerator(sink)) {
-            mapper.writeNdjson(rs, generator);
-        }
-        return JSON.readTree(sink.toByteArray());
+        return invokeWriteNdjson(mapper, legacy);
     }
 }
