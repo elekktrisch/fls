@@ -41,8 +41,7 @@ CREATE INDEX ix_migration_upload_expiry
     ON t_migration_upload (state, expires_at);
 
 COMMENT ON TABLE t_migration_upload IS
-    'Per-upload RSA-4096 handshake row (S-140). Pre-tenant: no club_id / @TenantId. '
-    || 'private_key_ciphertext is Tink-AEAD-wrapped PKCS#8 DER; uploadId bound as associatedData.';
+    'Per-upload RSA-4096 handshake row (S-140). Pre-tenant: no club_id / @TenantId. private_key_ciphertext is Tink-AEAD-wrapped PKCS#8 DER; uploadId bound as associatedData.';
 
 COMMENT ON COLUMN t_migration_upload.state IS
     'State machine enforced in Java (MigrationUploadState enum) — no CHECK per ADR 0022 D2.';
