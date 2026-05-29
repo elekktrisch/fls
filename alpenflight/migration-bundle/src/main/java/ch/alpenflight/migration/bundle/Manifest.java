@@ -114,9 +114,8 @@ public record Manifest(
                 throw new IllegalArgumentException(
                         "Entity " + entity + " declares tenantBypassFks " + bypassFks
                                 + " but is not on the cross-tenant allow-list "
-                                + TENANT_BYPASS_ALLOW_LIST + ". Only these three entities "
-                                + "may legitimately cross tenants per ADR 0008 + the "
-                                + "S-184 Security plan.");
+                                + TENANT_BYPASS_ALLOW_LIST + ". Only these entities may "
+                                + "legitimately cross tenants per ADR 0008.");
             }
         }
     }
