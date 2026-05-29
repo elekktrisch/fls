@@ -103,6 +103,32 @@ const en: Translations = {
     readonlyBanner: "Read-only. Your club's Locations are managed by your club administrator.",
     title: 'Locations',
   },
+  migrateHandshake: {
+    copied: 'Copied to clipboard.',
+    copy: 'Copy to clipboard',
+    download: 'Download key file',
+    error: 'Could not generate a key. Please try again.',
+    expires: 'Valid until {{expiresAt}}',
+    headline: 'Hand the public key to the export tool',
+    jarPanel: {
+      cta: 'Show me the export tool',
+      title: 'Export tool required',
+    },
+    loading: 'Generating key…',
+    pemLabel: 'Public key (PEM)',
+    regenerate: 'Regenerate key',
+    regenerateConfirm: {
+      cancel: 'Cancel',
+      confirm: 'Regenerate key',
+      message:
+        'A new key invalidates the previous one. If you already started the export with the old key, abandon it and start over.',
+      title: 'Replace the key?',
+    },
+    regenerated: 'New key generated. Start the export again with this key.',
+    retry: 'Retry',
+    tagline:
+      'Copy this public key into the export tool. It encrypts your data before it leaves your machine.',
+  },
   publicStub: {
     back: 'Back to the landing page',
     body: 'Public booking is on the way. In the meantime, contact your club directly.',

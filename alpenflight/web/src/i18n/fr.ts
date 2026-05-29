@@ -105,6 +105,32 @@ const fr: Translations = {
       'Lecture seule. Les emplacements de votre club sont gérés par votre administrateur de club.',
     title: 'Emplacements',
   },
+  migrateHandshake: {
+    copied: 'Copié dans le presse-papiers.',
+    copy: 'Copier dans le presse-papiers',
+    download: 'Télécharger le fichier de clé',
+    error: 'Impossible de générer la clé. Veuillez réessayer.',
+    expires: 'Valide jusqu’au {{expiresAt}}',
+    headline: 'Transmettre la clé publique à l’outil d’export',
+    jarPanel: {
+      cta: 'Afficher l’outil d’export',
+      title: 'Outil d’export requis',
+    },
+    loading: 'Génération de la clé…',
+    pemLabel: 'Clé publique (PEM)',
+    regenerate: 'Générer une nouvelle clé',
+    regenerateConfirm: {
+      cancel: 'Annuler',
+      confirm: 'Générer une nouvelle clé',
+      message:
+        'Une nouvelle clé rend la précédente invalide. Si vous avez déjà commencé l’export avec l’ancienne clé, abandonnez-le et recommencez.',
+      title: 'Remplacer la clé ?',
+    },
+    regenerated: 'Nouvelle clé générée. Recommencez l’export avec cette clé.',
+    retry: 'Réessayer',
+    tagline:
+      'Copiez cette clé publique dans l’outil d’export. Elle chiffre vos données avant qu’elles ne quittent votre machine.',
+  },
   publicStub: {
     back: 'Retour à la page d’accueil',
     body: 'La réservation publique est en préparation. En attendant, contactez directement votre club.',

@@ -22,7 +22,16 @@ import org.springframework.test.context.DynamicPropertySource;
  * A 200 on either path in prod is a security / information-disclosure issue.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
-        properties = "spring.profiles.active=prod")
+        properties = {
+                "spring.profiles.active=prod",
+                // S-140 — prod normally rejects EPHEMERAL (operator footgun
+                // guard); the IT pairs source=EPHEMERAL with the explicit
+                // allow-in-prod override so the context boots without a
+                // real keyset. Real prod sets ALPENFLIGHT_MIGRATION_MASTER_KEYSET
+                // and never sets either of these.
+                "alpenflight.migration.master-keyset.source=EPHEMERAL",
+                "alpenflight.migration.master-keyset.allow-ephemeral-in-prod=true",
+        })
 @AutoConfigureTestRestTemplate
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")

@@ -62,6 +62,9 @@
     "name" : "AircraftStates",
     "description" : "Aircraft-state reference catalog."
   }, {
+    "name" : "Migration handshake",
+    "description" : "Per-upload keypair handshake — public-key surface for the legacy export JAR (S-140)."
+  }, {
     "name" : "MemberStates",
     "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
   }, {
@@ -1344,6 +1347,25 @@
         }
       }
     },
+    "/api/v1/migrations/handshake" : {
+      "post" : {
+        "tags" : [ "Migration handshake" ],
+        "summary" : "Issue a fresh per-upload RSA-4096 keypair. Supersedes any prior in-flight row.",
+        "operationId" : "issue",
+        "responses" : {
+          "200" : {
+            "description" : "Handshake row created or replaced.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HandshakeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/locations" : {
       "get" : {
         "tags" : [ "Locations" ],
@@ -2093,6 +2115,35 @@
         }
       }
     },
+    "/api/v1/migrations/handshake/current" : {
+      "get" : {
+        "tags" : [ "Migration handshake" ],
+        "summary" : "Restore the caller's current in-flight handshake row (SPA mount path).",
+        "operationId" : "current",
+        "responses" : {
+          "200" : {
+            "description" : "Caller has an in-flight handshake row.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HandshakeResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No in-flight handshake row for the caller.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HandshakeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me" : {
       "get" : {
         "tags" : [ "me" ],
@@ -2470,7 +2521,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -4370,6 +4421,23 @@
         },
         "required" : [ "matches" ]
       },
+      "HandshakeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "uploadId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e30c3-2c00-7001-8000-000000000001"
+          },
+          "publicKeyPem" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "LocationCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a Location. ICAO code is optional but uppercase-regex bound when present.",
@@ -5751,7 +5819,7 @@
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED" ]
           },
           "targetEntityType" : {
             "type" : "string"

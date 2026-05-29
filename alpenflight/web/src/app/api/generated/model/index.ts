@@ -62,6 +62,7 @@ export * from './flightTypeDetail';
 export * from './flightTypeListItem';
 export * from './flightTypeUpdateRequest';
 export * from './flightUpdateRequest';
+export * from './handshakeResponse';
 export * from './inOutboundPointRequest';
 export * from './inOutboundPointResponse';
 export * from './lastContextParams';

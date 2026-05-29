@@ -142,6 +142,14 @@ dependencies {
     // .web.servlet.WebMvcProperties` path that Boot 4 moved to `.webmvc.autoconfigure`,
     // which broke springdoc context startup on this stack.
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
+    // S-140: Google Tink AEAD for the per-upload private-key envelope.
+    // AEAD primitive only at this story; S-141 may adopt StreamingAead
+    // (AES256_GCM_HKDF_4KB) on top of the same KeysetHandle.
+    // Exclude error_prone_annotations to dodge failOnVersionConflict() —
+    // same rationale as Caffeine above (compile-only marker annotations).
+    implementation("com.google.crypto.tink:tink:1.18.0") {
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+    }
     implementation("org.jspecify:jspecify:1.0.0")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     errorprone("com.google.errorprone:error_prone_core:2.49.0")
@@ -278,6 +286,15 @@ flyway {
     cleanDisabled = true
     baselineOnMigrate = false
     validateMigrationNaming = true
+    // Mirror the application.yml placeholder shape so ad-hoc
+    // `./gradlew flywayMigrate` against a local DB doesn't trip on V14's
+    // ${alpenflight.operator.keycloak_sub} substitution. Env override
+    // honoured for non-loopback environments.
+    placeholders = mapOf(
+        "alpenflight.operator.keycloak_sub"
+            to (System.getenv("ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB")
+                ?: "00000000-0000-0000-0000-0000000000ff"),
+    )
 }
 
 tasks.withType<Test> {
