@@ -74,13 +74,23 @@ class MutationAuditEventListener {
     private void safeWrite(MutationAuditRequest request) {
         try {
             UUID tenant = request.tenantClubId();
-            if (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant)) {
-                // True cross-tenant system events store NULL in tenant_club_id.
-                // JPA can't write that here — Hibernate's @TenantId resolver
-                // would override the null field with NO_TENANT (nil UUID),
-                // which fails the t_club FK. JDBC bypasses the discriminator
+            if (request.systemActor()
+                    && (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant))) {
+                // True system events (no JWT principal — scheduled jobs,
+                // bulk ingestion) store NULL in tenant_club_id. JPA can't
+                // write that here: Hibernate's @TenantId resolver would
+                // override the null field with NO_TENANT (nil UUID), which
+                // fails the t_club FK. JDBC bypasses the discriminator
                 // and lets the FK's "NULL ⇒ no parent" rule apply naturally.
                 writeUnscopedRow(request);
+            } else if (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant)) {
+                // Authenticated principal but tenant context isn't populated
+                // (e.g. the synthetic-failure path running after the response
+                // is committed). Let Hibernate's resolver re-read the
+                // SecurityContext to fill the tenant — that captured the
+                // user's clubId at request time and is still on the thread.
+                MutationAuditEvent row = build(request);
+                repository.append(row);
             } else {
                 // Force the resolver to see this exact tenant — guarantees
                 // the @TenantId column matches the captured operating
