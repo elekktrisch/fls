@@ -3,7 +3,16 @@ package ch.alpenflight.migration.bundle;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.migration.bundle.identity.ClubMapper;
+import ch.alpenflight.migration.bundle.identity.ClubStateMapper;
 import ch.alpenflight.migration.bundle.identity.CountryMapper;
+import ch.alpenflight.migration.bundle.identity.LanguageMapper;
+import ch.alpenflight.migration.bundle.identity.MemberStateMapper;
+import ch.alpenflight.migration.bundle.identity.PersonCategoryAssignmentMapper;
+import ch.alpenflight.migration.bundle.identity.PersonCategoryMapper;
+import ch.alpenflight.migration.bundle.identity.PersonClubMapper;
+import ch.alpenflight.migration.bundle.identity.PersonMapper;
+import ch.alpenflight.migration.bundle.identity.UserMapper;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -147,7 +156,16 @@ public class ArchitectureTest {
      * fails loudly if a follow-up forgets to register one.
      */
     private static final List<Mapper> KNOWN_MAPPERS = List.of(
-            new CountryMapper());
+            new CountryMapper(),
+            new LanguageMapper(),
+            new ClubStateMapper(),
+            new ClubMapper(),
+            new PersonMapper(),
+            new MemberStateMapper(),
+            new PersonCategoryMapper(),
+            new UserMapper(),
+            new PersonClubMapper(),
+            new PersonCategoryAssignmentMapper());
 
     @Test
     void everyMapperForeignKeyTargetPrecedesSelfInEntityTypeOrder() {

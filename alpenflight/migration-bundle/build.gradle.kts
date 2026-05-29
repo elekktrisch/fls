@@ -31,7 +31,10 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.assertj:assertj-core:3.27.4")
     testImplementation("org.mockito:mockito-core:5.18.0")
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
+    // 1.4+ recognises Java 25 classfile version 69; 1.3.0 silently returned
+    // zero classes for the bundle's own bytecode, hollowing out the
+    // ArchitectureTest structural rules.
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
     testImplementation("net.datafaker:datafaker:2.4.2")
 
     // Mockito 5 inline mocking requires the agent to be attached explicitly
