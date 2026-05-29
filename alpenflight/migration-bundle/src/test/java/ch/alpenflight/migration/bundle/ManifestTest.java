@@ -56,6 +56,10 @@ class ManifestTest {
         assertThat(decoded.schemaVersion())
                 .isEqualTo(Manifest.CURRENT_SCHEMA_VERSION);
         assertThat(decoded.entityPolicies()).hasSize(EntityType.values().length);
+        assertThat(decoded.entityPolicies().keySet())
+                .as("entityPolicies iteration must follow EntityType declaration order "
+                        + "(EnumMap-backed) — consumers walk this in ingest order")
+                .containsExactly(EntityType.values());
     }
 
     private static Map<EntityType, EntityPolicy> allFullPort() {

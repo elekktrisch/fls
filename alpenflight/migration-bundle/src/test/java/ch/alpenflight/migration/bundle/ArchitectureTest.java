@@ -63,6 +63,42 @@ public class ArchitectureTest {
                     .callMethod(File.class, "createTempFile",
                             String.class, String.class, File.class)
                     .orShould()
+                    .callMethodWhere(
+                            com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                                    com.tngtech.archunit.core.domain.properties.HasName
+                                            .Predicates.name("newOutputStream")
+                                            .and(com.tngtech.archunit.core.domain.properties
+                                                    .HasOwner.Predicates.With.owner(
+                                                            com.tngtech.archunit.base
+                                                                    .DescribedPredicate.describe(
+                                                                            "java.nio.file.Files",
+                                                                            owner -> owner.isEquivalentTo(
+                                                                                    Files.class))))))
+                    .orShould()
+                    .callMethodWhere(
+                            com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                                    com.tngtech.archunit.core.domain.properties.HasName
+                                            .Predicates.name("newBufferedWriter")
+                                            .and(com.tngtech.archunit.core.domain.properties
+                                                    .HasOwner.Predicates.With.owner(
+                                                            com.tngtech.archunit.base
+                                                                    .DescribedPredicate.describe(
+                                                                            "java.nio.file.Files",
+                                                                            owner -> owner.isEquivalentTo(
+                                                                                    Files.class))))))
+                    .orShould()
+                    .callMethodWhere(
+                            com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                                    com.tngtech.archunit.core.domain.properties.HasName
+                                            .Predicates.name("write")
+                                            .and(com.tngtech.archunit.core.domain.properties
+                                                    .HasOwner.Predicates.With.owner(
+                                                            com.tngtech.archunit.base
+                                                                    .DescribedPredicate.describe(
+                                                                            "java.nio.file.Files",
+                                                                            owner -> owner.isEquivalentTo(
+                                                                                    Files.class))))))
+                    .orShould()
                     .dependOnClassesThat()
                     .areAssignableTo(FileOutputStream.class)
                     .orShould()
@@ -77,8 +113,10 @@ public class ArchitectureTest {
                     .because("Plaintext bundle bytes must never hit local disk. "
                             + "readEntity operates on in-memory JsonNode; LegacyIdMapWriter "
                             + "is wired directly to PgConnection.getCopyAPI() by S-141. "
-                            + "Files.write* / Files.newOutputStream / FileWriter / FileChannel / "
-                            + "RandomAccessFile all qualify as writable disk sinks.")
+                            + "Files.write / Files.newOutputStream / Files.newBufferedWriter "
+                            + "return interface-typed OutputStream / BufferedWriter that "
+                            + "type-track past FileOutputStream / FileWriter dependency rules, "
+                            + "so they are banned by call-site.")
                     .allowEmptyShould(true);
 
     @ArchTest

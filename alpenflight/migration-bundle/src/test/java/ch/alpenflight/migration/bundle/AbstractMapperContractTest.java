@@ -2,6 +2,8 @@ package ch.alpenflight.migration.bundle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -110,11 +112,17 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
 
         Map<Integer, Object> binds = new TreeMap<>();
         PreparedStatement ps = mock(PreparedStatement.class);
-        doAnswer(invocation -> {
+        org.mockito.stubbing.Answer<Void> capture = invocation -> {
             binds.put(invocation.getArgument(0), invocation.getArgument(1));
             return null;
-        }).when(ps).setObject(org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.any());
+        };
+        doAnswer(capture).when(ps).setObject(anyInt(), any());
+        doAnswer(capture).when(ps).setObject(anyInt(), any(), anyInt());
+        doAnswer(capture).when(ps).setString(anyInt(), any());
+        doAnswer(capture).when(ps).setBigDecimal(anyInt(), any());
+        doAnswer(capture).when(ps).setDate(anyInt(), any());
+        doAnswer(capture).when(ps).setTimestamp(anyInt(), any());
+        doAnswer(capture).when(ps).setBytes(anyInt(), any());
 
         assertThatCode(() -> underTest.readEntity(emitted, ps))
                 .as("readEntity must accept what writeNdjson emitted")
@@ -160,6 +168,14 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
             Object value = legacy.get(invocation.<String>getArgument(0));
             return value instanceof Boolean bool && bool;
         });
+        lenient().when(rs.getBigDecimal(anyString())).thenAnswer(
+                invocation -> legacy.get(invocation.<String>getArgument(0)));
+        lenient().when(rs.getDate(anyString())).thenAnswer(
+                invocation -> legacy.get(invocation.<String>getArgument(0)));
+        lenient().when(rs.getTimestamp(anyString())).thenAnswer(
+                invocation -> legacy.get(invocation.<String>getArgument(0)));
+        lenient().when(rs.getBytes(anyString())).thenAnswer(
+                invocation -> legacy.get(invocation.<String>getArgument(0)));
 
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (JsonGenerator generator = JSON_FACTORY.createGenerator(sink)) {

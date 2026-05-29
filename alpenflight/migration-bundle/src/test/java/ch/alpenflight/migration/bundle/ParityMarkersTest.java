@@ -26,6 +26,15 @@ class ParityMarkersTest {
     }
 
     @Test
+    void parityIgnoredColumnsStillAppearInMapperColumnsList() {
+        FixtureMapper fixture = new FixtureMapper();
+        assertThat(fixture.columns())
+                .as("@ParityIgnore opts out of the parity diff but the column still "
+                        + "round-trips on the wire — the mapper must include it in columns()")
+                .contains("notes_cache");
+    }
+
+    @Test
     void parityMarkersDoNotPickUpUnannotatedFields() {
         assertThat(ParityMarkers.sentinels(FixtureMapper.class))
                 .as("only @ParitySentinel-marked fields belong in sentinels()")
