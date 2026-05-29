@@ -2,7 +2,8 @@
 id: S-183
 title: Migration-bundle — full mapper coverage + parity oracle harness
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-29
 depends_on: [S-016]
 integration_base: integration/migration
 origin: scope-split
