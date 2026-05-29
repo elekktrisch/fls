@@ -7,21 +7,26 @@ import java.util.Locale;
  * must precede their sources; S-183's ArchUnit rule makes this structural.
  * {@link Group} routes mappers to the {@code .identity}, {@code .flight}, and
  * {@code .accounting} sub-packages matching V2/V3/V4 Flyway boundaries.
+ *
+ * <p>Role / UserRole intentionally absent: per ADR 0007, Keycloak owns the
+ * realm-role catalog. Legacy {@code Roles} / {@code UserRoles} tables are
+ * registered in {@link UnmappedTables#REGISTRY}.
  */
 public enum EntityType {
 
     COUNTRY(Group.IDENTITY),
     LANGUAGE(Group.IDENTITY),
     CLUB_STATE(Group.IDENTITY),
-    MEMBER_STATE(Group.IDENTITY),
-    PERSON_CATEGORY(Group.IDENTITY),
-    ROLE(Group.IDENTITY),
 
     CLUB(Group.IDENTITY),
     PERSON(Group.IDENTITY),
-    PERSON_CLUB(Group.IDENTITY),
+
+    MEMBER_STATE(Group.IDENTITY),
+    PERSON_CATEGORY(Group.IDENTITY),
+
     USER(Group.IDENTITY),
-    USER_ROLE(Group.IDENTITY),
+    PERSON_CLUB(Group.IDENTITY),
+    PERSON_CATEGORY_ASSIGNMENT(Group.IDENTITY),
 
     LOCATION(Group.FLIGHT),
     START_TYPE(Group.FLIGHT),
