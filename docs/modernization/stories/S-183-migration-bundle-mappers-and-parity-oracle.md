@@ -12,6 +12,7 @@ refined_at: 2026-05-29
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
 context7_last_checked: 2026-05-29
 github_issue: 167
+github_pr: 168
 acceptance:
   - All remaining ~59 mappers across `identity/`, `flight/`, `accounting/` sub-packages — bidirectional `writeNdjson` (export-side, JDBC `ResultSet` → Jackson `JsonGenerator`) + `readEntity` (ingest-side, Jackson `JsonNode` → `PreparedStatement`) per the contract pinned in S-016's `Mapper` interface.
   - `Manifest` typed class — per-entity port-policy, per-entity tombstone-policy, per-FK tenant-bypass flag, `schema_version`, per-table column allow-list. Jackson-serialized JSON on the wire; consumed by both S-139 and S-141.
