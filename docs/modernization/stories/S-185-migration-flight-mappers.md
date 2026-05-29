@@ -2,7 +2,8 @@
 id: S-185
 title: Migration-bundle — flight sub-package mappers
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-29
 depends_on: [S-183, S-184]
 integration_base: integration/migration
 origin: scope-split
