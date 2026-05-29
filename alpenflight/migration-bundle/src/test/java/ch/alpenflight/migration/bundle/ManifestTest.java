@@ -63,7 +63,7 @@ class ManifestTest {
     }
 
     @Test
-    void acceptsTenantBypassFksOnTheAllowListedThreeEntities() {
+    void acceptsTenantBypassFksOnTheAllowListedIdentityGroupEntities() {
         EntityPolicy withBypass = new EntityPolicy(
                 EntityPolicy.PortPolicy.FULL_PORT,
                 EntityPolicy.TombstonePolicy.PORT_ALL,
@@ -74,6 +74,89 @@ class ManifestTest {
         policies.put(EntityType.PERSON_CLUB, withBypass);
         policies.put(EntityType.PERSON_CATEGORY_ASSIGNMENT, withBypass);
         assertThat(new Manifest(1, policies, Map.of())).isNotNull();
+    }
+
+    @Test
+    void acceptsTenantBypassFksOnTheAllowListedFlightGroupEntities() {
+        EntityPolicy aircraftBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("aircraft_owner_person_id", "homebase_id"),
+                List.of("id"));
+        EntityPolicy aircraftStateBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("noticed_by_person_id"),
+                List.of("id"));
+        EntityPolicy flightBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("aircraft_id"),
+                List.of("id"));
+        EntityPolicy flightCrewBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("person_id"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.AIRCRAFT, aircraftBypass);
+        policies.put(EntityType.AIRCRAFT_AIRCRAFT_STATE, aircraftStateBypass);
+        policies.put(EntityType.FLIGHT, flightBypass);
+        policies.put(EntityType.FLIGHT_CREW, flightCrewBypass);
+        assertThat(new Manifest(1, policies, Map.of())).isNotNull();
+    }
+
+    @Test
+    void rejectsTenantBypassFksOnLocationEvenInFlightGroup() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("club_id"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.LOCATION, withBypass);
+        assertThatThrownBy(() -> new Manifest(1, policies, Map.of()))
+                .as("Location is tenant-scoped per V7; club_id IS the @TenantId "
+                        + "discriminator, not a bypass FK")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("LOCATION");
+    }
+
+    @Test
+    void rejectsTenantBypassFksOnFlightTypeAndStartType() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("operating_club_id"),
+                List.of("id"));
+        for (EntityType referenceEntity : List.of(
+                EntityType.FLIGHT_TYPE, EntityType.START_TYPE)) {
+            Map<EntityType, EntityPolicy> policies = allFullPort();
+            policies.put(referenceEntity, withBypass);
+            assertThatThrownBy(() -> new Manifest(1, policies, Map.of()))
+                    .as("%s has no cross-tenant FK; widening the allow-list "
+                            + "with it would let a future producer smuggle a "
+                            + "bypass declaration past the structural validator",
+                            referenceEntity)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining(referenceEntity.name());
+        }
+    }
+
+    @Test
+    void rejectsTenantBypassFksOnAircraftOperatingCounter() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("aircraft_id"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.AIRCRAFT_OPERATING_COUNTER, withBypass);
+        assertThatThrownBy(() -> new Manifest(1, policies, Map.of()))
+                .as("AircraftOperatingCounter only references its parent Aircraft "
+                        + "intra-aggregate — no cross-tenant FK earns a bypass slot")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("AIRCRAFT_OPERATING_COUNTER");
     }
 
     @Test
