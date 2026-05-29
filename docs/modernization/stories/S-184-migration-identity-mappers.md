@@ -12,6 +12,7 @@ refined_at: 2026-05-29
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
 context7_last_checked: 2026-05-29
 github_issue: 169
+github_pr: 170
 acceptance:
   - Concrete mappers under `ch.alpenflight.migration.bundle.identity.*` for every IDENTITY-group `EntityType` member except `AUDIT_LOG` (S-186): `Language`, `ClubState`, `MemberState`, `PersonCategory`, `PersonCategoryAssignment` (new — see below), `Club`, `Person`, `PersonClub`, `User`.
   - Each mapper implements bidirectional `writeNdjson` + `readEntity` + `foreignKeys()` per the S-183 contract; each has a `AbstractMapperContractTest<MapperType>` subclass that passes (defensive-copy columns, round-trip, FK ordinals precede self).
