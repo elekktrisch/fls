@@ -43,3 +43,11 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+# S-140 — dev seeds a one-shot Tink keyset at startup (logged loudly).
+# Operators wanting persistence across restarts override with the env-pinned
+# inline keyset per the runbook (tinkey create-keyset ... | base64).
+alpenflight:
+  migration:
+    master-keyset:
+      source: EPHEMERAL

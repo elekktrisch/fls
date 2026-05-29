@@ -47,3 +47,12 @@ spring:
           # during context startup.
           issuer-uri: http://test-issuer
           jwk-set-uri: http://test-issuer/jwks
+
+# S-140 — test profile generates an ephemeral master keyset per JVM. Tests
+# wanting deterministic key material `@Import(MasterKeyTestFixture.class)`
+# which registers a @Primary Aead bean that overrides this one for the
+# duration of that Spring context.
+alpenflight:
+  migration:
+    master-keyset:
+      source: EPHEMERAL

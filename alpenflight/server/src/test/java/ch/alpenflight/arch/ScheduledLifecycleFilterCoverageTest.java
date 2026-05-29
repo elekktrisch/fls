@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.AlpenFlightApplication;
 import ch.alpenflight.deployments.application.LifecycleStateFilter;
+import ch.alpenflight.platform.scheduling.UnscopedScheduledJob;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -15,24 +16,26 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * S-137 design-time guardrail. Every {@code @Scheduled} method MUST carry
- * a {@link LifecycleStateFilter} with a non-empty state set:
+ * either:
  *
  * <ul>
- *   <li>missing annotation → build break (cross-Deployment leakage risk
- *       — a new job would silently iterate every state including
- *       {@code SANDBOX} stranger data + {@code DELETING} cascade-in-flight);</li>
- *   <li>empty {@code value()} → build break (the aspect's fail-closed
- *       behavior would silently skip the job forever, masking the
- *       missing decision).</li>
+ *   <li>{@link LifecycleStateFilter} with a non-empty state set — the
+ *       tenant-scoped per-(Deployment, Club) iteration, OR</li>
+ *   <li>{@link UnscopedScheduledJob} — the explicit "this job runs once
+ *       per tick, unscoped, across the whole database" marker for
+ *       pre-tenant data (S-140 hourly handshake-TTL sweep is the first
+ *       such job).</li>
  * </ul>
+ *
+ * <p>Missing annotations → build break (cross-Deployment leakage risk —
+ * a new job would silently iterate every state including {@code SANDBOX}
+ * stranger data + {@code DELETING} cascade-in-flight). Empty
+ * {@code @LifecycleStateFilter} → build break (the aspect's fail-closed
+ * behavior would silently skip the job forever, masking the missing
+ * decision).
  *
  * <p>Cross-cutting ops jobs that genuinely span every state declare each
  * state explicitly — the verbosity is the point.
- *
- * <p>No production {@code @Scheduled} method exists at S-137 ship-time;
- * S-081 lands the {@code @EnableScheduling} infrastructure and S-083+ the
- * per-job classes. This test passes vacuously today and lights up the
- * moment a job lands without the annotation.
  */
 class ScheduledLifecycleFilterCoverageTest {
 
@@ -50,19 +53,30 @@ class ScheduledLifecycleFilterCoverageTest {
                 .forEach(m -> checkFilter(m, violations));
 
         assertThat(violations)
-                .as("Every @Scheduled method must carry @LifecycleStateFilter with at "
-                        + "least one LifecycleState. Missing or empty: %s", violations)
+                .as("Every @Scheduled method must carry @LifecycleStateFilter (with at "
+                        + "least one LifecycleState) OR @UnscopedScheduledJob. Missing or "
+                        + "empty: %s", violations)
                 .isEmpty();
     }
 
     private static void checkFilter(JavaMethod method, List<String> violations) {
-        if (!method.isAnnotatedWith(LifecycleStateFilter.class)) {
-            violations.add(method.getFullName() + " (missing @LifecycleStateFilter)");
+        boolean unscoped = method.isAnnotatedWith(UnscopedScheduledJob.class);
+        boolean lifecycleFilter = method.isAnnotatedWith(LifecycleStateFilter.class);
+        if (!unscoped && !lifecycleFilter) {
+            violations.add(method.getFullName()
+                    + " (missing @LifecycleStateFilter or @UnscopedScheduledJob)");
             return;
         }
-        LifecycleStateFilter filter = method.getAnnotationOfType(LifecycleStateFilter.class);
-        if (filter.value().length == 0) {
-            violations.add(method.getFullName() + " (empty @LifecycleStateFilter)");
+        if (unscoped && lifecycleFilter) {
+            violations.add(method.getFullName()
+                    + " (both @LifecycleStateFilter and @UnscopedScheduledJob — pick one)");
+            return;
+        }
+        if (lifecycleFilter) {
+            LifecycleStateFilter filter = method.getAnnotationOfType(LifecycleStateFilter.class);
+            if (filter.value().length == 0) {
+                violations.add(method.getFullName() + " (empty @LifecycleStateFilter)");
+            }
         }
     }
 }

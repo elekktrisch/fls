@@ -35,5 +35,18 @@ public enum AuditAction {
     LOOKUP_HIT,
     /** Search/lookup that returned 0 rows. Audited so repeated misses for
      *  the same key surface as a probing signal in S-056. */
-    LOOKUP_MISS
+    LOOKUP_MISS,
+    /** S-140 — a per-upload RSA keypair was minted + persisted as
+     *  {@code awaiting_upload}. {@code after_state} carries the safe
+     *  snapshot ({@code state}, {@code expiresAt}, byte-length placeholder
+     *  for the wrapped private key); {@code before_state} is null. */
+    MIGRATION_HANDSHAKE_ISSUED,
+    /** S-140 — a subsequent handshake flipped the prior row to
+     *  {@code superseded} and wiped its private-key bytes. Both snapshots
+     *  populated; {@code system_actor=false} (driven by the user's POST). */
+    MIGRATION_HANDSHAKE_SUPERSEDED,
+    /** S-140 — the hourly expiry job flipped {@code awaiting_upload} rows
+     *  past TTL to {@code expired} and wiped the private key.
+     *  {@code system_actor=true}; no user principal. */
+    MIGRATION_HANDSHAKE_EXPIRED
 }

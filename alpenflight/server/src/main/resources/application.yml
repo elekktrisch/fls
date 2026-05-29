@@ -417,6 +417,43 @@ audit:
           - isForGlider
           - isForTow
           - isForMotor
+      MigrationUpload:
+        # S-140 — entity-path allow-list. privateKeyCiphertext is
+        # @AuditRedact on the field; the application-layer emitter passes
+        # a MigrationUploadAuditSnapshot snapshot, not the entity, so the
+        # entity walk only happens if a future code path mistakenly hands
+        # the entity to the redactor — in which case state/userId/expiresAt
+        # land and the ciphertext stays "[redacted]".
+        allow:
+          - id
+          - userId
+          - state
+          - publicKeyPem
+          - createdAt
+          - updatedAt
+          - expiresAt
+          - consumedAt
+      MigrationUploadAuditSnapshot:
+        # S-140 — snapshot record emitted on
+        # MIGRATION_HANDSHAKE_ISSUED / SUPERSEDED / EXPIRED. Tiny by design;
+        # privateKeyCiphertextSummary is the byte-length placeholder
+        # (`<bytes:NNN>`), never the raw ciphertext.
+        allow:
+          - uploadId
+          - state
+          - expiresAt
+          - privateKeyCiphertextSummary
+
+# S-140 — Tink master keyset for migration-upload private-key wrapping.
+# Env-driven. Prod MUST supply ALPENFLIGHT_MIGRATION_MASTER_KEYSET (base64
+# of a Tink AES_256_GCM keyset JSON). Dev + test profiles seed a
+# deterministic keyset so local bootstrap + CI tests pass without
+# operator intervention.
+alpenflight:
+  migration:
+    master-keyset:
+      source: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE:INLINE}
+      value: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET:}
 
 server:
   port: 8080
