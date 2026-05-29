@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnDestroy,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
@@ -19,7 +27,7 @@ import { MigrateHandshakeStore } from './migrate-handshake.store';
  * one-line edit.
  */
 const JAR_DOWNLOAD_PLACEHOLDER_HREF =
-    'https://github.com/elekktrisch/fls/releases?q=alpenflight-export-jar';
+  'https://github.com/elekktrisch/fls/releases?q=alpenflight-export-jar';
 
 /**
  * /migrate/start page (S-140). Owns:
@@ -71,10 +79,7 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
               <p data-testid="migrate-handshake-error" class="text-sm text-red-600">
                 {{ t('error') }}
               </p>
-              <af-button
-                data-testid="migrate-handshake-retry"
-                (clicked)="retry()"
-              >
+              <af-button data-testid="migrate-handshake-retry" (clicked)="retry()">
                 {{ t('retry') }}
               </af-button>
             </div>
@@ -97,18 +102,12 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
                 {{ t('expires', { expiresAt: formattedExpiry() }) }}
               </p>
               @if (copyConfirmed()) {
-                <p
-                  class="text-sm text-emerald-600"
-                  data-testid="migrate-handshake-copied"
-                >
+                <p class="text-sm text-emerald-600" data-testid="migrate-handshake-copied">
                   {{ t('copied') }}
                 </p>
               }
               @if (regenerateConfirmed()) {
-                <p
-                  class="text-sm text-emerald-600"
-                  data-testid="migrate-handshake-regenerated"
-                >
+                <p class="text-sm text-emerald-600" data-testid="migrate-handshake-regenerated">
                   {{ t('regenerated') }}
                 </p>
               }
@@ -120,10 +119,7 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
                 >
                   {{ t('download') }}
                 </af-button>
-                <af-button
-                  data-testid="migrate-handshake-copy"
-                  (clicked)="copy()"
-                >
+                <af-button data-testid="migrate-handshake-copy" (clicked)="copy()">
                   {{ t('copy') }}
                 </af-button>
                 <af-button

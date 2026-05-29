@@ -1,13 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { computed, inject } from '@angular/core';
 import { tapResponse } from '@ngrx/operators';
-import {
-  patchState,
-  signalStore,
-  withComputed,
-  withMethods,
-  withState,
-} from '@ngrx/signals';
+import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
@@ -48,8 +42,7 @@ export const MigrateHandshakeStore = signalStore(
     showError: computed(() => hasError() && upload() === null),
   })),
   withMethods((store, api = inject(MigrateHandshakeService)) => {
-    const setLoading = (): void =>
-      patchState(store, { isLoading: true, hasError: false });
+    const setLoading = (): void => patchState(store, { isLoading: true, hasError: false });
     const setSuccess = (response: HandshakeResponse): void =>
       patchState(store, { upload: response, isLoading: false, hasError: false });
     const setError = (): void => patchState(store, { isLoading: false, hasError: true });
