@@ -2,7 +2,8 @@
 id: S-140
 title: Per-upload keypair handshake + public-key surface
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-05-29
 depends_on: [S-134]
 integration_base: integration/migration
 acceptance:
