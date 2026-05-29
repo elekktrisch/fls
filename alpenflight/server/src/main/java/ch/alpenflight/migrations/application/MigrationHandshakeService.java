@@ -9,6 +9,7 @@ import ch.alpenflight.migrations.domain.MigrationUpload;
 import ch.alpenflight.migrations.domain.MigrationUploadRepository;
 import ch.alpenflight.migrations.domain.PemEncoders;
 import com.github.f4b6a3.uuid.UuidCreator;
+import jakarta.persistence.EntityManager;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -53,6 +54,13 @@ public class MigrationHandshakeService {
     private final HandshakeFunnelTelemetry telemetry;
     private final AuditTrail audit;
     private final PreTenantUserLookup userLookup;
+    // EntityManager dep is the only concession this layer makes to JPA: the
+    // race-loser recovery path needs to detach the locally-built row before
+    // the txn commit re-tries the INSERT. Adding a repository port for
+    // detach() is awkward because Spring Data JPA's fragment auto-detection
+    // doesn't pick up package-private fragments cleanly across module
+    // boundaries — kept inline rather than building infra around one call.
+    private final EntityManager entityManager;
     private final Clock clock;
     private final SecureRandom secureRandom;
 
@@ -61,12 +69,14 @@ public class MigrationHandshakeService {
                                      HandshakeFunnelTelemetry telemetry,
                                      AuditTrail audit,
                                      PreTenantUserLookup userLookup,
+                                     EntityManager entityManager,
                                      Clock clock) {
         this.repository = repository;
         this.crypto = crypto;
         this.telemetry = telemetry;
         this.audit = audit;
         this.userLookup = userLookup;
+        this.entityManager = entityManager;
         this.clock = clock;
         // Pre-warm SecureRandom at construction time so the first
         // handshake doesn't pay the entropy-source initialisation cost
@@ -112,7 +122,7 @@ public class MigrationHandshakeService {
             // Drop the loser's local entity from the persistence context
             // before re-issuing — Hibernate would otherwise try to flush
             // it again at txn commit.
-            repository.detachRow(fresh);
+            entityManager.detach(fresh);
             return supersedeAndPersist(other, mintFreshRow(userId));
         }
     }
