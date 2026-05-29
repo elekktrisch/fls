@@ -14,6 +14,8 @@ refined_at: 2026-05-29
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
 github_issue: 171
 github_pr: 172
+merged: true
+merged_at: 2026-05-29
 acceptance:
   - All `EntityType` members in `Group.FLIGHT` ship a concrete `Mapper` under `ch.alpenflight.migration.bundle.flight.*` — `Location`, `StartType`, `FlightType`, `Aircraft`, `AircraftAircraftState`, `AircraftOperatingCounter`, `Flight`, `FlightCrew`.
   - Each mapper implements bidirectional `writeNdjson` + `readEntity` per the contract.
