@@ -22,6 +22,8 @@ parity_test: tests/migration/upload-and-ingest.spec.ts (new; round-trip from S-1
 refined: true
 refined_at: 2026-05-29
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
+github_issue: 155
+github_pr: 164
 ---
 
 ## Context
