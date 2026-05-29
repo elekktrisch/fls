@@ -2,12 +2,28 @@ package ch.alpenflight.migration.bundle.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.migration.bundle.AbstractMapperContractTest;
 import ch.alpenflight.migration.bundle.EntityType;
+import java.util.Map;
+import java.util.UUID;
+import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
 
-class CountryMapperTest {
+class CountryMapperTest extends AbstractMapperContractTest<CountryMapper> {
 
     private final CountryMapper mapper = new CountryMapper();
+
+    @Override
+    protected CountryMapper mapper() {
+        return mapper;
+    }
+
+    @Override
+    protected Map<String, Object> legacyRow(Faker faker) {
+        return Map.of(
+                "CountryId", UUID.randomUUID().toString(),
+                "CountryCodeIso2", faker.country().countryCode2().toUpperCase());
+    }
 
     @Test
     void exposesCountryEntityType() {
@@ -15,20 +31,10 @@ class CountryMapperTest {
     }
 
     @Test
-    void columnsCoverPkAndLegacyIntIdHook() {
-        assertThat(mapper.columns())
-                .as("Country is a SYSTEM_GLOBAL ref; legacy_int_id must be present "
-                        + "as the cutover resolution surface per S-012.")
-                .contains("id", "legacy_int_id");
-    }
-
-    @Test
-    void columnsReturnIsCallerSafeMutation() {
-        String[] first = mapper.columns();
-        first[0] = "MUTATED";
-        assertThat(mapper.columns()[0])
-                .as("Mapper.columns() invariant — callers must not be able to mutate "
-                        + "the shared column list.")
-                .isEqualTo("id");
+    void hasNoForeignKeysAsSystemGlobalRef() {
+        assertThat(mapper.foreignKeys())
+                .as("Country is SYSTEM_GLOBAL — V2 seeds resolve by iso2_code, "
+                        + "no per-bundle FK dependency")
+                .isEmpty();
     }
 }
