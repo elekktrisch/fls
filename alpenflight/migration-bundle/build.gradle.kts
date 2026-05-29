@@ -16,13 +16,28 @@ repositories {
     mavenCentral()
 }
 
+val mockitoAgent: Configuration by configurations.creating
+
 dependencies {
     api("org.jspecify:jspecify:1.0.0")
+
+    // Mapper interface signatures expose Jackson streaming (JsonGenerator) +
+    // tree (JsonNode) types. The JDBC ResultSet / PreparedStatement surface
+    // ships with the JDK (java.sql.*) — no JDBC dependency required at api.
+    api("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
     testImplementation(platform("org.junit:junit-bom:5.11.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.assertj:assertj-core:3.27.4")
+    testImplementation("org.mockito:mockito-core:5.18.0")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.3.0")
+    testImplementation("net.datafaker:datafaker:2.4.2")
+
+    // Mockito 5 inline mocking requires the agent to be attached explicitly
+    // on Java 21+. Resolved separately so the agent jar path can be passed
+    // as -javaagent to the test JVM.
+    mockitoAgent("org.mockito:mockito-core:5.18.0") { isTransitive = false }
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -31,4 +46,5 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
