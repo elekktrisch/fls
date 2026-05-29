@@ -5,9 +5,14 @@ import type { Observable } from 'rxjs';
 /**
  * S-140 handshake API contract. Two endpoints; the response shape is
  * exactly three fields (uploadId + publicKeyPem + expiresAt — asserted
- * by the integration test on the server side too). Direct {@link HttpClient}
- * because the OpenAPI snapshot has not been regenerated yet — switch to
- * the generated service once the snapshot lands.
+ * by the integration test on the server side too).
+ *
+ * <p>The generated client at
+ * {@code @api/generated/migration-handshake/migration-handshake.service.ts}
+ * now exists; this hand-rolled façade is the temporary delegate so the
+ * store doesn't import generated code directly while the orval-side
+ * 404 wiring is still pending. Follow-up: switch the store to the
+ * generated client and delete this file.
  */
 export interface HandshakeResponse {
   uploadId: string;

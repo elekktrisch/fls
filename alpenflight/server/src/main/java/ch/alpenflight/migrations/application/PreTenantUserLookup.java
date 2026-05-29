@@ -34,7 +34,7 @@ public class PreTenantUserLookup {
     private static final Logger LOG = LoggerFactory.getLogger(PreTenantUserLookup.class);
 
     private static final String SELECT_USER_ID =
-            "SELECT id FROM t_user WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
+            "SELECT id FROM t_user WHERE keycloak_sub = ? AND deleted_on IS NULL";
 
     private final JdbcTemplate jdbc;
 
@@ -57,7 +57,9 @@ public class PreTenantUserLookup {
             LOG.debug("PreTenantUserLookup: sub is not a UUID, rejecting; sub={}", sub);
             return Optional.empty();
         }
-        List<UUID> matches = jdbc.queryForList(SELECT_USER_ID, UUID.class, parsed.toString());
+        // Bind as UUID — the pgjdbc driver maps it to Postgres uuid natively;
+        // dropping the `?::uuid` cast keeps the type contract self-documenting.
+        List<UUID> matches = jdbc.queryForList(SELECT_USER_ID, UUID.class, parsed);
         if (matches.size() == 1) {
             UUID userId = matches.get(0);
             JitUserAttributeStamp.stampResolvedUserId(userId);
