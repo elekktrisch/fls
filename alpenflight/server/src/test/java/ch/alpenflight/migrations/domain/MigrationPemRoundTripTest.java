@@ -25,7 +25,7 @@ class MigrationPemRoundTripTest {
         assertThat(((RSAPublicKey) pair.getPublic()).getModulus().bitLength())
                 .isEqualTo(RSA_KEY_BITS);
 
-        String pem = MigrationUpload.publicKeyToPem(pair);
+        String pem = PemEncoders.spkiToPem(pair.getPublic());
         assertThat(pem).startsWith("-----BEGIN PUBLIC KEY-----\n");
         assertThat(pem).endsWith("\n-----END PUBLIC KEY-----\n");
 
@@ -49,7 +49,7 @@ class MigrationPemRoundTripTest {
         }
         gen.initialize(2048);
         KeyPair pair = gen.generateKeyPair();
-        String pem = MigrationUpload.publicKeyToPem(pair);
+        String pem = PemEncoders.spkiToPem(pair.getPublic());
 
         for (String line : pem.split("\n", -1)) {
             assertThat(line.length()).isLessThanOrEqualTo(64);

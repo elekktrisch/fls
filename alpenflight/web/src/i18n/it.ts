@@ -105,6 +105,8 @@ const it: Translations = {
     title: 'Aeroporti',
   },
   migrateHandshake: {
+    copied: 'Copiato negli appunti.',
+    copy: 'Copia negli appunti',
     download: 'Scarica il file della chiave',
     error: 'Impossibile generare la chiave. Riprova.',
     expires: 'Valido fino al {{expiresAt}}',
@@ -123,6 +125,8 @@ const it: Translations = {
         'Una nuova chiave invalida la precedente. Se hai già iniziato l’esportazione con la vecchia chiave, abbandonala e ricomincia.',
       title: 'Sostituire la chiave?',
     },
+    regenerated: 'Nuova chiave generata. Ricomincia l’esportazione con questa chiave.',
+    retry: 'Riprova',
     tagline:
       'Copia questa chiave pubblica nello strumento di esportazione. Crittografa i tuoi dati prima che lascino la tua macchina.',
   },

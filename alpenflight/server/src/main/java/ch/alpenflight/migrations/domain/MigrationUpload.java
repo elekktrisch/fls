@@ -8,12 +8,9 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.nio.charset.StandardCharsets;
-import java.security.KeyPair;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Objects;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -135,14 +132,6 @@ public class MigrationUpload {
         row.updatedAt = now;
         row.expiresAt = now.plus(ttl);
         return row;
-    }
-
-    /** Convenience: PEM-encode the public side of {@code keyPair} (X.509 SPKI). */
-    public static String publicKeyToPem(KeyPair keyPair) {
-        byte[] spki = keyPair.getPublic().getEncoded();
-        String base64 = Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.UTF_8))
-                .encodeToString(spki);
-        return "-----BEGIN PUBLIC KEY-----\n" + base64 + "\n-----END PUBLIC KEY-----\n";
     }
 
     public void supersedeBy(UUID newUploadId, Clock clock) {

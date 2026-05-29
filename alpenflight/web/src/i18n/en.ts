@@ -104,6 +104,8 @@ const en: Translations = {
     title: 'Locations',
   },
   migrateHandshake: {
+    copied: 'Copied to clipboard.',
+    copy: 'Copy to clipboard',
     download: 'Download key file',
     error: 'Could not generate a key. Please try again.',
     expires: 'Valid until {{expiresAt}}',
@@ -122,6 +124,8 @@ const en: Translations = {
         'A new key invalidates the previous one. If you already started the export with the old key, abandon it and start over.',
       title: 'Replace the key?',
     },
+    regenerated: 'New key generated. Start the export again with this key.',
+    retry: 'Retry',
     tagline:
       'Copy this public key into the export tool. It encrypts your data before it leaves your machine.',
   },

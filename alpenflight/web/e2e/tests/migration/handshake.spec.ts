@@ -73,29 +73,29 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
     await expect(page.getByTestId('migrate-handshake-pem')).toHaveValue(MOCK_UPLOAD.publicKeyPem);
 
     await page.getByTestId('migrate-handshake-regenerate').click();
-    await expect(page.getByTestId('regenerate-confirm-title')).toBeVisible();
-    await expect(page.getByTestId('regenerate-confirm-message')).toBeVisible();
+    await expect(page.getByTestId('af-dialog-title')).toBeVisible();
+    await expect(page.getByTestId('af-dialog-message')).toBeVisible();
 
     await page.screenshot({
       path: 'screenshots/migration/02-regenerate-confirm.png',
       fullPage: true,
     });
 
-    await page.getByTestId('regenerate-confirm-confirm').click();
+    await page.getByTestId('af-dialog-confirm').click();
 
     // Dialog dismisses + the page settles back to the loaded state. The PEM
     // textarea remains visible (same PEM in the mock; the uploadId swapped
     // — observable via the download filename).
-    await expect(page.getByTestId('regenerate-confirm-title')).toHaveCount(0);
+    await expect(page.getByTestId('af-dialog-title')).toHaveCount(0);
     await expect(page.getByTestId('migrate-handshake-pem')).toBeVisible();
   });
 
   test('regenerate confirm cancel leaves the existing key in place', async ({ page }) => {
     await page.goto('/migrate/start');
     await page.getByTestId('migrate-handshake-regenerate').click();
-    await expect(page.getByTestId('regenerate-confirm-title')).toBeVisible();
-    await page.getByTestId('regenerate-confirm-cancel').click();
-    await expect(page.getByTestId('regenerate-confirm-title')).toHaveCount(0);
+    await expect(page.getByTestId('af-dialog-title')).toBeVisible();
+    await page.getByTestId('af-dialog-dismiss').click();
+    await expect(page.getByTestId('af-dialog-title')).toHaveCount(0);
     await expect(page.getByTestId('migrate-handshake-pem')).toHaveValue(MOCK_UPLOAD.publicKeyPem);
   });
 
@@ -110,8 +110,8 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
       const box = await btn.boundingBox();
       expect(box).not.toBeNull();
       if (box) {
-        expect(box.width).toBeGreaterThanOrEqualTo(44);
-        expect(box.height).toBeGreaterThanOrEqualTo(44);
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
       }
     }
   });
@@ -136,7 +136,7 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
 
     await page.goto('/migrate/start');
     await expect(page.getByTestId('migrate-handshake-pem')).toBeVisible();
-    expect(currentCalls).toBeGreaterThanOrEqualTo(1);
-    expect(postCalls).toBeGreaterThanOrEqualTo(1);
+    expect(currentCalls).toBeGreaterThanOrEqual(1);
+    expect(postCalls).toBeGreaterThanOrEqual(1);
   });
 });

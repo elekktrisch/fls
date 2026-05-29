@@ -7,8 +7,8 @@ import ch.alpenflight.migrations.domain.HandshakeFunnelTelemetry;
 import ch.alpenflight.migrations.domain.MigrationCryptoService;
 import ch.alpenflight.migrations.domain.MigrationUpload;
 import ch.alpenflight.migrations.domain.MigrationUploadRepository;
+import ch.alpenflight.migrations.domain.PemEncoders;
 import com.github.f4b6a3.uuid.UuidCreator;
-import jakarta.persistence.EntityManager;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -17,8 +17,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -48,16 +46,13 @@ public class MigrationHandshakeService {
     /** Vision C28: the public key is valid for 24 hours after issuance. */
     public static final Duration HANDSHAKE_TTL = Duration.ofHours(24);
 
-    private static final Logger LOG = LoggerFactory.getLogger(MigrationHandshakeService.class);
     private static final int RSA_KEY_BITS = 4096;
-    private static final String AUDIT_ENTITY_TYPE = "MigrationUploadAuditSnapshot";
 
     private final MigrationUploadRepository repository;
     private final MigrationCryptoService crypto;
     private final HandshakeFunnelTelemetry telemetry;
     private final AuditTrail audit;
     private final PreTenantUserLookup userLookup;
-    private final EntityManager entityManager;
     private final Clock clock;
     private final SecureRandom secureRandom;
 
@@ -66,14 +61,12 @@ public class MigrationHandshakeService {
                                      HandshakeFunnelTelemetry telemetry,
                                      AuditTrail audit,
                                      PreTenantUserLookup userLookup,
-                                     EntityManager entityManager,
                                      Clock clock) {
         this.repository = repository;
         this.crypto = crypto;
         this.telemetry = telemetry;
         this.audit = audit;
         this.userLookup = userLookup;
-        this.entityManager = entityManager;
         this.clock = clock;
         // Pre-warm SecureRandom at construction time so the first
         // handshake doesn't pay the entropy-source initialisation cost
@@ -92,7 +85,7 @@ public class MigrationHandshakeService {
         UUID uploadId = upload.getRawId();
 
         audit.record(AuditAction.MIGRATION_HANDSHAKE_ISSUED,
-                AuditedTarget.created(AUDIT_ENTITY_TYPE, uploadId,
+                AuditedTarget.created(MigrationUploadAuditSnapshot.AUDIT_ENTITY_TYPE, uploadId,
                         MigrationUploadAuditSnapshot.inFlight(
                                 uploadId, upload.getState(), upload.getExpiresAt(),
                                 upload.getPrivateKeyCiphertextLength())));
@@ -119,7 +112,7 @@ public class MigrationHandshakeService {
             // Drop the loser's local entity from the persistence context
             // before re-issuing — Hibernate would otherwise try to flush
             // it again at txn commit.
-            entityManager.detach(fresh);
+            repository.detachRow(fresh);
             return supersedeAndPersist(other, mintFreshRow(userId));
         }
     }
@@ -134,7 +127,7 @@ public class MigrationHandshakeService {
         MigrationUpload saved = repository.save(fresh);
         repository.flush();
         audit.record(AuditAction.MIGRATION_HANDSHAKE_SUPERSEDED,
-                AuditedTarget.updated(AUDIT_ENTITY_TYPE, priorId, priorBefore,
+                AuditedTarget.updated(MigrationUploadAuditSnapshot.AUDIT_ENTITY_TYPE, priorId, priorBefore,
                         MigrationUploadAuditSnapshot.wiped(
                                 priorId, prior.getState(), prior.getExpiresAt())));
         telemetry.superseded(priorId, clock.instant());
@@ -143,14 +136,18 @@ public class MigrationHandshakeService {
 
     private MigrationUpload mintFreshRow(UUID userId) {
         KeyPair keyPair = generateKeyPair();
+        // Encoded bytes hold the secret material; crypto.wrap zeroizes the
+        // input array in finally. The JCE RSAPrivateKey object retains the
+        // modulus/exponent BigIntegers — there is no portable in-process
+        // zeroize hook for those without BouncyCastle (out of scope).
         byte[] pkcs8 = keyPair.getPrivate().getEncoded();
         // Generate the row's id locally so the Tink AEAD wrap can bind
-        // {@code uploadId.bytes} as associatedData. UUID v7 keeps us on
-        // the project's time-ordered B-tree-friendly convention.
+        // uploadId.bytes as associatedData. UUID v7 keeps us on the
+        // project's time-ordered B-tree-friendly convention.
         UUID uploadId = UuidCreator.getTimeOrderedEpoch();
         byte[] wrapped = crypto.wrap(uploadId, pkcs8);
         return MigrationUpload.issue(uploadId, userId,
-                MigrationUpload.publicKeyToPem(keyPair),
+                PemEncoders.spkiToPem(keyPair.getPublic()),
                 wrapped, clock, HANDSHAKE_TTL);
     }
 
@@ -177,9 +174,10 @@ public class MigrationHandshakeService {
         try {
             return SecureRandom.getInstanceStrong();
         } catch (NoSuchAlgorithmException e) {
-            // Practically impossible on a supported JRE. Surface, not fallback.
-            LOG.warn("getInstanceStrong unavailable; falling back to SecureRandom default");
-            return new SecureRandom();
+            // Practically impossible on a supported JRE — surface as
+            // IllegalStateException at bean construction rather than
+            // silently degrading to the default SecureRandom.
+            throw new IllegalStateException("SecureRandom.getInstanceStrong() unavailable", e);
         }
     }
 }

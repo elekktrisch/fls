@@ -106,6 +106,8 @@ const fr: Translations = {
     title: 'Emplacements',
   },
   migrateHandshake: {
+    copied: 'Copié dans le presse-papiers.',
+    copy: 'Copier dans le presse-papiers',
     download: 'Télécharger le fichier de clé',
     error: 'Impossible de générer la clé. Veuillez réessayer.',
     expires: 'Valide jusqu’au {{expiresAt}}',
@@ -124,6 +126,8 @@ const fr: Translations = {
         'Une nouvelle clé rend la précédente invalide. Si vous avez déjà commencé l’export avec l’ancienne clé, abandonnez-le et recommencez.',
       title: 'Remplacer la clé ?',
     },
+    regenerated: 'Nouvelle clé générée. Recommencez l’export avec cette clé.',
+    retry: 'Réessayer',
     tagline:
       'Copiez cette clé publique dans l’outil d’export. Elle chiffre vos données avant qu’elles ne quittent votre machine.',
   },

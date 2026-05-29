@@ -13,11 +13,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.Base64;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * S-140 master-keyset bootstrap. Reads the env-pinned Tink JSON keyset
@@ -61,24 +63,39 @@ public class MigrationCryptoConfig {
 
     private final Source source;
     private final String value;
+    private final Environment environment;
 
     public MigrationCryptoConfig(
             @Value("${alpenflight.migration.master-keyset.source:INLINE}") Source source,
-            @Value("${alpenflight.migration.master-keyset.value:}") String value) {
+            @Value("${alpenflight.migration.master-keyset.value:}") String value,
+            Environment environment) {
         this.source = source;
         this.value = value;
+        this.environment = environment;
     }
 
+    /**
+     * Master keyset is loaded ONCE here; rotation requires a rolling JVM
+     * restart (the bean is constructed at {@code @Bean} factory time and
+     * cached for the app lifetime). Active-rotation-without-restart is a
+     * future story.
+     */
     @Bean
     Aead migrationMasterKeyAead() throws GeneralSecurityException, IOException {
         AeadConfig.register();
+        if (source == Source.EPHEMERAL && Arrays.asList(environment.getActiveProfiles()).contains("prod")) {
+            throw new IllegalStateException(
+                    "alpenflight.migration.master-keyset.source=EPHEMERAL is forbidden under the "
+                            + "prod profile — an ephemeral keyset would wipe every in-flight "
+                            + "private key on restart. Set ALPENFLIGHT_MIGRATION_MASTER_KEYSET to "
+                            + "a base64-encoded Tink JSON keyset (or source=FILE + path).");
+        }
         KeysetHandle handle = switch (source) {
             case EPHEMERAL -> {
                 KeysetHandle generated = KeysetHandle.generateNew(PredefinedAeadParameters.AES256_GCM);
                 LOG.warn("MigrationCryptoConfig: source=EPHEMERAL — generated a one-shot master "
                         + "keyset (primaryKeyId={}). Every restart wipes previously-issued private "
-                        + "keys. NEVER use in production; set ALPENFLIGHT_MIGRATION_MASTER_KEYSET.",
-                        generated.getPrimary().getId());
+                        + "keys. Dev / test only.", generated.getPrimary().getId());
                 yield generated;
             }
             case INLINE, FILE -> {

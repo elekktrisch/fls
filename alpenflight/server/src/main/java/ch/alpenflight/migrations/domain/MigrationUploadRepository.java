@@ -31,4 +31,15 @@ public interface MigrationUploadRepository {
     MigrationUpload save(MigrationUpload row);
 
     void flush();
+
+    /**
+     * Drop a still-managed entity from the persistence context. Used by
+     * the handshake-race recovery path so the loser's locally-built row
+     * is not flushed back to the DB after the winner's INSERT has
+     * already taken the partial-UNIQUE slot. Implemented in
+     * {@code infra} via {@code EntityManager.detach} (Spring Data
+     * doesn't expose this on {@code JpaRepository}); the application
+     * layer never imports {@code EntityManager} directly.
+     */
+    void detachRow(MigrationUpload row);
 }

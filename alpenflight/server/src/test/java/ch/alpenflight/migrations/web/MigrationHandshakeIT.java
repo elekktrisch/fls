@@ -238,9 +238,15 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
         assertThat(audit.get("action")).isEqualTo("MIGRATION_HANDSHAKE_EXPIRED");
         assertThat(audit.get("system_actor")).isEqualTo(true);
 
-        // Idempotency: running again does no further work on the same row.
+        // Idempotency: running again does no further work on the same row,
+        // and exactly one MIGRATION_HANDSHAKE_EXPIRED audit row exists.
         int sweptTwice = expiryJob.runOnce();
         assertThat(sweptTwice).isZero();
+        Integer expiredAuditRows = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM t_mutation_audit_event "
+                        + "WHERE target_entity_id = ?::uuid AND action = 'MIGRATION_HANDSHAKE_EXPIRED'",
+                Integer.class, expiredId.toString());
+        assertThat(expiredAuditRows).isEqualTo(1);
     }
 
     private ResponseEntity<String> postHandshake(String token) {

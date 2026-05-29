@@ -110,6 +110,8 @@ const de = {
     title: 'Flugplätze',
   },
   migrateHandshake: {
+    copied: 'In die Zwischenablage kopiert.',
+    copy: 'In Zwischenablage kopieren',
     download: 'Schlüsseldatei herunterladen',
     error: 'Schlüssel konnte nicht erzeugt werden. Bitte erneut versuchen.',
     expires: 'Gültig bis {{expiresAt}}',
@@ -128,6 +130,8 @@ const de = {
         'Ein neuer Schlüssel macht den vorherigen ungültig. Wenn der alte Schlüssel bereits in der Export-App eingefügt wurde, muss der Export von vorne gestartet werden.',
       title: 'Schlüssel ersetzen?',
     },
+    regenerated: 'Neuer Schlüssel erzeugt. Starte den Export erneut mit diesem Schlüssel.',
+    retry: 'Erneut versuchen',
     tagline:
       'Diesen öffentlichen Schlüssel kopierst du in die Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
   },

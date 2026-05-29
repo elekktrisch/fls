@@ -1,16 +1,14 @@
 package ch.alpenflight.migrations.application;
 
-import ch.alpenflight.platform.security.JitUserMaterializationFilter;
-import jakarta.servlet.http.HttpServletRequest;
+import ch.alpenflight.platform.security.JitUserAttributeStamp;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Pre-tenant principal → {@code t_user.id} lookup. The S-052
@@ -25,9 +23,15 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * minus the request-attribute fast-path (the S-140 endpoints are not
  * gated by {@code JitUserMaterializationFilter}, which skips when
  * {@code clubId} is absent — the stash attribute is therefore unset).
+ *
+ * <p>Stamps the JIT filter's request attribute on hit via
+ * {@link JitUserAttributeStamp} so the cross-cutting audit emitter sees
+ * the resolved user id without a second JDBC roundtrip.
  */
 @Component
 public class PreTenantUserLookup {
+
+    private static final Logger LOG = LoggerFactory.getLogger(PreTenantUserLookup.class);
 
     private static final String SELECT_USER_ID =
             "SELECT id FROM t_user WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
@@ -47,34 +51,18 @@ public class PreTenantUserLookup {
         try {
             parsed = UUID.fromString(sub);
         } catch (IllegalArgumentException e) {
+            // Non-UUID sub (federated IdP shape). Probing signal — log
+            // at DEBUG so S-056 can surface repeated misses without
+            // bloating the trail for one-off federated logins.
+            LOG.debug("PreTenantUserLookup: sub is not a UUID, rejecting; sub={}", sub);
             return Optional.empty();
         }
         List<UUID> matches = jdbc.queryForList(SELECT_USER_ID, UUID.class, parsed.toString());
         if (matches.size() == 1) {
             UUID userId = matches.get(0);
-            // Stamp the request attribute so the cross-cutting ActorResolver
-            // (via UserPrincipalLookup) sees the resolved userId without a
-            // second JDBC roundtrip. The JIT filter skipped this principal
-            // (no clubId claim) and stashed ABSENT, so without this overwrite
-            // the audit row would land with actor_user_id=null.
-            stampRequestAttribute(userId);
+            JitUserAttributeStamp.stampResolvedUserId(userId);
             return Optional.of(userId);
         }
         return Optional.empty();
-    }
-
-    private static void stampRequestAttribute(UUID userId) {
-        HttpServletRequest request = currentRequest();
-        if (request != null) {
-            request.setAttribute(JitUserMaterializationFilter.USER_ID_ATTRIBUTE, userId);
-        }
-    }
-
-    private static @Nullable HttpServletRequest currentRequest() {
-        var attrs = RequestContextHolder.getRequestAttributes();
-        if (attrs instanceof ServletRequestAttributes sra) {
-            return sra.getRequest();
-        }
-        return null;
     }
 }

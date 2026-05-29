@@ -1,18 +1,23 @@
-import { Dialog } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 
+import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfPageComponent } from '@ui/molecules/af-page';
+import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
-import { DEFAULT_LOCALE } from '../../core/i18n/lang-resolver';
-import { SessionStore } from '../../core/session/session.store';
+import { DEFAULT_LOCALE } from '@core/i18n/lang-resolver';
+import { SessionStore } from '@core/session/session.store';
 
 import { emitFunnelEvent } from '../signup/funnel-telemetry';
 import { consumeSignupPending } from '../signup/signup-pending';
 
 import { MigrateHandshakeStore } from './migrate-handshake.store';
-import { RegenerateConfirmDialogComponent } from './regenerate-confirm-dialog.component';
 
+/**
+ * Placeholder until S-139 publishes the export tool. Centralising the
+ * URL behind a named export keeps the swap to the real release URL a
+ * one-line edit.
+ */
 const JAR_DOWNLOAD_PLACEHOLDER_HREF =
     'https://github.com/elekktrisch/fls/releases?q=alpenflight-export-jar';
 
@@ -21,22 +26,25 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
  *
  * <ul>
  *   <li>Mount-restore: {@code GET .../handshake/current} → 200 sets state;
- *       404 falls through to {@code POST .../handshake} per the store.</li>
- *   <li>Regenerate flow: explicit button → CDK confirm dialog → on accept
- *       fires a fresh POST (silently supersedes the prior row).</li>
- *   <li>Public-key surface: copy-friendly textarea + "Download key file"
- *       button writing {@code alpenflight-public-key-<uploadId>.pem}.</li>
- *   <li>Export-tool panel: link to the JAR download (placeholder until
- *       S-139's CI artifact URL exists).</li>
+ *       404 falls through to {@code POST .../handshake}.</li>
+ *   <li>Regenerate flow: explicit button → {@code <af-dialog>} confirm →
+ *       on accept fires a fresh POST (silently supersedes the prior row).</li>
+ *   <li>Public-key surface: copy-friendly textarea + Copy + Download (writes
+ *       {@code alpenflight-public-key-<uploadId>.pem}).</li>
+ *   <li>Export-tool panel: link to the JAR download (placeholder URL).</li>
  *   <li>Funnel emission: {@code signup.completed} fires once per
  *       signup-pending session (carried over from the placeholder).</li>
  * </ul>
+ *
+ * <p>The {@code email_verified} guard is enforced server-side (controller
+ * {@code @PreAuthorize}); a SPA-side redirect to {@code /verify-email-pending}
+ * is a UX follow-up that needs the destination page first.
  */
 @Component({
   selector: 'af-migrate-handshake',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AfPageComponent, TranslocoDirective],
+  imports: [AfButtonComponent, AfDialogComponent, AfPageComponent, TranslocoDirective],
   host: { class: 'block' },
   template: `
     <af-page mode="narrow">
@@ -59,14 +67,25 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
               {{ t('loading') }}
             </p>
           } @else if (store.showError()) {
-            <p data-testid="migrate-handshake-error" class="text-sm text-red-600">
-              {{ t('error') }}
-            </p>
+            <div class="space-y-3">
+              <p data-testid="migrate-handshake-error" class="text-sm text-red-600">
+                {{ t('error') }}
+              </p>
+              <af-button
+                data-testid="migrate-handshake-retry"
+                (clicked)="retry()"
+              >
+                {{ t('retry') }}
+              </af-button>
+            </div>
           } @else if (store.hasUpload()) {
             <div class="space-y-4">
               <label class="block text-sm font-medium text-slate-700">
                 {{ t('pemLabel') }}
               </label>
+              <!-- min-h-[12rem] is large enough to show ~10 lines of
+                   wrapped PEM at the project's mono type scale; no
+                   semantic token applies. -->
               <textarea
                 readonly
                 data-testid="migrate-handshake-pem"
@@ -76,23 +95,42 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
               <p class="text-sm text-slate-500" data-testid="migrate-handshake-expires">
                 {{ t('expires', { expiresAt: formattedExpiry() }) }}
               </p>
+              @if (copyConfirmed()) {
+                <p
+                  class="text-sm text-emerald-600"
+                  data-testid="migrate-handshake-copied"
+                >
+                  {{ t('copied') }}
+                </p>
+              }
+              @if (regenerateConfirmed()) {
+                <p
+                  class="text-sm text-emerald-600"
+                  data-testid="migrate-handshake-regenerated"
+                >
+                  {{ t('regenerated') }}
+                </p>
+              }
               <div class="flex flex-wrap gap-3">
-                <button
-                  type="button"
+                <af-button
+                  type="primary"
                   data-testid="migrate-handshake-download"
-                  class="min-h-[44px] min-w-[44px] px-4 py-2 text-sm border border-slate-300 text-slate-700"
-                  (click)="download()"
+                  (clicked)="download()"
                 >
                   {{ t('download') }}
-                </button>
-                <button
-                  type="button"
+                </af-button>
+                <af-button
+                  data-testid="migrate-handshake-copy"
+                  (clicked)="copy()"
+                >
+                  {{ t('copy') }}
+                </af-button>
+                <af-button
                   data-testid="migrate-handshake-regenerate"
-                  class="min-h-[44px] min-w-[44px] px-4 py-2 text-sm border border-slate-300 text-slate-700"
-                  (click)="askRegenerate()"
+                  (clicked)="dialogOpen.set(true)"
                 >
                   {{ t('regenerate') }}
-                </button>
+                </af-button>
               </div>
             </div>
 
@@ -112,6 +150,16 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
               </a>
             </div>
           }
+
+          <af-dialog
+            [visible]="dialogOpen()"
+            [title]="t('regenerateConfirm.title')"
+            [message]="t('regenerateConfirm.message')"
+            [confirmLabel]="t('regenerateConfirm.confirm')"
+            [dismissLabel]="t('regenerateConfirm.cancel')"
+            (confirm)="confirmRegenerate()"
+            (dismiss)="dialogOpen.set(false)"
+          />
         </section>
       </ng-container>
     </af-page>
@@ -121,7 +169,10 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
   readonly store = inject(MigrateHandshakeStore);
   readonly jarHref = JAR_DOWNLOAD_PLACEHOLDER_HREF;
 
-  readonly #dialog = inject(Dialog);
+  protected readonly dialogOpen = signal(false);
+  protected readonly copyConfirmed = signal(false);
+  protected readonly regenerateConfirmed = signal(false);
+
   readonly #transloco = inject(TranslocoService);
   readonly #session = inject(SessionStore);
 
@@ -144,17 +195,23 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
     this.store.reset();
   }
 
-  askRegenerate(): void {
-    const ref = this.#dialog.open<boolean>(RegenerateConfirmDialogComponent, {
-      hasBackdrop: true,
-      disableClose: false,
-      ariaModal: true,
-    });
-    ref.closed.subscribe((confirmed) => {
-      if (confirmed === true) {
-        this.store.regenerate();
-      }
-    });
+  retry(): void {
+    this.store.restoreOrIssue();
+  }
+
+  confirmRegenerate(): void {
+    this.dialogOpen.set(false);
+    this.store.regenerate();
+    this.regenerateConfirmed.set(true);
+  }
+
+  copy(): void {
+    const current = this.store.upload();
+    if (!current) return;
+    navigator.clipboard.writeText(current.publicKeyPem).then(
+      () => this.copyConfirmed.set(true),
+      () => this.copyConfirmed.set(false),
+    );
   }
 
   download(): void {

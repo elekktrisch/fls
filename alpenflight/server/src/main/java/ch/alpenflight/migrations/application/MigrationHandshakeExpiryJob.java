@@ -36,7 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class MigrationHandshakeExpiryJob {
 
     private static final Logger LOG = LoggerFactory.getLogger(MigrationHandshakeExpiryJob.class);
-    private static final String AUDIT_ENTITY_TYPE = "MigrationUploadAuditSnapshot";
 
     private final MigrationUploadRepository repository;
     private final HandshakeFunnelTelemetry telemetry;
@@ -75,7 +74,7 @@ public class MigrationHandshakeExpiryJob {
             row.markExpired(clock);
             repository.save(row);
             audit.record(AuditAction.MIGRATION_HANDSHAKE_EXPIRED,
-                    AuditedTarget.updated(AUDIT_ENTITY_TYPE, rowId, before,
+                    AuditedTarget.updated(MigrationUploadAuditSnapshot.AUDIT_ENTITY_TYPE, rowId, before,
                             MigrationUploadAuditSnapshot.wiped(
                                     rowId, row.getState(), row.getExpiresAt())));
             telemetry.expired(rowId, clock.instant());

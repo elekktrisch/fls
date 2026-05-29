@@ -23,6 +23,10 @@ public record MigrationUploadAuditSnapshot(UUID uploadId,
                                            Instant expiresAt,
                                            @Nullable String privateKeyCiphertextSummary) {
 
+    /** Entity-type key the {@code AuditedTarget} carries; matches the record's simple name. */
+    public static final String AUDIT_ENTITY_TYPE =
+            MigrationUploadAuditSnapshot.class.getSimpleName();
+
     public static MigrationUploadAuditSnapshot inFlight(UUID uploadId,
                                                         MigrationUploadState state,
                                                         Instant expiresAt,
