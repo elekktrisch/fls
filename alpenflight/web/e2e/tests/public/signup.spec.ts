@@ -147,7 +147,7 @@ test.describe('signup — post-signup landing emits funnel event', () => {
     });
 
     await page.goto('/migrate/start');
-    await expect(page.getByTestId('migrate-start')).toBeVisible();
+    await expect(page.getByTestId('migrate-handshake')).toBeVisible();
 
     // Settle: the OnInit emit is synchronous after the component mounts.
     await expect.poll(() => funnelEvents.length, { timeout: 5_000 }).toBeGreaterThan(0);
@@ -177,7 +177,7 @@ test.describe('signup — post-signup landing emits funnel event', () => {
     });
 
     await page.goto('/migrate/start');
-    await expect(page.getByTestId('migrate-start')).toBeVisible();
+    await expect(page.getByTestId('migrate-handshake')).toBeVisible();
 
     // Give the OnInit a frame to attempt + give up.
     await page.waitForTimeout(250);

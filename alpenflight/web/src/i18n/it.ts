@@ -104,6 +104,28 @@ const it: Translations = {
       'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
   },
+  migrateHandshake: {
+    download: 'Scarica il file della chiave',
+    error: 'Impossibile generare la chiave. Riprova.',
+    expires: 'Valido fino al {{expiresAt}}',
+    headline: 'Consegna la chiave pubblica allo strumento di esportazione',
+    jarPanel: {
+      cta: 'Apri lo strumento di esportazione',
+      title: 'Strumento di esportazione richiesto',
+    },
+    loading: 'Generazione della chiave…',
+    pemLabel: 'Chiave pubblica (PEM)',
+    regenerate: 'Genera una nuova chiave',
+    regenerateConfirm: {
+      cancel: 'Annulla',
+      confirm: 'Genera una nuova chiave',
+      message:
+        'Una nuova chiave invalida la precedente. Se hai già iniziato l’esportazione con la vecchia chiave, abbandonala e ricomincia.',
+      title: 'Sostituire la chiave?',
+    },
+    tagline:
+      'Copia questa chiave pubblica nello strumento di esportazione. Crittografa i tuoi dati prima che lascino la tua macchina.',
+  },
   publicStub: {
     back: 'Torna alla pagina iniziale',
     body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',

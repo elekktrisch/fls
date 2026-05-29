@@ -286,6 +286,15 @@ flyway {
     cleanDisabled = true
     baselineOnMigrate = false
     validateMigrationNaming = true
+    // Mirror the application.yml placeholder shape so ad-hoc
+    // `./gradlew flywayMigrate` against a local DB doesn't trip on V14's
+    // ${alpenflight.operator.keycloak_sub} substitution. Env override
+    // honoured for non-loopback environments.
+    placeholders = mapOf(
+        "alpenflight.operator.keycloak_sub"
+            to (System.getenv("ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB")
+                ?: "00000000-0000-0000-0000-0000000000ff"),
+    )
 }
 
 tasks.withType<Test> {

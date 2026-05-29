@@ -109,6 +109,28 @@ const de = {
       'Schreibgeschützt. Die Flugplätze deines Vereins werden von deinem Vereinsadministrator verwaltet.',
     title: 'Flugplätze',
   },
+  migrateHandshake: {
+    download: 'Schlüsseldatei herunterladen',
+    error: 'Schlüssel konnte nicht erzeugt werden. Bitte erneut versuchen.',
+    expires: 'Gültig bis {{expiresAt}}',
+    headline: 'Öffentlichen Schlüssel an die Export-App übergeben',
+    jarPanel: {
+      cta: 'Export-Anleitung öffnen',
+      title: 'Export-App benötigt',
+    },
+    loading: 'Schlüssel wird erzeugt …',
+    pemLabel: 'Öffentlicher Schlüssel (PEM)',
+    regenerate: 'Neuen Schlüssel erzeugen',
+    regenerateConfirm: {
+      cancel: 'Abbrechen',
+      confirm: 'Neuen Schlüssel erzeugen',
+      message:
+        'Ein neuer Schlüssel macht den vorherigen ungültig. Wenn der alte Schlüssel bereits in der Export-App eingefügt wurde, muss der Export von vorne gestartet werden.',
+      title: 'Schlüssel ersetzen?',
+    },
+    tagline:
+      'Diesen öffentlichen Schlüssel kopierst du in die Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
+  },
   publicStub: {
     back: 'Zurück zur Startseite',
     body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',
