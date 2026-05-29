@@ -24,10 +24,13 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
         properties = {
                 "spring.profiles.active=prod",
-                // S-140 — prod fails-fast on missing master keyset; the IT
-                // overrides to EPHEMERAL so the context boots. Real prod
-                // still requires the env-pinned keyset.
+                // S-140 — prod normally rejects EPHEMERAL (operator footgun
+                // guard); the IT pairs source=EPHEMERAL with the explicit
+                // allow-in-prod override so the context boots without a
+                // real keyset. Real prod sets ALPENFLIGHT_MIGRATION_MASTER_KEYSET
+                // and never sets either of these.
                 "alpenflight.migration.master-keyset.source=EPHEMERAL",
+                "alpenflight.migration.master-keyset.allow-ephemeral-in-prod=true",
         })
 @AutoConfigureTestRestTemplate
 @EnabledIf(value = "ch.alpenflight.server.testsupport.SharedPostgresContainer#available",

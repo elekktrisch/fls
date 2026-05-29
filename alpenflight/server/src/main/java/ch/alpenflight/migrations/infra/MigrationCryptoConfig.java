@@ -63,14 +63,18 @@ public class MigrationCryptoConfig {
 
     private final Source source;
     private final String value;
+    private final boolean allowEphemeralInProd;
     private final Environment environment;
 
     public MigrationCryptoConfig(
             @Value("${alpenflight.migration.master-keyset.source:INLINE}") Source source,
             @Value("${alpenflight.migration.master-keyset.value:}") String value,
+            @Value("${alpenflight.migration.master-keyset.allow-ephemeral-in-prod:false}")
+                    boolean allowEphemeralInProd,
             Environment environment) {
         this.source = source;
         this.value = value;
+        this.allowEphemeralInProd = allowEphemeralInProd;
         this.environment = environment;
     }
 
@@ -83,12 +87,16 @@ public class MigrationCryptoConfig {
     @Bean
     Aead migrationMasterKeyAead() throws GeneralSecurityException, IOException {
         AeadConfig.register();
-        if (source == Source.EPHEMERAL && Arrays.asList(environment.getActiveProfiles()).contains("prod")) {
+        if (source == Source.EPHEMERAL
+                && Arrays.asList(environment.getActiveProfiles()).contains("prod")
+                && !allowEphemeralInProd) {
             throw new IllegalStateException(
                     "alpenflight.migration.master-keyset.source=EPHEMERAL is forbidden under the "
                             + "prod profile — an ephemeral keyset would wipe every in-flight "
                             + "private key on restart. Set ALPENFLIGHT_MIGRATION_MASTER_KEYSET to "
-                            + "a base64-encoded Tink JSON keyset (or source=FILE + path).");
+                            + "a base64-encoded Tink JSON keyset (or source=FILE + path). "
+                            + "Tests that need to boot under the prod profile without a real "
+                            + "keyset may set alpenflight.migration.master-keyset.allow-ephemeral-in-prod=true.");
         }
         KeysetHandle handle = switch (source) {
             case EPHEMERAL -> {

@@ -231,10 +231,17 @@ class MigrationHandshakeIT extends PostgresIntegrationTest {
         assertThat(row.get("state")).isEqualTo("EXPIRED");
         assertThat(row.get("private_key_ciphertext")).isNull();
 
-        // Audit row: system_actor=true.
-        Map<String, Object> audit = jdbc.queryForMap(
-                "SELECT action, system_actor FROM t_mutation_audit_event "
-                        + "WHERE target_entity_id = ?::uuid", expiredId.toString());
+        // Audit row: system_actor=true. AFTER_COMMIT listener fires
+        // synchronously; the row should be visible immediately.
+        List<Map<String, Object>> audits = jdbc.queryForList(
+                "SELECT action, system_actor, actor_user_id, tenant_club_id, target_entity_type "
+                        + "FROM t_mutation_audit_event WHERE target_entity_id = ?::uuid",
+                expiredId.toString());
+        assertThat(audits)
+                .as("Expected exactly one MIGRATION_HANDSHAKE_EXPIRED audit row for upload %s; got %s",
+                        expiredId, audits)
+                .hasSize(1);
+        Map<String, Object> audit = audits.get(0);
         assertThat(audit.get("action")).isEqualTo("MIGRATION_HANDSHAKE_EXPIRED");
         assertThat(audit.get("system_actor")).isEqualTo(true);
 
