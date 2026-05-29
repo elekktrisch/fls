@@ -3,6 +3,7 @@ package ch.alpenflight.migration.bundle;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -113,5 +114,73 @@ public final class Coercions {
         } else {
             target.writeStringField(fieldName, value.toLocalDate().toString());
         }
+    }
+
+    /** Emit integer or null. */
+    public static void writeOptionalInt(
+            JsonGenerator target, String fieldName, @Nullable Integer value)
+            throws IOException {
+        if (value == null) {
+            target.writeNullField(fieldName);
+        } else {
+            target.writeNumberField(fieldName, value.intValue());
+        }
+    }
+
+    /** Emit short or null. */
+    public static void writeOptionalShort(
+            JsonGenerator target, String fieldName, @Nullable Short value)
+            throws IOException {
+        if (value == null) {
+            target.writeNullField(fieldName);
+        } else {
+            target.writeNumberField(fieldName, value.shortValue());
+        }
+    }
+
+    /** Emit long or null. */
+    public static void writeOptionalLong(
+            JsonGenerator target, String fieldName, @Nullable Long value)
+            throws IOException {
+        if (value == null) {
+            target.writeNullField(fieldName);
+        } else {
+            target.writeNumberField(fieldName, value.longValue());
+        }
+    }
+
+    /** Emit BigDecimal or null. */
+    public static void writeOptionalBigDecimal(
+            JsonGenerator target, String fieldName, @Nullable BigDecimal value)
+            throws IOException {
+        if (value == null) {
+            target.writeNullField(fieldName);
+        } else {
+            target.writeNumberField(fieldName, value);
+        }
+    }
+
+    /** Returns null when the field is absent or {@code JsonNull}. */
+    public static @Nullable Integer readIntOrNull(JsonNode source, String fieldName) {
+        JsonNode node = source.get(fieldName);
+        return (node == null || node.isNull()) ? null : node.intValue();
+    }
+
+    /** Returns null when the field is absent or {@code JsonNull}. */
+    public static @Nullable Short readShortOrNull(JsonNode source, String fieldName) {
+        JsonNode node = source.get(fieldName);
+        return (node == null || node.isNull()) ? null : (short) node.intValue();
+    }
+
+    /** Returns null when the field is absent or {@code JsonNull}. */
+    public static @Nullable Long readLongOrNull(JsonNode source, String fieldName) {
+        JsonNode node = source.get(fieldName);
+        return (node == null || node.isNull()) ? null : node.longValue();
+    }
+
+    /** Returns null when the field is absent or {@code JsonNull}. */
+    public static @Nullable BigDecimal readBigDecimalOrNull(JsonNode source, String fieldName) {
+        JsonNode node = source.get(fieldName);
+        return (node == null || node.isNull()) ? null : node.decimalValue();
     }
 }

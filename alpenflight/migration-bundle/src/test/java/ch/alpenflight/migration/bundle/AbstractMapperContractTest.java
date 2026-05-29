@@ -47,6 +47,20 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
      */
     protected abstract Map<String, Object> legacyRow(Faker faker);
 
+    /**
+     * Declarative value-set for sparse-enum columns the mapper passes through
+     * without a value-set guard (per ADR 0022 directive 2). Key = new-stack
+     * column name (the {@link Mapper#columns()} entry); value = the set of
+     * legitimate primitive values. {@code FlightMapper.flight_aircraft_type_id}
+     * declares {@code (short)1, 2, 4} so S-187's parity oracle seeds the
+     * legacy fixture from inside the set rather than drifting onto a
+     * never-seen value the Flight aggregate (S-058) would reject downstream.
+     * Default empty — non-sparse-enum mappers leave it alone.
+     */
+    protected Map<String, Set<Number>> permittedSparseEnumValues() {
+        return Map.of();
+    }
+
     /** Seeded {@link Faker} matching {@link #legacyRow}. */
     protected final Faker seededFaker() {
         return new Faker(new Random(FAKER_SEED));
@@ -111,6 +125,15 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
     void foreignKeyTargetsPrecedeSelfInIngestOrder() {
         EntityType self = mapper().entityType();
         for (EntityType target : mapper().foreignKeys()) {
+            if (target == self) {
+                // Self-FK on an aggregate root is legitimate when ingest splits
+                // it into a two-pass UPDATE (PersonCategory parent — S-184;
+                // Flight tow_flight_id — S-185). Mappers deferring the self-FK
+                // declare it absent from foreignKeys() instead; if a self-FK
+                // shows up here, it's because a future story put it there
+                // deliberately. The ordinal check would always fail; skip.
+                continue;
+            }
             assertThat(target.ordinal())
                     .as("FK target %s must precede %s in EntityType declaration order "
                             + "so ingest can resolve targets before sources",
@@ -151,6 +174,17 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         doAnswer(capture).when(ps).setDate(anyInt(), any());
         doAnswer(capture).when(ps).setTimestamp(anyInt(), any());
         doAnswer(capture).when(ps).setBytes(anyInt(), any());
+        // Primitive binds — flight-group mappers bypass autoboxing for type
+        // fidelity (SMALLINT via setShort, INT via setInt, BIGINT via setLong).
+        // setNull captures the nullable-primitive path. Captured value lands
+        // as the boxed primitive; downstream assertion treats null differently
+        // (setNull stores java.sql.Types as the second arg — capture stores it
+        // verbatim, which is non-null so the round-trip assertion still
+        // distinguishes "bound something" from "missing position").
+        doAnswer(capture).when(ps).setShort(anyInt(), org.mockito.ArgumentMatchers.anyShort());
+        doAnswer(capture).when(ps).setInt(anyInt(), anyInt());
+        doAnswer(capture).when(ps).setLong(anyInt(), org.mockito.ArgumentMatchers.anyLong());
+        doAnswer(capture).when(ps).setNull(anyInt(), anyInt());
 
         assertThatCode(() -> underTest.readEntity(emitted, ps))
                 .as("readEntity must accept what writeNdjson emitted")
@@ -184,6 +218,25 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         });
         lenient().when(rs.getObject(anyString())).thenAnswer(
                 invocation -> legacy.get(invocation.<String>getArgument(0)));
+        // Typed getObject — flight-group mappers use this to avoid the
+        // primitive 0-vs-null ambiguity on Integer / Long / Short columns.
+        lenient().when(rs.getObject(anyString(), any(Class.class))).thenAnswer(invocation -> {
+            Object value = legacy.get(invocation.<String>getArgument(0));
+            if (value == null) {
+                return null;
+            }
+            Class<?> target = invocation.getArgument(1);
+            if (target == Integer.class && value instanceof Number number) {
+                return number.intValue();
+            }
+            if (target == Long.class && value instanceof Number number) {
+                return number.longValue();
+            }
+            if (target == Short.class && value instanceof Number number) {
+                return number.shortValue();
+            }
+            return value;
+        });
         lenient().when(rs.getInt(anyString())).thenAnswer(invocation -> {
             Object value = legacy.get(invocation.<String>getArgument(0));
             return value instanceof Number number ? number.intValue() : 0;

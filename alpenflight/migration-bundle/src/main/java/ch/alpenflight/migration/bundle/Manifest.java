@@ -41,15 +41,34 @@ public record Manifest(
 
     /**
      * Entities allowed to declare a non-empty {@code tenantBypassFks} per
-     * ADR 0008 + the S-184 Security plan: User.person_id,
-     * PersonClub.person_id, PersonCategoryAssignment.person_id. Reference
-     * tables and Club itself must declare empty bypass — a producer bundle
-     * widening the set is rejected at parse.
+     * ADR 0008 + the S-184 and S-185 Security plans.
+     *
+     * <ul>
+     *   <li>Identity group (S-184): {@code User.person_id},
+     *       {@code PersonClub.person_id},
+     *       {@code PersonCategoryAssignment.person_id} all resolve through
+     *       the per-bundle cross-tenant Person sub-map.</li>
+     *   <li>Flight group (S-185): cross-tenant Person + Aircraft refs.
+     *       {@code Flight.aircraft_id} crosses to cross-tenant Aircraft;
+     *       {@code FlightCrew.person_id} and
+     *       {@code AircraftAircraftState.noticed_by_person_id} cross to
+     *       Person; {@code Aircraft.aircraft_owner_person_id} crosses to
+     *       Person and {@code Aircraft.homebase_id} rides cross-tenant out
+     *       of Aircraft into tenant-scoped Location.</li>
+     * </ul>
+     *
+     * <p>Reference tables, aggregate-internal counter entities, and Club
+     * itself must declare empty bypass — a producer bundle widening the
+     * set beyond this allow-list is rejected at parse.
      */
     private static final Set<EntityType> TENANT_BYPASS_ALLOW_LIST = Set.of(
             EntityType.USER,
             EntityType.PERSON_CLUB,
-            EntityType.PERSON_CATEGORY_ASSIGNMENT);
+            EntityType.PERSON_CATEGORY_ASSIGNMENT,
+            EntityType.AIRCRAFT,
+            EntityType.AIRCRAFT_AIRCRAFT_STATE,
+            EntityType.FLIGHT,
+            EntityType.FLIGHT_CREW);
 
     @JsonCreator
     public Manifest {

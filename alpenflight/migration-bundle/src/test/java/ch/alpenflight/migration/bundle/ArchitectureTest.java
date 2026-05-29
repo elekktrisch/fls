@@ -3,6 +3,14 @@ package ch.alpenflight.migration.bundle;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.migration.bundle.flight.AircraftAircraftStateMapper;
+import ch.alpenflight.migration.bundle.flight.AircraftMapper;
+import ch.alpenflight.migration.bundle.flight.AircraftOperatingCounterMapper;
+import ch.alpenflight.migration.bundle.flight.FlightCrewMapper;
+import ch.alpenflight.migration.bundle.flight.FlightMapper;
+import ch.alpenflight.migration.bundle.flight.FlightTypeMapper;
+import ch.alpenflight.migration.bundle.flight.LocationMapper;
+import ch.alpenflight.migration.bundle.flight.StartTypeMapper;
 import ch.alpenflight.migration.bundle.identity.ClubMapper;
 import ch.alpenflight.migration.bundle.identity.ClubStateMapper;
 import ch.alpenflight.migration.bundle.identity.CountryMapper;
@@ -165,7 +173,15 @@ public class ArchitectureTest {
             new PersonCategoryMapper(),
             new UserMapper(),
             new PersonClubMapper(),
-            new PersonCategoryAssignmentMapper());
+            new PersonCategoryAssignmentMapper(),
+            new LocationMapper(),
+            new StartTypeMapper(),
+            new FlightTypeMapper(),
+            new AircraftMapper(),
+            new AircraftAircraftStateMapper(),
+            new AircraftOperatingCounterMapper(),
+            new FlightMapper(),
+            new FlightCrewMapper());
 
     @Test
     void everyMapperForeignKeyTargetPrecedesSelfInEntityTypeOrder() {
