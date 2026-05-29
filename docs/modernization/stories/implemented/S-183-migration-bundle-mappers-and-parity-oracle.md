@@ -2,8 +2,9 @@
 id: S-183
 title: Migration-bundle — mapper-contract scaffolding + Manifest + LegacyIdMapWriter + ArchUnit
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-29
+done_at: 2026-05-29
 depends_on: [S-016]
 integration_base: integration/migration
 origin: scope-split
@@ -31,11 +32,9 @@ adr_refs: [0002, 0003, 0008, 0019, 0022, 0023]
 
 ## Context
 
-Scope-split from [S-016](implemented/S-016-data-migration-script.md). S-016 shipped the walking skeleton (Gradle module + `Mapper` routing surface + `EntityType` + `LegacyIdMapTables` + `Coercions` + one concrete `CountryMapper`). This story ships the **mapper-contract scaffolding** the per-package mapper stories (S-184/S-185/S-186) and the parity harness (S-187) build on: the bidirectional `writeNdjson` / `readEntity` / `foreignKeys` signatures, `Manifest`, `LegacyIdMapWriter`, `@ParityIgnore` / `@ParitySentinel`, `AbstractMapperContractTest`, ArchUnit rules, and the unmapped-table registry. The single fully-fleshed mapper (`Country`) demonstrates the contract end-to-end so the per-package stories drop into a known shape.
+Scope-split from [S-016](S-016-data-migration-script.md). S-016 shipped the walking skeleton (Gradle module + `Mapper` routing surface + `EntityType` + `LegacyIdMapTables` + `Coercions` + one concrete `CountryMapper`). This story ships the mapper-contract scaffolding the per-package mapper stories (S-184/S-185/S-186) and the parity harness (S-187) build on. Follow-ups S-184–S-188 inherit `integration_base: integration/migration` and chain through the same integration branch.
 
-The scope-split happened mid-implement when the operator chose to defer the per-package mapper bodies + the parity oracle harness + JMH + CI into follow-ups rather than ship the original ~13-AC scope in one PR. The follow-ups (S-184–S-188) all inherit `integration_base: integration/migration` and chain through the same integration branch.
-
-All load-bearing design decisions still live in S-016's refinement (`<!-- modernize-refine: start --> / end -->` block) and are inherited here. The refinement block below carries only the deltas relevant to the scaffolding scope.
+The scope-split happened mid-implement when the operator chose to defer per-package mapper bodies + the parity oracle harness + JMH + CI rather than ship the original ~13-AC scope in one PR.
 
 ## Cross-story contracts
 
@@ -43,30 +42,20 @@ All load-bearing design decisions still live in S-016's refinement (`<!-- modern
 - **Produces:** the contract surface that S-184 / S-185 / S-186 mappers conform to; the `Manifest` + `LegacyIdMapWriter` + `UnmappedTables` infrastructure that S-141 wires; the `AbstractMapperContractTest` framework the per-mapper unit tests subclass.
 - **Hand-offs (deferred to the per-package follow-ups):** S-027's `LEGACY_MIGRATED` read-back coverage lands with S-186 (where the audit-log mapper does). S-024's leakage exemption list update lands with S-186 (same reasoning).
 
-## Notes
-
-- Estimate trimmed to `M` after the scope-split.
-- S-141's implement is blocked on this story **plus** S-184–S-186 + S-187.
-- A new V17+ Flyway migration may be needed if `MapperVsSchemaCompatibilityTest` (S-187) surfaces a destination-schema gap — file as a sibling under S-187 when that lands.
-
 <!-- modernize-refine: start -->
 
 ## Design notes
 
-Deltas on top of [S-016's refinement block](implemented/S-016-data-migration-script.md). Load-bearing decisions there are inherited, not re-derived.
+Deltas on top of [S-016's refinement block](S-016-data-migration-script.md). Load-bearing decisions there are inherited, not re-derived.
 
-- **`Mapper` contract completion.** `writeNdjson(ResultSet, JsonGenerator)` (export, called once per JDBC row, streams Jackson field-tokens — no intermediate `Map`/DTO) + `readEntity(JsonNode, PreparedStatement)` (ingest, once per parsed row, positional `setX` driven by `columns()` order). Both methods must be allocation-free in the hot path beyond Jackson + JDBC inherent; discipline gated by JMH bench (S-188), not ArchUnit.
-- **`Manifest` shape.** Single Jackson record at `ch.alpenflight.migration.bundle.Manifest`: `schemaVersion:int`, `Map<EntityType, EntityPolicy>` (port-policy + tombstone-policy + `Set<String> tenantBypassFks` + `List<String> columnAllowList`), `Map<EntityType, String> unmappedReason`. Bundle-open validates every `EntityType.values()` is either policy-mapped or in `unmappedReason` (unmapped-registry coverage gate).
-- **`LegacyIdMapWriter` byte format.** Postgres COPY **binary** format, two-column `(uuid, uuid)`. Binary chosen over text to avoid per-row text parsing at >1M-row scale. S-141 wires `getCopyAPI().copyIn("COPY ... FROM STDIN BINARY", os)`; library never sees the `Connection`.
 - **Parity harness.** `@Testcontainers` + `static @Container MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest").acceptLicense()` + `static @Container PostgreSQLContainer<>("postgres:17-alpine")` for per-class reuse. `LegacyFixtureSeeder` (Faker, deterministic seed via sysprop `parity.seed`) → in-process producer call to `Mapper.writeNdjson` → in-memory `tar.gz` → consumer-side `readEntity` → diff via reflection over `Mapper.columns()` + schema dump from `MapperVsSchemaCompatibilityTest`. Reports `build/reports/parity/<run-id>/{summary.json, report.md, deltas/*.json}`. `@Tag("parity")`, excluded from `./gradlew test`.
 - **In-process producer is the temporary affordance.** Until `:migration-tool:shadowJar` (S-139) lands, harness wires producer side directly. File sibling task referenced from S-139's done-criteria to swap to `ProcessBuilder` invocation once the JAR lands.
-- **ArchUnit rules.** One `ArchitectureTest` class with `@AnalyzeClasses(packages = "ch.alpenflight.migration.bundle")` + four `@ArchTest` `ArchRule` fields: the three structural API bans plus S-016's deferred `EntityType` ingest-order invariant (FK-target ordinal < FK-source ordinal, walked via `Mapper.foreignKeys()`).
 - **JMH bench.** `me.champeau.jmh` 0.7.3, `src/jmh/java/` source set, one benchmark on `FlightCrewMapper.readEntity`. `fork=1`, `profilers=['gc']`, `resultFormat='JSON'`. Baseline committed at `migration-bundle/jmh/baseline.json`; `jmhCompareBaseline` Gradle task fails on the JMH thresholds pinned in S-188. CI flake mitigation: run twice on regression, fail only if both runs exceed the threshold.
 - **`MapperVsSchemaCompatibilityTest` lives in `alpenflight/server/`**, not in migration-bundle. Rationale: bundle has no Spring/Hibernate runtime dep (CLAUDE.md cross-cutting); server already boots Hibernate for `generateOpenApiSnapshot`, piggy-back its test context. Asserts `bundleMapper.columns() ⊆ hibernateTable.columns()` + every non-nullable non-defaulted column is in `columns()`. Skips `@Generated`, `legacy_int_id` shadow columns, `@TenantId` discriminator (auto-populated).
 - **Audit-actor orphan synthesis.** One synthetic `legacy_orphan_actor_id` UUID v7 per **distinct** `legacy_actor_user_id` string per bundle (bundle-local caching map) — preserves "all rows by this orphan actor" forensic query, vs per-occurrence which would scatter it. Orphan UUIDs are never persisted to a cross-bundle lookup; NULL actor stays NULL.
 - **FlightAirState legacy data is dropped.** V13 dropped the destination (air state computed not stored per ADR 0022 D2). The Flight mapper translates legacy `AirStateId == FlightPlanOpen` → `t_flight.flight_plan_opened_on` timestamp; all other legacy air-state values are dropped.
 - **CI wiring.** New `migration-bundle-build` job in `.github/workflows/ci.yml` path-filtered on `alpenflight/migration-bundle/**`. Separate `migration-bundle-parity` workflow file path-filtered on `migration-bundle/**` + `flsserver/database/**`, normal scale on PRs, nightly 10× on `main` (`parity.scale=10` sysprop). JMH gate path-filtered on `FlightCrewMapper.java` + `Mapper.java` + `Coercions.java` — only files whose change can move the bench.
-- **Schema deviation per ADR 0022 D2.** None. All AC are mapper coverage + harness; no CHECK constraints, no generated columns, no triggers introduced. V17+ may spawn only if `MapperVsSchemaCompatibilityTest` surfaces a destination-table gap.
+- **Schema deviation per ADR 0022 D2.** None. No CHECK constraints, no generated columns, no triggers introduced. V17+ may spawn only if `MapperVsSchemaCompatibilityTest` surfaces a destination-table gap.
 
 ## Edge cases & hidden requirements
 
@@ -95,14 +84,13 @@ Deltas on top of [S-016's refinement block](implemented/S-016-data-migration-scr
 - **Per-bundle Person sub-map isolation.** Bundle-local resolution only — `legacy_id_map_person` is `ON COMMIT DROP` (S-016 ref + S-141 lifecycle); cross-bundle Person dedupe is explicitly out of scope. No cross-bundle UUID collision possible.
 - **Audit-actor orphan UUIDs are bundle-local.** Re-minted UUID v7 per ingest, never persisted to a cross-bundle lookup. Audit row carries both the synthetic UUID and the original `legacy_actor_user_id` text for forensic traceability; S-027's `LEGACY_MIGRATED` read-back coverage asserts both columns present.
 - **PII in `migration_run.warnings`.** `legacy_actor_user_id` text is identity-attributable PII. The `warnings` jsonb column is `@AuditRedact` (default-deny per S-027); audit-log snapshots surface column name + warning count only. Raw values stay in jsonb (sysadmin tooling only). S-027's `AuditPayloadTurboFilter` blocks logback-side leakage.
-- **No plaintext bundle bytes at rest.** Structural enforcement is the ArchUnit rule banning `Files.createTempFile` / `File.createTempFile` / `FileOutputStream` inside `migration-bundle/`. `readEntity` operates on in-memory `JsonNode`; COPY-writer `OutputStream` is wired by S-141 directly to `getCopyAPI()`. Runtime smoke test in the parity harness: plant a unique marker in a synthetic bundle, assert it never appears under `java.io.tmpdir` after ingest.
+- **No plaintext bundle bytes at rest.** Structural enforcement is the ArchUnit rule banning `Files.createTempFile` / `File.createTempFile` / `FileOutputStream` / `FileWriter` / `FileChannel` / `RandomAccessFile` / `Files.write*` / `Files.newOutputStream` / `Files.newBufferedWriter` inside `migration-bundle/`. `readEntity` operates on in-memory `JsonNode`; COPY-writer `OutputStream` is wired by S-141 directly to `getCopyAPI()`. Runtime smoke test in the parity harness: plant a unique marker in a synthetic bundle, assert it never appears under `java.io.tmpdir` after ingest.
 - **Ingest authz lives in S-141.** Library has no HTTP surface; caller supplies a tenant-scoped `Connection` + `JsonNode` + `PreparedStatement`. `MapperVsSchemaCompatibilityTest` is defence-in-depth against misconfigured S-141 wiring leaking columns into the wrong destination table.
 - **Legacy GUID preservation (ADR 0019).** Accepted forensic-attribution surface: anyone with legacy DB access enumerates new UUIDs. Threat boundary is the legacy DB itself, not the ID format; no audit-search privacy gained by regeneration; parity would be impossible otherwise.
 
 ## Test plan
 
 - **Pyramid.** Unit mapper-contract suite (per-mapper, no containers) + ArchUnit (one class in bundle, four `@ArchTest` fields) + `MapperVsSchemaCompatibilityTest` (in `alpenflight/server/` — needs live Hibernate `Metadata`) + parity oracle (in bundle, `@Tag("parity")`, excluded from `./gradlew test` via `useJUnitPlatform { excludeTags("parity") }`) + JMH (separate `jmh` source set, opt-in task only).
-- **Mapper contract.** `AbstractMapperContractTest<M extends Mapper>` parameterised on mapper + Faker row factory; subclass overrides two methods. Asserts: `columns()` defensive copy, round-trip `writeNdjson → readEntity` row-identical modulo `@ParityIgnore`, FK declarations resolve to entities earlier in `EntityType` declaration order. Port S-016's `CountryMapperTest` onto the contract as task #1 so the other ~58 are derivative.
 - **Parity oracle cases.** Happy: 2-Club FLSTest-shape bundle → zero deltas, zero FK orphans, `summary.json.passed=true`. Edge: empty legacy table; manifest declares entity but bundle omits it; `schemaVersion` mismatch (rejects pre-COPY); soft-deleted row whose FK parent was hard-purged. Error: corrupt `LegacyIdMapWriter` stream → COPY raises, txn aborts atomically; orphan actor → `migration_run.warnings` row + `LEGACY_MIGRATED` audit row land; legacy table with no mapper and no unmapped-registry entry → harness fails with explicit "register or unmap" diagnostic.
 - **Parity strategy.** Row counts exact per (Club, table). FK integrity via reflective walk of Hibernate-declared FKs; cross-tenant FKs walk via the per-bundle sub-map. Sampled values: MSSQL-side `TABLESAMPLE BERNOULLI(1) REPEATABLE(<seed>)`, zero tolerance on sentinel columns (FK + status enum + monetary + timestamp + generated). `@ParitySentinel` / `@ParityIgnore` opt columns in/out. Soft-delete invariant per soft-deletable entity per Club — hard fail on divergence.
 - **Fixtures.** `LegacyFixtureSeeder` Faker-only, seed from sysprop `parity.seed` default `42`, targets post-final-DBUpdate FLSTest schema. ≥ 2 Clubs mandatory (exercises per-bundle Person sub-map). Audit fixture must include three actor shapes: real actor, orphan actor (`AuditLogs.UserId` with no `Users.Id` match), NULL actor. MSSQL container per-class reuse; Postgres container per-method (S-141 ingest is destructive) using ADR 0021's truncate-between pattern.
