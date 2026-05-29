@@ -69,7 +69,4 @@ class ClubMapperTest extends AbstractMapperContractTest<ClubMapper> {
                 .containsExactly(EntityType.COUNTRY, EntityType.CLUB_STATE);
     }
 
-    private static String randomUuidString(Faker faker) {
-        return new UUID(faker.random().nextLong(), faker.random().nextLong()).toString();
-    }
 }

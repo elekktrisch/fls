@@ -9,9 +9,13 @@ import java.util.Set;
  * before ingest.
  *
  * @param tenantBypassFks   FK columns that legitimately cross tenants
- *                          (Person.PrimaryClubId, Aircraft.ManagingClubId,
- *                          Location.HomeClubId per ADR 0008). Empty for
- *                          single-tenant entities.
+ *                          (User.person_id, PersonClub.person_id,
+ *                          PersonCategoryAssignment.person_id per ADR 0008).
+ *                          Empty for single-tenant entities. The
+ *                          {@link Manifest} constructor structurally rejects
+ *                          a non-empty set on any entity outside the
+ *                          allow-list — defense-in-depth against producer
+ *                          drift.
  * @param columnAllowList   columns allowed on the wire for this entity.
  *                          Defense-in-depth against PII drift; the mapper's
  *                          {@code columns()} must be a subset (asserted by
@@ -44,9 +48,14 @@ public record EntityPolicy(
          * destination via the lookup key (per S-012). Used for SYSTEM_GLOBAL
          * refs whose destination rows are owned by V2 / V3 / V4 seed inserts.
          *
+         * <p>The lookup_key is whichever natural key the V2 seed exposes —
+         * {@code iso2_code} for COUNTRY, {@code code} for LANGUAGE and
+         * CLUB_STATE, {@code legacy_int_id} for the FLIGHT-group reference
+         * tables (S-185). The per-mapper Javadoc states which.
+         *
          * <p>Mappers under this policy do NOT enumerate their FK targets in
          * {@link Mapper#foreignKeys()}: the resolution is structural through
-         * {@code legacy_int_id}, not a per-bundle dependency.
+         * the lookup-key join, not a per-bundle dependency.
          */
         SYSTEM_GLOBAL_RESOLVE,
         /** Manifest declares the entity but the bundle MAY omit rows. */

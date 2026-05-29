@@ -44,13 +44,22 @@ import java.util.UUID;
  * would create a double-write race; the column is structurally
  * always-null at bundle time and marked {@link ParityIgnore}.
  *
- * <p>The system-actor row
- * {@code 13731ee2-c1d8-455c-8ad1-c39399893fff} is filtered out at
- * producer time (legacy {@code WHERE UserId != ...}); audit references to
- * it land in S-186's orphan-actor synthesis path rather than crossing
+ * <p>The system-actor row {@link #LEGACY_SYSTEM_USER_ID} is filtered out
+ * at producer time (legacy {@code WHERE UserId != ...}); audit references
+ * to it land in S-186's orphan-actor synthesis path rather than crossing
  * the boundary as a Keycloak-less user (ADR 0007 violation).
  */
 public final class UserMapper implements Mapper {
+
+    /**
+     * Legacy ASP.NET Identity system actor — the synthetic principal that
+     * legacy uses for cron / workflow-triggered audit writes. It has no
+     * Keycloak counterpart and MUST NOT cross the bundle boundary; the
+     * producer-side {@code SELECT} filters {@code WHERE UserId != ...}.
+     * S-186 orphan-actor synthesis reroutes audit references.
+     */
+    public static final UUID LEGACY_SYSTEM_USER_ID =
+            UUID.fromString("13731ee2-c1d8-455c-8ad1-c39399893fff");
 
     static final String LEGACY_GUID = "legacy_guid";
     static final String CLUB_ID = "club_id";
@@ -58,6 +67,10 @@ public final class UserMapper implements Mapper {
     static final String FRIENDLY_NAME = "friendly_name";
     static final String PERSON_ID = "person_id";
 
+    /**
+     * @ParityIgnore reason: free-text PII field with no parity-relevant
+     * invariant — S-187's sampled-value oracle treats it as opaque.
+     */
     @ParityIgnore
     static final String NOTIFICATION_EMAIL = "notification_email";
 

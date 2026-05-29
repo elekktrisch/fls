@@ -92,7 +92,4 @@ class PersonMapperTest extends AbstractMapperContractTest<PersonMapper> {
                 .containsExactly(EntityType.COUNTRY);
     }
 
-    private static String randomUuidString(Faker faker) {
-        return new UUID(faker.random().nextLong(), faker.random().nextLong()).toString();
-    }
 }

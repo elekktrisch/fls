@@ -47,7 +47,4 @@ class MemberStateMapperTest extends AbstractMapperContractTest<MemberStateMapper
         assertThat(mapper.foreignKeys()).containsExactly(EntityType.CLUB);
     }
 
-    static String randomUuidString(Faker faker) {
-        return new UUID(faker.random().nextLong(), faker.random().nextLong()).toString();
-    }
 }

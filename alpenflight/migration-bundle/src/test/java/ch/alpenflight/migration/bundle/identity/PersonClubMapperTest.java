@@ -69,7 +69,4 @@ class PersonClubMapperTest extends AbstractMapperContractTest<PersonClubMapper> 
                 .doesNotContain("id", "legacy_guid");
     }
 
-    private static String randomUuidString(Faker faker) {
-        return new UUID(faker.random().nextLong(), faker.random().nextLong()).toString();
-    }
 }

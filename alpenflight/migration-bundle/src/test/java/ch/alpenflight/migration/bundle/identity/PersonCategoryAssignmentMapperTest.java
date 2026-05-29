@@ -49,7 +49,4 @@ class PersonCategoryAssignmentMapperTest
                 .containsExactly(EntityType.PERSON, EntityType.PERSON_CATEGORY, EntityType.CLUB);
     }
 
-    private static String randomUuidString(Faker faker) {
-        return new UUID(faker.random().nextLong(), faker.random().nextLong()).toString();
-    }
 }

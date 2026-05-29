@@ -100,19 +100,19 @@ class UserMapperTest extends AbstractMapperContractTest<UserMapper> {
     @Test
     void readEntityWithNullPersonIdBindsSqlNull() throws Exception {
         Map<Integer, Object> binds = captureBinds(legacyRowWithNullPersonIdAndKcSub());
-        assertThat(binds.get(5))
-                .as("person_id at position 5 must bind SQL NULL — preserves the "
-                        + "pre-S-052 service-account case without synthesising a stub Person")
+        assertThat(binds.get(positionOf(mapper, UserMapper.PERSON_ID)))
+                .as("person_id must bind SQL NULL — preserves the pre-S-052 "
+                        + "service-account case without synthesising a stub Person")
                 .isNull();
     }
 
     @Test
     void readEntityBindsKeycloakSubAsNullForS028Mint() throws Exception {
         Map<Integer, Object> binds = captureBinds(legacyRowWithNullPersonIdAndKcSub());
-        assertThat(binds.get(10))
-                .as("keycloak_sub at position 10 must bind SQL NULL at bundle ingest — "
-                        + "S-028's BulkUserProvisioningService is the only NULL→UUID writer "
-                        + "for this column. Binding a value here would create a double-write "
+        assertThat(binds.get(positionOf(mapper, UserMapper.KEYCLOAK_SUB)))
+                .as("keycloak_sub must bind SQL NULL at bundle ingest — S-028's "
+                        + "BulkUserProvisioningService is the only NULL→UUID writer for "
+                        + "this column; binding a value here would create a double-write "
                         + "race per ADR 0007.")
                 .isNull();
     }
@@ -152,7 +152,4 @@ class UserMapperTest extends AbstractMapperContractTest<UserMapper> {
         return binds;
     }
 
-    private static String randomUuidString(Faker faker) {
-        return new UUID(faker.random().nextLong(), faker.random().nextLong()).toString();
-    }
 }

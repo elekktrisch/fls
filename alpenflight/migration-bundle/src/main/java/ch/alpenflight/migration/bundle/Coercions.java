@@ -30,8 +30,11 @@ public final class Coercions {
      * for reference tables whose legacy PK is INT (Language, ClubState).
      * The new-stack {@code legacy_id_map_<entity>} byte format is fixed at
      * (UUID, UUID) per {@link LegacyIdMapWriter}; this helper widens the
-     * INT into the most-significant 32 bits of a zero-filled UUID so the
-     * encoding is deterministic and reversible by inspection.
+     * INT into the least-significant bits of an otherwise zero-filled UUID
+     * (most-significant 64 bits = 0; least-significant 64 bits hold the
+     * sign-extended INT) so the encoding is deterministic and reversible
+     * by inspection. Legacy IDs are non-negative; a negative argument is
+     * rejected to keep the encoding bijective.
      *
      * <p>Cross-mapper invariant: any mapper that emits an FK to a Language
      * / ClubState row MUST encode the legacy INT through this helper so the
@@ -39,6 +42,11 @@ public final class Coercions {
      * resolves.
      */
     public static String legacyIntIdToUuidString(int legacyIntId) {
+        if (legacyIntId < 0) {
+            throw new IllegalArgumentException(
+                    "legacyIntId must be non-negative — sign extension would alias "
+                            + "the encoding. Got " + legacyIntId);
+        }
         return new UUID(0L, legacyIntId).toString();
     }
 

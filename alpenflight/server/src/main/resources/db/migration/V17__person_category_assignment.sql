@@ -4,9 +4,9 @@
 -- routing per ADR 0008 — the legacy producer joins PersonCategories to fill
 -- it on the wire.
 --
--- The S-184 mapper migration shop applies this junction before the
--- PERSON_CATEGORY_ASSIGNMENT pass. Tenant-scoped (`club_id` is the
--- @TenantId discriminator). FKs:
+-- S-141 ingest applies this junction at the PERSON_CATEGORY_ASSIGNMENT
+-- pass after the upstream PERSON / PERSON_CATEGORY / CLUB passes
+-- complete. Tenant-scoped (`club_id` is the @TenantId discriminator). FKs:
 --   * person_id           → t_person          cross-tenant (sacred-cow split)
 --   * person_category_id  → t_person_category tenant-scoped
 --   * club_id             → t_club            tenant-scoped
