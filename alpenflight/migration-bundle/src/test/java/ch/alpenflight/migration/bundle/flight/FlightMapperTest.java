@@ -93,22 +93,33 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     }
 
     @Test
-    void softDeletedRowPreservesTowFlightIdForensicTrace() throws Exception {
-        Map<String, Object> row = rowWithAirState(
+    void towFlightIdPreservedAcrossSoftDeleteToggle() throws Exception {
+        // Build a live (non-tombstoned) row, capture the original tow ref,
+        // and assert it both survives the live emission AND survives when
+        // the same row is re-emitted with DeletedOn set. V3 schema FK is
+        // ON DELETE SET NULL; the mapper must NOT pre-empt the cascade by
+        // nullifying tow_flight_id at port time — the legacy chain must
+        // remain intact for the S-141 two-pass UPDATE even when the tow
+        // flight also ports tombstoned.
+        Map<String, Object> liveRow = rowWithAirState(
                 seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
-        String expectedTowFlightId = (String) row.get("TowFlightId");
-        // Legacy tombstone present — but the tow reference must still ride
-        // through to the new bundle row, NOT be nulled at ingest. V3 schema
-        // FK is ON DELETE SET NULL; preserving the reference at port time
-        // keeps the forensic chain intact when the tow flight also ports
-        // tombstoned in the same bundle.
-        row.put("DeletedOn", Timestamp.from(Instant.parse("2024-06-04T00:00:00Z")));
-        JsonNode emitted = invokeWriteNdjson(row);
-        assertThat(emitted.get(FlightMapper.TOW_FLIGHT_ID).asText())
-                .as("Soft-deleted Flight rows must preserve tow_flight_id — "
-                        + "forensic-preserving per the design notes; nullification "
-                        + "would lose the legacy chain even when the tow row also "
-                        + "ports tombstoned")
+        liveRow.put("DeletedOn", null);
+        liveRow.put("DeletedByUserId", null);
+        String expectedTowFlightId = (String) liveRow.get("TowFlightId");
+        JsonNode liveEmitted = invokeWriteNdjson(liveRow);
+        assertThat(liveEmitted.get(FlightMapper.TOW_FLIGHT_ID).asText())
+                .as("Live (non-deleted) Flight row must carry tow_flight_id")
+                .isEqualTo(expectedTowFlightId);
+
+        Map<String, Object> tombstonedRow = new LinkedHashMap<>(liveRow);
+        tombstonedRow.put("DeletedOn", Timestamp.from(Instant.parse("2024-06-04T00:00:00Z")));
+        tombstonedRow.put("DeletedByUserId", randomUuidString(seededFaker()));
+        JsonNode tombstonedEmitted = invokeWriteNdjson(tombstonedRow);
+        assertThat(tombstonedEmitted.get(FlightMapper.TOW_FLIGHT_ID).asText())
+                .as("Soft-deleted Flight row must STILL carry tow_flight_id — "
+                        + "nullification at port time would defeat the V3 "
+                        + "ON DELETE SET NULL cascade and lose the forensic "
+                        + "chain to the (possibly also-tombstoned) tow row")
                 .isEqualTo(expectedTowFlightId);
     }
 

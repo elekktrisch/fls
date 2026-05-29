@@ -37,9 +37,9 @@ flowchart TB
         legacyDb --> producerJar
     end
 
-    subgraph Bundle["Encrypted bundle (single .tar.gz file)"]
+    subgraph Bundle["Encrypted bundle (.enc — header + RSA-wrapped key + AES-GCM ciphertext over a tar.gz)"]
         manifest["manifest.json<br/>(S-183 — schemaVersion, per-entity<br/>EntityPolicy, tenantBypassFks,<br/>unmappedReason)"]
-        ndjson["per-entity NDJSON streams<br/>(8 identity + 8 flight +<br/>4 accounting + audit log)"]
+        ndjson["per-entity NDJSON streams<br/>(one per mapped EntityType;<br/>S-184/S-185/S-186 mappers)"]
         idMaps["legacy_id_map_&lt;entity&gt; loaders<br/>(Postgres COPY-binary format,<br/>S-183 LegacyIdMapWriter)"]
         producerJar -. "AES-GCM<br/>(S-140 keypair)" .-> manifest
         producerJar -. "AES-GCM" .-> ndjson
@@ -56,7 +56,7 @@ flowchart TB
     subgraph NewStack["New stack (AlpenFlight Spring Boot + Postgres)"]
         decrypt["Streaming decrypt + tar inflate<br/>(in-memory only, S-141)"]
         provision["Provisioning service (S-138)<br/>1 Deployment + N Clubs<br/>+ reference data seeders<br/>(FlightType, MemberState)"]
-        ingest["Per-entity ingest in EntityType<br/>topological order:<br/>1. Identity (Country → User)<br/>2. Flight (Location → FlightCrew)<br/>3. Accounting (Article → DeliveryItem)<br/>4. Audit log (LEGACY_MIGRATED)"]
+        ingest["Per-entity ingest in EntityType<br/>declaration order (S-183 ArchUnit<br/>topological invariant — FK targets<br/>precede sources; identity/flight/<br/>accounting interleave by ordinal)"]
         twoPass["Two-pass UPDATE for self-FKs<br/>(PersonCategory parent, Flight tow)"]
         newDb[(t_* tables<br/>UUID v7 PKs)]
         upload --> decrypt
@@ -78,7 +78,7 @@ flowchart TB
     class decrypt defended
 ```
 
-The diagram covers the end-to-end migration as designed across stories S-016 (skeleton), S-138 (provisioning), S-139 (producer jar), S-140 (encryption keypair), S-141 (ingest pipeline), S-183 (mapper contract + manifest + LegacyIdMapWriter), S-184/S-185/S-186 (per-package mappers), and S-187 (parity oracle rehearsal). The `manifest.json` `TENANT_BYPASS_ALLOW_LIST` and the streaming-decrypt path are the two defense-in-depth surfaces (highlighted) — the manifest gates cross-tenant FK widening at parse, and the decrypt-pipeline ban on disk sinks (ArchUnit) keeps plaintext bytes off local storage.
+The diagram covers the end-to-end migration as designed across stories S-016 (schema-mapping library + parity-oracle scope), S-138 (provisioning), S-139 (producer jar), S-140 (encryption keypair), S-141 (ingest pipeline), S-183 (mapper contract + manifest + LegacyIdMapWriter), S-184/S-185/S-186 (per-package mappers), and S-187 (parity oracle rehearsal). The `manifest.json` `TENANT_BYPASS_ALLOW_LIST` and the streaming-decrypt path are the two defense-in-depth surfaces (highlighted) — the manifest gates cross-tenant FK widening at parse, and the decrypt-pipeline ban on disk sinks (ArchUnit) keeps plaintext bytes off local storage.
 
 ## Final-state legacy artifacts
 
