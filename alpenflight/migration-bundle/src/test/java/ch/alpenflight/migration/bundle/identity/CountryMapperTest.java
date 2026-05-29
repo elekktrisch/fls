@@ -21,7 +21,8 @@ class CountryMapperTest extends AbstractMapperContractTest<CountryMapper> {
     @Override
     protected Map<String, Object> legacyRow(Faker faker) {
         return Map.of(
-                "CountryId", UUID.randomUUID().toString(),
+                "CountryId", new UUID(
+                        faker.random().nextLong(), faker.random().nextLong()).toString(),
                 "CountryCodeIso2", faker.country().countryCode2().toUpperCase());
     }
 

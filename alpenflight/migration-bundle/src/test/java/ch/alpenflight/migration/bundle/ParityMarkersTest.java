@@ -26,18 +26,28 @@ class ParityMarkersTest {
     }
 
     @Test
-    void ignoresUnannotatedFields() {
+    void parityMarkersDoNotPickUpUnannotatedFields() {
         assertThat(ParityMarkers.sentinels(FixtureMapper.class))
+                .as("only @ParitySentinel-marked fields belong in sentinels()")
+                .containsExactly("operating_club_id");
+        assertThat(ParityMarkers.ignored(FixtureMapper.class))
+                .as("the unannotated PLAIN_FIELD must not leak into ignored()")
                 .doesNotContain("plain_field");
     }
 
     private static final class FixtureMapper implements Mapper {
         @ParityIgnore
         static final String NOTES_CACHE = "notes_cache";
+
+        @ParitySentinel
+        static final String OPERATING_CLUB_ID = "operating_club_id";
+
         static final String PLAIN_FIELD = "plain_field";
 
         @Override public EntityType entityType() { return EntityType.COUNTRY; }
-        @Override public String[] columns() { return new String[] { NOTES_CACHE, PLAIN_FIELD }; }
+        @Override public String[] columns() {
+            return new String[] { NOTES_CACHE, OPERATING_CLUB_ID, PLAIN_FIELD };
+        }
         @Override public List<EntityType> foreignKeys() { return List.of(); }
         @Override public void writeNdjson(ResultSet source, JsonGenerator target)
                 throws IOException { target.writeStartObject(); target.writeEndObject(); }

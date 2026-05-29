@@ -1,7 +1,9 @@
 package ch.alpenflight.migration.bundle;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
@@ -13,13 +15,23 @@ import java.util.stream.Collectors;
  * gate: every {@link EntityType} value must either appear in
  * {@code entityPolicies} or {@code unmappedReason}.
  *
+ * <p>Unknown wire fields fail-fast at parse via
+ * {@link JsonIgnoreProperties}: a tampered or forward-incompatible bundle
+ * is rejected before the COPY begins.
+ *
+ * <p>Distinct from {@link UnmappedTables#REGISTRY} which is keyed by the
+ * legacy table name (no destination {@link EntityType} exists).
+ * {@code unmappedReason} here is keyed by {@link EntityType} — entities
+ * the bundle MAY omit even though they have a destination table.
+ *
  * @param schemaVersion     bumped when the wire format changes; mismatch
  *                          rejected by the consumer pre-COPY with distinct
  *                          UPGRADE / DOWNGRADE error codes.
  * @param entityPolicies    per-entity port policy.
- * @param unmappedReason    per-entity "WHY not mapped" string (e.g. for
- *                          legacy tables intentionally dropped at cutover).
+ * @param unmappedReason    per-{@link EntityType} "WHY not mapped" string
+ *                          for entities the bundle MAY omit.
  */
+@JsonIgnoreProperties(ignoreUnknown = false)
 public record Manifest(
         @JsonProperty("schemaVersion") int schemaVersion,
         @JsonProperty("entityPolicies") Map<EntityType, EntityPolicy> entityPolicies,
@@ -33,15 +45,15 @@ public record Manifest(
             throw new IllegalArgumentException(
                     "schemaVersion must be positive, got " + schemaVersion);
         }
-        entityPolicies = copyToEnumMap(entityPolicies);
-        unmappedReason = copyToEnumMap(unmappedReason);
-        validateCoverage(entityPolicies, unmappedReason);
-        entityPolicies = Map.copyOf(entityPolicies);
-        unmappedReason = Map.copyOf(unmappedReason);
+        Map<EntityType, EntityPolicy> policies = copyToEnumMap(entityPolicies);
+        Map<EntityType, String> reasons = copyToEnumMap(unmappedReason);
+        validateCoverage(policies, reasons);
+        entityPolicies = Collections.unmodifiableMap(policies);
+        unmappedReason = Collections.unmodifiableMap(reasons);
     }
 
-    private static <V> Map<EntityType, V> copyToEnumMap(Map<EntityType, V> source) {
-        Map<EntityType, V> destination = new EnumMap<>(EntityType.class);
+    private static <V> EnumMap<EntityType, V> copyToEnumMap(Map<EntityType, V> source) {
+        EnumMap<EntityType, V> destination = new EnumMap<>(EntityType.class);
         if (source != null) {
             destination.putAll(source);
         }

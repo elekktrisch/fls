@@ -31,11 +31,8 @@ public interface Mapper {
      * FK targets this mapper resolves through. Walked by the ArchUnit
      * ingest-order rule to assert every target's {@link EntityType} ordinal
      * is less than this entity's ordinal, and by the parity oracle (S-187)
-     * to drive the cross-tenant FK sweep.
-     *
-     * <p>SYSTEM_GLOBAL refs resolved through {@code legacy_int_id} do NOT
-     * appear here — that resolution is structural (V2 seeds the canonical
-     * UUID v7 rows) and carries no per-bundle dependency.
+     * to drive the cross-tenant FK sweep. SYSTEM_GLOBAL refs return an
+     * empty list — see {@link EntityPolicy.PortPolicy#SYSTEM_GLOBAL_RESOLVE}.
      */
     List<EntityType> foreignKeys();
 

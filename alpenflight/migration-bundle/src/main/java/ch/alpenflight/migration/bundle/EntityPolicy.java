@@ -6,18 +6,16 @@ import java.util.Set;
 /**
  * Per-entity port policy. Carried inside {@link Manifest} on the wire and
  * consulted by the producer (S-139) before export and the consumer (S-141)
- * before ingest. {@link PortPolicy} drives the data movement; the others
- * shape what gets included.
+ * before ingest.
  *
- * @param portPolicy        how rows for this entity are transported.
- * @param tombstonePolicy   how soft-deleted rows are treated.
  * @param tenantBypassFks   FK columns that legitimately cross tenants
  *                          (Person.PrimaryClubId, Aircraft.ManagingClubId,
  *                          Location.HomeClubId per ADR 0008). Empty for
  *                          single-tenant entities.
  * @param columnAllowList   columns allowed on the wire for this entity.
  *                          Defense-in-depth against PII drift; the mapper's
- *                          {@code columns()} must be a subset.
+ *                          {@code columns()} must be a subset (asserted by
+ *                          a per-mapper test in S-184/S-185/S-186).
  */
 public record EntityPolicy(
         PortPolicy portPolicy,
@@ -45,6 +43,10 @@ public record EntityPolicy(
          * {@code legacy_id_map_<entity>} by joining against the pre-seeded
          * destination via the lookup key (per S-012). Used for SYSTEM_GLOBAL
          * refs whose destination rows are owned by V2 / V3 / V4 seed inserts.
+         *
+         * <p>Mappers under this policy do NOT enumerate their FK targets in
+         * {@link Mapper#foreignKeys()}: the resolution is structural through
+         * {@code legacy_int_id}, not a per-bundle dependency.
          */
         SYSTEM_GLOBAL_RESOLVE,
         /** Manifest declares the entity but the bundle MAY omit rows. */

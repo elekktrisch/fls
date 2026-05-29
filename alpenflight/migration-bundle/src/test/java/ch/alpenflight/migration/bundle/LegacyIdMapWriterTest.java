@@ -19,7 +19,6 @@ class LegacyIdMapWriterTest {
     void writesPgcopyBinarySignatureFirst() throws Exception {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter ignored = new LegacyIdMapWriter(sink)) {
-            // header-only stream
         }
         byte[] bytes = sink.toByteArray();
         assertThat(bytes).startsWith(LegacyIdMapWriter.PGCOPY_SIGNATURE);
@@ -29,7 +28,6 @@ class LegacyIdMapWriterTest {
     void emitsHeaderPlusTrailerOnEmptyStream() throws Exception {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter ignored = new LegacyIdMapWriter(sink)) {
-            // empty
         }
         assertThat(sink.toByteArray()).hasSize(HEADER_LENGTH + TRAILER_LENGTH);
     }
@@ -37,10 +35,10 @@ class LegacyIdMapWriterTest {
     @Test
     void writesEachRowAsBigEndianUuidPair() throws Exception {
         UUID legacy = UUID.fromString("11111111-2222-3333-4444-555555555555");
-        UUID neu = UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa");
+        UUID newUuid = UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa");
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
-            writer.write(legacy, neu);
+            writer.write(legacy, newUuid);
         }
         byte[] bytes = sink.toByteArray();
         assertThat(bytes).hasSize(HEADER_LENGTH + ROW_LENGTH + TRAILER_LENGTH);
@@ -52,8 +50,8 @@ class LegacyIdMapWriterTest {
         assertThat(rowBuffer.getLong()).isEqualTo(legacy.getMostSignificantBits());
         assertThat(rowBuffer.getLong()).isEqualTo(legacy.getLeastSignificantBits());
         assertThat(rowBuffer.getInt()).isEqualTo(16);
-        assertThat(rowBuffer.getLong()).isEqualTo(neu.getMostSignificantBits());
-        assertThat(rowBuffer.getLong()).isEqualTo(neu.getLeastSignificantBits());
+        assertThat(rowBuffer.getLong()).isEqualTo(newUuid.getMostSignificantBits());
+        assertThat(rowBuffer.getLong()).isEqualTo(newUuid.getLeastSignificantBits());
 
         ByteBuffer trailerBuffer = ByteBuffer.wrap(
                 bytes, HEADER_LENGTH + ROW_LENGTH, TRAILER_LENGTH)

@@ -40,6 +40,13 @@ import java.util.UUID;
  * underlying stream's lifecycle ({@link #close()} writes the trailer +
  * flushes but does NOT close the wrapped stream — S-141 holds the COPY
  * connection.)
+ *
+ * <p><strong>Callers must not pass a disk-backed stream.</strong> The
+ * Security plan (S-183) keeps plaintext bundle bytes off local disk; the
+ * ArchUnit "no disk sinks" rule inside this module catches the structural
+ * cases, but the constructor cannot verify the caller's choice. S-141 wires
+ * {@code PgConnection.getCopyAPI().copyIn(...)} directly to avoid any
+ * intermediate disk-backed stream.
  */
 public final class LegacyIdMapWriter implements AutoCloseable {
 
