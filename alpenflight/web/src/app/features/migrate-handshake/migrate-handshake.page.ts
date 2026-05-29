@@ -80,13 +80,14 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
             </div>
           } @else if (store.hasUpload()) {
             <div class="space-y-4">
-              <label class="block text-sm font-medium text-slate-700">
+              <label for="migrate-handshake-pem" class="block text-sm font-medium text-slate-700">
                 {{ t('pemLabel') }}
               </label>
               <!-- min-h-[12rem] is large enough to show ~10 lines of
                    wrapped PEM at the project's mono type scale; no
                    semantic token applies. -->
               <textarea
+                id="migrate-handshake-pem"
                 readonly
                 data-testid="migrate-handshake-pem"
                 class="w-full font-mono text-xs border border-slate-200 p-3 min-h-[12rem] tabular"
