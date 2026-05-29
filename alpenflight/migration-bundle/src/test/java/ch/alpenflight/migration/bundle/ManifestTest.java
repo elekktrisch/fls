@@ -62,6 +62,49 @@ class ManifestTest {
                 .containsExactly(EntityType.values());
     }
 
+    @Test
+    void acceptsTenantBypassFksOnTheAllowListedThreeEntities() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("person_id"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.USER, withBypass);
+        policies.put(EntityType.PERSON_CLUB, withBypass);
+        policies.put(EntityType.PERSON_CATEGORY_ASSIGNMENT, withBypass);
+        assertThat(new Manifest(1, policies, Map.of())).isNotNull();
+    }
+
+    @Test
+    void rejectsTenantBypassFksOnReferenceEntities() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("legacy_guid"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.LANGUAGE, withBypass);
+        assertThatThrownBy(() -> new Manifest(1, policies, Map.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("LANGUAGE")
+                .hasMessageContaining("tenantBypassFks");
+    }
+
+    @Test
+    void rejectsTenantBypassFksOnClub() {
+        EntityPolicy withBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("country_id"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.CLUB, withBypass);
+        assertThatThrownBy(() -> new Manifest(1, policies, Map.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("CLUB");
+    }
+
     private static Map<EntityType, EntityPolicy> allFullPort() {
         Map<EntityType, EntityPolicy> policies = new HashMap<>();
         for (EntityType type : EntityType.values()) {

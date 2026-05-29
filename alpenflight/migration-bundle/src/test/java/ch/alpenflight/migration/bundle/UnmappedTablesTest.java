@@ -17,10 +17,11 @@ class UnmappedTablesTest {
             "SystemLogs",
             "SystemVersion",
             "UserAccountStates",
-            "PersonPersonCategories");
+            "Roles",
+            "UserRoles");
 
     @Test
-    void coversEveryLegacyTableNamedInS183Acceptance() {
+    void coversEveryLegacyTableNamedInS183AndS184Acceptance() {
         assertThat(UnmappedTables.REGISTRY.keySet())
                 .containsAll(AC_NAMED_LEGACY_TABLES);
     }

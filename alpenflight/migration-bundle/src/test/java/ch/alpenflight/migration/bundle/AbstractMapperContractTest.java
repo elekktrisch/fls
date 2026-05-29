@@ -52,6 +52,34 @@ public abstract class AbstractMapperContractTest<M extends Mapper> {
         return new Faker(new Random(FAKER_SEED));
     }
 
+    /**
+     * Random UUID as a string — every identity-group mapper test fabricates
+     * legacy GUID columns the same way. Lives on the base class so subclasses
+     * stay at the documented "10-line stub" size.
+     */
+    protected static String randomUuidString(Faker faker) {
+        return new java.util.UUID(
+                faker.random().nextLong(), faker.random().nextLong()).toString();
+    }
+
+    /**
+     * 1-based PreparedStatement parameter position for {@code columnName}
+     * on the supplied mapper. Tests assert by column name rather than by
+     * a hand-counted magic position so a column-list reshuffle doesn't
+     * silently slide an assertion onto the wrong column.
+     */
+    protected static int positionOf(Mapper mapper, String columnName) {
+        String[] columns = mapper.columns();
+        for (int index = 0; index < columns.length; index++) {
+            if (columns[index].equals(columnName)) {
+                return index + 1;
+            }
+        }
+        throw new IllegalArgumentException(
+                "Column " + columnName + " not declared by " + mapper.getClass().getSimpleName()
+                        + ". Declared: " + java.util.Arrays.toString(columns));
+    }
+
     @Test
     void entityTypeIsNotNull() {
         assertThat(mapper().entityType()).isNotNull();

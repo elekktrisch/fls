@@ -39,6 +39,18 @@ public record Manifest(
 
     public static final int CURRENT_SCHEMA_VERSION = 1;
 
+    /**
+     * Entities allowed to declare a non-empty {@code tenantBypassFks} per
+     * ADR 0008 + the S-184 Security plan: User.person_id,
+     * PersonClub.person_id, PersonCategoryAssignment.person_id. Reference
+     * tables and Club itself must declare empty bypass — a producer bundle
+     * widening the set is rejected at parse.
+     */
+    private static final Set<EntityType> TENANT_BYPASS_ALLOW_LIST = Set.of(
+            EntityType.USER,
+            EntityType.PERSON_CLUB,
+            EntityType.PERSON_CATEGORY_ASSIGNMENT);
+
     @JsonCreator
     public Manifest {
         if (schemaVersion <= 0) {
@@ -48,6 +60,7 @@ public record Manifest(
         Map<EntityType, EntityPolicy> policies = copyToEnumMap(entityPolicies);
         Map<EntityType, String> reasons = copyToEnumMap(unmappedReason);
         validateCoverage(policies, reasons);
+        validateTenantBypassAllowList(policies);
         entityPolicies = Collections.unmodifiableMap(policies);
         unmappedReason = Collections.unmodifiableMap(reasons);
     }
@@ -81,6 +94,29 @@ public record Manifest(
         if (!uncovered.isEmpty()) {
             throw new IllegalArgumentException(
                     "Manifest does not cover EntityType values: " + uncovered);
+        }
+    }
+
+    /**
+     * Defense-in-depth gate for the S-184 Security plan: only the three
+     * cross-tenant FK holders may carry a non-empty
+     * {@link EntityPolicy#tenantBypassFks}; every other entity must
+     * declare an empty set. A producer bundle widening the allow-list is
+     * rejected at parse so a malformed Manifest cannot smuggle a
+     * cross-tenant bypass past S-141.
+     */
+    private static void validateTenantBypassAllowList(
+            Map<EntityType, EntityPolicy> policies) {
+        for (Map.Entry<EntityType, EntityPolicy> entry : policies.entrySet()) {
+            EntityType entity = entry.getKey();
+            Set<String> bypassFks = entry.getValue().tenantBypassFks();
+            if (!bypassFks.isEmpty() && !TENANT_BYPASS_ALLOW_LIST.contains(entity)) {
+                throw new IllegalArgumentException(
+                        "Entity " + entity + " declares tenantBypassFks " + bypassFks
+                                + " but is not on the cross-tenant allow-list "
+                                + TENANT_BYPASS_ALLOW_LIST + ". Only these entities may "
+                                + "legitimately cross tenants per ADR 0008.");
+            }
         }
     }
 }
