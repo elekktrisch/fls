@@ -66,6 +66,7 @@ public class JitUserMaterializationFilter extends OncePerRequestFilter {
     static final URI PROBLEM_TYPE_DEACTIVATED =
             URI.create("urn:alpenflight:problem:user-deactivated");
 
+    @SuppressWarnings("unused")
     private static final Logger LOG = LoggerFactory.getLogger(JitUserMaterializationFilter.class);
 
     private final JitUserMaterializer materializer;

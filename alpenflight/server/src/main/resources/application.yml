@@ -443,6 +443,16 @@ audit:
           - state
           - expiresAt
           - privateKeyCiphertextSummary
+      MigrationIngestAuditSnapshot:
+        # S-141 — snapshot record emitted on MIGRATION_INGEST_STARTED /
+        # COMPLETED / FAILED. ids + ints + bounded enum codes only — never
+        # display names, never PII from the bundle.
+        allow:
+          - uploadId
+          - deploymentId
+          - clubCount
+          - errorCode
+          - phase
 
 # S-140 — Tink master keyset for migration-upload private-key wrapping.
 # Env-driven. Prod MUST supply ALPENFLIGHT_MIGRATION_MASTER_KEYSET (base64
