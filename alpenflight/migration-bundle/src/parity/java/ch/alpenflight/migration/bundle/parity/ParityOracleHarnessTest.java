@@ -52,7 +52,7 @@ import org.junit.jupiter.api.condition.EnabledIf;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIf(value = "dockerAvailable",
         disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
-@DisplayName("Parity oracle — Country / Language / ClubState + Club / User round-trip")
+@DisplayName("Parity oracle — Country / Language / ClubState + Club / User")
 class ParityOracleHarnessTest {
 
     private static final MssqlContainerLifecycle MSSQL = new MssqlContainerLifecycle();

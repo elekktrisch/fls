@@ -41,20 +41,7 @@ Scope-split from [S-183](S-183-migration-bundle-mappers-and-parity-oracle.md). O
 
 ## Implemented scope (vertical slice)
 
-The implement pass cut this story to a vertical slice per ADR 0022 D1 — the full 28-mapper sweep + 4 coverage gates + producer-drop reconciliation + two-pass UPDATE + composite location parity + negative-path bundle-reject + mutation-smoke moved to [S-187a](S-187a-parity-harness-remaining-mappers-and-gates.md). What landed here:
-
-- Dedicated `src/parity/java/` source set + `parityTest` Gradle task (`./gradlew parityTest -Dparity.seed=42 -Dparity.scale=1`); not wired into `check`.
-- `ParityOracleHarnessTest` — single test class, per-class Testcontainers MSSQL + Postgres (`withReuse(false)`); end-to-end round-trip for `CountryMapper` / `ClubMapper` / `UserMapper`.
-- `LegacyFixtureSeeder` — Faker-only, deterministic via `parity.seed`; 2 Clubs × 3 Users + 2 seeded Countries; microseconds-truncated timestamps to remove the MSSQL `datetime2(7)` ↔ Postgres `timestamptz` ambiguity.
-- `BundleStream` — in-memory `tar.gz` envelope (Apache Commons Compress) carrying the manifest + per-entity NDJSON.
-- `ProducerHarness` / `ConsumerHarness` — `Mapper.writeNdjson` over JDBC `ResultSet` → tar.gz → `Mapper.readEntity` into Postgres.
-- `ParityDiffEngine` — row counts per `(Club, table)`; sentinel + ignore set enumeration via `ParityMarkers`.
-- `ParityReports` — emits `build/reports/parity/<git-sha>-<seed>-<scale>/{summary.json, report.md, deltas/*.json}` + PII-substring leak smoke against the seeded fixture.
-- `MapperLegacyBindings` — per-mapper `SELECT` / new-stack table / `INSERT` registry; SYSTEM_GLOBAL marker for Country.
-- `KnownMappers` (main source set) — public registry of all 28 mappers; `ArchitectureTest.KNOWN_MAPPERS` delegates to it.
-- `MapperVsSchemaCompatibilityTest` (in `alpenflight/server/`) — parametrised over all 28 mappers; structural subset + non-nullable coverage check against the Flyway-migrated schema; `legacy_guid → id` wire alias; SYSTEM_GLOBAL mappers (COUNTRY / LANGUAGE / CLUB_STATE / START_TYPE) exempted from the coverage rule.
-- Composite-include of `migration-bundle` into the server build so the test can reach `KnownMappers.all()`.
-- Sibling tasks filed: [S-139a](S-139a-parity-harness-processbuilder-swap.md) (ProcessBuilder swap once `migration-tool-all.jar` lands) + [S-187a](S-187a-parity-harness-remaining-mappers-and-gates.md) (everything not in this slice).
+Per ADR 0022 D1, the implement pass shipped the round-trip plumbing end-to-end for the three identity-group mappers Country / Language / ClubState (SYSTEM_GLOBAL) plus Club / User (FULL_PORT). The harness applies the canonical FLSTest schema from `flsserver/database/FLSTest/`, populates `legacy_id_map_<entity>` from each SYSTEM_GLOBAL bundle entry against the V2-seeded Postgres reference rows, rewrites FK columns on FULL_PORT rows before binding, and asserts byte-identical row counts per Club. The remaining 25 mappers + 4 coverage gates + producer-drop reconciliation + two-pass UPDATE + composite `legacy_id_map_location` + negative-path bundle-reject + mutation-smoke land at [S-187a](S-187a-parity-harness-remaining-mappers-and-gates.md). The producer-side `ProcessBuilder` swap for `migration-tool-all.jar` lands at [S-139a](S-139a-parity-harness-processbuilder-swap.md).
 
 <!-- modernize-refine: start -->
 
