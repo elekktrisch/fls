@@ -51,9 +51,12 @@ public record BundleManifest(
         if (deploymentName == null || deploymentName.isBlank()) {
             throw new IllegalArgumentException("deploymentName must not be blank");
         }
-        if (clubs == null || clubs.isEmpty()) {
-            throw new IllegalArgumentException("clubs must not be empty");
+        if (clubs == null) {
+            throw new IllegalArgumentException("clubs must not be null");
         }
+        // Empty clubs lists past the record boundary so the orchestrator
+        // can surface the distinct 400 MANIFEST_EMPTY_CLUBS (not the catch-
+        // all MANIFEST_INVALID Jackson would emit on record construction).
         clubs = List.copyOf(clubs);
         entityPolicies = entityPolicies == null ? Map.of() : Map.copyOf(entityPolicies);
         unmappedReason = unmappedReason == null ? Map.of() : Map.copyOf(unmappedReason);

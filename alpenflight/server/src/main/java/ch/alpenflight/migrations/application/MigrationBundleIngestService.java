@@ -3,9 +3,11 @@ package ch.alpenflight.migrations.application;
 import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
+import ch.alpenflight.deployments.domain.Deployment;
+import ch.alpenflight.deployments.domain.DeploymentRepository;
+import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.KnownMappers;
-import ch.alpenflight.migration.bundle.LegacyIdMapTables;
 import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migrations.domain.BundleHeader;
@@ -22,15 +24,9 @@ import ch.alpenflight.migrations.domain.MigrationUploadRepository;
 import ch.alpenflight.migrations.domain.MigrationUploadState;
 import ch.alpenflight.migrations.domain.SecureBytes;
 import ch.alpenflight.tenancy.provisioning.application.ClubSpec;
-import ch.alpenflight.deployments.domain.Deployment;
-import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningRequest;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningResult;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.StreamReadConstraints;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockTimeoutException;
@@ -38,26 +34,23 @@ import jakarta.persistence.PessimisticLockException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.concurrent.atomic.AtomicReference;
-import org.hibernate.Session;
-import org.postgresql.copy.CopyManager;
-import org.postgresql.jdbc.PgConnection;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.hibernate.Session;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -72,13 +65,21 @@ import org.springframework.transaction.support.TransactionTemplate;
  * bundle off the servlet input stream, unwraps the per-upload session key,
  * provisions the Deployment + Clubs through S-138, and writes every
  * entity stream into the new-schema tables via S-183's {@link Mapper}
- * contract. Single Postgres transaction (AC4); per ADR 0022 directive 2
- * the FSM lives on the {@link MigrationRun} aggregate.
+ * contract. Single Postgres transaction; per ADR 0022 directive 2 the FSM
+ * lives on the {@link MigrationRun} aggregate.
  *
- * <p>Concurrency: a single-permit semaphore bounds the number of in-flight
- * ingests to one — a 2 GB body holds substantial heap; the single-VPS
- * footprint cannot afford two parallel ingests. Second caller surfaces as
- * {@link BundleIngestErrorCode#DATABASE_CAPACITY_EXCEEDED} (429).
+ * <p>S-141b factored the parsing + ingest details into
+ * {@link BundleStreamReader} (header, manifest, tar safety) and
+ * {@link EntityStreamIngestor} (NDJSON, COPY, INSERT builder, column
+ * allow-list). This orchestrator keeps the transaction boundary, the
+ * concurrency gate, principal/upload-row gating, provisioning, FSM
+ * transitions, and the post-commit synchronization.
+ *
+ * <p>Concurrency: {@link IngestConcurrencyGate} bounds in-flight ingests
+ * (default 1 — single-VPS heap cap). A second caller surfaces as
+ * {@link BundleIngestErrorCode#DATABASE_CAPACITY_EXCEEDED} (429). The
+ * per-upload race surfaces separately as {@code BUNDLE_INGEST_IN_PROGRESS}
+ * (409) via the {@code PESSIMISTIC_WRITE} row lock.
  *
  * <p>Plaintext-leak posture: every byte read off the encrypted body flows
  * through {@code StreamingAead → gzip → tar → JsonNode} in-memory; the
@@ -94,19 +95,21 @@ public class MigrationBundleIngestService {
     /** Cap on the encrypted-body byte count we accept (Vision §2 NFR). */
     public static final long MAX_BUNDLE_BYTES = 2L * 1024 * 1024 * 1024;
 
-    /** Jackson parser tuned for an untrusted bundle (Security plan). */
-    private static final ObjectMapper JSON = buildHardenedJsonMapper();
-
-    private static final String MANIFEST_ENTRY_NAME = "manifest.json";
     private static final String NDJSON_ENTRY_SUFFIX = ".ndjson";
     private static final String LEGACY_ID_MAP_ENTRY_PREFIX = "legacy_id_map/";
     private static final String LEGACY_ID_MAP_ENTRY_SUFFIX = ".pgcopy";
 
     /**
-     * Global ingest gate. Static so two service instances (test contexts
-     * that re-init the bean) still share the cap.
+     * Error codes that signal "client-side retry is safe with the same
+     * upload row" — recording a failure on these would burn a still-valid
+     * handshake. {@code DATABASE_CAPACITY_EXCEEDED} = the global gate
+     * throttled this caller; {@code BUNDLE_TOO_LARGE} = the controller
+     * pre-check rejected the body before the txn opened.
      */
-    private static final Semaphore INGEST_GATE = new Semaphore(1, true);
+    private static final Set<BundleIngestErrorCode> RETRYABLE_PRE_TRANSACTION_CODES =
+            EnumSet.of(
+                    BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
+                    BundleIngestErrorCode.BUNDLE_TOO_LARGE);
 
     private final MigrationUploadRepository uploads;
     private final MigrationRunRepository runs;
@@ -120,6 +123,9 @@ public class MigrationBundleIngestService {
     private final EntityManager entityManager;
     private final TransactionTemplate txTemplate;
     private final Clock clock;
+    private final IngestConcurrencyGate concurrencyGate;
+    private final BundleStreamReader bundleStreamReader;
+    private final EntityStreamIngestor entityStreamIngestor;
 
     public MigrationBundleIngestService(MigrationUploadRepository uploads,
                                         MigrationRunRepository runs,
@@ -132,7 +138,8 @@ public class MigrationBundleIngestService {
                                         MigrationFailureRecorder failureRecorder,
                                         EntityManager entityManager,
                                         PlatformTransactionManager txManager,
-                                        Clock clock) {
+                                        Clock clock,
+                                        IngestConcurrencyGate concurrencyGate) {
         this.uploads = uploads;
         this.runs = runs;
         this.crypto = crypto;
@@ -145,6 +152,9 @@ public class MigrationBundleIngestService {
         this.entityManager = entityManager;
         this.txTemplate = new TransactionTemplate(txManager);
         this.clock = clock;
+        this.concurrencyGate = concurrencyGate;
+        this.bundleStreamReader = new BundleStreamReader();
+        this.entityStreamIngestor = new EntityStreamIngestor(KnownMappers.all());
     }
 
     /**
@@ -179,10 +189,10 @@ public class MigrationBundleIngestService {
         Objects.requireNonNull(encryptedBody, "encryptedBody");
         telemetry.uploadStarted(uploadId, clock.instant());
 
-        if (!INGEST_GATE.tryAcquire()) {
+        if (!concurrencyGate.tryAcquire()) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
-                    "Another ingest is in flight; retry once the global semaphore frees");
+                    "Another ingest is in flight; retry once the global gate frees");
         }
         // runIdRef escapes the txTemplate lambda so the post-rollback
         // failure recorder can stamp the run row when the ingest aborted
@@ -194,11 +204,18 @@ public class MigrationBundleIngestService {
         } catch (BundleIngestException e) {
             // txTemplate.execute already rolled back; locks released. Safe
             // to call recordFailure (REQUIRES_NEW) without deadlocking on
-            // the upload row.
-            failureRecorder.recordFailure(uploadId, runIdRef.get(), e.getErrorCode(), shortDetail(e));
+            // the upload row — but only when the failure mode is one the
+            // upload row should reflect. Pre-txn rejections that signal
+            // "client retry with the same handshake is safe" stay clear of
+            // the recorder so they don't burn the upload.
+            if (!RETRYABLE_PRE_TRANSACTION_CODES.contains(e.getErrorCode())) {
+                failureRecorder.recordFailure(uploadId, runIdRef.get(),
+                        e.getErrorCode(), shortDetail(e));
+            }
             throw e;
         } catch (RuntimeException unexpected) {
-            LOG.error("MigrationBundleIngest: unexpected failure for upload {}", uploadId, unexpected);
+            LOG.error("MigrationBundleIngest: unexpected failure for upload {}",
+                    uploadId, unexpected);
             BundleIngestException wrapped = new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Unexpected ingest failure: " + unexpected.getClass().getSimpleName()
@@ -208,7 +225,7 @@ public class MigrationBundleIngestService {
                     unexpected.getClass().getSimpleName());
             throw wrapped;
         } finally {
-            INGEST_GATE.release();
+            concurrencyGate.release();
         }
     }
 
@@ -268,7 +285,7 @@ public class MigrationBundleIngestService {
 
                 byte[] wrappedPrivateKey = Objects.requireNonNull(upload.getPrivateKeyCiphertext(),
                         "AWAITING_UPLOAD row must carry a wrapped private key");
-                BundleHeader header = readHeader(encryptedBody);
+                BundleHeader header = bundleStreamReader.readHeader(encryptedBody);
                 IngestOutcome outcome = crypto.unwrapInto(uploadId, wrappedPrivateKey, rsaPrivateKey ->
                         drainDecryptedBody(connection, upload, principalKeycloakSub, run, header,
                                 encryptedBody, rsaPrivateKey));
@@ -284,19 +301,28 @@ public class MigrationBundleIngestService {
             // Post-commit audit + funnel emission: TransactionTemplate.execute
             // commits this lambda's outcome on normal return. The after-commit
             // hook fires AFTER the rows + Deployment land, so an audit-write
-            // failure does NOT roll the ingest back.
+            // failure does NOT roll the ingest back; log + swallow so the
+            // caller sees a clean 200 (the data is committed; reconciling a
+            // missing audit / funnel event is an ops job, not the user's).
             UUID resolvedDeploymentId = outcome.deploymentId();
             int resolvedClubCount = outcome.clubIds().size();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    audit.record(AuditAction.MIGRATION_INGEST_COMPLETED,
-                            AuditedTarget.created(
-                                    MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
-                                    uploadId,
-                                    MigrationIngestAuditSnapshot.completed(
-                                            uploadId, resolvedDeploymentId, resolvedClubCount)));
-                    telemetry.ingestCompleted(uploadId, resolvedClubCount, clock.instant());
+                    try {
+                        audit.record(AuditAction.MIGRATION_INGEST_COMPLETED,
+                                AuditedTarget.created(
+                                        MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
+                                        uploadId,
+                                        MigrationIngestAuditSnapshot.completed(
+                                                uploadId, resolvedDeploymentId, resolvedClubCount)));
+                        telemetry.ingestCompleted(uploadId, resolvedClubCount, clock.instant());
+                    } catch (RuntimeException postCommitFailure) {
+                        LOG.error("MigrationBundleIngest: post-commit audit / telemetry "
+                                        + "failed for upload {} (Deployment {} is committed and "
+                                        + "the caller will see 200)",
+                                uploadId, resolvedDeploymentId, postCommitFailure);
+                    }
                 }
             });
             return outcome;
@@ -326,12 +352,17 @@ public class MigrationBundleIngestService {
              GzipCompressorInputStream gzipStream = new GzipCompressorInputStream(decryptingStream);
              TarArchiveInputStream tarStream = new TarArchiveInputStream(gzipStream)) {
 
-            BundleManifest manifest = readManifestOrThrow(tarStream);
+            BundleManifest manifest = bundleStreamReader.readManifestOrThrow(tarStream);
             if (manifest.schemaVersion() != Manifest.CURRENT_SCHEMA_VERSION) {
                 throw new BundleIngestException(
                         BundleIngestErrorCode.SCHEMA_VERSION_MISMATCH,
                         "Bundle schemaVersion=" + manifest.schemaVersion()
                                 + " does not match server schemaVersion=" + Manifest.CURRENT_SCHEMA_VERSION);
+            }
+            if (manifest.clubs().isEmpty()) {
+                throw new BundleIngestException(
+                        BundleIngestErrorCode.MANIFEST_EMPTY_CLUBS,
+                        "Bundle manifest must declare at least one Club; provisioning requires 1..N");
             }
             // Constructor invokes the entity-policy allow-list validator on
             // the bundle-module side (S-183 Manifest). Side-effect only —
@@ -343,11 +374,11 @@ public class MigrationBundleIngestService {
             ProvisioningResult provisioned = provisionDeployment(upload, principalKeycloakSub, manifest);
             run.attachDeployment(provisioned.deploymentId());
 
-            createTemporaryIdMapTables(connection);
-            seedClubLegacyIdMap(connection, manifest, provisioned);
+            entityStreamIngestor.createTemporaryIdMapTables(connection);
+            entityStreamIngestor.seedClubLegacyIdMap(connection, manifest, provisioned);
 
             run.transitionTo(MigrationRunState.INGESTING);
-            drainEntityStreams(connection, run, tarStream, provisioned);
+            drainEntityStreams(connection, run, tarStream, manifest, provisioned);
 
             run.transitionTo(MigrationRunState.COMPLETING);
             upload.markConsumed(clock);
@@ -404,86 +435,6 @@ public class MigrationBundleIngestService {
                 + " is in state " + upload.getState(), attrs, null);
     }
 
-    private BundleHeader readHeader(InputStream encryptedBody) {
-        byte[] fixedPrefix = readExactly(encryptedBody, BundleHeader.FIXED_PREFIX_BYTES);
-        int wrappedKeyLen = BundleHeader.peekWrappedKeyLen(fixedPrefix);
-        if (wrappedKeyLen > BundleHeader.MAX_WRAPPED_KEY_LEN || wrappedKeyLen <= 0) {
-            throw new BundleHeader.MalformedHeaderException(
-                    "wrappedKeyLen out of range: " + wrappedKeyLen);
-        }
-        byte[] wrappedKey = readExactly(encryptedBody, wrappedKeyLen);
-        byte[] fullHeader = new byte[fixedPrefix.length + wrappedKey.length];
-        System.arraycopy(fixedPrefix, 0, fullHeader, 0, fixedPrefix.length);
-        System.arraycopy(wrappedKey, 0, fullHeader, fixedPrefix.length, wrappedKey.length);
-        try {
-            return BundleHeader.parse(fullHeader);
-        } catch (BundleHeader.MalformedHeaderException malformed) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_HEADER_MALFORMED,
-                    String.valueOf(malformed.getMessage()), malformed);
-        }
-    }
-
-    private static byte[] readExactly(InputStream from, int count) {
-        byte[] buffer = new byte[count];
-        int offset = 0;
-        while (offset < count) {
-            int read;
-            try {
-                read = from.read(buffer, offset, count - offset);
-            } catch (IOException ioFailure) {
-                throw new BundleIngestException(
-                        BundleIngestErrorCode.BUNDLE_TRUNCATED,
-                        "I/O error reading bundle header", ioFailure);
-            }
-            if (read == -1) {
-                throw new BundleIngestException(
-                        BundleIngestErrorCode.BUNDLE_TRUNCATED,
-                        "EOF before " + count + " bytes were read from the bundle prefix");
-            }
-            offset += read;
-        }
-        return buffer;
-    }
-
-    private BundleManifest readManifestOrThrow(TarArchiveInputStream tar) throws IOException {
-        TarArchiveEntry entry = tar.getNextEntry();
-        if (entry == null) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_MISSING_ENTRIES,
-                    "Bundle is empty — manifest.json must be entry 0");
-        }
-        if (!MANIFEST_ENTRY_NAME.equals(entry.getName())) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_MISSING_ENTRIES,
-                    "First tar entry must be manifest.json, got " + entry.getName());
-        }
-        try {
-            return JSON.readValue(tar, BundleManifest.class);
-        } catch (IOException ioOrParse) {
-            if (ioOrParse instanceof JsonProcessingException malformed) {
-                // Don't echo Jackson's originalMessage — a hostile bundle
-                // can stuff up to maxStringLength chars of attacker-chosen
-                // text inside the parser's failure detail. Surface only the
-                // parser location so the SPA can render a stable hint.
-                String location = malformed.getLocation() == null
-                        ? "(unknown)"
-                        : "line " + malformed.getLocation().getLineNr()
-                                + " col " + malformed.getLocation().getColumnNr();
-                throw new BundleIngestException(
-                        BundleIngestErrorCode.MANIFEST_INVALID,
-                        "Manifest JSON failed to parse at " + location, malformed);
-            }
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
-                    "I/O failure reading manifest entry", ioOrParse);
-        } catch (IllegalArgumentException invalid) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.MANIFEST_INVALID,
-                    "Manifest rejected: " + invalid.getMessage(), invalid);
-        }
-    }
-
     private ProvisioningResult provisionDeployment(MigrationUpload upload,
                                                    UUID principalKeycloakSub,
                                                    BundleManifest manifest) {
@@ -509,54 +460,24 @@ public class MigrationBundleIngestService {
         }
     }
 
-    private void createTemporaryIdMapTables(Connection connection) throws SQLException {
-        try (java.sql.Statement statement = connection.createStatement()) {
-            for (EntityType entity : EntityType.values()) {
-                statement.execute(
-                        "CREATE TEMP TABLE " + LegacyIdMapTables.temporaryTableName(entity)
-                                + " (legacy_guid uuid PRIMARY KEY, new_uuid uuid NOT NULL) "
-                                + "ON COMMIT DROP");
-            }
-        }
-    }
-
-    private void seedClubLegacyIdMap(Connection connection,
-                                     BundleManifest manifest,
-                                     ProvisioningResult provisioned) throws SQLException {
-        String table = LegacyIdMapTables.temporaryTableName(EntityType.CLUB);
-        try (PreparedStatement insert = connection.prepareStatement(
-                "INSERT INTO " + table + " (legacy_guid, new_uuid) VALUES (?, ?)")) {
-            List<UUID> clubIds = provisioned.clubIds();
-            for (int i = 0; i < manifest.clubs().size(); i++) {
-                insert.setObject(1, manifest.clubs().get(i).legacyClubId());
-                insert.setObject(2, clubIds.get(i));
-                insert.addBatch();
-            }
-            insert.executeBatch();
-        }
-        try (java.sql.Statement stmt = connection.createStatement()) {
-            stmt.execute("ANALYZE " + table);
-        }
-    }
-
     private void drainEntityStreams(Connection connection,
                                     MigrationRun run,
                                     TarArchiveInputStream tar,
+                                    BundleManifest manifest,
                                     ProvisioningResult provisioned) throws IOException, SQLException {
-        Map<EntityType, Mapper> mappers = new LinkedHashMap<>();
-        for (Mapper mapper : KnownMappers.all()) {
-            mappers.put(mapper.entityType(), mapper);
-        }
-
         TarArchiveEntry entry;
         while ((entry = tar.getNextEntry()) != null) {
             if (entry.isDirectory()) {
                 continue;
             }
             String name = entry.getName();
-            rejectUnsafeTarName(name);
-            if (name.startsWith(LEGACY_ID_MAP_ENTRY_PREFIX) && name.endsWith(LEGACY_ID_MAP_ENTRY_SUFFIX)) {
-                copyLegacyIdMap(connection, name, tar);
+            // First statement in the loop body — name-safety check runs
+            // BEFORE any prefix dispatch so a hostile entry name like
+            // legacy_id_map/../etc/passwd.pgcopy cannot reach the COPY path.
+            BundleStreamReader.rejectUnsafeTarName(name);
+            if (name.startsWith(LEGACY_ID_MAP_ENTRY_PREFIX)
+                    && name.endsWith(LEGACY_ID_MAP_ENTRY_SUFFIX)) {
+                entityStreamIngestor.copyLegacyIdMap(connection, name, tar);
             } else if (name.endsWith(NDJSON_ENTRY_SUFFIX)) {
                 String entityName = name.substring(0, name.length() - NDJSON_ENTRY_SUFFIX.length());
                 EntityType entityType;
@@ -567,15 +488,11 @@ public class MigrationBundleIngestService {
                             BundleIngestErrorCode.BUNDLE_EXTRA_ENTRIES,
                             "Tar entry " + name + " does not map to a known EntityType", unknown);
                 }
-                Mapper mapper = mappers.get(entityType);
-                if (mapper == null) {
-                    throw new BundleIngestException(
-                            BundleIngestErrorCode.MAPPER_NOT_AVAILABLE,
-                            "No mapper registered for entity " + entityType);
-                }
-                run.noteCurrent(entityType.name(), provisioned.primaryClubId());
+                Mapper mapper = entityStreamIngestor.mapperFor(entityType);
+                run.noteCurrent(entityType.name(),
+                        currentClubFor(entityType, manifest, provisioned));
                 runs.save(run);
-                ingestEntityNdjson(connection, mapper, tar);
+                entityStreamIngestor.ingestEntityNdjson(connection, mapper, tar);
             } else {
                 throw new BundleIngestException(
                         BundleIngestErrorCode.BUNDLE_EXTRA_ENTRIES,
@@ -584,74 +501,22 @@ public class MigrationBundleIngestService {
         }
     }
 
-    private static void rejectUnsafeTarName(String name) {
-        if (name.startsWith("/") || name.startsWith("\\") || name.contains("..")) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
-                    "Tar entry name rejected (filesystem-traversal defense): " + name);
+    /**
+     * Per-entity Club hint stamped on the run row for SPA progress polling.
+     * Save frequency stays per-entity (28 writes/bundle) — per-row would
+     * thrash the run table for invisible-to-SPA fidelity (poll cadence ~1s).
+     * {@link EntityPolicy.PortPolicy#SYSTEM_GLOBAL_RESOLVE} entries write
+     * into reference tables shared across all Clubs, so the Club hint is
+     * {@code null} for those; tenant-scoped entities show {@code primaryClubId}.
+     */
+    private static @Nullable UUID currentClubFor(EntityType entityType,
+                                                 BundleManifest manifest,
+                                                 ProvisioningResult provisioned) {
+        EntityPolicy policy = manifest.entityPolicies().get(entityType);
+        if (policy != null && policy.portPolicy() == EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE) {
+            return null;
         }
-    }
-
-    private static void copyLegacyIdMap(Connection connection,
-                                        String tarEntryName,
-                                        InputStream tarStream) throws SQLException {
-        String entitySuffix = tarEntryName.substring(
-                LEGACY_ID_MAP_ENTRY_PREFIX.length(),
-                tarEntryName.length() - LEGACY_ID_MAP_ENTRY_SUFFIX.length());
-        String table = "legacy_id_map_" + entitySuffix;
-        try {
-            PgConnection pg = connection.unwrap(PgConnection.class);
-            CopyManager copy = pg.getCopyAPI();
-            copy.copyIn("COPY " + table + " FROM STDIN BINARY",
-                    new NonClosingInputStream(tarStream));
-        } catch (IOException ioFailure) {
-            throw new SQLException("I/O failure during COPY of " + table, ioFailure);
-        }
-        try (java.sql.Statement stmt = connection.createStatement()) {
-            stmt.execute("ANALYZE " + table);
-        }
-    }
-
-    private static void ingestEntityNdjson(Connection connection,
-                                           Mapper mapper,
-                                           InputStream tarStream) throws SQLException, IOException {
-        String[] columns = mapper.columns();
-        String insert = "INSERT INTO " + destinationTableFor(mapper.entityType()) + " ("
-                + String.join(", ", columns) + ") VALUES ("
-                + "?,".repeat(columns.length - 1) + "?)";
-        try (PreparedStatement ps = connection.prepareStatement(insert)) {
-            try (NonClosingBufferedReader lines = NonClosingBufferedReader.of(tarStream)) {
-                String line;
-                int batched = 0;
-                while ((line = lines.readLine()) != null) {
-                    if (line.isBlank()) {
-                        continue;
-                    }
-                    JsonNode row;
-                    try {
-                        row = JSON.readTree(line);
-                    } catch (IOException parseFailure) {
-                        throw new BundleIngestException(
-                                BundleIngestErrorCode.NDJSON_PARSE_FAILED,
-                                "NDJSON parse failed on " + mapper.entityType(), parseFailure);
-                    }
-                    mapper.readEntity(row, ps);
-                    ps.addBatch();
-                    batched++;
-                    if (batched >= 4096) {
-                        ps.executeBatch();
-                        batched = 0;
-                    }
-                }
-                if (batched > 0) {
-                    ps.executeBatch();
-                }
-            }
-        }
-    }
-
-    private static String destinationTableFor(EntityType entityType) {
-        return "t_" + entityType.temporaryTableSuffix();
+        return provisioned.primaryClubId();
     }
 
     private void applySingleTxnSettings(Connection connection) {
@@ -673,104 +538,6 @@ public class MigrationBundleIngestService {
         return msg.length() > 500 ? msg.substring(0, 500) + "…" : msg;
     }
 
-    private static ObjectMapper buildHardenedJsonMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        StreamReadConstraints hardened = StreamReadConstraints.builder()
-                .maxStringLength(1_000_000)
-                .maxNumberLength(1000)
-                .maxNestingDepth(50)
-                .build();
-        mapper.getFactory().setStreamReadConstraints(hardened);
-        // Jackson auto-closes the source InputStream after readValue by
-        // default. The tar entry's bytes are one slice of a larger stream;
-        // closing the tar via Jackson would also close the gzip layer and
-        // every subsequent entry read NPEs in the Inflater.
-        mapper.disable(com.fasterxml.jackson.core.JsonParser.Feature.AUTO_CLOSE_SOURCE);
-        return mapper;
-    }
-
     /** Outcome of a successful ingest — returned to the controller. */
     public record IngestOutcome(UUID deploymentId, List<UUID> clubIds, UUID primaryClubId) { }
-
-    /**
-     * Tar entries report their length up front but Apache Commons Compress
-     * still calls {@link InputStream#close()} on the tar archive's internal
-     * input when an iterator wrapper closes — we use {@code close} to mean
-     * "stop reading this entry," not "kill the tar stream."
-     */
-    private static final class NonClosingInputStream extends InputStream {
-
-        private final InputStream delegate;
-
-        NonClosingInputStream(InputStream delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public int read() throws IOException {
-            return delegate.read();
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            return delegate.read(b, off, len);
-        }
-
-        @Override
-        public void close() {
-            // intentional no-op
-        }
-    }
-
-    /**
-     * Reads UTF-8 lines off a tar entry without buffering across entries.
-     * Apache Commons Compress's {@link TarArchiveInputStream} returns the
-     * next entry only when the caller stops reading the current one;
-     * wrapping with a regular {@code BufferedReader} would over-read.
-     */
-    private static final class NonClosingBufferedReader implements AutoCloseable {
-
-        private final byte[] buffer = new byte[8192];
-        private int bufferOffset;
-        private int bufferLength;
-        private final InputStream delegate;
-
-        private NonClosingBufferedReader(InputStream delegate) {
-            this.delegate = delegate;
-        }
-
-        static NonClosingBufferedReader of(InputStream delegate) {
-            return new NonClosingBufferedReader(delegate);
-        }
-
-        @org.jspecify.annotations.Nullable String readLine() throws IOException {
-            StringBuilder line = new StringBuilder();
-            while (true) {
-                if (bufferOffset >= bufferLength) {
-                    int read = delegate.read(buffer, 0, buffer.length);
-                    if (read == -1) {
-                        return line.length() == 0 ? null : line.toString();
-                    }
-                    bufferOffset = 0;
-                    bufferLength = read;
-                }
-                while (bufferOffset < bufferLength) {
-                    byte b = buffer[bufferOffset++];
-                    if (b == '\n') {
-                        return line.toString();
-                    }
-                    if (b == '\r') {
-                        continue;
-                    }
-                    line.append((char) (b & 0xFF));
-                }
-            }
-        }
-
-        @Override
-        public void close() {
-            // tar stream owns its lifecycle
-            Arrays.fill(buffer, (byte) 0);
-        }
-    }
 }
