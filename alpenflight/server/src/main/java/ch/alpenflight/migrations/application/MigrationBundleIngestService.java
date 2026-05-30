@@ -207,9 +207,12 @@ public class MigrationBundleIngestService {
         } catch (BundleIngestException e) {
             failureRef.set(e);
         } catch (RuntimeException unexpected) {
+            LOG.error("MigrationBundleIngest: unexpected failure", unexpected);
             failureRef.set(new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Unexpected failure inside ingest", unexpected));
+                    "Unexpected failure inside ingest: " + unexpected.getClass().getSimpleName()
+                            + ": " + unexpected.getMessage(),
+                    unexpected));
         }
         if (failureRef.get() != null) {
             MigrationUpload upload = uploadRef.get();
