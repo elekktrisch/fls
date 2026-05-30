@@ -12,6 +12,7 @@ import ch.alpenflight.migrations.domain.MigrationUploadRepository;
 import ch.alpenflight.migrations.domain.MigrationUploadState;
 import java.time.Clock;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -51,7 +52,7 @@ public class MigrationFailureRecorder {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordFailure(UUID uploadId,
-                              UUID runId,
+                              @Nullable UUID runId,
                               BundleIngestErrorCode errorCode,
                               String detail) {
         try {
