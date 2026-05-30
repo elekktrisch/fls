@@ -242,7 +242,8 @@ public class MigrationBundleIngestService {
             LOG.error("MigrationBundleIngest: unexpected failure for upload {}", uploadId, unexpected);
             BundleIngestException wrapped = new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Unexpected ingest failure",
+                    "Unexpected ingest failure: " + unexpected.getClass().getSimpleName()
+                            + ": " + unexpected.getMessage(),
                     unexpected);
             failureRecorder.recordFailure(uploadId, runIdRef.get(), wrapped.getErrorCode(),
                     unexpected.getClass().getSimpleName());
