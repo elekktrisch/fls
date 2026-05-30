@@ -3,24 +3,6 @@ package ch.alpenflight.migration.bundle;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.alpenflight.migration.bundle.flight.AircraftAircraftStateMapper;
-import ch.alpenflight.migration.bundle.flight.AircraftMapper;
-import ch.alpenflight.migration.bundle.flight.AircraftOperatingCounterMapper;
-import ch.alpenflight.migration.bundle.flight.FlightCrewMapper;
-import ch.alpenflight.migration.bundle.flight.FlightMapper;
-import ch.alpenflight.migration.bundle.flight.FlightTypeMapper;
-import ch.alpenflight.migration.bundle.flight.LocationMapper;
-import ch.alpenflight.migration.bundle.flight.StartTypeMapper;
-import ch.alpenflight.migration.bundle.identity.ClubMapper;
-import ch.alpenflight.migration.bundle.identity.ClubStateMapper;
-import ch.alpenflight.migration.bundle.identity.CountryMapper;
-import ch.alpenflight.migration.bundle.identity.LanguageMapper;
-import ch.alpenflight.migration.bundle.identity.MemberStateMapper;
-import ch.alpenflight.migration.bundle.identity.PersonCategoryAssignmentMapper;
-import ch.alpenflight.migration.bundle.identity.PersonCategoryMapper;
-import ch.alpenflight.migration.bundle.identity.PersonClubMapper;
-import ch.alpenflight.migration.bundle.identity.PersonMapper;
-import ch.alpenflight.migration.bundle.identity.UserMapper;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -157,41 +139,15 @@ public class ArchitectureTest {
                     .allowEmptyShould(true);
 
     /**
-     * Concrete-mapper registry the ingest-order check walks. Each follow-up
-     * (S-184 / S-185 / S-186) appends its mappers as it lands. Hard-coded
-     * rather than reflective so the diff is reviewable;
-     * {@link #knownMappersListCoversEveryConcreteMapperOnTheClasspath()}
-     * fails loudly if a follow-up forgets to register one.
+     * Concrete-mapper registry the ingest-order check walks. The registry
+     * itself lives on {@link KnownMappers} in the main source set so the
+     * server-side {@code MapperVsSchemaCompatibilityTest} (S-187) can
+     * consume it without copying. Drift guard
+     * ({@link #knownMappersListCoversEveryConcreteMapperOnTheClasspath()})
+     * stays here — it scans the classpath structurally, which is a test
+     * concern.
      */
-    private static final List<Mapper> KNOWN_MAPPERS = List.of(
-            new CountryMapper(),
-            new LanguageMapper(),
-            new ClubStateMapper(),
-            new ClubMapper(),
-            new PersonMapper(),
-            new MemberStateMapper(),
-            new PersonCategoryMapper(),
-            new UserMapper(),
-            new PersonClubMapper(),
-            new PersonCategoryAssignmentMapper(),
-            new LocationMapper(),
-            new StartTypeMapper(),
-            new FlightTypeMapper(),
-            new AircraftMapper(),
-            new AircraftAircraftStateMapper(),
-            new AircraftOperatingCounterMapper(),
-            new ch.alpenflight.migration.bundle.accounting.AircraftReservationTypeMapper(),
-            new ch.alpenflight.migration.bundle.accounting.AircraftReservationMapper(),
-            new ch.alpenflight.migration.bundle.accounting.PlanningDayMapper(),
-            new ch.alpenflight.migration.bundle.accounting.PlanningDayAssignmentTypeMapper(),
-            new ch.alpenflight.migration.bundle.accounting.PlanningDayAssignmentMapper(),
-            new ch.alpenflight.migration.bundle.accounting.ArticleMapper(),
-            new ch.alpenflight.migration.bundle.accounting.AccountingRuleFilterMapper(),
-            new FlightMapper(),
-            new FlightCrewMapper(),
-            new ch.alpenflight.migration.bundle.accounting.DeliveryMapper(),
-            new ch.alpenflight.migration.bundle.accounting.DeliveryItemMapper(),
-            new ch.alpenflight.migration.bundle.identity.AuditLogMapper());
+    private static final List<Mapper> KNOWN_MAPPERS = KnownMappers.all();
 
     @Test
     void everyMapperForeignKeyTargetPrecedesSelfInEntityTypeOrder() {
