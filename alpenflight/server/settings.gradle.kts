@@ -5,3 +5,9 @@ plugins {
 }
 
 rootProject.name = "alpenflight-server"
+
+// S-187: composite-include the migration-bundle so MapperVsSchemaCompatibilityTest
+// can reach the 28 concrete mapper classes + the Mapper interface + the
+// EntityType enum. Bundle stays its own Gradle root project (separate
+// settings.gradle.kts) — substitution kicks in at `ch.alpenflight:migration-bundle`.
+includeBuild("../migration-bundle")
