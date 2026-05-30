@@ -2,6 +2,8 @@ package ch.alpenflight.arch;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -26,22 +28,23 @@ import com.tngtech.archunit.lang.ArchRule;
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})
 class MigrationIngestNoDiskSinkTest {
 
-    private static final String[] PROHIBITED_TYPES = new String[] {
-            "java.io.FileOutputStream",
-            "java.io.FileWriter",
-            "java.io.RandomAccessFile",
-            "java.nio.channels.FileChannel",
-    };
-
     @ArchTest
     static final ArchRule bundle_classes_have_no_disk_sinks =
             noClasses()
                     .that().resideInAPackage("ch.alpenflight.migrations..")
                     .and().haveSimpleNameContaining("Bundle")
-                    .should().dependOnClassesThat().haveFullyQualifiedNameMatching(
-                            "java\\.io\\.FileOutputStream|java\\.io\\.FileWriter|"
-                                    + "java\\.io\\.RandomAccessFile|java\\.nio\\.channels\\.FileChannel|"
-                                    + "java\\.io\\.ByteArrayOutputStream")
+                    .should().dependOnClassesThat(
+                            new DescribedPredicate<>("a disk-sink type") {
+                                @Override
+                                public boolean test(JavaClass clazz) {
+                                    String name = clazz.getFullName();
+                                    return "java.io.FileOutputStream".equals(name)
+                                            || "java.io.FileWriter".equals(name)
+                                            || "java.io.RandomAccessFile".equals(name)
+                                            || "java.nio.channels.FileChannel".equals(name)
+                                            || "java.io.ByteArrayOutputStream".equals(name);
+                                }
+                            })
                     .as("ch.alpenflight.migrations..*Bundle* classes must not depend on disk-sink APIs "
                             + "(FileOutputStream / FileChannel / RandomAccessFile / ByteArrayOutputStream) "
                             + "— decrypted bundle bytes never touch disk (S-141 Security plan).");
