@@ -88,8 +88,16 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id IN "
                 + "(SELECT id FROM t_migration_upload WHERE user_id = ?::uuid)", userId.toString());
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
-        // The provisioning side created a Deployment + Club; tear those down
-        // under the same owner.
+        // The provisioning side created a Deployment + Club + per-Club
+        // reference data (t_flight_type, t_member_state). Tear those down
+        // before the Club so the FKs don't block.
+        String clubsByOwner =
+                "SELECT id FROM t_club WHERE deployment_id IN "
+                        + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
+        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
         jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
