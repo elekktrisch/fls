@@ -170,7 +170,11 @@ public final class AccountingRuleFilterMapper implements Mapper {
         Coercions.writeOptionalString(target, RECIPIENT_TARGET,
                 source.getString("RecipientTarget"));
         target.writeFieldName(FILTER_CONFIG);
-        target.writeTree(buildFilterConfig(source));
+        // writeRawValue keeps the mapper independent of the JsonGenerator's
+        // ObjectCodec wiring (the abstract contract test creates raw
+        // generators without one). Serializes the predicate fold once via
+        // the static ObjectMapper.
+        target.writeRawValue(JSON.writeValueAsString(buildFilterConfig(source)));
         Coercions.writeRequiredTimestamp(target, CREATED_ON, source.getTimestamp("CreatedOn"));
         target.writeStringField(CREATED_BY_USER_ID, source.getString("CreatedByUserId"));
         Coercions.writeOptionalTimestamp(target, MODIFIED_ON, source.getTimestamp("ModifiedOn"));

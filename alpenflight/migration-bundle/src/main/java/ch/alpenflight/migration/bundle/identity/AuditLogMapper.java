@@ -102,7 +102,25 @@ public final class AuditLogMapper implements Mapper {
     static final String LEGACY_GUID = "legacy_guid";
     static final String OCCURRED_AT = "occurred_at";
     static final String ACTOR_USER_ID = "actor_user_id";
+
+    /**
+     * @ParityIgnore reason: structurally NULL on every LEGACY_MIGRATED
+     * row (no Keycloak counterpart for legacy actors per ADR 0007). The
+     * parity oracle pins this NULL invariant through {@code actor_kind}
+     * as the sentinel, not through round-trip comparison of the column
+     * itself.
+     */
+    @ParityIgnore
     static final String ACTOR_KEYCLOAK_SUB = "actor_keycloak_sub";
+
+    /**
+     * @ParityIgnore reason: structurally NULL on every LEGACY_MIGRATED
+     * row (cross-tenant system-event semantics — legacy AuditLogs has
+     * no ClubId). S-189 post-cutover follow-up back-fills per-tenant
+     * visibility on demand; until then, parity oracle treats the
+     * column as opaque.
+     */
+    @ParityIgnore
     static final String TENANT_CLUB_ID = "tenant_club_id";
 
     @ParitySentinel

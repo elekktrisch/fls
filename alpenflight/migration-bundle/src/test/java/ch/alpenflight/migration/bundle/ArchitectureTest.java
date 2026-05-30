@@ -180,8 +180,18 @@ public class ArchitectureTest {
             new AircraftMapper(),
             new AircraftAircraftStateMapper(),
             new AircraftOperatingCounterMapper(),
+            new ch.alpenflight.migration.bundle.accounting.AircraftReservationTypeMapper(),
+            new ch.alpenflight.migration.bundle.accounting.AircraftReservationMapper(),
+            new ch.alpenflight.migration.bundle.accounting.PlanningDayMapper(),
+            new ch.alpenflight.migration.bundle.accounting.PlanningDayAssignmentTypeMapper(),
+            new ch.alpenflight.migration.bundle.accounting.PlanningDayAssignmentMapper(),
+            new ch.alpenflight.migration.bundle.accounting.ArticleMapper(),
+            new ch.alpenflight.migration.bundle.accounting.AccountingRuleFilterMapper(),
             new FlightMapper(),
-            new FlightCrewMapper());
+            new FlightCrewMapper(),
+            new ch.alpenflight.migration.bundle.accounting.DeliveryMapper(),
+            new ch.alpenflight.migration.bundle.accounting.DeliveryItemMapper(),
+            new ch.alpenflight.migration.bundle.identity.AuditLogMapper());
 
     @Test
     void everyMapperForeignKeyTargetPrecedesSelfInEntityTypeOrder() {
