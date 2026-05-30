@@ -637,6 +637,11 @@ public class MigrationBundleIngestService {
                 .maxNestingDepth(50)
                 .build();
         mapper.getFactory().setStreamReadConstraints(hardened);
+        // Jackson auto-closes the source InputStream after readValue by
+        // default. The tar entry's bytes are one slice of a larger stream;
+        // closing the tar via Jackson would also close the gzip layer and
+        // every subsequent entry read NPEs in the Inflater.
+        mapper.disable(com.fasterxml.jackson.core.JsonParser.Feature.AUTO_CLOSE_SOURCE);
         return mapper;
     }
 

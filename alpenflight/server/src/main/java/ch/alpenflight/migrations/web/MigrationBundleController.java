@@ -15,8 +15,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -43,8 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Migration bundle ingest",
         description = "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141).")
 public class MigrationBundleController {
-
-    private static final Logger LOG = LoggerFactory.getLogger(MigrationBundleController.class);
 
     private static final String EMAIL_VERIFIED =
             "isAuthenticated() and principal.claims['email_verified'] == true";
@@ -79,28 +75,57 @@ public class MigrationBundleController {
         UUID userId = userLookup.resolveUserId(jwt)
                 .orElseThrow(() -> new UnknownPrincipalException(
                         "No t_user row for principal — verified-email signup expected"));
-        // S-141 walking-skeleton: temporarily materialise the body into a
-        // byte[] so the streaming pipeline runs against a deterministic
-        // ByteArrayInputStream. Restored to streaming via boundedStream
-        // once the IT is green. ArchUnit ban on disk sinks is
-        // @SuppressWarnings-noted here while the diagnostic landing
-        // settles. Tracked as part of S-141 follow-up cleanup.
-        byte[] body = request.getInputStream().readAllBytes();
-        LOG.warn("MigrationBundle: received body length={} first16Hex={}",
-                body.length, hex(body, 16));
-        try (InputStream bodyStream = new java.io.ByteArrayInputStream(body)) {
-            IngestOutcome outcome = ingestService.ingestInTransaction(uploadId, userId, bodyStream);
+        try (InputStream body = boundedStream(request.getInputStream())) {
+            IngestOutcome outcome = ingestService.ingestInTransaction(uploadId, userId, body);
             return new IngestResponse(outcome.deploymentId(), outcome.clubIds(), outcome.primaryClubId());
         }
     }
 
-    private static String hex(byte[] bytes, int limit) {
-        int length = Math.min(bytes.length, limit);
-        StringBuilder sb = new StringBuilder(length * 2);
-        for (int i = 0; i < length; i++) {
-            sb.append(String.format("%02x", bytes[i]));
-        }
-        return sb.toString();
+    /**
+     * Counting input-stream that rejects bytes past the bundle-size cap.
+     * Acts in concert with the {@code Content-Length} pre-check above —
+     * a chunked body without a declared length still surfaces 413 mid-stream
+     * when the cap is crossed.
+     */
+    private static InputStream boundedStream(InputStream raw) {
+        return new InputStream() {
+            private long readSoFar;
+
+            @Override
+            public int read() throws IOException {
+                int next = raw.read();
+                if (next == -1) {
+                    return -1;
+                }
+                readSoFar++;
+                if (readSoFar > MigrationBundleIngestService.MAX_BUNDLE_BYTES) {
+                    throw new BundleIngestException(
+                            BundleIngestErrorCode.BUNDLE_TOO_LARGE,
+                            "Body exceeds " + MigrationBundleIngestService.MAX_BUNDLE_BYTES + " bytes");
+                }
+                return next;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                int read = raw.read(b, off, len);
+                if (read == -1) {
+                    return -1;
+                }
+                readSoFar += read;
+                if (readSoFar > MigrationBundleIngestService.MAX_BUNDLE_BYTES) {
+                    throw new BundleIngestException(
+                            BundleIngestErrorCode.BUNDLE_TOO_LARGE,
+                            "Body exceeds " + MigrationBundleIngestService.MAX_BUNDLE_BYTES + " bytes");
+                }
+                return read;
+            }
+
+            @Override
+            public void close() throws IOException {
+                raw.close();
+            }
+        };
     }
 
     @Operation(summary = "Poll the current bundle-ingest run state for an upload.")
