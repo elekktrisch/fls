@@ -81,12 +81,32 @@ class MapperVsSchemaCompatibilityTest {
             "legacy_int_id",
             "operating_club_id");
 
+    /**
+     * Per-{@link EntityType} destination-table overrides. Used only when the
+     * {@code t_<lower-snake>} convention does not hold. AUDIT_LOG lives on
+     * {@code t_mutation_audit_event} per ADR 0027 — the legacy-side naming
+     * stayed canonical.
+     */
+    private static final Map<EntityType, String> DESTINATION_TABLE_OVERRIDE = Map.of(
+            EntityType.AUDIT_LOG, "t_mutation_audit_event");
+
     private static final Map<String, Set<String>> PER_TABLE_SKIP = Map.of(
             "t_user", Set.of("keycloak_sub"),
-            "t_audit_log", Set.of(
+            "t_mutation_audit_event", Set.of(
                     "legacy_orphan_actor_id",
                     "legacy_actor_user_id",
                     "actor_kind"));
+
+    /**
+     * Mappers that carry no {@code legacy_guid} column on the wire — the PK
+     * is application-generated at ingest time (S-141 mints a UUID v7 per
+     * row). The destination's {@code id} column is therefore not covered by
+     * {@code columns()} and the non-nullable-coverage rule must skip it.
+     */
+    private static final Set<EntityType> APPLICATION_GENERATED_PK = Set.of(
+            EntityType.PERSON_CLUB,
+            EntityType.PERSON_CATEGORY_ASSIGNMENT,
+            EntityType.AIRCRAFT_AIRCRAFT_STATE);
 
     @Test
     void everyMapperColumnListIsSubsetOfTheSchemaTableAndCoversNonNullables()
@@ -107,9 +127,13 @@ class MapperVsSchemaCompatibilityTest {
                 Set<String> mapperColumns = mapperColumnsResolved(mapper);
                 checkSubsetOfSchema(mapper, tableName, mapperColumns, tableSchema, failures);
                 if (!SYSTEM_GLOBAL_REFERENCE_MAPPERS.contains(mapper.entityType())) {
+                    Set<String> perTableSkip = new LinkedHashSet<>(perTableSkip(tableName));
+                    if (APPLICATION_GENERATED_PK.contains(mapper.entityType())) {
+                        perTableSkip.add(DESTINATION_PK_COLUMN);
+                    }
                     checkNonNullableCoverage(
                             mapper, tableName, mapperColumns, tableSchema,
-                            perTableSkip(tableName), failures);
+                            perTableSkip, failures);
                 }
             }
         }
@@ -195,12 +219,12 @@ class MapperVsSchemaCompatibilityTest {
 
     /**
      * Convention from the Flyway migration set: {@code t_<lower-snake>} for
-     * every domain table. {@link EntityType#temporaryTableSuffix} already
-     * computes the lower-snake form (it is used elsewhere for the
-     * legacy_id_map table names).
+     * every domain table, modulo per-entity overrides for the cases where
+     * the legacy / new naming diverges (AUDIT_LOG → t_mutation_audit_event).
      */
     private static String destinationTableName(EntityType entity) {
-        return "t_" + entity.temporaryTableSuffix();
+        String override = DESTINATION_TABLE_OVERRIDE.get(entity);
+        return override != null ? override : "t_" + entity.temporaryTableSuffix();
     }
 
     private static TableSchema loadTableSchema(Connection connection, String tableName)
