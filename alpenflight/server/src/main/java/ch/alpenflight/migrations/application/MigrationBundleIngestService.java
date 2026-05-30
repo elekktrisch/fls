@@ -33,7 +33,6 @@ import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PessimisticLockException;
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -200,7 +199,7 @@ public class MigrationBundleIngestService {
 
                 byte[] wrappedPrivateKey = Objects.requireNonNull(upload.getPrivateKeyCiphertext(),
                         "AWAITING_UPLOAD row must carry a wrapped private key");
-                BundleHeader header = readHeader(new BufferedInputStream(encryptedBody));
+                BundleHeader header = readHeader(encryptedBody);
                 IngestOutcome outcome = crypto.unwrapInto(uploadId, wrappedPrivateKey, rsaPrivateKey ->
                         drainDecryptedBody(connection, upload, run, header, encryptedBody, rsaPrivateKey));
                 outcomeRef.set(outcome);
