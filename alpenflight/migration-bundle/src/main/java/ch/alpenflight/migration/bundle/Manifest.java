@@ -41,7 +41,7 @@ public record Manifest(
 
     /**
      * Entities allowed to declare a non-empty {@code tenantBypassFks} per
-     * ADR 0008 + the S-184 and S-185 Security plans.
+     * ADR 0008 + the S-184, S-185, and S-186 Security plans.
      *
      * <ul>
      *   <li>Identity group (S-184): {@code User.person_id},
@@ -55,6 +55,15 @@ public record Manifest(
      *       Person; {@code Aircraft.aircraft_owner_person_id} crosses to
      *       Person and {@code Aircraft.homebase_id} rides cross-tenant out
      *       of Aircraft into tenant-scoped Location.</li>
+     *   <li>Accounting + audit group (S-186):
+     *       {@code AircraftReservation.aircraft_id} crosses to cross-tenant
+     *       Aircraft; {@code AircraftReservation.pilot_person_id} +
+     *       {@code AircraftReservation.second_crew_person_id} +
+     *       {@code PlanningDayAssignment.assigned_person_id} cross to
+     *       Person; {@code Delivery.recipient_person_id} rides cross-tenant
+     *       SET-NULL (Swiss OR Art. 957a frozen-snapshot ride-through);
+     *       {@code AuditLog.actor_user_id} rides cross-tenant to historical
+     *       User rows (orphan-synthesized when no User in the bundle).</li>
      * </ul>
      *
      * <p>Reference tables, aggregate-internal counter entities, and Club
@@ -68,7 +77,11 @@ public record Manifest(
             EntityType.AIRCRAFT,
             EntityType.AIRCRAFT_AIRCRAFT_STATE,
             EntityType.FLIGHT,
-            EntityType.FLIGHT_CREW);
+            EntityType.FLIGHT_CREW,
+            EntityType.AIRCRAFT_RESERVATION,
+            EntityType.PLANNING_DAY_ASSIGNMENT,
+            EntityType.DELIVERY,
+            EntityType.AUDIT_LOG);
 
     @JsonCreator
     public Manifest {
