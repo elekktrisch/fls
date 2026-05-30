@@ -88,6 +88,26 @@ public class MutationAuditEvent {
     @Column(name = "failure_reason", updatable = false)
     private @Nullable String failureReason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "actor_kind", nullable = false, updatable = false, length = 32)
+    private @Nullable AuditActorKind actorKind;
+
+    // S-186 — populated only on LEGACY_MIGRATED rows. PII; covered by
+    // S-027's default-deny serializer + the @AuditRedact contract.
+    @Column(name = "legacy_actor_user_id", updatable = false, columnDefinition = "text")
+    private @Nullable String legacyActorUserId;
+
+    // S-186 — legacy AuditLogs.AuditLogId IDENTITY preserved for forensic
+    // round-trip into the legacy DB. NULL on every non-migrated row.
+    @Column(name = "legacy_int_id", updatable = false)
+    private @Nullable Long legacyIntId;
+
+    // S-186 — raw legacy RecordId text for the non-UUID case (legacy
+    // entities with BIGINT identities). NULL when target_entity_id is
+    // populated. PII-adjacent; @AuditRedact covers it.
+    @Column(name = "legacy_target_record_id", updatable = false, columnDefinition = "text")
+    private @Nullable String legacyTargetRecordId;
+
     protected MutationAuditEvent() {
         // JPA.
     }
@@ -107,6 +127,10 @@ public class MutationAuditEvent {
         this.systemActor = b.systemActor;
         this.httpStatus = b.httpStatus;
         this.failureReason = b.failureReason;
+        this.actorKind = b.actorKind;
+        this.legacyActorUserId = b.legacyActorUserId;
+        this.legacyIntId = b.legacyIntId;
+        this.legacyTargetRecordId = b.legacyTargetRecordId;
     }
 
     public static Builder builder() {
@@ -181,6 +205,22 @@ public class MutationAuditEvent {
         return failureReason;
     }
 
+    public AuditActorKind getActorKind() {
+        return Objects.requireNonNull(actorKind, "actorKind is non-null on loaded rows");
+    }
+
+    public @Nullable String getLegacyActorUserId() {
+        return legacyActorUserId;
+    }
+
+    public @Nullable Long getLegacyIntId() {
+        return legacyIntId;
+    }
+
+    public @Nullable String getLegacyTargetRecordId() {
+        return legacyTargetRecordId;
+    }
+
     /**
      * Builder; all fields are write-once at construction time, mirroring the
      * append-only DB-role contract.
@@ -200,6 +240,10 @@ public class MutationAuditEvent {
         private boolean systemActor;
         private @Nullable Short httpStatus;
         private @Nullable String failureReason;
+        private AuditActorKind actorKind = AuditActorKind.NORMAL;
+        private @Nullable String legacyActorUserId;
+        private @Nullable Long legacyIntId;
+        private @Nullable String legacyTargetRecordId;
 
         private Builder() {}
 
@@ -217,6 +261,10 @@ public class MutationAuditEvent {
         public Builder systemActor(boolean v) { this.systemActor = v; return this; }
         public Builder httpStatus(@Nullable Short v) { this.httpStatus = v; return this; }
         public Builder failureReason(@Nullable String v) { this.failureReason = v; return this; }
+        public Builder actorKind(AuditActorKind v) { this.actorKind = v; return this; }
+        public Builder legacyActorUserId(@Nullable String v) { this.legacyActorUserId = v; return this; }
+        public Builder legacyIntId(@Nullable Long v) { this.legacyIntId = v; return this; }
+        public Builder legacyTargetRecordId(@Nullable String v) { this.legacyTargetRecordId = v; return this; }
 
         public MutationAuditEvent build() {
             if (action == null) {
