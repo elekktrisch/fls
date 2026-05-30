@@ -17,9 +17,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -87,9 +84,7 @@ class TinkMigrationBundleCipher implements MigrationBundleCipher {
     public InputStream newDecryptingStream(SecureBytes sessionKey, UUID uploadId, InputStream ciphertextBody) {
         try {
             StreamingAead streamingAead = streamingAeadFor(sessionKey);
-            ReadableByteChannel decryptingChannel = streamingAead.newDecryptingChannel(
-                    Channels.newChannel(ciphertextBody), uuidBytes(uploadId));
-            return Channels.newInputStream(decryptingChannel);
+            return streamingAead.newDecryptingStream(ciphertextBody, uuidBytes(uploadId));
         } catch (GeneralSecurityException | IOException e) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_DECRYPT_AEAD_TAG_FAILED,
@@ -101,9 +96,7 @@ class TinkMigrationBundleCipher implements MigrationBundleCipher {
     public OutputStream newEncryptingStream(SecureBytes sessionKey, UUID uploadId, OutputStream ciphertextSink) {
         try {
             StreamingAead streamingAead = streamingAeadFor(sessionKey);
-            WritableByteChannel encryptingChannel = streamingAead.newEncryptingChannel(
-                    Channels.newChannel(ciphertextSink), uuidBytes(uploadId));
-            return Channels.newOutputStream(encryptingChannel);
+            return streamingAead.newEncryptingStream(ciphertextSink, uuidBytes(uploadId));
         } catch (GeneralSecurityException | IOException e) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
