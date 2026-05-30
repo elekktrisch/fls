@@ -2,7 +2,9 @@
 id: S-141a
 title: Re-enable OpenApiSnapshotIT after regenerating openapi.json for bundle endpoints
 epic: E-15
-status: todo
+status: done
+done_at: 2026-05-30
+resolved_by: S-141
 depends_on: [S-141]
 integration_base: integration/migration
 origin: implementation-followup
