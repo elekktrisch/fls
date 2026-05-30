@@ -36,6 +36,7 @@ import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -45,6 +46,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -53,6 +58,9 @@ import org.hibernate.Session;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -124,6 +132,9 @@ public class MigrationBundleIngestService {
     private final TransactionTemplate txTemplate;
     private final Clock clock;
     private final IngestConcurrencyGate concurrencyGate;
+    private final AsyncTaskExecutor ingestExecutor;
+    private final Duration bundleTimeout;
+    private final long sqlStatementTimeoutMs;
     private final BundleStreamReader bundleStreamReader;
     private final EntityStreamIngestor entityStreamIngestor;
 
@@ -139,7 +150,11 @@ public class MigrationBundleIngestService {
                                         EntityManager entityManager,
                                         PlatformTransactionManager txManager,
                                         Clock clock,
-                                        IngestConcurrencyGate concurrencyGate) {
+                                        IngestConcurrencyGate concurrencyGate,
+                                        @Qualifier("applicationTaskExecutor")
+                                        AsyncTaskExecutor ingestExecutor,
+                                        @Value("${alpenflight.migration.bundle-timeout:PT15M}")
+                                        Duration bundleTimeout) {
         this.uploads = uploads;
         this.runs = runs;
         this.crypto = crypto;
@@ -153,6 +168,19 @@ public class MigrationBundleIngestService {
         this.txTemplate = new TransactionTemplate(txManager);
         this.clock = clock;
         this.concurrencyGate = concurrencyGate;
+        this.ingestExecutor = ingestExecutor;
+        if (bundleTimeout == null || bundleTimeout.isZero() || bundleTimeout.isNegative()) {
+            throw new IllegalArgumentException(
+                    "alpenflight.migration.bundle-timeout must be a positive Duration, got " + bundleTimeout);
+        }
+        this.bundleTimeout = bundleTimeout;
+        // statement_timeout drains SQL ~1 minute (clamped to half of the wall
+        // cap for sub-2-minute test budgets) BEFORE the orTimeout fires +
+        // interrupts the worker — so a long SELECT aborts at the SQL layer
+        // and the JDBC SQLException unwinds the txn cleanly, instead of the
+        // interrupt racing the SQL driver.
+        long timeoutMs = bundleTimeout.toMillis();
+        this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
         this.entityStreamIngestor = new EntityStreamIngestor(KnownMappers.all());
     }
@@ -194,35 +222,63 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
                     "Another ingest is in flight; retry once the global gate frees");
         }
-        // runIdRef escapes the txTemplate lambda so the post-rollback
-        // failure recorder can stamp the run row when the ingest aborted
-        // after the MigrationRun was already persisted.
+        // runIdRef escapes the worker so the post-rollback failure recorder
+        // can stamp the run row when the ingest aborted after the
+        // MigrationRun was already persisted.
         AtomicReference<UUID> runIdRef = new AtomicReference<>();
+        // Wall-clock cap: the servlet thread blocks on the executor up to
+        // bundleTimeout, then interrupts the worker. Defense-in-depth on
+        // top of Postgres statement_timeout (the SQL layer kills long
+        // queries first; the orTimeout + interrupt catches non-SQL hangs
+        // — gzip / tar / NDJSON parsing on a hostile payload).
+        Future<IngestOutcome> future = ingestExecutor.submit(() ->
+                runInsideTransaction(uploadId, principalUserId, principalKeycloakSub,
+                        encryptedBody, runIdRef));
         try {
-            return runInsideTransaction(uploadId, principalUserId, principalKeycloakSub,
-                    encryptedBody, runIdRef);
-        } catch (BundleIngestException e) {
-            // txTemplate.execute already rolled back; locks released. Safe
-            // to call recordFailure (REQUIRES_NEW) without deadlocking on
-            // the upload row — but only when the failure mode is one the
-            // upload row should reflect. Pre-txn rejections that signal
-            // "client retry with the same handshake is safe" stay clear of
-            // the recorder so they don't burn the upload.
-            if (!RETRYABLE_PRE_TRANSACTION_CODES.contains(e.getErrorCode())) {
-                failureRecorder.recordFailure(uploadId, runIdRef.get(),
-                        e.getErrorCode(), shortDetail(e));
+            return future.get(bundleTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException timeout) {
+            future.cancel(true);
+            BundleIngestException timeoutError = new BundleIngestException(
+                    BundleIngestErrorCode.BUNDLE_TIMEOUT,
+                    "Bundle ingest exceeded " + bundleTimeout + " wall-clock cap; worker interrupted",
+                    timeout);
+            failureRecorder.recordFailure(uploadId, runIdRef.get(),
+                    timeoutError.getErrorCode(), shortDetail(timeoutError));
+            throw timeoutError;
+        } catch (ExecutionException wrapper) {
+            Throwable cause = wrapper.getCause() == null ? wrapper : wrapper.getCause();
+            if (cause instanceof BundleIngestException be) {
+                // txTemplate.execute already rolled back; locks released. Safe
+                // to call recordFailure (REQUIRES_NEW) without deadlocking on
+                // the upload row — but only when the failure mode is one the
+                // upload row should reflect. Pre-txn rejections that signal
+                // "client retry with the same handshake is safe" stay clear of
+                // the recorder so they don't burn the upload.
+                if (!RETRYABLE_PRE_TRANSACTION_CODES.contains(be.getErrorCode())) {
+                    failureRecorder.recordFailure(uploadId, runIdRef.get(),
+                            be.getErrorCode(), shortDetail(be));
+                }
+                throw be;
             }
-            throw e;
-        } catch (RuntimeException unexpected) {
             LOG.error("MigrationBundleIngest: unexpected failure for upload {}",
-                    uploadId, unexpected);
+                    uploadId, cause);
             BundleIngestException wrapped = new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Unexpected ingest failure: " + unexpected.getClass().getSimpleName()
-                            + ": " + unexpected.getMessage(),
-                    unexpected);
+                    "Unexpected ingest failure: " + cause.getClass().getSimpleName()
+                            + ": " + cause.getMessage(),
+                    cause);
             failureRecorder.recordFailure(uploadId, runIdRef.get(), wrapped.getErrorCode(),
-                    unexpected.getClass().getSimpleName());
+                    cause.getClass().getSimpleName());
+            throw wrapped;
+        } catch (InterruptedException interrupted) {
+            future.cancel(true);
+            Thread.currentThread().interrupt();
+            BundleIngestException wrapped = new BundleIngestException(
+                    BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
+                    "Ingest interrupted while awaiting worker completion",
+                    interrupted);
+            failureRecorder.recordFailure(uploadId, runIdRef.get(),
+                    wrapped.getErrorCode(), "InterruptedException");
             throw wrapped;
         } finally {
             concurrencyGate.release();
@@ -522,7 +578,11 @@ public class MigrationBundleIngestService {
     private void applySingleTxnSettings(Connection connection) {
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.execute("SET LOCAL idle_in_transaction_session_timeout = 0");
-            stmt.execute("SET LOCAL statement_timeout = 0");
+            // SQL-layer cap fires ~1 minute before the orTimeout wall-clock
+            // (see sqlStatementTimeoutMs computation) — a runaway query
+            // aborts at the JDBC layer and the txn unwinds cleanly, ahead
+            // of the worker-interrupt path.
+            stmt.execute("SET LOCAL statement_timeout = " + sqlStatementTimeoutMs);
             stmt.execute("SET LOCAL synchronous_commit = OFF");
             stmt.execute("SET LOCAL lock_timeout = '30s'");
         } catch (SQLException e) {

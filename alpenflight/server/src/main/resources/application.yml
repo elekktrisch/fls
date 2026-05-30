@@ -481,6 +481,17 @@ alpenflight:
     master-keyset:
       source: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE:INLINE}
       value: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET:}
+    # S-141b — wall-clock cap on a single bundle ingest. Sized so a 200 MB
+    # typical FLS database (~3 min ingest) has 5x headroom; a 2 GB worst
+    # case (~25 min CPU) is hard-capped and the client should split the
+    # bundle rather than request more. Operator may override per-VPS.
+    bundle-timeout: PT15M
+    ingest:
+      # Global concurrency gate — single-VPS heap cap. Production stays at
+      # 1; the IT profile overrides to 100 so the per-upload row-lock 409
+      # path (BUNDLE_INGEST_IN_PROGRESS) is testable without the global
+      # gate short-circuiting to 429.
+      global-permits: 1
 
 server:
   port: 8080
