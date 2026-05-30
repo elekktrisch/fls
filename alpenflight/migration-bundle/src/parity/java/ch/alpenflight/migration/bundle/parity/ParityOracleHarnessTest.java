@@ -7,13 +7,16 @@ import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.identity.ClubMapper;
+import ch.alpenflight.migration.bundle.identity.ClubStateMapper;
 import ch.alpenflight.migration.bundle.identity.CountryMapper;
+import ch.alpenflight.migration.bundle.identity.LanguageMapper;
 import ch.alpenflight.migration.bundle.identity.UserMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,88 +27,108 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.testcontainers.containers.MSSQLServerContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 /**
- * Parity oracle harness — vertical-slice round-trip for the three identity-
- * group mappers ({@link CountryMapper}, {@link ClubMapper},
- * {@link UserMapper}). Asserts the producer / envelope / consumer / diff
- * plumbing end-to-end and writes a structured report under
+ * Parity oracle harness — round-trips three identity-group mappers
+ * (Country / Language / ClubState as SYSTEM_GLOBAL, Club / User as
+ * FULL_PORT) against the canonical FLSTest schema in MSSQL + the V2 Flyway-
+ * migrated Postgres. Asserts producer / envelope / consumer / diff plumbing
+ * end-to-end and writes a structured report under
  * {@code build/reports/parity/<run-id>/}.
  *
- * <p>Single test class per the Performance plan — one MSSQL cold start
- * (~30-60 s) + one Postgres cold start (~5-10 s) per parity-job run.
- * Container reuse OFF on both ({@code withReuse(false)} — Security plan)
- * so a {@code @Tag("parity-reject")} negative-path case at S-187a cannot
- * inherit poisoned state from a prior happy-path run.
+ * <p>Containers driven via {@code docker} CLI (see
+ * {@link MssqlContainerLifecycle} / {@link PostgresContainerLifecycle}) —
+ * sandbox Docker daemons that enforce REST API ≥ 1.44 reject Testcontainers'
+ * bundled docker-java. One MSSQL cold start (~30-60 s) + one Postgres cold
+ * start (~5-10 s) + canonical FLSTest schema apply (~30-90 s) per
+ * parity-job run.
  *
- * <p><strong>Gated.</strong> Lives in the {@code src/parity/java/} source
- * set; {@code ./gradlew test} never sees it. Invocation:
- * {@code ./gradlew parityTest -Dparity.seed=42 -Dparity.scale=1}.
- *
- * <p>S-187a extends this class (or splits a sibling class) with the
- * remaining 25 mappers, the four coverage gates, producer-drop
- * reconciliation, two-pass UPDATE simulation, composite
- * {@code legacy_id_map_location} resolution, negative-path bundle-reject
- * tests, and the mutation-smoke self-test.
+ * <p>Gated to the parity source set; {@code ./gradlew test} never sees it.
+ * Invocation: {@code ./gradlew parityTest -Dparity.seed=42 -Dparity.scale=1}.
+ * Skips cleanly when Docker is unreachable.
  */
 @Tag("parity")
-@Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@DisplayName("S-187 parity oracle — Country / Club / User round-trip")
+@EnabledIf(value = "dockerAvailable",
+        disabledReason = "Docker unavailable — start Docker Desktop / Docker Engine to run integration tests")
+@DisplayName("Parity oracle — Country / Language / ClubState + Club / User round-trip")
 class ParityOracleHarnessTest {
 
-    @Container
-    private final MSSQLServerContainer<?> mssqlContainer =
-            new MSSQLServerContainer<>("mcr.microsoft.com/mssql/server:2022-latest")
-                    .acceptLicense()
-                    .withReuse(false);
+    private static final MssqlContainerLifecycle MSSQL = new MssqlContainerLifecycle();
+    private static final PostgresContainerLifecycle POSTGRES = new PostgresContainerLifecycle();
+    private static final boolean DOCKER_AVAILABLE = tryStartContainers();
 
-    @Container
-    private final PostgreSQLContainer<?> postgresContainer =
-            new PostgreSQLContainer<>("postgres:17-alpine")
-                    .withDatabaseName("alpenflight")
-                    .withUsername("alpenflight")
-                    .withPassword("alpenflight")
-                    .withReuse(false);
+    static boolean dockerAvailable() {
+        return DOCKER_AVAILABLE;
+    }
+
+    private static boolean tryStartContainers() {
+        try {
+            MSSQL.start();
+            POSTGRES.start();
+            return true;
+        } catch (Throwable failure) {
+            System.err.println("""
+                    [parity] Skipping ParityOracleHarnessTest — Docker unreachable.
+                      Root cause: %s
+                    """.formatted(failure.getMessage()));
+            stopContainersQuietly();
+            return false;
+        }
+    }
+
+    private static void stopContainersQuietly() {
+        try {
+            POSTGRES.stop();
+        } catch (Throwable ignored) {
+            // best effort
+        }
+        try {
+            MSSQL.stop();
+        } catch (Throwable ignored) {
+            // best effort
+        }
+    }
+
+    @AfterAll
+    static void stopContainers() {
+        stopContainersQuietly();
+    }
 
     private ParityRunIdentity runIdentity;
     private List<Mapper> mappers;
-    private byte[] manifestBytes;
     private byte[] bundleTarGzBytes;
     private LegacyFixtureSeeder.SeededFixture seededFixture;
 
     @BeforeAll
     void seedAndRoundTrip() throws Exception {
         runIdentity = ParityRunIdentity.fromSystemProperties();
-        mappers = List.of(new CountryMapper(), new ClubMapper(), new UserMapper());
+        mappers = List.of(
+                new CountryMapper(),
+                new LanguageMapper(),
+                new ClubStateMapper(),
+                new ClubMapper(),
+                new UserMapper());
 
         try (Connection legacyConnection = openLegacyConnection()) {
-            LegacyTestSchema.apply(legacyConnection);
+            FlsTestSchemaApplier.Result schemaResult =
+                    FlsTestSchemaApplier.applyAll(legacyConnection, locateFlsTestRoot());
+            assertThat(schemaResult.batchesApplied())
+                    .as("Canonical FLSTest schema must apply at least one batch — "
+                            + "result was %s", schemaResult)
+                    .isGreaterThan(0);
             LegacyFixtureSeeder seeder = new LegacyFixtureSeeder(runIdentity.seed());
             seededFixture = seeder.seedInto(legacyConnection);
         }
 
-        PostgresSchemaApplier.apply(
-                postgresContainer.getJdbcUrl(),
-                postgresContainer.getUsername(),
-                postgresContainer.getPassword());
+        PostgresSchemaApplier.apply(POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password());
 
-        manifestBytes = buildManifestBytes();
+        byte[] manifestBytes = buildManifestBytes();
         try (Connection legacyConnection = openLegacyConnection()) {
             bundleTarGzBytes = new ProducerHarness(legacyConnection, mappers)
                     .produceTarGz(manifestBytes);
         }
-    }
-
-    @AfterAll
-    void writeReportsAndCheckLeak() throws Exception {
-        // Even when assertions fail, generate the report so the operator
-        // can inspect what landed. The marker-leak smoke test runs after
-        // (separate @Test below) so it sees a stable report dir.
     }
 
     @Test
@@ -115,68 +138,62 @@ class ParityOracleHarnessTest {
                 bundleTarGzBytes, ProducerHarness.sharedJson());
         Map<EntityType, Integer> producerCounts = countProducerRows(parsed);
 
-        Map<EntityType, Integer> consumerCounts;
+        ConsumerHarness.IngestOutcome ingestOutcome;
         ParityDiffEngine.DiffOutcome diffOutcome;
         try (Connection postgresConnection = openPostgresConnection();
                 Connection legacyConnection = openLegacyConnection()) {
-            consumerCounts = new ConsumerHarness(postgresConnection, mappers).ingest(parsed);
+            ingestOutcome = new ConsumerHarness(postgresConnection, mappers).ingest(parsed);
             diffOutcome = ParityDiffEngine.run(legacyConnection, postgresConnection, mappers);
         }
 
         Path reportsDirectory = runIdentity.reportsDirectory(
                 ParityRunIdentity.defaultProjectBuildDirectory());
-        Path summary = ParityReports.write(
-                reportsDirectory, runIdentity, producerCounts, consumerCounts, diffOutcome);
+        Path summary = ParityReports.write(reportsDirectory, runIdentity, producerCounts,
+                ingestOutcome.rowCountByEntity(), diffOutcome);
 
         assertThat(summary).exists();
-        assertThat(Files.readString(summary))
-                .as("summary.json must record the run identity and outcome flags")
+        String summaryContent = Files.readString(summary);
+        assertThat(summaryContent)
+                .as("summary.json must record runId, outcome flags, and explicit null fkOrphans")
                 .contains("\"runId\"")
                 .contains("\"passed\"")
-                .contains("\"totalDeltas\"");
+                .contains("\"totalDeltas\"")
+                .contains("\"fkOrphans\" : null");
         assertThat(diffOutcome.passed())
                 .as("Row-count deltas (legacy vs new, per Club): %s",
                         diffOutcome.rowCountDeltas())
                 .isTrue();
-        assertThat(consumerCounts.get(EntityType.CLUB))
-                .as("Both Clubs must round-trip into t_club")
+        assertThat(ingestOutcome.rowCountByEntity().get(EntityType.CLUB))
+                .as("Both seeded Clubs must round-trip into t_club")
                 .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT);
-        assertThat(consumerCounts.get(EntityType.USER))
+        assertThat(ingestOutcome.rowCountByEntity().get(EntityType.USER))
                 .as("Every seeded User must round-trip into t_user")
                 .isEqualTo(LegacyFixtureSeeder.CLUB_COUNT * LegacyFixtureSeeder.USERS_PER_CLUB);
-        assertThat(consumerCounts.get(EntityType.COUNTRY))
-                .as("SYSTEM_GLOBAL Country bundle bytes carry one row per seeded Country")
-                .isEqualTo(LegacyFixtureSeeder.SEEDED_COUNTRIES.size());
+        assertThat(ingestOutcome.legacyIdMaps().byEntity().keySet())
+                .as("SYSTEM_GLOBAL FK resolution must populate legacy_id_map for "
+                        + "every SYSTEM_GLOBAL mapper in the bundle")
+                .containsExactlyInAnyOrder(
+                        EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE);
     }
 
     @Test
-    @DisplayName("Reports directory contains no Faker PII columns under build/reports/parity")
+    @DisplayName("Reports directory contains no Faker PII column values")
     void reportsDoNotLeakSeededPii() throws Exception {
         Path reportsDirectory = runIdentity.reportsDirectory(
                 ParityRunIdentity.defaultProjectBuildDirectory());
-        if (!Files.isDirectory(reportsDirectory)) {
-            return;
-        }
-        // The seeded Faker PII fields the allow-list must redact. Vertical
-        // slice surfaces Users.UserName / Users.FriendlyName /
-        // Users.NotificationEmail / Users.PhoneNumber + Clubs.Email +
-        // Clubs.Phone. S-187a widens to the full Person PII row.
-        List<String> forbiddenSubstrings = new java.util.ArrayList<>();
-        for (LegacyFixtureSeeder.LegacyUser user : seededFixture.users()) {
-            forbiddenSubstrings.add(user.userName());
-            forbiddenSubstrings.add(user.friendlyName());
-            forbiddenSubstrings.add(user.notificationEmail());
-            if (user.phoneNumber() != null) {
-                forbiddenSubstrings.add(user.phoneNumber());
-            }
-        }
+        assertThat(reportsDirectory)
+                .as("PII smoke must run against a populated report directory — "
+                        + "@BeforeAll round-trip should have written summary.json first")
+                .isDirectory();
+        List<String> forbiddenSubstrings = collectSeededPii();
+        assertThat(forbiddenSubstrings)
+                .as("Seeded fixture must contribute at least one PII substring to make "
+                        + "this smoke a meaningful check")
+                .isNotEmpty();
         try (var paths = Files.walk(reportsDirectory)) {
             for (Path file : paths.filter(Files::isRegularFile).toList()) {
                 String content = Files.readString(file);
                 for (String forbidden : forbiddenSubstrings) {
-                    if (forbidden == null || forbidden.isEmpty()) {
-                        continue;
-                    }
                     assertThat(content)
                             .as("Report file %s must not echo PII column value", file)
                             .doesNotContain(forbidden);
@@ -185,42 +202,74 @@ class ParityOracleHarnessTest {
         }
     }
 
-    private Connection openLegacyConnection() throws Exception {
-        Class.forName(mssqlContainer.getDriverClassName());
-        return DriverManager.getConnection(
-                mssqlContainer.getJdbcUrl() + ";encrypt=false;trustServerCertificate=true",
-                mssqlContainer.getUsername(),
-                mssqlContainer.getPassword());
+    private List<String> collectSeededPii() {
+        List<String> substrings = new ArrayList<>();
+        for (LegacyFixtureSeeder.LegacyUser user : seededFixture.users()) {
+            substrings.add(user.userName());
+            substrings.add(user.friendlyName());
+            substrings.add(user.notificationEmail());
+            if (user.phoneNumber() != null) {
+                substrings.add(user.phoneNumber());
+            }
+        }
+        for (LegacyFixtureSeeder.LegacyClub club : seededFixture.clubs()) {
+            substrings.add(club.clubname());
+            if (club.email() != null) {
+                substrings.add(club.email());
+            }
+            if (club.phone() != null) {
+                substrings.add(club.phone());
+            }
+        }
+        substrings.removeIf(value -> value == null || value.isBlank());
+        return substrings;
     }
 
-    private Connection openPostgresConnection() throws Exception {
-        Class.forName(postgresContainer.getDriverClassName());
+    private static Connection openLegacyConnection() throws Exception {
         return DriverManager.getConnection(
-                postgresContainer.getJdbcUrl(),
-                postgresContainer.getUsername(),
-                postgresContainer.getPassword());
+                MSSQL.jdbcUrl(), MSSQL.username(), MSSQL.password());
+    }
+
+    private static Connection openPostgresConnection() throws Exception {
+        return DriverManager.getConnection(
+                POSTGRES.jdbcUrl(), POSTGRES.username(), POSTGRES.password());
+    }
+
+    private static Path locateFlsTestRoot() {
+        Path[] candidates = new Path[] {
+                Path.of("flsserver/database/FLSTest"),
+                Path.of("../../flsserver/database/FLSTest"),
+                Path.of("../flsserver/database/FLSTest"),
+        };
+        for (Path candidate : candidates) {
+            if (Files.isDirectory(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException(
+                "Cannot locate flsserver/database/FLSTest from cwd "
+                        + Path.of("").toAbsolutePath());
     }
 
     private byte[] buildManifestBytes() throws Exception {
         ObjectMapper json = ProducerHarness.sharedJson();
-        Map<EntityType, EntityPolicy> entityPolicies =
-                new EnumMap<>(EntityType.class);
+        Map<EntityType, EntityPolicy> entityPolicies = new EnumMap<>(EntityType.class);
         Map<EntityType, String> unmappedReason = new EnumMap<>(EntityType.class);
         for (EntityType entity : EntityType.values()) {
             switch (entity) {
-                case COUNTRY -> entityPolicies.put(entity, new EntityPolicy(
-                        EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE,
-                        EntityPolicy.TombstonePolicy.SKIP_DELETED,
-                        java.util.Set.of(),
-                        java.util.List.of()));
-                case CLUB, USER -> entityPolicies.put(entity, new EntityPolicy(
-                        EntityPolicy.PortPolicy.FULL_PORT,
-                        EntityPolicy.TombstonePolicy.PORT_ALL,
-                        java.util.Set.of(),
-                        java.util.List.of()));
-                default -> unmappedReason.put(entity,
-                        "S-187 vertical slice — wired at S-187a alongside the remaining "
-                                + "25 mappers.");
+                case COUNTRY, LANGUAGE, CLUB_STATE -> entityPolicies.put(entity,
+                        new EntityPolicy(
+                                EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE,
+                                EntityPolicy.TombstonePolicy.SKIP_DELETED,
+                                java.util.Set.of(),
+                                java.util.List.of()));
+                case CLUB, USER -> entityPolicies.put(entity,
+                        new EntityPolicy(
+                                EntityPolicy.PortPolicy.FULL_PORT,
+                                EntityPolicy.TombstonePolicy.PORT_ALL,
+                                java.util.Set.of(),
+                                java.util.List.of()));
+                default -> unmappedReason.put(entity, "NOT_YET_MAPPED");
             }
         }
         Manifest manifest = new Manifest(

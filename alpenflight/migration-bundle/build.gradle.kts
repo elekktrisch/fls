@@ -70,19 +70,21 @@ dependencies {
     // per-mapper unit suites (subclass legacyRow uses it) and is re-added
     // here so the parity LegacyFixtureSeeder can reach it without
     // depending on testImplementation. Apache Commons Compress emits the
-    // in-memory tar.gz envelope without a per-row allocation regression.
-    // Flyway is loaded directly so the harness can apply the alpenflight
-    // server schema migrations to the Postgres container.
+    // in-memory tar.gz envelope. Flyway applies the alpenflight server
+    // schema migrations to the Postgres container.
+    //
+    // Container lifecycle is driven via the `docker` CLI directly
+    // (MssqlContainerLifecycle + PostgresContainerLifecycle) — the
+    // sandbox enforces Docker REST API ≥ 1.44 and Testcontainers'
+    // bundled docker-java negotiates 1.32. The pattern mirrors what
+    // `alpenflight/database/extract/` does for the same reason. No
+    // Testcontainers dependency here.
     "parityImplementation"(platform("org.junit:junit-bom:5.11.3"))
     "parityImplementation"("org.junit.jupiter:junit-jupiter")
     "parityRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     "parityImplementation"("org.assertj:assertj-core:3.27.4")
     "parityImplementation"("net.datafaker:datafaker:2.4.2")
     "parityImplementation"("org.apache.commons:commons-compress:1.27.1")
-    "parityImplementation"(platform("org.testcontainers:testcontainers-bom:1.20.4"))
-    "parityImplementation"("org.testcontainers:junit-jupiter")
-    "parityImplementation"("org.testcontainers:mssqlserver")
-    "parityImplementation"("org.testcontainers:postgresql")
     "parityImplementation"("org.flywaydb:flyway-core:11.14.1")
     "parityImplementation"("org.flywaydb:flyway-database-postgresql:11.14.1")
     "parityRuntimeOnly"("org.postgresql:postgresql:42.7.4")

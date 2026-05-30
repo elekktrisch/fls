@@ -9,9 +9,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Emits the parity report tree under {@code build/reports/parity/<run-id>/}:
@@ -24,8 +26,13 @@ import java.util.TreeMap;
  *                      keyed by legacy GUID where applicable
  * </pre>
  *
- * <p>PII columns are never written. The vertical slice only emits
- * structural metadata (entity name, counts, sentinel column names); when
+ * <p>{@code summary.json.fkOrphans} is emitted as JSON {@code null} until
+ * the FK orphan walker lands at S-187a; downstream tooling distinguishes
+ * "measured zero" from "not yet implemented" by keying on the field's
+ * concrete value.
+ *
+ * <p>PII columns are never written. Vertical-slice reports carry only
+ * structural metadata (entity name, counts, sentinel column names). When
  * S-187a adds the sampled-value diff, the PII-column allow-list lives
  * alongside the emitter so an additional mapper cannot smuggle a
  * {@code Persons.Firstname} into a delta file.
@@ -65,9 +72,10 @@ public final class ParityReports {
         root.put("generatedAt", Instant.now().toString());
         root.put("passed", diffOutcome.passed());
         root.put("totalDeltas", diffOutcome.totalDeltas());
-        // FK orphan walk lands at S-187a — surface a 0 here so downstream
-        // tooling can already key on the field without conditional shape.
-        root.put("fkOrphans", 0);
+        // S-187a wires the FK orphan walk. Until then, surface JSON null
+        // so a downstream consumer keying on the field cannot misread an
+        // unmeasured zero for a verified zero.
+        root.putNull("fkOrphans");
         ObjectNode perMapper = root.putObject("perMapper");
         for (Map.Entry<EntityType, ParityDiffEngine.MapperSentinels> entry
                 : diffOutcome.sentinelsByEntity().entrySet()) {
@@ -75,15 +83,13 @@ public final class ParityReports {
             mapperNode.put("producerRows", producerCounts.getOrDefault(entry.getKey(), 0));
             mapperNode.put("consumerRows", consumerCounts.getOrDefault(entry.getKey(), 0));
             ArrayNode sentinelArray = mapperNode.putArray("sentinelColumns");
-            new TreeMap<>(entry.getValue().sentinels().stream()
-                    .collect(java.util.stream.Collectors.toMap(s -> s, s -> s)))
-                    .keySet()
-                    .forEach(sentinelArray::add);
+            for (String column : new TreeSet<>(entry.getValue().sentinels())) {
+                sentinelArray.add(column);
+            }
             ArrayNode ignoredArray = mapperNode.putArray("ignoredColumns");
-            new TreeMap<>(entry.getValue().ignored().stream()
-                    .collect(java.util.stream.Collectors.toMap(s -> s, s -> s)))
-                    .keySet()
-                    .forEach(ignoredArray::add);
+            for (String column : new TreeSet<>(entry.getValue().ignored())) {
+                ignoredArray.add(column);
+            }
         }
         Files.writeString(summaryFile, JSON.writeValueAsString(root));
     }
@@ -100,6 +106,7 @@ public final class ParityReports {
         body.append("- Scale: `").append(runIdentity.scale()).append("`\n");
         body.append("- Outcome: ").append(diffOutcome.passed() ? "PASS" : "FAIL").append('\n');
         body.append("- Row-count deltas: ").append(diffOutcome.totalDeltas()).append('\n');
+        body.append("- FK orphans: not measured (S-187a wires the walker)\n");
         body.append('\n').append("## Per-mapper counts").append('\n').append('\n');
         body.append("| Entity | Producer rows | Consumer rows | Sentinels | Ignored |\n");
         body.append("|---|---:|---:|---:|---:|\n");
@@ -132,9 +139,9 @@ public final class ParityReports {
         }
         Files.createDirectories(deltasDirectory);
         Map<EntityType, List<ParityDiffEngine.RowCountDelta>> grouped =
-                new java.util.EnumMap<>(EntityType.class);
+                new EnumMap<>(EntityType.class);
         for (ParityDiffEngine.RowCountDelta delta : diffOutcome.rowCountDeltas()) {
-            grouped.computeIfAbsent(delta.entity(), key -> new java.util.ArrayList<>()).add(delta);
+            grouped.computeIfAbsent(delta.entity(), key -> new ArrayList<>()).add(delta);
         }
         for (Map.Entry<EntityType, List<ParityDiffEngine.RowCountDelta>> entry
                 : grouped.entrySet()) {

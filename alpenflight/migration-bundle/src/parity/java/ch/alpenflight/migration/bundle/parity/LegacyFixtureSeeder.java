@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.parity;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -14,46 +15,33 @@ import net.datafaker.Faker;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Faker-only deterministic seeder for the legacy MSSQL fixture. Pins the RNG
- * to a sysprop-controlled seed ({@code parity.seed}; default 42) so a
- * re-ordering of Faker calls — even logically equivalent — is caught by the
- * downstream UUID drift. ≥ 2 Clubs mandatory (exercises per-bundle Person
- * sub-map / cross-tenant FK sweep); seed-time UTC offset 00:00 on every
- * timestamp removes the MSSQL {@code datetime2(7)} → Postgres
- * {@code timestamptz} TZ ambiguity (S-183 Edge cases).
+ * Faker-driven seeder for the legacy {@code Clubs} + {@code Users} fixture
+ * the vertical-slice harness round-trips. Pinned to a sysprop-controlled
+ * seed ({@code parity.seed}; default 42) so re-ordering Faker calls — even
+ * logically equivalent — perturbs every downstream UUID and is caught.
  *
- * <p><strong>Vertical-slice scope (S-187).</strong> Seeds three legacy
- * tables — {@code Countries}, {@code Clubs}, {@code Users} — at minimal
- * shape sufficient for the three corresponding mappers. The full multi-
- * actor audit-fixture, sparse-enum coverage, FlightAirState=5 row, tow
- * chain, PersonCategory tree, degenerate AircraftReservation range, and
- * sparse-enum value-set coverage land at S-187a. Each obligation referenced
- * in the S-187 design notes is intentionally absent here; the harness still
- * proves the producer / envelope / consumer / diff axis with the three
- * seeded entities.
+ * <p>Anchors against the canonical FLSTest seed applied by
+ * {@link FlsTestSchemaApplier}: picks Switzerland from {@code Countries}
+ * via {@code CountryCodeIso2 = 'CH'} and German from {@code Languages} via
+ * {@code LanguageKey = 'de'}; {@code ClubStateId = 1} ("Active") is V2's
+ * {@code ACTIVE} per {@code ClubStateMapper.LEGACY_ID_TO_V2_CODE}. Resolution
+ * is by canonical join-key, never by GUID — the legacy MSSQL GUIDs vary
+ * across canonical seed builds; the lookup keys do not.
+ *
+ * <p>Audit-actor / sparse-enum / tow-chain / PersonCategory-tree /
+ * degenerate-AircraftReservation obligations from the S-187 design notes
+ * land at S-187a alongside the remaining mappers.
  */
 public final class LegacyFixtureSeeder {
 
-    /** Number of Clubs the seeder writes. Hard-pinned at 2 per AC. */
     public static final int CLUB_COUNT = 2;
-
-    /** Users per Club. Vertical-slice value; S-187a scales via parity.scale. */
     public static final int USERS_PER_CLUB = 3;
 
-    /**
-     * V2 seed key the {@link ch.alpenflight.migration.bundle.identity.CountryMapper}
-     * binds against — kept narrow so the round-trip is decidable without
-     * a full ISO-3166 corpus. Both rows match V2's seed by {@code iso2_code}.
-     */
-    static final List<LegacyCountry> SEEDED_COUNTRIES = List.of(
-            new LegacyCountry(UUID.fromString("019e2e15-2c00-73e8-8000-0000000003e8"), "AF"),
-            new LegacyCountry(UUID.fromString("019e2e15-2c00-77e9-8000-0000000007e9"), "CH"));
+    private static final String SWITZERLAND_ISO2 = "CH";
+    private static final String GERMAN_LANGUAGE_KEY = "de";
 
-    /** {@code club_state_id} seed bound to V2's {@code legacy_int_id = 1}. */
-    static final int ACTIVE_CLUB_STATE_LEGACY_INT_ID = 1;
-
-    /** {@code language_id} seed bound to V2's {@code legacy_int_id = 2000} (Deutsch). */
-    static final int DEUTSCH_LANGUAGE_LEGACY_INT_ID = 2000;
+    /** {@code club_state_id = 1} ("Active") per the canonical seed (4 rows: 0..3). */
+    private static final int ACTIVE_CLUB_STATE_LEGACY_ID = 1;
 
     private final long seed;
     private final Faker faker;
@@ -67,41 +55,61 @@ public final class LegacyFixtureSeeder {
         return seed;
     }
 
-    /**
-     * Applies the seed to the legacy MSSQL connection. Caller manages the
-     * transaction. Returns the synthesized rows so the diff engine can
-     * assert producer/consumer parity per Club.
-     */
     public SeededFixture seedInto(Connection legacyConnection) throws SQLException {
+        UUID switzerlandCountryId = lookupCountryId(legacyConnection, SWITZERLAND_ISO2);
+        int germanLanguageId = lookupLanguageId(legacyConnection, GERMAN_LANGUAGE_KEY);
+
         legacyConnection.setAutoCommit(false);
         try {
-            seedCountries(legacyConnection, SEEDED_COUNTRIES);
-            List<LegacyClub> clubs = seedClubs(legacyConnection, SEEDED_COUNTRIES);
-            List<LegacyUser> users = seedUsers(legacyConnection, clubs);
+            List<LegacyClub> clubs = seedClubs(
+                    legacyConnection, switzerlandCountryId, ACTIVE_CLUB_STATE_LEGACY_ID);
+            List<LegacyUser> users = seedUsers(legacyConnection, clubs, germanLanguageId);
             legacyConnection.commit();
-            return new SeededFixture(SEEDED_COUNTRIES, clubs, users);
+            return new SeededFixture(
+                    switzerlandCountryId, germanLanguageId, ACTIVE_CLUB_STATE_LEGACY_ID,
+                    clubs, users);
         } catch (SQLException failure) {
             legacyConnection.rollback();
             throw failure;
         }
     }
 
-    private static void seedCountries(Connection connection, List<LegacyCountry> countries)
+    private static UUID lookupCountryId(Connection connection, String iso2)
             throws SQLException {
-        String sql = "INSERT INTO Countries (CountryId, CountryCodeIso2) VALUES (?, ?)";
+        String sql = "SELECT TOP 1 CountryId FROM Countries WHERE CountryCodeIso2 = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
-            for (LegacyCountry country : countries) {
-                ps.setString(1, country.countryId().toString());
-                ps.setString(2, country.iso2Code());
-                ps.executeUpdate();
+            ps.setString(1, iso2);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException(
+                            "Canonical FLSTest seed has no Country with CountryCodeIso2 = "
+                                    + iso2 + " — schema applier ran without the "
+                                    + "'3 Insert Static Data.sql' batch?");
+                }
+                return UUID.fromString(rs.getString(1));
             }
         }
     }
 
-    private List<LegacyClub> seedClubs(Connection connection, List<LegacyCountry> countries)
-            throws SQLException {
-        Instant frozenInstant = Instant.parse("2024-01-01T00:00:00Z");
-        Timestamp createdOn = Timestamp.from(frozenInstant);
+    private static int lookupLanguageId(Connection connection, String key) throws SQLException {
+        String sql = "SELECT TOP 1 LanguageId FROM Languages WHERE LOWER(LanguageKey) = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, key);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException(
+                            "Canonical FLSTest seed has no Language with LanguageKey = "
+                                    + key + " — schema applier did not apply the static "
+                                    + "data batch.");
+                }
+                return rs.getInt(1);
+            }
+        }
+    }
+
+    private List<LegacyClub> seedClubs(
+            Connection connection, UUID countryId, int clubStateId) throws SQLException {
+        Timestamp createdOn = utcMicros(Instant.parse("2024-01-01T00:00:00Z"));
         List<LegacyClub> clubs = new ArrayList<>(CLUB_COUNT);
         String sql = """
                 INSERT INTO Clubs (
@@ -117,16 +125,18 @@ public final class LegacyFixtureSeeder {
                   LastArticleSynchronisationOn,
                   IsClubMemberNumberReadonly,
                   CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
-                  DeletedOn, DeletedByUserId)
+                  DeletedOn, DeletedByUserId,
+                  RecordState, OwnerId, OwnershipType, IsDeleted)
                 VALUES (?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, ?, ?, ?)
+                        ?, ?, ?, ?, ?, ?,
+                        1, ?, 2, 0)
                 """;
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             for (int i = 0; i < CLUB_COUNT; i++) {
-                LegacyClub club = synthesizeClub(countries.get(i % countries.size()), createdOn);
+                LegacyClub club = synthesizeClub(countryId, createdOn);
                 int position = 1;
                 ps.setString(position++, club.clubId().toString());
                 ps.setString(position++, club.clubname());
@@ -140,7 +150,7 @@ public final class LegacyFixtureSeeder {
                 ps.setString(position++, club.email());
                 ps.setString(position++, club.webPage());
                 ps.setString(position++, club.contact());
-                ps.setInt(position++, ACTIVE_CLUB_STATE_LEGACY_INT_ID);
+                ps.setInt(position++, clubStateId);
                 ps.setString(position++, club.sendAircraftStatisticReportTo());
                 ps.setString(position++, club.sendPlanningDayInfoMailTo());
                 ps.setString(position++, club.sendDeliveryMailExportTo());
@@ -158,7 +168,8 @@ public final class LegacyFixtureSeeder {
                 ps.setNull(position++, java.sql.Types.TIMESTAMP);
                 ps.setNull(position++, java.sql.Types.VARCHAR);
                 ps.setNull(position++, java.sql.Types.TIMESTAMP);
-                ps.setNull(position, java.sql.Types.VARCHAR);
+                ps.setNull(position++, java.sql.Types.VARCHAR);
+                ps.setString(position, club.createdByUserId().toString());
                 ps.executeUpdate();
                 clubs.add(club);
             }
@@ -166,21 +177,22 @@ public final class LegacyFixtureSeeder {
         return clubs;
     }
 
-    private List<LegacyUser> seedUsers(Connection connection, List<LegacyClub> clubs)
-            throws SQLException {
-        Instant frozenInstant = Instant.parse("2024-01-02T00:00:00Z");
-        Timestamp createdOn = Timestamp.from(frozenInstant);
+    private List<LegacyUser> seedUsers(
+            Connection connection, List<LegacyClub> clubs, int languageId) throws SQLException {
+        Timestamp createdOn = utcMicros(Instant.parse("2024-01-02T00:00:00Z"));
         List<LegacyUser> users = new ArrayList<>(clubs.size() * USERS_PER_CLUB);
         String sql = """
                 INSERT INTO Users (
                   UserId, ClubId, UserName, FriendlyName, PersonId,
                   NotificationEmail, PhoneNumber, Remarks, LanguageId,
                   CreatedOn, CreatedByUserId,
-                  ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId)
+                  ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId,
+                  RecordState, OwnerId, OwnershipType, IsDeleted)
                 VALUES (?, ?, ?, ?, ?,
                         ?, ?, ?, ?,
                         ?, ?,
-                        ?, ?, ?, ?)
+                        ?, ?, ?, ?,
+                        1, ?, 2, 0)
                 """;
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             for (LegacyClub club : clubs) {
@@ -195,13 +207,14 @@ public final class LegacyFixtureSeeder {
                     ps.setString(position++, user.notificationEmail());
                     ps.setString(position++, user.phoneNumber());
                     ps.setNull(position++, java.sql.Types.VARCHAR);
-                    ps.setInt(position++, DEUTSCH_LANGUAGE_LEGACY_INT_ID);
+                    ps.setInt(position++, languageId);
                     ps.setTimestamp(position++, user.createdOn());
                     ps.setString(position++, user.createdByUserId().toString());
                     ps.setNull(position++, java.sql.Types.TIMESTAMP);
                     ps.setNull(position++, java.sql.Types.VARCHAR);
                     ps.setNull(position++, java.sql.Types.TIMESTAMP);
-                    ps.setNull(position, java.sql.Types.VARCHAR);
+                    ps.setNull(position++, java.sql.Types.VARCHAR);
+                    ps.setString(position, club.createdByUserId().toString());
                     ps.executeUpdate();
                     users.add(user);
                 }
@@ -210,7 +223,7 @@ public final class LegacyFixtureSeeder {
         return users;
     }
 
-    private LegacyClub synthesizeClub(LegacyCountry country, Timestamp createdOn) {
+    private LegacyClub synthesizeClub(UUID countryId, Timestamp createdOn) {
         UUID clubId = newUuid();
         UUID createdBy = newUuid();
         String clubName = faker.aviation().airport() + " Flying Club";
@@ -222,7 +235,7 @@ public final class LegacyFixtureSeeder {
                 faker.address().streetAddress(),
                 faker.address().zipCode(),
                 faker.address().city(),
-                country.countryId(),
+                countryId,
                 faker.phoneNumber().phoneNumber(),
                 faker.phoneNumber().phoneNumber(),
                 faker.internet().emailAddress(),
@@ -234,7 +247,7 @@ public final class LegacyFixtureSeeder {
                 faker.internet().emailAddress(),
                 faker.internet().emailAddress(),
                 faker.internet().emailAddress(),
-                createdOn,
+                utcMicros(createdOn.toInstant()),
                 createdBy);
     }
 
@@ -247,31 +260,25 @@ public final class LegacyFixtureSeeder {
                 faker.name().fullName(),
                 faker.internet().emailAddress(),
                 faker.phoneNumber().cellPhone(),
-                truncateToMicros(createdOn),
+                utcMicros(createdOn.toInstant()),
                 club.createdByUserId());
     }
 
     private UUID newUuid() {
-        // Faker-driven random UUID — bound to the seed via the shared RNG
-        // so the harness output is byte-for-byte deterministic.
         long mostSignificantBits = faker.random().nextLong();
         long leastSignificantBits = faker.random().nextLong();
         return new UUID(mostSignificantBits, leastSignificantBits);
     }
 
-    private static Timestamp truncateToMicros(Timestamp source) {
-        // MSSQL datetime2(7) → Postgres timestamptz precision shift: pin to
-        // microseconds on both sides so the diff engine sees byte-identical
-        // values regardless of the JDBC driver's nanosecond handling.
-        Instant truncated = source.toInstant().truncatedTo(ChronoUnit.MICROS);
-        return Timestamp.from(truncated);
+    /**
+     * MSSQL {@code datetime2(7)} → Postgres {@code timestamptz} precision shift:
+     * pin to microseconds on both sides so the diff engine sees byte-identical
+     * values regardless of JDBC nanosecond handling.
+     */
+    private static Timestamp utcMicros(Instant source) {
+        return Timestamp.from(source.truncatedTo(ChronoUnit.MICROS));
     }
 
-    /** Synthetic legacy Country row. SYSTEM_GLOBAL — bridged by V2 seed UUIDs. */
-    public record LegacyCountry(UUID countryId, String iso2Code) {
-    }
-
-    /** Synthetic legacy Club row mirroring the FLSTest Clubs columns the mapper reads. */
     public record LegacyClub(
             UUID clubId,
             String clubname,
@@ -295,7 +302,6 @@ public final class LegacyFixtureSeeder {
             UUID createdByUserId) {
     }
 
-    /** Synthetic legacy User row mirroring the FLSTest Users columns the mapper reads. */
     public record LegacyUser(
             UUID userId,
             UUID clubId,
@@ -307,9 +313,10 @@ public final class LegacyFixtureSeeder {
             UUID createdByUserId) {
     }
 
-    /** Result of {@link #seedInto} — handed to the diff engine for per-Club row-count expectations. */
     public record SeededFixture(
-            List<LegacyCountry> countries,
+            UUID switzerlandCountryId,
+            int germanLanguageLegacyId,
+            int activeClubStateLegacyId,
             List<LegacyClub> clubs,
             List<LegacyUser> users) {
     }

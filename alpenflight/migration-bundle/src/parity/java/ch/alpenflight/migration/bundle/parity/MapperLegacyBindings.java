@@ -4,19 +4,24 @@ import ch.alpenflight.migration.bundle.EntityType;
 import java.util.Map;
 
 /**
- * Per-entity binding between the new-stack {@link EntityType} and the legacy
- * MSSQL artifacts a mapper reads + writes back into. Each entry holds:
+ * Per-entity binding between the new-stack {@link EntityType} and the
+ * legacy MSSQL artifacts the producer reads + the Postgres artifacts the
+ * consumer writes. Each entry holds:
  *
  * <ul>
- *   <li><strong>{@code SELECT}</strong> for the producer — the legacy table
- *       + column list the mapper's {@code writeNdjson} reads from. Hand-
- *       curated so a column rename in legacy is caught by a {@code SELECT}
- *       failure rather than a silent {@code NULL}.</li>
- *   <li><strong>{@code INSERT}</strong> for the consumer — the new-stack
- *       table + parameterised column list matching {@code Mapper.columns()}
- *       parameter order.</li>
- *   <li>The new-stack table name — used by the diff engine for row-count
- *       queries.</li>
+ *   <li><strong>{@code SELECT}</strong> for the producer — the legacy
+ *       table + column list the mapper's {@code writeNdjson} reads. Hand-
+ *       curated against the FLSTest schema applied by
+ *       {@link FlsTestSchemaApplier} so a legacy column rename is caught
+ *       by a {@code SELECT} failure rather than a silent {@code NULL}.</li>
+ *   <li><strong>{@link PortPolicy}</strong> — drives the consumer's
+ *       routing. {@code SYSTEM_GLOBAL} entries feed
+ *       {@link LegacyIdMapPopulator}; {@code FULL_PORT} entries feed
+ *       {@link Mapper#readEntity} after FK rewriting.</li>
+ *   <li><strong>{@code INSERT}</strong> for the FULL_PORT consumer — the
+ *       new-stack table + parameterised column list matching
+ *       {@code Mapper.columns()} parameter order, with {@code legacy_guid}
+ *       wire-name resolved to the destination's {@code id} column.</li>
  * </ul>
  *
  * <p>Vertical-slice scope (S-187): only the three mappers exercised by the
@@ -24,21 +29,35 @@ import java.util.Map;
  */
 public final class MapperLegacyBindings {
 
-    public record Binding(String legacySelect, String newSchemaTable, String newSchemaInsert) {
+    public enum PortPolicy { FULL_PORT, SYSTEM_GLOBAL }
+
+    public record Binding(
+            PortPolicy portPolicy,
+            String legacySelect,
+            String newSchemaTable,
+            String newSchemaInsert) {
     }
 
     private static final Map<EntityType, Binding> BINDINGS = Map.of(
             EntityType.COUNTRY, new Binding(
+                    PortPolicy.SYSTEM_GLOBAL,
                     "SELECT CountryId, CountryCodeIso2 FROM Countries",
                     "t_country",
-                    // SYSTEM_GLOBAL_RESOLVE: the bundle carries (legacy_guid,
-                    // iso2_code) pairs and the consumer populates
-                    // legacy_id_map_country by joining destination on
-                    // iso2_code (per S-141). The harness asserts the bundle
-                    // bytes are well-formed; no INSERT into t_country happens
-                    // because the destination rows are owned by V2.
-                    "/* SYSTEM_GLOBAL_RESOLVE — no insert; bundle bytes only */"),
+                    ""),
+            EntityType.LANGUAGE, new Binding(
+                    PortPolicy.SYSTEM_GLOBAL,
+                    "SELECT LanguageId, LanguageKey FROM Languages",
+                    "t_language",
+                    ""),
+            EntityType.CLUB_STATE, new Binding(
+                    PortPolicy.SYSTEM_GLOBAL,
+                    // ClubStateId=0 ("System") has no V2 destination; filter
+                    // structurally per ClubStateMapper class Javadoc.
+                    "SELECT ClubStateId FROM ClubStates WHERE ClubStateId <> 0",
+                    "t_club_state",
+                    ""),
             EntityType.CLUB, new Binding(
+                    PortPolicy.FULL_PORT,
                     """
                     SELECT ClubId, Clubname, ClubKey, Address, Zip, City, CountryId,
                            Phone, FaxNumber, Email, WebPage, Contact, ClubStateId,
@@ -79,12 +98,17 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?, ?, ?)
                     """),
             EntityType.USER, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // UserMapper class Javadoc pins the system-actor filter as
+                    // an ADR 0007 invariant — the bundle MUST NOT carry the
+                    // legacy ASP.NET Identity system user.
                     """
                     SELECT UserId, ClubId, UserName, FriendlyName, PersonId,
                            NotificationEmail, PhoneNumber, Remarks, LanguageId,
                            CreatedOn, CreatedByUserId,
                            ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId
                     FROM Users
+                    WHERE UserId <> '13731EE2-C1D8-455C-8AD1-C39399893FFF'
                     """,
                     "t_user",
                     """
@@ -107,16 +131,17 @@ public final class MapperLegacyBindings {
         Binding binding = BINDINGS.get(entity);
         if (binding == null) {
             throw new IllegalArgumentException(
-                    "No legacy binding registered for " + entity + ". Vertical-slice "
-                            + "S-187 covers COUNTRY, CLUB, USER; S-187a adds the remaining "
-                            + "25 mappers. Add a binding here when introducing a new mapper "
-                            + "into the harness.");
+                    "No legacy binding registered for " + entity);
         }
         return binding;
     }
 
     public static boolean isRegistered(EntityType entity) {
         return BINDINGS.containsKey(entity);
+    }
+
+    public static PortPolicy portPolicy(EntityType entity) {
+        return require(entity).portPolicy();
     }
 
     public static String selectForProducer(EntityType entity) {
