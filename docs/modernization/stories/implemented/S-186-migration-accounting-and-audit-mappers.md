@@ -2,8 +2,9 @@
 id: S-186
 title: Migration-bundle — accounting sub-package + audit-log mappers
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-05-30
+done_at: 2026-05-30
 depends_on: [S-183]
 integration_base: integration/migration
 origin: scope-split
