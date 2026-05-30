@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,9 +54,6 @@ class OpenApiSnapshotIT {
 
     private final ObjectMapper json = new ObjectMapper();
 
-    @Disabled("S-141a follow-up: regenerate alpenflight/web/openapi/openapi.json with the new "
-            + "/api/v1/migrations/{uploadId}/bundle + /status endpoints. Sandbox gradle daemon hangs "
-            + "on regen — operator runs ./gradlew generateOpenApiSnapshot on Windows then re-enables.")
     @Test
     void snapshotMatchesLiveSpec() throws Exception {
         Path snapshot = Path.of("..", "web", "openapi", "openapi.json").toAbsolutePath().normalize();

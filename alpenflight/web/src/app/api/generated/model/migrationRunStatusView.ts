@@ -5,14 +5,11 @@
  * Glider club operations platform. Source of truth for the SPA-generated TS client.
  * OpenAPI spec version: 0.0.1
  */
-import type { MigrationRunState } from './migrationRunState';
+import type { MigrationRunStatusViewState } from './migrationRunStatusViewState';
 
-/**
- * SPA-facing view of a MigrationRun for the status-poll endpoint.
- */
 export type MigrationRunStatusView = {
   uploadId?: string;
-  state?: MigrationRunState;
+  state?: MigrationRunStatusViewState;
   currentEntity?: string;
   currentClubId?: string;
   deploymentId?: string;

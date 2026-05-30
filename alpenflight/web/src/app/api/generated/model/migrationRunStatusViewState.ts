@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.0.1
  */
 
-export type MigrationRunState = typeof MigrationRunState[keyof typeof MigrationRunState];
+export type MigrationRunStatusViewState = typeof MigrationRunStatusViewState[keyof typeof MigrationRunStatusViewState];
 
 
-export const MigrationRunState = {
+export const MigrationRunStatusViewState = {
   DECRYPTING: 'DECRYPTING',
   PROVISIONING: 'PROVISIONING',
   INGESTING: 'INGESTING',
