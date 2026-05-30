@@ -208,10 +208,19 @@ public class MigrationBundleIngestService {
             failureRef.set(e);
         } catch (RuntimeException unexpected) {
             LOG.error("MigrationBundleIngest: unexpected failure", unexpected);
+            StringBuilder trace = new StringBuilder();
+            trace.append(unexpected.getClass().getSimpleName()).append(": ")
+                    .append(unexpected.getMessage());
+            StackTraceElement[] frames = unexpected.getStackTrace();
+            int framesToInclude = Math.min(frames.length, 6);
+            for (int i = 0; i < framesToInclude; i++) {
+                trace.append(" | ").append(frames[i].getClassName()).append('.')
+                        .append(frames[i].getMethodName()).append(':')
+                        .append(frames[i].getLineNumber());
+            }
             failureRef.set(new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Unexpected failure inside ingest: " + unexpected.getClass().getSimpleName()
-                            + ": " + unexpected.getMessage(),
+                    "Unexpected failure inside ingest: " + trace,
                     unexpected));
         }
         if (failureRef.get() != null) {
