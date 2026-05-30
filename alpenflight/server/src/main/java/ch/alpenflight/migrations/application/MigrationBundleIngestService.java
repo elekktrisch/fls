@@ -152,6 +152,8 @@ public class MigrationBundleIngestService {
      *
      * @return the {@link IngestOutcome} with the new Deployment + Clubs.
      */
+    @Transactional
+    @SuppressWarnings("UnnecessaryAsync")
     public IngestOutcome ingest(UUID uploadId,
                                 UUID principalUserId,
                                 UUID principalKeycloakSub,
@@ -169,18 +171,22 @@ public class MigrationBundleIngestService {
         }
         try {
             telemetry.ingestStarted(uploadId, clock.instant());
-            return ingestInTransaction(uploadId, principalUserId, principalKeycloakSub, encryptedBody);
+            return ingestInsideTransaction(uploadId, principalUserId, principalKeycloakSub, encryptedBody);
         } finally {
             INGEST_GATE.release();
         }
     }
 
-    @Transactional
-    @SuppressWarnings("UnnecessaryAsync")
-    public IngestOutcome ingestInTransaction(UUID uploadId,
-                                             UUID principalUserId,
-                                             UUID principalKeycloakSub,
-                                             InputStream encryptedBody) {
+    /**
+     * The body of {@link #ingest}: lives in a separate method so its name
+     * documents that everything below runs inside the @Transactional
+     * boundary opened by {@code ingest}. Visibility is package-private so
+     * a future test can drive it directly without re-acquiring the gate.
+     */
+    IngestOutcome ingestInsideTransaction(UUID uploadId,
+                                          UUID principalUserId,
+                                          UUID principalKeycloakSub,
+                                          InputStream encryptedBody) {
         // Pre-decrypt Deployment-existence guard: per Security plan, refuse
         // 409 BEFORE allocating RSA + StreamingAead. ux_deployment_owner_active
         // is the structural source of truth; this is just the fail-fast
