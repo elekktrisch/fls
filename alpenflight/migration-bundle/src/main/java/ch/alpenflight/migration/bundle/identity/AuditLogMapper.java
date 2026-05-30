@@ -25,31 +25,33 @@ import java.util.UUID;
  * {@link EntityType#AUDIT_LOG} is grouped with IDENTITY because audit
  * actors are users.
  *
- * <p><strong>Actor resolution (producer-side, S-139 hand-off).</strong>
+ * <p><strong>Actor resolution (producer-side).</strong>
  * Legacy {@code AuditLogs.UserName NVARCHAR NULL} is the actor (text,
- * not UUID FK). Producer-side:
+ * not UUID FK). The producer emits two mutually-exclusive UUID
+ * columns:
  * <ol>
- *   <li>NULL or whitespace-only UserName → NULL {@code actor_user_id}
- *       + NULL {@code legacy_actor_user_id} (no synthesis;
- *       attributing system writes to one fake principal is
- *       forensically misleading).</li>
+ *   <li>NULL / whitespace-only UserName → both {@code actor_user_id}
+ *       and {@code legacy_orphan_actor_id} NULL; {@code legacy_actor_user_id}
+ *       NULL too (no synthesis — attributing system writes to one
+ *       fake principal is forensically misleading).</li>
  *   <li>UserName looked up against the bundle's {@code Users.UserName}
- *       set (USER precedes AUDIT_LOG in {@link EntityType} ordering —
- *       S-184 guarantee). Hit → real {@code User.id};
- *       {@code legacy_actor_user_id} carries the UserName text
- *       (forensic).</li>
+ *       set (USER precedes AUDIT_LOG in {@link EntityType} ordering).
+ *       Hit → {@code actor_user_id} carries the real {@code User.id};
+ *       {@code legacy_orphan_actor_id} stays NULL.</li>
  *   <li>Miss → producer synthesises one UUID v7 per <em>distinct</em>
  *       legacy UserName (bundle-local {@code ON COMMIT DROP} cache)
  *       and emits {@code migration_run.warnings.AUDIT_ORPHAN_ACTOR}.
- *       Legacy {@code LEGACY_SYSTEM_USER_ID = 13731ee2-…} (S-184
- *       drop-list) routes through this path too (no Keycloak
- *       counterpart per ADR 0007).</li>
+ *       The synthesised UUID lands in {@code legacy_orphan_actor_id}
+ *       (V18 — no FK to {@code t_user} so the synthesized actor needs
+ *       no Keycloak counterpart per ADR 0007); {@code actor_user_id}
+ *       stays NULL. Legacy {@code LEGACY_SYSTEM_USER_ID = 13731ee2-…}
+ *       routes through this path too.</li>
  *   <li>Cross-club UserName ambiguity (same UserName in two different
  *       Club.UserName sub-maps) → producer hard-fail
  *       ({@code AUDIT_USERNAME_AMBIGUOUS}).</li>
  * </ol>
- * The mapper trusts the producer's resolved {@code actor_user_id}
- * column.
+ * On every non-NULL-UserName row {@code legacy_actor_user_id} carries
+ * the raw text for forensic recall.
  *
  * <p><strong>EventType → action mapping.</strong>
  * {@code Added → CREATE}, {@code Modified → UPDATE},
@@ -103,23 +105,9 @@ public final class AuditLogMapper implements Mapper {
     static final String OCCURRED_AT = "occurred_at";
     static final String ACTOR_USER_ID = "actor_user_id";
 
-    /**
-     * @ParityIgnore reason: structurally NULL on every LEGACY_MIGRATED
-     * row (no Keycloak counterpart for legacy actors per ADR 0007). The
-     * parity oracle pins this NULL invariant through {@code actor_kind}
-     * as the sentinel, not through round-trip comparison of the column
-     * itself.
-     */
     @ParityIgnore
     static final String ACTOR_KEYCLOAK_SUB = "actor_keycloak_sub";
 
-    /**
-     * @ParityIgnore reason: structurally NULL on every LEGACY_MIGRATED
-     * row (cross-tenant system-event semantics — legacy AuditLogs has
-     * no ClubId). S-189 post-cutover follow-up back-fills per-tenant
-     * visibility on demand; until then, parity oracle treats the
-     * column as opaque.
-     */
     @ParityIgnore
     static final String TENANT_CLUB_ID = "tenant_club_id";
 
@@ -157,6 +145,8 @@ public final class AuditLogMapper implements Mapper {
 
     static final String LEGACY_TARGET_RECORD_ID = "legacy_target_record_id";
 
+    static final String LEGACY_ORPHAN_ACTOR_ID = "legacy_orphan_actor_id";
+
     private static final String[] COLUMNS = {
             LEGACY_GUID, OCCURRED_AT,
             ACTOR_USER_ID, ACTOR_KEYCLOAK_SUB, TENANT_CLUB_ID,
@@ -164,7 +154,8 @@ public final class AuditLogMapper implements Mapper {
             TARGET_ENTITY_TYPE, TARGET_ENTITY_ID,
             REQUEST_ID, BEFORE_STATE, AFTER_STATE,
             FAILED, SYSTEM_ACTOR, HTTP_STATUS, FAILURE_REASON,
-            LEGACY_ACTOR_USER_ID, LEGACY_INT_ID, LEGACY_TARGET_RECORD_ID
+            LEGACY_ACTOR_USER_ID, LEGACY_INT_ID, LEGACY_TARGET_RECORD_ID,
+            LEGACY_ORPHAN_ACTOR_ID
     };
 
     @Override
@@ -214,6 +205,8 @@ public final class AuditLogMapper implements Mapper {
         target.writeNumberField(LEGACY_INT_ID, source.getLong("AuditLogId"));
         Coercions.writeOptionalString(target, LEGACY_TARGET_RECORD_ID,
                 source.getString("ResolvedLegacyTargetRecordId"));
+        Coercions.writeOptionalString(target, LEGACY_ORPHAN_ACTOR_ID,
+                source.getString("ResolvedLegacyOrphanActorId"));
         target.writeEndObject();
     }
 
@@ -241,6 +234,8 @@ public final class AuditLogMapper implements Mapper {
         target.setString(position++, Coercions.readStringOrNull(source, FAILURE_REASON));
         target.setString(position++, Coercions.readStringOrNull(source, LEGACY_ACTOR_USER_ID));
         target.setLong(position++, source.get(LEGACY_INT_ID).longValue());
-        target.setString(position, Coercions.readStringOrNull(source, LEGACY_TARGET_RECORD_ID));
+        target.setString(position++,
+                Coercions.readStringOrNull(source, LEGACY_TARGET_RECORD_ID));
+        target.setObject(position, Coercions.readUuidOrNull(source, LEGACY_ORPHAN_ACTOR_ID));
     }
 }

@@ -50,9 +50,9 @@ import java.util.UUID;
  * <p>{@code flight_id} resolves via {@code legacy_id_map_flight}
  * (intra-bundle — FLIGHT precedes DELIVERY in {@link EntityType} order).
  * {@code recipient_person_id} → cross-tenant {@link EntityType#PERSON}
- * (FK SET-NULL ride-through; tenant-bypass declared in the S-186
- * {@link ch.alpenflight.migration.bundle.Manifest}
- * {@code TENANT_BYPASS_ALLOW_LIST} widening).
+ * (FK SET-NULL ride-through; declared in
+ * {@link ch.alpenflight.migration.bundle.Manifest}'s
+ * {@code TENANT_BYPASS_ALLOW_LIST}).
  *
  * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
  * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted},

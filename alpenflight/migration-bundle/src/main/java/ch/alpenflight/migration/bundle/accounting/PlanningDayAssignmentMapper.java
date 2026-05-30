@@ -23,8 +23,8 @@ import java.util.UUID;
  * <p>{@code assigned_person_id} → cross-tenant {@link EntityType#PERSON}
  * (FK RESTRICT per V4). Declared in
  * {@link ch.alpenflight.migration.bundle.Manifest}'s
- * {@code TENANT_BYPASS_ALLOW_LIST} via the S-186 widening — the
- * per-bundle Person sub-map handles the rewrite at S-141 ingest.
+ * {@code TENANT_BYPASS_ALLOW_LIST}; the per-bundle Person sub-map handles
+ * the rewrite at ingest.
  *
  * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
  * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.

@@ -23,24 +23,35 @@ class AuditLogMapperTest extends AbstractMapperContractTest<AuditLogMapper> {
 
     @Override
     protected Map<String, Object> legacyRow(Faker faker) {
+        // Round-trip fixture populates BOTH mutually-exclusive UUID columns
+        // (real User match + synthetic orphan) so the abstract suite's
+        // every-position-bound check passes. At-most-one invariants live on
+        // the audit aggregate; producer enforces them at write time.
         Map<String, Object> row = new LinkedHashMap<>();
-        // Producer-minted UUID v7 for the new t_mutation_audit_event.id —
-        // legacy AuditLogs.AuditLogId is BIGINT IDENTITY (preserved in
-        // legacy_int_id) and has no GUID surface.
         row.put("LegacyGuid", randomUuidString(faker));
         row.put("EventDateUTC", Timestamp.from(Instant.parse("2024-06-15T08:30:00Z")));
-        // Producer-resolved actor: real Users.UserName match → User.id;
-        // miss → synthetic UUID v7. Either way the mapper sees one column.
         row.put("ResolvedActorUserId", randomUuidString(faker));
         row.put("ResolvedAction", "UPDATE");
         row.put("ResolvedTargetEntityType", "Flight");
         row.put("ResolvedTargetEntityId", randomUuidString(faker));
         row.put("UserName", "j.doe");
         row.put("AuditLogId", 1_234_567L);
-        // Both target_entity_id (UUID parse success) AND legacy_target_record_id
-        // populated here for round-trip coverage. At-most-one invariant is
-        // producer-side (UUID parse decides which lands).
         row.put("ResolvedLegacyTargetRecordId", "12345");
+        row.put("ResolvedLegacyOrphanActorId", randomUuidString(faker));
+        return row;
+    }
+
+    private Map<String, Object> orphanActorRow(Faker faker) {
+        Map<String, Object> row = legacyRow(faker);
+        row.put("ResolvedActorUserId", null);
+        return row;
+    }
+
+    private Map<String, Object> nullActorRow(Faker faker) {
+        Map<String, Object> row = legacyRow(faker);
+        row.put("ResolvedActorUserId", null);
+        row.put("UserName", null);
+        row.put("ResolvedLegacyOrphanActorId", null);
         return row;
     }
 
@@ -113,5 +124,39 @@ class AuditLogMapperTest extends AbstractMapperContractTest<AuditLogMapper> {
                         + "before_state has no source. Accepted parity exclusion.")
                 .isTrue();
         assertThat(emitted.get(AuditLogMapper.AFTER_STATE).isNull()).isTrue();
+    }
+
+    @Test
+    void orphanRowEmitsLegacyOrphanActorIdAndNullActorUserId() throws Exception {
+        JsonNode emitted = invokeWriteNdjson(mapper, orphanActorRow(seededFaker()));
+        assertThat(emitted.get(AuditLogMapper.ACTOR_USER_ID).isNull())
+                .as("Orphan actors land in legacy_orphan_actor_id (no FK), NOT in "
+                        + "actor_user_id (which FK-constrains to t_user — synthesizing a "
+                        + "UUID there would violate fk_mutation_audit_event_actor_user_id "
+                        + "since the synthesized actor has no Keycloak counterpart "
+                        + "per ADR 0007)")
+                .isTrue();
+        assertThat(emitted.get(AuditLogMapper.LEGACY_ORPHAN_ACTOR_ID).isNull())
+                .as("Synthesized orphan UUID v7 must surface here")
+                .isFalse();
+        assertThat(emitted.get(AuditLogMapper.LEGACY_ACTOR_USER_ID).asText())
+                .as("Forensic UserName text always survives on a non-NULL-UserName row")
+                .isEqualTo("j.doe");
+    }
+
+    @Test
+    void nullUserNameRowEmitsNullActorAndNoOrphanSynthesis() throws Exception {
+        JsonNode emitted = invokeWriteNdjson(mapper, nullActorRow(seededFaker()));
+        assertThat(emitted.get(AuditLogMapper.ACTOR_USER_ID).isNull())
+                .as("NULL UserName → NULL actor_user_id")
+                .isTrue();
+        assertThat(emitted.get(AuditLogMapper.LEGACY_ORPHAN_ACTOR_ID).isNull())
+                .as("NULL UserName must NOT synthesize an orphan UUID — attributing "
+                        + "all NULL-UserName writes to one fake principal would bucket "
+                        + "unrelated system events under a single misleading actor")
+                .isTrue();
+        assertThat(emitted.get(AuditLogMapper.LEGACY_ACTOR_USER_ID).isNull())
+                .as("NULL UserName → NULL legacy_actor_user_id text (no forensic to preserve)")
+                .isTrue();
     }
 }

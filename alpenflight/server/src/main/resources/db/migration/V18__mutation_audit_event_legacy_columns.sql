@@ -13,12 +13,22 @@
 -- (AuditLogs.RecordId when not UUID-parseable). Together they let a forensic
 -- query trace any migrated audit row back to the legacy DB without a
 -- round-trip through legacy_id_map_<entity>.
+--
+-- legacy_orphan_actor_id holds the per-distinct-UserName synthetic UUID v7
+-- for orphan actors (UserName text with no matching Users.UserName row in
+-- the bundle). Intentionally NO FK to t_user: the synthesized UUID never
+-- corresponds to a real Keycloak-backed principal (ADR 0007 forbids the
+-- shadow), so adding it to t_user would break the single-writer guard and
+-- the FK gate would reject the row. actor_user_id is NULL on every
+-- orphan-actor row; the (actor_user_id NULL, legacy_orphan_actor_id NOT
+-- NULL, legacy_actor_user_id NOT NULL) triple is the wire-shape signal.
 
 ALTER TABLE t_mutation_audit_event
     ADD COLUMN actor_kind               VARCHAR(32) NOT NULL DEFAULT 'NORMAL',
     ADD COLUMN legacy_actor_user_id     TEXT,
     ADD COLUMN legacy_int_id            BIGINT,
-    ADD COLUMN legacy_target_record_id  TEXT;
+    ADD COLUMN legacy_target_record_id  TEXT,
+    ADD COLUMN legacy_orphan_actor_id   UUID;
 
 COMMENT ON COLUMN t_mutation_audit_event.actor_kind IS
     'AuditActorKind enum (NORMAL, SYSTEM, LEGACY_MIGRATED). Pinned in Java per'
@@ -38,3 +48,9 @@ COMMENT ON COLUMN t_mutation_audit_event.legacy_target_record_id IS
     ' whose target had a BIGINT identity rather than a UUID). NULL when'
     ' target_entity_id is populated. PII-adjacent (entity IDs in URLs) —'
     ' @AuditRedact covers it.';
+COMMENT ON COLUMN t_mutation_audit_event.legacy_orphan_actor_id IS
+    'Synthetic UUID v7 minted per distinct legacy AuditLogs.UserName when no'
+    ' matching Users row exists in the bundle. No FK — the synthesized actor'
+    ' has no Keycloak counterpart per ADR 0007. actor_user_id is NULL on'
+    ' every row carrying a legacy_orphan_actor_id; the pair signals the'
+    ' orphan path.';

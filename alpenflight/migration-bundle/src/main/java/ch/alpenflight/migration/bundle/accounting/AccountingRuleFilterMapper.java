@@ -201,10 +201,17 @@ public final class AccountingRuleFilterMapper implements Mapper {
         target.setObject(position++, source.get(IS_CHARGED_TO_CLUB_INTERNAL).asBoolean());
         target.setString(position++, Coercions.readStringOrNull(source, ARTICLE_TARGET));
         target.setString(position++, Coercions.readStringOrNull(source, RECIPIENT_TARGET));
-        // PostgreSQL jsonb bind — Types.OTHER routes the String through the
-        // pg-jdbc driver's jsonb path. No PGobject required; setObject with
-        // OTHER + the column being jsonb in the schema does the cast.
-        target.setObject(position++, source.get(FILTER_CONFIG).toString(), Types.OTHER);
+        // jsonb bind via Types.OTHER routes the String through pg-jdbc's
+        // jsonb path. Explicit writeValueAsString rather than JsonNode.toString
+        // makes the serializer contract reviewable at the call site.
+        try {
+            target.setObject(position++,
+                    JSON.writeValueAsString(source.get(FILTER_CONFIG)), Types.OTHER);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException unreachable) {
+            throw new SQLException(
+                    "filter_config serialisation failed — JsonNode subtree is always serialisable",
+                    unreachable);
+        }
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, CREATED_ON));
         target.setObject(position++, Coercions.readUuidOrNull(source, CREATED_BY_USER_ID));
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, MODIFIED_ON));

@@ -92,21 +92,19 @@ public class MutationAuditEvent {
     @Column(name = "actor_kind", nullable = false, updatable = false, length = 32)
     private @Nullable AuditActorKind actorKind;
 
-    // S-186 — populated only on LEGACY_MIGRATED rows. PII; covered by
-    // S-027's default-deny serializer + the @AuditRedact contract.
+    @AuditRedact
     @Column(name = "legacy_actor_user_id", updatable = false, columnDefinition = "text")
     private @Nullable String legacyActorUserId;
 
-    // S-186 — legacy AuditLogs.AuditLogId IDENTITY preserved for forensic
-    // round-trip into the legacy DB. NULL on every non-migrated row.
     @Column(name = "legacy_int_id", updatable = false)
     private @Nullable Long legacyIntId;
 
-    // S-186 — raw legacy RecordId text for the non-UUID case (legacy
-    // entities with BIGINT identities). NULL when target_entity_id is
-    // populated. PII-adjacent; @AuditRedact covers it.
+    @AuditRedact
     @Column(name = "legacy_target_record_id", updatable = false, columnDefinition = "text")
     private @Nullable String legacyTargetRecordId;
+
+    @Column(name = "legacy_orphan_actor_id", updatable = false)
+    private @Nullable UUID legacyOrphanActorId;
 
     protected MutationAuditEvent() {
         // JPA.
@@ -131,6 +129,7 @@ public class MutationAuditEvent {
         this.legacyActorUserId = b.legacyActorUserId;
         this.legacyIntId = b.legacyIntId;
         this.legacyTargetRecordId = b.legacyTargetRecordId;
+        this.legacyOrphanActorId = b.legacyOrphanActorId;
     }
 
     public static Builder builder() {
@@ -221,6 +220,10 @@ public class MutationAuditEvent {
         return legacyTargetRecordId;
     }
 
+    public @Nullable UUID getLegacyOrphanActorId() {
+        return legacyOrphanActorId;
+    }
+
     /**
      * Builder; all fields are write-once at construction time, mirroring the
      * append-only DB-role contract.
@@ -244,6 +247,7 @@ public class MutationAuditEvent {
         private @Nullable String legacyActorUserId;
         private @Nullable Long legacyIntId;
         private @Nullable String legacyTargetRecordId;
+        private @Nullable UUID legacyOrphanActorId;
 
         private Builder() {}
 
@@ -265,6 +269,7 @@ public class MutationAuditEvent {
         public Builder legacyActorUserId(@Nullable String v) { this.legacyActorUserId = v; return this; }
         public Builder legacyIntId(@Nullable Long v) { this.legacyIntId = v; return this; }
         public Builder legacyTargetRecordId(@Nullable String v) { this.legacyTargetRecordId = v; return this; }
+        public Builder legacyOrphanActorId(@Nullable UUID v) { this.legacyOrphanActorId = v; return this; }
 
         public MutationAuditEvent build() {
             if (action == null) {

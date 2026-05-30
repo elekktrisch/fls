@@ -397,6 +397,9 @@ overrides:
       # Free-text quasi-PII.
       - delivery_information
       - additional_information
+      # Legal-record reference text — populated only on migrated rows
+      # whose legacy DeliveryNumber wasn't integer-parseable (V19).
+      - legacy_delivery_number_text
     pii_ride_through: [recipient_person_id]
     fadp_dsar_retention_exempt_when: "process_state_id >= 20"  # OR Art. 957a override
 
