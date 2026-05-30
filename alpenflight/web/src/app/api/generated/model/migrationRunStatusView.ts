@@ -7,6 +7,9 @@
  */
 import type { MigrationRunState } from './migrationRunState';
 
+/**
+ * SPA-facing view of a MigrationRun for the status-poll endpoint.
+ */
 export type MigrationRunStatusView = {
   uploadId?: string;
   state?: MigrationRunState;

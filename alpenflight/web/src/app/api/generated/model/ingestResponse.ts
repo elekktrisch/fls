@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.0.1
  */
 
+/**
+ * Body of a successful 200 OK from the bundle-ingest endpoint.
+ */
 export type IngestResponse = {
   deploymentId?: string;
   clubIds?: string[];
