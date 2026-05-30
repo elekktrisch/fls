@@ -304,6 +304,61 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void ndjson_parse_failure_rolls_back_cleanly_with_audit_trail() throws Exception {
+        // Malformed NDJSON in a tar entry — the orchestrator routes through
+        // entityStreamIngestor.ingestEntityNdjson which throws
+        // BundleIngestException(NDJSON_PARSE_FAILED). Asserts the full
+        // rollback trail invariants the mapper-failure path would also
+        // satisfy: no Deployment, run state FAILED, MIGRATION_INGEST_FAILED
+        // audit row recorded by the REQUIRES_NEW recorder.
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY,
+                new EntityPolicy(
+                        EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE,
+                        EntityPolicy.TombstonePolicy.SKIP_DELETED,
+                        java.util.Set.of(),
+                        java.util.List.of()));
+        byte[] malformedLine = "{not valid json".getBytes(UTF_8);
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
+                cipher, uploadId, publicKeyDer, "NDJSON-fail IT",
+                List.of(soleClub()),
+                entityPolicies,
+                Map.of("COUNTRY.ndjson", malformedLine));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(errorCodeOf(res)).isEqualTo("NDJSON_PARSE_FAILED");
+
+        // No Deployment / Club / FlightType / MemberState — the whole
+        // single-txn ingest rolled back atomically.
+        Integer deploymentCount = jdbc.queryForObject(
+                "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
+                Integer.class, userSub.toString());
+        assertThat(deploymentCount).isZero();
+
+        // Run flipped to FAILED by recordFailure; error_code persisted.
+        Map<String, Object> run = jdbc.queryForMap(
+                "SELECT state, error_code FROM t_migration_run WHERE upload_id = ?::uuid",
+                uploadId.toString());
+        assertThat(run.get("state")).isEqualTo("FAILED");
+        assertThat(run.get("error_code")).isEqualTo("NDJSON_PARSE_FAILED");
+
+        // Exactly one MIGRATION_INGEST_FAILED audit (the STARTED row landed
+        // inside the failed txn and rolled back; only the REQUIRES_NEW
+        // FAILED row from recordFailure survives).
+        Integer failedAudit = jdbc.queryForObject(
+                "SELECT count(*) FROM t_mutation_audit_event WHERE target_entity_id = ?::uuid "
+                        + "AND action = 'MIGRATION_INGEST_FAILED'",
+                Integer.class, uploadId.toString());
+        assertThat(failedAudit).isEqualTo(1);
+    }
+
+    @Test
     void note_current_writes_null_for_system_global_entity() throws Exception {
         // Empty NDJSON stream — exercises the noteCurrent path without
         // requiring real mapped data. SYSTEM_GLOBAL_RESOLVE entries write

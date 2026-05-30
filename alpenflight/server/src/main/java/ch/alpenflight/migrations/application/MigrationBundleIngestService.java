@@ -7,7 +7,6 @@ import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
-import ch.alpenflight.migration.bundle.KnownMappers;
 import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migrations.domain.BundleHeader;
@@ -154,7 +153,8 @@ public class MigrationBundleIngestService {
                                         @Qualifier("applicationTaskExecutor")
                                         AsyncTaskExecutor ingestExecutor,
                                         @Value("${alpenflight.migration.bundle-timeout:PT15M}")
-                                        Duration bundleTimeout) {
+                                        Duration bundleTimeout,
+                                        EntityStreamIngestor entityStreamIngestor) {
         this.uploads = uploads;
         this.runs = runs;
         this.crypto = crypto;
@@ -182,7 +182,7 @@ public class MigrationBundleIngestService {
         long timeoutMs = bundleTimeout.toMillis();
         this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
-        this.entityStreamIngestor = new EntityStreamIngestor(KnownMappers.all());
+        this.entityStreamIngestor = entityStreamIngestor;
     }
 
     /**
