@@ -20,6 +20,9 @@
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
+    "name" : "Migration bundle ingest",
+    "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
+  }, {
     "name" : "FlightTypes",
     "description" : "FlightType CRUD (per-club tenant-scoped masterdata)."
   }, {
@@ -1347,6 +1350,34 @@
         }
       }
     },
+    "/api/v1/migrations/{uploadId}/bundle" : {
+      "post" : {
+        "tags" : [ "Migration bundle ingest" ],
+        "summary" : "Upload + decrypt + ingest an encrypted FLS migration bundle.",
+        "operationId" : "uploadBundle",
+        "parameters" : [ {
+          "name" : "uploadId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IngestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/migrations/handshake" : {
       "post" : {
         "tags" : [ "Migration handshake" ],
@@ -2115,6 +2146,34 @@
         }
       }
     },
+    "/api/v1/migrations/{uploadId}/status" : {
+      "get" : {
+        "tags" : [ "Migration bundle ingest" ],
+        "summary" : "Poll the current bundle-ingest run state for an upload.",
+        "operationId" : "status",
+        "parameters" : [ {
+          "name" : "uploadId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MigrationRunStatusView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/migrations/handshake/current" : {
       "get" : {
         "tags" : [ "Migration handshake" ],
@@ -2521,7 +2580,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -4421,6 +4480,26 @@
         },
         "required" : [ "matches" ]
       },
+      "IngestResponse" : {
+        "type" : "object",
+        "properties" : {
+          "deploymentId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "primaryClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
       "HandshakeResponse" : {
         "type" : "object",
         "properties" : {
@@ -5149,6 +5228,44 @@
         },
         "required" : [ "firstname", "id", "isActive", "isGliderInstructor", "isGliderPilot", "isGliderTrainee", "isMotorInstructor", "isMotorPilot", "isTowPilot", "isWinchOperator", "lastname" ]
       },
+      "MigrationRunStatusView" : {
+        "type" : "object",
+        "properties" : {
+          "uploadId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "DECRYPTING", "PROVISIONING", "INGESTING", "COMPLETING", "COMPLETED", "FAILED" ]
+          },
+          "currentEntity" : {
+            "type" : "string"
+          },
+          "currentClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "deploymentId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "errorCode" : {
+            "type" : "string"
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "MeResponse" : {
         "type" : "object",
         "description" : "Authenticated-principal projection.",
@@ -5819,7 +5936,7 @@
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED" ]
           },
           "targetEntityType" : {
             "type" : "string"

@@ -1,8 +1,15 @@
 /**
  * Tenant provisioning — wires a Keycloak user to a fresh Deployment +
- * Clubs on first successful migration ingest. The provisioning service
- * is migration-internal; the ingest pipeline calls into
- * {@code application.DeploymentProvisioningService} at the right moment.
+ * Clubs on first successful migration ingest. S-141's bundle-ingest
+ * pipeline reaches in directly through
+ * {@code application.DeploymentProvisioningService.provision} + the
+ * {@code ProvisioningRequest} / {@code ProvisioningResult} / {@code ClubSpec}
+ * carrier records.
+ *
+ * <p>Declared {@link org.springframework.modulith.ApplicationModule.Type#OPEN}
+ * so {@code migrations} may import the application-layer carriers without a
+ * named-interface re-export — the provisioning surface is co-designed with
+ * S-141 and intentionally not isolated.
  *
  * <p>Module shape follows ADR 0023:
  * <ul>
@@ -17,4 +24,9 @@
  *       port.</li>
  * </ul>
  */
+@ApplicationModule(type = ApplicationModule.Type.OPEN)
+@NullMarked
 package ch.alpenflight.tenancy.provisioning;
+
+import org.jspecify.annotations.NullMarked;
+import org.springframework.modulith.ApplicationModule;

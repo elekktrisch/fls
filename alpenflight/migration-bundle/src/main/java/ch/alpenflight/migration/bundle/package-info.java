@@ -18,5 +18,9 @@
  * <p>See {@code docs/modernization/stories/implemented/S-016-data-migration-script.md}
  * for the load-bearing design decisions.
  */
-@org.jspecify.annotations.NullMarked
+@ApplicationModule(type = ApplicationModule.Type.OPEN)
+@NullMarked
 package ch.alpenflight.migration.bundle;
+
+import org.jspecify.annotations.NullMarked;
+import org.springframework.modulith.ApplicationModule;

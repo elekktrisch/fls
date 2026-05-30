@@ -48,5 +48,15 @@ public enum AuditAction {
     /** S-140 — the hourly expiry job flipped {@code awaiting_upload} rows
      *  past TTL to {@code expired} and wiped the private key.
      *  {@code system_actor=true}; no user principal. */
-    MIGRATION_HANDSHAKE_EXPIRED
+    MIGRATION_HANDSHAKE_EXPIRED,
+    /** S-141 — bundle ingest started inside the open txn (pre-decrypt).
+     *  {@code after_state} carries the uploadId; the actor is the caller. */
+    MIGRATION_INGEST_STARTED,
+    /** S-141 — bundle ingest committed successfully. Emitted post-commit;
+     *  {@code after_state} carries uploadId + deploymentId + clubCount. */
+    MIGRATION_INGEST_COMPLETED,
+    /** S-141 — bundle ingest rolled back. Emitted post-commit (audit
+     *  failure does not roll back ingest); {@code after_state} carries
+     *  uploadId + errorCode + phase. */
+    MIGRATION_INGEST_FAILED
 }

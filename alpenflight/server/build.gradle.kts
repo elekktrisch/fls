@@ -184,14 +184,21 @@ dependencies {
     testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
-    // S-187: MapperVsSchemaCompatibilityTest needs the 28 concrete Mapper
-    // classes + the Mapper interface + EntityType. Composite-include the
-    // bundle (settings.gradle.kts) and pull it into testImplementation so
-    // the server's live Postgres schema (via information_schema) can be
-    // diffed against bundleMapper.columns(). Production code does NOT
-    // depend on migration-bundle — only the test. Module coordinate
-    // matches `rootProject.name` in `migration-bundle/settings.gradle.kts`.
-    testImplementation("ch.alpenflight:alpenflight-migration-bundle")
+    // S-141 promoted to `implementation` (was testImplementation under S-187):
+    // the bundle-ingest pipeline calls `Mapper.readEntity` + `KnownMappers.all()`
+    // + `LegacyIdMapTables.resolveForeignKeyArrayQuery` from production code.
+    // Module coordinate matches `rootProject.name` in
+    // `migration-bundle/settings.gradle.kts`.
+    implementation("ch.alpenflight:alpenflight-migration-bundle")
+    // S-141 needs the org.postgresql driver classes on the COMPILE classpath
+    // (PgConnection + CopyManager for binary COPY into the per-bundle
+    // legacy_id_map_<entity> temporary tables). The driver itself stays
+    // runtimeOnly above; this compileOnly declaration exposes the API surface.
+    compileOnly("org.postgresql:postgresql")
+    // S-141 streaming gzip + tar reader for the encrypted bundle body.
+    // Same artifact the migration-bundle module's parity producer uses on
+    // the write side — keeps producer + consumer on lockstep tooling.
+    implementation("org.apache.commons:commons-compress:1.27.1")
 }
 
 nullaway {

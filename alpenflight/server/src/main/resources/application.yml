@@ -443,6 +443,33 @@ audit:
           - state
           - expiresAt
           - privateKeyCiphertextSummary
+      MigrationRun:
+        # S-141 — t_migration_run entity allow-list. error_detail + warnings
+        # are @AuditRedact on the field (may capture failing-row PII); the
+        # application-layer audit emitter uses MigrationIngestAuditSnapshot
+        # which doesn't carry either column. This entity-walk allow-list
+        # exists for defense-in-depth if a future code path hands the entity
+        # straight to the redactor.
+        allow:
+          - id
+          - uploadId
+          - state
+          - currentEntity
+          - currentClubId
+          - startedAt
+          - completedAt
+          - deploymentId
+          - errorCode
+      MigrationIngestAuditSnapshot:
+        # S-141 — snapshot record emitted on MIGRATION_INGEST_STARTED /
+        # COMPLETED / FAILED. ids + ints + bounded enum codes only — never
+        # display names, never PII from the bundle.
+        allow:
+          - uploadId
+          - deploymentId
+          - clubCount
+          - errorCode
+          - phase
 
 # S-140 — Tink master keyset for migration-upload private-key wrapping.
 # Env-driven. Prod MUST supply ALPENFLIGHT_MIGRATION_MASTER_KEYSET (base64
