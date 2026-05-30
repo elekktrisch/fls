@@ -43,8 +43,15 @@ class MigrationBundleExceptionHandler {
         for (Map.Entry<String, Object> attribute : e.getAttributes().entrySet()) {
             pd.setProperty(attribute.getKey(), attribute.getValue());
         }
-        return ResponseEntity.status(status).body(pd);
+        ResponseEntity.BodyBuilder responseBuilder = ResponseEntity.status(status);
+        if (e.getErrorCode() == BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED) {
+            responseBuilder.header("Retry-After", String.valueOf(RETRY_AFTER_SECONDS));
+        }
+        return responseBuilder.body(pd);
     }
+
+    /** Suggested back-off for the 429 DATABASE_CAPACITY_EXCEEDED gate. */
+    private static final int RETRY_AFTER_SECONDS = 60;
 
     @ExceptionHandler(UnknownPrincipalException.class)
     ProblemDetail onUnknownPrincipal(UnknownPrincipalException e) {

@@ -77,7 +77,7 @@ public class MigrationBundleController {
                         "No t_user row for principal — verified-email signup expected"));
         UUID principalKeycloakSub = UUID.fromString(jwt.getSubject());
         try (InputStream body = boundedStream(request.getInputStream())) {
-            IngestOutcome outcome = ingestService.ingestInTransaction(
+            IngestOutcome outcome = ingestService.ingest(
                     uploadId, userId, principalKeycloakSub, body);
             return new IngestResponse(outcome.deploymentId(), outcome.clubIds(), outcome.primaryClubId());
         }

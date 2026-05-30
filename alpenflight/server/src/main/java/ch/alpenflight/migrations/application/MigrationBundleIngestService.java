@@ -22,6 +22,8 @@ import ch.alpenflight.migrations.domain.MigrationUploadRepository;
 import ch.alpenflight.migrations.domain.MigrationUploadState;
 import ch.alpenflight.migrations.domain.SecureBytes;
 import ch.alpenflight.tenancy.provisioning.application.ClubSpec;
+import ch.alpenflight.deployments.domain.Deployment;
+import ch.alpenflight.deployments.domain.DeploymentRepository;
 import ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningRequest;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningResult;
@@ -50,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -60,6 +63,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * S-141 streaming decrypt + ingest pipeline. Reads the encrypted ALPF
@@ -78,7 +83,7 @@ import org.springframework.transaction.annotation.Transactional;
  * through {@code StreamingAead → gzip → tar → JsonNode} in-memory; the
  * only persisted output is the Postgres rows. Disk sinks are
  * structurally banned inside this package via ArchUnit (see
- * {@code MigrationsIngestDiskSinkBanTest}).
+ * {@code MigrationIngestNoDiskSinkTest}).
  */
 @Service
 public class MigrationBundleIngestService {
@@ -107,8 +112,10 @@ public class MigrationBundleIngestService {
     private final MigrationCryptoService crypto;
     private final MigrationBundleCipher bundleCipher;
     private final DeploymentProvisioningService provisioning;
+    private final DeploymentRepository deployments;
     private final IngestFunnelTelemetry telemetry;
     private final AuditTrail audit;
+    private final MigrationFailureRecorder failureRecorder;
     private final EntityManager entityManager;
     private final Clock clock;
 
@@ -117,8 +124,10 @@ public class MigrationBundleIngestService {
                                         MigrationCryptoService crypto,
                                         MigrationBundleCipher bundleCipher,
                                         DeploymentProvisioningService provisioning,
+                                        DeploymentRepository deployments,
                                         IngestFunnelTelemetry telemetry,
                                         AuditTrail audit,
+                                        MigrationFailureRecorder failureRecorder,
                                         EntityManager entityManager,
                                         Clock clock) {
         this.uploads = uploads;
@@ -126,8 +135,10 @@ public class MigrationBundleIngestService {
         this.crypto = crypto;
         this.bundleCipher = bundleCipher;
         this.provisioning = provisioning;
+        this.deployments = deployments;
         this.telemetry = telemetry;
         this.audit = audit;
+        this.failureRecorder = failureRecorder;
         this.entityManager = entityManager;
         this.clock = clock;
     }
@@ -170,19 +181,33 @@ public class MigrationBundleIngestService {
                                              UUID principalUserId,
                                              UUID principalKeycloakSub,
                                              InputStream encryptedBody) {
+        // Pre-decrypt Deployment-existence guard: per Security plan, refuse
+        // 409 BEFORE allocating RSA + StreamingAead. ux_deployment_owner_active
+        // is the structural source of truth; this is just the fail-fast
+        // signal so a returning caller doesn't pay the crypto cost.
+        Optional<Deployment> activeOwner = deployments.findActiveByOwner(principalKeycloakSub);
+        if (activeOwner.isPresent()) {
+            Deployment existing = activeOwner.get();
+            Map<String, Object> attrs = new HashMap<>();
+            attrs.put("existingDeploymentId", existing.getId() == null ? "" : existing.getId().toString());
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.DEPLOYMENT_EXISTS,
+                    "Caller already owns a non-terminal Deployment",
+                    attrs,
+                    null);
+        }
+
         Session session = entityManager.unwrap(Session.class);
-        // AtomicReference is the lambda-escape idiom — UnnecessaryAsync's
-        // "Did you mean a plain var" suggestion misses that the doWork lambda
-        // body must read effectively-final state from the enclosing scope.
+        // AtomicReference holds the lambda-escape result — Session.doWork's
+        // Work callback only rethrows; the outcome flows out via a captured
+        // ref. ErrorProne's UnnecessaryAsync flags this as if the field were
+        // for cross-thread atomicity; suppression documented at the method.
         AtomicReference<IngestOutcome> outcomeRef = new AtomicReference<>();
-        AtomicReference<BundleIngestException> failureRef = new AtomicReference<>();
-        AtomicReference<MigrationUpload> uploadRef = new AtomicReference<>();
-        AtomicReference<MigrationRun> runRef = new AtomicReference<>();
+        AtomicReference<UUID> runIdRef = new AtomicReference<>();
         try {
             session.doWork(connection -> {
                 applySingleTxnSettings(connection);
                 MigrationUpload upload = lockUpload(uploadId);
-                uploadRef.set(upload);
                 if (!upload.getUserId().equals(principalUserId)) {
                     throw new BundleIngestException(
                             BundleIngestErrorCode.BUNDLE_FORBIDDEN,
@@ -194,7 +219,7 @@ public class MigrationBundleIngestService {
 
                 MigrationRun run = MigrationRun.start(UuidCreator.getTimeOrderedEpoch(), uploadId, clock);
                 runs.save(run);
-                runRef.set(run);
+                runIdRef.set(run.getId());
 
                 audit.record(AuditAction.MIGRATION_INGEST_STARTED,
                         AuditedTarget.created(
@@ -211,32 +236,17 @@ public class MigrationBundleIngestService {
                 outcomeRef.set(outcome);
             });
         } catch (BundleIngestException e) {
-            failureRef.set(e);
+            failureRecorder.recordFailure(uploadId, runIdRef.get(), e.getErrorCode(), shortDetail(e));
+            throw e;
         } catch (RuntimeException unexpected) {
-            LOG.error("MigrationBundleIngest: unexpected failure", unexpected);
-            StringBuilder trace = new StringBuilder();
-            trace.append(unexpected.getClass().getSimpleName()).append(": ")
-                    .append(unexpected.getMessage());
-            StackTraceElement[] frames = unexpected.getStackTrace();
-            int framesToInclude = Math.min(frames.length, 6);
-            for (int i = 0; i < framesToInclude; i++) {
-                trace.append(" | ").append(frames[i].getClassName()).append('.')
-                        .append(frames[i].getMethodName()).append(':')
-                        .append(frames[i].getLineNumber());
-            }
-            failureRef.set(new BundleIngestException(
+            LOG.error("MigrationBundleIngest: unexpected failure for upload {}", uploadId, unexpected);
+            BundleIngestException wrapped = new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Unexpected failure inside ingest: " + trace,
-                    unexpected));
-        }
-        if (failureRef.get() != null) {
-            MigrationUpload upload = uploadRef.get();
-            MigrationRun run = runRef.get();
-            BundleIngestException failure = failureRef.get();
-            if (upload != null && run != null) {
-                applyFailure(upload, run, failure.getErrorCode(), shortDetail(failure));
-            }
-            throw failure;
+                    "Unexpected ingest failure",
+                    unexpected);
+            failureRecorder.recordFailure(uploadId, runIdRef.get(), wrapped.getErrorCode(),
+                    unexpected.getClass().getSimpleName());
+            throw wrapped;
         }
         IngestOutcome outcome = outcomeRef.get();
         if (outcome == null) {
@@ -244,6 +254,24 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest pipeline returned no outcome and no failure");
         }
+        // Post-commit audit + funnel emission: the outer @Transactional commits
+        // when this method returns normally. Spring's after-commit synchronisation
+        // hook fires the success-side events AFTER the rows + Deployment land,
+        // so an audit-write failure does NOT roll the ingest back.
+        UUID resolvedDeploymentId = outcome.deploymentId();
+        int resolvedClubCount = outcome.clubIds().size();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                audit.record(AuditAction.MIGRATION_INGEST_COMPLETED,
+                        AuditedTarget.created(
+                                MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
+                                uploadId,
+                                MigrationIngestAuditSnapshot.completed(
+                                        uploadId, resolvedDeploymentId, resolvedClubCount)));
+                telemetry.ingestCompleted(uploadId, resolvedClubCount, clock.instant());
+            }
+        });
         return outcome;
     }
 
@@ -262,6 +290,16 @@ public class MigrationBundleIngestService {
              TarArchiveInputStream tarStream = new TarArchiveInputStream(gzipStream)) {
 
             BundleManifest manifest = readManifestOrThrow(tarStream);
+            if (manifest.schemaVersion() != Manifest.CURRENT_SCHEMA_VERSION) {
+                throw new BundleIngestException(
+                        BundleIngestErrorCode.SCHEMA_VERSION_MISMATCH,
+                        "Bundle schemaVersion=" + manifest.schemaVersion()
+                                + " does not match server schemaVersion=" + Manifest.CURRENT_SCHEMA_VERSION);
+            }
+            // Constructor invokes the entity-policy allow-list validator on
+            // the bundle-module side (S-183 Manifest). Side-effect only —
+            // throws IllegalArgumentException on a violating tenantBypassFks
+            // entry.
             new Manifest(manifest.schemaVersion(), manifest.entityPolicies(), manifest.unmappedReason());
 
             run.transitionTo(MigrationRunState.PROVISIONING);
@@ -280,16 +318,7 @@ public class MigrationBundleIngestService {
             run.markCompleted(clock);
             runs.save(run);
 
-            UUID deploymentId = provisioned.deploymentId();
-            audit.record(AuditAction.MIGRATION_INGEST_COMPLETED,
-                    AuditedTarget.created(
-                            MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
-                            upload.getRawId(),
-                            MigrationIngestAuditSnapshot.completed(
-                                    upload.getRawId(), deploymentId, provisioned.clubIds().size())));
-            telemetry.ingestCompleted(upload.getRawId(), provisioned.clubIds().size(), clock.instant());
-
-            return new IngestOutcome(deploymentId, provisioned.clubIds(), provisioned.primaryClubId());
+            return new IngestOutcome(provisioned.deploymentId(), provisioned.clubIds(), provisioned.primaryClubId());
         } catch (IOException tarFailure) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
@@ -396,9 +425,17 @@ public class MigrationBundleIngestService {
             return JSON.readValue(tar, BundleManifest.class);
         } catch (IOException ioOrParse) {
             if (ioOrParse instanceof JsonProcessingException malformed) {
+                // Don't echo Jackson's originalMessage — a hostile bundle
+                // can stuff up to maxStringLength chars of attacker-chosen
+                // text inside the parser's failure detail. Surface only the
+                // parser location so the SPA can render a stable hint.
+                String location = malformed.getLocation() == null
+                        ? "(unknown)"
+                        : "line " + malformed.getLocation().getLineNr()
+                                + " col " + malformed.getLocation().getColumnNr();
                 throw new BundleIngestException(
                         BundleIngestErrorCode.MANIFEST_INVALID,
-                        "Manifest JSON failed to parse: " + malformed.getOriginalMessage(), malformed);
+                        "Manifest JSON failed to parse at " + location, malformed);
             }
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
@@ -588,45 +625,6 @@ public class MigrationBundleIngestService {
             stmt.execute("SET LOCAL lock_timeout = '30s'");
         } catch (SQLException e) {
             LOG.warn("ingest: failed to apply single-txn settings — proceeding with defaults", e);
-        }
-    }
-
-    /**
-     * Runs in a fresh transaction so the failure trail survives even when
-     * the caller's main txn rolls back. The upload row's
-     * {@code markFailed} wipes the private-key ciphertext; the run row
-     * carries the error code + redacted detail.
-     */
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public void applyFailure(MigrationUpload upload,
-                             MigrationRun run,
-                             BundleIngestErrorCode errorCode,
-                             String detail) {
-        try {
-            MigrationUpload reloaded = uploads.findById(upload.getRawId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Upload " + upload.getRawId() + " disappeared during failure handling"));
-            if (reloaded.getState() == MigrationUploadState.AWAITING_UPLOAD) {
-                reloaded.markFailed(clock);
-                uploads.save(reloaded);
-            }
-            MigrationRun reloadedRun = runs.findById(run.getId())
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Run " + run.getId() + " disappeared during failure handling"));
-            if (!reloadedRun.getState().isTerminal()) {
-                reloadedRun.markFailed(errorCode.name(), detail, clock);
-                runs.save(reloadedRun);
-            }
-            audit.record(AuditAction.MIGRATION_INGEST_FAILED,
-                    AuditedTarget.created(
-                            MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
-                            upload.getRawId(),
-                            MigrationIngestAuditSnapshot.failed(
-                                    upload.getRawId(), errorCode, "ingest")));
-            telemetry.ingestFailed(upload.getRawId(), errorCode, clock.instant());
-        } catch (RuntimeException secondaryFailure) {
-            LOG.error("Failed to record ingest failure for upload {} (errorCode={}); main rollback proceeds",
-                    upload.getRawId(), errorCode, secondaryFailure);
         }
     }
 

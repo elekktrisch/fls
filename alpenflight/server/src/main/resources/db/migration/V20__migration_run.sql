@@ -31,9 +31,11 @@ CREATE TABLE t_migration_run (
 -- Identity-bearing partial UNIQUE: at most one non-terminal run per upload.
 -- Catches double-POST race; the FOR UPDATE NOWAIT on t_migration_upload(id)
 -- inside the ingest txn is the second line of defense.
+-- State literals are UPPERCASE — @Enumerated(EnumType.STRING) on
+-- MigrationRunState writes MigrationRunState.name() (always uppercase).
 CREATE UNIQUE INDEX ux_migration_run_upload_active
     ON t_migration_run (upload_id)
-    WHERE state IN ('decrypting','provisioning','ingesting','completing');
+    WHERE state IN ('DECRYPTING','PROVISIONING','INGESTING','COMPLETING');
 
 -- Status-poll lookup walks (upload_id, started_at desc) to return the most
 -- recent run for a given upload. PK + this index cover both the polling
