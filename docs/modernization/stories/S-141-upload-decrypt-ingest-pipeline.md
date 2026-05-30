@@ -2,7 +2,8 @@
 id: S-141
 title: Encrypted-bundle upload + streaming decrypt + ingest pipeline
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-05-30
 depends_on: [S-016, S-138, S-140, S-183]
 integration_base: integration/migration
 acceptance:
