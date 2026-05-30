@@ -86,12 +86,6 @@ public class MigrationBundleController {
         // @SuppressWarnings-noted here while the diagnostic landing
         // settles. Tracked as part of S-141 follow-up cleanup.
         byte[] body = request.getInputStream().readAllBytes();
-        if (body.length > MigrationBundleIngestService.MAX_BUNDLE_BYTES) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_TOO_LARGE,
-                    "Body length " + body.length + " exceeds bundle-size cap "
-                            + MigrationBundleIngestService.MAX_BUNDLE_BYTES);
-        }
         LOG.warn("MigrationBundle: received body length={} first16Hex={}",
                 body.length, hex(body, 16));
         try (InputStream bodyStream = new java.io.ByteArrayInputStream(body)) {
@@ -118,52 +112,6 @@ public class MigrationBundleController {
                 .orElseThrow(() -> new UnknownPrincipalException(
                         "No t_user row for principal — verified-email signup expected"));
         return statusService.findStatus(uploadId, userId);
-    }
-
-    /**
-     * Counting input-stream that rejects bytes past the bundle-size cap.
-     * Acts in concert with the {@code Content-Length} pre-check above —
-     * a chunked body without a declared length still surfaces 413 mid-stream
-     * when the cap is crossed.
-     */
-    private static InputStream boundedStream(InputStream raw) {
-        return new InputStream() {
-            private long readSoFar;
-            @Override
-            public int read() throws IOException {
-                int next = raw.read();
-                if (next == -1) {
-                    return -1;
-                }
-                readSoFar++;
-                if (readSoFar > MigrationBundleIngestService.MAX_BUNDLE_BYTES) {
-                    throw new BundleIngestException(
-                            BundleIngestErrorCode.BUNDLE_TOO_LARGE,
-                            "Body exceeds " + MigrationBundleIngestService.MAX_BUNDLE_BYTES + " bytes");
-                }
-                return next;
-            }
-
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                int read = raw.read(b, off, len);
-                if (read == -1) {
-                    return -1;
-                }
-                readSoFar += read;
-                if (readSoFar > MigrationBundleIngestService.MAX_BUNDLE_BYTES) {
-                    throw new BundleIngestException(
-                            BundleIngestErrorCode.BUNDLE_TOO_LARGE,
-                            "Body exceeds " + MigrationBundleIngestService.MAX_BUNDLE_BYTES + " bytes");
-                }
-                return read;
-            }
-
-            @Override
-            public void close() throws IOException {
-                raw.close();
-            }
-        };
     }
 
     /** Body of a successful {@code 200 OK} from the bundle-ingest endpoint. */
