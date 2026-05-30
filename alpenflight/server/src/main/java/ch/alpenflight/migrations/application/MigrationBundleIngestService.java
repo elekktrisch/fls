@@ -62,9 +62,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * S-141 streaming decrypt + ingest pipeline. Reads the encrypted ALPF
@@ -117,6 +118,7 @@ public class MigrationBundleIngestService {
     private final AuditTrail audit;
     private final MigrationFailureRecorder failureRecorder;
     private final EntityManager entityManager;
+    private final TransactionTemplate txTemplate;
     private final Clock clock;
 
     public MigrationBundleIngestService(MigrationUploadRepository uploads,
@@ -129,6 +131,7 @@ public class MigrationBundleIngestService {
                                         AuditTrail audit,
                                         MigrationFailureRecorder failureRecorder,
                                         EntityManager entityManager,
+                                        PlatformTransactionManager txManager,
                                         Clock clock) {
         this.uploads = uploads;
         this.runs = runs;
@@ -140,19 +143,31 @@ public class MigrationBundleIngestService {
         this.audit = audit;
         this.failureRecorder = failureRecorder;
         this.entityManager = entityManager;
+        this.txTemplate = new TransactionTemplate(txManager);
         this.clock = clock;
     }
 
     /**
-     * Top-level orchestration. Acquires the global ingest gate then drives
-     * the transactional pipeline. On any failure, the run row is flipped
-     * to {@code FAILED} + the upload row to {@code FAILED} in a separate
-     * transaction so the failure trail survives even when the main txn
-     * rolls back.
+     * Top-level orchestration. Acquires the global ingest gate, opens the
+     * ingest transaction via {@link TransactionTemplate}, and — only after
+     * the transaction has fully rolled back — flips the {@code MigrationRun}
+     * and {@code MigrationUpload} rows to {@code FAILED} via the
+     * {@link MigrationFailureRecorder}'s {@code REQUIRES_NEW} writer.
+     *
+     * <p>Why not {@code @Transactional} on this method:
+     * {@code @Transactional} would keep the outer connection's row locks
+     * alive across the {@code recordFailure} call. {@code recordFailure}
+     * runs in {@code REQUIRES_NEW} and would try to UPDATE the same
+     * upload row the suspended outer txn already locked with
+     * {@code PESSIMISTIC_WRITE} — a Postgres-invisible Spring deadlock
+     * that hung CI for 20 min before the lock_timeout default kicked in
+     * (it never did, because {@code SET LOCAL lock_timeout = '30s'} only
+     * applied to the outer connection, not the {@code REQUIRES_NEW}
+     * connection). Using {@code TransactionTemplate.execute} guarantees the
+     * txn has committed-or-rolled-back before we hand to the recorder.
      *
      * @return the {@link IngestOutcome} with the new Deployment + Clubs.
      */
-    @Transactional
     @SuppressWarnings("UnnecessaryAsync")
     public IngestOutcome ingest(UUID uploadId,
                                 UUID principalUserId,
@@ -169,48 +184,66 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.DATABASE_CAPACITY_EXCEEDED,
                     "Another ingest is in flight; retry once the global semaphore frees");
         }
+        // runIdRef escapes the txTemplate lambda so the post-rollback
+        // failure recorder can stamp the run row when the ingest aborted
+        // after the MigrationRun was already persisted.
+        AtomicReference<UUID> runIdRef = new AtomicReference<>();
         try {
-            telemetry.ingestStarted(uploadId, clock.instant());
-            return ingestInsideTransaction(uploadId, principalUserId, principalKeycloakSub, encryptedBody);
+            return runInsideTransaction(uploadId, principalUserId, principalKeycloakSub,
+                    encryptedBody, runIdRef);
+        } catch (BundleIngestException e) {
+            // txTemplate.execute already rolled back; locks released. Safe
+            // to call recordFailure (REQUIRES_NEW) without deadlocking on
+            // the upload row.
+            failureRecorder.recordFailure(uploadId, runIdRef.get(), e.getErrorCode(), shortDetail(e));
+            throw e;
+        } catch (RuntimeException unexpected) {
+            LOG.error("MigrationBundleIngest: unexpected failure for upload {}", uploadId, unexpected);
+            BundleIngestException wrapped = new BundleIngestException(
+                    BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
+                    "Unexpected ingest failure: " + unexpected.getClass().getSimpleName()
+                            + ": " + unexpected.getMessage(),
+                    unexpected);
+            failureRecorder.recordFailure(uploadId, runIdRef.get(), wrapped.getErrorCode(),
+                    unexpected.getClass().getSimpleName());
+            throw wrapped;
         } finally {
             INGEST_GATE.release();
         }
     }
 
     /**
-     * The body of {@link #ingest}: lives in a separate method so its name
-     * documents that everything below runs inside the @Transactional
-     * boundary opened by {@code ingest}. Visibility is package-private so
-     * a future test can drive it directly without re-acquiring the gate.
+     * Opens the single-txn ingest pipeline inside a {@link TransactionTemplate}.
+     * Returns the outcome on success; throws on failure — the caller
+     * ({@link #ingest}) translates the failure into a {@code recordFailure}
+     * call after the txn has rolled back.
      */
-    IngestOutcome ingestInsideTransaction(UUID uploadId,
-                                          UUID principalUserId,
-                                          UUID principalKeycloakSub,
-                                          InputStream encryptedBody) {
-        // Pre-decrypt Deployment-existence guard: per Security plan, refuse
-        // 409 BEFORE allocating RSA + StreamingAead. ux_deployment_owner_active
-        // is the structural source of truth; this is just the fail-fast
-        // signal so a returning caller doesn't pay the crypto cost.
-        Optional<Deployment> activeOwner = deployments.findActiveByOwner(principalKeycloakSub);
-        if (activeOwner.isPresent()) {
-            Deployment existing = activeOwner.get();
-            Map<String, Object> attrs = new HashMap<>();
-            attrs.put("existingDeploymentId", existing.getId() == null ? "" : existing.getId().toString());
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.DEPLOYMENT_EXISTS,
-                    "Caller already owns a non-terminal Deployment",
-                    attrs,
-                    null);
-        }
+    private IngestOutcome runInsideTransaction(UUID uploadId,
+                                               UUID principalUserId,
+                                               UUID principalKeycloakSub,
+                                               InputStream encryptedBody,
+                                               AtomicReference<UUID> runIdRef) {
+        telemetry.ingestStarted(uploadId, clock.instant());
+        IngestOutcome result = txTemplate.execute(status -> {
+            // Pre-decrypt Deployment-existence guard: per Security plan, refuse
+            // 409 BEFORE allocating RSA + StreamingAead. ux_deployment_owner_active
+            // is the structural source of truth; this is just the fail-fast
+            // signal so a returning caller doesn't pay the crypto cost.
+            Optional<Deployment> activeOwner = deployments.findActiveByOwner(principalKeycloakSub);
+            if (activeOwner.isPresent()) {
+                Deployment existing = activeOwner.get();
+                Map<String, Object> attrs = new HashMap<>();
+                attrs.put("existingDeploymentId",
+                        existing.getId() == null ? "" : existing.getId().toString());
+                throw new BundleIngestException(
+                        BundleIngestErrorCode.DEPLOYMENT_EXISTS,
+                        "Caller already owns a non-terminal Deployment",
+                        attrs,
+                        null);
+            }
 
-        Session session = entityManager.unwrap(Session.class);
-        // AtomicReference holds the lambda-escape result — Session.doWork's
-        // Work callback only rethrows; the outcome flows out via a captured
-        // ref. ErrorProne's UnnecessaryAsync flags this as if the field were
-        // for cross-thread atomicity; suppression documented at the method.
-        AtomicReference<IngestOutcome> outcomeRef = new AtomicReference<>();
-        AtomicReference<UUID> runIdRef = new AtomicReference<>();
-        try {
+            Session session = entityManager.unwrap(Session.class);
+            AtomicReference<IngestOutcome> outcomeRef = new AtomicReference<>();
             session.doWork(connection -> {
                 applySingleTxnSettings(connection);
                 MigrationUpload upload = lockUpload(uploadId);
@@ -241,45 +274,42 @@ public class MigrationBundleIngestService {
                                 encryptedBody, rsaPrivateKey));
                 outcomeRef.set(outcome);
             });
-        } catch (BundleIngestException e) {
-            failureRecorder.recordFailure(uploadId, runIdRef.get(), e.getErrorCode(), shortDetail(e));
-            throw e;
-        } catch (RuntimeException unexpected) {
-            LOG.error("MigrationBundleIngest: unexpected failure for upload {}", uploadId, unexpected);
-            BundleIngestException wrapped = new BundleIngestException(
-                    BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Unexpected ingest failure: " + unexpected.getClass().getSimpleName()
-                            + ": " + unexpected.getMessage(),
-                    unexpected);
-            failureRecorder.recordFailure(uploadId, runIdRef.get(), wrapped.getErrorCode(),
-                    unexpected.getClass().getSimpleName());
-            throw wrapped;
-        }
-        IngestOutcome outcome = outcomeRef.get();
-        if (outcome == null) {
+
+            IngestOutcome outcome = outcomeRef.get();
+            if (outcome == null) {
+                throw new BundleIngestException(
+                        BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
+                        "Ingest pipeline returned no outcome and no failure");
+            }
+            // Post-commit audit + funnel emission: TransactionTemplate.execute
+            // commits this lambda's outcome on normal return. The after-commit
+            // hook fires AFTER the rows + Deployment land, so an audit-write
+            // failure does NOT roll the ingest back.
+            UUID resolvedDeploymentId = outcome.deploymentId();
+            int resolvedClubCount = outcome.clubIds().size();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    audit.record(AuditAction.MIGRATION_INGEST_COMPLETED,
+                            AuditedTarget.created(
+                                    MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
+                                    uploadId,
+                                    MigrationIngestAuditSnapshot.completed(
+                                            uploadId, resolvedDeploymentId, resolvedClubCount)));
+                    telemetry.ingestCompleted(uploadId, resolvedClubCount, clock.instant());
+                }
+            });
+            return outcome;
+        });
+        // TransactionTemplate.execute may return null only if the callback
+        // returns null, which it cannot here — the throw-path is the only
+        // null-out. Surface the impossible-null defensively.
+        if (result == null) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest pipeline returned no outcome and no failure");
         }
-        // Post-commit audit + funnel emission: the outer @Transactional commits
-        // when this method returns normally. Spring's after-commit synchronisation
-        // hook fires the success-side events AFTER the rows + Deployment land,
-        // so an audit-write failure does NOT roll the ingest back.
-        UUID resolvedDeploymentId = outcome.deploymentId();
-        int resolvedClubCount = outcome.clubIds().size();
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                audit.record(AuditAction.MIGRATION_INGEST_COMPLETED,
-                        AuditedTarget.created(
-                                MigrationIngestAuditSnapshot.AUDIT_ENTITY_TYPE,
-                                uploadId,
-                                MigrationIngestAuditSnapshot.completed(
-                                        uploadId, resolvedDeploymentId, resolvedClubCount)));
-                telemetry.ingestCompleted(uploadId, resolvedClubCount, clock.instant());
-            }
-        });
-        return outcome;
+        return result;
     }
 
     private IngestOutcome drainDecryptedBody(Connection connection,
