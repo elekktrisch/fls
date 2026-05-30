@@ -2,7 +2,8 @@
 id: S-187
 title: Migration-bundle — parity oracle harness + LegacyFixtureSeeder + MapperVsSchemaCompatibilityTest
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-30
 depends_on: [S-183, S-184, S-185, S-186]
 integration_base: integration/migration
 origin: scope-split
