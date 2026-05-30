@@ -141,9 +141,13 @@ public class MigrationBundleIngestService {
      *
      * @return the {@link IngestOutcome} with the new Deployment + Clubs.
      */
-    public IngestOutcome ingest(UUID uploadId, UUID principalUserId, InputStream encryptedBody) {
+    public IngestOutcome ingest(UUID uploadId,
+                                UUID principalUserId,
+                                UUID principalKeycloakSub,
+                                InputStream encryptedBody) {
         Objects.requireNonNull(uploadId, "uploadId");
         Objects.requireNonNull(principalUserId, "principalUserId");
+        Objects.requireNonNull(principalKeycloakSub, "principalKeycloakSub");
         Objects.requireNonNull(encryptedBody, "encryptedBody");
         telemetry.uploadStarted(uploadId, clock.instant());
 
@@ -154,7 +158,7 @@ public class MigrationBundleIngestService {
         }
         try {
             telemetry.ingestStarted(uploadId, clock.instant());
-            return ingestInTransaction(uploadId, principalUserId, encryptedBody);
+            return ingestInTransaction(uploadId, principalUserId, principalKeycloakSub, encryptedBody);
         } finally {
             INGEST_GATE.release();
         }
@@ -164,6 +168,7 @@ public class MigrationBundleIngestService {
     @SuppressWarnings("UnnecessaryAsync")
     public IngestOutcome ingestInTransaction(UUID uploadId,
                                              UUID principalUserId,
+                                             UUID principalKeycloakSub,
                                              InputStream encryptedBody) {
         Session session = entityManager.unwrap(Session.class);
         // AtomicReference is the lambda-escape idiom — UnnecessaryAsync's
@@ -201,7 +206,8 @@ public class MigrationBundleIngestService {
                         "AWAITING_UPLOAD row must carry a wrapped private key");
                 BundleHeader header = readHeader(encryptedBody);
                 IngestOutcome outcome = crypto.unwrapInto(uploadId, wrappedPrivateKey, rsaPrivateKey ->
-                        drainDecryptedBody(connection, upload, run, header, encryptedBody, rsaPrivateKey));
+                        drainDecryptedBody(connection, upload, principalKeycloakSub, run, header,
+                                encryptedBody, rsaPrivateKey));
                 outcomeRef.set(outcome);
             });
         } catch (BundleIngestException e) {
@@ -243,6 +249,7 @@ public class MigrationBundleIngestService {
 
     private IngestOutcome drainDecryptedBody(Connection connection,
                                              MigrationUpload upload,
+                                             UUID principalKeycloakSub,
                                              MigrationRun run,
                                              BundleHeader header,
                                              InputStream encryptedBody,
@@ -258,7 +265,7 @@ public class MigrationBundleIngestService {
             new Manifest(manifest.schemaVersion(), manifest.entityPolicies(), manifest.unmappedReason());
 
             run.transitionTo(MigrationRunState.PROVISIONING);
-            ProvisioningResult provisioned = provisionDeployment(upload, manifest);
+            ProvisioningResult provisioned = provisionDeployment(upload, principalKeycloakSub, manifest);
             run.attachDeployment(provisioned.deploymentId());
 
             createTemporaryIdMapTables(connection);
@@ -403,7 +410,9 @@ public class MigrationBundleIngestService {
         }
     }
 
-    private ProvisioningResult provisionDeployment(MigrationUpload upload, BundleManifest manifest) {
+    private ProvisioningResult provisionDeployment(MigrationUpload upload,
+                                                   UUID principalKeycloakSub,
+                                                   BundleManifest manifest) {
         List<ClubSpec> specs = new ArrayList<>(manifest.clubs().size());
         for (BundleManifest.ClubDeclaration club : manifest.clubs()) {
             specs.add(new ClubSpec(club.name(), club.slug(), club.clubKey(),
@@ -411,7 +420,7 @@ public class MigrationBundleIngestService {
         }
         ProvisioningRequest request = new ProvisioningRequest(
                 upload.getRawId(),
-                upload.getUserId(),
+                principalKeycloakSub,
                 manifest.deploymentName(),
                 specs,
                 manifest.primaryClubId());
