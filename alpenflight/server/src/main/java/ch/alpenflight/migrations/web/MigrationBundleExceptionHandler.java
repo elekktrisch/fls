@@ -33,6 +33,9 @@ class MigrationBundleExceptionHandler {
                 && e.getErrorCode() != BundleIngestErrorCode.INGEST_INTERNAL_ERROR) {
             LOG.error("MigrationBundle: missing status mapping for errorCode={}; defaulting to 500",
                     e.getErrorCode(), e);
+        } else {
+            LOG.info("MigrationBundle: surfacing errorCode={} status={} message={}",
+                    e.getErrorCode(), status, e.getMessage(), e);
         }
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, e.getMessage());
         pd.setTitle("Migration bundle ingest");

@@ -24,7 +24,7 @@ import com.tngtech.archunit.lang.ArchRule;
  * on the decrypted-bundle hot path.
  */
 @AnalyzeClasses(
-        packagesOf = MigrationIngestNoDiskSinkTest.class,
+        packages = "ch.alpenflight",
         importOptions = {ImportOption.DoNotIncludeTests.class, ImportOption.DoNotIncludeJars.class})
 class MigrationIngestNoDiskSinkTest {
 

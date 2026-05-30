@@ -50,6 +50,14 @@ dependencies {
     // ships with the JDK (java.sql.*) — no JDBC dependency required at api.
     api("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
+    // S-141: Spring Modulith API (annotations only) so this module's
+    // package-info can declare itself an OPEN ApplicationModule —
+    // server-side bundle-ingest code reaches into Mapper / EntityType /
+    // EntityPolicy / Manifest, which would otherwise trip the
+    // ApplicationModulesTest non-exposed-type rule. Compile-only: no
+    // runtime auto-config is needed in this library jar.
+    compileOnly("org.springframework.modulith:spring-modulith-api:2.0.4")
+
     testImplementation(platform("org.junit:junit-bom:5.11.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
