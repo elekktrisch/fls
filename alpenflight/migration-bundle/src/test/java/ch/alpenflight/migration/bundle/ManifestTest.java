@@ -107,6 +107,36 @@ class ManifestTest {
     }
 
     @Test
+    void acceptsTenantBypassFksOnTheAllowListedAccountingAndAuditEntities() {
+        EntityPolicy reservationBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("aircraft_id", "pilot_person_id", "second_crew_person_id"),
+                List.of("id"));
+        EntityPolicy planningAssignmentBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("assigned_person_id"),
+                List.of("id"));
+        EntityPolicy deliveryBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("recipient_person_id"),
+                List.of("id"));
+        EntityPolicy auditBypass = new EntityPolicy(
+                EntityPolicy.PortPolicy.FULL_PORT,
+                EntityPolicy.TombstonePolicy.PORT_ALL,
+                Set.of("actor_user_id"),
+                List.of("id"));
+        Map<EntityType, EntityPolicy> policies = allFullPort();
+        policies.put(EntityType.AIRCRAFT_RESERVATION, reservationBypass);
+        policies.put(EntityType.PLANNING_DAY_ASSIGNMENT, planningAssignmentBypass);
+        policies.put(EntityType.DELIVERY, deliveryBypass);
+        policies.put(EntityType.AUDIT_LOG, auditBypass);
+        assertThat(new Manifest(1, policies, Map.of())).isNotNull();
+    }
+
+    @Test
     void rejectsTenantBypassFksOnLocationEvenInFlightGroup() {
         EntityPolicy withBypass = new EntityPolicy(
                 EntityPolicy.PortPolicy.FULL_PORT,
