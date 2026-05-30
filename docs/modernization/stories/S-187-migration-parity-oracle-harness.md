@@ -12,6 +12,7 @@ refined_at: 2026-05-30
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer, performance-engineer]
 context7_last_checked: 2026-05-30
 github_issue: 175
+github_pr: 176
 acceptance:
   - **Parity oracle harness.** Testcontainers MSSQL 2022 (per-class reuse) seeded by `LegacyFixtureSeeder` (Faker-only, deterministic seed) + Testcontainers Postgres 17. Round-trip via in-process call to the producer side of every mapper → in-memory `tar.gz` → consumer side → diff. Reports under `build/reports/parity/<run-id>/{summary.json, report.md, deltas/*.json}`. Asserts `summary.json.passed && totalDeltas==0 && fkOrphans==0`. Gated `@Tag("parity")`, excluded from `./gradlew test`.
   - **Row-count diff** exact per (Club, table). **FK-integrity** via reflective walk of Hibernate-declared FKs; orphan count must be zero. **Sampled-value** 1% sample (`TABLESAMPLE BERNOULLI(1) REPEATABLE(<seed>)`); zero tolerance on sentinel columns (every FK + status enum + monetary + timestamp + generated column). `@ParitySentinel` / `@ParityIgnore` annotations (from S-183) opt columns in/out.
