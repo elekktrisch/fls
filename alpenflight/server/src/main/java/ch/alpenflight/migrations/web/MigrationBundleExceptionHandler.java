@@ -34,7 +34,7 @@ class MigrationBundleExceptionHandler {
             LOG.error("MigrationBundle: missing status mapping for errorCode={}; defaulting to 500",
                     e.getErrorCode(), e);
         } else {
-            LOG.info("MigrationBundle: surfacing errorCode={} status={} message={}",
+            LOG.warn("MigrationBundle: surfacing errorCode={} status={} message={}",
                     e.getErrorCode(), status, e.getMessage(), e);
         }
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(status, e.getMessage());

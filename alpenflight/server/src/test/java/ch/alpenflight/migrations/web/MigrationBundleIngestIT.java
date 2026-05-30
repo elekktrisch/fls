@@ -110,7 +110,9 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 String.class);
 
         // 4. Response carries the new Deployment + Club.
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(res.getStatusCode())
+                .as("Bundle ingest returned non-200; body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
         JsonNode body = JSON.readTree(res.getBody());
         assertThat(body.has("deploymentId")).isTrue();
         assertThat(body.has("clubIds")).isTrue();
