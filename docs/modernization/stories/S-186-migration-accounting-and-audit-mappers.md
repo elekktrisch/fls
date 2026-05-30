@@ -11,6 +11,7 @@ refined: true
 refined_at: 2026-05-30
 refined_specialists: [requirements-engineer, solution-architect, qa-engineer, security-engineer]
 github_issue: 173
+github_pr: 174
 acceptance:
   - All `EntityType` members in `Group.ACCOUNTING` ship a concrete `Mapper` under `ch.alpenflight.migration.bundle.accounting.*` — `AircraftReservation`, `PlanningDay`, `PlanningDayAssignment`, `Article`, `AccountingRuleFilter`, `Delivery`, `DeliveryItem`.
   - `AUDIT_LOG` ships under `ch.alpenflight.migration.bundle.identity.AuditLogMapper`. Produces rows with `actor_kind='LEGACY_MIGRATED'` + `legacy_actor_user_id` text + NULL `actor_keycloak_sub`. Orphan actor refs → synthetic `legacy_orphan_actor_id` UUID v7 (bundle-local cache, one UUID per distinct legacy-actor string) + warning into `migration_run.warnings`. NULL actor stays NULL.
