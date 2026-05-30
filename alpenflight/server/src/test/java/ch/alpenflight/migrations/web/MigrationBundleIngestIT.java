@@ -63,8 +63,10 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         // Per-test unique Club key + slug — t_club.club_key + t_club.slug
         // are globally UNIQUE. Two MigrationBundleIngestIT methods running
         // back-to-back in the same JVM would collide on a hardcoded literal.
-        String tag = userSub.toString().substring(0, 8);
-        testClubKey = "ACIT-" + tag;
+        // Club.key cap is 10 chars; use the leading 5 hex chars of userSub
+        // to keep `IT-<5hex>` inside the cap.
+        String tag = userSub.toString().substring(0, 5);
+        testClubKey = "IT-" + tag;
         testClubSlug = "aero-it-" + tag;
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
