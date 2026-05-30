@@ -2,7 +2,8 @@
 id: S-141b
 title: Bundle ingest — parity round-trip + negative-path ITs + perf + multi-Club fidelity
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-05-30
 depends_on: [S-141]
 integration_base: integration/migration
 origin: implementation-followup
