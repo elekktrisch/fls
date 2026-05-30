@@ -53,11 +53,19 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
     private UUID userId;
     private UUID userSub;
     private String verifiedToken;
+    private String testClubKey;
+    private String testClubSlug;
 
     @BeforeEach
     void seedUser() {
         userSub = UUID.randomUUID();
         userId = UUID.randomUUID();
+        // Per-test unique Club key + slug — t_club.club_key + t_club.slug
+        // are globally UNIQUE. Two MigrationBundleIngestIT methods running
+        // back-to-back in the same JVM would collide on a hardcoded literal.
+        String tag = userSub.toString().substring(0, 8);
+        testClubKey = "ACIT-" + tag;
+        testClubSlug = "aero-it-" + tag;
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
@@ -96,8 +104,8 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         // 2. Build an encrypted bundle: manifest declares 1 Club, no NDJSON entries.
         UUID legacyClubId = UUID.randomUUID();
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
-                legacyClubId, "Aero Club IT", "aero-it",
-                "ACIT", false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+                legacyClubId, "Aero Club IT", testClubSlug,
+                testClubKey, false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
         byte[] bundle = MigrationBundleTestFactory.buildWalkingSkeletonBundle(
                 cipher, uploadId, publicKeyDer, "Aero Club IT Deployment", club);
 
@@ -176,8 +184,8 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 .claim("email_verified", true));
 
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
-                UUID.randomUUID(), "Aero Club IT", "aero-it",
-                "ACIT", false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+                UUID.randomUUID(), "Aero Club IT", testClubSlug,
+                testClubKey, false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
         byte[] bundle = MigrationBundleTestFactory.buildWalkingSkeletonBundle(
                 cipher, uploadId, publicKeyDer, "Aero Club IT Deployment", club);
 
@@ -205,8 +213,8 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
 
         BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
-                UUID.randomUUID(), "Aero Club IT", "aero-it",
-                "ACIT", false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+                UUID.randomUUID(), "Aero Club IT", testClubSlug,
+                testClubKey, false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
         byte[] bundle = MigrationBundleTestFactory.buildWalkingSkeletonBundle(
                 cipher, uploadId, publicKeyDer, "Aero Club IT Deployment", club);
         rest.exchange(
