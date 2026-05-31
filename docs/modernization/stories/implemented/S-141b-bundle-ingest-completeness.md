@@ -25,6 +25,8 @@ refined_at: 2026-05-30
 refined_specialists: [requirements, solution, qa, security, performance]
 github_issue: 177
 github_pr: 178
+merged: true
+merged_at: 2026-05-31
 ---
 
 ## Context
