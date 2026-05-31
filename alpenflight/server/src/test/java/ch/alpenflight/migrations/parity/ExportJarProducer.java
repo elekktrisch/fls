@@ -13,15 +13,15 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Spawns the real {@code migration-tool} export jar (S-139) as a subprocess so
- * the parity IT exercises the production producer codepath end-to-end. The
- * subprocess reads the legacy database, writes the encrypted ALPF bundle, and
- * exits; this class never decrypts — the real ingest pipeline does.
+ * the parity IT exercises the production producer codepath; this class never
+ * decrypts — the real ingest pipeline does. Failure modes and their mapping
+ * live on {@link #produce} and {@link ExportJarProcessException}.
  *
- * <p>Three failure modes map to {@link ExportJarProcessException} (AC4): a
- * non-zero exit, a {@code waitFor} timeout (the child is {@code destroyForcibly}
- * killed so a hung JDBC connect can't drain the walltime budget), and a
- * zero-exit-but-empty bundle. stderr is drained on a separate thread so a full
- * pipe can't deadlock the child.
+ * <p>Two non-obvious invariants: the child's stderr is drained on a separate
+ * thread and its stdout is discarded (a full pipe on either stream would
+ * otherwise deadlock the child past {@code waitFor}), and a timed-out child is
+ * {@code destroyForcibly} killed so a hung JDBC connect fails attributably
+ * instead of draining the walltime budget.
  */
 public final class ExportJarProducer {
 
@@ -30,6 +30,12 @@ public final class ExportJarProducer {
      * through this environment variable, never argv — argv leaks to {@code ps}.
      */
     static final String DB_PASSWORD_ENV = "ALPF_DB_PASSWORD";
+
+    /** {@link ExportJarProcessException#exitCode()} when the child was killed on timeout. */
+    static final int NO_EXIT_VALUE = -1;
+
+    /** Grace for the stderr-drain thread to finish after the child exits / is killed. */
+    private static final Duration STDERR_DRAIN_GRACE = Duration.ofSeconds(5);
 
     private final Duration timeout;
 
@@ -55,10 +61,17 @@ public final class ExportJarProducer {
      * Runs {@code command} with {@code dbPassword} in the environment, returning
      * {@code expectedOutput} once the process exits zero and the file is
      * non-empty. Throws {@link ExportJarProcessException} on any failure mode.
+     * {@code expectedOutput} must be the same path the command's {@code --output}
+     * names — the caller keeps them in sync (the IT composes both from one path).
      */
     public Path produce(List<String> command, String dbPassword, Path expectedOutput)
             throws IOException, InterruptedException {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
+        // Discard the child's stdout (jar status lines) so it can never fill the
+        // pipe buffer and wedge the process; stderr is drained below for failures.
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+        // Inherits the parent environment by design (PATH etc.); the password
+        // rides DB_PASSWORD_ENV, never argv.
         processBuilder.environment().put(DB_PASSWORD_ENV, dbPassword);
         Process process = processBuilder.start();
         // No password on stdin — it rides the env var. Close stdin so a child
@@ -71,12 +84,15 @@ public final class ExportJarProducer {
         boolean exited = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!exited) {
             process.destroyForcibly().waitFor();
-            stderrDrain.join();
+            stderrDrain.join(STDERR_DRAIN_GRACE.toMillis());
             throw new ExportJarProcessException(
-                    "producer process timed out after " + timeout, -1, stderr.toString());
+                    "producer process timed out after " + timeout, NO_EXIT_VALUE,
+                    stderr.toString());
         }
-        stderrDrain.join();
+        stderrDrain.join(STDERR_DRAIN_GRACE.toMillis());
 
+        // Any non-zero exit is a producer failure (stricter than the AC's
+        // "exit≠0 AND stderr non-empty" — an exit code alone is dispositive).
         int exitCode = process.exitValue();
         if (exitCode != 0) {
             throw new ExportJarProcessException(
