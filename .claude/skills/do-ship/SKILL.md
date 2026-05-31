@@ -67,8 +67,7 @@ detail). Then write an ordered `## Tasks` checklist into the journey file —
    flow steps with thin assertions (commits the screen shape).
 2. **Vertical work-packages.** Migration → backend slice → frontend slice, split
    into tasks a fresh worker can each finish cleanly (one entity, one endpoint
-   cluster, one component). Keep each task small enough that a clean context can
-   hold all it needs.
+   cluster, one component) — sized per the gate below.
 3. **Proof-chain contribution.** This entity's legacy seed + per-entity mapper.
 4. **Final task — thicken spec** to full real assertions from the oracle.
 
@@ -77,8 +76,8 @@ Each `T-NN` should pass all of:
 - **One seam** — exactly one of: one aggregate (+repo), one resource's endpoint
   cluster, one component/route, one migration, one spec edit. *'The domain layer'
   is not a task; 'the Booking aggregate' is.*
-- **≤ ~8 files touched, ≤ ~5 new**, one **logical change** (may be a few
-  work-package commits) describable without 'and', **≤ ~3 tests at one layer**.
+- **≤8 files touched, ≤5 new**, one **logical change** (may be a few
+  work-package commits) describable without 'and', **≤3 tests at one layer**.
 - **Self-naming** — the scope line names the files (or ≤2 globs find them). If
   finding them needs exploration, carve finer.
 
@@ -120,14 +119,17 @@ partial work is on the branch. When it does — or when you spot a task that fai
 sizing gate — **re-plan without the operator** (once):
 
 1. Read the worker's `OVERFLOW:` note (it names the seams).
-2. In the journey file, mark the task `~~T-NN~~ (superseded by T-NNa/T-NNb)` and
-   insert the split sub-tasks `T-NNa, T-NNb, …` right after it — each passing the
-   sizing gate, in dependency order.
+2. In the journey file, mark the task `~~T-NN~~ (split)` and insert lettered
+   sub-tasks `T-NNa, T-NNb, …` right after it, one seam each, in dependency order.
+   **Re-run the sizing gate on each proposed sub-task** before accepting it — the
+   worker that mis-sized once may propose slices that are themselves too big; carve
+   finer if so.
 3. Re-dispatch a fresh worker for `T-NNa`; continue the loop.
 
-**Loop guard:** a task may be auto-split **once**. If a sub-task itself overflows,
-do **not** split again — stop and escalate (the journey shape is wrong; a `/do-plan`
-re-carve is likely). Never re-dispatch the same `T-NN` unchanged.
+**Loop guard (generation-based).** Only an un-lettered `T-NN` may be auto-split.
+If a *lettered* sub-task (`T-NNa`) itself returns overflow, do **not** split again
+— stop and escalate (the journey shape is wrong; a `/do-plan` re-carve is likely).
+Never re-dispatch the same id unchanged.
 
 ### 4 — Proof-chain gate
 

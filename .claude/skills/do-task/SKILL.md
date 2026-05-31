@@ -46,16 +46,18 @@ behavior oracle is in hand, dispatch `legacy-oracle` for just this task's
 behavior. For libraries (Angular/Spring/Playwright/NgRx), fetch current docs via
 Context7. Confirm the working tree is on `integration/J-NNN`.
 
-**Overflow tripwire (now, before writing any test or commit).** Sanity-check the
-task against the sizing gate: does it resolve to **one seam** (one aggregate / one
-component / one resource's endpoints / one migration / one spec edit), nameable
-files, one logical change? If loading reveals it spans multiple aggregates /
-components / layers (e.g. the spec scope names 3 entities, or 'the service' is
-really 5 endpoints), **stop before writing code** — append an `OVERFLOW: <task spans
-seams X, Y, Z — suggest T-NNa=X, T-NNb=Y…>` note under the task line in the journey
-file, return `status: overflow` with that note, and **do not start**. Fire this in
-your first 2–3 reads and before any commit — a half-built oversize task is the
-expensive case the manager re-plans around (`/do-ship` § 3a).
+**Overflow tripwire (now, before writing any test or commit).** Check the task
+against the same caps `/do-ship` dispatched on: **one seam** (one aggregate / one
+component / one resource's endpoints / one migration / one spec edit), **≤8 files
+touched, ≤5 new, ≤3 tests at one layer**, one logical change. If loading reveals it
+exceeds any (e.g. the spec scope names 3 entities, or 'the service' is really 5
+endpoints), **stop before writing code** — append an `OVERFLOW: <which cap, real
+count — suggest T-NNa=X, T-NNb=Y…>` note under the task line in the journey file and
+return `status: overflow`. Fire this in your first 2–3 reads, before any commit — a
+half-built oversize task is the expensive case the manager re-plans around
+(`/do-ship` § 3a). **Standalone** (no manager — manual or `/loop`): escalate to the
+operator instead of returning to a manager; `/do-task next` **skips** a task that
+already carries an `OVERFLOW` note (never silently re-dispatch the same oversize id).
 
 ### 2 — Red first (for this task's slice)
 
