@@ -96,7 +96,7 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
                 .isEqualTo(HttpStatus.CREATED);
 
         Integer count = jdbc.queryForObject(
-                "SELECT count(*) FROM flight WHERE operating_club_id = ?::uuid",
+                "SELECT count(*) FROM t_flight WHERE operating_club_id = ?::uuid",
                 Integer.class, CLUB_B.toString());
         assertThat(count).isEqualTo(1);
     }

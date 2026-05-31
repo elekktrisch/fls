@@ -1,8 +1,12 @@
 import { computed, inject } from '@angular/core';
 import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
+import { rxMethod } from '@ngrx/signals/rxjs-interop';
+import { EMPTY, catchError, pipe, switchMap, tap } from 'rxjs';
 
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
 import { ReferenceDataStore } from '../reference-data/reference-data.store';
+
+import { MeService } from './me.service';
 
 // Realm roles from `alpenflight/auth/realm-export.json`. Mirrored from the
 // `realm_access.roles[]` claim Keycloak stamps onto access + id tokens.
@@ -28,6 +32,12 @@ export interface User {
   // `keycloak_sub` / email; the SPA shows "no club selected" while that
   // resolves.
   clubId: string | null;
+  // Nullable: sysadmins + federated users without a linked Person carry
+  // none. Populated by `loadMe()` after auth from the `/api/v1/me`
+  // projection (S-165). Drives the home-dashboard "Your last flight"
+  // card and any future per-person filter (admin views pilot X's
+  // flights, view-as, per-person stats).
+  personId: string | null;
   roles: readonly AppRole[];
 }
 
@@ -64,44 +74,94 @@ export const SessionStore = signalStore(
       () => authenticatedUser()?.roles.includes('SYSTEM_ADMINISTRATOR') ?? false,
     ),
   })),
-  withMethods((store, bus = inject(MUTATION_BUS), refData = inject(ReferenceDataStore)) => ({
-    login(user: User, clubId: string | null): void {
-      patchState(store, {
-        authenticatedUser: user,
-        currentClubId: clubId,
-        sessionStatus: 'authenticated',
-      });
+  withMethods(
+    (
+      store,
+      bus = inject(MUTATION_BUS),
+      refData = inject(ReferenceDataStore),
+      me = inject(MeService),
+    ) => {
+      const loadMe = rxMethod<void>(
+        pipe(
+          switchMap(() =>
+            me.getMe().pipe(
+              tap((response) => {
+                const current = store.authenticatedUser();
+                if (!current) {
+                  return;
+                }
+                // /me is the source of truth for {personId, clubId,
+                // firstName, lastName, email, username, id} post-auth. JWT
+                // claims seeded the initial values pre-/me-resolution; this
+                // patch upgrades them to the server's authoritative view
+                // (linked Person row > JWT claim). Roles stay JWT-sourced —
+                // /me echoes the same realm list and the JWT-derived
+                // GrantedAuthority is what hasRole() reads.
+                patchState(store, {
+                  authenticatedUser: {
+                    ...current,
+                    id: response.id ?? current.id,
+                    personId: response.personId,
+                    clubId: response.clubId ?? current.clubId,
+                    firstName: response.firstName ?? current.firstName,
+                    lastName: response.lastName ?? current.lastName,
+                    email: response.email ?? current.email,
+                    username: response.username ?? current.username,
+                  },
+                  currentClubId: response.clubId ?? store.currentClubId(),
+                });
+              }),
+              catchError(() => {
+                // Tolerant — a 401 / 5xx leaves the JWT-seeded fields in
+                // place. The home dashboard renders its empty state when
+                // personId is null; no toast, no log noise per the AC.
+                return EMPTY;
+              }),
+            ),
+          ),
+        ),
+      );
+      return {
+        login(user: User, clubId: string | null): void {
+          patchState(store, {
+            authenticatedUser: user,
+            currentClubId: clubId,
+            sessionStatus: 'authenticated',
+          });
+        },
+        logout(): void {
+          patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
+          bus.next({ kind: 'session.logout' });
+        },
+        // Boot-finished-with-no-user transition. Distinct from logout(): no
+        // MUTATION_BUS event is fired since no domain store was ever loaded.
+        // Required so authGuard exits its loading-defer branch and triggers
+        // oidcSecurity.authorize() — without this the cold-start path stalls
+        // on sessionStatus = 'idle' indefinitely.
+        markUnauthenticated(): void {
+          patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
+        },
+        /**
+         * AC-DIR-1 aggressive-prefetch seam. Called by S-021's OIDC success
+         * handler after `login()` and by the tenant-switch UI after the active
+         * `currentClubId` changes. Each store owns its own catchError-per-stream
+         * forkJoin internally; this method just fans out the `loadAll()` calls.
+         * Cancellation rides session.logout through MUTATION_BUS — every store
+         * subscribes and self-clears.
+         */
+        bootstrapPrefetch(): void {
+          if (sessionStatusIsLoading(store.sessionStatus()) || !store.isAuthenticated()) {
+            return;
+          }
+          patchState(store, { bootstrapStartedAt: Date.now() });
+          refData.loadAll();
+          // Future masterdata stores (aircraft, persons, locations, flight-types,
+          // routes) plug in here as they land.
+        },
+        loadMe,
+      };
     },
-    logout(): void {
-      patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
-      bus.next({ kind: 'session.logout' });
-    },
-    // Boot-finished-with-no-user transition. Distinct from logout(): no
-    // MUTATION_BUS event is fired since no domain store was ever loaded.
-    // Required so authGuard exits its loading-defer branch and triggers
-    // oidcSecurity.authorize() — without this the cold-start path stalls
-    // on sessionStatus = 'idle' indefinitely.
-    markUnauthenticated(): void {
-      patchState(store, { ...initial, sessionStatus: 'unauthenticated' });
-    },
-    /**
-     * AC-DIR-1 aggressive-prefetch seam. Called by S-021's OIDC success
-     * handler after `login()` and by the tenant-switch UI after the active
-     * `currentClubId` changes. Each store owns its own catchError-per-stream
-     * forkJoin internally; this method just fans out the `loadAll()` calls.
-     * Cancellation rides session.logout through MUTATION_BUS — every store
-     * subscribes and self-clears.
-     */
-    bootstrapPrefetch(): void {
-      if (sessionStatusIsLoading(store.sessionStatus()) || !store.isAuthenticated()) {
-        return;
-      }
-      patchState(store, { bootstrapStartedAt: Date.now() });
-      refData.loadAll();
-      // Future masterdata stores (aircraft, persons, locations, flight-types,
-      // routes) plug in here as they land.
-    },
-  })),
+  ),
 );
 
 function sessionStatusIsLoading(status: SessionStatus): boolean {

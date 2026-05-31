@@ -21,7 +21,7 @@ public interface AuditTrail {
 
     /**
      * Record a successful mutation. Publishes a transactional event; the
-     * row is committed to {@code mutation_audit_event} only after the
+     * row is committed to {@code t_mutation_audit_event} only after the
      * caller's transaction commits.
      */
     void record(AuditAction action, AuditedTarget target);

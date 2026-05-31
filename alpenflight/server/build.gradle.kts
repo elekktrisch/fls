@@ -274,6 +274,15 @@ flyway {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    testLogging {
+        // Surface full stack traces on failure so a CI context-load error
+        // doesn't collapse to a single `NoSuchBeanDefinitionException` line.
+        events("failed")
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
     // Optional Gradle-layer fork parallelism for the test task. Each fork's
     // SharedPostgresContainer is its own JVM singleton — separate Postgres
     // container per fork — so TenantTestContext's ThreadLocal carrier never

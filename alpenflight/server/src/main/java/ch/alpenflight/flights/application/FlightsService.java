@@ -20,6 +20,7 @@ import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
+import ch.alpenflight.flights.domain.TowLinkPolicy;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -115,7 +116,8 @@ public class FlightsService {
     public FlightListResponse listFlights(@Nullable LocalDate from,
                                           @Nullable LocalDate to,
                                           @Nullable String cursor,
-                                          @Nullable Integer requestedLimit) {
+                                          @Nullable Integer requestedLimit,
+                                          @Nullable UUID personId) {
         int limit = requestedLimit == null ? DEFAULT_LIMIT
                 : Math.min(Math.max(1, requestedLimit), MAX_LIMIT);
         LocalDate effectiveFrom = from;
@@ -130,7 +132,7 @@ public class FlightsService {
         UUID cursorId = decoded == null ? null : decoded.id();
         // limit + 1 sentinel to compute nextCursor cheaply.
         List<FlightRepository.ListRow> rows = repository.findListWindow(
-                effectiveFrom, effectiveTo, cursorDate, cursorId, limit + 1);
+                effectiveFrom, effectiveTo, cursorDate, cursorId, limit + 1, personId);
         boolean hasMore = rows.size() > limit;
         List<FlightRepository.ListRow> page = hasMore ? rows.subList(0, limit) : rows;
         List<FlightListItem> items = new ArrayList<>(page.size());
@@ -157,15 +159,7 @@ public class FlightsService {
         flight.repointAircraft(req.aircraftId().value());
         flight.updateOperationalData(mapper.toOperationalData(req));
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));
-        if (req.towFlightId() == null) {
-            flight.unlinkTow();
-        } else {
-            FlightId towId = req.towFlightId();
-            Flight tow = repository.findByIdWithCrew(towId)
-                    .orElseThrow(() -> new InvalidTowLinkException(
-                            "Tow flight " + towId.toExternal() + " not found in current tenant"));
-            flight.linkTow(tow);
-        }
+        applyTowLink(flight, req);
         Flight saved = repository.save(flight);
         FlightDetail after = mapper.toDetail(saved);
         audit.record(AuditAction.UPDATE,
@@ -219,9 +213,12 @@ public class FlightsService {
                 });
     }
 
-    public void softDeleteFlight(FlightId id) {
+    public void softDeleteFlight(FlightId id, @Nullable Long ifMatchVersion) {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
+        if (ifMatchVersion != null && ifMatchVersion != flight.getVersion()) {
+            throw new FlightVersionMismatchException(ifMatchVersion, flight.getVersion());
+        }
         assertMutationAllowed(flight);
         FlightDetail before = mapper.toDetail(flight);
         flight.softDelete(clock.instant());
@@ -232,7 +229,9 @@ public class FlightsService {
                         before));
         // Legacy FlightService.cs:1314-1319. Application-layer only (no DB
         // cascade on the self-FK by design); each tow row gets its own audit
-        // event sharing the request's actor + timestamp.
+        // event sharing the request's actor + timestamp. Class-level
+        // @Transactional means an exception in the tow leg rolls back the
+        // glider delete too — caller sees an atomic outcome.
         if (flight.getFlightAircraftType() == FlightAircraftType.GLIDER
                 && flight.getTowFlightId() != null) {
             FlightId towId = FlightId.of(flight.getTowFlightId());
@@ -240,6 +239,10 @@ public class FlightsService {
                 if (tow.isDeleted()) {
                     return;
                 }
+                // The tow row may be in a terminal / admin-locked state
+                // independent of the glider; cascade must honour the same
+                // gate. Throwing here rolls back the glider delete too.
+                assertMutationAllowed(tow);
                 FlightDetail towBefore = mapper.toDetail(tow);
                 tow.softDelete(clock.instant());
                 repository.save(tow);
@@ -249,6 +252,35 @@ public class FlightsService {
                                 towBefore));
             });
         }
+    }
+
+    /**
+     * S-063 partial-PUT contract:
+     * <ul>
+     *   <li>{@code unlinkTowFlight=true} — unlink, regardless of any {@code
+     *       towFlightId} value also sent (the explicit choice wins).</li>
+     *   <li>{@code towFlightId} non-null — link to the resolved tow. Rejects
+     *       if another non-deleted glider already references that tow row
+     *       (cascade-delete would otherwise orphan the second link).</li>
+     *   <li>Both absent / null — preserve the existing link. This is the
+     *       partial-PUT fix: clients editing crew on a paired glider no
+     *       longer have to re-echo the link to keep it.</li>
+     * </ul>
+     */
+    private void applyTowLink(Flight flight, FlightUpdateRequest req) {
+        if (Boolean.TRUE.equals(req.unlinkTowFlight())) {
+            flight.unlinkTow();
+            return;
+        }
+        if (req.towFlightId() == null) {
+            return;
+        }
+        FlightId towId = req.towFlightId();
+        Flight tow = repository.findByIdWithCrew(towId)
+                .orElseThrow(() -> new InvalidTowLinkException(
+                        "Tow flight " + towId.toExternal() + " not found in current tenant"));
+        TowLinkPolicy.verifyExclusiveLink(towId, repository.findByTowFlightId(towId), flight);
+        flight.linkTow(tow);
     }
 
     private static void assertMutationAllowed(Flight flight) {

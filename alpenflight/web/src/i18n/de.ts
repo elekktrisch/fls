@@ -29,6 +29,42 @@ const de = {
     tagline:
       'Für Flugvereine, die schon bestehen und schon fliegen. Ein leises Werkzeug für Flugbuch, Reservationskalender und Mitgliederverwaltung.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Guten Tag, {{name}}',
+      evening: 'Guten Abend, {{name}}',
+      morning: 'Guten Morgen, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Flugzeug',
+      empty: {
+        cta: 'Ersten Flug erfassen',
+        message: 'Noch keine Flüge — erfasse deinen ersten.',
+      },
+      error: 'Letzter Flug konnte nicht geladen werden.',
+      flightType: 'Flugart',
+      role: 'Rolle',
+      roles: {
+        coPilot: 'Copilot',
+        flightCostInvoiceRecipient: 'Rechnungsempfänger',
+        instructor: 'Fluglehrer',
+        observer: 'Beobachter',
+        passenger: 'Passagier',
+        pic: 'PIC',
+        winchOperator: 'Windenführer',
+      },
+      route: 'Route',
+      title: 'Dein letzter Flug',
+    },
+    quickActions: {
+      logFlight: 'Flug erfassen',
+      openLogbook: 'Flugbuch öffnen',
+    },
+    reservations: {
+      placeholder: 'Reservationen folgen demnächst.',
+      title: 'Nächste Reservation',
+    },
+  },
   locations: {
     admin: {
       banner:
@@ -79,6 +115,24 @@ const de = {
     discoveryFlight: 'Schnupperflug',
     scenicFlight: 'Mitflug',
     title: 'Demnächst verfügbar',
+  },
+  signup: {
+    actions: {
+      continueWithGoogle: 'Mit Google fortfahren',
+      signIn: 'Anmelden',
+      signUp: 'Registrieren',
+    },
+    alreadyHaveAccount: 'Bereits ein Konto?',
+    errors: {
+      unreachable: 'Anmeldung nicht erreichbar. Bitte später erneut versuchen.',
+    },
+    headline: 'AlpenFlight-Konto erstellen',
+    postLanding: {
+      body: 'Dein Konto ist bereit. Der Import-Workflow folgt in einer späteren Version.',
+      headline: 'Konto erstellt',
+    },
+    tagline:
+      'E-Mail-Verifizierung folgt per Mail. Dein Verein wird nach dem ersten erfolgreichen Import angelegt.',
   },
 };
 

@@ -11,11 +11,11 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Lifecycle-state reference row for {@code Club} (ACTIVE / SUSPENDED / …).
- * System-global; not tenant-scoped. Mapped to the V2 {@code club_state}
+ * System-global; not tenant-scoped. Mapped to the V2 {@code t_club_state}
  * table; data lives in the V2 Flyway seed.
  */
 @Entity
-@Table(name = "club_state")
+@Table(name = "t_club_state")
 public class ClubState {
 
     @Id

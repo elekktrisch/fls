@@ -28,12 +28,14 @@ function fakeSession(opts: { authenticated?: boolean; loading?: boolean } = {}):
   logoutCalls: number;
   markUnauthenticatedCalls: number;
   bootstrapPrefetchCalls: number;
+  loadMeCalls: number;
 } {
   const port = {
     loginCalls: [] as { user: User; clubId: string | null }[],
     logoutCalls: 0,
     markUnauthenticatedCalls: 0,
     bootstrapPrefetchCalls: 0,
+    loadMeCalls: 0,
     login(user: User, clubId: string | null) {
       port.loginCalls.push({ user, clubId });
     },
@@ -45,6 +47,9 @@ function fakeSession(opts: { authenticated?: boolean; loading?: boolean } = {}):
     },
     bootstrapPrefetch() {
       port.bootstrapPrefetchCalls += 1;
+    },
+    loadMe() {
+      port.loadMeCalls += 1;
     },
     isAuthenticated: () => opts.authenticated ?? false,
     isLoadingSession: () => opts.loading ?? false,
@@ -61,10 +66,12 @@ describe('applyClaimsToSession', () => {
     expect(session.loginCalls).toHaveLength(1);
     const call = session.loginCalls[0]!;
     expect(call.user.id).toBe(sampleClaims.sub);
+    expect(call.user.personId).toBeNull();
     expect(call.clubId).toBe(sampleClaims.clubId);
     expect(session.logoutCalls).toBe(0);
     expect(session.markUnauthenticatedCalls).toBe(0);
     expect(session.bootstrapPrefetchCalls).toBe(1);
+    expect(session.loadMeCalls).toBe(1);
   });
 
   it('passes clubId === null through to login when the claim is absent', () => {
@@ -122,6 +129,7 @@ describe('handleSilentRenewFailed', () => {
       logout: () => order.push('session.logout'),
       markUnauthenticated: () => undefined,
       bootstrapPrefetch: () => undefined,
+      loadMe: () => undefined,
       isAuthenticated: () => true,
       isLoadingSession: () => false,
     };
@@ -154,6 +162,7 @@ describe('SessionStore widening (S-021)', () => {
       firstName: '',
       lastName: '',
       clubId: null,
+      personId: null,
       roles: ['CLUB_ADMINISTRATOR'],
     };
 
@@ -174,6 +183,7 @@ describe('SessionStore widening (S-021)', () => {
         firstName: '',
         lastName: '',
         clubId: null,
+        personId: null,
         roles: ['SYSTEM_ADMINISTRATOR'],
       },
       sessionStatus: 'authenticated',

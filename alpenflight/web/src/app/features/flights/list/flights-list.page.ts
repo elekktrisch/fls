@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
@@ -12,6 +12,7 @@ import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfDatePickerComponent, type DateValue } from '@ui/organisms/af-date-picker';
+import { AfDialogComponent } from '@ui/organisms/af-dialog';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
 import {
@@ -186,6 +187,7 @@ function toneDotClass(tone: Tone): string {
   imports: [
     AfButtonComponent,
     AfDatePickerComponent,
+    AfDialogComponent,
     AfFormFieldComponent,
     AfIconComponent,
     AfPageComponent,
@@ -214,65 +216,69 @@ function toneDotClass(tone: Tone): string {
         <span class="tabular">{{ summary() }}</span>
       </p>
 
-      <div class="mb-5 grid grid-cols-1 md:grid-cols-5 gap-3 border border-slate-200 bg-white p-4">
+      <div class="mb-5 border border-slate-200 bg-white p-4">
         <!-- Two single-mode pickers instead of mode=range: the range
           variant of nz-range-picker deadlocks under zoneless Angular
           (reproducible at /dev/primitives). Switch back to a single
           range picker once S-008 fixes the primitive. -->
-        <af-form-field label="From" for="FlightDateFrom">
-          <af-date-picker
-            mode="single"
-            placeholder="From"
-            [value]="dateFromValue()"
-            (valueChange)="onDateFromChange($event)"
-            data-testid="flights-date-from"
-          />
-        </af-form-field>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <af-form-field label="From" for="FlightDateFrom">
+            <af-date-picker
+              mode="single"
+              placeholder="From"
+              [value]="dateFromValue()"
+              (valueChange)="onDateFromChange($event)"
+              data-testid="flights-date-from"
+            />
+          </af-form-field>
 
-        <af-form-field label="To" for="FlightDateTo">
-          <af-date-picker
-            mode="single"
-            placeholder="To"
-            [value]="dateToValue()"
-            (valueChange)="onDateToChange($event)"
-            data-testid="flights-date-to"
-          />
-        </af-form-field>
+          <af-form-field label="To" for="FlightDateTo">
+            <af-date-picker
+              mode="single"
+              placeholder="To"
+              [value]="dateToValue()"
+              (valueChange)="onDateToChange($event)"
+              data-testid="flights-date-to"
+            />
+          </af-form-field>
 
-        <af-form-field label="Air state" for="FlightAirStateFilter">
-          <af-select
-            inputId="FlightAirStateFilter"
-            placeholder="All air states"
-            [value]="selectedAirState()"
-            (valueChange)="onAirStateChange($event)"
-            [allowClear]="true"
-            [options]="airStateOptions"
-            data-testid="flights-air-state-filter"
-          />
-        </af-form-field>
+          <af-form-field label="Air state" for="FlightAirStateFilter">
+            <af-select
+              inputId="FlightAirStateFilter"
+              placeholder="All air states"
+              [value]="selectedAirState()"
+              (valueChange)="onAirStateChange($event)"
+              [allowClear]="true"
+              [options]="airStateOptions"
+              data-testid="flights-air-state-filter"
+            />
+          </af-form-field>
 
-        <af-form-field label="Aircraft type" for="FlightAircraftTypeFilter">
-          <af-select
-            inputId="FlightAircraftTypeFilter"
-            placeholder="All aircraft types"
-            [value]="selectedAircraftType()"
-            (valueChange)="onAircraftTypeChange($event)"
-            [allowClear]="true"
-            [options]="aircraftTypeOptions"
-            data-testid="flights-aircraft-type-filter"
-          />
-        </af-form-field>
-
-        <div class="flex items-end">
-          <button
-            type="button"
-            class="text-sm text-slate-500 hover:text-slate-900 underline bg-transparent border-0 p-0 cursor-pointer"
-            (click)="onClearFilters()"
-            data-testid="flights-clear-filters"
-          >
-            Clear filters
-          </button>
+          <af-form-field label="Aircraft type" for="FlightAircraftTypeFilter">
+            <af-select
+              inputId="FlightAircraftTypeFilter"
+              placeholder="All aircraft types"
+              [value]="selectedAircraftType()"
+              (valueChange)="onAircraftTypeChange($event)"
+              [allowClear]="true"
+              [options]="aircraftTypeOptions"
+              data-testid="flights-aircraft-type-filter"
+            />
+          </af-form-field>
         </div>
+
+        @if (hasActiveFilter()) {
+          <div class="mt-3 flex justify-end">
+            <button
+              type="button"
+              class="text-sm text-slate-500 hover:text-slate-900 underline bg-transparent border-0 p-0 cursor-pointer"
+              (click)="onClearFilters()"
+              data-testid="flights-clear-filters"
+            >
+              Clear filters
+            </button>
+          </div>
+        }
       </div>
 
       @if (store.loadError()) {
@@ -360,7 +366,7 @@ function toneDotClass(tone: Tone): string {
                   </span>
                   <button
                     type="button"
-                    class="w-8 h-8 inline-flex items-center justify-center bg-transparent border-0 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100"
+                    class="w-11 h-11 inline-flex items-center justify-center bg-transparent border-0 text-slate-500 cursor-pointer hover:text-slate-900 hover:bg-slate-100"
                     nz-dropdown
                     [nzDropdownMenu]="rowMenu"
                     nzTrigger="click"
@@ -398,6 +404,37 @@ function toneDotClass(tone: Tone): string {
                           <span>Copy</span>
                         </a>
                       </li>
+                      @if (canDelete(fl)) {
+                        <li role="none">
+                          <button
+                            role="menuitem"
+                            type="button"
+                            class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-rose-700 bg-transparent border-0 cursor-pointer text-left hover:bg-rose-50"
+                            (click)="openDeleteConfirm(fl); $event.stopPropagation()"
+                            [attr.data-testid]="'flights-delete-' + fl.id"
+                          >
+                            <af-icon name="trash-2" [size]="14" />
+                            <span>Delete</span>
+                          </button>
+                        </li>
+                      } @else {
+                        <!-- Mirror the backend's state gate so the UI does
+                          not surface a Delete action that would 409. The
+                          process-state label tells the user why. -->
+                        <li role="none">
+                          <span
+                            class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-400 cursor-not-allowed"
+                            [attr.title]="
+                              'Delete blocked by process state ' + processStateText(fl.processState)
+                            "
+                            [attr.data-testid]="'flights-delete-disabled-' + fl.id"
+                            [attr.aria-disabled]="true"
+                          >
+                            <af-icon name="trash-2" [size]="14" />
+                            <span>Delete ({{ processStateText(fl.processState) }})</span>
+                          </span>
+                        </li>
+                      }
                     </ul>
                   </nz-dropdown-menu>
                 </div>
@@ -445,6 +482,23 @@ function toneDotClass(tone: Tone): string {
           </ul>
         }
       </div>
+
+      <af-dialog
+        [visible]="deleteTarget() !== null"
+        [title]="deleteError() ? 'Delete failed' : 'Delete this flight?'"
+        [message]="deleteDialogMessage()"
+        [confirmLabel]="deleteInFlight() ? 'Deleting…' : 'Delete'"
+        dismissLabel="Cancel"
+        (confirm)="confirmDelete()"
+        (dismiss)="cancelDelete()"
+      />
+      @if (deleteError()) {
+        <!-- Hidden in normal flow because the dialog overlay covers the
+          page; kept for a11y readers + the e2e spec's testid hook. -->
+        <p class="sr-only" data-testid="flights-delete-error">
+          {{ deleteError() }}
+        </p>
+      }
     </af-page>
   `,
 })
@@ -561,6 +615,84 @@ export class FlightsListPage {
 
   protected openEdit(flightId: string): void {
     this.router.navigate(['/flights', flightId, 'edit']);
+  }
+
+  protected readonly deleteTarget = signal<FlightListItem | null>(null);
+  protected readonly deleteError = signal<string | null>(null);
+  protected readonly deleteInFlight = signal<boolean>(false);
+
+  protected readonly deletePromptMessage = computed<string | null>(() => {
+    const t = this.deleteTarget();
+    if (!t) return null;
+    const dateBit = t.flightDate ? formatLegacyDate(t.flightDate) : '';
+    const acBit = this.aircraftImmat(t.aircraftId);
+    const towBit =
+      t.flightAircraftType === FlightListItemFlightAircraftType.GLIDER
+        ? ' Any linked tow flight is removed in the same step.'
+        : '';
+    return `Soft-deletes ${acBit}${dateBit ? ` on ${dateBit}` : ''}.${towBit} Cannot be undone from the UI.`;
+  });
+
+  // After a failed delete the dialog stays open so the user sees the
+  // outcome next to the action they just took; swap the body to the
+  // error message so the previously-confirmed prompt isn't misleading.
+  protected readonly deleteDialogMessage = computed<string | null>(
+    () => this.deleteError() ?? this.deletePromptMessage(),
+  );
+
+  // Mirror the server's FlightStateGateException gate. Both the TERMINAL
+  // (DELIVERY_BOOKED) and ADMIN_REQUIRED (LOCKED + delivery-prep states)
+  // paths surface as 409 from the backend; the list page can't elevate the
+  // caller's role, so we suppress the affordance on every state the server
+  // would reject for the default CLUB_ADMINISTRATOR principal.
+  private static readonly NON_DELETABLE_STATES: ReadonlySet<FlightListItemProcessState> =
+    new Set<FlightListItemProcessState>([
+      FlightListItemProcessState.DELIVERY_BOOKED,
+      FlightListItemProcessState.LOCKED,
+      FlightListItemProcessState.DELIVERY_PREPARED,
+      FlightListItemProcessState.DELIVERY_PREPARATION_ERROR,
+      FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS,
+    ]);
+
+  protected canDelete(fl: FlightListItem): boolean {
+    return !FlightsListPage.NON_DELETABLE_STATES.has(fl.processState);
+  }
+
+  protected openDeleteConfirm(fl: FlightListItem): void {
+    this.deleteError.set(null);
+    this.deleteTarget.set(fl);
+  }
+
+  protected cancelDelete(): void {
+    if (this.deleteInFlight()) return;
+    this.deleteTarget.set(null);
+  }
+
+  protected async confirmDelete(): Promise<void> {
+    const target = this.deleteTarget();
+    if (!target || this.deleteInFlight()) return;
+    this.deleteInFlight.set(true);
+    this.deleteError.set(null);
+    try {
+      await this.store.deleteOne(target.id, String(target.version));
+      this.deleteTarget.set(null);
+    } catch (e) {
+      // Keep the dialog open so the error renders next to the prompt the
+      // user just confirmed — the inline rose error inside the dialog is
+      // load-bearing context that doesn't get lost when they look away.
+      const err = e as { status?: number; message?: string };
+      if (err.status === 409) {
+        this.deleteError.set(
+          'Flight became locked while you were looking — refresh the list and retry.',
+        );
+      } else if (err.status === 412) {
+        this.deleteError.set('Flight was modified by someone else — refresh and retry.');
+      } else {
+        this.deleteError.set(err.message ?? 'Could not delete flight');
+      }
+    } finally {
+      this.deleteInFlight.set(false);
+    }
   }
 
   protected hasActiveFilter(): boolean {

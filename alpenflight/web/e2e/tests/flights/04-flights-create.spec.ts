@@ -114,6 +114,7 @@ async function stubFlightEndpoints(page: Page, onCreate: (body: unknown) => void
         startLocationId: LOC_HOME,
         ldgLocationId: LOC_HOME,
         flightTypeId: FT_GLIDER,
+        aircraftId: AC_GLIDER,
         crew: [],
         isSoloFlight: false,
         noStartTimeInformation: false,
@@ -166,6 +167,7 @@ test.describe('flight edit — create (parity port)', () => {
     // Wizard mounts after new-template resolves.
     await expect(page.getByTestId('flight-form')).toBeVisible();
     await expect(page.getByTestId('flight-step-launch')).toBeVisible();
+    await page.screenshot({ path: 'screenshots/flights/04-01-launch.png', fullPage: true });
 
     // Flight date pre-filled from new-template.
     await expect(page.getByTestId('flight-edit-flightDate').locator('input')).toHaveValue(
@@ -183,8 +185,10 @@ test.describe('flight edit — create (parity port)', () => {
     await expect(page.getByTestId('flight-step-glider')).toBeVisible();
     await page.getByTestId('flight-edit-glider-comment').locator('input').fill('parity create');
 
+    await page.screenshot({ path: 'screenshots/flights/04-02-glider-filled.png', fullPage: true });
+
     // Glider is the last step under Self start — submit directly.
-    await page.getByTestId('flight-submit').click();
+    await page.getByTestId('flight-submit-header').click();
 
     // POST /flights observed once, with the glider row shape.
     await expect.poll(() => captured.length).toBeGreaterThan(0);

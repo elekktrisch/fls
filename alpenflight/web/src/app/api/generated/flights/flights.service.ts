@@ -168,7 +168,7 @@ export class FlightsService {
     );
   }
 /**
- * @summary Update a flight (full replace of editable surface + crew)
+ * @summary Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.
  */
  update<TData = FlightDetail>(id: string,
     flightUpdateRequest: FlightUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
@@ -208,7 +208,7 @@ export class FlightsService {
     );
   }
 /**
- * @summary Soft-delete a flight
+ * @summary Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.
  */
  _delete<TData = void>(id: string, options?: HttpClientBodyOptions): Observable<TData>;
  _delete<TData = void>(id: string, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
@@ -241,7 +241,7 @@ export class FlightsService {
     );
   }
 /**
- * @summary List flights (keyset-cursor paginated)
+ * @summary List flights (keyset-cursor paginated). When `personId` is supplied (prefixed `pn-<uuid>` per ADR 0019), rows are filtered to flights with a non-deleted FlightCrew row for that person, and the sort order is the AC-defined `flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC` (the third key tie-breaks via UUIDv7 id, which is monotonic-in-creation-time).
  */
  list<TData = FlightListResponse>(params?: ListParams, options?: HttpClientBodyOptions): Observable<TData>;
  list<TData = FlightListResponse>(params?: ListParams, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;

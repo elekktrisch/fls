@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "SystemVersion",
+  "column" : "MinorVersion",
+  "ordinal" : 3,
+  "data_type" : "bigint",
+  "is_nullable" : false,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : null,
+  "precision" : 19,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

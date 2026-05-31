@@ -50,7 +50,7 @@ import org.jspecify.annotations.Nullable;
  * </ul>
  */
 @Entity
-@Table(name = "person")
+@Table(name = "t_person")
 public class Person {
 
     private static final int MAX_NAME_LENGTH = 100;

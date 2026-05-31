@@ -10,5 +10,5 @@
 -- Per ADR 0022 directive 2 the column is purely structural — no CHECK,
 -- no trigger, no generated-column math. The aggregate carries the
 -- transition rules.
-ALTER TABLE flight
+ALTER TABLE t_flight
     ADD COLUMN version BIGINT NOT NULL DEFAULT 0;

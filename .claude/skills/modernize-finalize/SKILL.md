@@ -9,15 +9,30 @@ Take one implemented story; clean up rotted documentation that the code now sour
 
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 
-## Story ID resolution
+## Arg resolution
 
-The story ID can be passed explicitly (`S-NNN`) or inferred from the current branch when it matches `story/S-NNN-*` (check via `git rev-parse --abbrev-ref HEAD`; pattern `^story/S-(\d{3})(-.*)?$`):
+Two invocation modes:
+
+- **Mode A — story finalize (default):** arg is `S-NNN` (or inferred from current `story/S-NNN-*` branch). Skill: per-story merge into `<base>` (resolved below), archive, cleanup.
+- **Mode B — integration finalize:** arg starts with `integration/` (or inferred from current `integration/*` branch). Skill: verify every story in the cluster is `merged: true`, bulk-update each story's `merged_to_main_at`, squash-merge integration → main, delete integration branch. Use this when the integration cluster is ready to land on main.
+
+Story-ID resolution (Mode A) — pattern `^story/S-(\d{3})(-.*)?$` on `git rev-parse --abbrev-ref HEAD`:
 
 - **Arg + branch match** → proceed with the arg.
 - **Arg + branch is `story/S-MMM-*` where `MMM ≠ NNN`** → bail: *"current branch is `story/S-MMM-...` but you passed `S-NNN`; switch branch or correct the arg."*
 - **Arg + branch isn't a story branch** → proceed with the arg.
 - **No arg + branch matches `story/S-NNN-*`** → use the branch's `S-NNN`.
-- **No arg + branch doesn't match** → prompt the operator for the story ID via `AskUserQuestion` (single question).
+- **No arg + branch matches `integration/*`** → enter Mode B with that branch.
+- **No arg + branch doesn't match either** → prompt the operator via `AskUserQuestion` (single question).
+
+## Base branch resolution (Mode A)
+
+`<base>` is resolved from the story frontmatter:
+
+- `integration_base: <branch>` → that branch.
+- Else: the repo's default branch (typically `main`).
+
+Drives the squash-merge target + local-cleanup checkout. ADR amendments still commit to `main` directly even when `<base>` is an integration branch — governance is cross-cutting.
 
 ## Preconditions
 
@@ -136,7 +151,7 @@ If Step 1 staged edits:
 2. Commit `S-NNN: ADR amendments — <ADR IDs touched>` (body = one bullet per ADR).
 3. Push.
 
-ADR amendments commit to `main` directly — recognised exception to story-per-branch (governance artifacts, operator already approved). Document in report.
+ADR amendments commit to `main` directly — recognised exception to story-per-branch (governance artifacts, operator already approved). Holds even for stories whose `<base>` is an integration branch: ADR governance is cross-cutting and shouldn't be parked on integration. Document in report.
 
 ### Step 5 — Verify issue closure + apply labels
 
@@ -147,7 +162,7 @@ ADR amendments commit to `main` directly — recognised exception to story-per-b
 
 ### Step 6 — Local cleanup
 
-1. `git checkout main && git pull --ff-only`.
+1. `git checkout <base> && git pull --ff-only`.
 2. `git branch -D story/S-NNN-<slug>` (bail rather than delete current branch).
 3. `git fetch -p`; verify `git branch -r --list 'origin/story/S-NNN-<slug>'` returns empty.
 
@@ -165,14 +180,60 @@ ADR amendments commit to `main` directly — recognised exception to story-per-b
 - Follow-up stories from rework: `rework_followups` list. Operator may refine + implement next.
 - Next: `/modernize-refine <next-S-id>` from `_ORDER.md`, or follow-ups if any.
 
+## Mode B procedure — integration → main finalize
+
+Triggered when the arg starts with `integration/` or when invoked from an `integration/*` branch with no story arg.
+
+### B1 — Resolve cluster
+
+1. `<integration-branch>` = arg or current branch.
+2. Verify `gh api repos/:owner/:repo/branches/<integration-branch>` exists.
+3. Glob `docs/modernization/stories/implemented/*.md` for stories whose frontmatter `integration_base` equals `<integration-branch>`. (Top-level `stories/` may also have entries if a story refined-but-not-yet-implemented uses the cluster — surface those + bail: "story S-MMM is in this cluster but not yet implemented; finish or remove `integration_base` first".)
+4. Verify every cluster story has `merged: true` (i.e., its PR was finalized into the integration branch). Surface any with `merged: false`; bail.
+
+### B2 — Confirm + preview
+
+`AskUserQuestion`: list every cluster story (`S-NNN <title>`) + the PR diff range `<integration-branch>...main`. Options: **proceed** / **abort**.
+
+### B3 — Open + merge integration PR
+
+1. `gh pr create --base main --head <integration-branch> --title "<integration-branch>" --body "<body>"` where `<body>` lists each cluster story (`- S-NNN <title>`).
+2. Watch CI (`gh pr checks <PR>` until green; refuse to merge red).
+3. `gh pr merge <PR> --squash --delete-branch --subject "<integration-branch>: cluster — <S-id>, <S-id>, …" --body "<body>"`.
+4. Capture merge commit SHA via `gh pr view <PR> --json mergeCommit`.
+
+### B4 — Bulk-stamp cluster stories
+
+For each cluster story:
+
+1. Edit frontmatter to add `merged_to_main_at: <ISO date>` (alongside the existing `merged_at` which records the integration merge).
+2. Stage edits.
+
+Single commit on `main`: `<integration-branch>: stamp merged_to_main on cluster (S-NNN, S-NNN, …)`. Push.
+
+### B5 — Local cleanup
+
+1. `git checkout main && git pull --ff-only`.
+2. Remove the local integration branch: `git branch -D <integration-branch>`.
+3. `git fetch -p`; verify `git branch -r --list 'origin/<integration-branch>'` returns empty.
+
+### B6 — Report
+
+- Integration branch + URL of squash-merge commit on main.
+- Cluster stories merged (count + IDs).
+- Story files updated: list with `merged_at` + `merged_to_main_at` per story.
+- CI outcome on the final integration PR.
+- Next: `/modernize-finalize <next-S-id>` for any remaining non-cluster work.
+
 ## Quality bar
 
-- One story per invocation. One-shot, not iterative.
+- One story per invocation (Mode A) or one integration cluster per invocation (Mode B). One-shot, not iterative.
 - Squash by default (per [[feedback-always-squash-merge]]); other strategies are operator overrides.
 - ADR amendments are operator-confirmed (never auto-apply).
-- ADR amendments commit to main directly (no PR per amendment).
+- ADR amendments commit to main directly (no PR per amendment) — even when the story's `<base>` is an integration branch.
 - Verify after every state-changing call (`gh pr view` after merge, `git branch` after delete, `gh issue view` after expected auto-close).
-- Local `main` is clean + fast-forwarded; feature branch gone.
+- Local `<base>` (Mode A) / `main` (Mode B) is clean + fast-forwarded; feature branch gone.
+- **Mode B refuses if any cluster story is `merged: false`.** Operator must finalize each story into integration first.
 - Finalized stories archive to `stories/implemented/`. Mandatory.
 - Bookkeeping rides the PR, not a post-merge main commit. Step 2.5 commits + the squash gives ONE commit on main per story (plus optionally one for ADR amendments).
 - `merge_commit:` is NOT stamped on frontmatter (recoverable from git log; can't be known pre-merge).

@@ -24,6 +24,7 @@ const FLIGHT_A: FlightListItem = {
   processStateId: '019e2e15-2c00-7100-8000-000000007002',
   processState: FlightListItemProcessState.VALID,
   airState: FlightListItemAirState.LANDED,
+  version: 1,
 };
 
 const FLIGHT_B: FlightListItem = {
@@ -36,6 +37,7 @@ const FLIGHT_B: FlightListItem = {
   processStateId: '019e2e15-2c00-7100-8000-000000007002',
   processState: FlightListItemProcessState.VALID,
   airState: FlightListItemAirState.STARTED,
+  version: 1,
 };
 
 type StubbedApi = Pick<FlightsService, 'list'>;

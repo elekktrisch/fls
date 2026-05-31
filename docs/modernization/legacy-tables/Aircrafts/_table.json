@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "Aircrafts",
+  "entity" : "Aircraft",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

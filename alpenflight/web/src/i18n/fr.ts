@@ -25,6 +25,42 @@ const fr: Translations = {
     tagline:
       'Pensé pour les clubs aéronautiques qui existent déjà et volent déjà. Un outil discret pour le carnet de vol, le calendrier des réservations et le registre des membres.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Bon après-midi, {{name}}',
+      evening: 'Bonsoir, {{name}}',
+      morning: 'Bonjour, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Avion',
+      empty: {
+        cta: 'Enregistrer le premier',
+        message: 'Aucun vol pour l’instant — enregistre ton premier.',
+      },
+      error: 'Impossible de charger ton dernier vol.',
+      flightType: 'Type de vol',
+      role: 'Rôle',
+      roles: {
+        coPilot: 'Copilote',
+        flightCostInvoiceRecipient: 'Destinataire facturé',
+        instructor: 'Instructeur',
+        observer: 'Observateur',
+        passenger: 'Passager',
+        pic: 'PIC',
+        winchOperator: 'Treuilliste',
+      },
+      route: 'Route',
+      title: 'Ton dernier vol',
+    },
+    quickActions: {
+      logFlight: 'Enregistrer un vol',
+      openLogbook: 'Ouvrir le carnet',
+    },
+    reservations: {
+      placeholder: 'Réservations bientôt disponibles.',
+      title: 'Prochaine réservation',
+    },
+  },
   locations: {
     admin: {
       banner:
@@ -75,6 +111,24 @@ const fr: Translations = {
     discoveryFlight: 'Vol de découverte',
     scenicFlight: 'Vol panoramique',
     title: 'Bientôt disponible',
+  },
+  signup: {
+    actions: {
+      continueWithGoogle: 'Continuer avec Google',
+      signIn: 'Se connecter',
+      signUp: 'Créer un compte',
+    },
+    alreadyHaveAccount: 'Déjà un compte ?',
+    errors: {
+      unreachable: 'Inscription indisponible pour le moment. Veuillez réessayer plus tard.',
+    },
+    headline: 'Créer votre compte AlpenFlight',
+    postLanding: {
+      body: 'Votre compte est prêt. Le flux d’import arrive dans une prochaine version.',
+      headline: 'Compte créé',
+    },
+    tagline:
+      'Un e-mail de vérification suivra. Votre club est créé après votre premier import réussi.',
   },
 };
 

@@ -39,7 +39,7 @@ public final class FlightDtos {
 
     private FlightDtos() {}
 
-    @Schema(description = "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred.")
+    @Schema(description = "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred. Carries `version` so concurrency-aware actions (e.g. DELETE with If-Match) can fire from the list view without a follow-up GET.")
     public record FlightListItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightId id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAircraftType flightAircraftType,
@@ -49,7 +49,8 @@ public final class FlightDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID processStateId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightProcessState processState,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) FlightAirState airState,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long version) {}
 
     @Schema(description = "Keyset-cursor list response. Filter via from/to; scroll via nextCursor.")
     public record FlightListResponse(
@@ -195,7 +196,7 @@ public final class FlightDtos {
             boolean isSoloFlight,
             @Nullable @Valid List<FlightCrewItem> crew) {}
 
-    @Schema(description = "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).")
+    @Schema(description = "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059). Tow-link semantics: `towFlightId` value → link; `unlinkTowFlight: true` → explicit unlink; both absent → preserve the existing link (S-063 partial-PUT fix).")
     public record FlightUpdateRequest(
             @NotNull AircraftId aircraftId,
             @Nullable LocalDate flightDate,
@@ -225,5 +226,6 @@ public final class FlightDtos {
             @Nullable Short startPosition,
             boolean isSoloFlight,
             @Nullable FlightId towFlightId,
+            @Nullable Boolean unlinkTowFlight,
             @Nullable @Valid List<FlightCrewItem> crew) {}
 }

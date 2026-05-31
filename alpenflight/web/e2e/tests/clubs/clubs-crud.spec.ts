@@ -235,13 +235,29 @@ test('clubs: country picker is populated and a non-default country persists', as
 });
 
 test('clubs: 409 on duplicate slug surfaces as a save error', async ({ page }) => {
-  const clubs: MockClub[] = [{ ...seedClub }];
+  // Race-condition shape: the client-side `slugAvailable` validator only
+  // catches slugs already in the loaded entity map; the authoritative
+  // duplicate guard is the server 409 (e.g. another tab created the same
+  // slug between page load and submit). Seed the store empty so the client
+  // validator passes, and have the POST mock return 409 unconditionally.
   await stubReferenceData(page);
-  await page.route('**/api/v1/clubs**', setupClubsBackend(clubs));
+  await page.route('**/api/v1/clubs**', async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    if (req.method() === 'GET' && url.pathname === '/api/v1/clubs') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      return;
+    }
+    if (req.method() === 'POST' && url.pathname === '/api/v1/clubs') {
+      await route.fulfill({ status: 409, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await route.fallback();
+  });
 
   await page.goto('/clubs/new');
   await page.locator('#clubName').fill('Conflict Club');
-  await page.locator('#clubSlug').fill(seedClub.slug);
+  await page.locator('#clubSlug').fill('race-condition-slug');
   await page.locator('#clubKey').fill('DUP');
   await page.getByTestId('clubs-country-select').locator('nz-select').click();
   await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();

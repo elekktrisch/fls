@@ -10,7 +10,7 @@ import type { FlightListItemFlightAircraftType } from './flightListItemFlightAir
 import type { FlightListItemProcessState } from './flightListItemProcessState';
 
 /**
- * Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred.
+ * Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred. Carries `version` so concurrency-aware actions (e.g. DELETE with If-Match) can fire from the list view without a follow-up GET.
  */
 export type FlightListItem = {
   /** @pattern ^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
@@ -24,4 +24,5 @@ export type FlightListItem = {
   processStateId: string;
   processState: FlightListItemProcessState;
   airState: FlightListItemAirState;
+  version: number;
 };

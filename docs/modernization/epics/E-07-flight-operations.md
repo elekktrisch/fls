@@ -22,11 +22,14 @@ Port the single `Flight` entity (discriminated by `FlightAircraftType`), the two
 - [x] S-062c — Flight create/edit forms (wizard + paired-create + Copy-from-Last + first-pass keyboard)
 - [ ] S-062h — Flight-edit resilience (IndexedDB drafts + 412 inline diff + marginal-3G)
 - [ ] S-062i — Flight-edit keyboard polish (Ctrl+D + 1–5 quick-select + slide-in focus jump)
-- [ ] S-063 — Glider↔Tow link integrity (TowFlightId recursion in validation + cascade semantics)
+- [x] S-063 — Glider↔Tow link integrity (TowFlightId recursion in validation + cascade semantics)
 - [ ] S-064 — Air movements (motor aircraft) UI + endpoint parity
 - [ ] S-065 — Flight reports + custom report builder
 - [ ] S-066 — OGN ingestion REST endpoint (replaces direct DB writes)
-- [ ] S-067 — Optimistic-concurrency strategy on Flight (ETag / version column)
+- [x] S-067 — Optimistic-concurrency strategy on Flight (ETag / version column)
+- [ ] S-165 — Home/dashboard page MVP — pilot variant (greeting + last flight + quick actions)
+- [ ] S-166 — Home/dashboard page — club-admin variant
+- [ ] S-167 — Home/dashboard page — sysadmin variant
 
 ## Done when
 - The transition matrix from `FlightService.cs:1380-1440` is mirrored in a `FlightStateTransitions` table-driven implementation; every defined transition has a positive and a negative test (illegal transition rejected).

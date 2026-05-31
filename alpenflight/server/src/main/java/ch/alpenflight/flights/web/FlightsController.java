@@ -15,6 +15,7 @@ import ch.alpenflight.flights.domain.FlightAircraftType;
 import ch.alpenflight.flights.domain.TransitionTrigger;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.id.FlightId;
+import ch.alpenflight.platform.id.PersonId;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -69,12 +70,18 @@ class FlightsController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
-    @Operation(summary = "List flights (keyset-cursor paginated)")
+    @Operation(summary = "List flights (keyset-cursor paginated). When `personId` is supplied "
+            + "(prefixed `pn-<uuid>` per ADR 0019), rows are filtered to flights with a "
+            + "non-deleted FlightCrew row for that person, and the sort order is the "
+            + "AC-defined `flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC` "
+            + "(the third key tie-breaks via UUIDv7 id, which is monotonic-in-creation-time).")
     FlightListResponse list(@RequestParam(value = "from", required = false) @Nullable LocalDate from,
                             @RequestParam(value = "to", required = false) @Nullable LocalDate to,
                             @RequestParam(value = "after", required = false) @Nullable String cursor,
-                            @RequestParam(value = "limit", required = false) @Nullable Integer limit) {
-        return flights.listFlights(from, to, cursor, limit);
+                            @RequestParam(value = "limit", required = false) @Nullable Integer limit,
+                            @RequestParam(value = "personId", required = false) @Nullable PersonId personId) {
+        return flights.listFlights(from, to, cursor, limit,
+                personId == null ? null : personId.value());
     }
 
     @GetMapping("/{id}")
@@ -122,7 +129,7 @@ class FlightsController {
 
     @PutMapping(path = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
-    @Operation(summary = "Update a flight (full replace of editable surface + crew)")
+    @Operation(summary = "Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.")
     FlightDetail update(@PathVariable("id") FlightId id,
                         @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch,
                         @Valid @RequestBody FlightUpdateRequest req) {
@@ -156,9 +163,11 @@ class FlightsController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('CLUB_ADMINISTRATOR')")
-    @Operation(summary = "Soft-delete a flight")
-    ResponseEntity<Void> delete(@PathVariable("id") FlightId id) {
-        flights.softDeleteFlight(id);
+    @Operation(summary = "Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.")
+    ResponseEntity<Void> delete(@PathVariable("id") FlightId id,
+                                @RequestHeader(value = "If-Match", required = false) @Nullable String ifMatch) {
+        Long expected = parseIfMatch(ifMatch);
+        flights.softDeleteFlight(id, expected);
         return ResponseEntity.noContent().build();
     }
 

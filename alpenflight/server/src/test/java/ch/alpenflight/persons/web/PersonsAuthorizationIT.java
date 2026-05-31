@@ -73,9 +73,9 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
         // "Person exists, but not in caller's tenant" state.
         UUID personId = UUID.fromString("019e30c3-2c00-7001-8000-00000000aaaa");
         UUID personClubId = UUID.fromString("019e30c3-2c00-7001-8000-00000000bbbb");
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "OnlyInB", "Smith");
-        jdbc.update("INSERT INTO person_club (id, person_id, club_id) "
+        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 personClubId.toString(), personId.toString(), CLUB_B.toString());
 
@@ -94,17 +94,17 @@ class PersonsAuthorizationIT extends PostgresIntegrationTest {
         // CLUB_A admin listing /persons must see only the CLUB_A row.
         UUID personA = UUID.fromString("019e30c3-2c00-7001-8000-00000000a01a");
         UUID pcA = UUID.fromString("019e30c3-2c00-7001-8000-00000000a02a");
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personA.toString(), "AnnaA", "Smith");
-        jdbc.update("INSERT INTO person_club (id, person_id, club_id) "
+        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 pcA.toString(), personA.toString(), CLUB_A.toString());
 
         UUID personB = UUID.fromString("019e30c3-2c00-7001-8000-00000000b01b");
         UUID pcB = UUID.fromString("019e30c3-2c00-7001-8000-00000000b02b");
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personB.toString(), "BobB", "Jones");
-        jdbc.update("INSERT INTO person_club (id, person_id, club_id) "
+        jdbc.update("INSERT INTO t_person_club (id, person_id, club_id) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid)",
                 pcB.toString(), personB.toString(), CLUB_B.toString());
 

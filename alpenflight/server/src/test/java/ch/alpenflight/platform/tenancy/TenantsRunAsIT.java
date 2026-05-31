@@ -49,7 +49,7 @@ class TenantsRunAsIT extends PostgresIntegrationTest {
     void runAs_writes_through_to_target_club() {
         Tenants.runAs(CLUB_B, () -> memberStates.save(new MemberState("Bravo-only status")));
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM member_state WHERE club_id = ?::uuid AND name = ?",
+                "SELECT count(*) FROM t_member_state WHERE club_id = ?::uuid AND name = ?",
                 Integer.class, CLUB_B.toString(), "Bravo-only status");
         assertThat(matches)
                 .as("Tenants.runAs(B) must persist with club_id = B even when JWT clubId = A")

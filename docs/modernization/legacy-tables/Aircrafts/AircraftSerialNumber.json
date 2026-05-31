@@ -1,0 +1,18 @@
+{
+  "schema" : "dbo",
+  "table" : "Aircrafts",
+  "column" : "AircraftSerialNumber",
+  "ordinal" : 17,
+  "data_type" : "nvarchar",
+  "is_nullable" : true,
+  "default_expression" : null,
+  "is_identity" : false,
+  "is_computed" : false,
+  "max_length" : 20,
+  "precision" : null,
+  "scale" : null,
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

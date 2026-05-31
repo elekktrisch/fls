@@ -17,6 +17,12 @@ const TENANT_SECTIONS: readonly NavItem[] = [
   // stays a pure data shape.
 ];
 
+// CLUB_ADMIN-only nav. Sysadmin has no `/api/v1/users/**` path; the entry
+// is hidden for them.
+const CLUB_ADMIN_SECTIONS: readonly NavItem[] = [
+  { path: '/users', label: 'Users', icon: 'shield' },
+];
+
 // Cross-cutting nav (available to every authenticated principal).
 const CROSS_CUTTING_SECTIONS: readonly NavItem[] = [
   { path: '/clubs', label: 'Clubs', icon: 'plane' },
@@ -27,7 +33,7 @@ const CROSS_CUTTING_SECTIONS: readonly NavItem[] = [
   imports: [RouterOutlet, AfNavBarComponent],
   template: `
     @if (showNavBar()) {
-      <af-nav-bar [items]="sections()" [user]="userSummary()" />
+      <af-nav-bar [items]="sections()" [user]="userSummary()" brandHref="/start" />
     }
     <router-outlet />
   `,
@@ -46,7 +52,11 @@ export class AppComponent {
     if (this.session.isSystemAdmin()) {
       return CROSS_CUTTING_SECTIONS;
     }
-    return [...CROSS_CUTTING_SECTIONS, ...TENANT_SECTIONS];
+    const base = [...CROSS_CUTTING_SECTIONS, ...TENANT_SECTIONS];
+    if (this.session.isClubAdmin()) {
+      return [...base, ...CLUB_ADMIN_SECTIONS];
+    }
+    return base;
   });
 
   protected readonly userSummary = computed<UserSummary | null>(() => {

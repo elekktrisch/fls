@@ -38,6 +38,7 @@ public interface FlightRepository {
                    @Nullable Instant ldgDateTime,
                    UUID aircraftId,
                    UUID processStateId,
+                   long version,
                    boolean noStartTimeInformation,
                    boolean noLdgTimeInformation,
                    @Nullable Instant flightPlanOpenedOn) {
@@ -66,12 +67,24 @@ public interface FlightRepository {
      * <p>Callers request {@code limit + 1} rows; the service trims to
      * {@code limit} and emits a {@code nextCursor} only when the sentinel
      * row was returned.
+     *
+     * <p>When {@code personId} is non-null, rows are filtered to flights
+     * with a non-deleted FlightCrew row whose {@code person_id} matches.
+     * Sort under the filter is {@code flight_date DESC NULLS LAST,
+     * start_date_time DESC NULLS LAST, id DESC} (S-165 AC; UUIDv7 id
+     * stand-in for the {@code created_on} tie-breaker). The default sort
+     * (no {@code personId}) remains {@code flight_date DESC NULLS LAST,
+     * id DESC} so the keyset cursor — encoded as {@code (flight_date, id)}
+     * — remains strictly monotonic with the order; paginating past the
+     * limit-1 dashboard call under {@code personId} is best-effort within
+     * same-day ties (S-165 only consumes {@code limit=1}).
      */
     List<ListRow> findListWindow(@Nullable LocalDate from,
                                  @Nullable LocalDate to,
                                  @Nullable LocalDate cursorFlightDate,
                                  @Nullable UUID cursorId,
-                                 int limit);
+                                 int limit,
+                                 @Nullable UUID personId);
 
     /**
      * Findall gliders linked to the given tow flight (sacred-cow 1:N

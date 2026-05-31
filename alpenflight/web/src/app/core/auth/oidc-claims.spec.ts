@@ -21,6 +21,7 @@ describe('mapClaimsToUser', () => {
       firstName: 'Carla',
       lastName: 'Admin',
       clubId: '019e30c3-2c00-7001-8000-000000000001',
+      personId: null,
       roles: ['CLUB_ADMINISTRATOR', 'OFFICE_USER'],
     });
   });

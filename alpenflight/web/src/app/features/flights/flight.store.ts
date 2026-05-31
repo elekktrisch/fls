@@ -299,10 +299,13 @@ export const FlightStore = signalStore(
       }
     }
 
-    async function deleteOne(id: string, version: number): Promise<void> {
+    async function deleteOne(id: string, ifMatch = '*'): Promise<void> {
+      // Callers pass the row's version as `ifMatch` to gate stale deletes
+      // (RFC 7232 §3.1). `*` is the escape hatch for force-delete paths
+      // that intentionally bypass the precondition.
       await firstValueFrom(
         flightsApi._delete(id, {
-          headers: { 'If-Match': String(version) },
+          headers: { 'If-Match': ifMatch },
         }),
       );
       bus.next({ kind: 'flight.deleted', flightId: id });

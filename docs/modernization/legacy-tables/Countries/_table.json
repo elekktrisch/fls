@@ -1,0 +1,10 @@
+{
+  "schema" : "dbo",
+  "table" : "Countries",
+  "entity" : "Country",
+  "object_type" : "TABLE",
+  "destination" : "TBD",
+  "semantics" : "TBD",
+  "owned_by" : "TBD",
+  "notes" : ""
+}

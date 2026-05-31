@@ -36,6 +36,7 @@ public class TypedIdJacksonModule extends SimpleModule {
         register(AircraftTypeId.class, AircraftTypeId::parse, AircraftTypeId::toWire);
         register(AircraftStateId.class, AircraftStateId::parse, AircraftStateId::toWire);
         register(PersonId.class, PersonId::parse, PersonId::toExternal);
+        register(UserId.class, UserId::parse, UserId::toExternal);
         register(FlightTypeId.class, FlightTypeId::parse, FlightTypeId::toExternal);
         register(FlightCostBalanceTypeId.class, FlightCostBalanceTypeId::parse,
                 FlightCostBalanceTypeId::toExternal);

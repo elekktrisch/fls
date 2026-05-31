@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Counter unit catalog (HOURS_DECIMAL, HOURS_MINUTES, LANDINGS, STARTS).
- * System-global; not tenant-scoped. Mapped to the V2 {@code counter_unit_type}
+ * System-global; not tenant-scoped. Mapped to the V2 {@code t_counter_unit_type}
  * table; data lives in the V2 Flyway seed. Read-only.
  *
  * <p>Referenced by {@code aircraft.flight_operating_counter_unit_type_id} +
@@ -17,7 +17,7 @@ import org.jspecify.annotations.Nullable;
  * form needs the catalog as dropdown fuel.
  */
 @Entity
-@Table(name = "counter_unit_type")
+@Table(name = "t_counter_unit_type")
 public class CounterUnitType {
 
     @Id

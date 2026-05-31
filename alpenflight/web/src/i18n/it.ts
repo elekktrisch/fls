@@ -25,6 +25,42 @@ const it: Translations = {
     tagline:
       'Pensato per i club di volo che già esistono e già volano. Uno strumento discreto per diario di volo, calendario delle prenotazioni e registro dei soci.',
   },
+  home: {
+    greeting: {
+      afternoon: 'Buon pomeriggio, {{name}}',
+      evening: 'Buona sera, {{name}}',
+      morning: 'Buongiorno, {{name}}',
+    },
+    lastFlight: {
+      aircraft: 'Aeromobile',
+      empty: {
+        cta: 'Registra il primo',
+        message: 'Nessun volo ancora — registra il primo.',
+      },
+      error: 'Impossibile caricare il tuo ultimo volo.',
+      flightType: 'Tipo di volo',
+      role: 'Ruolo',
+      roles: {
+        coPilot: 'Copilota',
+        flightCostInvoiceRecipient: 'Destinatario fattura',
+        instructor: 'Istruttore',
+        observer: 'Osservatore',
+        passenger: 'Passeggero',
+        pic: 'PIC',
+        winchOperator: 'Operatore verricello',
+      },
+      route: 'Rotta',
+      title: 'Il tuo ultimo volo',
+    },
+    quickActions: {
+      logFlight: 'Registra volo',
+      openLogbook: 'Apri diario',
+    },
+    reservations: {
+      placeholder: 'Prenotazioni in arrivo.',
+      title: 'Prossima prenotazione',
+    },
+  },
   locations: {
     admin: {
       banner:
@@ -74,6 +110,23 @@ const it: Translations = {
     discoveryFlight: 'Volo di scoperta',
     scenicFlight: 'Volo panoramico',
     title: 'Disponibile a breve',
+  },
+  signup: {
+    actions: {
+      continueWithGoogle: 'Continua con Google',
+      signIn: 'Accedi',
+      signUp: 'Crea account',
+    },
+    alreadyHaveAccount: 'Hai già un account?',
+    errors: {
+      unreachable: 'Iscrizione non disponibile al momento. Riprova più tardi.',
+    },
+    headline: 'Crea il tuo account AlpenFlight',
+    postLanding: {
+      body: 'Il tuo account è pronto. La procedura di import arriverà in una prossima versione.',
+      headline: 'Account creato',
+    },
+    tagline: 'Riceverai una email di verifica. Il club nasce al primo import riuscito.',
   },
 };
 

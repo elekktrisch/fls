@@ -26,11 +26,17 @@
 --       - under Person: person_club
 --       - under Club: club_extension, member_state, person_category,
 --         email_template/extension_value rows where club_id IS NOT NULL
---       - under User: user_role
 --   * Plain JPA / system-global lookups: country, language, start_type,
---     club_state, role, extension_type, length_unit_type,
+--     club_state, extension_type, length_unit_type,
 --     elevation_unit_type, counter_unit_type, and system-default
 --     email_template/extension_value rows where club_id IS NULL.
+--
+-- Roles + user_role intentionally absent: per ADR 0007 + S-052, Keycloak
+-- is the source of truth for role assignment. The realm-role catalogue
+-- (SYSTEM_ADMINISTRATOR / CLUB_ADMINISTRATOR / FLIGHT_OPERATOR / PILOT /
+-- OFFICE_USER / GUEST) lives in the realm export; assignment goes through
+-- the KC admin API. A local `role` table + `user_role` join would be
+-- parallel-truth — read live from `realm_access.roles` on the JWT instead.
 --
 -- Multi-tenancy (ADR 0008):
 --   * Tenant discriminator column is `club_id uuid` on TENANT_SCOPED tables.
@@ -68,17 +74,19 @@
 -- DO NOT add columns named `password_hash`, `password_salt`, `password`,
 -- `refresh_token`, `access_token`, `mfa_secret`, `totp_seed`, `security_stamp`,
 -- or any equivalent. Keycloak owns password storage, rotation, MFA, and
--- session lifecycle. The S-052 backfill that populates `keycloak_sub`
--- finalises the contract. A future PR adding a password-shaped column on
--- `user` is wrong — flag it at PR review and re-direct to Keycloak realm
--- config.
+-- session lifecycle. Account lifecycle (lockout, MFA enrolment, email /
+-- phone verification) also lives in Keycloak: re-introducing a local
+-- `lockout_enabled` / `email_confirmed` / `two_factor_enabled` would create
+-- parallel-truth (S-052 threat-model row). A future PR adding either an
+-- auth-credential or an account-state column on `user` is wrong — flag at
+-- PR review and re-direct to Keycloak realm config.
 -- ============================================================================
 
 -- =============================================================================
 -- 1. Reference tables (no FKs; loaded first so subsequent FKs can resolve)
 -- =============================================================================
 
-CREATE TABLE country (
+CREATE TABLE t_country (
     id          UUID         NOT NULL PRIMARY KEY,
     iso2_code   CHAR(2)      NOT NULL,
     iso3_code   CHAR(3)      NOT NULL,
@@ -88,26 +96,26 @@ CREATE TABLE country (
     -- directive 2: case enforcement is a value-object invariant
     -- (Country.iso2Code() / iso3Code() constructor).
 );
-CREATE UNIQUE INDEX ux_country_iso2 ON country (iso2_code);
-CREATE UNIQUE INDEX ux_country_iso3 ON country (iso3_code);
+CREATE UNIQUE INDEX ux_country_iso2 ON t_country (iso2_code);
+CREATE UNIQUE INDEX ux_country_iso3 ON t_country (iso3_code);
 
-CREATE TABLE language (
+CREATE TABLE t_language (
     id          UUID         NOT NULL PRIMARY KEY,
     code        VARCHAR(10)  NOT NULL,
     name        VARCHAR(50)  NOT NULL
     -- ck_language_bcp47 removed per ADR 0022 directive 2: BCP-47 format
     -- enforcement is a value-object invariant (Language.code()) at S-022.
 );
-CREATE UNIQUE INDEX ux_language_code ON language (code);
+CREATE UNIQUE INDEX ux_language_code ON t_language (code);
 
-CREATE TABLE club_state (
+CREATE TABLE t_club_state (
     id    UUID         NOT NULL PRIMARY KEY,
     code  VARCHAR(32)  NOT NULL,
     name  VARCHAR(50)  NOT NULL
 );
-CREATE UNIQUE INDEX ux_club_state_code ON club_state (code);
+CREATE UNIQUE INDEX ux_club_state_code ON t_club_state (code);
 
-CREATE TABLE start_type (
+CREATE TABLE t_start_type (
     id                    UUID         NOT NULL PRIMARY KEY,
     code                  VARCHAR(32)  NOT NULL,
     name                  VARCHAR(100) NOT NULL,
@@ -117,56 +125,49 @@ CREATE TABLE start_type (
     -- subset / non-empty — Java enum + service layer are the only enforcer
     -- so adding a category requires no migration in lock-step (ADR 0020).
 );
-CREATE UNIQUE INDEX ux_start_type_code ON start_type (code);
+CREATE UNIQUE INDEX ux_start_type_code ON t_start_type (code);
 
-CREATE TABLE length_unit_type (
+CREATE TABLE t_length_unit_type (
     id         UUID         NOT NULL PRIMARY KEY,
     code       VARCHAR(32)  NOT NULL,
     name       VARCHAR(50)  NOT NULL,
     short_name VARCHAR(20),
     comment    VARCHAR(200)
 );
-CREATE UNIQUE INDEX ux_length_unit_type_code ON length_unit_type (code);
+CREATE UNIQUE INDEX ux_length_unit_type_code ON t_length_unit_type (code);
 
-CREATE TABLE elevation_unit_type (
+CREATE TABLE t_elevation_unit_type (
     id         UUID         NOT NULL PRIMARY KEY,
     code       VARCHAR(32)  NOT NULL,
     name       VARCHAR(50)  NOT NULL,
     short_name VARCHAR(20),
     comment    VARCHAR(200)
 );
-CREATE UNIQUE INDEX ux_elevation_unit_type_code ON elevation_unit_type (code);
+CREATE UNIQUE INDEX ux_elevation_unit_type_code ON t_elevation_unit_type (code);
 
-CREATE TABLE counter_unit_type (
+CREATE TABLE t_counter_unit_type (
     id         UUID         NOT NULL PRIMARY KEY,
     code       VARCHAR(32)  NOT NULL,
     name       VARCHAR(50)  NOT NULL,
     short_name VARCHAR(20),
     comment    VARCHAR(200)
 );
-CREATE UNIQUE INDEX ux_counter_unit_type_code ON counter_unit_type (code);
+CREATE UNIQUE INDEX ux_counter_unit_type_code ON t_counter_unit_type (code);
 
-CREATE TABLE extension_type (
+CREATE TABLE t_extension_type (
     id      UUID         NOT NULL PRIMARY KEY,
     code    VARCHAR(32)  NOT NULL,
     name    VARCHAR(100) NOT NULL,
     comment TEXT
 );
-CREATE UNIQUE INDEX ux_extension_type_code ON extension_type (code);
-
-CREATE TABLE role (
-    id          UUID         NOT NULL PRIMARY KEY,
-    code        VARCHAR(32)  NOT NULL,
-    description VARCHAR(250)
-);
-CREATE UNIQUE INDEX ux_role_code ON role (code);
+CREATE UNIQUE INDEX ux_extension_type_code ON t_extension_type (code);
 
 
 -- =============================================================================
 -- 2. Aggregate roots: club, person (cross-tenant), user (principal subject)
 -- =============================================================================
 
-CREATE TABLE club (
+CREATE TABLE t_club (
     id                                            UUID          NOT NULL PRIMARY KEY,
     clubname                                      VARCHAR(100)  NOT NULL,
     club_key                                      VARCHAR(10)   NOT NULL,
@@ -198,14 +199,14 @@ CREATE TABLE club (
     modified_by_user_id                           UUID,
     deleted_on                                    TIMESTAMPTZ,
     deleted_by_user_id                            UUID,
-    CONSTRAINT fk_club_country_id    FOREIGN KEY (country_id)    REFERENCES country (id)    ON DELETE RESTRICT,
-    CONSTRAINT fk_club_club_state_id FOREIGN KEY (club_state_id) REFERENCES club_state (id) ON DELETE RESTRICT
+    CONSTRAINT fk_club_country_id    FOREIGN KEY (country_id)    REFERENCES t_country (id)    ON DELETE RESTRICT,
+    CONSTRAINT fk_club_club_state_id FOREIGN KEY (club_state_id) REFERENCES t_club_state (id) ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX ux_club_key      ON club (club_key);
-CREATE        INDEX ix_club_state    ON club (club_state_id);
-CREATE        INDEX ix_club_country  ON club (country_id);
+CREATE UNIQUE INDEX ux_club_key      ON t_club (club_key);
+CREATE        INDEX ix_club_state    ON t_club (club_state_id);
+CREATE        INDEX ix_club_country  ON t_club (country_id);
 
-CREATE TABLE person (
+CREATE TABLE t_person (
     id                                  UUID          NOT NULL PRIMARY KEY,
     lastname                            VARCHAR(100)  NOT NULL,
     firstname                           VARCHAR(100)  NOT NULL,
@@ -255,7 +256,7 @@ CREATE TABLE person (
     modified_by_user_id                 UUID,
     deleted_on                          TIMESTAMPTZ,
     deleted_by_user_id                  UUID,
-    CONSTRAINT fk_person_country_id FOREIGN KEY (country_id) REFERENCES country (id) ON DELETE SET NULL,
+    CONSTRAINT fk_person_country_id FOREIGN KEY (country_id) REFERENCES t_country (id) ON DELETE SET NULL,
     -- ck_person_birthday_not_future removed per ADR 0022 directive 2:
     -- date-bound sanity check is a value-object invariant (Birthday VO at S-022).
     CONSTRAINT ck_person_email_private_shape
@@ -263,37 +264,32 @@ CREATE TABLE person (
     CONSTRAINT ck_person_email_business_shape
         CHECK (email_business IS NULL OR email_business LIKE '%_@_%._%')
 );
-COMMENT ON CONSTRAINT ck_person_email_private_shape ON person IS
+COMMENT ON CONSTRAINT ck_person_email_private_shape ON t_person IS
     'ADR 0022 retained: input-shape defense-in-depth (a malformed e-mail bypasses '
     'the Email value-object only via direct SQL; cheap belt-and-braces guard).';
-COMMENT ON CONSTRAINT ck_person_email_business_shape ON person IS
+COMMENT ON CONSTRAINT ck_person_email_business_shape ON t_person IS
     'ADR 0022 retained: input-shape defense-in-depth — pairs with the private '
     'e-mail shape check; same rationale.';
-CREATE INDEX ix_person_name ON person (lastname, firstname);
+CREATE INDEX ix_person_name ON t_person (lastname, firstname);
 CREATE INDEX ix_person_email_priv_lower
-    ON person (lower(email_private))
+    ON t_person (lower(email_private))
     WHERE email_private IS NOT NULL;
 
--- user is a reserved word in Postgres; quote consistently.
-CREATE TABLE "user" (
+-- `user` is a Postgres reserved word. Tables in this baseline use a `t_`
+-- prefix only where the unprefixed name would collide with a reserved
+-- word; broader t_-prefix conventions are deferred to a follow-up.
+CREATE TABLE t_user (
     id                          UUID          NOT NULL PRIMARY KEY,
     club_id                     UUID          NOT NULL,
     username                    VARCHAR(256)  NOT NULL,
     friendly_name               VARCHAR(100)  NOT NULL,
     person_id                   UUID,
     notification_email          VARCHAR(256)  NOT NULL,
-    email_confirmed             BOOLEAN       NOT NULL DEFAULT false,
     phone_number                VARCHAR(30),
-    phone_number_confirmed      BOOLEAN       NOT NULL DEFAULT false,
-    two_factor_enabled          BOOLEAN       NOT NULL DEFAULT false,
-    lockout_enabled             BOOLEAN       NOT NULL DEFAULT false,
-    lockout_end_date_utc        TIMESTAMPTZ,
-    access_failed_count         INTEGER       NOT NULL DEFAULT 0,
     remarks                     VARCHAR(250),
-    account_state_id            SMALLINT      NOT NULL DEFAULT 1,
-    -- Legacy `last_password_change_on` + `force_password_change_next` are
-    -- intentionally NOT carried over. Keycloak owns password lifecycle
-    -- (ADR 0007). See the header block: no password-shaped columns on `user`.
+    -- Account state (enabled / disabled) + email-verified / phone-verified
+    -- + lockout + MFA enrolment all live in Keycloak. See the auth-artifacts
+    -- header block above for the deny-list and the rationale.
     language_id                 UUID          NOT NULL,
     keycloak_sub                UUID,
     created_on                  TIMESTAMPTZ   NOT NULL DEFAULT now(),
@@ -302,21 +298,27 @@ CREATE TABLE "user" (
     modified_by_user_id         UUID,
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
-    CONSTRAINT fk_user_club_id     FOREIGN KEY (club_id)     REFERENCES club (id)     ON DELETE RESTRICT,
-    CONSTRAINT fk_user_person_id   FOREIGN KEY (person_id)   REFERENCES person (id)   ON DELETE SET NULL,
-    CONSTRAINT fk_user_language_id FOREIGN KEY (language_id) REFERENCES language (id) ON DELETE RESTRICT
+    CONSTRAINT fk_user_club_id     FOREIGN KEY (club_id)     REFERENCES t_club (id)     ON DELETE RESTRICT,
+    CONSTRAINT fk_user_person_id   FOREIGN KEY (person_id)   REFERENCES t_person (id)   ON DELETE SET NULL,
+    CONSTRAINT fk_user_language_id FOREIGN KEY (language_id) REFERENCES t_language (id) ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX ux_user_username_lower ON "user" (lower(username));
-CREATE UNIQUE INDEX ux_user_keycloak_sub   ON "user" (keycloak_sub) WHERE keycloak_sub IS NOT NULL;
-CREATE        INDEX ix_user_club           ON "user" (club_id);
-CREATE        INDEX ix_user_person         ON "user" (person_id) WHERE person_id IS NOT NULL;
+-- Partial-on-alive matches person_club.member_number: lets a soft-deleted
+-- user's username be recycled, while still blocking duplicates among live
+-- rows. Lower-cased to keep "Foo" vs "foo" collapsed.
+CREATE UNIQUE INDEX ux_user_username_lower_alive
+    ON t_user (lower(username))
+    WHERE deleted_on IS NULL;
+CREATE UNIQUE INDEX ux_user_keycloak_sub
+    ON t_user (keycloak_sub) WHERE keycloak_sub IS NOT NULL;
+CREATE        INDEX ix_user_club           ON t_user (club_id);
+CREATE        INDEX ix_user_person         ON t_user (person_id) WHERE person_id IS NOT NULL;
 
 
 -- =============================================================================
 -- 3. Aggregate-internal entities
 -- =============================================================================
 
-CREATE TABLE member_state (
+CREATE TABLE t_member_state (
     id                  UUID          NOT NULL PRIMARY KEY,
     club_id             UUID          NOT NULL,
     name                VARCHAR(50)   NOT NULL,
@@ -327,11 +329,11 @@ CREATE TABLE member_state (
     modified_by_user_id UUID,
     deleted_on          TIMESTAMPTZ,
     deleted_by_user_id  UUID,
-    CONSTRAINT fk_member_state_club_id FOREIGN KEY (club_id) REFERENCES club (id) ON DELETE CASCADE
+    CONSTRAINT fk_member_state_club_id FOREIGN KEY (club_id) REFERENCES t_club (id) ON DELETE CASCADE
 );
-CREATE INDEX ix_member_state_club ON member_state (club_id);
+CREATE INDEX ix_member_state_club ON t_member_state (club_id);
 
-CREATE TABLE person_category (
+CREATE TABLE t_person_category (
     id                          UUID          NOT NULL PRIMARY KEY,
     club_id                     UUID          NOT NULL,
     category_name               VARCHAR(100)  NOT NULL,
@@ -343,14 +345,14 @@ CREATE TABLE person_category (
     modified_by_user_id         UUID,
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
-    CONSTRAINT fk_person_category_club_id   FOREIGN KEY (club_id)                   REFERENCES club (id)             ON DELETE CASCADE,
-    CONSTRAINT fk_person_category_parent_id FOREIGN KEY (parent_person_category_id) REFERENCES person_category (id)  ON DELETE RESTRICT
+    CONSTRAINT fk_person_category_club_id   FOREIGN KEY (club_id)                   REFERENCES t_club (id)             ON DELETE CASCADE,
+    CONSTRAINT fk_person_category_parent_id FOREIGN KEY (parent_person_category_id) REFERENCES t_person_category (id)  ON DELETE RESTRICT
 );
-CREATE INDEX ix_person_category_club   ON person_category (club_id);
-CREATE INDEX ix_person_category_parent ON person_category (parent_person_category_id)
+CREATE INDEX ix_person_category_club   ON t_person_category (club_id);
+CREATE INDEX ix_person_category_parent ON t_person_category (parent_person_category_id)
     WHERE parent_person_category_id IS NOT NULL;
 
-CREATE TABLE person_club (
+CREATE TABLE t_person_club (
     id                                          UUID          NOT NULL PRIMARY KEY,
     person_id                                   UUID          NOT NULL,
     club_id                                     UUID          NOT NULL,
@@ -374,31 +376,21 @@ CREATE TABLE person_club (
     modified_by_user_id                         UUID,
     deleted_on                                  TIMESTAMPTZ,
     deleted_by_user_id                          UUID,
-    CONSTRAINT fk_person_club_person_id       FOREIGN KEY (person_id)       REFERENCES person (id)       ON DELETE CASCADE,
-    CONSTRAINT fk_person_club_club_id         FOREIGN KEY (club_id)         REFERENCES club (id)         ON DELETE RESTRICT,
-    CONSTRAINT fk_person_club_member_state_id FOREIGN KEY (member_state_id) REFERENCES member_state (id) ON DELETE SET NULL
+    CONSTRAINT fk_person_club_person_id       FOREIGN KEY (person_id)       REFERENCES t_person (id)       ON DELETE CASCADE,
+    CONSTRAINT fk_person_club_club_id         FOREIGN KEY (club_id)         REFERENCES t_club (id)         ON DELETE RESTRICT,
+    CONSTRAINT fk_person_club_member_state_id FOREIGN KEY (member_state_id) REFERENCES t_member_state (id) ON DELETE SET NULL
 );
 CREATE UNIQUE INDEX ux_person_club_alive
-    ON person_club (person_id, club_id)
+    ON t_person_club (person_id, club_id)
     WHERE deleted_on IS NULL;
 CREATE INDEX ix_person_club_club_person
-    ON person_club (club_id, person_id)
+    ON t_person_club (club_id, person_id)
     INCLUDE (member_state_id, is_glider_pilot, is_glider_instructor);
 CREATE INDEX ix_person_club_member_number
-    ON person_club (club_id, member_number)
+    ON t_person_club (club_id, member_number)
     WHERE member_number IS NOT NULL;
 
-CREATE TABLE user_role (
-    id      UUID NOT NULL PRIMARY KEY,
-    user_id UUID NOT NULL,
-    role_id UUID NOT NULL,
-    CONSTRAINT fk_user_role_user_id FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_role_role_id FOREIGN KEY (role_id) REFERENCES role    (id) ON DELETE RESTRICT
-);
-CREATE UNIQUE INDEX ux_user_role_pair ON user_role (user_id, role_id);
-CREATE        INDEX ix_user_role_role ON user_role (role_id);
-
-CREATE TABLE club_extension (
+CREATE TABLE t_club_extension (
     id                  UUID          NOT NULL PRIMARY KEY,
     club_id             UUID          NOT NULL,
     extension_type_id   UUID          NOT NULL,
@@ -409,14 +401,14 @@ CREATE TABLE club_extension (
     modified_by_user_id UUID,
     deleted_on          TIMESTAMPTZ,
     deleted_by_user_id  UUID,
-    CONSTRAINT fk_club_extension_club_id           FOREIGN KEY (club_id)           REFERENCES club (id)            ON DELETE CASCADE,
-    CONSTRAINT fk_club_extension_extension_type_id FOREIGN KEY (extension_type_id) REFERENCES extension_type (id)  ON DELETE RESTRICT
+    CONSTRAINT fk_club_extension_club_id           FOREIGN KEY (club_id)           REFERENCES t_club (id)            ON DELETE CASCADE,
+    CONSTRAINT fk_club_extension_extension_type_id FOREIGN KEY (extension_type_id) REFERENCES t_extension_type (id)  ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX ux_club_extension_pair
-    ON club_extension (club_id, extension_type_id)
+    ON t_club_extension (club_id, extension_type_id)
     WHERE deleted_on IS NULL;
 
-CREATE TABLE email_template (
+CREATE TABLE t_email_template (
     id                  UUID          NOT NULL PRIMARY KEY,
     club_id             UUID,
     template_code       VARCHAR(64)   NOT NULL,
@@ -435,17 +427,17 @@ CREATE TABLE email_template (
     modified_by_user_id UUID,
     deleted_on          TIMESTAMPTZ,
     deleted_by_user_id  UUID,
-    CONSTRAINT fk_email_template_club_id     FOREIGN KEY (club_id)     REFERENCES club (id)     ON DELETE CASCADE,
-    CONSTRAINT fk_email_template_language_id FOREIGN KEY (language_id) REFERENCES language (id) ON DELETE RESTRICT
+    CONSTRAINT fk_email_template_club_id     FOREIGN KEY (club_id)     REFERENCES t_club (id)     ON DELETE CASCADE,
+    CONSTRAINT fk_email_template_language_id FOREIGN KEY (language_id) REFERENCES t_language (id) ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX ux_email_template_club_code
-    ON email_template (club_id, template_code)
+    ON t_email_template (club_id, template_code)
     WHERE club_id IS NOT NULL;
 CREATE UNIQUE INDEX ux_email_template_default
-    ON email_template (template_code)
+    ON t_email_template (template_code)
     WHERE club_id IS NULL;
 
-CREATE TABLE extension_value (
+CREATE TABLE t_extension_value (
     id                          UUID          NOT NULL PRIMARY KEY,
     extension_type_id           UUID          NOT NULL,
     club_id                     UUID,
@@ -461,14 +453,14 @@ CREATE TABLE extension_value (
     modified_by_user_id         UUID,
     deleted_on                  TIMESTAMPTZ,
     deleted_by_user_id          UUID,
-    CONSTRAINT fk_extension_value_extension_type_id FOREIGN KEY (extension_type_id) REFERENCES extension_type (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_extension_value_club_id           FOREIGN KEY (club_id)           REFERENCES club (id)           ON DELETE CASCADE
+    CONSTRAINT fk_extension_value_extension_type_id FOREIGN KEY (extension_type_id) REFERENCES t_extension_type (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_extension_value_club_id           FOREIGN KEY (club_id)           REFERENCES t_club (id)           ON DELETE CASCADE
 );
 CREATE UNIQUE INDEX ux_extension_value_club_key
-    ON extension_value (club_id, extension_value_key_name)
+    ON t_extension_value (club_id, extension_value_key_name)
     WHERE club_id IS NOT NULL;
 CREATE UNIQUE INDEX ux_extension_value_default
-    ON extension_value (extension_value_key_name)
+    ON t_extension_value (extension_value_key_name)
     WHERE club_id IS NULL;
 
 
@@ -477,21 +469,21 @@ CREATE UNIQUE INDEX ux_extension_value_default
 --    user.club_id column. Forensic clarity at boundary review time.
 -- =============================================================================
 
-COMMENT ON COLUMN person.id IS
+COMMENT ON COLUMN t_person.id IS
     'UUID v7. Aggregate root (ADR 0018). External form psn_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN club.id IS
+COMMENT ON COLUMN t_club.id IS
     'UUID v7. Aggregate root (ADR 0018). External form clb_<crockford-base32>. See ADR 0019.';
-COMMENT ON COLUMN "user".id IS
+COMMENT ON COLUMN t_user.id IS
     'UUID v7. Aggregate root (ADR 0018). External form usr_<crockford-base32>. See ADR 0019.';
 
-COMMENT ON COLUMN "user".club_id IS
+COMMENT ON COLUMN t_user.club_id IS
     'Principal-subject home club. NOT a @TenantId discriminator — do NOT add @TenantId on the User entity (would chicken-and-egg the user load).';
 
-COMMENT ON COLUMN person.created_by_user_id IS
+COMMENT ON COLUMN t_person.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
-COMMENT ON COLUMN club.created_by_user_id IS
+COMMENT ON COLUMN t_club.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
-COMMENT ON COLUMN "user".created_by_user_id IS
+COMMENT ON COLUMN t_user.created_by_user_id IS
     'No FK constraint by design (chicken-and-egg at first-user bootstrap). Service layer populates; never bind from request payload.';
 
 
@@ -502,7 +494,7 @@ COMMENT ON COLUMN "user".created_by_user_id IS
 -- =============================================================================
 
 -- start_type (5 canonical launches)
-INSERT INTO start_type (id, code, name, applicable_categories) VALUES
+INSERT INTO t_start_type (id, code, name, applicable_categories) VALUES
     ('019e2e15-2c00-7fa0-8000-000000000fa0', 'WINCH_LAUNCH',   'Winch Launch',   ARRAY['GLIDER']),
     ('019e2e15-2c00-7fa1-8000-000000000fa1', 'AEROTOW',        'Aerotow',        ARRAY['GLIDER','TOW']),
     ('019e2e15-2c00-7fa2-8000-000000000fa2', 'SELF_START',     'Self Start',     ARRAY['GLIDER']),
@@ -510,13 +502,13 @@ INSERT INTO start_type (id, code, name, applicable_categories) VALUES
     ('019e2e15-2c00-7fa4-8000-000000000fa4', 'MOTOR',          'Motor',          ARRAY['MOTOR']);
 
 -- club_state (3 canonical lifecycle states)
-INSERT INTO club_state (id, code, name) VALUES
+INSERT INTO t_club_state (id, code, name) VALUES
     ('019e2e15-2c00-7bb8-8000-000000000bb8', 'ACTIVE',    'Active'),
     ('019e2e15-2c00-7bb9-8000-000000000bb9', 'SUSPENDED', 'Suspended'),
     ('019e2e15-2c00-7bba-8000-000000000bba', 'CLOSED',    'Closed');
 
 -- language (8 canonical: 4 Swiss national languages + 4 region-tagged variants + English)
-INSERT INTO language (id, code, name) VALUES
+INSERT INTO t_language (id, code, name) VALUES
     ('019e2e15-2c00-77d0-8000-0000000007d0', 'de',    'Deutsch'),
     ('019e2e15-2c00-77d1-8000-0000000007d1', 'fr',    'Français'),
     ('019e2e15-2c00-77d2-8000-0000000007d2', 'it',    'Italiano'),
@@ -527,41 +519,33 @@ INSERT INTO language (id, code, name) VALUES
     ('019e2e15-2c00-77d7-8000-0000000007d7', 'it-CH', 'Italiano svizzero');
 
 -- length_unit_type
-INSERT INTO length_unit_type (id, code, name, short_name, comment) VALUES
+INSERT INTO t_length_unit_type (id, code, name, short_name, comment) VALUES
     ('019e2e15-2c00-7388-8000-000000001388', 'METER', 'Meter', 'm',  'Metric'),
     ('019e2e15-2c00-7389-8000-000000001389', 'FEET',  'Feet',  'ft', 'Imperial');
 
 -- elevation_unit_type
-INSERT INTO elevation_unit_type (id, code, name, short_name, comment) VALUES
+INSERT INTO t_elevation_unit_type (id, code, name, short_name, comment) VALUES
     ('019e2e15-2c00-7770-8000-000000001770', 'METER', 'Meter', 'm',  'Metric'),
     ('019e2e15-2c00-7771-8000-000000001771', 'FEET',  'Feet',  'ft', 'Imperial');
 
 -- counter_unit_type
-INSERT INTO counter_unit_type (id, code, name, short_name, comment) VALUES
+INSERT INTO t_counter_unit_type (id, code, name, short_name, comment) VALUES
     ('019e2e15-2c00-7b58-8000-000000001b58', 'HOURS_DECIMAL', 'Hours (decimal)', 'h',   'Engine / flight time'),
     ('019e2e15-2c00-7b59-8000-000000001b59', 'HOURS_MINUTES', 'Hours (HH:MM)',   'h',   'Engine / flight time'),
     ('019e2e15-2c00-7b5a-8000-000000001b5a', 'LANDINGS',      'Landings',        'ldg', 'Landing counter'),
     ('019e2e15-2c00-7b5b-8000-000000001b5b', 'STARTS',        'Starts',          'st',  'Start counter');
 
 -- extension_type (legacy snapshot)
-INSERT INTO extension_type (id, code, name, comment) VALUES
+INSERT INTO t_extension_type (id, code, name, comment) VALUES
     ('019e2e15-2c00-7f40-8000-000000001f40', 'STRING',  'String value',         NULL),
     ('019e2e15-2c00-7f41-8000-000000001f41', 'INTEGER', 'Integer value',        NULL),
     ('019e2e15-2c00-7f42-8000-000000001f42', 'BOOLEAN', 'Boolean flag',         NULL),
     ('019e2e15-2c00-7f43-8000-000000001f43', 'DATE',    'Date value',           NULL),
     ('019e2e15-2c00-7f44-8000-000000001f44', 'LIST',    'Single-select list',   NULL);
 
--- role (5 canonical roles — S-026 finalises permission matrix)
-INSERT INTO role (id, code, description) VALUES
-    ('019e2e15-2c00-7328-8000-000000002328', 'ADMIN',      'Administrator — full club control'),
-    ('019e2e15-2c00-7329-8000-000000002329', 'FLIGHT_OPS', 'Flight operations — daily flight + planning ops'),
-    ('019e2e15-2c00-732a-8000-00000000232a', 'INSTRUCTOR', 'Flight instructor — training records + sign-offs'),
-    ('019e2e15-2c00-732b-8000-00000000232b', 'PILOT',      'Active pilot — read own flights, file own records'),
-    ('019e2e15-2c00-732c-8000-00000000232c', 'READER',     'Read-only — admin views, no mutation');
-
 -- country (ISO 3166-1 alpha-2 + alpha-3 + canonical English name; 248 rows.
 -- Generated by GenerateCanonicalUuids.java; per-row UUIDs deterministic.)
-INSERT INTO country (id, iso2_code, iso3_code, name) VALUES
+INSERT INTO t_country (id, iso2_code, iso3_code, name) VALUES
     ('019e2e15-2c00-73e8-8000-0000000003e8', 'AF', 'AFG', 'Afghanistan'),
     ('019e2e15-2c00-73e9-8000-0000000003e9', 'AL', 'ALB', 'Albania'),
     ('019e2e15-2c00-73ea-8000-0000000003ea', 'DZ', 'DZA', 'Algeria'),
@@ -810,9 +794,3 @@ INSERT INTO country (id, iso2_code, iso3_code, name) VALUES
     ('019e2e15-2c00-74dd-8000-0000000004dd', 'YE', 'YEM', 'Yemen'),
     ('019e2e15-2c00-74de-8000-0000000004de', 'ZM', 'ZMB', 'Zambia'),
     ('019e2e15-2c00-74df-8000-0000000004df', 'ZW', 'ZWE', 'Zimbabwe');
-
--- =============================================================================
--- 6. Update V1 sentinel so app_meta reflects the new generation.
--- =============================================================================
-
-UPDATE app_meta SET meta_value = 'S-012' WHERE meta_key = 'schema_baseline_version';

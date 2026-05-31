@@ -10,7 +10,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Startup gate: the {@link FlightProcessState} enum constants embed the
- * canonical UUID for each {@code flight_process_state} row (identity-bearing
+ * canonical UUID for each {@code t_flight_process_state} row (identity-bearing
  * per ADR 0019). This verifier asserts at boot that the seeded rows match
  * — a future migration that drifts a UUID fails fast on app start rather
  * than producing silently incorrect transitions in production.

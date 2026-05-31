@@ -32,9 +32,16 @@ export type DateValue = Date | [Date, Date] | null;
       multi: true,
     },
   ],
+  // ng-zorro's nz-date-picker defaults to inline-block + intrinsic width;
+  // when consumers place the host in a grid cell they expect the input to
+  // fill the cell (parity with af-select). The host class + the wide
+  // descendant width selector achieve that without leaking into other
+  // consumers — `:host` ensures the override is scoped.
+  host: { class: 'block w-full af-date-picker-host' },
   template: `
     @if (mode() === 'range') {
       <nz-range-picker
+        class="w-full"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
         [nzAllowClear]="allowClear()"
@@ -44,6 +51,7 @@ export type DateValue = Date | [Date, Date] | null;
       />
     } @else {
       <nz-date-picker
+        class="w-full"
         [nzSize]="nzSize()"
         [nzDisabled]="disabled()"
         [nzAllowClear]="allowClear()"

@@ -56,7 +56,7 @@ class ArticlesControllerIT extends PostgresIntegrationTest {
         clubAdminToken = jwts.mint(c -> c
                 .claim("clubId", CLUB_ID)
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
-        jdbc.update("DELETE FROM article WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_article WHERE operating_club_id = ?::uuid", CLUB_ID);
     }
 
     @Test

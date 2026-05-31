@@ -121,7 +121,8 @@ public class FlightMapper {
                 AircraftId.of(row.aircraftId()),
                 row.processStateId(),
                 ch.alpenflight.flights.domain.FlightProcessState.fromId(row.processStateId()),
-                row.airState());
+                row.airState(),
+                row.version());
     }
 
     public FlightDetail toDetail(Flight f) {

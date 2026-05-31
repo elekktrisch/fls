@@ -49,7 +49,7 @@ import org.jspecify.annotations.Nullable;
  * does NOT block on existing FK references.
  */
 @Entity
-@Table(name = "article")
+@Table(name = "t_article")
 public class Article {
 
     private static final int MAX_NUMBER_LENGTH = 50;

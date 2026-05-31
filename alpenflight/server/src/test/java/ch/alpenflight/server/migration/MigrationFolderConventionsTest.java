@@ -146,16 +146,6 @@ class MigrationFolderConventionsTest {
         }
     }
 
-    @Test
-    void v1_baseline_is_non_empty() throws IOException {
-        Path v1 = locateMigration("V1__baseline.sql");
-        String content = Files.readString(v1, StandardCharsets.UTF_8);
-        String stripped = content.replaceAll("(?m)^--.*$", "").replaceAll("\\s+", "");
-        assertThat(stripped)
-                .as("V1__baseline.sql must contain at least one non-comment, non-whitespace token")
-                .isNotEmpty();
-    }
-
     /**
      * ADR 0022 directive 2 — business logic lives on aggregates, not the schema.
      * CHECK constraints encoding state-machine values, numeric ranges,

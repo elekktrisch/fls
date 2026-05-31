@@ -156,7 +156,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
 
         // List is a GET, so neither service emit nor synthetic failure should fire.
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event WHERE tenant_club_id = ?::uuid",
+                "SELECT * FROM t_mutation_audit_event WHERE tenant_club_id = ?::uuid",
                 SYSADMIN_TENANT.toString());
         assertThat(rows).isEmpty();
     }
@@ -238,7 +238,7 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
         // The synthetic failure row for the dup POST has target_entity_id = null,
         // so query by tenant + failed=true + action=CREATE.
         List<Map<String, Object>> failedRows = jdbc.queryForList(
-                "SELECT * FROM mutation_audit_event "
+                "SELECT * FROM t_mutation_audit_event "
                         + "WHERE tenant_club_id = ?::uuid AND failed = true AND action = 'CREATE'",
                 SYSADMIN_TENANT.toString());
         assertThat(failedRows)

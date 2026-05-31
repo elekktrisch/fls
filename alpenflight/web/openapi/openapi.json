@@ -32,6 +32,9 @@
     "name" : "Clubs",
     "description" : "Clubs CRUD."
   }, {
+    "name" : "Users",
+    "description" : "User CRUD + role assignment (CLUB_ADMINISTRATOR cabin)."
+  }, {
     "name" : "Countries",
     "description" : "ISO-3166 country catalog."
   }, {
@@ -40,6 +43,9 @@
   }, {
     "name" : "CounterUnitTypes",
     "description" : "Counter-unit-type reference catalog."
+  }, {
+    "name" : "me",
+    "description" : "Authenticated-principal view"
   }, {
     "name" : "flights",
     "description" : "Flight CRUD"
@@ -60,6 +66,128 @@
     "description" : "Flight-cost-balance reference catalog (cross-tenant)."
   } ],
   "paths" : {
+    "/api/v1/users/{id}" : {
+      "get" : {
+        "tags" : [ "Users" ],
+        "summary" : "Read one user. 404 (not 403) cross-tenant — IDOR contract.",
+        "operationId" : "getUser",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "usr-019e30c3-2c00-7100-8000-000000000001",
+            "pattern" : "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "User detail.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found or not visible to caller's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Users" ],
+        "summary" : "Update profile + role assignments. Username is identity-binding (not editable here).",
+        "operationId" : "updateUser",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "usr-019e30c3-2c00-7100-8000-000000000001",
+            "pattern" : "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UserUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Role grant rejected.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Not found or not visible to caller's club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Users" ],
+        "summary" : "Soft-delete user. Refused (409) for self-delete and for the last CLUB_ADMINISTRATOR of a club.",
+        "operationId" : "deleteUser",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "usr-019e30c3-2c00-7100-8000-000000000001",
+            "pattern" : "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "Not found."
+          },
+          "409" : {
+            "description" : "Self-delete or last-admin refusal."
+          }
+        }
+      }
+    },
     "/api/v1/persons/{id}" : {
       "get" : {
         "tags" : [ "Persons" ],
@@ -403,7 +531,7 @@
       },
       "put" : {
         "tags" : [ "flights" ],
-        "summary" : "Update a flight (full replace of editable surface + crew)",
+        "summary" : "Update a flight (full replace of editable surface + crew). If-Match: optimistic-concurrency precondition (RFC 7232 §3.1). On stale: 412 application/problem+json with serverVersion.",
         "operationId" : "update",
         "parameters" : [ {
           "name" : "id",
@@ -447,7 +575,7 @@
       },
       "delete" : {
         "tags" : [ "flights" ],
-        "summary" : "Soft-delete a flight",
+        "summary" : "Soft-delete a flight. If-Match: optional precondition matching PUT semantics; omit to force-delete.",
         "operationId" : "delete",
         "parameters" : [ {
           "name" : "id",
@@ -457,6 +585,13 @@
             "type" : "string",
             "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }, {
+          "name" : "If-Match",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
           }
         } ],
         "responses" : {
@@ -942,6 +1077,113 @@
         }
       }
     },
+    "/api/v1/users" : {
+      "get" : {
+        "tags" : [ "Users" ],
+        "summary" : "List active users in the caller's club. Live KC fields included (roles, enabled, invitePending).",
+        "operationId" : "listUsers",
+        "responses" : {
+          "200" : {
+            "description" : "Array of user listitem projections.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/UserListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Users" ],
+        "summary" : "Invite a new user. Creates the Keycloak identity and the local row in one transaction; UPDATE_PASSWORD email fires after commit.",
+        "operationId" : "inviteUser",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UserInviteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Role grant rejected (e.g. SYSTEM_ADMINISTRATOR).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Username already taken.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/resend-invite" : {
+      "post" : {
+        "tags" : [ "Users" ],
+        "summary" : "Re-send the Keycloak UPDATE_PASSWORD action email. Idempotent.",
+        "operationId" : "resendInvite",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "usr-019e30c3-2c00-7100-8000-000000000001",
+            "pattern" : "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Sent."
+          },
+          "404" : {
+            "description" : "Not found."
+          },
+          "409" : {
+            "description" : "User has no Keycloak identity attached."
+          }
+        }
+      }
+    },
     "/api/v1/persons" : {
       "get" : {
         "tags" : [ "Persons" ],
@@ -1171,7 +1413,7 @@
     "/api/v1/flights" : {
       "get" : {
         "tags" : [ "flights" ],
-        "summary" : "List flights (keyset-cursor paginated)",
+        "summary" : "List flights (keyset-cursor paginated). When `personId` is supplied (prefixed `pn-<uuid>` per ADR 0019), rows are filtered to flights with a non-deleted FlightCrew row for that person, and the sort order is the AC-defined `flight_date DESC, start_date_time DESC NULLS LAST, created_on DESC` (the third key tie-breaks via UUIDv7 id, which is monotonic-in-creation-time).",
         "operationId" : "list",
         "parameters" : [ {
           "name" : "from",
@@ -1203,6 +1445,15 @@
           "schema" : {
             "type" : "integer",
             "format" : "int32"
+          }
+        }, {
+          "name" : "personId",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           }
         } ],
         "responses" : {
@@ -1770,6 +2021,25 @@
         }
       }
     },
+    "/api/v1/me" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Authenticated-principal projection (id, personId, clubId, roles, firstName, lastName, email, username). personId is null for sysadmins / unmapped federated users.",
+        "operationId" : "get_1",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/location-types" : {
       "get" : {
         "tags" : [ "LocationTypes" ],
@@ -2143,6 +2413,102 @@
   },
   "components" : {
     "schemas" : {
+      "UserUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update a user — mutable fields only. Username / club / keycloakSub are identity-binding and not editable.",
+        "properties" : {
+          "friendlyName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "notificationEmail" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "phoneNumber" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "remarks" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "languageId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "roles" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SYSTEM_ADMINISTRATOR", "CLUB_ADMINISTRATOR", "FLIGHT_OPERATOR", "PILOT", "OFFICE_USER", "GUEST" ]
+            },
+            "uniqueItems" : true
+          }
+        },
+        "required" : [ "friendlyName", "languageId", "notificationEmail", "roles" ]
+      },
+      "UserResponse" : {
+        "type" : "object",
+        "description" : "User detail projection — fields from the local row + live KC role mappings.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "usr-019e30c3-2c00-7100-8000-000000000001",
+            "pattern" : "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "clubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "username" : {
+            "type" : "string"
+          },
+          "friendlyName" : {
+            "type" : "string"
+          },
+          "notificationEmail" : {
+            "type" : "string"
+          },
+          "phoneNumber" : {
+            "type" : "string"
+          },
+          "remarks" : {
+            "type" : "string"
+          },
+          "languageId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "roles" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SYSTEM_ADMINISTRATOR", "CLUB_ADMINISTRATOR", "FLIGHT_OPERATOR", "PILOT", "OFFICE_USER", "GUEST" ]
+            }
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "invitePending" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "clubId", "enabled", "friendlyName", "id", "invitePending", "languageId", "notificationEmail", "roles", "username" ]
+      },
       "LicenceFlags" : {
         "type" : "object",
         "description" : "Person-level licence flags + expiry dates. Nullable on Create/Update — omit to keep current values.",
@@ -2861,7 +3227,7 @@
       },
       "FlightUpdateRequest" : {
         "type" : "object",
-        "description" : "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059).",
+        "description" : "Payload to update a Flight. The discriminator (flightAircraftType) is immutable and absent here; aircraftId is mutable at S-058 scope (state-machine gating against booked/invoiced flights is S-059). Tow-link semantics: `towFlightId` value → link; `unlinkTowFlight: true` → explicit unlink; both absent → preserve the existing link (S-063 partial-PUT fix).",
         "properties" : {
           "aircraftId" : {
             "type" : "string",
@@ -2985,6 +3351,9 @@
             "type" : "string",
             "example" : "fl-019e30c3-2c00-7001-8000-000000000001",
             "pattern" : "^fl-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "unlinkTowFlight" : {
+            "type" : "boolean"
           },
           "crew" : {
             "type" : "array",
@@ -3656,6 +4025,56 @@
           }
         },
         "required" : [ "aircraftStateId", "id", "validFrom" ]
+      },
+      "UserInviteRequest" : {
+        "type" : "object",
+        "description" : "Payload to invite a new user. Backend creates the Keycloak user, then inserts the FLS row in the same transaction; on DB failure the KC user is compensated-deleted.",
+        "properties" : {
+          "username" : {
+            "type" : "string",
+            "maxLength" : 256,
+            "minLength" : 3,
+            "pattern" : "^[A-Za-z0-9._-]{3,256}$"
+          },
+          "friendlyName" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "notificationEmail" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "phoneNumber" : {
+            "type" : "string",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "remarks" : {
+            "type" : "string",
+            "maxLength" : 250,
+            "minLength" : 0
+          },
+          "languageId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "roles" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SYSTEM_ADMINISTRATOR", "CLUB_ADMINISTRATOR", "FLIGHT_OPERATOR", "PILOT", "OFFICE_USER", "GUEST" ]
+            },
+            "uniqueItems" : true
+          }
+        },
+        "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
       },
       "PersonCreateRequest" : {
         "type" : "object",
@@ -4416,6 +4835,47 @@
         },
         "required" : [ "id", "processState", "processStateId", "version" ]
       },
+      "UserListItem" : {
+        "type" : "object",
+        "description" : "User listitem projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "usr-019e30c3-2c00-7100-8000-000000000001",
+            "pattern" : "^usr-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "username" : {
+            "type" : "string"
+          },
+          "friendlyName" : {
+            "type" : "string"
+          },
+          "notificationEmail" : {
+            "type" : "string"
+          },
+          "personId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "roles" : {
+            "type" : "array",
+            "description" : "Roles read live from Keycloak realm-role mappings.",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SYSTEM_ADMINISTRATOR", "CLUB_ADMINISTRATOR", "FLIGHT_OPERATOR", "PILOT", "OFFICE_USER", "GUEST" ]
+            }
+          },
+          "enabled" : {
+            "type" : "boolean",
+            "description" : "Keycloak `enabled` flag."
+          },
+          "invitePending" : {
+            "type" : "boolean",
+            "description" : "True iff the KC user has unresolved required-actions (e.g. UPDATE_PASSWORD)."
+          }
+        },
+        "required" : [ "enabled", "friendlyName", "id", "invitePending", "notificationEmail", "roles", "username" ]
+      },
       "PersonListItem" : {
         "type" : "object",
         "description" : "Person listitem projection — one row per (Person, caller-tenant PersonClub) pair.",
@@ -4480,6 +4940,47 @@
         },
         "required" : [ "firstname", "id", "isActive", "isGliderInstructor", "isGliderPilot", "isGliderTrainee", "isMotorInstructor", "isMotorPilot", "isTowPilot", "isWinchOperator", "lastname" ]
       },
+      "MeResponse" : {
+        "type" : "object",
+        "description" : "Authenticated-principal projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Internal user.id (UUID). Null when the JWT sub matches no active user row."
+          },
+          "personId" : {
+            "type" : "string",
+            "description" : "Linked Person id, prefixed external form `pn-<uuid>`. Null when user.person_id is null (sysadmin / unmapped federated user)."
+          },
+          "clubId" : {
+            "type" : "string",
+            "description" : "Caller's home club, prefixed external form `clb-<uuid>`. Null when no user row matches the JWT sub."
+          },
+          "roles" : {
+            "type" : "array",
+            "description" : "AlpenFlight realm roles (no `ROLE_` prefix). Filtered to the canonical role catalog server-side; Keycloak built-ins (`uma_authorization`, `offline_access`, `default-roles-*`) are stripped.",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "firstName" : {
+            "type" : "string",
+            "description" : "First name. Resolved from the linked Person row when present, otherwise from the JWT `given_name` claim."
+          },
+          "lastName" : {
+            "type" : "string",
+            "description" : "Last name. Same resolution as firstName."
+          },
+          "email" : {
+            "type" : "string",
+            "description" : "Notification email from the user row, or JWT `email` claim when no user matches."
+          },
+          "username" : {
+            "type" : "string",
+            "description" : "Username from the user row, or JWT `preferred_username` claim when no user matches."
+          }
+        }
+      },
       "LocationListItem" : {
         "type" : "object",
         "description" : "Location listitem projection — sort_indicator + name ordered.",
@@ -4534,7 +5035,7 @@
       },
       "FlightListItem" : {
         "type" : "object",
-        "description" : "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred.",
+        "description" : "Flight list-row projection — basic CRUD scope; decorations (aircraft immat, pilot name) deferred. Carries `version` so concurrency-aware actions (e.g. DELETE with If-Match) can fire from the list view without a follow-up GET.",
         "properties" : {
           "id" : {
             "type" : "string",
@@ -4573,9 +5074,13 @@
           "airState" : {
             "type" : "string",
             "enum" : [ "NEW", "FLIGHT_PLAN_OPEN", "MIGHT_BE_STARTED", "STARTED", "MIGHT_BE_LANDED_OR_IN_AIR", "LANDED", "FLIGHT_PLAN_CLOSED" ]
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         },
-        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processState", "processStateId" ]
+        "required" : [ "airState", "aircraftId", "flightAircraftType", "id", "processState", "processStateId", "version" ]
       },
       "FlightListResponse" : {
         "type" : "object",

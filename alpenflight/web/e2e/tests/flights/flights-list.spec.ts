@@ -49,6 +49,7 @@ interface MockFlightListItem {
     | 'MIGHT_BE_LANDED_OR_IN_AIR'
     | 'LANDED'
     | 'FLIGHT_PLAN_CLOSED';
+  version: number;
 }
 
 const AC_GLI = 'ac-019e30c3-2c00-7001-8000-000000000a01';
@@ -65,6 +66,7 @@ const allFlights: MockFlightListItem[] = [
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
     airState: 'LANDED',
+    version: 1,
   },
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000002',
@@ -76,6 +78,7 @@ const allFlights: MockFlightListItem[] = [
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
     airState: 'LANDED',
+    version: 1,
   },
   {
     id: 'fl-019e30c3-2c00-7001-8000-000000000003',
@@ -87,6 +90,7 @@ const allFlights: MockFlightListItem[] = [
     processStateId: PROC_STATE_VALID_ID,
     processState: 'VALID',
     airState: 'STARTED',
+    version: 1,
   },
 ];
 
@@ -286,7 +290,7 @@ test.describe('flights list page', () => {
     // client narrows the loaded page.
     const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
     await airStateFilter.click();
-    await page.getByRole('option', { name: 'Started' }).click();
+    await page.getByTestId('af-select-option-STARTED').click();
 
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await expect(page.getByTestId(`flights-row-${allFlights[2].id}`)).toBeVisible();
@@ -303,9 +307,11 @@ test.describe('flights list page', () => {
     await expect(
       page.getByTestId('flight-form').or(page.getByTestId('flight-loading')),
     ).toBeVisible();
+    await page.goBack();
 
-    // From/To pickers exist (split into two single-mode pickers — the
-    // range variant of nz-range-picker deadlocks under zoneless).
+    // From/To pickers exist on the list page (split into two single-mode
+    // pickers — the range variant of nz-range-picker deadlocks under
+    // zoneless).
     await expect(page.getByTestId('flights-date-from').locator('input')).toBeVisible();
     await expect(page.getByTestId('flights-date-to').locator('input')).toBeVisible();
     // No date params on initial load.
@@ -326,7 +332,7 @@ test.describe('flights list page', () => {
     // 02 — same list, with the Started air-state filter applied.
     const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
     await airStateFilter.click();
-    await page.getByRole('option', { name: 'Started' }).click();
+    await page.getByTestId('af-select-option-STARTED').click();
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await page.screenshot({ path: 'screenshots/flights/02-filtered.png', fullPage: true });
 

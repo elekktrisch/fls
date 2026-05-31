@@ -71,7 +71,7 @@ class FlightTypesTenantIsolationIT extends PostgresIntegrationTest {
                 .isInstanceOf(FlightTypeNotFoundException.class);
 
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM flight_type WHERE id = ?::uuid "
+                "SELECT count(*) FROM t_flight_type WHERE id = ?::uuid "
                         + "AND operating_club_id = ?::uuid",
                 Integer.class, aRow.id().value().toString(), CLUB_A.toString());
         assertThat(matches).isEqualTo(1);
@@ -87,7 +87,7 @@ class FlightTypesTenantIsolationIT extends PostgresIntegrationTest {
         TenantTestContext.runAs(CLUB_B, () -> flightTypes.registerFlightType(payload(shared)));
 
         Integer matches = jdbc.queryForObject(
-                "SELECT count(*) FROM flight_type WHERE flight_type_name = ?",
+                "SELECT count(*) FROM t_flight_type WHERE flight_type_name = ?",
                 Integer.class, shared);
         assertThat(matches).isEqualTo(2);
     }

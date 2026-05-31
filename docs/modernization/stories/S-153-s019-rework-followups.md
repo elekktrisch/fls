@@ -5,6 +5,7 @@ epic: E-03
 status: todo
 estimate: S
 depends_on: [S-019]
+integration_base: integration/users-suite
 origin: rework
 origin_story: S-019
 ---

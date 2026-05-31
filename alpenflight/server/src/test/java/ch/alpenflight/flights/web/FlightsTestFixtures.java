@@ -43,7 +43,7 @@ final class FlightsTestFixtures {
     static UUID seedAircraftFor(JdbcTemplate jdbc, UUID managingClubId) {
         UUID id = newAircraftId();
         jdbc.update("""
-                INSERT INTO aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
+                INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
                                       immatriculation, is_towing_or_winch_required,
                                       is_towing_start_allowed, is_winch_start_allowed,
                                       is_towing_aircraft, is_fast_entry_record,
@@ -66,10 +66,10 @@ final class FlightsTestFixtures {
     static UUID seedPersonInClub(JdbcTemplate jdbc, UUID clubId) {
         UUID personId = UUID.randomUUID();
         UUID pcId = UUID.randomUUID();
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "Test", "Pilot" + IMMAT_COUNTER.incrementAndGet());
         jdbc.update("""
-                INSERT INTO person_club (id, person_id, club_id)
+                INSERT INTO t_person_club (id, person_id, club_id)
                 VALUES (?::uuid, ?::uuid, ?::uuid)
                 """,
                 pcId.toString(), personId.toString(), clubId.toString());
@@ -79,7 +79,7 @@ final class FlightsTestFixtures {
     /** Inserts a minimal Person row WITHOUT any PersonClub — cross-tenant ride-through anchor. */
     static UUID seedPersonNoMembership(JdbcTemplate jdbc) {
         UUID personId = UUID.randomUUID();
-        jdbc.update("INSERT INTO person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
                 personId.toString(), "Cross", "Tenant" + IMMAT_COUNTER.incrementAndGet());
         return personId;
     }
@@ -127,7 +127,7 @@ final class FlightsTestFixtures {
     static void cleanFlightRowsFor(JdbcTemplate jdbc, UUID... clubIds) {
         for (UUID clubId : clubIds) {
             // FK ON DELETE CASCADE on flight_crew → flight handles crew cleanup.
-            jdbc.update("DELETE FROM flight WHERE operating_club_id = ?::uuid",
+            jdbc.update("DELETE FROM t_flight WHERE operating_club_id = ?::uuid",
                     clubId.toString());
         }
     }

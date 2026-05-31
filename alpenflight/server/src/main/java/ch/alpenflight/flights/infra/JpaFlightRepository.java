@@ -78,7 +78,8 @@ interface CustomListQuery {
                                                   @Nullable LocalDate to,
                                                   @Nullable LocalDate cursorFlightDate,
                                                   @Nullable UUID cursorId,
-                                                  int limit);
+                                                  int limit,
+                                                  @Nullable UUID personId);
 }
 
 @Repository
@@ -95,11 +96,12 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
                                                          @Nullable LocalDate to,
                                                          @Nullable LocalDate cursorFlightDate,
                                                          @Nullable UUID cursorId,
-                                                         int limit) {
+                                                         int limit,
+                                                         @Nullable UUID personId) {
         StringBuilder sb = new StringBuilder();
         sb.append("select new ch.alpenflight.flights.domain.FlightRepository$ListRow(")
           .append("  f.id, f.flightAircraftType, f.flightDate, f.startDateTime,")
-          .append("  f.ldgDateTime, f.aircraftId, f.processStateId,")
+          .append("  f.ldgDateTime, f.aircraftId, f.processStateId, f.version,")
           .append("  f.noStartTimeInformation, f.noLdgTimeInformation, f.flightPlanOpenedOn)")
           .append(" from Flight f")
           .append(" where f.deletedOn is null");
@@ -108,6 +110,15 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
         }
         if (to != null) {
             sb.append(" and f.flightDate <= :to");
+        }
+        if (personId != null) {
+            // Rides ix_flight_crew_person_type from V3 (S-165 perf note).
+            sb.append(" and exists (")
+              .append("   select 1 from FlightCrew c")
+              .append("   where c.flight = f")
+              .append("     and c.personId = :personId")
+              .append("     and c.deletedOn is null")
+              .append(" )");
         }
         if (cursorFlightDate != null && cursorId != null) {
             // (flight_date, id) < (cursor.flight_date, cursor.id) — DESC order
@@ -120,7 +131,15 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
               .append("   or (f.flightDate = :cursorDate and f.id < :cursorId)")
               .append(" )");
         }
-        sb.append(" order by f.flightDate desc nulls last, f.id desc");
+        if (personId != null) {
+            // S-165 AC sort. startDateTime tie-breaks within the same flight_date;
+            // id desc (UUIDv7) stands in for created_on desc (UUIDv7 is monotonic
+            // in creation time at sub-ms precision).
+            sb.append(" order by f.flightDate desc nulls last,"
+                    + " f.startDateTime desc nulls last, f.id desc");
+        } else {
+            sb.append(" order by f.flightDate desc nulls last, f.id desc");
+        }
 
         TypedQuery<FlightRepository.ListRow> q =
                 em.createQuery(sb.toString(), FlightRepository.ListRow.class);
@@ -129,6 +148,9 @@ class JpaFlightRepositoryImpl implements CustomListQuery {
         }
         if (to != null) {
             q.setParameter("to", to);
+        }
+        if (personId != null) {
+            q.setParameter("personId", personId);
         }
         if (cursorFlightDate != null && cursorId != null) {
             q.setParameter("cursorDate", cursorFlightDate);

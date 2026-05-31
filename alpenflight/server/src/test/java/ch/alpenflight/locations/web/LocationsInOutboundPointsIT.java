@@ -70,7 +70,7 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
 
         UUID raw = LocationId.parse(body.get("id").asText()).value();
         Integer rowCount = jdbc.queryForObject(
-                "SELECT count(*) FROM inoutbound_point WHERE location_id = ?::uuid",
+                "SELECT count(*) FROM t_inoutbound_point WHERE location_id = ?::uuid",
                 Integer.class, raw.toString());
         assertThat(rowCount).isEqualTo(3);
     }
@@ -99,7 +99,7 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
         assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         Integer afterUpdate = jdbc.queryForObject(
-                "SELECT count(*) FROM inoutbound_point WHERE location_id = ?::uuid",
+                "SELECT count(*) FROM t_inoutbound_point WHERE location_id = ?::uuid",
                 Integer.class, raw.toString());
         assertThat(afterUpdate)
                 .as("Orphan-removal must drop the two original points; only the one replacement remains")
@@ -129,7 +129,7 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
         put("/api/v1/locations/" + externalId, upd);
 
         Integer count = jdbc.queryForObject(
-                "SELECT count(*) FROM inoutbound_point WHERE location_id = ?::uuid",
+                "SELECT count(*) FROM t_inoutbound_point WHERE location_id = ?::uuid",
                 Integer.class, raw.toString());
         assertThat(count).isZero();
     }
@@ -156,7 +156,7 @@ class LocationsInOutboundPointsIT extends PostgresIntegrationTest {
         assertThat(getAfter.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
         Integer iopCount = jdbc.queryForObject(
-                "SELECT count(*) FROM inoutbound_point WHERE location_id = ?::uuid",
+                "SELECT count(*) FROM t_inoutbound_point WHERE location_id = ?::uuid",
                 Integer.class, raw.toString());
         assertThat(iopCount).isEqualTo(1);
     }

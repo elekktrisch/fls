@@ -14,7 +14,7 @@ This register is the gate.
 ### `persons-cross-tenant-membership-check` — `Person soft-delete cross-tenant safety check`
 
 - **Caller:** `src/main/java/ch/alpenflight/persons/infra/JpaPersonRepository.java`
-- **Tenant-scoped tables touched:** `person_club`
+- **Tenant-scoped tables touched:** `t_person_club`
 - **Justification:** soft-deleting a `Person` must refuse when memberships
   in tenants OTHER THAN the caller's exist — the Person aggregate's
   `softDelete` invariant refuses to orphan another tenant's PersonClub

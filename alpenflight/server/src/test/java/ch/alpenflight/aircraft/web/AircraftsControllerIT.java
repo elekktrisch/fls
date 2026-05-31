@@ -166,7 +166,7 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
                 Void.class);
 
         Integer count = jdbc.queryForObject(
-                "SELECT count(*) FROM aircraft WHERE id = ?::uuid AND deleted_on IS NOT NULL",
+                "SELECT count(*) FROM t_aircraft WHERE id = ?::uuid AND deleted_on IS NOT NULL",
                 Integer.class, raw.toString());
         assertThat(count).isEqualTo(1);
     }

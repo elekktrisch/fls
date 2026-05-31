@@ -46,19 +46,19 @@ class FlightBaselineIntegrationTest {
      * {@code flight_air_state} (air-state is computed, never stored).
      */
     private static final List<String> S013_TABLES = List.of(
-            "flight", "flight_crew",
-            "aircraft", "aircraft_aircraft_state", "aircraft_operating_counter",
-            "location", "inoutbound_point",
-            "flight_type", "article",
-            "flight_crew_type", "flight_process_state",
-            "flight_cost_balance_type",
-            "aircraft_type", "aircraft_state", "location_type");
+            "t_flight", "t_flight_crew",
+            "t_aircraft", "t_aircraft_aircraft_state", "t_aircraft_operating_counter",
+            "t_location", "t_inoutbound_point",
+            "t_flight_type", "t_article",
+            "t_flight_crew_type", "t_flight_process_state",
+            "t_flight_cost_balance_type",
+            "t_aircraft_type", "t_aircraft_state", "t_location_type");
 
     /** Reference / lookup tables that still exist after S-060. */
     private static final List<String> S013_REFERENCE_TABLES = List.of(
-            "aircraft_type", "aircraft_state", "location_type",
-            "flight_crew_type", "flight_process_state",
-            "flight_cost_balance_type");
+            "t_aircraft_type", "t_aircraft_state", "t_location_type",
+            "t_flight_crew_type", "t_flight_process_state",
+            "t_flight_cost_balance_type");
 
     /**
      * 3 direct tenant-scoped aggregate roots — these carry `operating_club_id`
@@ -67,7 +67,7 @@ class FlightBaselineIntegrationTest {
      * (mutation audit lives on Flight per ADR 0018).
      */
     private static final List<String> S013_TENANT_SCOPED_TABLES = List.of(
-            "flight", "flight_type", "article");
+            "t_flight", "t_flight_type", "t_article");
 
     @BeforeAll
     static void loadCanonicalSeeds() throws Exception {
@@ -109,7 +109,7 @@ class FlightBaselineIntegrationTest {
                 .containsAll(S013_TABLES);
         assertThat(actual)
                 .as("flight_air_state was dropped by V13 — air state is computed (S-060)")
-                .doesNotContain("flight_air_state");
+                .doesNotContain("t_flight_air_state");
     }
 
     /** AC2 — every PK across S-013's 16 tables is `uuid NOT NULL`. */
@@ -198,7 +198,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_has_tow_flight_self_fk_set_null() throws Exception {
-        assertFkDeleteRule("flight", "tow_flight_id", "SET NULL");
+        assertFkDeleteRule("t_flight", "tow_flight_id", "SET NULL");
     }
 
     /**
@@ -213,7 +213,7 @@ class FlightBaselineIntegrationTest {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT data_type FROM information_schema.columns "
-                                + "WHERE table_schema='public' AND table_name='flight' "
+                                + "WHERE table_schema='public' AND table_name='t_flight' "
                                 + "AND column_name='flight_aircraft_type_id'")) {
             assertThat(rs.next()).isTrue();
             assertThat(rs.getString(1))
@@ -224,8 +224,8 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_operating_club_id_not_null_fk_to_club_restrict() throws Exception {
-        assertColumnNotNull("flight", "operating_club_id", "uuid");
-        assertFkDeleteRule("flight", "operating_club_id", "RESTRICT");
+        assertColumnNotNull("t_flight", "operating_club_id", "uuid");
+        assertFkDeleteRule("t_flight", "operating_club_id", "RESTRICT");
     }
 
     // ============================================================================
@@ -234,7 +234,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_crew_composite_partial_unique_present() throws Exception {
-        List<String> defs = indexDefs("flight_crew");
+        List<String> defs = indexDefs("t_flight_crew");
         assertThat(defs)
                 .as("flight_crew must carry partial UNIQUE on (flight_id, person_id, flight_crew_type_id) WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -248,7 +248,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_crew_flight_fk_on_delete_cascade() throws Exception {
-        assertFkDeleteRule("flight_crew", "flight_id", "CASCADE");
+        assertFkDeleteRule("t_flight_crew", "flight_id", "CASCADE");
     }
 
     /**
@@ -258,7 +258,7 @@ class FlightBaselineIntegrationTest {
      */
     @Test
     void flight_crew_person_fk_on_delete_restrict() throws Exception {
-        assertFkDeleteRule("flight_crew", "person_id", "RESTRICT");
+        assertFkDeleteRule("t_flight_crew", "person_id", "RESTRICT");
     }
 
     @Test
@@ -271,7 +271,7 @@ class FlightBaselineIntegrationTest {
             try (Connection conn = dataSource.getConnection();
                     var stmt = conn.prepareStatement(
                             "SELECT 1 FROM information_schema.columns "
-                                    + "WHERE table_schema='public' AND table_name='flight_crew' "
+                                    + "WHERE table_schema='public' AND table_name='t_flight_crew' "
                                     + "AND column_name = ?")) {
                 stmt.setString(1, absent);
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -294,13 +294,13 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_type_is_tenant_scoped_uuid_club_id_not_null() throws Exception {
-        assertColumnNotNull("flight_type", "operating_club_id", "uuid");
-        assertFkDeleteRule("flight_type", "operating_club_id", "RESTRICT");
+        assertColumnNotNull("t_flight_type", "operating_club_id", "uuid");
+        assertFkDeleteRule("t_flight_type", "operating_club_id", "RESTRICT");
     }
 
     @Test
     void flight_type_club_code_unique_partial() throws Exception {
-        List<String> defs = indexDefs("flight_type");
+        List<String> defs = indexDefs("t_flight_type");
         assertThat(defs)
                 .as("flight_type must carry partial UNIQUE on (operating_club_id, flight_code) WHERE not-null + not-deleted")
                 .anyMatch(d -> {
@@ -314,11 +314,11 @@ class FlightBaselineIntegrationTest {
     @Test
     void flight_cost_balance_type_three_aircraft_flag_columns_not_null_default_false() throws Exception {
         for (String flag : List.of("is_for_glider", "is_for_tow", "is_for_motor")) {
-            assertColumnNotNull("flight_cost_balance_type", flag, "boolean");
+            assertColumnNotNull("t_flight_cost_balance_type", flag, "boolean");
             try (Connection conn = dataSource.getConnection();
                     var stmt = conn.prepareStatement(
                             "SELECT column_default FROM information_schema.columns "
-                                    + "WHERE table_schema='public' AND table_name='flight_cost_balance_type' "
+                                    + "WHERE table_schema='public' AND table_name='t_flight_cost_balance_type' "
                                     + "AND column_name=?")) {
                 stmt.setString(1, flag);
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -345,10 +345,10 @@ class FlightBaselineIntegrationTest {
     @Test
     void aircraft_is_cross_tenant_no_operating_club_id() throws Exception {
         try (Connection conn = dataSource.getConnection()) {
-            assertTableExists(conn, "aircraft");
+            assertTableExists(conn, "t_aircraft");
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT 1 FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='aircraft' "
+                            + "WHERE table_schema='public' AND table_name='t_aircraft' "
                             + "AND column_name='operating_club_id'")) {
                 assertThat(rs.next())
                         .as("aircraft must NOT carry an operating_club_id column (2026-05-16 cross-tenant amendment)")
@@ -356,7 +356,7 @@ class FlightBaselineIntegrationTest {
             }
             try (ResultSet rs = conn.createStatement().executeQuery(
                     "SELECT is_nullable FROM information_schema.columns "
-                            + "WHERE table_schema='public' AND table_name='aircraft' "
+                            + "WHERE table_schema='public' AND table_name='t_aircraft' "
                             + "AND column_name='owner_club_id'")) {
                 assertThat(rs.next()).as("aircraft.owner_club_id must exist").isTrue();
                 assertThat(rs.getString(1))
@@ -368,7 +368,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void aircraft_immatriculation_global_unique_partial() throws Exception {
-        List<String> defs = indexDefs("aircraft");
+        List<String> defs = indexDefs("t_aircraft");
         assertThat(defs)
                 .as("aircraft.immatriculation must be globally UNIQUE WHERE deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -385,14 +385,14 @@ class FlightBaselineIntegrationTest {
                 ResultSet rs = conn.createStatement().executeQuery(
                         "SELECT a.attname FROM pg_index i "
                                 + "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
-                                + "WHERE i.indrelid = 'aircraft_aircraft_state'::regclass AND i.indisprimary")) {
+                                + "WHERE i.indrelid = 't_aircraft_aircraft_state'::regclass AND i.indisprimary")) {
             List<String> cols = new ArrayList<>();
             while (rs.next()) cols.add(rs.getString(1));
             assertThat(cols)
                     .as("aircraft_aircraft_state PK must be surrogate id (NOT the legacy composite)")
                     .containsExactly("id");
         }
-        List<String> defs = indexDefs("aircraft_aircraft_state");
+        List<String> defs = indexDefs("t_aircraft_aircraft_state");
         assertThat(defs)
                 .as("UNIQUE (aircraft_id, valid_from)")
                 .anyMatch(d -> {
@@ -405,7 +405,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void aircraft_aircraft_state_partial_unique_current_state() throws Exception {
-        List<String> defs = indexDefs("aircraft_aircraft_state");
+        List<String> defs = indexDefs("t_aircraft_aircraft_state");
         assertThat(defs)
                 .as("partial UNIQUE (aircraft_id) WHERE valid_to IS NULL AND deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -418,7 +418,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void aircraft_operating_counter_time_series_unique() throws Exception {
-        List<String> defs = indexDefs("aircraft_operating_counter");
+        List<String> defs = indexDefs("t_aircraft_operating_counter");
         assertThat(defs)
                 .as("aircraft_operating_counter must carry UNIQUE (aircraft_id, at_date_time)")
                 .anyMatch(d -> {
@@ -430,7 +430,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void aircraft_operating_counter_covering_index_with_include() throws Exception {
-        List<String> defs = indexDefs("aircraft_operating_counter");
+        List<String> defs = indexDefs("t_aircraft_operating_counter");
         assertThat(defs)
                 .as("aircraft_operating_counter covering index: (aircraft_id, at_date_time DESC) INCLUDE (counter cols)")
                 .anyMatch(d -> {
@@ -477,8 +477,8 @@ class FlightBaselineIntegrationTest {
         // TENANT_SCOPED masterdata. Same physical airport may exist N times
         // across clubs but only once per club. Sister assertion in
         // TenantCatalogConsistencyTest#location_has_club_id_uuid_not_null.
-        assertColumnNotNull("location", "club_id", "uuid");
-        assertFkDeleteRule("location", "club_id", "RESTRICT");
+        assertColumnNotNull("t_location", "club_id", "uuid");
+        assertFkDeleteRule("t_location", "club_id", "RESTRICT");
     }
 
     @Test
@@ -487,7 +487,7 @@ class FlightBaselineIntegrationTest {
         // ux_location_club_icao (per-club). The partial predicate also
         // excludes soft-deleted rows so recreate-after-soft-delete-same-club
         // no longer needs the S-049 "null out icao_code" workaround.
-        List<String> defs = indexDefs("location");
+        List<String> defs = indexDefs("t_location");
         assertThat(defs)
                 .as("partial UNIQUE on (club_id, icao_code) WHERE icao_code IS NOT NULL AND deleted_on IS NULL")
                 .anyMatch(d -> {
@@ -502,7 +502,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void location_name_lower_functional_index() throws Exception {
-        List<String> defs = indexDefs("location");
+        List<String> defs = indexDefs("t_location");
         assertThat(defs)
                 .as("functional index on LOWER(location_name)")
                 .anyMatch(d -> {
@@ -513,7 +513,7 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void inoutbound_point_has_location_fk_on_delete_cascade() throws Exception {
-        assertFkDeleteRule("inoutbound_point", "location_id", "CASCADE");
+        assertFkDeleteRule("t_inoutbound_point", "location_id", "CASCADE");
     }
 
     // ============================================================================
@@ -524,21 +524,21 @@ class FlightBaselineIntegrationTest {
     void club_has_5_deferred_fk_columns_all_nullable_set_null() throws Exception {
         record Slot(String column, String fkTargetTable) {}
         List<Slot> slots = List.of(
-                new Slot("homebase_id", "location"),
-                new Slot("default_glider_flight_type_id", "flight_type"),
-                new Slot("default_tow_flight_type_id", "flight_type"),
-                new Slot("default_motor_flight_type_id", "flight_type"),
-                new Slot("default_glider_with_motor_flight_type_id", "flight_type"));
+                new Slot("homebase_id", "t_location"),
+                new Slot("default_glider_flight_type_id", "t_flight_type"),
+                new Slot("default_tow_flight_type_id", "t_flight_type"),
+                new Slot("default_motor_flight_type_id", "t_flight_type"),
+                new Slot("default_glider_with_motor_flight_type_id", "t_flight_type"));
         for (Slot s : slots) {
-            assertColumnNullable("club", s.column(), "uuid");
-            assertFkDeleteRule("club", s.column(), "SET NULL");
+            assertColumnNullable("t_club", s.column(), "uuid");
+            assertFkDeleteRule("t_club", s.column(), "SET NULL");
         }
     }
 
     /** Forward-looking column not in legacy Club.cs:77-81 — pin deviation explicitly. */
     @Test
     void club_default_glider_with_motor_flight_type_id_present() throws Exception {
-        assertColumnNullable("club", "default_glider_with_motor_flight_type_id", "uuid");
+        assertColumnNullable("t_club", "default_glider_with_motor_flight_type_id", "uuid");
     }
 
     // Flight invariants (ldg ≥ start ordering, flight_date sanity, nr_of_ldgs
@@ -557,11 +557,11 @@ class FlightBaselineIntegrationTest {
     void aggregate_root_column_comments_reference_adr_0019() throws Exception {
         record CommentExpect(String table, String prefix) {}
         List<CommentExpect> expects = List.of(
-                new CommentExpect("flight",      "flt"),
-                new CommentExpect("aircraft",    "acf"),
-                new CommentExpect("location",    "loc"),
-                new CommentExpect("flight_type", "fty"),
-                new CommentExpect("article",     "art"));
+                new CommentExpect("t_flight",      "flt"),
+                new CommentExpect("t_aircraft",    "acf"),
+                new CommentExpect("t_location",    "loc"),
+                new CommentExpect("t_flight_type", "fty"),
+                new CommentExpect("t_article",     "art"));
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement(
                         "SELECT col_description((quote_ident(?))::regclass, "
@@ -590,8 +590,8 @@ class FlightBaselineIntegrationTest {
         // "External form: <prefix>_" comment on their id columns. They cross
         // boundaries only via the parent aggregate (raw UUID at every layer).
         List<String> internalTables = List.of(
-                "flight_crew", "aircraft_aircraft_state",
-                "aircraft_operating_counter", "inoutbound_point");
+                "t_flight_crew", "t_aircraft_aircraft_state",
+                "t_aircraft_operating_counter", "t_inoutbound_point");
         try (Connection conn = dataSource.getConnection();
                 var stmt = conn.prepareStatement(
                         "SELECT col_description((quote_ident(?))::regclass, "
@@ -670,12 +670,12 @@ class FlightBaselineIntegrationTest {
         List<String> expectedCodes = List.of(
                 "UNKNOWN", "GLIDER", "GLIDER_WITH_MOTOR", "MOTOR_GLIDER",
                 "MOTOR_AIRCRAFT", "MULTI_ENGINE", "JET", "HELICOPTER");
-        assertSeededCodes("aircraft_type", expectedCodes);
+        assertSeededCodes("t_aircraft_type", expectedCodes);
 
         // Each row's UUID must match the canonical seed JSON bit-for-bit.
         for (String code : expectedCodes) {
-            String expectedUuid = canonicalSeedUuid("aircraft_type", "code", code);
-            assertCodeMapsToUuid("aircraft_type", code, expectedUuid);
+            String expectedUuid = canonicalSeedUuid("t_aircraft_type", "code", code);
+            assertCodeMapsToUuid("t_aircraft_type", code, expectedUuid);
         }
     }
 
@@ -683,7 +683,7 @@ class FlightBaselineIntegrationTest {
     void aircraft_type_legacy_codes_are_bitfield_powers_of_two_or_zero() throws Exception {
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT legacy_int_id FROM aircraft_type ORDER BY legacy_int_id")) {
+                        "SELECT legacy_int_id FROM t_aircraft_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
             // Allowed set: {0, 1, 2, 4, 8, 16, 32, 64} per FLS sacred-cow bit-field.
@@ -696,11 +696,11 @@ class FlightBaselineIntegrationTest {
         List<String> expectedCodes = List.of(
                 "OK", "INFORMATION", "ATTENTION", "MALFUNCTION",
                 "MAINTENANCE", "UNINSURED", "END_OF_LIFE");
-        assertSeededCodes("aircraft_state", expectedCodes);
+        assertSeededCodes("t_aircraft_state", expectedCodes);
         // is_aircraft_flyable invariant: only OK / INFORMATION / ATTENTION are flyable.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT code, is_aircraft_flyable FROM aircraft_state ORDER BY code")) {
+                        "SELECT code, is_aircraft_flyable FROM t_aircraft_state ORDER BY code")) {
             Map<String, Boolean> flyable = new java.util.LinkedHashMap<>();
             while (rs.next()) flyable.put(rs.getString(1), rs.getBoolean(2));
             assertThat(flyable.get("OK")).isTrue();
@@ -719,20 +719,20 @@ class FlightBaselineIntegrationTest {
         // fixture file ships 6 (LocationTypeCupId in {1..5, 99}). Ship 6 here;
         // S-016 cutover can backfill richer per-club rows if any prod snapshots
         // carry them. The test asserts exactly the 6 known rows by code.
-        assertSeededCodes("location_type", List.of(
+        assertSeededCodes("t_location_type", List.of(
                 "WAYPOINT", "GRASS_RUNWAY", "EXTERNAL_FIELD",
                 "GLIDER_AIRFIELD", "CONCRETE_RUNWAY", "OTHER"));
     }
 
     @Test
     void flight_crew_type_seeded_7_canonical_values() throws Exception {
-        assertSeededCodes("flight_crew_type", List.of(
+        assertSeededCodes("t_flight_crew_type", List.of(
                 "PILOT_OR_STUDENT", "CO_PILOT", "FLIGHT_INSTRUCTOR", "PASSENGER",
                 "WINCH_OPERATOR", "OBSERVER", "FLIGHT_COST_INVOICE_RECIPIENT"));
         // Legacy int codes: {1..6, 10} — the 10 is deliberately sparse.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT legacy_int_id FROM flight_crew_type ORDER BY legacy_int_id")) {
+                        "SELECT legacy_int_id FROM t_flight_crew_type ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
             assertThat(ids).containsExactly(1, 2, 3, 4, 5, 6, 10);
@@ -741,13 +741,13 @@ class FlightBaselineIntegrationTest {
 
     @Test
     void flight_process_state_seeded_8_canonical_values() throws Exception {
-        assertSeededCodes("flight_process_state", List.of(
+        assertSeededCodes("t_flight_process_state", List.of(
                 "NOT_PROCESSED", "INVALID", "VALID", "LOCKED",
                 "DELIVERY_PREPARATION_ERROR", "DELIVERY_PREPARED", "DELIVERY_BOOKED",
                 "EXCLUDED_FROM_DELIVERY_PROCESS"));
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT legacy_int_id FROM flight_process_state ORDER BY legacy_int_id")) {
+                        "SELECT legacy_int_id FROM t_flight_process_state ORDER BY legacy_int_id")) {
             List<Integer> ids = new ArrayList<>();
             while (rs.next()) ids.add(rs.getInt(1));
             assertThat(ids).containsExactly(0, 28, 30, 40, 45, 50, 60, 99);
@@ -760,14 +760,14 @@ class FlightBaselineIntegrationTest {
         // computed by Flight.airState() per legacy Flight.cs:175-206.
         try (Connection conn = dataSource.getConnection();
                 ResultSet rs = conn.getMetaData().getTables(
-                        null, "public", "flight_air_state", new String[]{"TABLE"})) {
+                        null, "public", "t_flight_air_state", new String[]{"TABLE"})) {
             assertThat(rs.next()).isFalse();
         }
     }
 
     @Test
     void flight_cost_balance_type_seeded_5_canonical_values() throws Exception {
-        assertSeededCodes("flight_cost_balance_type", List.of(
+        assertSeededCodes("t_flight_cost_balance_type", List.of(
                 "PILOT_PAYS_ALL", "FIFTY_FIFTY_PILOT_COPILOT", "TOW_PILOT_PAYS_TOW",
                 "NO_INSTRUCTOR_FEE", "INVOICE_TO_PERSON"));
     }
@@ -780,7 +780,7 @@ class FlightBaselineIntegrationTest {
      * Load-bearing FKs (per design notes' performance plan) must have at least
      * one supporting index. Reference / lookup-table FKs (e.g. flight.process_state_id)
      * intentionally don't get dedicated indexes — they are always queried by
-     * joining FROM flight WHERE operating_club_id, the composite
+     * joining FROM t_flight WHERE operating_club_id, the composite
      * ix_flight_club_state covers the process-state filter, and reference rows
      * are L2-cached anyway.
      */
@@ -793,22 +793,22 @@ class FlightBaselineIntegrationTest {
         // by design.
         record Fk(String table, String column) {}
         List<Fk> required = List.of(
-                new Fk("flight",                     "operating_club_id"),
-                new Fk("flight",                     "aircraft_id"),
-                new Fk("flight",                     "start_location_id"),
-                new Fk("flight",                     "ldg_location_id"),
-                new Fk("flight",                     "flight_type_id"),
-                new Fk("flight",                     "tow_flight_id"),
-                new Fk("flight_crew",                "flight_id"),
-                new Fk("flight_crew",                "person_id"),
-                new Fk("aircraft",                   "owner_club_id"),
-                new Fk("aircraft",                   "homebase_id"),
-                new Fk("aircraft",                   "aircraft_owner_person_id"),
-                new Fk("aircraft_aircraft_state",    "aircraft_id"),
-                new Fk("aircraft_operating_counter", "aircraft_id"),
-                new Fk("flight_type",                "operating_club_id"),
-                new Fk("article",                    "operating_club_id"),
-                new Fk("inoutbound_point",           "location_id"));
+                new Fk("t_flight",                     "operating_club_id"),
+                new Fk("t_flight",                     "aircraft_id"),
+                new Fk("t_flight",                     "start_location_id"),
+                new Fk("t_flight",                     "ldg_location_id"),
+                new Fk("t_flight",                     "flight_type_id"),
+                new Fk("t_flight",                     "tow_flight_id"),
+                new Fk("t_flight_crew",                "flight_id"),
+                new Fk("t_flight_crew",                "person_id"),
+                new Fk("t_aircraft",                   "owner_club_id"),
+                new Fk("t_aircraft",                   "homebase_id"),
+                new Fk("t_aircraft",                   "aircraft_owner_person_id"),
+                new Fk("t_aircraft_aircraft_state",    "aircraft_id"),
+                new Fk("t_aircraft_operating_counter", "aircraft_id"),
+                new Fk("t_flight_type",                "operating_club_id"),
+                new Fk("t_article",                    "operating_club_id"),
+                new Fk("t_inoutbound_point",           "location_id"));
         for (Fk fk : required) {
             List<String> defs = indexDefs(fk.table());
             String col = fk.column();
@@ -935,7 +935,8 @@ class FlightBaselineIntegrationTest {
     }
 
     private static String canonicalSeedUuid(String table, String keyField, String keyValue) {
-        for (JsonNode row : canonicalSeeds.get(table)) {
+        String seedKey = table.startsWith("t_") ? table.substring(2) : table;
+        for (JsonNode row : canonicalSeeds.get(seedKey)) {
             JsonNode keyNode = row.get(keyField);
             if (keyNode != null && keyValue.equals(keyNode.asText())) {
                 return row.get("uuid").asText();

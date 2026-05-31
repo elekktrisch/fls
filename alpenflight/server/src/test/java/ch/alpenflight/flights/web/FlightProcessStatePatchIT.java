@@ -141,7 +141,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
         UUID otherAircraft = seedAircraftFor(jdbc, OTHER_CLUB_UUID);
         UUID otherFlightId = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO flight (id, operating_club_id, aircraft_id,
+                INSERT INTO t_flight (id, operating_club_id, aircraft_id,
                                     flight_aircraft_type_id, flight_date,
                                     is_solo_flight, no_start_time_information,
                                     no_ldg_time_information,
@@ -174,7 +174,7 @@ class FlightProcessStatePatchIT extends PostgresIntegrationTest {
         // Strip "fl-" prefix.
         UUID flightUuid = UUID.fromString(idExternal.substring(3));
         if (!NOT_PROCESSED.equals(processStateId)) {
-            jdbc.update("UPDATE flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
+            jdbc.update("UPDATE t_flight SET process_state_id = ?::uuid WHERE id = ?::uuid",
                     processStateId.toString(), flightUuid.toString());
         }
         return idExternal;

@@ -136,7 +136,10 @@ class FlightsExceptionHandler {
         pd.setTitle("If-Match version does not match");
         pd.setDetail(e.getMessage());
         pd.setProperty("expected", e.expected());
-        pd.setProperty("actual", e.actual());
+        // `serverVersion` is the wire-stable property the SPA reads to
+        // populate the S-062h inline-diff conflict dialog without an
+        // extra GET. Single source of truth — no `actual` alias.
+        pd.setProperty("serverVersion", e.actual());
         return problem(pd);
     }
 
