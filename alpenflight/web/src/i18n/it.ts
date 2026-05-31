@@ -105,8 +105,8 @@ const it: Translations = {
     title: 'Aeroporti',
   },
   migrateHandshake: {
-    copied: 'Copiato negli appunti.',
-    copy: 'Copia negli appunti',
+    copied: 'Handshake copiato.',
+    copy: 'Copia handshake',
     download: 'Scarica il file di handshake',
     error: 'Impossibile generare la chiave. Riprova.',
     expires: 'Valido fino al {{expiresAt}}',

@@ -106,8 +106,8 @@ const fr: Translations = {
     title: 'Emplacements',
   },
   migrateHandshake: {
-    copied: 'Copié dans le presse-papiers.',
-    copy: 'Copier dans le presse-papiers',
+    copied: 'Handshake copié.',
+    copy: 'Copier le handshake',
     download: 'Télécharger le fichier de handshake',
     error: 'Impossible de générer la clé. Veuillez réessayer.',
     expires: 'Valide jusqu’au {{expiresAt}}',

@@ -104,8 +104,8 @@ const en: Translations = {
     title: 'Locations',
   },
   migrateHandshake: {
-    copied: 'Copied to clipboard.',
-    copy: 'Copy to clipboard',
+    copied: 'Handshake copied.',
+    copy: 'Copy handshake',
     download: 'Download handshake file',
     error: 'Could not generate a key. Please try again.',
     expires: 'Valid until {{expiresAt}}',

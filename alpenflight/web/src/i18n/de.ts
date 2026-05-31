@@ -110,8 +110,8 @@ const de = {
     title: 'Flugplätze',
   },
   migrateHandshake: {
-    copied: 'In die Zwischenablage kopiert.',
-    copy: 'In Zwischenablage kopieren',
+    copied: 'Handshake kopiert.',
+    copy: 'Handshake kopieren',
     download: 'Handshake-Datei herunterladen',
     error: 'Schlüssel konnte nicht erzeugt werden. Bitte erneut versuchen.',
     expires: 'Gültig bis {{expiresAt}}',
