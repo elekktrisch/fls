@@ -101,6 +101,9 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
                 class="w-full font-mono text-xs border border-slate-200 p-3 min-h-[12rem] tabular"
                 [value]="store.upload()?.publicKeyPem ?? ''"
               ></textarea>
+              <p class="text-xs text-slate-500" data-testid="migrate-handshake-pem-hint">
+                {{ t('pemHint') }}
+              </p>
               <p class="text-sm text-slate-500" data-testid="migrate-handshake-expires">
                 {{ t('expires', { expiresAt: formattedExpiry() }) }}
               </p>
@@ -201,6 +204,7 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
 
   confirmRegenerate(): void {
     this.dialogOpen.set(false);
+    this.copyConfirmed.set(false);
     this.store.regenerate();
     this.regenerateConfirmed.set(true);
   }
@@ -208,6 +212,7 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
   copy(): void {
     const current = this.store.upload();
     if (!current) return;
+    this.regenerateConfirmed.set(false);
     const { body } = handshakeArtifactDownload(current);
     navigator.clipboard.writeText(body).then(
       () => this.copyConfirmed.set(true),
@@ -221,13 +226,16 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
     const { filename, mimeType, body } = handshakeArtifactDownload(current);
     const blob = new Blob([body], { type: mimeType });
     const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   /**

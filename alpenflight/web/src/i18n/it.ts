@@ -107,7 +107,7 @@ const it: Translations = {
   migrateHandshake: {
     copied: 'Copiato negli appunti.',
     copy: 'Copia negli appunti',
-    download: 'Scarica il file della chiave',
+    download: 'Scarica il file di handshake',
     error: 'Impossibile generare la chiave. Riprova.',
     expires: 'Valido fino al {{expiresAt}}',
     headline: 'Consegna la chiave pubblica allo strumento di esportazione',
@@ -116,6 +116,7 @@ const it: Translations = {
       title: 'Strumento di esportazione richiesto',
     },
     loading: 'Generazione della chiave…',
+    pemHint: 'Solo a scopo informativo — fornisci allo strumento di esportazione il file di handshake scaricato.',
     pemLabel: 'Chiave pubblica (PEM)',
     regenerate: 'Genera una nuova chiave',
     regenerateConfirm: {
@@ -125,10 +126,11 @@ const it: Translations = {
         'Una nuova chiave invalida la precedente. Se hai già iniziato l’esportazione con la vecchia chiave, abbandonala e ricomincia.',
       title: 'Sostituire la chiave?',
     },
-    regenerated: 'Nuova chiave generata. Ricomincia l’esportazione con questa chiave.',
+    regenerated:
+      'Nuova chiave generata. Scarica di nuovo il file di handshake e ricomincia l’esportazione — il file precedente non è più valido.',
     retry: 'Riprova',
     tagline:
-      'Copia questa chiave pubblica nello strumento di esportazione. Crittografa i tuoi dati prima che lascino la tua macchina.',
+      'Scarica il file di handshake e forniscilo allo strumento di esportazione. I tuoi dati vengono crittografati prima di raggiungere i nostri server.',
   },
   publicStub: {
     back: 'Torna alla pagina iniziale',

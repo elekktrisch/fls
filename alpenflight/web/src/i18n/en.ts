@@ -106,7 +106,7 @@ const en: Translations = {
   migrateHandshake: {
     copied: 'Copied to clipboard.',
     copy: 'Copy to clipboard',
-    download: 'Download key file',
+    download: 'Download handshake file',
     error: 'Could not generate a key. Please try again.',
     expires: 'Valid until {{expiresAt}}',
     headline: 'Hand the public key to the export tool',
@@ -115,6 +115,7 @@ const en: Translations = {
       title: 'Export tool required',
     },
     loading: 'Generating key…',
+    pemHint: 'For reference only — give the export tool the downloaded handshake file.',
     pemLabel: 'Public key (PEM)',
     regenerate: 'Regenerate key',
     regenerateConfirm: {
@@ -124,10 +125,11 @@ const en: Translations = {
         'A new key invalidates the previous one. If you already started the export with the old key, abandon it and start over.',
       title: 'Replace the key?',
     },
-    regenerated: 'New key generated. Start the export again with this key.',
+    regenerated:
+      'New key generated. Download the handshake file again and restart the export — the previous file is invalid.',
     retry: 'Retry',
     tagline:
-      'Copy this public key into the export tool. It encrypts your data before it leaves your machine.',
+      'Download the handshake file and give it to the export tool. Your data is encrypted before it reaches our servers.',
   },
   publicStub: {
     back: 'Back to the landing page',

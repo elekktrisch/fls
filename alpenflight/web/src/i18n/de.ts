@@ -121,6 +121,7 @@ const de = {
       title: 'Export-App benötigt',
     },
     loading: 'Schlüssel wird erzeugt …',
+    pemHint: 'Nur zur Ansicht — übergib der Export-App die heruntergeladene Handshake-Datei.',
     pemLabel: 'Öffentlicher Schlüssel (PEM)',
     regenerate: 'Neuen Schlüssel erzeugen',
     regenerateConfirm: {

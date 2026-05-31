@@ -108,7 +108,7 @@ const fr: Translations = {
   migrateHandshake: {
     copied: 'Copié dans le presse-papiers.',
     copy: 'Copier dans le presse-papiers',
-    download: 'Télécharger le fichier de clé',
+    download: 'Télécharger le fichier de handshake',
     error: 'Impossible de générer la clé. Veuillez réessayer.',
     expires: 'Valide jusqu’au {{expiresAt}}',
     headline: 'Transmettre la clé publique à l’outil d’export',
@@ -117,6 +117,7 @@ const fr: Translations = {
       title: 'Outil d’export requis',
     },
     loading: 'Génération de la clé…',
+    pemHint: 'À titre indicatif — fournissez à l’outil d’export le fichier de handshake téléchargé.',
     pemLabel: 'Clé publique (PEM)',
     regenerate: 'Générer une nouvelle clé',
     regenerateConfirm: {
@@ -126,10 +127,11 @@ const fr: Translations = {
         'Une nouvelle clé rend la précédente invalide. Si vous avez déjà commencé l’export avec l’ancienne clé, abandonnez-le et recommencez.',
       title: 'Remplacer la clé ?',
     },
-    regenerated: 'Nouvelle clé générée. Recommencez l’export avec cette clé.',
+    regenerated:
+      'Nouvelle clé générée. Retéléchargez le fichier de handshake et recommencez l’export — le fichier précédent est invalide.',
     retry: 'Réessayer',
     tagline:
-      'Copiez cette clé publique dans l’outil d’export. Elle chiffre vos données avant qu’elles ne quittent votre machine.',
+      'Téléchargez le fichier de handshake et fournissez-le à l’outil d’export. Vos données sont chiffrées avant d’atteindre nos serveurs.',
   },
   publicStub: {
     back: 'Retour à la page d’accueil',
