@@ -23,9 +23,11 @@ import java.util.Map;
  *       wire-name resolved to the destination's {@code id} column.</li>
  * </ul>
  *
- * <p>Five entities are bound today — COUNTRY, LANGUAGE, CLUB_STATE, CLUB,
- * USER. Both the export jar (S-139) and the parity ProducerHarness consume
- * these bindings. S-187a extends the registry to the remaining entities.
+ * <p>Bound today — COUNTRY, LANGUAGE, CLUB_STATE, CLUB, USER (the IDENTITY
+ * group) plus LOCATION + INOUTBOUND_POINT (the J-0 tenant-scoped FLIGHT-group
+ * pair; T-02c). Both the export jar (S-139) and the parity ProducerHarness
+ * consume these bindings. Later journeys extend the registry to the remaining
+ * entities (the Aircraft/Flight group at J-1/J-2).
  */
 public final class MapperLegacyBindings {
 
@@ -123,6 +125,96 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?,
                             ?,
                             ?, ?, ?, ?, ?, ?)
+                    """),
+            EntityType.LOCATION, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // Legacy `Locations` is shared (no own ClubId); the new
+                    // schema is tenant-scoped (club_id IS the @TenantId per V7).
+                    // The producer FANS OUT each legacy row into one row per
+                    // referencing Club, aliasing the partner Club's id AS ClubId
+                    // (LocationMapper reads it verbatim). The referencing-Club
+                    // set is the union of Clubs.HomebaseId and Flights'
+                    // start/landing locations resolved through the legacy
+                    // club-ownership convention Flights.OwnerId = ClubId
+                    // (FlightReportService.cs:123). DISTINCT dedupes the
+                    // (Location, Club) pair when a club references one Location
+                    // through several flights.
+                    //
+                    // NOT-YET-bound fan-out source: Aircrafts.HomebaseId →
+                    // Aircraft's computed managing_club_id. That cascade is
+                    // AircraftMapper's producer logic (unbound; J-1). A Location
+                    // referenced ONLY by an aircraft homebase — no club homebase,
+                    // no flights — would miss that club's replica until the
+                    // Aircraft binding lands. Tracked there, not papered over.
+                    """
+                    SELECT l.LocationId, fanout.ClubId AS ClubId,
+                           l.LocationName, l.LocationShortName, l.CountryId,
+                           l.LocationTypeId, l.IcaoCode, l.Latitude, l.Longitude,
+                           l.Elevation, l.ElevationUnitType, l.RunwayDirection,
+                           l.RunwayLength, l.RunwayLengthUnitType, l.AirportFrequency,
+                           l.Description, l.SortIndicator,
+                           l.IsInboundRouteRequired, l.IsOutboundRouteRequired,
+                           l.IsFastEntryRecord,
+                           l.CreatedOn, l.CreatedByUserId, l.ModifiedOn,
+                           l.ModifiedByUserId, l.DeletedOn, l.DeletedByUserId
+                    FROM Locations l
+                    JOIN (
+                        SELECT DISTINCT HomebaseId AS LocationId, ClubId
+                        FROM Clubs WHERE HomebaseId IS NOT NULL
+                        UNION
+                        SELECT DISTINCT StartLocationId AS LocationId, OwnerId AS ClubId
+                        FROM Flights WHERE StartLocationId IS NOT NULL
+                        UNION
+                        SELECT DISTINCT LdgLocationId AS LocationId, OwnerId AS ClubId
+                        FROM Flights WHERE LdgLocationId IS NOT NULL
+                    ) fanout ON fanout.LocationId = l.LocationId
+                    """,
+                    "t_location",
+                    """
+                    INSERT INTO t_location (
+                      id, club_id, location_name, location_short_name,
+                      country_id, location_type_id, icao_code, latitude, longitude,
+                      elevation, elevation_unit_type_id, runway_direction,
+                      runway_length, runway_length_unit_type_id, airport_frequency,
+                      description, sort_indicator,
+                      is_inbound_route_required, is_outbound_route_required,
+                      is_fast_entry_record,
+                      created_on, created_by_user_id, modified_on,
+                      modified_by_user_id, deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?, ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?,
+                            ?, ?, ?,
+                            ?, ?, ?)
+                    """),
+            EntityType.INOUTBOUND_POINT, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // Aggregate-internal child of Location; tenancy inherited via
+                    // location_id (no own ClubId). The parent fan-out emits one
+                    // child row per fanned-out parent replica downstream, so the
+                    // SELECT is a straight projection of the legacy child row.
+                    """
+                    SELECT InOutboundPointId, LocationId, InOutboundPointName,
+                           IsInboundPoint, IsOutboundPoint,
+                           CreatedOn, CreatedByUserId, ModifiedOn,
+                           ModifiedByUserId, DeletedOn, DeletedByUserId
+                    FROM InOutboundPoints
+                    """,
+                    "t_inoutbound_point",
+                    """
+                    INSERT INTO t_inoutbound_point (
+                      id, location_id, point_name, point_type, direction,
+                      description,
+                      created_on, created_by_user_id, modified_on,
+                      modified_by_user_id, deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?, ?,
+                            ?,
+                            ?, ?, ?,
+                            ?, ?, ?)
                     """));
 
     private MapperLegacyBindings() { }
