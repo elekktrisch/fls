@@ -2,11 +2,20 @@
 id: S-140a
 title: Combined handshake artifact — SPA download carries uploadId + public key for the export jar
 epic: E-15
-status: todo
+status: done
+started_at: 2026-05-31
+done_at: 2026-05-31
+merged: true
+merged_at: 2026-05-31
 depends_on: [S-140]
 integration_base: integration/migration
 origin: refinement-followup
 origin_story: S-139
+refined: true
+refined_at: 2026-05-31
+refined_specialists: [requirements, solution, qa]
+github_issue: 183
+github_pr: 184
 acceptance:
   - The S-140 handshake SPA surface (`/migrate/start`) offers a single combined download artifact containing BOTH the `uploadId` and the RSA-4096 `publicKeyPem`, replacing the bare `.pem` download. The format is a self-describing artifact (JSON, or PEM with a structured header) documented as the contract the export jar parses via `--handshake-file`.
   - The copy-to-clipboard control and the download button both yield the combined artifact (uploadId + PEM), never a bare key — so the user cannot feed the jar a key without its matching uploadId.
@@ -27,12 +36,11 @@ Surfaced by the S-139 refinement (2026-05-31). S-140 is already implemented; thi
 ## Acceptance criteria
 See frontmatter.
 
-## Tasks
-- [ ] Define + document the combined-artifact file schema (the `--handshake-file` contract S-139 reads).
-- [ ] Update the `/migrate/start` SPA download + copy controls to emit the combined artifact instead of a bare PEM.
-- [ ] Update the page's export-tool guidance copy to reference the new file.
+## Cross-story contract
+
+This artifact IS S-139's `--handshake-file` input: the export jar reads `uploadId` (→ Tink AEAD associated data) + `publicKeyPem` (→ RSA-OAEP session-key wrap). The schema and the single builder feeding both download + copy live in `handshake-artifact.ts`. No server change — S-140's `HandshakeResponse` already carries `{ uploadId, publicKeyPem, expiresAt }`.
 
 ## Notes
-- Keep the wire/API unchanged — `HandshakeResponse` already carries `uploadId` + `publicKeyPem`; this is packaging only.
-- The file is non-secret (public key + an opaque uploadId), so no encryption-at-rest concerns for the download itself.
-- Assumption: chose a combined download file over a separate `--upload-id` CLI flag (the S-139 grill option) so the two values cannot be mismatched by the user; revisit only if a flag proves more ergonomic in field use.
+
+- Residual gap: a superseded-but-unexpired downloaded artifact is detectable only server-side (AEAD tag failure at ingest); `expiresAt` covers TTL expiry. No live client-side staleness detection — the post-regenerate copy instructs re-download instead.
+- Chose a combined download file over a separate `--upload-id` CLI flag (the S-139 grill option) so the uploadId and key can't be mismatched by the user.
