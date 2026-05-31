@@ -1,6 +1,6 @@
 package ch.alpenflight.migrations.application;
 
-import ch.alpenflight.migrations.domain.BundleHeader;
+import ch.alpenflight.migration.bundle.crypto.BundleHeader;
 import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
 import ch.alpenflight.migrations.domain.BundleIngestException;
 import com.fasterxml.jackson.core.JsonParser;

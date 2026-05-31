@@ -5,7 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 
 import ch.alpenflight.migrations.application.BundleManifest;
-import ch.alpenflight.migrations.domain.MigrationBundleCipher;
+import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService;

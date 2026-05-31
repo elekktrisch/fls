@@ -7,7 +7,7 @@ import ch.alpenflight.migrations.domain.HandshakeFunnelTelemetry;
 import ch.alpenflight.migrations.domain.MigrationCryptoService;
 import ch.alpenflight.migrations.domain.MigrationUpload;
 import ch.alpenflight.migrations.domain.MigrationUploadRepository;
-import ch.alpenflight.migrations.domain.PemEncoders;
+import ch.alpenflight.migration.bundle.crypto.PemEncoders;
 import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.EntityManager;
 import java.security.KeyPair;

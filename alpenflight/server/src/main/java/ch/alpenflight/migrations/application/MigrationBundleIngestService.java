@@ -9,11 +9,12 @@ import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.Mapper;
-import ch.alpenflight.migrations.domain.BundleHeader;
+import ch.alpenflight.migration.bundle.crypto.BundleCipherException;
+import ch.alpenflight.migration.bundle.crypto.BundleHeader;
 import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
 import ch.alpenflight.migrations.domain.BundleIngestException;
 import ch.alpenflight.migrations.domain.IngestFunnelTelemetry;
-import ch.alpenflight.migrations.domain.MigrationBundleCipher;
+import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.migrations.domain.MigrationCryptoService;
 import ch.alpenflight.migrations.domain.MigrationRun;
 import ch.alpenflight.migrations.domain.MigrationRunRepository;
@@ -21,7 +22,7 @@ import ch.alpenflight.migrations.domain.MigrationRunState;
 import ch.alpenflight.migrations.domain.MigrationUpload;
 import ch.alpenflight.migrations.domain.MigrationUploadRepository;
 import ch.alpenflight.migrations.domain.MigrationUploadState;
-import ch.alpenflight.migrations.domain.SecureBytes;
+import ch.alpenflight.migration.bundle.crypto.SecureBytes;
 import ch.alpenflight.tenancy.provisioning.application.ClubSpec;
 import ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningRequest;
@@ -462,6 +463,15 @@ public class MigrationBundleIngestService {
             runs.save(run);
 
             return new IngestOutcome(provisioned.deploymentId(), provisioned.clubIds(), provisioned.primaryClubId());
+        } catch (BundleCipherException cipherFailure) {
+            // The cipher lives in the shared bundle library and speaks its own
+            // crypto-local vocabulary (BundleCipherException.Failure). Map it
+            // back onto the ingest error code the exception handler + the
+            // negative-path ITs expect, preserving the original cause + message.
+            // Only the two cipher resource-acquisitions above (unwrapSessionKey /
+            // newDecryptingStream) can raise this; every other failure surfaces
+            // as its own BundleIngestException untouched.
+            throw toIngestException(cipherFailure);
         } catch (IOException tarFailure) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
@@ -479,6 +489,21 @@ public class MigrationBundleIngestService {
                     "Database error during ingest [sqlstate=" + state + "]",
                     sql);
         }
+    }
+
+    /**
+     * Map a crypto-local {@link BundleCipherException} onto the server-side
+     * {@link BundleIngestException} so the RFC 7807 surface is unchanged.
+     * Preserves the original message + cause.
+     */
+    private static BundleIngestException toIngestException(BundleCipherException cipherFailure) {
+        BundleIngestErrorCode code = switch (cipherFailure.failure()) {
+            case RSA_UNWRAP_FAILED -> BundleIngestErrorCode.BUNDLE_DECRYPT_RSA_UNWRAP_FAILED;
+            case AEAD_TAG_FAILED -> BundleIngestErrorCode.BUNDLE_DECRYPT_AEAD_TAG_FAILED;
+            case INTERNAL -> BundleIngestErrorCode.INGEST_INTERNAL_ERROR;
+        };
+        String detail = Objects.requireNonNullElse(cipherFailure.getMessage(), "Bundle cipher failure");
+        return new BundleIngestException(code, detail, cipherFailure);
     }
 
     private MigrationUpload lockUpload(UUID uploadId) {

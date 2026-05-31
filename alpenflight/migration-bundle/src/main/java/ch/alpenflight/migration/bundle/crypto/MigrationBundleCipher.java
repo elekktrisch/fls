@@ -1,4 +1,4 @@
-package ch.alpenflight.migrations.domain;
+package ch.alpenflight.migration.bundle.crypto;
 
 import java.io.InputStream;
 import java.io.OutputStream;

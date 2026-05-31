@@ -1,9 +1,5 @@
-package ch.alpenflight.migrations.infra;
+package ch.alpenflight.migration.bundle.crypto;
 
-import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
-import ch.alpenflight.migrations.domain.BundleIngestException;
-import ch.alpenflight.migrations.domain.MigrationBundleCipher;
-import ch.alpenflight.migrations.domain.SecureBytes;
 import com.google.crypto.tink.AccessesPartialKey;
 import com.google.crypto.tink.InsecureSecretKeyAccess;
 import com.google.crypto.tink.KeysetHandle;
@@ -28,7 +24,6 @@ import java.util.UUID;
 import javax.crypto.Cipher;
 import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
-import org.springframework.stereotype.Component;
 
 /**
  * Tink-backed implementation of {@link MigrationBundleCipher}. Tink owns
@@ -39,11 +34,13 @@ import org.springframework.stereotype.Component;
  * segments, SHA-256 HKDF derivation, 32-byte derived key). The producer
  * (S-139 JAR + test producer in {@code MigrationBundleTestFactory}) uses
  * the same parameters; mismatch surfaces as
- * {@link BundleIngestErrorCode#BUNDLE_DECRYPT_AEAD_TAG_FAILED} on the
+ * {@link BundleCipherException.Failure#AEAD_TAG_FAILED} on the
  * first segment read.
  */
-@Component
-class TinkMigrationBundleCipher implements MigrationBundleCipher {
+public class TinkMigrationBundleCipher implements MigrationBundleCipher {
+
+    public TinkMigrationBundleCipher() {
+    }
 
     private static final int AES_KEY_BYTES = 32;
     private static final int RSA_KEY_BITS = 4096;
@@ -68,14 +65,14 @@ class TinkMigrationBundleCipher implements MigrationBundleCipher {
             byte[] sessionKey = cipher.doFinal(wrappedSessionKey);
             if (sessionKey.length != AES_KEY_BYTES) {
                 java.util.Arrays.fill(sessionKey, (byte) 0);
-                throw new BundleIngestException(
-                        BundleIngestErrorCode.BUNDLE_DECRYPT_RSA_UNWRAP_FAILED,
+                throw new BundleCipherException(
+                        BundleCipherException.Failure.RSA_UNWRAP_FAILED,
                         "Unwrapped session key must be " + AES_KEY_BYTES + " bytes, got " + sessionKey.length);
             }
             return new SecureBytes(sessionKey);
         } catch (GeneralSecurityException e) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_DECRYPT_RSA_UNWRAP_FAILED,
+            throw new BundleCipherException(
+                    BundleCipherException.Failure.RSA_UNWRAP_FAILED,
                     "RSA-OAEP session-key unwrap failed", e);
         }
     }
@@ -86,8 +83,8 @@ class TinkMigrationBundleCipher implements MigrationBundleCipher {
             StreamingAead streamingAead = streamingAeadFor(sessionKey);
             return streamingAead.newDecryptingStream(ciphertextBody, uuidBytes(uploadId));
         } catch (GeneralSecurityException | IOException e) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.BUNDLE_DECRYPT_AEAD_TAG_FAILED,
+            throw new BundleCipherException(
+                    BundleCipherException.Failure.AEAD_TAG_FAILED,
                     "Failed to build StreamingAead decrypting stream", e);
         }
     }
@@ -98,8 +95,8 @@ class TinkMigrationBundleCipher implements MigrationBundleCipher {
             StreamingAead streamingAead = streamingAeadFor(sessionKey);
             return streamingAead.newEncryptingStream(ciphertextSink, uuidBytes(uploadId));
         } catch (GeneralSecurityException | IOException e) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
+            throw new BundleCipherException(
+                    BundleCipherException.Failure.INTERNAL,
                     "Failed to build StreamingAead encrypting stream (producer side)", e);
         }
     }
@@ -120,8 +117,8 @@ class TinkMigrationBundleCipher implements MigrationBundleCipher {
             cipher.init(Cipher.ENCRYPT_MODE, publicKey, oaepParameterSpec());
             return cipher.doFinal(sessionKey);
         } catch (GeneralSecurityException e) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
+            throw new BundleCipherException(
+                    BundleCipherException.Failure.INTERNAL,
                     "RSA-OAEP session-key wrap failed (producer side)", e);
         }
     }

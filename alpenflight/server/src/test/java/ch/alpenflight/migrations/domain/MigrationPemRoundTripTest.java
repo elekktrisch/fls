@@ -2,6 +2,7 @@ package ch.alpenflight.migrations.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.alpenflight.migration.bundle.crypto.PemEncoders;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;

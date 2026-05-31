@@ -1,5 +1,6 @@
 package ch.alpenflight.migrations.domain;
 
+import ch.alpenflight.migration.bundle.crypto.SecureBytes;
 import java.util.UUID;
 import java.util.function.Function;
 

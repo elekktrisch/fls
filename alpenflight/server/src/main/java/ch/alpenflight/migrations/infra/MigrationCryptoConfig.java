@@ -1,5 +1,7 @@
 package ch.alpenflight.migrations.infra;
 
+import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
+import ch.alpenflight.migration.bundle.crypto.TinkMigrationBundleCipher;
 import com.google.crypto.tink.Aead;
 import com.google.crypto.tink.InsecureSecretKeyAccess;
 import com.google.crypto.tink.KeysetHandle;
@@ -122,6 +124,18 @@ public class MigrationCryptoConfig {
         LOG.info("MigrationCryptoConfig: master keyset ready source={} primaryKeyId={}",
                 source, handle.getPrimary().getId());
         return aead;
+    }
+
+    /**
+     * S-139: {@link TinkMigrationBundleCipher} moved to the
+     * {@code migration-bundle} module (Spring-free, for standalone-jar reuse),
+     * so it is no longer a {@code @Component}. Declare it explicitly here so
+     * {@code MigrationBundleIngestService}'s {@link MigrationBundleCipher}
+     * constructor injection still resolves.
+     */
+    @Bean
+    MigrationBundleCipher migrationBundleCipher() {
+        return new TinkMigrationBundleCipher();
     }
 
     private String readKeysetJson() throws IOException {

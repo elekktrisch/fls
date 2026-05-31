@@ -2,8 +2,9 @@ package ch.alpenflight.migrations.infra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import ch.alpenflight.migrations.domain.MigrationBundleCipher;
-import ch.alpenflight.migrations.domain.SecureBytes;
+import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
+import ch.alpenflight.migration.bundle.crypto.SecureBytes;
+import ch.alpenflight.migration.bundle.crypto.TinkMigrationBundleCipher;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;

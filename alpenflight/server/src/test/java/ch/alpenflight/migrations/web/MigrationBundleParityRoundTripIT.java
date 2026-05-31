@@ -6,7 +6,7 @@ import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
 import ch.alpenflight.migrations.application.BundleManifest;
-import ch.alpenflight.migrations.domain.MigrationBundleCipher;
+import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
