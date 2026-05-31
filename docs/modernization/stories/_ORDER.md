@@ -1,360 +1,126 @@
-# Execution order
-
-Topological sort of stories grouped by phase. Within each phase, listed in dependency-respecting order. Items on the same indent level have no dependency between each other and can run in parallel.
-
-**Format:** `S-NNN — estimate — title`
-
-**Ordering principle (revised 2026-05-17 — walking-skeleton first):** ship the thinnest possible user-visible vertical slice (login → tenant-scoped CRUD → e2e green) as early as possible, then thicken iteratively. Each piece of infrastructure lands **just before the first story that requires it**, not as a separate "complete the foundation" phase.
-
-- **Phase B** is critical-path only — Keycloak, dev compose, server-side auth, SPA auth, tenant resolver, FE toolchain (codegen + Signal Store reference + Reactive Forms + component kit).
-- **Phase C** is schema completion (mostly already done) — *no longer* a kitchen-sink "auth + tenancy + audit + machine client + translations" bundle. Items like audit-log infrastructure (S-027), unscoped tenant context (S-023), public-flow tenant resolution (S-025), Proffix machine client (S-029), and translations (S-057) move to **the phase that first needs them**.
-- **Phase D** is the **walking skeleton**: one reference entity (slim S-047) + Locations CRUD (S-049) + cross-tenant leakage test (S-024). End-to-end proof of architecture: schema → repo → service → DTO → controller → Signal Store → Angular form → e2e test → tenant isolation. Operator can demo this.
-- **Phase E** thickens master data; deferred-from-old-C items land here as their consuming story arrives (S-027 before Clubs, S-057 when first translated screen ships).
-- **Phases F+** unchanged in shape but renumbered.
-
-**Production-side infrastructure and production-side observability remain late** (Phase K/L), unchanged from the 2026-05-15 revision.
-
-## Phase A — Foundations (zero-dep, start day 1)
-
-Skeletons + inventory work that informs everything downstream. These have no dependencies and can begin immediately, in parallel.
-
-- S-001 — M — Scaffold alpenflight/server/ Spring Boot skeleton ✓ **done**
-  - S-123 — S — Lock down springdoc off-state until S-003 wires it (rework follow-up from S-001)
-  - S-124 — S — Annotate alpenflight/server/.env.example keys with usage notes (rework follow-up from S-001)
-  - S-125 — S — Surface open-in-view=false consequence in alpenflight/server/README.md (rework follow-up from S-001)
-- S-002 — M — Scaffold alpenflight/web/ Angular skeleton ✓ **done**
-  - S-126 — S — Tighten pnpm-store cache restore-keys in CI (rework follow-up from S-002)
-  - S-127 — S — Enforce atomic-design + cross-feature layering via ESLint (rework follow-up from S-002; deps S-008)
-- S-010 — M — Extract production-schema parity baseline ✓ **done**
-- S-093 — S — Inventory every Excel export
-- S-108 — S — Production performance baseline (top 5 routes p95)
-- S-120 — S — Product slug + folder rename (can fire any time)
-- S-128 — M — Technical rebrand FLS → AlpenFlight ✓ **done**
-
-**External-coordination slots (start early — calendar-bound, not engineering-bound):**
-
-- S-114 — M — OGN maintainer handoff coordination (deps S-066 to *test*, but outreach starts now)
-- S-115 — M — Proffix integration verification
-
-**Legacy-targeted depth coverage — runs against legacy first, re-runs against new stack later:**
-
-- S-101 — L — Expand Playwright depth: validation rejection paths
-- S-102 — M — Expand Playwright depth: state-machine illegal transitions
-- S-103 — M — Expand Playwright depth: time-gate boundaries
-- S-104 — L — Expand Playwright depth: permission boundaries per endpoint
-- S-105 — M — Expand Playwright depth: glider↔tow link integrity + cascade
-- S-106 — L — Expand Playwright depth: multi-tenant isolation per endpoint
-
-## Phase B — Walking-skeleton enablement (critical-path infra only)
-
-Strict minimum to land the first user-visible vertical slice (Phase D). **No item here exists for its own sake — each is on the critical path for "logged-in Locations CRUD in a browser."** Audit log, unscoped tenant context, public-flow tenant resolver, machine client, translations — all deferred to the phase that first needs them.
-
-**Infra services + healthchecks:**
-
-- S-019 — M — Keycloak in docker-compose + realm export (deps S-002 indirectly for SPA client + S-039 for compose service)
-- S-153 — S — S-019 rework follow-ups (check-realm-shape + export-realm + misc hardening) — *origin: rework*
-- S-039 — M — docker-compose.yml skeleton (dev: backend + Postgres 17 + Keycloak + mailpit) (deps S-001, S-002)
-- S-030 — M — Actuator + Micrometer (deps S-001) — *kept for `/actuator/health` healthchecks used by S-039 backend probe*
-
-**API surface (OpenAPI + codegen):**
-
-- S-003 — S — Wire springdoc-openapi (deps S-001)
-- S-004 — M — Pick + wire TS codegen (deps S-002, S-003)
-
-**Server-side auth + tenancy plumbing:**
-
-- S-020 — M — Spring Security 7 OAuth2 resource server (deps S-001, S-019)
-- S-022 — M — ClubTenantIdentifierResolver + @TenantId (deps S-012, S-015, S-020)
-- S-026 — M — Authorization model — roles → @PreAuthorize (deps S-020) — *needed to gate the first endpoint; no later CRUD ships without it*
-
-**Module layering enforcement (ADR 0023 — lands before any new aggregate module):**
-
-- S-155 — L — Module layering template — Spring Modulith + ArchUnit + Clubs reshape (deps S-001, S-022)
-
-**Test infrastructure:**
-
-- S-015 — M — Testcontainers test-DB strategy (deps S-009)
-
-**SPA conventions (pattern stories — every feature copies these):**
-
-- S-006 — M — NgRx Signal Store reference (deps S-002, S-004)
-- S-007 — S — Reactive Forms convention (deps S-002, S-004)
-- S-008 — M — Component primitives kit (deps S-002) — *first slice consumes atoms + form-field + data-table; rest grows JIT*
-  - S-156 — S — Install lucide-angular + wire `<af-icon>` atom (ADR 0024 follow-up; closes S-008's JIT-deferred icon atom)
-  - S-157 — S — Wordmark v1 SVG assets (deps S-156, S-128) — *consumed by S-097 landing + `<af-nav-bar>` once it ships*
-- S-021 — L — Angular OIDC client (deps S-002, S-006, S-019)
-
-## Phase C — DB schema completion (mostly done)
-
-Schema foundation. Mostly complete; remaining items are dependency-required by Phase D's walking skeleton.
-
-- S-009 — S — Wire Flyway into Spring Boot ✓ **done**
-- S-011 — S — Catalog tenant-scoped entities ✓ **done**
-- S-012 — M — V1__baseline part 1: identity + reference data ✓ **done**
-- S-013 — L — V1__baseline part 2: flights / aircraft / persons / clubs / locations ✓ **done**
-  - S-129 — M — Migrate BOOLEAN columns to string-serialized enums across V2 + V3 (rework follow-up from S-013)
-  - S-130 — S — /modernize-refine reconciliation pass (rework-meta follow-up from S-013; workflow improvement)
-  - S-131 — S — S-013 deferred review findings (rework follow-up from S-013)
-- S-014 — M — V1__baseline part 3: reservations / planning / accounting ✓ **done**
-  - S-132 — S — V5 drop business-logic CHECKs ✓ **done**
-
-## Phase D — Walking skeleton (first user-visible vertical slice)
-
-**The first thing an operator can demo.** End-to-end proof of architecture: schema → repo → service → DTO → controller → Signal Store → Angular form → e2e test → tenant isolation. Lands in ~1 sprint after Phase B closes.
-
-- S-047 — M — Reference-data domain (deps S-006, S-007, S-008, S-022) — *first ported domain; establishes the per-domain pattern. **Assumption:** ship `Country` only as the walking-skeleton's reference dropdown, defer remaining reference entities to Phase E to keep Phase D narrow. Note in S-047 `## Tasks` checklist.*
-- S-049 — M — Locations CRUD (deps S-047, S-022) — *the user-visible thing: tenant-scoped list + edit form, e2e green.*
-- S-024 — M — Cross-tenant leakage CI test (deps S-022, S-011, S-049) — *now there's a real tenant-scoped repository to test against; lands immediately with S-049.*
-
-**Done when:** an operator logs in as a club admin in two different clubs and sees two different Location lists; an e2e test enforces it; CI fails on leakage.
-
-## Phase E — Master data thickening + deferred-from-old-C items
-
-Rest of the master-data CRUD plus the Phase-C items deferred until their first consuming story arrives.
-
-**Deferred-from-old-C items land here as needed:**
-
-- S-027 — L — Audit-log infrastructure (deps S-020, S-022) — *was Phase C; defer until just before the first audit-sensitive mutation. Lands before S-048 Clubs (per S-048 acceptance: "Audit-log entries fire on every mutation").*
-- S-057 — M — Translations migrated to bundled TS modules (deps S-005) — *was Phase C; defer until first multi-locale screen ships. Lands before S-051 Persons (first parity-translated form).*
-- S-005 — S — Pick + wire i18n (deps S-002) — *was Phase B; defer to Phase E since walking-skeleton ships in German only. Block S-057.*
-
-**Master-data CRUD (in dep order):**
-
-- S-047 — (continued) — port remaining reference entities (Language, MemberState, PersonCategory, LengthUnitType, etc.) — *split off the walking-skeleton's `Country`-only slice.*
-- S-048 — M — Clubs CRUD (deps S-047, S-026, S-027)
-- S-050 — M — Aircraft CRUD (deps S-049)
-- S-162 — S — Sysadmin Aircraft register endpoint `/api/v1/admin/aircraft` (deps S-050, S-058) — *S-058 follow-up; cross-club aircraft registration for sysadmins.*
-- S-164 — S — Redact `latestCounter` from Aircraft detail GET for non-manager callers (deps S-058) — *S-058 follow-up; hardening.*
-- S-051 — L — Persons + PersonClub (deps S-048, S-047, S-057)
-- S-053 — S — Flight types CRUD (deps S-050)
-- S-054 — S — Articles CRUD (deps S-048)
-- S-055 — M — Email templates CRUD (deps S-048, S-082 — see Phase G)
-- S-052 — L — Users CRUD + role assignment (deps S-051, S-026, S-019, S-020)
-- S-163 — S — Extend `AircraftAccess.canEdit` to admit `aircraft_owner_person_id` match (deps S-052, S-058) — *S-058 follow-up; needs User→Person link from S-052.*
-- S-056 — M — System data + system-logs view (deps S-027)
-- S-158 — S — Tenant-branding seven-surface preview component (deps S-008, S-156; ADR 0024 follow-up) — *standalone molecule + dev route; no admin-form consumer yet (branding admin CRUD UI is an ADR 0014 follow-up not yet written). Can fire any time after deps; lands here as the natural home for branding admin UI.*
-
-## Phase F — Flight operations + reservations + planning
-
-The airfield hot-path (vision C23). Where most user value lands.
-
-- S-058 — M — Flight entity + FlightAircraftType discriminator (deps S-013, S-050, S-051, S-053)
-- S-059 — L — FlightProcessState transition matrix (deps S-058)
-- S-060 — S — FlightAirState computed state (deps S-058)
-- S-061 — M — Time-gate enforcement (deps S-059)
-- S-062a — M — Flight CRUD backend + DTOs + validator port (deps S-058, S-059, S-060) ✓ **done**
-- S-062b — M — Flight list page (deps S-062a, S-006, S-008) ✓ **done**
-- S-062c — L — Flight create/edit forms — wizard + paired-create + Copy-from-Last + first-pass keyboard (deps S-062a, S-062b, S-007, S-008) ✓ **done**
-- S-062h — M — Flight-edit resilience: IndexedDB drafts + 412 inline diff + marginal-3G (deps S-062c, S-067)
-- S-062i — S — Flight-edit keyboard polish: Ctrl+D + 1–5 quick-select + slide-in focus jump (deps S-062c)
-- S-063 — M — Glider↔Tow link integrity (deps S-062a)
-- S-064 — M — Air movements (motor aircraft) (deps S-062a, S-062c)
-- S-161 — M — Cross-club aircraft usage visibility (charter case) (deps S-058, S-064) — *S-058 follow-up; what does the managing club see of others' usage.*
-- S-067 — M — Optimistic-concurrency on Flight (deps S-058)
-- S-065 — L — Flight reports + custom report builder (deps S-062a, S-093)
-- S-066 — M — OGN ingestion REST endpoint (deps S-058, S-023, S-029) — *S-023 + S-029 deferred from old-C; both land here before OGN.*
-- S-068 — M — AircraftReservation CRUD (deps S-050, S-051)
-- S-069 — L — Reservation scheduler (deps S-068)
-- S-070 — M — PlanningDay CRUD (deps S-068, S-051)
-- S-071 — M — Planning-setup wizard (deps S-070)
-- S-165 — M — Home/dashboard page MVP — greeting + last flight + quick actions (deps S-062a, S-062b, S-026) — *MVP walking-skeleton, pilot variant only; stats tiles / license card / METAR deferred.*
-- S-166 — M — Home/dashboard page — club-admin variant (deps S-165) — *scope TBD at refine.*
-- S-167 — M — Home/dashboard page — sysadmin variant (deps S-165) — *scope TBD at refine.*
-
-## Phase G — Scheduled jobs infrastructure + ports
-
-Jobs infrastructure needs mailpit + scheduling baseline. Pulls in the unscoped-tenant-context + ShedLock plumbing deferred from old-C.
-
-**Deferred-from-old-C items land here:**
-
-- S-018 — S — ShedLock stub table (deps S-009) — *was Phase B/C; needed only when scheduled jobs ship.*
-- S-023 — M — UnscopedTenantContext mechanism (deps S-022) — *was Phase C; needed only by scheduled jobs (cross-club iteration) + OGN ingest. Lands before S-081.*
-
-**Jobs:**
-
-- S-081 — M — Spring @Scheduled infrastructure (deps S-001, S-026, S-018, S-023)
-- S-082 — S — JavaMailSender + Thymeleaf baseline (deps S-001, S-039)
-- S-083 — M — Port DailyFlightValidationJob (deps S-081, S-059, S-061)
-- S-084 — M — Port DailyReportJob (deps S-082, S-083)
-- S-085 — M — Port LicenceNotificationJob (deps S-082, S-051)
-- S-086 — M — Port PlanningDayNotificationJob (deps S-082, S-070)
-- S-088 — M — Port AircraftDatabaseSyncJob (deps S-081, S-050)
-- S-094 — M — ExcelExportSupport helper class (deps S-001, S-093)
-- S-095 — M — Port flight-reports Excel export (deps S-065, S-094)
-
-## Phase H — Rules engine + deliveries (the sacred-cow port)
-
-Most subtle behavior in the system. Pulls in the Proffix machine client deferred from old-C.
-
-**Deferred-from-old-C items land here:**
-
-- S-029 — M — Proffix machine client (deps S-019, S-020) — *was Phase C; only consumed by S-080 Proffix verification. Lands before S-080.*
-
-**Rules engine + deliveries:**
-
-- S-072 — L — AccountingRuleFilter CRUD (deps S-014, S-053, S-054)
-- S-073 — M — Rules engine: IgnoreFlight + Recipient (deps S-072, S-058)
-- S-074 — L — Rules engine: FlightTime decrement loop (deps S-073)
-- S-075 — M — Rules engine: EngineTime decrement loop (deps S-074)
-- S-076 — M — Rules engine: single-pass rule types (deps S-075)
-- S-077 — M — Rules engine: glider→tow recursion (deps S-076, S-063)
-- S-078 — L — Delivery CRUD + transitions (deps S-014, S-077)
-- S-079 — L — DeliveryCreationTest harness (deps S-077, S-078)
-- S-080 — M — Proffix-compatible API verification (deps S-078, S-029, S-115)
-- S-089 — M — Port DeliveryCreationJob (deps S-081, S-077, S-078, S-061)
-- S-090 — L — Port DeliveryMailExportJob (deps S-082, S-094, S-078)
-- S-087 — M — Port AircraftStatisticReportJob (deps S-082, S-094)
-- S-096 — M — Excel parity verification harness (deps S-094, S-095)
-- S-107 — L — Rules-engine combinatorial corpus (C11) (deps S-079)
-
-## Phase I — Public flows + UI completion
-
-Pulls in the public-flow tenant resolver deferred from old-C.
-
-**Deferred-from-old-C items land here:**
-
-- S-025 — M — Tenant-from-URL for public flows (deps S-022, S-023) — *was Phase C; only consumed by public flows.*
-
-**Public flows:**
-
-- S-097 — S — Landing page port + nav-bar mechanism (deps S-002, S-008)
-- S-098 — M — Trial-flight registration (deps S-097, S-025)
-- S-099 — M — Passenger-flight registration (deps S-097, S-025)
-- S-100 — S — Lost-password + email-confirmation landing pages (deps S-097, S-019)
-
-## Phase J — Legacy schema-mapping library
-
-The shared mapping library that both the export JAR (S-139) and the server ingest pipeline (S-141) depend on. Lands once V1__baseline parts are in (Phase C).
-
-- S-016 — L — Legacy schema-mapping library + parity oracle (deps S-012, S-013, S-014)
-- S-028 — M — Bulk-provision tenant users in Keycloak (admin endpoint) (deps S-019, S-026, S-052, S-141)
-
-## Phase O — Self-service migration & freemium SaaS (E-15)
-
-The migration-path feature introduced by vision amendment 2026-05-17c. Reorders late in the sequence because:
-- it depends on master-data CRUD (Phase E) + flight operations (Phase F) — there's nothing to migrate *into* before those tenant-scoped entities exist;
-- it depends on scheduled-jobs infrastructure (S-081 in Phase G) for the trial-expiry + sandbox-reset crons;
-- it consumes the Keycloak realm config (S-019) + the Angular OIDC client (S-021) but extends them with signup-enabled flows;
-- the freemium gate annotation (S-143) shapes how feature epics (E-09 deliveries, E-10 jobs, E-11 Excel) wire their controllers — those epics' stories will be re-checked against the gate list during refine.
-
-**ADRs required before story refinement:** 0018 (lifecycle), 0019 (bundle format + encryption), 0020 (feature-gate mechanism), 0021 (billing provider). Recommended sequence below; ADR 0018 unblocks the most stories.
-
-**Deployment + lifecycle scaffolding (start early; unblocks the rest):**
-
-- S-137 — M — Deployment entity + lifecycle state machine + job filter (deps S-048)
-
-**Sandbox demo (parallel branch — can start once S-137 is in):**
-
-- S-135 — M — Sandbox demo Deployment: seed data + nightly reset (deps S-047, S-048, S-049, S-050, S-051, S-058, S-068, S-081, S-137)
-- S-136 — M — Anonymous demo-session scoping (deps S-022, S-135, S-137)
-
-**Signup + landing CTAs:**
-
-- S-134 — M — Keycloak self-service signup + Google IdP federation (deps S-019, S-021)
-- S-133 — S — Public marketing landing CTAs (deps S-097, S-008)
-
-**Migration transport (the JAR + upload pipeline):**
-
-- S-139 — L — Legacy export JAR (deps S-016, S-140, S-141, S-187a) — *refined; ALPF/Tink producer pinned to the live ingest contract; owns crypto relocation server→migration-bundle*
-- S-140 — M — Per-upload keypair handshake (deps S-134)
-- S-140a — S — Combined handshake artifact (uploadId + public key) for the export jar (deps S-140) — *S-139 refinement follow-up; closes the uploadId-AAD gap*
-- S-141 — L — Encrypted-bundle upload + decrypt + ingest pipeline (deps S-016, S-138, S-140)
-- S-141c — M — Provisioning↔ingest CLUB reconciliation (deps S-141, S-138) — *gates full-entity coverage in S-187a + S-139a*
-- S-138 — M — Trial-Deployment provisioning on first successful ingest (deps S-134, S-137, S-141)
-- S-142 — M — Trial countdown + 72 h hard-delete cron (deps S-137, S-138, S-141, S-081)
-
-**Freemium + billing:**
-
-- S-143 — M — Feature-gate annotation + 402 contract (deps S-026, S-137)
-- S-144 — S — Freemium UI upgrade-prompt (deps S-008, S-143)
-- S-145 — L — Subscription billing integration (deps S-137, S-138)
-- S-146 — S — Trial-to-paid promotion (deps S-137, S-142, S-145)
-
-**Cross-cutting:**
-
-- S-147 — S — Funnel telemetry events (deps S-031, S-133, S-134, S-136, S-138, S-140, S-141, S-142, S-145, S-146)
-
-**Per-tenant integration handoffs (run any time after the upstream maintainer is contacted):**
-
-- S-149 — M — OGN ingest endpoint — per-tenant handoff with upstream maintainer (deps S-066)
-- S-150 — M — Proffix integration — verify live consumer call pattern
-
-## Phase K — Production infrastructure (deployment build-out, deferred until features work)
-
-**All production-side deployment infrastructure lands here**, after features are functional and the schema-mapping library has been exercised end-to-end through CI. Order: production runtime → production hosting → production resilience.
-
-- S-040 — M — Production Dockerfile (deps S-001)
-- S-044 — M — VPS provider selection + provisioning
-- S-041 — M — Reverse proxy: Caddy vs Traefik (deps S-039, S-044)
-- S-046 — M — Helm/Kustomize manifest stub (deps S-039, S-040, S-041)
-- S-042 — M — Off-site pg_dump backup (deps S-039, S-044)
-- S-043 — M — Restore runbook + dry-run drill (deps S-042)
-- S-037 — S — External uptime probe (deps S-030, S-044)
-- S-045 — S — K8s-migration trigger criteria (pure documentation, can fire any time once S-044 lands)
-- S-091 — M — Production SMTP relay selection (deps S-082, S-044)
-- S-151 — M — Production Keycloak deployment (deps S-019, S-041, S-044, S-042)
-- S-152 — S — Rename `next/` → `alpenflight/` working subtree (no deps; fires whenever)
-
-## Phase L — Production observability (production-side telemetry)
-
-Observability stack ships at production-deploy time. Application-side hooks (S-030 Actuator) are already in Phase B; structured logging + observability containers + dashboards land here.
-
-- S-031 — M — Structured JSON logging (deps S-001, S-020, S-022)
-- S-034 — M — GlitchTip in compose (deps S-001, S-002, S-039)
-- S-032 — M — Loki + Grafana in compose (deps S-031, S-039)
-- S-033 — M — Prometheus in compose (deps S-030, S-032, S-039)
-- S-035 — M — Default Grafana dashboards (deps S-032, S-033)
-- S-036 — M — Alert rules as code (deps S-035)
-- S-038 — M — Scheduled-job instrumentation pattern (deps S-030, S-081)
-
-## Phase M — Test corpus completion + go-live prep
-
-- S-109 — L — Port full Playwright suite to new stack (deps S-002, S-057, S-097)
-- S-110 — S — T3-equivalent smoke (deps S-020, S-021, S-062c)
-- S-111 — M — Performance verification (deps S-108, S-109, S-046)
-- S-092 — S — Decommission legacy libs from new-stack codebase (deps S-083..S-090)
-
----
-
-## How to use this
-
-- **Right now** — Phase B is the critical path. Sequence: S-019 + S-039 + S-030 in parallel → S-003 → S-004 → S-020 + S-022 + S-026 (parallel) → **S-155 (layering enforcement; lands before any new aggregate module)** → S-006 + S-007 + S-008 + S-021 (parallel) → **Phase D walking skeleton (S-047 slim + S-049 + S-024)**. S-155 ships the four-package template; every new module (S-047, S-049, S-050, …) is scaffolded into that template from commit one. If S-047 refines before S-155 lands, hold the implement until S-155 is in — the boyscout cost of reshaping reference data later is larger than waiting one story.
-- **Walking skeleton is the milestone to optimize toward.** Operator can demo end-to-end behavior the moment Phase D closes. Every story choice before then is "does this block the demo?"
-- **Phase E thickens; deferred items land here.** Don't pull S-027 (audit), S-057 (translations), S-005 (i18n picker) earlier "just to be done with them" — they land when their first consuming story arrives.
-- **Test corpus expansion (S-101..S-106)** — runs against legacy first, can begin in parallel with any phase.
-- **Don't start Phase H (rules engine) until Phase F's flight model is stable** — the parity port has nothing to compare against without it.
-- **S-107 (rules-engine corpus) is the long pole of E-13** — schedule explicitly; can take a full week.
-- **Production infrastructure (Phase K) intentionally deferred.** Features mature against dev-loop compose; production infra build-out happens only when feature work is largely in place.
-- **Phase L observability** can pull forward selectively if a feature epic generates enough debugging pain — S-031 (structured logging) and S-034 (GlitchTip error tracking) are the most likely candidates.
-- **Phase O (E-15 self-service migration) lands after Phases E–G** but its ADRs (0018–0021) should be drafted earlier so the affected stories elsewhere (S-016, S-028, S-081, S-097, plus the seven gated feature surfaces — Excel, Proffix, notifications, scheduled-jobs opt-ins) carry the right amendments when they're refined. Recommended ADR sequence: 0018 → 0019 → 0020 → 0021.
-- **No centralized cutover phase.** Migration is a self-service product feature (E-15). The S-016 mapping library + CI parity oracle is the rehearsal mechanism; each tenant onboards via the JAR + upload UI on its own schedule.
-
-## What changed in this revision (2026-05-17 — walking-skeleton first)
-
-Previous ordering (2026-05-15) bundled all of auth + tenancy + audit + machine client + translations into Phase C and ran Phase D feature work only after all of it landed. Revised ordering pulls the first user-visible vertical slice (Locations CRUD) to land as early as possible.
-
-**Moved OUT of Phase B/C (defer to first consuming story):**
-
-| Story | Was | Now | Reason |
-| --- | --- | --- | --- |
-| S-005 (i18n picker) | Phase B | Phase E (before S-057) | Walking skeleton ships in German only; no i18n needed |
-| S-018 (ShedLock stub) | Phase B/C | Phase G (before S-081) | Only needed when scheduled jobs ship |
-| S-023 (UnscopedTenantContext) | Phase C | Phase G (before S-081) | Only needed by scheduled jobs + OGN ingest |
-| S-025 (Tenant-from-URL) | Phase C | Phase I (before S-098/S-099) | Only needed by public flows |
-| S-027 (Audit-log infra) | Phase C | Phase E (before S-048 Clubs) | First audit-required mutation is on Clubs |
-| S-029 (Proffix machine client) | Phase C | Phase H (before S-080) | Only consumed by Proffix verification |
-| S-057 (Bundled TS translations) | Phase C | Phase E (before S-051 Persons) | Walking skeleton runs single-locale |
-
-**Pulled IN to Phase D (immediately with walking skeleton):**
-
-| Story | Was | Now | Reason |
-| --- | --- | --- | --- |
-| S-024 (Cross-tenant leakage test) | Phase C | Phase D (after S-049) | Needs a real tenant-scoped repo to test against — meaningless before Locations exists |
-
-**S-047 (Reference-data domain) split assumption:** ship `Country` only in Phase D as the walking skeleton's reference dropdown; remaining reference entities (Language, MemberState, PersonCategory, length/elevation/counter units, StartType) defer to Phase E. Captured as an assumption to flag for operator. If S-047 should be split formally into S-047a / S-047b, propose during `/modernize-refine S-047`.
-
-**Trade-off accepted:** the new ordering creates more "land just-in-time" coupling (S-027 ↔ S-048, S-005+S-057 ↔ S-051, S-023+S-018 ↔ S-081, S-025 ↔ S-098, S-029 ↔ S-080). Risk: a dependency surprise during refine could push back the consuming story. Mitigation: each deferred item is small-to-medium (S/M), so the slip is bounded; and the walking-skeleton ships meaningful value 4–6 stories earlier in calendar time than the previous ordering.
-
-## What changed in the prior revision (2026-05-15)
-
-Previous-previous ordering interleaved production infrastructure (S-039–S-046, S-037, S-091, S-116) and production observability (S-031–S-036, S-038) with feature foundation work in Phases B/C. The 2026-05-15 revision moved them to Phases J/K. The 2026-05-17 revision keeps that move; it only restructures the *pre-feature* phases (B, C, D) for walking-skeleton-first delivery.
+# Journey roadmap
+
+Vertical-slice execution order for the `do-*` suite. Each entry is a **journey**:
+one SPA screen/route, full CRUD, driven end-to-end DB→domain→API→UI, provable by
+**one green Playwright run**. This replaces the old horizontal phase order (whole-
+layer stories) — that backlog still exists as `S-NNN` story files (refinement
+preserved) and in git history; journeys *roll them up* by ID. The 77 stories in
+`implemented/` are untouched history.
+
+**Status:** roadmap proposed 2026-05-31 by `slice-carver` (Mode A). Journeys are
+carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
+
+**Format:** `J-NNN | title (screen/route) | epic | depends_on | rolls_up | migration`
+
+## The order
+
+| J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
+|---|---|---|---|---|---|---|
+| **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` | `masterdata/locations/` → `/locations` |
+| J-1 | Aircraft register | E-06 | J-0 | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
+| J-2 | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064, S-067-poly | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
+| J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
+| J-4 | Profile self-edit | E-06 | J-2 | S-182 | `Person` (self) | `profile/` → `/profile` |
+| J-5 | Aircraft reservations | E-08 | J-1 | S-068, S-069 | `AircraftReservation` | `reservations/` + `reservation-scheduler/` → `/reservations` |
+| J-6 | Planning days + setup | E-08 | J-5, J-2 | S-070, S-071, S-086 | `PlanningDay` | `planning/` → `/planning`, `/planningsetup` |
+| J-7 | Flight reports | E-07/E-11 | J-2 | S-065, S-093, S-094, S-095, S-096 | N/A (read-side) | `reporting/` → `/flightreports` |
+| J-8 | Accounting rule filters | E-09 | J-1 | S-072 | `AccountingRuleFilter` | `masterdata/accountingRules/` → `/accountingrules` |
+| J-9 | Delivery creation test (rules-engine proof) | E-09 | J-8, J-2 | S-073, S-074, S-075, S-076, S-077, S-079, S-107 | N/A (harness) | `masterdata/deliveryCreationTests/` |
+| J-10 | Deliveries (invoice drafts) | E-09 | J-9 | S-078, S-080, S-089, S-090, S-150, S-029, S-087 | `Delivery`, `DeliveryItem` | `masterdata/deliveries/` → `/deliveries` |
+| J-11 | Articles + Email templates | E-06 | J-0 | S-055, S-158, S-177 (+impl S-054) | `Article`, `EmailTemplate` | `masterdata/articles/`, email-templates |
+| J-12 | Club join / invite flow | E-06 | J-3, J-4 | S-178, S-179, S-180, S-181 | N/A (greenfield) | none (new) → `/join` |
+| J-13 | System data + logs (admin) | E-06 | J-0 | S-056, S-160 | `SystemData` | `system/logs/` → `/system/logs` |
+| J-14 | OGN ingestion (admin/test affordance) | E-07 | J-2 | S-066, S-088, S-023, S-149 | N/A (inbound API) | none (headless) |
+| J-15 | Scheduled-jobs admin console | E-10 | J-2, J-9 | S-081, S-082, S-018, S-083, S-084, S-085, S-038 | N/A | none (admin) → `/system/jobs` |
+| J-16 | Public landing + nav | E-12 | J-0 | S-133 (+impl S-097, S-157) | N/A | `main/` → `/main` |
+| J-17 | Trial-flight registration | E-12 | J-16, J-1 | S-098, S-025 | `Flight` (trial subset) | `tryflight/` → `/trialflight` |
+| J-18 | Passenger-flight registration | E-12 | J-16, J-1 | S-099 | `Flight` (pax subset) | `passengerflight/` → `/passengerflight` |
+| J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
+| J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
+| J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
+| J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
+
+†S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
+
+## Journey-0 — `J-0 Locations CRUD`
+
+The thinnest already-built screen (`S-049/049b/049c` are `implemented/`), so no
+feature risk competes with the chain work. Its sole job is to drag the full proof
+chain into existence: **legacy-up → run the `Location` mapper (first per-journey
+slice of the dissolved migration lump) to seed real data → Keycloak login → real
+Playwright run + video against the new stack → wire that run into CI as a required
+gate** (S-062g, S-110). `Location` is tenant-scoped, low row count, no inbound FKs
+— the safest possible first mapper. Every later journey inherits the working gate
+and the proven mapper pattern.
+
+## Per-journey Playwright contract (the one-line gate)
+
+- **J-0:** Two club admins log in via Keycloak; each sees only their own migrated Locations; create/edit/delete round-trips; cross-tenant GET 404s. (Gate + video.)
+- **J-1:** Aircraft list/create/edit/delete tenant-scoped; `latestCounter` redacted for non-manager; charter aircraft visible cross-club read-only.
+- **J-2:** Glider + tow + motor flight create/edit/list; time-gate blocks lock <2d / bill <3d; 412 optimistic-concurrency inline diff; paired glider↔tow save links.
+- **J-3:** Pilot logs in; dashboard shows greeting + last flight + quick actions; SSE push updates a tile live; admin/sysadmin variants render role-appropriate tiles.
+- **J-4:** User edits own Person across Account/Personal/Pilot/Notifications tabs; changes persist and reflect on next login.
+- **J-5:** Reservation create rejects an overlapping aircraft slot; scheduler calendar renders the reservation in the right lane/time.
+- **J-6:** Planning day create with assigned instructor/tow-pilot/operator; per-day reservations inline; setup wizard seeds a day; notification email lands in mailpit.
+- **J-7:** Pick a canned report → table renders; custom report builder filters; Excel download cell-matches the legacy fixture (parity harness green).
+- **J-8:** Create/edit an AccountingRuleFilter; list reflects it; filter-type dropdowns populate.
+- **J-9:** `generateExampleDelivery(flightId)` previews invoice items bit-equivalent to legacy for the corpus flight; a stored DeliveryCreationTest run passes.
+- **J-10:** Delivery list; Prepared→Booked transition; deleting a delivery resets affected flights' process states; Proffix-compat GET shape verified.
+- **J-11:** Article + email-template CRUD; branding seven-surface preview renders; join-code rotate visible.
+- **J-12:** Pilot enters a join code → request created → admin approves → auto-Person created → pilot lands in-club.
+- **J-13:** Sysadmin views system data + paginated logs; append-only audit role rejects UPDATE.
+- **J-14:** A guarded **test-env-only "ingest OGN sample" affordance** posts the legacy OGN contract → a flight appears in J-2's list.
+- **J-15:** Admin "run job now" triggers DailyFlightValidation → flight transitions Valid; mailpit receives DailyReport; job emits started/completed events.
+- **J-16:** Landing renders; nav-bar hidden on public routes by an explicit mechanism; CTAs route correctly.
+- **J-17 / J-18:** Public POST creates a trial/passenger flight scoped by tenant-from-URL; unsupported tenant ID rejected; nav-bar hidden.
+- **J-19:** Lost-password + confirm pages render Keycloak callback results.
+- **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
+- **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows.
+- **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.
+
+## Headless homing decisions
+
+| Headless capability | Homed on | Mechanism |
+|---|---|---|
+| Per-journey migration mappers (the S-016/183-190 lump) | each journey's seed | real screen — every journey runs its entity mapper; J-0 proves, J-21 orchestrates |
+| Rules engine (S-073–077) | J-9 DeliveryCreationTest | real screen — `generateExampleDelivery` UI dry-run |
+| DeliveryCreationJob / MailExportJob (S-089/090) | J-10 Deliveries | real screen — "create deliveries" action |
+| Daily validation / report / licence jobs (S-083–085) | J-15 jobs console | admin screen — "run now" |
+| PlanningDayNotificationJob (S-086) | J-6 Planning | real screen — assigning crew triggers email |
+| AircraftDatabaseSyncJob (S-088) | J-14 OGN | admin screen — co-located with OGN ingest |
+| AircraftStatisticReportJob (S-087) | J-10 Deliveries | screen that consumes its Excel output |
+| Excel export infra (S-093/094/096) | J-7 Flight reports | real screen — first sync export consumer |
+| Proffix machine client (S-029) + verification (S-080/150) | J-10 Deliveries | real screen — the API surface Proffix consumes |
+| UnscopedTenantContext (S-023) | J-14 OGN | first cross-club headless consumer |
+| **OGN ingestion (S-066/149)** | **J-14 — INVENTED test-env-only "ingest OGN sample" button** | no product screen surfaces inbound OGN; guarded test affordance gives the inbound contract a Playwright proof. **⚠ operator-flag.** |
+| SSE channel (S-176) | J-3 dashboard | real screen — live tile updates |
+
+No `escalate: true` — every headless item found a screen or a justified test affordance.
+
+## Platform riders (NOT journeys — attach to a journey or land on debugging pain)
+
+- **Production infra / hosting:** S-030, S-031–S-037, S-040–S-046, S-091, S-151 → ride J-21/J-22 deploy + Phase K.
+- **Observability:** S-032–S-038 → attach to J-15 + platform; pull forward only on pain.
+- **Legacy-run depth coverage:** S-101→J-2/J-5, S-102→J-2, S-103→J-2, S-104→J-13, S-105→J-2, S-106→J-0/J-1 (run vs legacy first, re-attach to parity journey).
+- **Test-corpus / CI infra:** S-062g+S-110→J-0 (gate bootstrap), S-111/S-108→J-7/J-2 perf, S-190→platform, S-092 (decommission legacy libs)→J-15 (last job ported).
+- **Rework/doc follow-ups:** open ones (S-124–127, S-129–131, S-153) are platform hygiene, attach to nearest journey.
+- **S-028 (bulk Keycloak provision):** → J-21. **S-134 (self-service signup):** `implemented/`; consumed by J-16/J-21.
+
+## Superseded horizontal stories
+
+The **migration lump dissolves**: S-016, S-189, S-187b/c/d, S-188, S-109 (port
+full Playwright suite) → per-journey mappers + specs; no standalone migration or
+"port the suite" story survives. The full roll-up assignment is the `rolls_up`
+column above; stories are stamped `rolled_up_into: J-NNN` as each journey is
+carved (Mode B), not eagerly (so re-grouping during adjudication stays cheap).
+
+## Assumptions made
+
+1. `implemented/` is authoritative — journeys rolling up a done story only re-assert its parity in the spec; they don't rebuild it. J-1/J-3/J-11/J-16 are thin precisely because their backend already exists.
+2. The migration lump is bigger than four IDs — the whole S-183…S-190 / S-187x series folds into per-journey mappers. **Main grouping decision to adjudicate:** track these per-journey (current) vs as one migration epic.
+3. OGN (J-14) gets an invented test-only affordance. Alternative: drop J-14's UI, prove OGN by API-level integration test as a headless rider on J-2.
+4. Air movements (S-064) folds into J-2 (motor-aircraft tab of the same flight screen), not its own journey.
+5. Reservations + scheduler (S-068/069) are one journey J-5 (two views on one route family).
+6. Rules-engine internals (J-9) proven through the DeliveryCreationTest dry-run screen (legacy's actual debugging surface); highest-risk journey, gated by S-107 corpus.
+7. Freemium/billing (J-22) greenfield; billing verified in provider test-mode, no real charges in the Playwright run.
+8. Dashboard variants (S-166/167) and depth specs (S-101–106) are assertions added to existing journeys, not journeys.

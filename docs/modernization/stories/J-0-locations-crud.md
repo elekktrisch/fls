@@ -1,0 +1,88 @@
+---
+id: J-0
+title: Locations CRUD — chain bootstrap
+epic: E-06
+status: todo
+journey0: true
+carved: true
+depends_on: []
+rolls_up: [S-062g, S-110]
+acceptance:
+  - Two CLUB_ADMINISTRATORs in different clubs each log in via Keycloak and see ONLY their own club's Locations (`@TenantId` auto-filter). [happy]
+  - Create / edit / soft-delete a Location round-trips through the real UI and persists. [happy]
+  - A Location created in club A is not returned to club B; cross-tenant GET by id 404s. [key-error]
+  - ICAO is validated server-side `^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$`; a bad code is rejected at the form. [edge]
+  - The same physical airport (e.g. LSZH) exists independently in two clubs' catalogs (per-club `(club_id, icao_code)` uniqueness, not global). [edge]
+  - The run passes FIRST on a clean Flyway seed, THEN on real legacy `Location` data migrated via the `Location` mapper. [happy]
+screen: /locations  # replacing legacy masterdata/locations/
+headless_pulled_in: Location migration mapper → the migrate step of the proof chain (first per-journey mapper; proves the pattern)
+migration: Location (+ child InOutboundPoint) — legacy shared row FANS OUT into one row per referencing club, keyed (legacy_id, club_id) → new_id
+parity_test: e2e/tests/masterdata/locations-crud.spec.ts
+adr_refs: [0005, 0008, 0018, 0019, 0022, 0023, 0026]
+---
+
+## Context
+
+J-0 is the **chain-bootstrap journey**. Locations CRUD is already built end-to-end
+(S-049 / S-049b / S-049c are in `implemented/`), so it carries no feature risk —
+its entire job is to drag the **full proof chain** into existence for every later
+journey: legacy-up → run the `Location` mapper to seed real migrated data →
+Keycloak login → a real Playwright run + pass-video against the new stack → wire
+that run into CI as a required gate. `Location` is the safest first mapper:
+tenant-scoped, low row count, no inbound FKs, and a simple (if fan-out-shaped)
+mapping. Once green, J-1…J-22 each extend the chain with their own seed + per-
+entity mapper + spec on top of a proven gate.
+
+## Spec must assert
+
+The happy path is **two-club tenant isolation through the real UI**: a
+`CLUB_ADMINISTRATOR` in club A and one in club B each log in via Keycloak; each
+`GET /api/v1/locations` returns only their own club's rows (Hibernate `@TenantId`
+filter — `LocationsController` authz per S-049b: CLUB_ADMIN CRUDs own club). The
+spec creates/edits/soft-deletes a Location and re-reads it; it asserts a club-A
+Location is absent from club B's list and that a cross-tenant GET-by-id 404s
+(parity: tenant leakage is the load-bearing invariant — `S-024` cross-tenant test
+lives here too).
+
+Key error / edge:
+- ICAO rejected unless `^[A-Z]{4}$|^[A-Z]{2}[0-9]{2}$` (tightened beyond legacy, which was lax — legacy accepted any string; cutover cleanup tracked in the mapper).
+- The same ICAO (e.g. `LSZH`) is creatable in both clubs independently — global ICAO uniqueness was dropped for per-club partial unique `(club_id, icao_code) WHERE icao_code IS NOT NULL AND deleted_on IS NULL`.
+- `InOutboundPoint` is managed only via the Location edit screen (child of the aggregate; no top-level CRUD).
+
+**The chain proof is the real acceptance** (do-suite done-bar): the spec must pass
+once on a clean seed and once on **real legacy data migrated in**, with the AlpenFlight
+pass-video as the artifact and a paired legacy `flsweb` video of the same journey
+on the seeded data for human parity-checking.
+
+## Notes
+
+**Migration shape (load-bearing — this is what J-0 proves for everyone).** Legacy
+`Location` is shared (one row referenced by many clubs); the new schema is
+tenant-scoped. The mapper **fans out**: each legacy `Location` row becomes N new
+rows, one per club that references it, keyed `(legacy_id, club_id) → new_id`. The
+child `InOutboundPoint` inherits tenancy via its parent (no separate club column).
+`LocationType` stays shared reference data (Flyway-seeded; not migrated per-club).
+ICAO rows failing the tightened regex need one-time cleanup at map time. This
+fan-out keying convention (`(legacy_id, club_id) → new_id`) is the template every
+later tenant-scoped mapper copies — getting it right here is the point of J-0.
+
+**Likely task seams (non-binding, for `/do-ship` to size at ship time):**
+- *Proof-chain harness* — legacy-up + migrate + Keycloak + Playwright wired as the CI gate (S-062g, S-110); the bulk of J-0's new work, nothing feature-shaped.
+- *`Location` migration mapper* — one mapper in `alpenflight/migration-tool/` (currently a bare gradle scaffold), with the fan-out keying + ICAO cleanup.
+- *Spec + parity-video* — `e2e/tests/masterdata/locations-crud.spec.ts` extended to drive the two-club isolation path and emit the paired videos.
+- *(Locations CRUD itself is `implemented/` — re-assert parity, do not rebuild.)*
+
+**Sacred cows:** Location renames have cross-club blast radius in legacy; the new
+model sidesteps this by per-club rows. Coordinates stay opaque `VARCHAR(10)` (no
+spatial validation — legacy never enforced it). Legacy URL shape
+(`/page/0/100`, `X-HTTP-Method-Override`, `{Items:[...]}` envelope) is intentionally
+NOT preserved (ADR 0022) — assert observable behavior only.
+
+## Assumptions made
+
+- `implemented/` Locations CRUD (S-049/b/c) is authoritative and correct; J-0
+  re-asserts its parity in the spec and does **not** rebuild it. The net-new work
+  is the proof chain + the `Location` mapper.
+- The cross-tenant leakage assertion (originally horizontal S-024) is folded into
+  J-0's spec rather than tracked separately — J-0 is the first tenant-scoped screen
+  with a real repository to leak-test against.
