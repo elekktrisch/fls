@@ -95,6 +95,12 @@ force-push. Tick `T-NN` in the journey's `## Tasks` checklist (one commit may
 include the tick). If you opened nothing, `/do-ship` handles the draft PR; if a
 PR exists, push and let CI run.
 
+**Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
+in passing doesn't need its own commit/PR — leave it in the working tree and let it
+**ride with the next regular change** on `integration/J-NNN`. Never craft a separate
+chore commit just to isolate it. (Don't leave the task's own deliverable uncommitted
+— this is for stray drive-by edits, not the work the task owns.)
+
 ### 5 — Stop + report
 
 Return a lean summary (this is what the manager keeps): task id + status (done /
