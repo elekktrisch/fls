@@ -27,8 +27,9 @@ import java.util.TreeSet;
  * </ol>
  *
  * <p>The sparse-enum per-permitted-value dimension (S-187a AC gate (d)) is
- * fixture-coupled — it lands with the per-group seeder fixtures (deferred
- * follow-up), not here.
+ * fixture-coupled — it lands with the per-group seeder fixtures (S-187d). That
+ * adds a {@code permittedSparseEnumValues} field to {@link Inputs}, so expect
+ * the existing call sites to churn when it does.
  */
 public final class ParityCoverageGate {
 

@@ -13,6 +13,7 @@ acceptance:
   - **RESERVATION_NO_PILOT** producer drop folded into row counts (reuses `ProducerDropReconciliation`).
   - **Sparse-enum coverage-gate dimension (d)** wired into `ParityCoverageGate.Inputs` from the per-mapper permitted-value sets.
   - **Sampled-value diff** (1% `TABLESAMPLE BERNOULLI(1) REPEATABLE(<seed>)`, full-scan floor at PR scale) over the sentinel set, emitting through `ParityValueRedactor` (fail-closed). Zero tolerance on sentinels.
+  - **PII drift-guard test** (server-side, where both classpaths are present): assert `ParityValueRedactor`'s PII set ⊇ every `tenant-rules.yaml` `pii_columns` entry whose table maps to a `KNOWN_MAPPER`, so the bundle-local mirror cannot silently rot.
   - **Soft-delete invariant** per soft-deletable entity per Club.
   - **Negative-path bundle-reject cases** (`@Tag("parity-reject")`): BUNDLE_LANGUAGE_NOT_SEEDED, BUNDLE_SCHEMA_{UPGRADE,DOWNGRADE}_NEEDED, BUNDLE_AIRCRAFT_SPOT_LINK_NOT_HTTPS, unmapped-table-no-registry, ARTICLE_DUPLICATE_NUMBER — each asserts the error code + a per-table delta of 0 post-rollback.
   - **Mutation smoke** (`@Tag("parity-meta")`) using `ColumnDroppingMapper`: assert `summary.passed=false ∧ totalDeltas>0` and `deltas/*.json` names the dropped column; inverse case for a `@ParityIgnore` column keeps `passed=true`.

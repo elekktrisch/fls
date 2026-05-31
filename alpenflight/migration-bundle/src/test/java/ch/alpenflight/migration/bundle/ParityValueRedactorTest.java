@@ -38,4 +38,20 @@ class ParityValueRedactorTest {
         assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "licence_number")).isTrue();
         assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "country_id")).isFalse();
     }
+
+    @Test
+    void piiSetIsASupersetOfTheAuthoritativeTenantRulesColumns() {
+        // Every tenant-rules.yaml pii_column for a mapped table must be covered,
+        // else a future sentinel marking on one of these would leak its value.
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "company_name")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "address_line1")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "address_line2")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "zip")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "city")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "region")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "birthday")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON, "spot_link")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.USER, "remarks")).isTrue();
+        assertThat(ParityValueRedactor.isPii(EntityType.PERSON_CLUB, "member_number")).isTrue();
+    }
 }
