@@ -2,7 +2,8 @@
 id: J-0
 title: Locations CRUD — chain bootstrap
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-05-31
 journey0: true
 carved: true
 depends_on: []
@@ -86,3 +87,29 @@ NOT preserved (ADR 0022) — assert observable behavior only.
 - The cross-tenant leakage assertion (originally horizontal S-024) is folded into
   J-0's spec rather than tracked separately — J-0 is the first tenant-scoped screen
   with a real repository to leak-test against.
+
+## State at ship time (mapped 2026-05-31)
+
+The proof-chain pieces mostly **already exist** — J-0 is wiring, not building:
+- **DONE:** `docker-compose.yml` (MSSQL legacy + Postgres + Keycloak + mailpit);
+  real-idp Keycloak flow (`alpenflight-e2e-real-idp.yml` + `tests/real-idp/`);
+  `LocationMapper.java` + test (fan-out `(legacy_guid, club_id)`); ingest pipeline
+  (`MigrationBundleIngestService`, S-141); the Locations screen + a mocked
+  `tests/masterdata/locations-crud.spec.ts` (CRUD/ICAO/soft-delete, but `testIgnore`d);
+  `playwright.config.ts` projects (chromium mock-auth + real-idp) with `video`.
+- **GAP (the work):** ① the mocked spec is disabled + lacks cross-tenant/uniqueness
+  asserts; ② no end-to-end legacy→export→ingest→Postgres test for `Location`;
+  ③ no real-idp two-club tenant-isolation spec against the real backend; ④ Playwright
+  is NOT in `ci.yml`'s `required` aggregator + video drops on pass (S-062g).
+
+## Tasks
+
+- [ ] **T-01 — Inner-loop mocked spec.** Un-ignore `locations-crud.spec.ts` in `alpenflight/web/e2e/playwright.config.ts` (testIgnore) and add the cross-tenant-404 + per-club ICAO-uniqueness assertions to `alpenflight/web/e2e/tests/masterdata/locations-crud.spec.ts`. Fast mocked green. *(seam: one spec + config)*
+- [ ] **T-02 — Migrate proof IT.** Enhance `alpenflight/server/.../migrations/web/MigrationBundleIngestIT.java` to seed legacy `Location` rows → export+encrypt a bundle → ingest → assert `t_location` rows with correct `(legacy_guid, club_id)` fan-out + nested `InOutboundPoint`s in Postgres. *(seam: one server IT, the migrate link)*
+- [ ] **T-03 — Real-idp two-club isolation spec.** New `alpenflight/web/e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts` + a two-club seed helper under `tests/real-idp/_helpers/`: two CLUB_ADMINISTRATORs (via `keycloak-admin.ts`), each sees only own club's Locations, cross-tenant GET 404 — against the REAL backend. *(seam: one real-idp spec + helper)*
+- [ ] **T-04 — Proof-chain gate + required wiring.** Run legacy-up→migrate→real-idp locations spec as a CI job (extend `alpenflight-e2e-real-idp.yml` or new `alpenflight-proof.yml`); set `video: 'on'` for the proof project (retain pass-video); add the alpenflight Playwright job to `ci.yml`'s `required` aggregator (closes S-062g). *(seam: one CI gate)*
+- [ ] **T-05 — Gate run (e2e-driver, not a /do-task worker).** Full chain both fidelities green (clean seed + migrated), pass-video retained, paired legacy `flsweb` video captured; `gap-hunter` ×2-3 against the diff + spec. Run by the manager at §4.
+
+**Order:** T-01 → T-02 → T-03 → T-04, then T-05 gate. T-01/T-02 are independent;
+run sequentially (shared branch). No `legacy-oracle` pass — Location parity is
+already captured in S-049/S-049b + the built `LocationMapper` + its test.
