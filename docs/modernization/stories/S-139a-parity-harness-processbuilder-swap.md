@@ -1,9 +1,9 @@
 ---
 id: S-139a
-title: Parity oracle harness — swap in-process producer for ProcessBuilder invocation of migration-tool-all.jar
+title: Parity oracle — full producer→consumer e2e via the real export jar
 epic: E-02
 status: todo
-depends_on: [S-139, S-187, S-187a]
+depends_on: [S-139, S-187, S-187a, S-141c]
 integration_base: integration/migration
 origin: scope-split
 origin_story: S-187
@@ -13,12 +13,14 @@ refined_specialists: [requirements, solution, qa, performance]
 github_issue: 179
 github_pr: 180
 acceptance:
-  - **Producer side spawns `migration-tool-all.jar`.** Replace `ProducerHarness`'s in-process invocation of `Mapper.writeNdjson` with `ProcessBuilder` invoking the shadowJar from S-139. Stdin = legacy connection params; stdout = the tar.gz bundle bytes; stderr → captured for failure reporting.
-  - **No behavioural delta** on the same seeded fixture. Existing happy-path round-trip assertions (S-187 + S-187a) pass byte-for-byte under the swapped producer; nightly 10× passes too.
-  - **Walltime budget unchanged.** The swap MUST NOT regress PR-gated ≤ 5 min / nightly ≤ 30 min.
-  - **Process-failure path** distinguishable from a parity miss: a non-zero exit + non-empty stderr fails the harness with `producer process failed: <exit>` before any diff runs.
+  - A full producer→consumer e2e IT in the `server` module: the real `:migration-tool` export jar (S-139) reads a seeded MSSQL Testcontainer and writes an encrypted bundle, which is uploaded to the real `/api/v1/migrations/{uploadId}/bundle` endpoint, ingested by the real `MigrationBundleIngestService` into Postgres, and a structural per-entity diff vs the legacy MSSQL passes.
+  - The harness mints a real handshake and invokes the jar via `ProcessBuilder` with `--handshake-file` (uploadId + PEM) + `--output <temp.enc>`; the DB password is passed off-argv. No harness-side decrypt — the real ingest pipeline decrypts.
+  - The diff is structural (per-entity row/NDJSON content), tolerant of manifest timestamps + gzip/tar framing; the gate is zero row-content delta. (Supersedes the old byte-for-byte assertion, unachievable across the two producer codepaths.)
+  - Process-failure path: a non-zero exit + non-empty stderr fails with `producer process failed: <exit>` (surfacing the jar's structured code) before any upload or diff; a `waitFor` timeout + `destroyForcibly` guards a hung child.
+  - `-Dparity.producer=process|inprocess` gates the swap; default `inprocess` until the jar is green nightly, then flip. The jar artifact is resolved from the `:migration-tool:shadowJar` task output, never a hardcoded path.
+  - Walltime budget unchanged: PR-gated ≤ 5 min, nightly ≤ 30 min at `-Dparity.scale=10`.
 estimate: L
-adr_refs: [0019, 0022]
+adr_refs: [0022]
 ---
 
 ## Context
