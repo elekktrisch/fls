@@ -2,8 +2,9 @@
 id: S-140a
 title: Combined handshake artifact — SPA download carries uploadId + public key for the export jar
 epic: E-15
-status: in_progress
+status: done
 started_at: 2026-05-31
+done_at: 2026-05-31
 depends_on: [S-140]
 integration_base: integration/migration
 origin: refinement-followup
