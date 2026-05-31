@@ -13,10 +13,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.postgresql.copy.CopyManager;
@@ -69,13 +72,25 @@ final class EntityStreamIngestor {
     void seedClubLegacyIdMap(Connection connection,
                              BundleManifest manifest,
                              ProvisioningResult provisioned) throws SQLException {
+        // Pair each manifest Club to its provisioning-minted id by club_key,
+        // the ux_club_key business identity — NOT by list position. Provisioning
+        // preserves manifest order on a fresh provision, but its idempotency-
+        // replay path returns clubs in DB order; keying on club_key is correct
+        // under either, so a multi-Club bundle never seeds a Club's legacy id
+        // against the wrong tenant root (ADR 0008).
+        Map<String, UUID> provisionedIdByClubKey =
+                loadProvisionedClubIdsByKey(connection, provisioned.clubIds());
         String table = LegacyIdMapTables.temporaryTableName(EntityType.CLUB);
         try (PreparedStatement insert = connection.prepareStatement(
                 "INSERT INTO " + table + " (legacy_guid, new_uuid) VALUES (?, ?)")) {
-            List<UUID> clubIds = provisioned.clubIds();
-            for (int i = 0; i < manifest.clubs().size(); i++) {
-                insert.setObject(1, manifest.clubs().get(i).legacyClubId());
-                insert.setObject(2, clubIds.get(i));
+            for (BundleManifest.ClubDeclaration club : manifest.clubs()) {
+                UUID provisionedId = provisionedIdByClubKey.get(club.clubKey());
+                if (provisionedId == null) {
+                    throw new IllegalStateException(
+                            "Provisioning yielded no Club for manifest clubKey " + club.clubKey());
+                }
+                insert.setObject(1, club.legacyClubId());
+                insert.setObject(2, provisionedId);
                 insert.addBatch();
             }
             insert.executeBatch();
@@ -83,6 +98,22 @@ final class EntityStreamIngestor {
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.execute("ANALYZE " + table);
         }
+    }
+
+    private static Map<String, UUID> loadProvisionedClubIdsByKey(Connection connection,
+                                                                 List<UUID> clubIds)
+            throws SQLException {
+        Map<String, UUID> idByClubKey = new HashMap<>();
+        try (PreparedStatement select = connection.prepareStatement(
+                "SELECT id, club_key FROM t_club WHERE id = ANY(?)")) {
+            select.setArray(1, connection.createArrayOf("uuid", clubIds.toArray()));
+            try (ResultSet rows = select.executeQuery()) {
+                while (rows.next()) {
+                    idByClubKey.put(rows.getString("club_key"), rows.getObject("id", UUID.class));
+                }
+            }
+        }
+        return idByClubKey;
     }
 
     void copyLegacyIdMap(Connection connection,
@@ -121,9 +152,7 @@ final class EntityStreamIngestor {
                             ForeignKeyResolver foreignKeyResolver) throws SQLException, IOException {
         String[] columns = mapper.columns();
         String[] destinationColumns = destinationColumnNames(columns);
-        String insert = "INSERT INTO " + destinationTableFor(mapper.entityType()) + " ("
-                + String.join(", ", destinationColumns) + ") VALUES ("
-                + "?,".repeat(columns.length - 1) + "?)";
+        String insert = buildInsertStatement(mapper.entityType(), destinationColumns);
         try (PreparedStatement ps = connection.prepareStatement(insert);
                 BundleStreamReader.NonClosingBufferedReader lines =
                         BundleStreamReader.NonClosingBufferedReader.of(tarStream)) {
@@ -147,6 +176,14 @@ final class EntityStreamIngestor {
                             "NDJSON row on " + mapper.entityType()
                                     + " must be a JSON object, got " + parsed.getNodeType());
                 }
+                // CLUB reconciles onto the provisioning-minted t_club (S-141c):
+                // rewrite the row's own legacy id to the provisioned id (fail-
+                // closed on a miss) so the UPSERT below conflicts on that PK and
+                // overlays the legacy columns rather than inserting a second row.
+                if (mapper.entityType() == EntityType.CLUB) {
+                    foreignKeyResolver.rewriteSelfId(
+                            EntityType.CLUB, WIRE_LEGACY_GUID_COLUMN, row);
+                }
                 // Translate legacy GUIDs in mapper.foreignKeys() targets to
                 // new-stack UUIDs via legacy_id_map_<entity>. The maps are
                 // seeded upstream — SYSTEM_GLOBAL_RESOLVE entries by the
@@ -169,6 +206,38 @@ final class EntityStreamIngestor {
 
     static String destinationTableFor(EntityType entityType) {
         return "t_" + entityType.temporaryTableSuffix();
+    }
+
+    /**
+     * Build the row-INSERT for an entity stream. Generic entities get a plain
+     * {@code INSERT}; CLUB gets {@code INSERT … ON CONFLICT (id) DO UPDATE SET
+     * <mapper columns except id> = EXCLUDED.…} so its row reconciles onto the
+     * provisioning-minted {@code t_club} instead of colliding on the PK /
+     * {@code ux_club_key} (S-141c). The DO UPDATE set-list is exactly the
+     * mapper's columns, so the provisioning-owned synthetic columns absent
+     * from {@code ClubMapper} ({@code slug}, {@code public_registration_enabled},
+     * {@code deployment_id}) are structurally untouchable by the bundle.
+     */
+    private static String buildInsertStatement(EntityType entityType, String[] destinationColumns) {
+        String insert = "INSERT INTO " + destinationTableFor(entityType) + " ("
+                + String.join(", ", destinationColumns) + ") VALUES ("
+                + "?,".repeat(destinationColumns.length - 1) + "?)";
+        if (entityType != EntityType.CLUB) {
+            return insert;
+        }
+        StringJoiner assignments = new StringJoiner(", ");
+        for (String column : destinationColumns) {
+            if (DESTINATION_ID_COLUMN.equals(column)) {
+                continue;
+            }
+            assignments.add(column + " = EXCLUDED." + column);
+        }
+        return insert + " ON CONFLICT (" + DESTINATION_ID_COLUMN + ") DO UPDATE SET " + assignments;
+    }
+
+    /** Package-private seam: the INSERT/UPSERT SQL a registered mapper produces. */
+    String insertStatementFor(EntityType entityType) {
+        return buildInsertStatement(entityType, destinationColumnNames(mapperFor(entityType).columns()));
     }
 
     /**
