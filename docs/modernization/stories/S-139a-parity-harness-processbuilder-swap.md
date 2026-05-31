@@ -11,6 +11,7 @@ refined: true
 refined_at: 2026-05-31
 refined_specialists: [requirements, solution, qa, performance]
 github_issue: 179
+github_pr: 180
 acceptance:
   - **Producer side spawns `migration-tool-all.jar`.** Replace `ProducerHarness`'s in-process invocation of `Mapper.writeNdjson` with `ProcessBuilder` invoking the shadowJar from S-139. Stdin = legacy connection params; stdout = the tar.gz bundle bytes; stderr → captured for failure reporting.
   - **No behavioural delta** on the same seeded fixture. Existing happy-path round-trip assertions (S-187 + S-187a) pass byte-for-byte under the swapped producer; nightly 10× passes too.
