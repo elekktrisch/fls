@@ -10,6 +10,7 @@ refined_at: 2026-05-31
 refined_specialists: [requirements, solution, qa, security, performance]
 context7_last_checked: 2026-05-31
 github_issue: 181
+github_pr: 182
 acceptance:
   - A new Gradle module under `alpenflight/migration-tool/` builds a single-file fat-jar (`alpenflight-export.jar`).
   - The JAR's `main()` accepts CLI options: `--jdbc-url <url>`, `--user <name>`, `--password <secret-or-prompt>`, `--public-key-file <path>` (PEM-encoded RSA-4096 public key, as obtained from S-140), `--output <path>` (default `./alpenflight-export-<timestamp>.enc`), `--verbose`, `--dry-run` (skips encryption + write; prints bundle stats only).
