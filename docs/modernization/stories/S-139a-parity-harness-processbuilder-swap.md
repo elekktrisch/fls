@@ -2,7 +2,8 @@
 id: S-139a
 title: Parity oracle — full producer→consumer e2e via the real export jar
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-31
 depends_on: [S-139, S-187, S-187a, S-141c]
 integration_base: integration/migration
 origin: scope-split
