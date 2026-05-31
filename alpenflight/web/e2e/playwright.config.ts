@@ -74,6 +74,14 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         baseURL: REAL_IDP_BASE_URL,
+        // J-0 acceptance artifact: the real-chain proof retains its
+        // pass-video, not just the failure video. This is the only run
+        // that proves verticality end-to-end (real Keycloak + real
+        // backend + real Postgres), so the green run's video is archived
+        // as a CI artifact for operator parity review. Overrides the
+        // global `video: 'retain-on-failure'`; mock-auth chromium keeps
+        // the global policy so every PR run isn't bloated with videos.
+        video: 'on',
       },
       // Single worker against one realm + one Mailpit inbox — parallel
       // registration races against KC user-exists checks and Mailpit
