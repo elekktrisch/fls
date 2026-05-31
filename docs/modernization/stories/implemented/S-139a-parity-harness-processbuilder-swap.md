@@ -5,6 +5,8 @@ epic: E-02
 status: done
 started_at: 2026-05-31
 done_at: 2026-05-31
+merged: true
+merged_at: 2026-05-31
 depends_on: [S-139, S-187, S-187a, S-141c]
 integration_base: integration/migration
 origin: scope-split
