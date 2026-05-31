@@ -1,6 +1,7 @@
 package ch.alpenflight.migration.tool;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.alpenflight.migration.bundle.EntityType;
 import java.util.List;
@@ -43,5 +44,17 @@ class ExportCommandSmokeTest {
         assertThat(hardened)
                 .contains("ApplicationIntent=ReadOnly")
                 .doesNotContain("ReadWrite");
+    }
+
+    @Test
+    void rejectsDuplicateApplicationIntent() {
+        // The driver honours the LAST occurrence, so rewriting only the first
+        // could let a trailing ReadWrite slip past — reject outright.
+        assertThatThrownBy(() -> LegacyJdbcReader.forceReadOnlyIntent(
+                "jdbc:sqlserver://host;ApplicationIntent=ReadOnly;"
+                        + "databaseName=FLS;applicationintent=ReadWrite"))
+                .isInstanceOf(ExportException.class)
+                .satisfies(e -> assertThat(((ExportException) e).exitCode())
+                        .isEqualTo(ExitCode.USAGE));
     }
 }

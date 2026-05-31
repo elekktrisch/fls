@@ -17,18 +17,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Writes the ALPF wire-format envelope — the byte-exact inverse of the
- * server's decrypt path. Layout (big-endian), matching
- * {@code BundleHeader} + {@code MigrationBundleTestFactory}:
- *
- * <pre>
- *   "ALPF"                       4 B   BundleHeader.magic()
- *   version                      1 B   BundleHeader.CURRENT_VERSION
- *   wrappedKeyLen     uint16 BE  2 B   wrappedSessionKey.length
- *   wrappedSessionKey            N B   cipher.wrapSessionKey(pubDer, sessionKey)
- *   encryptedBody     stream           cipher.newEncryptingStream(sessionKey,
- *                                       uploadId, sink) over the tar.gz plaintext
- * </pre>
+ * Writes the ALPF wire-format envelope — the byte-exact inverse of
+ * {@link BundleHeader#parse} plus the StreamingAead body. See
+ * {@link BundleHeader} for the canonical byte layout.
  *
  * <p>The 32-byte AES-256 session key is freshly {@link SecureRandom}-drawn,
  * wrapped under the handshake RSA-4096 public key (RSA-OAEP-SHA256), and held
@@ -108,8 +99,7 @@ public final class BundleEncryptor {
             Files.createFile(file, PosixFilePermissions.asFileAttribute(Set.of(
                     PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE)));
         } catch (UnsupportedOperationException nonPosix) {
-            // Non-POSIX FS (e.g. Windows) — fall back to default create; the
-            // operator runs the export on a controlled host.
+            // Controlled host — accept default perms where POSIX modes are unavailable.
             Files.createFile(file);
         }
     }

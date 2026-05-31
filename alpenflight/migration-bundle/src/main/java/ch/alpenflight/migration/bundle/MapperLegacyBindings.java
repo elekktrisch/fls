@@ -11,11 +11,11 @@ import java.util.Map;
  *   <li><strong>{@code SELECT}</strong> for the producer — the legacy
  *       table + column list the mapper's {@code writeNdjson} reads. Hand-
  *       curated against the FLSTest schema applied by
- *       {@link FlsTestSchemaApplier} so a legacy column rename is caught
+ *       {@code FlsTestSchemaApplier} so a legacy column rename is caught
  *       by a {@code SELECT} failure rather than a silent {@code NULL}.</li>
  *   <li><strong>{@link PortPolicy}</strong> — drives the consumer's
  *       routing. {@code SYSTEM_GLOBAL} entries feed
- *       {@link LegacyIdMapPopulator}; {@code FULL_PORT} entries feed
+ *       {@code LegacyIdMapPopulator}; {@code FULL_PORT} entries feed
  *       {@link Mapper#readEntity} after FK rewriting.</li>
  *   <li><strong>{@code INSERT}</strong> for the FULL_PORT consumer — the
  *       new-stack table + parameterised column list matching
@@ -23,8 +23,9 @@ import java.util.Map;
  *       wire-name resolved to the destination's {@code id} column.</li>
  * </ul>
  *
- * <p>Vertical-slice scope (S-187): only the three mappers exercised by the
- * harness are bound here. S-187a extends the registry to the remaining 25.
+ * <p>Five entities are bound today — COUNTRY, LANGUAGE, CLUB_STATE, CLUB,
+ * USER. Both the export jar (S-139) and the parity ProducerHarness consume
+ * these bindings. S-187a extends the registry to the remaining entities.
  */
 public final class MapperLegacyBindings {
 

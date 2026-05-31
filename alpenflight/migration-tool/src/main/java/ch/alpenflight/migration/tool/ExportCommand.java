@@ -41,7 +41,7 @@ import picocli.CommandLine.Option;
 @Command(
         name = "alpenflight-export",
         mixinStandardHelpOptions = true,
-        version = "alpenflight-export (S-139 vertical slice)",
+        version = "alpenflight-export 0.1.0",
         description = "Export a legacy FLS MSSQL database into an ALPF-encrypted migration bundle.")
 public final class ExportCommand implements Callable<Integer> {
 

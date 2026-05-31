@@ -73,13 +73,22 @@ public final class LegacyJdbcReader implements AutoCloseable {
     }
 
     /**
-     * Adds {@code ApplicationIntent=ReadOnly} when absent, overrides a
+     * Adds {@code ApplicationIntent=ReadOnly} when absent, overrides a single
      * {@code ReadWrite} intent the operator may have pasted. SQL Server URL
      * properties are {@code ;}-delimited {@code key=value} pairs after the
      * {@code jdbc:sqlserver://host} prefix.
+     *
+     * <p>A URL carrying more than one {@code ApplicationIntent} parameter is
+     * rejected: the driver honours the LAST occurrence, so rewriting only the
+     * first could let a trailing {@code ReadWrite} slip through.
      */
     static String forceReadOnlyIntent(String jdbcUrl) {
         String lower = jdbcUrl.toLowerCase(Locale.ROOT);
+        if (countOccurrences(lower, "applicationintent=") > 1) {
+            throw new ExportException(ExitCode.USAGE,
+                    "JDBC URL carries more than one ApplicationIntent parameter; "
+                            + "remove the duplicates so ReadOnly cannot be overridden.");
+        }
         int intentAt = lower.indexOf("applicationintent=");
         if (intentAt < 0) {
             String separator = jdbcUrl.endsWith(";") ? "" : ";";
@@ -91,6 +100,17 @@ public final class LegacyJdbcReader implements AutoCloseable {
             valueEnd = jdbcUrl.length();
         }
         return jdbcUrl.substring(0, valueStart) + "ReadOnly" + jdbcUrl.substring(valueEnd);
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int from = 0;
+        int at;
+        while ((at = haystack.indexOf(needle, from)) >= 0) {
+            count++;
+            from = at + needle.length();
+        }
+        return count;
     }
 
     @Override

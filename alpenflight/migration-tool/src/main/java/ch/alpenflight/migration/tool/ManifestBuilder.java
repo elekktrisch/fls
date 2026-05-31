@@ -53,6 +53,8 @@ public final class ManifestBuilder {
             }
         }
         List<ManifestModel.ClubDeclaration> clubs = readClubDeclarations(reader);
+        // Legacy has no "primary club" concept; this is an arbitrary first-row
+        // pick the operator refines post-ingest (mirrors the deriveSlug note).
         UUID primaryClubId = clubs.isEmpty() ? null : clubs.get(0).legacyClubId();
         return new ManifestModel(
                 SCHEMA_VERSION, deploymentName, clubs, primaryClubId, policies, unmapped);
