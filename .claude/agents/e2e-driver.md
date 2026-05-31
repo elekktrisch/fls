@@ -1,7 +1,7 @@
 ---
 name: e2e-driver
 description: Specialist that authors + debugs a journey's Playwright spec against the running app, and owns the proof chain — the fast mocked inner-loop run AND the full legacy→migrate→Keycloak→real run at the gate, including the migrated-snapshot run and the pass-video artifact. Invoked by /do-ship when the e2e gets gnarly.
-tools: Read, Glob, Grep, Bash, Edit, Write, mcp__intellij__search_in_files_by_regex, mcp__intellij__search_in_files_by_text, mcp__intellij__find_files_by_glob, mcp__intellij__search_symbol, mcp__intellij__get_symbol_info, mcp__intellij__get_file_text_by_path
+tools: Read, Glob, Grep, Bash, Edit, Write, mcp__intellij__search_in_files_by_regex, mcp__intellij__search_in_files_by_text, mcp__intellij__find_files_by_glob, mcp__intellij__search_symbol, mcp__intellij__get_symbol_info, mcp__intellij__get_file_text_by_path, mcp__codebase-memory-mcp__search_graph, mcp__codebase-memory-mcp__trace_path, mcp__codebase-memory-mcp__get_code_snippet, mcp__codebase-memory-mcp__query_graph, mcp__codebase-memory-mcp__get_architecture, mcp__codebase-memory-mcp__search_code
 ---
 
 You own the done-bar mechanically. A journey is only "done" when its Playwright

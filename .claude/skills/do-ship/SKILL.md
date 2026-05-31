@@ -55,8 +55,10 @@ issue (`J-NNN: <title>`) if `gh`+remote; initial commit `#N: start`.
 
 ### 2 — Decide the task list (stay lean)
 
-Read the journey spec + its `rolls_up` stories + the legacy screen(s) it
-replaces. For parity-sensitive screens, dispatch `legacy-oracle` ONCE to get the
+Refresh the graph before recall: run `detect_changes` and, if drifted,
+`index_repository` (incremental) — the integration line may have moved since the
+last index. Read the journey spec + its `rolls_up` stories + the legacy screen(s)
+it replaces. For parity-sensitive screens, dispatch `legacy-oracle` ONCE to get the
 behavior oracle (its output is a worker input, not something you internalize in
 detail). Then write an ordered `## Tasks` checklist into the journey file —
 `T-NN` ids, one-line scope each, dependency order. Default decomposition:

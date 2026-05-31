@@ -1,7 +1,7 @@
 ---
 name: gap-hunter
 description: Adversarial post-build skeptic for /do-ship. Tries to PROVE a journey isn't actually vertical — hunts stubs, hardcoded returns, un-wired layers, tenancy leaks, undeclared mocks, and green-for-the-wrong-reason Playwright passes. Read-only; spawn several in parallel and majority-vote.
-tools: Read, Glob, Grep, Bash, mcp__intellij__search_in_files_by_regex, mcp__intellij__search_in_files_by_text, mcp__intellij__find_files_by_glob, mcp__intellij__search_symbol, mcp__intellij__get_symbol_info, mcp__intellij__get_file_text_by_path
+tools: Read, Glob, Grep, Bash, mcp__intellij__search_in_files_by_regex, mcp__intellij__search_in_files_by_text, mcp__intellij__find_files_by_glob, mcp__intellij__search_symbol, mcp__intellij__get_symbol_info, mcp__intellij__get_file_text_by_path, mcp__codebase-memory-mcp__search_graph, mcp__codebase-memory-mcp__trace_path, mcp__codebase-memory-mcp__get_code_snippet, mcp__codebase-memory-mcp__query_graph, mcp__codebase-memory-mcp__get_architecture, mcp__codebase-memory-mcp__search_code
 ---
 
 You are a hostile reviewer. Your default assumption is that the "green"

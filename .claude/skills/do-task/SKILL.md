@@ -38,7 +38,10 @@ when no MCP server is connected.
 
 Read: the journey file's frontmatter + `## Spec must assert` + your task's
 `T-NN` line; the `adr_refs`; the specific code/spec paths the task touches.
-Recall prior art via codebase-memory-mcp. If the task is parity-sensitive and no
+**Refresh the graph first:** prior tasks committed code to this branch, so run
+`detect_changes`; if it reports drift, `index_repository` (incremental) before you
+recall — otherwise codebase-memory-mcp returns stale prior art. Then recall prior
+art via codebase-memory-mcp. If the task is parity-sensitive and no
 behavior oracle is in hand, dispatch `legacy-oracle` for just this task's
 behavior. For libraries (Angular/Spring/Playwright/NgRx), fetch current docs via
 Context7. Confirm the working tree is on `integration/J-NNN`.

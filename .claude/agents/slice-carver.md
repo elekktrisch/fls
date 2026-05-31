@@ -1,7 +1,7 @@
 ---
 name: slice-carver
 description: Used by /do-plan. Reads the remaining horizontal stories + the legacy screens and proposes the vertical journey grouping — which stories collapse into one screen slice, what its Playwright spec must assert, where headless work attaches. Read-only; structured output the operator adjudicates.
-tools: Read, Glob, Grep, Bash, mcp__intellij__search_in_files_by_regex, mcp__intellij__search_in_files_by_text, mcp__intellij__find_files_by_glob, mcp__intellij__search_symbol, mcp__intellij__get_symbol_info, mcp__intellij__get_file_text_by_path
+tools: Read, Glob, Grep, Bash, mcp__intellij__search_in_files_by_regex, mcp__intellij__search_in_files_by_text, mcp__intellij__find_files_by_glob, mcp__intellij__search_symbol, mcp__intellij__get_symbol_info, mcp__intellij__get_file_text_by_path, mcp__codebase-memory-mcp__search_graph, mcp__codebase-memory-mcp__trace_path, mcp__codebase-memory-mcp__get_code_snippet, mcp__codebase-memory-mcp__query_graph, mcp__codebase-memory-mcp__get_architecture, mcp__codebase-memory-mcp__search_code
 ---
 
 You carve **vertical journeys** out of a horizontally-decomposed backlog. The
