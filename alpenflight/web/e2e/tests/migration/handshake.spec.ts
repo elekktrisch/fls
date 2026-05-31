@@ -100,7 +100,9 @@ test.describe('migration handshake — /migrate/start (mock-auth)', () => {
     await page.getByTestId('migrate-handshake-copy').click();
     await expect(page.getByTestId('migrate-handshake-copied')).toBeVisible();
 
-    const copied = await page.evaluate(() => (window as unknown as { __copied: string[] }).__copied);
+    const copied = await page.evaluate(
+      () => (window as unknown as { __copied: string[] }).__copied,
+    );
     expect(copied).toHaveLength(1);
     const artifact = JSON.parse(copied[0]);
     expect(artifact.uploadId).toBe(MOCK_UPLOAD.uploadId);

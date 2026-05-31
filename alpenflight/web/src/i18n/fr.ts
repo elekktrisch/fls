@@ -117,7 +117,8 @@ const fr: Translations = {
       title: 'Outil d’export requis',
     },
     loading: 'Génération de la clé…',
-    pemHint: 'À titre indicatif — fournissez à l’outil d’export le fichier de handshake téléchargé.',
+    pemHint:
+      'À titre indicatif — fournissez à l’outil d’export le fichier de handshake téléchargé.',
     pemLabel: 'Clé publique (PEM)',
     regenerate: 'Générer une nouvelle clé',
     regenerateConfirm: {

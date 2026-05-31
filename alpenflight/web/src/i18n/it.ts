@@ -116,7 +116,8 @@ const it: Translations = {
       title: 'Strumento di esportazione richiesto',
     },
     loading: 'Generazione della chiave…',
-    pemHint: 'Solo a scopo informativo — fornisci allo strumento di esportazione il file di handshake scaricato.',
+    pemHint:
+      'Solo a scopo informativo — fornisci allo strumento di esportazione il file di handshake scaricato.',
     pemLabel: 'Chiave pubblica (PEM)',
     regenerate: 'Genera una nuova chiave',
     regenerateConfirm: {

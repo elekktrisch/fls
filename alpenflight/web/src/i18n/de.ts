@@ -131,7 +131,8 @@ const de = {
         'Ein neuer Schlüssel macht den vorherigen ungültig. Wenn der alte Schlüssel bereits in der Export-App eingefügt wurde, muss der Export von vorne gestartet werden.',
       title: 'Schlüssel ersetzen?',
     },
-    regenerated: 'Neuer Schlüssel erzeugt. Lade die Handshake-Datei erneut herunter und starte den Export damit neu — die vorherige Datei ist ungültig.',
+    regenerated:
+      'Neuer Schlüssel erzeugt. Lade die Handshake-Datei erneut herunter und starte den Export damit neu — die vorherige Datei ist ungültig.',
     retry: 'Erneut versuchen',
     tagline:
       'Lade die Handshake-Datei herunter und übergib sie der Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
