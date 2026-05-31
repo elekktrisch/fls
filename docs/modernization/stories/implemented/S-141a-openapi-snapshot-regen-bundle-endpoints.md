@@ -16,6 +16,9 @@ acceptance:
 estimate: XS
 refined: true
 refined_at: 2026-05-30
+merged: true
+merged_at: 2026-05-30
+merged_note: No own PR — resolved within S-141/S-141b; stamped at integration finalize for cluster-gate parity.
 ---
 
 ## Context
