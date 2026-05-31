@@ -98,6 +98,43 @@ final class ForeignKeyResolver implements AutoCloseable {
         }
     }
 
+    /**
+     * Rewrite a FULL_PORT row's own legacy id (the {@code legacy_guid}
+     * carrier for the destination {@code id} per ADR 0019) to the new-stack
+     * UUID via {@code legacy_id_map_<self>}.
+     *
+     * <p>Unlike {@link #rewriteForeignKeys}, a miss is <em>fail-closed</em>:
+     * a row's own id has no downstream FK constraint to surface a dangling
+     * value, so an unmapped id would conflict with, or insert past, a row no
+     * upstream step provisioned.
+     */
+    void rewriteSelfId(EntityType selfType, String idField, ObjectNode row) throws SQLException {
+        JsonNode idValue = row.get(idField);
+        if (idValue == null || idValue.isNull()) {
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.NDJSON_PARSE_FAILED,
+                    selfType + " row is missing its " + idField + " identity");
+        }
+        UUID legacyId;
+        try {
+            legacyId = UUID.fromString(idValue.asText());
+        } catch (IllegalArgumentException badUuid) {
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.NDJSON_PARSE_FAILED,
+                    selfType + " " + idField + " is not a valid UUID: " + idValue.asText(),
+                    badUuid);
+        }
+        UUID resolved = lookupOrNull(selfType, legacyId);
+        if (resolved == null) {
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK,
+                    selfType + " row carries legacy id " + legacyId
+                            + " that this bundle's manifest did not provision; legacy_id_map_"
+                            + selfType + " has no resolution");
+        }
+        row.put(idField, resolved.toString());
+    }
+
     private @Nullable UUID lookupOrNull(EntityType target, UUID legacyGuid) throws SQLException {
         PreparedStatement ps = lookups.get(target);
         if (ps == null) {

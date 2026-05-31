@@ -230,6 +230,255 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         assertThat(provisionedClub.get("club_key")).isEqualTo(testClubKey);
     }
 
+    @Test
+    void club_full_port_reconciles_onto_provisioned_club_no_second_row() throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        UUID legacyUserId = UUID.randomUUID();
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "Parity Club", testClubSlug, testClubKey, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.CLUB, fullPortPolicy(),
+                EntityType.USER, fullPortPolicy(),
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.LANGUAGE, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy());
+
+        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
+        tarEntries.put("legacy_id_map/COUNTRY.pgcopy", pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
+        tarEntries.put("legacy_id_map/LANGUAGE.pgcopy",
+                pgcopyMap(LEGACY_LANGUAGE_DE_SYNTHETIC, SEED_LANGUAGE_DE));
+        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+                pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
+        tarEntries.put("CLUB.ndjson", clubNdjson(legacyClubId, testClubKey, "Legacy Aero Club",
+                "Flugplatzstrasse 1", legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC));
+        tarEntries.put("USER.ndjson",
+                userNdjson(legacyUserId, legacyClubId, LEGACY_LANGUAGE_DE_SYNTHETIC));
+
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
+                cipher, uploadId, publicKeyDer, "Parity IT Deployment",
+                List.of(club), entityPolicies, tarEntries);
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("CLUB FULL_PORT reconcile ingest failed; body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        assertThat(body.get("clubIds").size()).isEqualTo(1);
+        UUID newClubId = UUID.fromString(body.get("clubIds").get(0).asText());
+
+        // Exactly one t_club under the deployment: the provisioned row, reconciled
+        // — not a second row inserted from CLUB.ndjson.
+        Integer clubCount = jdbc.queryForObject(
+                "SELECT count(*) FROM t_club WHERE deployment_id = ?::uuid",
+                Integer.class, deploymentId.toString());
+        assertThat(clubCount)
+                .as("CLUB.ndjson must reconcile onto the provisioned row, not insert a second")
+                .isEqualTo(1);
+
+        Map<String, Object> reconciled = jdbc.queryForMap(
+                "SELECT id, clubname, club_key, address, send_aircraft_statistic_report_to, "
+                        + "run_delivery_creation_job, slug, public_registration_enabled "
+                        + "FROM t_club WHERE deployment_id = ?::uuid", deploymentId.toString());
+        assertThat(UUID.fromString(reconciled.get("id").toString()))
+                .as("the reconciled row keeps the provisioning-minted id")
+                .isEqualTo(newClubId);
+        // Legacy columns from CLUB.ndjson land via the UPSERT (bundle wins on the
+        // mapper columns) — including config columns provisioning leaves at its
+        // defaults (NULL VARCHAR, false boolean), which is the whole point of
+        // FULL_PORT CLUB.
+        assertThat(reconciled.get("clubname")).isEqualTo("Legacy Aero Club");
+        assertThat(reconciled.get("address")).isEqualTo("Flugplatzstrasse 1");
+        assertThat(reconciled.get("send_aircraft_statistic_report_to"))
+                .isEqualTo("ops-" + testClubKey);
+        assertThat(reconciled.get("run_delivery_creation_job")).isEqualTo(true);
+        // Provisioning-owned synthetic columns (absent from ClubMapper) survive.
+        assertThat(reconciled.get("slug")).isEqualTo(testClubSlug);
+        assertThat(reconciled.get("public_registration_enabled")).isEqualTo(false);
+        // club_key carried identically by manifest + bundle — no ux_club_key dup.
+        assertThat(reconciled.get("club_key")).isEqualTo(testClubKey);
+
+        // Child user lands under the reconciled (provisioned) club.
+        Map<String, Object> childUser = jdbc.queryForMap(
+                "SELECT club_id FROM t_user WHERE id = ?::uuid", legacyUserId.toString());
+        assertThat(UUID.fromString(childUser.get("club_id").toString())).isEqualTo(newClubId);
+    }
+
+    @Test
+    void club_ndjson_with_unprovisioned_legacy_id_fails_closed() throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID manifestClubId = UUID.randomUUID();
+        UUID strayClubId = UUID.randomUUID(); // never declared in the manifest
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                manifestClubId, "Parity Club", testClubSlug, testClubKey, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.CLUB, fullPortPolicy(),
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy());
+
+        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
+        tarEntries.put("legacy_id_map/COUNTRY.pgcopy", pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
+        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+                pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
+        tarEntries.put("CLUB.ndjson", clubNdjson(strayClubId, testClubKey, "Stray Club",
+                "Nowhere 0", legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC));
+
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
+                cipher, uploadId, publicKeyDer, "Parity IT Deployment",
+                List.of(club), entityPolicies, tarEntries);
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("a CLUB row whose legacy id was not provisioned must fail closed; body=%s",
+                        res.getBody())
+                .isNotEqualTo(HttpStatus.OK);
+        assertThat(JSON.readTree(res.getBody()).get("errorCode").asText())
+                .as("the unprovisioned-CLUB abort is the fail-closed tenant-leak guard, "
+                        + "not an incidental constraint violation")
+                .isEqualTo("BUNDLE_CROSS_TENANT_FK_LEAK");
+        // The whole single txn rolled back — no Deployment provisioned for the caller.
+        Integer deployments = jdbc.queryForObject(
+                "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
+                Integer.class, userSub.toString());
+        assertThat(deployments).isEqualTo(0);
+    }
+
+    @Test
+    void multi_club_each_full_port_reconciles_onto_its_own_provisioned_row() throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubIdA = UUID.randomUUID();
+        UUID legacyClubIdB = UUID.randomUUID();
+        String keyA = testClubKey + "A";
+        String keyB = testClubKey + "B";
+        BundleManifest.ClubDeclaration clubA = new BundleManifest.ClubDeclaration(
+                legacyClubIdA, "Club A", testClubSlug + "-a", keyA, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+        BundleManifest.ClubDeclaration clubB = new BundleManifest.ClubDeclaration(
+                legacyClubIdB, "Club B", testClubSlug + "-b", keyB, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.CLUB, fullPortPolicy(),
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy());
+
+        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
+        tarEntries.put("legacy_id_map/COUNTRY.pgcopy", pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
+        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+                pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
+        // CLUB.ndjson order (B then A) is the reverse of the manifest order to
+        // prove the legacy_id_map_club pairing is by club_key identity, not index.
+        byte[] both = concatNdjson(
+                clubNdjson(legacyClubIdB, keyB, "Club B Legacy", "Addr B",
+                        legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC),
+                clubNdjson(legacyClubIdA, keyA, "Club A Legacy", "Addr A",
+                        legacyCountryId, LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC));
+        tarEntries.put("CLUB.ndjson", both);
+
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
+                cipher, uploadId, publicKeyDer, "Multi Club Deployment",
+                List.of(clubA, clubB), entityPolicies, tarEntries);
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("multi-club CLUB reconcile failed; body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+
+        Integer clubCount = jdbc.queryForObject(
+                "SELECT count(*) FROM t_club WHERE deployment_id = ?::uuid",
+                Integer.class, deploymentId.toString());
+        assertThat(clubCount).isEqualTo(2);
+        // Each provisioned club received its OWN legacy columns, matched by
+        // club_key — assert two distinct sentinels per club so a "both rows got
+        // club A's columns" bug can't hide behind a single column.
+        assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
+                String.class, keyA)).isEqualTo("Addr A");
+        assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
+                String.class, keyB)).isEqualTo("Addr B");
+        assertThat(jdbc.queryForObject(
+                "SELECT send_aircraft_statistic_report_to FROM t_club WHERE club_key = ?",
+                String.class, keyA)).isEqualTo("ops-" + keyA);
+        assertThat(jdbc.queryForObject(
+                "SELECT send_aircraft_statistic_report_to FROM t_club WHERE club_key = ?",
+                String.class, keyB)).isEqualTo("ops-" + keyB);
+    }
+
+    private static byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname,
+                                     String address, UUID legacyCountryId, UUID syntheticClubStateId)
+            throws IOException {
+        ObjectNode row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyClubId.toString());
+        row.put("clubname", clubname);
+        row.put("club_key", clubKey);
+        row.put("address", address);
+        row.putNull("zip");
+        row.putNull("city");
+        row.put("country_id", legacyCountryId.toString());
+        row.putNull("phone");
+        row.putNull("fax_number");
+        row.putNull("email");
+        row.putNull("web_page");
+        row.putNull("contact");
+        row.put("club_state_id", syntheticClubStateId.toString());
+        // Non-default config columns (a nullable VARCHAR the provisioning
+        // Club.create leaves NULL, and a boolean that diverges from the schema
+        // DEFAULT false) so the parity assertions prove bundle-wins on the
+        // legacy config columns, not just on values that match the defaults.
+        row.put("send_aircraft_statistic_report_to", "ops-" + clubKey);
+        row.putNull("send_planning_day_info_mail_to");
+        row.putNull("send_delivery_mail_export_to");
+        row.putNull("send_trial_flight_registration_operator_email");
+        row.putNull("send_passenger_flight_registration_operator_email");
+        row.putNull("reply_to_email_address");
+        row.put("run_delivery_creation_job", true);
+        row.put("run_delivery_mail_export_job", false);
+        row.putNull("last_person_synchronisation_on");
+        row.putNull("last_delivery_synchronisation_on");
+        row.putNull("last_article_synchronisation_on");
+        row.put("is_club_member_number_readonly", false);
+        // t_club.created_on / modified_on are NOT NULL — carry explicit instants
+        // so the UPSERT's EXCLUDED values don't suppress the row's timestamps.
+        String createdInstant = Instant.parse("2020-06-15T00:00:00Z").toString();
+        row.put("created_on", createdInstant);
+        row.putNull("created_by_user_id");
+        row.put("modified_on", createdInstant);
+        row.putNull("modified_by_user_id");
+        row.putNull("deleted_on");
+        row.putNull("deleted_by_user_id");
+        return ndjsonLine(row);
+    }
+
+    private static byte[] ndjsonLine(ObjectNode row) throws IOException {
+        byte[] line = JSON.writeValueAsBytes(row);
+        byte[] payload = new byte[line.length + 1];
+        System.arraycopy(line, 0, payload, 0, line.length);
+        payload[line.length] = '\n';
+        return payload;
+    }
+
+    private static byte[] concatNdjson(byte[] first, byte[] second) {
+        byte[] joined = new byte[first.length + second.length];
+        System.arraycopy(first, 0, joined, 0, first.length);
+        System.arraycopy(second, 0, joined, first.length, second.length);
+        return joined;
+    }
+
     private static byte[] pgcopyMap(UUID legacyGuid, UUID newUuid) throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
