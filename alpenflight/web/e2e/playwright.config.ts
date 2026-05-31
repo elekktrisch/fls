@@ -13,11 +13,7 @@ export default defineConfig({
   // step budget is more valuable than the coverage right now. Re-enable
   // when the underlying features become load-bearing — or move them to
   // a separate nightly project so they don't gate PR feedback.
-  testIgnore: [
-    '**/masterdata/articles-crud.spec.ts',
-    '**/masterdata/locations-crud.spec.ts',
-    '**/masterdata/flight-types-crud.spec.ts',
-  ],
+  testIgnore: ['**/masterdata/articles-crud.spec.ts', '**/masterdata/flight-types-crud.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   // Sweeps `e2e-*@example.com` users from the alpenflight realm. Runs

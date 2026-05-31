@@ -381,6 +381,70 @@ test('locations: soft-delete removes the row from the rendered list', async ({ p
   await expect(page.getByTestId(`location-row-${seedLocation.id}`)).toHaveCount(0);
 });
 
+test('locations: cross-tenant GET-by-id 404s — foreign-club row is absent and not-found surfaces', async ({
+  page,
+}) => {
+  // Tenant-isolation contract at mocked fidelity. The backend (@TenantId
+  // auto-filter) never returns another club's Location: it is absent from
+  // OUR list, and a direct GET by its id 404s. Here the mock backend only
+  // knows our own seeded row; the foreign id is unknown, so the existing
+  // setupLocationsBackend 404s the GET-by-id branch exactly as the real
+  // server's tenant filter would (S-024 cross-tenant leak guard, J-0 AC
+  // "cross-tenant GET by id 404s").
+  const foreignClubLocationId = 'loc-019e30c3-2c00-7001-8000-0000000000ff';
+  const locations: MockLocation[] = [{ ...seedLocation, inOutboundPoints: [] }];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend(locations));
+
+  // 1) The foreign-club row never appears in our list.
+  await page.goto('/locations');
+  await expect(page.getByTestId('locations-table')).toBeVisible();
+  await expect(page.getByTestId(`location-row-${seedLocation.id}`)).toBeVisible();
+  await expect(page.getByTestId(`location-row-${foreignClubLocationId}`)).toHaveCount(0);
+
+  // 2) A direct GET-by-id for the foreign row 404s and the UI surfaces
+  //    not-found without leaking any of its fields into the form.
+  await page.goto(`/locations/${foreignClubLocationId}/edit`);
+  await expect(page.getByTestId('locations-save-error')).toBeVisible();
+  await expect(page.locator('#LocationName')).toHaveValue('');
+});
+
+test('locations: same ICAO is creatable in a different club — uniqueness is (club_id, icao_code), not global', async ({
+  page,
+}) => {
+  // Per-club ICAO uniqueness (J-0 AC "the same physical airport (e.g. LSZH)
+  // exists independently in two clubs' catalogs"). The same-club duplicate
+  // case lives in "409 on duplicate ICAO surfaces inline" above; this is its
+  // cross-club counterpart. The mock backend here represents a DIFFERENT
+  // club's catalog that does NOT already hold LSZH, so the create succeeds —
+  // no global-duplicate 409. Global ICAO uniqueness was dropped for the
+  // partial unique (club_id, icao_code) WHERE icao_code IS NOT NULL AND
+  // deleted_on IS NULL.
+  const ICAO = 'LSZH';
+  // A different club's catalog — note it does NOT contain LSZH even though
+  // LSZH exists in some other club. setupLocationsBackend scopes the
+  // 409-on-duplicate check to THIS catalog, mirroring the per-club unique
+  // index rather than a global one.
+  const otherClubCatalog: MockLocation[] = [];
+  await stubReferenceData(page);
+  await page.route('**/api/v1/locations**', setupLocationsBackend(otherClubCatalog));
+
+  await page.goto('/locations/new');
+  await page.locator('#LocationName').fill('Zurich (other club)');
+  await page.locator('#IcaoCode').fill(ICAO);
+  await page.getByTestId('locations-country-select').locator('nz-select').click();
+  await page.locator('nz-option-item').filter({ hasText: 'Switzerland' }).click();
+  await page.getByTestId('locations-type-select').locator('nz-select').click();
+  await page.locator('nz-option-item').filter({ hasText: 'Airport' }).click();
+  await page.getByTestId('locations-save-button').click();
+
+  // No global-duplicate 409 — the create lands and we return to the list.
+  await expect(page).toHaveURL('/locations');
+  await expect(page.getByTestId('locations-save-error')).toBeHidden();
+  const created = otherClubCatalog.find((l) => l.locationName === 'Zurich (other club)');
+  expect(created?.icaoCode).toBe(ICAO);
+});
+
 test('locations: nested in/outbound points — add 2, remove 1, round-trip', async ({ page }) => {
   const locations: MockLocation[] = [{ ...seedLocation, inOutboundPoints: [] }];
   await stubReferenceData(page);
