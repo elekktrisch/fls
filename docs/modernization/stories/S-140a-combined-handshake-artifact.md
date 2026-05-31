@@ -11,6 +11,7 @@ refined: true
 refined_at: 2026-05-31
 refined_specialists: [requirements, solution, qa]
 github_issue: 183
+github_pr: 184
 acceptance:
   - The S-140 handshake SPA surface (`/migrate/start`) offers a single combined download artifact containing BOTH the `uploadId` and the RSA-4096 `publicKeyPem`, replacing the bare `.pem` download. The format is a self-describing artifact (JSON, or PEM with a structured header) documented as the contract the export jar parses via `--handshake-file`.
   - The copy-to-clipboard control and the download button both yield the combined artifact (uploadId + PEM), never a bare key — so the user cannot feed the jar a key without its matching uploadId.
