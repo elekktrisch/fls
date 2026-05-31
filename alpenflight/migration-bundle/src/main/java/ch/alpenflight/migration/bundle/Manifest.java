@@ -83,6 +83,16 @@ public record Manifest(
             EntityType.DELIVERY,
             EntityType.AUDIT_LOG);
 
+    /**
+     * The cross-tenant entities allowed to declare a non-empty
+     * {@code tenantBypassFks}. The parity tenant-isolation invariant references
+     * this rather than re-listing the 11 (which would drift). The backing set
+     * is immutable ({@code Set.of}).
+     */
+    public static Set<EntityType> tenantBypassAllowList() {
+        return TENANT_BYPASS_ALLOW_LIST;
+    }
+
     @JsonCreator
     public Manifest {
         if (schemaVersion <= 0) {

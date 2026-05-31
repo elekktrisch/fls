@@ -175,6 +175,12 @@ public class ArchitectureTest {
                 .filter(javaClass -> !javaClass.isInterface())
                 .filter(javaClass -> !javaClass.getModifiers().contains(
                         com.tngtech.archunit.core.domain.JavaModifier.ABSTRACT))
+                // Decorators that wrap another Mapper (e.g. the mutation-smoke
+                // ColumnDroppingMapper) are harness adapters, not entity
+                // mappers — they bind no legacy table and must not appear in
+                // KNOWN_MAPPERS, which the ingest-order rule walks per entity.
+                .filter(javaClass -> javaClass.getFields().stream()
+                        .noneMatch(field -> field.getRawType().isAssignableTo(Mapper.class)))
                 .map(javaClass -> javaClass.getFullName())
                 .toList();
         var registered = KNOWN_MAPPERS.stream()
