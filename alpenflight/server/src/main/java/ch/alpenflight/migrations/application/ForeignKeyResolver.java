@@ -99,18 +99,14 @@ final class ForeignKeyResolver implements AutoCloseable {
     }
 
     /**
-     * Rewrite a FULL_PORT row's own legacy id — the {@code legacy_guid}
-     * carrier for the destination {@code id} per ADR 0019 — to the
-     * new-stack UUID via {@code legacy_id_map_<self>}.
+     * Rewrite a FULL_PORT row's own legacy id (the {@code legacy_guid}
+     * carrier for the destination {@code id} per ADR 0019) to the new-stack
+     * UUID via {@code legacy_id_map_<self>}.
      *
      * <p>Unlike {@link #rewriteForeignKeys}, a miss is <em>fail-closed</em>:
      * a row's own id has no downstream FK constraint to surface a dangling
-     * value, so an unmapped id would either conflict with, or insert past,
-     * a row no upstream step provisioned. Used for CLUB, whose row
-     * reconciles onto the provisioning-minted {@code t_club} (S-141c) — the
-     * map is seeded by {@link EntityStreamIngestor#seedClubLegacyIdMap} from
-     * this request's provisioning result, so an id outside it means the
-     * bundle carries a Club its own manifest never declared.
+     * value, so an unmapped id would conflict with, or insert past, a row no
+     * upstream step provisioned.
      */
     void rewriteSelfId(EntityType selfType, String idField, ObjectNode row) throws SQLException {
         JsonNode idValue = row.get(idField);

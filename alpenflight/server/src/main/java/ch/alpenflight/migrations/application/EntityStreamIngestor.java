@@ -72,12 +72,10 @@ final class EntityStreamIngestor {
     void seedClubLegacyIdMap(Connection connection,
                              BundleManifest manifest,
                              ProvisioningResult provisioned) throws SQLException {
-        // Pair each manifest Club to its provisioning-minted id by club_key,
-        // the ux_club_key business identity — NOT by list position. Provisioning
-        // preserves manifest order on a fresh provision, but its idempotency-
-        // replay path returns clubs in DB order; keying on club_key is correct
-        // under either, so a multi-Club bundle never seeds a Club's legacy id
-        // against the wrong tenant root (ADR 0008).
+        // Pair each manifest Club to its provisioning-minted id by club_key, not
+        // list position: provisioning's idempotency-replay returns clubs in DB
+        // order, so an index pairing could seed a Club against the wrong tenant
+        // root (ADR 0008).
         Map<String, UUID> provisionedIdByClubKey =
                 loadProvisionedClubIdsByKey(connection, provisioned.clubIds());
         String table = LegacyIdMapTables.temporaryTableName(EntityType.CLUB);
@@ -100,6 +98,7 @@ final class EntityStreamIngestor {
         }
     }
 
+    /** ProvisioningResult carries only ids; recover club_key↔id so the manifest can pair on club_key. */
     private static Map<String, UUID> loadProvisionedClubIdsByKey(Connection connection,
                                                                  List<UUID> clubIds)
             throws SQLException {
@@ -150,9 +149,7 @@ final class EntityStreamIngestor {
                             Mapper mapper,
                             InputStream tarStream,
                             ForeignKeyResolver foreignKeyResolver) throws SQLException, IOException {
-        String[] columns = mapper.columns();
-        String[] destinationColumns = destinationColumnNames(columns);
-        String insert = buildInsertStatement(mapper.entityType(), destinationColumns);
+        String insert = insertStatementFor(mapper.entityType());
         try (PreparedStatement ps = connection.prepareStatement(insert);
                 BundleStreamReader.NonClosingBufferedReader lines =
                         BundleStreamReader.NonClosingBufferedReader.of(tarStream)) {
@@ -209,14 +206,13 @@ final class EntityStreamIngestor {
     }
 
     /**
-     * Build the row-INSERT for an entity stream. Generic entities get a plain
-     * {@code INSERT}; CLUB gets {@code INSERT … ON CONFLICT (id) DO UPDATE SET
-     * <mapper columns except id> = EXCLUDED.…} so its row reconciles onto the
-     * provisioning-minted {@code t_club} instead of colliding on the PK /
-     * {@code ux_club_key} (S-141c). The DO UPDATE set-list is exactly the
-     * mapper's columns, so the provisioning-owned synthetic columns absent
-     * from {@code ClubMapper} ({@code slug}, {@code public_registration_enabled},
-     * {@code deployment_id}) are structurally untouchable by the bundle.
+     * CLUB's INSERT is an {@code ON CONFLICT (id) DO UPDATE} so its row
+     * reconciles onto the provisioning-minted {@code t_club} (S-141c) instead
+     * of colliding. The set-list is exactly the mapper's columns, so the
+     * provisioning-owned synthetic columns absent from {@code ClubMapper}
+     * ({@code slug}, {@code public_registration_enabled}, {@code deployment_id})
+     * are structurally untouchable by the bundle. Column identifiers are the
+     * same {@link #validateColumnAllowlist}-gated names as the INSERT.
      */
     private static String buildInsertStatement(EntityType entityType, String[] destinationColumns) {
         String insert = "INSERT INTO " + destinationTableFor(entityType) + " ("

@@ -283,15 +283,21 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(1);
 
         Map<String, Object> reconciled = jdbc.queryForMap(
-                "SELECT id, clubname, club_key, address, slug, public_registration_enabled "
+                "SELECT id, clubname, club_key, address, send_aircraft_statistic_report_to, "
+                        + "run_delivery_creation_job, slug, public_registration_enabled "
                         + "FROM t_club WHERE deployment_id = ?::uuid", deploymentId.toString());
         assertThat(UUID.fromString(reconciled.get("id").toString()))
                 .as("the reconciled row keeps the provisioning-minted id")
                 .isEqualTo(newClubId);
         // Legacy columns from CLUB.ndjson land via the UPSERT (bundle wins on the
-        // mapper columns).
+        // mapper columns) — including config columns provisioning leaves at its
+        // defaults (NULL VARCHAR, false boolean), which is the whole point of
+        // FULL_PORT CLUB.
         assertThat(reconciled.get("clubname")).isEqualTo("Legacy Aero Club");
         assertThat(reconciled.get("address")).isEqualTo("Flugplatzstrasse 1");
+        assertThat(reconciled.get("send_aircraft_statistic_report_to"))
+                .isEqualTo("ops-" + testClubKey);
+        assertThat(reconciled.get("run_delivery_creation_job")).isEqualTo(true);
         // Provisioning-owned synthetic columns (absent from ClubMapper) survive.
         assertThat(reconciled.get("slug")).isEqualTo(testClubSlug);
         assertThat(reconciled.get("public_registration_enabled")).isEqualTo(false);
@@ -337,6 +343,10 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
                 .as("a CLUB row whose legacy id was not provisioned must fail closed; body=%s",
                         res.getBody())
                 .isNotEqualTo(HttpStatus.OK);
+        assertThat(JSON.readTree(res.getBody()).get("errorCode").asText())
+                .as("the unprovisioned-CLUB abort is the fail-closed tenant-leak guard, "
+                        + "not an incidental constraint violation")
+                .isEqualTo("BUNDLE_CROSS_TENANT_FK_LEAK");
         // The whole single txn rolled back — no Deployment provisioned for the caller.
         Integer deployments = jdbc.queryForObject(
                 "SELECT count(*) FROM t_deployment WHERE owner_keycloak_sub = ?::uuid",
@@ -418,13 +428,17 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         row.putNull("web_page");
         row.putNull("contact");
         row.put("club_state_id", syntheticClubStateId.toString());
-        row.putNull("send_aircraft_statistic_report_to");
+        // Non-default config columns (a nullable VARCHAR the provisioning
+        // Club.create leaves NULL, and a boolean that diverges from the schema
+        // DEFAULT false) so the parity assertions prove bundle-wins on the
+        // legacy config columns, not just on values that match the defaults.
+        row.put("send_aircraft_statistic_report_to", "ops-" + clubKey);
         row.putNull("send_planning_day_info_mail_to");
         row.putNull("send_delivery_mail_export_to");
         row.putNull("send_trial_flight_registration_operator_email");
         row.putNull("send_passenger_flight_registration_operator_email");
         row.putNull("reply_to_email_address");
-        row.put("run_delivery_creation_job", false);
+        row.put("run_delivery_creation_job", true);
         row.put("run_delivery_mail_export_job", false);
         row.putNull("last_person_synchronisation_on");
         row.putNull("last_delivery_synchronisation_on");

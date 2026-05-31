@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
  * S-141c — the CLUB row-INSERT must UPSERT onto the provisioning-minted
  * {@code t_club} (reconcile, not collide) AND must never let the bundle write
  * the provisioning-owned synthetic columns. Pure SQL-shape assertions — no
- * Spring / Postgres — so the security invariant is guarded even where the
- * Docker-backed parity IT can't run.
+ * Spring / Postgres needed — so the UPSERT shape and the synthetic-column
+ * exclusion are guarded as a fast unit check.
  */
 class EntityStreamIngestorClubUpsertTest {
 
