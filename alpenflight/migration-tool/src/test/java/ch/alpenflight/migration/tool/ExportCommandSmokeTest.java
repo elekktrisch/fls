@@ -23,11 +23,15 @@ class ExportCommandSmokeTest {
     }
 
     @Test
-    void registeredEntitiesAreTheFiveSliceBindings() {
+    void registeredEntitiesMatchTheBoundLegacyEntities() {
+        // The export tool exports exactly the entities with a legacy producer
+        // binding (MapperLegacyBindings): the original 5 IDENTITY slice +
+        // LOCATION / INOUTBOUND_POINT added in J-0 T-02c (the Location export half).
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
-                EntityType.CLUB, EntityType.USER);
+                EntityType.CLUB, EntityType.USER,
+                EntityType.LOCATION, EntityType.INOUTBOUND_POINT);
     }
 
     @Test
