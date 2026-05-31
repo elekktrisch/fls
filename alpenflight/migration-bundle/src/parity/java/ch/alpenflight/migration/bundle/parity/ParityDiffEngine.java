@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.parity;
 
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.MapperLegacyBindings;
 import ch.alpenflight.migration.bundle.ParityMarkers;
 import java.sql.Connection;
 import java.sql.PreparedStatement;

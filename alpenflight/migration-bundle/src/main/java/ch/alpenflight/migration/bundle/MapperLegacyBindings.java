@@ -1,6 +1,5 @@
-package ch.alpenflight.migration.bundle.parity;
+package ch.alpenflight.migration.bundle;
 
-import ch.alpenflight.migration.bundle.EntityType;
 import java.util.Map;
 
 /**
