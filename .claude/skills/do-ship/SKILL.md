@@ -72,6 +72,21 @@ detail). Then write an ordered `## Tasks` checklist into the journey file —
 3. **Proof-chain contribution.** This entity's legacy seed + per-entity mapper.
 4. **Final task — thicken spec** to full real assertions from the oracle.
 
+**Sizing gate (a pre-dispatch heuristic — apply to every task before writing it).**
+Each `T-NN` should pass all of:
+- **One seam** — exactly one of: one aggregate (+repo), one resource's endpoint
+  cluster, one component/route, one migration, one spec edit. *'The domain layer'
+  is not a task; 'the Booking aggregate' is.*
+- **≤ ~8 files touched, ≤ ~5 new**, one **logical change** (may be a few
+  work-package commits) describable without 'and', **≤ ~3 tests at one layer**.
+- **Self-naming** — the scope line names the files (or ≤2 globs find them). If
+  finding them needs exploration, carve finer.
+
+A layer with N aggregates/components becomes **N tasks**, not one. This gate is a
+heuristic the manager checks from the scope line; the `/do-task` overflow tripwire
+is the authoritative backstop. When unsure, split — a worker that finishes early is
+free; a worker that overflows costs a full re-plan. Err toward more, smaller tasks.
+
 This list is your only durable state — workers and re-runs read it.
 
 ### 3 — Manager loop (fresh worker per task)
@@ -83,18 +98,36 @@ point) to execute `/do-task` for that task:
 > Agent (general-purpose): "Execute the `/do-task` playbook
 > (`.claude/skills/do-task/SKILL.md`) for task `T-NN` of journey `J-NNN` on
 > branch `integration/J-NNN`. <one-line task scope>. Commit directly to the
-> branch. Return only: status, commit subjects, ACs touched, escalations."
+> branch. Return only: status (done/overflow/escalated/blocked), commit subjects,
+> ACs touched, escalations."
 
 Run tasks **sequentially** (shared branch + working tree — parallel would
-conflict). After each worker returns: tick `T-NN` in the checklist, keep its
-one-line summary, discard the detail. If a worker **escalates** (parity/legacy-
-bug/unmeetable-AC/contract conflict), stop the loop and surface to the operator
-per § Escalation. Do not push past a red task.
+conflict). After each worker returns: if `status: overflow`, go to § 3a; else tick
+`T-NN` in the checklist, keep its one-line summary, discard the detail. If a worker
+**escalates** (parity/legacy-bug/unmeetable-AC/contract conflict), stop the loop and
+surface to the operator per § Escalation. Do not push past a red task.
 
 Push at task boundaries; after the first locally-green backend task, open a
 **draft PR** (`gh pr create --draft --base <integration-line> --head
 integration/J-NNN`, body `Closes #N` + AC checklist). Watch CI in background;
 a red CI run becomes the next task, not a blocked wait.
+
+### 3a — Autonomous re-plan on overflow
+
+A worker returns `status: overflow` with an `OVERFLOW:` note (naming the distinct
+seams it found) when its task was too big — fired *before its first commit*, so no
+partial work is on the branch. When it does — or when you spot a task that fails the
+sizing gate — **re-plan without the operator** (once):
+
+1. Read the worker's `OVERFLOW:` note (it names the seams).
+2. In the journey file, mark the task `~~T-NN~~ (superseded by T-NNa/T-NNb)` and
+   insert the split sub-tasks `T-NNa, T-NNb, …` right after it — each passing the
+   sizing gate, in dependency order.
+3. Re-dispatch a fresh worker for `T-NNa`; continue the loop.
+
+**Loop guard:** a task may be auto-split **once**. If a sub-task itself overflows,
+do **not** split again — stop and escalate (the journey shape is wrong; a `/do-plan`
+re-carve is likely). Never re-dispatch the same `T-NN` unchanged.
 
 ### 4 — Proof-chain gate
 

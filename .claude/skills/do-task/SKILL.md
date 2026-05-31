@@ -46,6 +46,17 @@ behavior oracle is in hand, dispatch `legacy-oracle` for just this task's
 behavior. For libraries (Angular/Spring/Playwright/NgRx), fetch current docs via
 Context7. Confirm the working tree is on `integration/J-NNN`.
 
+**Overflow tripwire (now, before writing any test or commit).** Sanity-check the
+task against the sizing gate: does it resolve to **one seam** (one aggregate / one
+component / one resource's endpoints / one migration / one spec edit), nameable
+files, one logical change? If loading reveals it spans multiple aggregates /
+components / layers (e.g. the spec scope names 3 entities, or 'the service' is
+really 5 endpoints), **stop before writing code** — append an `OVERFLOW: <task spans
+seams X, Y, Z — suggest T-NNa=X, T-NNb=Y…>` note under the task line in the journey
+file, return `status: overflow` with that note, and **do not start**. Fire this in
+your first 2–3 reads and before any commit — a half-built oversize task is the
+expensive case the manager re-plans around (`/do-ship` § 3a).
+
 ### 2 — Red first (for this task's slice)
 
 Write the failing test at the task's layer — a unit/integration test for logic,
@@ -85,8 +96,8 @@ PR exists, push and let CI run.
 ### 5 — Stop + report
 
 Return a lean summary (this is what the manager keeps): task id + status (done /
-escalated / blocked), commit subjects, ACs touched, any `@mocked:` seam declared,
-and escalations. **Then stop** — do not pick up the next task.
+overflow / escalated / blocked), commit subjects, ACs touched, any `@mocked:` seam
+declared, and escalations. **Then stop** — do not pick up the next task.
 
 ## Escalate, don't guess
 
@@ -100,6 +111,7 @@ a flaky spec) — one consult per fork, no chaining.
 ## Quality bar
 
 - Exactly one task. No drift, no gate, no journey-level PR decisions.
+- One seam per task; if it spans several, emit `OVERFLOW:` before any commit, don't push through.
 - Red-first at the task's layer; fail for the right reason.
 - Commit directly to `integration/J-NNN`; never push past red.
 - Schema structural; business rules on aggregates.

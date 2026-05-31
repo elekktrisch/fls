@@ -108,7 +108,10 @@ The happy path + key error cases the Playwright spec proves, grounded in legacy
 behavior (cite file:line where parity matters). This is the contract.
 
 ## Notes
-Headless homing decision, migration shape, sacred cows, assumptions.
+Headless homing decision, migration shape, sacred cows, assumptions. When hinting
+likely task seams (non-binding, for `/do-ship`), name them at **seam granularity** —
+one aggregate / one component / one resource's endpoints per hint, never 'the
+backend' or 'the domain layer' — so ship-time decomposition starts already-sized.
 ```
 
 ## Marking superseded stories
