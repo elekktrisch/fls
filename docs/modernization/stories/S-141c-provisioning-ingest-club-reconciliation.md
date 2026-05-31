@@ -2,7 +2,8 @@
 id: S-141c
 title: Provisioning↔ingest reconciliation — FULL_PORT CLUB ingest vs the provisioning t_club create
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-05-31
 depends_on: [S-141, S-138]
 integration_base: integration/migration
 origin: implementation-followup
