@@ -2,7 +2,8 @@
 id: S-187a
 title: Parity oracle harness — remaining 25 mappers + coverage gates + negative-path + mutation-smoke
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-05-31
 depends_on: [S-187, S-141]
 integration_base: integration/migration
 origin: scope-split
