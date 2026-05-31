@@ -99,21 +99,16 @@ final class ForeignKeyResolver implements AutoCloseable {
     }
 
     private @Nullable UUID lookupOrNull(EntityType target, UUID legacyGuid) throws SQLException {
-        PreparedStatement ps = lookups.computeIfAbsent(target, this::prepareLookup);
+        PreparedStatement ps = lookups.get(target);
+        if (ps == null) {
+            ps = connection.prepareStatement(
+                    "SELECT new_uuid FROM " + LegacyIdMapTables.temporaryTableName(target)
+                            + " WHERE legacy_guid = ?");
+            lookups.put(target, ps);
+        }
         ps.setObject(1, legacyGuid);
         try (ResultSet rs = ps.executeQuery()) {
             return rs.next() ? rs.getObject(1, UUID.class) : null;
-        }
-    }
-
-    private PreparedStatement prepareLookup(EntityType target) {
-        try {
-            return connection.prepareStatement(
-                    "SELECT new_uuid FROM " + LegacyIdMapTables.temporaryTableName(target)
-                            + " WHERE legacy_guid = ?");
-        } catch (SQLException prep) {
-            throw new RuntimeException(
-                    "Failed to prepare FK lookup for " + target, prep);
         }
     }
 

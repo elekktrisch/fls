@@ -242,8 +242,7 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.BUNDLE_TIMEOUT,
                     "Bundle ingest exceeded " + bundleTimeout + " wall-clock cap; worker interrupted",
                     timeout);
-            failureRecorder.recordFailure(uploadId, runIdRef.get(),
-                    timeoutError.getErrorCode(), shortDetail(timeoutError));
+            tryRecordFailure(uploadId, runIdRef.get(), timeoutError);
             throw timeoutError;
         } catch (ExecutionException wrapper) {
             Throwable cause = wrapper.getCause() == null ? wrapper : wrapper.getCause();
@@ -255,8 +254,7 @@ public class MigrationBundleIngestService {
                 // "client retry with the same handshake is safe" stay clear of
                 // the recorder so they don't burn the upload.
                 if (!RETRYABLE_PRE_TRANSACTION_CODES.contains(be.getErrorCode())) {
-                    failureRecorder.recordFailure(uploadId, runIdRef.get(),
-                            be.getErrorCode(), shortDetail(be));
+                    tryRecordFailure(uploadId, runIdRef.get(), be);
                 }
                 throw be;
             }
@@ -267,8 +265,7 @@ public class MigrationBundleIngestService {
                     "Unexpected ingest failure: " + cause.getClass().getSimpleName()
                             + ": " + cause.getMessage(),
                     cause);
-            failureRecorder.recordFailure(uploadId, runIdRef.get(), wrapped.getErrorCode(),
-                    cause.getClass().getSimpleName());
+            tryRecordFailure(uploadId, runIdRef.get(), wrapped);
             throw wrapped;
         } catch (InterruptedException interrupted) {
             future.cancel(true);
@@ -277,11 +274,30 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
                     "Ingest interrupted while awaiting worker completion",
                     interrupted);
-            failureRecorder.recordFailure(uploadId, runIdRef.get(),
-                    wrapped.getErrorCode(), "InterruptedException");
+            tryRecordFailure(uploadId, runIdRef.get(), wrapped);
             throw wrapped;
         } finally {
             concurrencyGate.release();
+        }
+    }
+
+    /**
+     * Calls the REQUIRES_NEW failure recorder but never lets a secondary
+     * failure (deadlock, lost connection mid-commit) shadow the original
+     * ingest exception — the caller's surface stays the bundle-ingest
+     * outcome the client experienced, while the recorder's own failure
+     * lands as a server log line.
+     */
+    private void tryRecordFailure(UUID uploadId,
+                                  @Nullable UUID runId,
+                                  BundleIngestException original) {
+        try {
+            failureRecorder.recordFailure(uploadId, runId,
+                    original.getErrorCode(), shortDetail(original));
+        } catch (RuntimeException secondary) {
+            LOG.error("MigrationBundleIngest: failureRecorder threw while recording {} for "
+                            + "upload {} — original exception preserved for the caller",
+                    original.getErrorCode(), uploadId, secondary);
         }
     }
 
@@ -451,18 +467,16 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
                     "Bundle tar / gzip read failed", tarFailure);
         } catch (SQLException sql) {
-            // Include the SQLState + first message line so 500s carry
-            // enough detail for an ops engineer to triage without diving
-            // into the server logs. Subsequent newlines stay redacted —
-            // hostile bundle bytes must not influence the response body.
-            String sqlMessage = sql.getMessage() == null
-                    ? "(no SQL message)"
-                    : sql.getMessage().split("\\R", 2)[0];
+            // SQLState is a bounded enum-shaped identifier — safe for the
+            // response body. The raw sql.getMessage() can echo failing
+            // column values verbatim (e.g. attacker-influenced manifest
+            // deploymentName on a constraint violation), so it stays in
+            // the server-side log only — the BundleIngestException's
+            // cause carries it through the exception handler's LOG.warn.
             String state = sql.getSQLState() == null ? "?" : sql.getSQLState();
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Database error during ingest [sqlstate=" + state
-                            + "]: " + sqlMessage,
+                    "Database error during ingest [sqlstate=" + state + "]",
                     sql);
         }
     }
@@ -591,7 +605,12 @@ public class MigrationBundleIngestService {
         return provisioned.primaryClubId();
     }
 
-    private void applySingleTxnSettings(Connection connection) {
+    private void applySingleTxnSettings(Connection connection) throws SQLException {
+        // statement_timeout / lock_timeout protect other tenants from a
+        // runaway ingest at the SQL layer; failing to apply them silently
+        // would leave Postgres on defaults (typically unbounded), so
+        // surface the SQLException to the orchestrator's wrapping catch
+        // — INGEST_INTERNAL_ERROR aborts the txn before any heavy work.
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.execute("SET LOCAL idle_in_transaction_session_timeout = 0");
             // SQL-layer cap fires ~1 minute before the orTimeout wall-clock
@@ -601,8 +620,6 @@ public class MigrationBundleIngestService {
             stmt.execute("SET LOCAL statement_timeout = " + sqlStatementTimeoutMs);
             stmt.execute("SET LOCAL synchronous_commit = OFF");
             stmt.execute("SET LOCAL lock_timeout = '30s'");
-        } catch (SQLException e) {
-            LOG.warn("ingest: failed to apply single-txn settings — proceeding with defaults", e);
         }
     }
 
