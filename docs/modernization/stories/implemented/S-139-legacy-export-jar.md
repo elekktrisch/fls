@@ -14,6 +14,8 @@ refined_specialists: [requirements, solution, qa, security, performance]
 context7_last_checked: 2026-05-31
 github_issue: 181
 github_pr: 182
+merged: true
+merged_at: 2026-05-31
 acceptance:
   - A new Gradle module `alpenflight/migration-tool/` builds a single-file Shadow fat-jar (`alpenflight-export.jar`) that depends on `:migration-bundle` (shared mappers + the relocated crypto envelope).
   - CLI options: `--jdbc-url <url>`, `--user <name>`, `--handshake-file <path>` (the S-140a combined artifact carrying `uploadId` + RSA-4096 public-key PEM), `--output <path>` (default `./alpenflight-export-<timestamp>.enc`, mode 0600, refuses overwrite without `--force`), `--verbose`, `--dry-run` (reads + reports stats; writes nothing). The DB password is read from an interactive prompt / env / stdin — never argv.
