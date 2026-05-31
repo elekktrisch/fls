@@ -23,7 +23,9 @@ This epic operationalizes vision-doc amendment **2026-05-17c** (constraints C25�
 - [ ] S-138 — Trial-Deployment provisioning on first successful ingest
 - [ ] S-139 — Legacy export JAR: build + CLI + JDBC read + bundle writer + hybrid encrypt (ADR 0019)
 - [ ] S-140 — Per-upload keypair handshake + public-key surface
+- [ ] S-140a — Combined handshake artifact (uploadId + public key) for the export jar
 - [ ] S-141 — Encrypted-bundle upload endpoint + streaming decrypt + ingest pipeline
+- [ ] S-141c — Provisioning↔ingest reconciliation (FULL_PORT CLUB vs provisioning t_club create)
 - [ ] S-142 — Trial countdown UX + 72 h hard-delete cron
 - [ ] S-143 — Freemium feature-gate annotation + server-side enforcement + 402 contract (ADR 0020)
 - [ ] S-144 — Freemium UI upgrade-prompt component + interceptor

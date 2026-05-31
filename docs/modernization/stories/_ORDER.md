@@ -255,9 +255,11 @@ The migration-path feature introduced by vision amendment 2026-05-17c. Reorders 
 
 **Migration transport (the JAR + upload pipeline):**
 
-- S-139 — L — Legacy export JAR (deps S-016)
+- S-139 — L — Legacy export JAR (deps S-016, S-140, S-141, S-187a) — *refined; ALPF/Tink producer pinned to the live ingest contract; owns crypto relocation server→migration-bundle*
 - S-140 — M — Per-upload keypair handshake (deps S-134)
+- S-140a — S — Combined handshake artifact (uploadId + public key) for the export jar (deps S-140) — *S-139 refinement follow-up; closes the uploadId-AAD gap*
 - S-141 — L — Encrypted-bundle upload + decrypt + ingest pipeline (deps S-016, S-138, S-140)
+- S-141c — M — Provisioning↔ingest CLUB reconciliation (deps S-141, S-138) — *gates full-entity coverage in S-187a + S-139a*
 - S-138 — M — Trial-Deployment provisioning on first successful ingest (deps S-134, S-137, S-141)
 - S-142 — M — Trial countdown + 72 h hard-delete cron (deps S-137, S-138, S-141, S-081)
 
