@@ -140,3 +140,37 @@ val parityTest by tasks.registering(Test::class) {
     systemProperty("parity.seed", System.getProperty("parity.seed", "42"))
     systemProperty("parity.scale", System.getProperty("parity.scale", "1"))
 }
+
+// S-187a: the negative-path bundle-reject cases — each plants a malformed
+// bundle, asserts the specific error code, and asserts the Postgres
+// transaction rolled back (zero new rows). Tagged `parity-reject` so the
+// happy-path `parityTest` never runs them. Cheap (each aborts at / before
+// COPY), so PR-gated alongside `parityTest`.
+val parityRejectTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Runs the parity negative-path bundle-reject cases (@Tag parity-reject)."
+    testClassesDirs = parity.output.classesDirs
+    classpath = parity.runtimeClasspath
+    useJUnitPlatform {
+        includeTags("parity-reject")
+    }
+    systemProperty("parity.seed", System.getProperty("parity.seed", "42"))
+    systemProperty("parity.scale", System.getProperty("parity.scale", "1"))
+}
+
+// S-187a: the harness self-test (mutation smoke). Wraps a mapper in a
+// column-dropping decorator and asserts the diff fails and names the dropped
+// column — proving the sampled diff actually bites. Tagged `parity-meta` and
+// run only by this task, so the decorator can never leak into the real sweep
+// even if a class is mis-annotated: isolation is enforced by the task filter.
+val parityMetaTest by tasks.registering(Test::class) {
+    group = "verification"
+    description = "Runs the parity harness self-test / mutation smoke (@Tag parity-meta)."
+    testClassesDirs = parity.output.classesDirs
+    classpath = parity.runtimeClasspath
+    useJUnitPlatform {
+        includeTags("parity-meta")
+    }
+    systemProperty("parity.seed", System.getProperty("parity.seed", "42"))
+    systemProperty("parity.scale", System.getProperty("parity.scale", "1"))
+}

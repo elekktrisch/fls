@@ -83,6 +83,11 @@ public record Manifest(
             EntityType.DELIVERY,
             EntityType.AUDIT_LOG);
 
+    /** The canonical cross-tenant allow-list; see {@link #TENANT_BYPASS_ALLOW_LIST}. */
+    public static Set<EntityType> tenantBypassAllowList() {
+        return TENANT_BYPASS_ALLOW_LIST;
+    }
+
     @JsonCreator
     public Manifest {
         if (schemaVersion <= 0) {

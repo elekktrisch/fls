@@ -148,8 +148,12 @@ class ParityOracleHarnessTest {
 
         Path reportsDirectory = runIdentity.reportsDirectory(
                 ParityRunIdentity.defaultProjectBuildDirectory());
+        // fkOrphans stays null in this 5-mapper slice: the FK-orphan walk runs
+        // with the round-trip extension that adds the remaining mappers
+        // (deferred follow-up). ParityReports emits the measured value once it
+        // is supplied.
         Path summary = ParityReports.write(reportsDirectory, runIdentity, producerCounts,
-                ingestOutcome.rowCountByEntity(), diffOutcome);
+                ingestOutcome.rowCountByEntity(), diffOutcome, null);
 
         assertThat(summary).exists();
         String summaryContent = Files.readString(summary);

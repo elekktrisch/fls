@@ -14,6 +14,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Emits the parity report tree under {@code build/reports/parity/<run-id>/}:
@@ -49,12 +50,14 @@ public final class ParityReports {
             ParityRunIdentity runIdentity,
             Map<EntityType, Integer> producerCounts,
             Map<EntityType, Integer> consumerCounts,
-            ParityDiffEngine.DiffOutcome diffOutcome) throws IOException {
+            ParityDiffEngine.DiffOutcome diffOutcome,
+            @Nullable Integer fkOrphans) throws IOException {
         Files.createDirectories(reportsDirectory);
         Path summaryFile = reportsDirectory.resolve("summary.json");
-        writeSummary(summaryFile, runIdentity, producerCounts, consumerCounts, diffOutcome);
+        writeSummary(summaryFile, runIdentity, producerCounts, consumerCounts, diffOutcome,
+                fkOrphans);
         writeReportMarkdown(reportsDirectory.resolve("report.md"), runIdentity,
-                producerCounts, consumerCounts, diffOutcome);
+                producerCounts, consumerCounts, diffOutcome, fkOrphans);
         writeDeltas(reportsDirectory.resolve("deltas"), diffOutcome);
         return summaryFile;
     }
@@ -64,7 +67,8 @@ public final class ParityReports {
             ParityRunIdentity runIdentity,
             Map<EntityType, Integer> producerCounts,
             Map<EntityType, Integer> consumerCounts,
-            ParityDiffEngine.DiffOutcome diffOutcome) throws IOException {
+            ParityDiffEngine.DiffOutcome diffOutcome,
+            @Nullable Integer fkOrphans) throws IOException {
         ObjectNode root = JSON.createObjectNode();
         root.put("runId", runIdentity.runId());
         root.put("seed", runIdentity.seed());
@@ -72,10 +76,15 @@ public final class ParityReports {
         root.put("generatedAt", Instant.now().toString());
         root.put("passed", diffOutcome.passed());
         root.put("totalDeltas", diffOutcome.totalDeltas());
-        // S-187a wires the FK orphan walk. Until then, surface JSON null
-        // so a downstream consumer keying on the field cannot misread an
-        // unmeasured zero for a verified zero.
-        root.putNull("fkOrphans");
+        // JSON null until the caller supplies a measured walk result, so a
+        // downstream consumer keying on the field cannot misread an unmeasured
+        // zero for a verified zero. The walk that supplies a concrete value
+        // lands with the round-trip extension (deferred follow-up).
+        if (fkOrphans == null) {
+            root.putNull("fkOrphans");
+        } else {
+            root.put("fkOrphans", fkOrphans.intValue());
+        }
         ObjectNode perMapper = root.putObject("perMapper");
         for (Map.Entry<EntityType, ParityDiffEngine.MapperSentinels> entry
                 : diffOutcome.sentinelsByEntity().entrySet()) {
@@ -99,14 +108,17 @@ public final class ParityReports {
             ParityRunIdentity runIdentity,
             Map<EntityType, Integer> producerCounts,
             Map<EntityType, Integer> consumerCounts,
-            ParityDiffEngine.DiffOutcome diffOutcome) throws IOException {
+            ParityDiffEngine.DiffOutcome diffOutcome,
+            @Nullable Integer fkOrphans) throws IOException {
         StringBuilder body = new StringBuilder();
         body.append("# Parity oracle run ").append(runIdentity.runId()).append('\n').append('\n');
         body.append("- Seed: `").append(runIdentity.seed()).append("`\n");
         body.append("- Scale: `").append(runIdentity.scale()).append("`\n");
         body.append("- Outcome: ").append(diffOutcome.passed() ? "PASS" : "FAIL").append('\n');
         body.append("- Row-count deltas: ").append(diffOutcome.totalDeltas()).append('\n');
-        body.append("- FK orphans: not measured (S-187a wires the walker)\n");
+        body.append("- FK orphans: ")
+                .append(fkOrphans == null ? "not measured" : fkOrphans.toString())
+                .append('\n');
         body.append('\n').append("## Per-mapper counts").append('\n').append('\n');
         body.append("| Entity | Producer rows | Consumer rows | Sentinels | Ignored |\n");
         body.append("|---|---:|---:|---:|---:|\n");
