@@ -262,7 +262,10 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(res.getStatusCode())
+                .as("pre-decrypt DEPLOYMENT_EXISTS guard must surface 409; body=%s",
+                        res.getBody())
+                .isEqualTo(HttpStatus.CONFLICT);
         JsonNode body = JSON.readTree(res.getBody());
         assertThat(body.get("errorCode").asText()).isEqualTo("DEPLOYMENT_EXISTS");
         assertThat(body.get("existingDeploymentId").asText()).isEqualTo(existingDeploymentId.toString());
