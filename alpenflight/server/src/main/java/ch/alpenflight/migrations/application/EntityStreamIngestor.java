@@ -98,7 +98,7 @@ final class EntityStreamIngestor {
         }
     }
 
-    /** ProvisioningResult carries only ids; recover club_key↔id so the manifest can pair on club_key. */
+    /** ProvisioningResult carries only ids; recover each club_key so the manifest can pair on it. */
     private static Map<String, UUID> loadProvisionedClubIdsByKey(Connection connection,
                                                                  List<UUID> clubIds)
             throws SQLException {

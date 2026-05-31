@@ -404,11 +404,19 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
                 "SELECT count(*) FROM t_club WHERE deployment_id = ?::uuid",
                 Integer.class, deploymentId.toString());
         assertThat(clubCount).isEqualTo(2);
-        // Each provisioned club received its OWN legacy columns, matched by club_key.
+        // Each provisioned club received its OWN legacy columns, matched by
+        // club_key — assert two distinct sentinels per club so a "both rows got
+        // club A's columns" bug can't hide behind a single column.
         assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
                 String.class, keyA)).isEqualTo("Addr A");
         assertThat(jdbc.queryForObject("SELECT address FROM t_club WHERE club_key = ?",
                 String.class, keyB)).isEqualTo("Addr B");
+        assertThat(jdbc.queryForObject(
+                "SELECT send_aircraft_statistic_report_to FROM t_club WHERE club_key = ?",
+                String.class, keyA)).isEqualTo("ops-" + keyA);
+        assertThat(jdbc.queryForObject(
+                "SELECT send_aircraft_statistic_report_to FROM t_club WHERE club_key = ?",
+                String.class, keyB)).isEqualTo("ops-" + keyB);
     }
 
     private static byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname,
