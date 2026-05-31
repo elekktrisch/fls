@@ -12,17 +12,19 @@ context7_last_checked: 2026-05-31
 github_issue: 181
 github_pr: 182
 acceptance:
-  - A new Gradle module under `alpenflight/migration-tool/` builds a single-file fat-jar (`alpenflight-export.jar`).
-  - The JAR's `main()` accepts CLI options: `--jdbc-url <url>`, `--user <name>`, `--password <secret-or-prompt>`, `--public-key-file <path>` (PEM-encoded RSA-4096 public key, as obtained from S-140), `--output <path>` (default `./alpenflight-export-<timestamp>.enc`), `--verbose`, `--dry-run` (skips encryption + write; prints bundle stats only).
-  - JDBC driver bundled: SQL Server `mssql-jdbc`. Read-only connection enforced: the JAR sets `ApplicationIntent=ReadOnly` on the JDBC URL even if the user forgot.
-  - Bundle writer streams the legacy schema to a temp `tar.gz` archive containing: `manifest.json` (schema version, source DB metadata, generation timestamp, sha256 of each entity stream), one NDJSON file per entity table (clubs, persons, aircraft, flights, reservations, planning-days, accounting-rule-filters, deliveries, articles, locations, etc. — the entity set comes from S-016's schema-mapping inventory).
-  - Encryption per ADR 0019: a one-time AES-256-GCM session key encrypts the archive (streaming); the session key is then RSA-OAEP-wrapped under the user-supplied public key; the output file's layout is `[header][wrapped-key][iv][ciphertext][tag]` with a magic byte sequence + format version in the header.
-  - On non-zero exit: stderr emits a structured error code + remediation hint (e.g. `JDBC_CONNECT_FAILED`, `PUBLIC_KEY_INVALID`, `DISK_FULL`).
-  - The JAR runs on JRE 17+ (matches the server JRE from ADR 0001).
-  - A README in `alpenflight/migration-tool/` documents the usage including a worked example for a typical FLS deployment.
+  - A new Gradle module `alpenflight/migration-tool/` builds a single-file Shadow fat-jar (`alpenflight-export.jar`) that depends on `:migration-bundle` (shared mappers + the relocated crypto envelope).
+  - CLI options: `--jdbc-url <url>`, `--user <name>`, `--handshake-file <path>` (the S-140a combined artifact carrying `uploadId` + RSA-4096 public-key PEM), `--output <path>` (default `./alpenflight-export-<timestamp>.enc`, mode 0600, refuses overwrite without `--force`), `--verbose`, `--dry-run` (reads + reports stats; writes nothing). The DB password is read from an interactive prompt / env / stdin — never argv.
+  - `mssql-jdbc` bundled; the JAR forces `ApplicationIntent=ReadOnly` onto the URL (adds it when absent, refuses/overrides `ReadWrite`).
+  - The plaintext bundle is a `tar.gz` whose entry 0 is `manifest.json` (schema/format version, source DB metadata, generation timestamp, sha256 per entity stream, entity policies, club declarations), followed by one NDJSON stream per entity and `legacy_id_map/<ENTITY>.pgcopy` for FULL_PORT entities; SYSTEM_GLOBAL entities ship NDJSON `(legacy_guid, lookup_key)` rows (the server resolves the V2-seed mapping). Every `EntityType` appears in entity policies XOR an `unmappedReason`.
+  - The encrypted output is the **ALPF** envelope — `MAGIC "ALPF" + version + uint16 wrappedKeyLen + RSA-OAEP-SHA256-wrapped AES-256 session key + Google Tink StreamingAead (AES256_GCM_HKDF_4KB) body` — produced by the crypto envelope relocated from the server into `migration-bundle`, and decodable byte-for-byte by the server's existing `TinkMigrationBundleCipher`. The bundle binds the handshake `uploadId` as AEAD associated data.
+  - A bundle the JAR produces decrypts + ingests through the real server pipeline (verified end-to-end by S-139a). No codepath emits an unencrypted bundle to disk.
+  - Schema drift — a mapper-selected source column absent on an older legacy install — hard-fails with a structured `SOURCE_COLUMN_MISSING` error naming the table + column; never a silent skip or NULL.
+  - On non-zero exit, stderr emits a structured, documented error code + remediation hint (`JDBC_CONNECT_FAILED`, `PUBLIC_KEY_INVALID`, `SCHEMA_VERSION_MISMATCH`, `DISK_FULL`, `OUTPUT_EXISTS`, …); exit codes are stable per category.
+  - Peak heap is independent of DB size (fully streaming pipeline; no whole-bundle buffering) — verified by exporting ≥ 1M rows under a capped heap.
+  - Runs on JRE 17+ (ADR 0001). CI builds the fat-jar on tagged releases and publishes it as a GitHub Release artifact with a published SHA-256 checksum; the `migration-tool/` README documents usage, a worked `java -jar` example, and checksum verification.
 estimate: L
-adr_refs: [0001, 0019]
-parity_test: tests/migration-tool/jar-export.spec.ts (new — integration test runs the JAR against a seeded legacy SQL Server in Testcontainers)
+adr_refs: [0001]
+parity_test: migration-tool crypto-format-match IT (jar-encrypt → server TinkMigrationBundleCipher decrypt, byte-identical); full producer→consumer e2e in S-139a
 ---
 
 ## Context
