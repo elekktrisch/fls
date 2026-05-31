@@ -248,7 +248,7 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                 INSERT INTO t_deployment (id, name, owner_keycloak_sub,
                                           lifecycle_state, plan, created_on, modified_on, version,
                                           kc_state)
-                VALUES (?::uuid, ?, ?::uuid, 'TRIAL', 'TRIAL', now(), now(), 0, 'READY')
+                VALUES (?::uuid, ?, ?::uuid, 'TRIAL', 'FREE', now(), now(), 0, 'READY')
                 """,
                 existingDeploymentId.toString(),
                 "Pre-existing Deployment", userSub.toString());
