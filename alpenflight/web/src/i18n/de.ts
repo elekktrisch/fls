@@ -112,7 +112,7 @@ const de = {
   migrateHandshake: {
     copied: 'In die Zwischenablage kopiert.',
     copy: 'In Zwischenablage kopieren',
-    download: 'Schlüsseldatei herunterladen',
+    download: 'Handshake-Datei herunterladen',
     error: 'Schlüssel konnte nicht erzeugt werden. Bitte erneut versuchen.',
     expires: 'Gültig bis {{expiresAt}}',
     headline: 'Öffentlichen Schlüssel an die Export-App übergeben',
@@ -130,10 +130,10 @@ const de = {
         'Ein neuer Schlüssel macht den vorherigen ungültig. Wenn der alte Schlüssel bereits in der Export-App eingefügt wurde, muss der Export von vorne gestartet werden.',
       title: 'Schlüssel ersetzen?',
     },
-    regenerated: 'Neuer Schlüssel erzeugt. Starte den Export erneut mit diesem Schlüssel.',
+    regenerated: 'Neuer Schlüssel erzeugt. Lade die Handshake-Datei erneut herunter und starte den Export damit neu — die vorherige Datei ist ungültig.',
     retry: 'Erneut versuchen',
     tagline:
-      'Diesen öffentlichen Schlüssel kopierst du in die Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
+      'Lade die Handshake-Datei herunter und übergib sie der Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
   },
   publicStub: {
     back: 'Zurück zur Startseite',

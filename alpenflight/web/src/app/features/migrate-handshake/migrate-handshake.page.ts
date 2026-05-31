@@ -19,6 +19,7 @@ import { SessionStore } from '@core/session/session.store';
 import { emitFunnelEvent } from '../signup/funnel-telemetry';
 import { consumeSignupPending } from '../signup/signup-pending';
 
+import { handshakeArtifactDownload } from './handshake-artifact';
 import { MigrateHandshakeStore } from './migrate-handshake.store';
 
 /**
@@ -37,8 +38,10 @@ const JAR_DOWNLOAD_PLACEHOLDER_HREF =
  *       404 falls through to {@code POST .../handshake}.</li>
  *   <li>Regenerate flow: explicit button → {@code <af-dialog>} confirm →
  *       on accept fires a fresh POST (silently supersedes the prior row).</li>
- *   <li>Public-key surface: copy-friendly textarea + Copy + Download (writes
- *       {@code alpenflight-public-key-<uploadId>.pem}).</li>
+ *   <li>Public-key surface: copy-friendly textarea (PEM, display-only) +
+ *       Copy + Download, both emitting the combined handshake artifact
+ *       {@code alpenflight-handshake-<uploadId>.json} (uploadId + public
+ *       key) the export jar reads via {@code --handshake-file} (S-140a).</li>
  *   <li>Export-tool panel: link to the JAR download (placeholder URL).</li>
  *   <li>Funnel emission: {@code signup.completed} fires once per
  *       signup-pending session (carried over from the placeholder).</li>
@@ -205,7 +208,8 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
   copy(): void {
     const current = this.store.upload();
     if (!current) return;
-    navigator.clipboard.writeText(current.publicKeyPem).then(
+    const { body } = handshakeArtifactDownload(current);
+    navigator.clipboard.writeText(body).then(
       () => this.copyConfirmed.set(true),
       () => this.copyConfirmed.set(false),
     );
@@ -214,11 +218,12 @@ export class MigrateHandshakePageComponent implements OnInit, OnDestroy {
   download(): void {
     const current = this.store.upload();
     if (!current) return;
-    const blob = new Blob([current.publicKeyPem], { type: 'application/x-pem-file' });
+    const { filename, mimeType, body } = handshakeArtifactDownload(current);
+    const blob = new Blob([body], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `alpenflight-public-key-${current.uploadId}.pem`;
+    anchor.download = filename;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
