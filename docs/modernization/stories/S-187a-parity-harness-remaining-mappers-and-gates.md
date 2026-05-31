@@ -11,6 +11,7 @@ refined: true
 refined_at: 2026-05-31
 refined_specialists: [requirements, solution, qa, security, performance]
 github_issue: 188
+github_pr: 189
 acceptance:
   - **Remaining 25 mappers exercised end-to-end.** Bring `LegacyFixtureSeeder` to the obligations the S-187 design notes enumerate: ≥ 1 `Flights.AirStateId=5` row per Club; ≥ 1 row per permitted sparse-enum value per Club; audit fixture with three actor shapes (real, orphan, NULL) plus orphan-dedupe; self-FK two-pass chains (PersonCategory tree, Flight tow chain with a tombstoned ref); ≥ 1 degenerate `AircraftReservation` range; full FLSTest schema bootstrap via `flsserver/database/FLSTest/` scripts.
   - **Coverage gates pre-diff** (S-187 Design notes (a)–(d)): ≥ 1 seeded row per `KNOWN_MAPPERS` per Club (or per mapper total for SYSTEM_GLOBAL); every `Manifest.entityPolicies` key in `KNOWN_MAPPERS`; every `UnmappedTables.REGISTRY` table zero rows post-ingest; every `permittedSparseEnumValues` key with ≥ 1 seeded row per permitted value per Club. Missing → harness fails with `seed gap: <EntityType>[@<ClubId>]` diagnostic.
