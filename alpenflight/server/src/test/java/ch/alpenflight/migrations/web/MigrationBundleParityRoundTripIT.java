@@ -251,9 +251,14 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         row.putNull("remarks");
         row.put("language_id", syntheticLanguageId.toString());
         row.putNull("keycloak_sub");
-        row.put("created_on", Instant.parse("2024-01-01T00:00:00Z").toString());
+        // t_user.created_on / modified_on are NOT NULL DEFAULT now() in V2.
+        // The mapper unconditionally binds the NDJSON value via setTimestamp
+        // — passing NULL explicitly suppresses the DEFAULT and the INSERT
+        // FK-violates. Carry an explicit ISO-8601 instant on both fields.
+        String createdInstant = Instant.parse("2024-01-01T00:00:00Z").toString();
+        row.put("created_on", createdInstant);
         row.putNull("created_by_user_id");
-        row.putNull("modified_on");
+        row.put("modified_on", createdInstant);
         row.putNull("modified_by_user_id");
         row.putNull("deleted_on");
         row.putNull("deleted_by_user_id");

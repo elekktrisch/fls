@@ -173,7 +173,13 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         // pre-decrypt DEPLOYMENT_EXISTS guard ahead of the upload-state
         // check on a re-POST. Tear the Deployment down so the re-POST
         // surfaces the upload-state check (the AC9b-relevant case the SPA
-        // sees when a deployment is deleted between POSTs).
+        // sees when a deployment is deleted between POSTs). The first
+        // POST's t_migration_run row carries the now-stale deployment_id
+        // FK — drop it first so the t_deployment delete doesn't violate
+        // t_migration_run_deployment_id_fkey.
+        jdbc.update("DELETE FROM t_migration_run WHERE deployment_id IN "
+                + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)",
+                userSub.toString());
         String clubsByOwner =
                 "SELECT id FROM t_club WHERE deployment_id IN "
                         + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
@@ -233,26 +239,19 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
     @Test
     void deployment_exists_pre_decrypt_guard_skips_rsa_unwrap() throws Exception {
         // Seed an active Deployment for this caller — the pre-decrypt guard
-        // fails fast with 409 before allocating RSA + AEAD context.
+        // fails fast with 409 before allocating RSA + AEAD context. Skip
+        // the primary_club_id (nullable, see V21) so the FK to t_club
+        // doesn't force a Club fixture; the guard only consults
+        // ux_deployment_owner_active.
         UUID existingDeploymentId = UUID.randomUUID();
-        UUID existingPrimaryClubId = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO t_deployment (id, name, owner_keycloak_sub, primary_club_id,
+                INSERT INTO t_deployment (id, name, owner_keycloak_sub,
                                           lifecycle_state, plan, created_on, modified_on, version,
                                           kc_state)
-                VALUES (?::uuid, ?, ?::uuid, ?::uuid, 'TRIAL', 'TRIAL', now(), now(), 0, 'READY')
+                VALUES (?::uuid, ?, ?::uuid, 'TRIAL', 'TRIAL', now(), now(), 0, 'READY')
                 """,
                 existingDeploymentId.toString(),
-                "Pre-existing Deployment", userSub.toString(), existingPrimaryClubId.toString());
-        jdbc.update("""
-                INSERT INTO t_club (id, deployment_id, name, slug, club_key, country_id,
-                                    club_state_id, public_registration_enabled,
-                                    created_on, modified_on, version)
-                VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid, false, now(), now(), 0)
-                """,
-                existingPrimaryClubId.toString(), existingDeploymentId.toString(),
-                "Pre-existing Club", testClubSlug, testClubKey,
-                SEED_COUNTRY_CH.toString(), SEED_CLUB_STATE_ACTIVE.toString());
+                "Pre-existing Deployment", userSub.toString());
 
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
