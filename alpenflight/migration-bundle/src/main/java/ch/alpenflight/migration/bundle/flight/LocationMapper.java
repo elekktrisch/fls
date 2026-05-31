@@ -4,6 +4,7 @@ import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -36,10 +37,12 @@ import java.util.UUID;
  *   <li>{@code country_id} → COUNTRY (system-global cross-tenant ref).</li>
  * </ul>
  * Lookup FKs to {@code t_location_type}, {@code t_elevation_unit_type},
- * {@code t_length_unit_type} use V3's {@code legacy_int_id} seed lookup;
- * those entities live outside the {@link EntityType} enum so they are
- * resolved structurally by S-141 from the V3 seed table itself, not via a
- * per-bundle dependency declaration.
+ * {@code t_length_unit_type} are emitted as the synthetic
+ * {@code new UUID(0, legacyIntId)} encoding and declared via
+ * {@link #referenceLookups()}; the ingest pipeline resolves each to the real
+ * Flyway-seed PK by joining the seed table's {@code legacy_int_id} column.
+ * Those tables live outside the {@link EntityType} enum (no per-bundle id
+ * map), so the resolve is structural against the seed itself.
  *
  * <p>Legacy ASP.NET artifacts dropped: {@code OwnerId},
  * {@code OwnershipType}, {@code RecordState}, {@code IsDeleted}.
@@ -103,6 +106,14 @@ public final class LocationMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB, EntityType.COUNTRY);
+    }
+
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        return List.of(
+                new ReferenceLookup(LOCATION_TYPE_ID, "t_location_type"),
+                new ReferenceLookup(ELEVATION_UNIT_TYPE_ID, "t_elevation_unit_type"),
+                new ReferenceLookup(RUNWAY_LENGTH_UNIT_TYPE_ID, "t_length_unit_type"));
     }
 
     @Override
