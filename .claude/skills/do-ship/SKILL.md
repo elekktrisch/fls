@@ -98,8 +98,12 @@ a red CI run becomes the next task, not a blocked wait.
 
 When every task is ticked, run the gate (delegate to `e2e-driver`): the full
 chain — legacy seed → migrate → Keycloak → real Playwright — both fidelities
-green, **video retained on pass**. For **Journey-0** (`journey0: true`) the gate
-work is itself the tasks: stand up the thinnest whole chain for this one screen.
+green, **video retained on pass**. When the journey has a legacy counterpart,
+`e2e-driver` also captures a **legacy `flsweb` video** of the same journey on the
+seeded data — a **parity-review aid for the operator, not a pass/fail** (the
+AlpenFlight green stays the gate). Greenfield journeys ship the AlpenFlight video
+alone. For **Journey-0** (`journey0: true`) the gate work is itself the tasks:
+stand up the thinnest whole chain for this one screen.
 
 **Mock governance.** Happy + key-error cases run fully real — no mocking. Any
 mocked seam (edge/error only) carries an inline `@mocked: <seam> — <reason>` tag
@@ -116,8 +120,10 @@ Prune the journey body to load-bearing decisions only (code is now the source of
 truth — delete file trees, signatures, resolved threat rows; keep contracts,
 parity exclusions, the task checklist as the record). Flip `status: done` +
 `done_at`; mark `rolls_up` stories `rolled_up_into: J-NNN`. `gh pr ready`. Post
-the **video** to the operator via `SendUserFile` with the PR link + Mocked-seams
-list. **Stop — the operator merges** `integration/J-NNN` up the line.
+the **video(s)** to the operator via `SendUserFile` — the AlpenFlight pass video
+plus the legacy `flsweb` video when applicable, captioned for side-by-side
+parity-checking — with the PR link + Mocked-seams list. **Stop — the operator
+merges** `integration/J-NNN` up the line.
 
 ## Escalation triggers
 

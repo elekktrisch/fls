@@ -48,7 +48,12 @@ admin screen → test-env-only admin/test affordance → else escalate).
 
 A journey is done only when its Playwright spec drives the **real UI** end to
 end and passes — first on a clean seed, then on **real legacy data migrated into
-AlpenFlight**. The pass-video is the acceptance artifact, surfaced to the operator.
+AlpenFlight**. The pass-video is the acceptance artifact, surfaced to the
+operator. For journeys with a legacy counterpart, the gate also captures a
+**legacy `flsweb` video** of the same journey on the seeded data — a paired
+artifact for **human-intuition UI parity-checking**, a review aid (not a
+pass/fail; the AlpenFlight green is the gate). Greenfield journeys ship the
+AlpenFlight video alone.
 
 - **Proof chain:** Journey-0 stands up the thinnest whole chain (legacy-up →
   migrate → Keycloak → real Playwright) for one already-built screen; every

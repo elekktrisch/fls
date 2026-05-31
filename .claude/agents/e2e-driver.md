@@ -27,6 +27,24 @@ invent a parallel convention.
   retain the **video on pass** as a CI artifact. This is the only run that
   proves verticality.
 
+## Parity video pair (legacy + AlpenFlight)
+
+When the journey has a legacy counterpart, capture **two** videos at the gate so
+the operator can eyeball UI parity with human intuition:
+
+- **Legacy video:** drive the legacy `flsweb` SPA through the equivalent journey
+  on the **seeded legacy data** (before migration). Reuse the top-level `e2e/`
+  legacy specs / parity oracle where one exists for that screen; author a minimal
+  drive only if none does. Bring up the legacy SPA (the top-level `e2e/` harness
+  knows how) — the proof chain already has legacy FLS up for seeding.
+- **AlpenFlight video:** the gate's real-chain run on the **migrated data**.
+
+Same data lineage (seed → migrate) makes the two visually comparable. This pair
+is a **review aid, not a pass/fail** — the AlpenFlight real-chain green remains
+the gate; the legacy video just accompanies it. Greenfield/freemium journeys
+have no legacy counterpart → ship the AlpenFlight video alone and note "no legacy
+counterpart."
+
 ## Proof-chain rules
 
 - **Default real.** Happy path + key error cases run fully real at the gate —
