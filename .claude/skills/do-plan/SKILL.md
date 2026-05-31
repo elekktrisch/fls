@@ -63,6 +63,11 @@ the first roadmap journey whose `depends_on` are all done.
    Carve captures *shape + contract*; the oracle captures *exact behavior*.
 3. Write the journey file (format below) with `status: todo`, `carved: true`.
 
+Do **not** decompose into tasks here — that's `/do-ship`'s job at ship time
+(with fresh full context on the current code), and each task runs in its own
+clean-context `/do-task` worker on the journey's `integration/J-NNN` branch.
+`/do-plan` stops at the journey + its spec contract.
+
 ## Journey definition
 
 - **Granularity:** one SPA screen/route, full CRUD, driven end to end. Maps to a

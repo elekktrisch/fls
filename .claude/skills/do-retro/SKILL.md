@@ -40,11 +40,14 @@ Scan the journeys shipped since the last retro. For each, look for the
 - Wallclock-budget breaches (a slow loop nobody fixed).
 - Re-carves (`/do-plan` had to re-shape a journey mid-flight → the carve
   heuristic was wrong).
+- Task-boundary misses (a `/do-task` worker escalated, drifted past its one
+  task, or a task was too big for a clean context → `/do-ship`'s task-list
+  decomposition needs tuning).
 
 ## What it's allowed to change
 
-1. **Tune the suite itself.** Edit `do-plan` / `do-ship` / `do-retro` SKILL.md
-   and the four agents (`legacy-oracle`, `slice-carver`, `gap-hunter`,
+1. **Tune the suite itself.** Edit `do-plan` / `do-ship` / `do-task` / `do-retro`
+   SKILL.md and the four agents (`legacy-oracle`, `slice-carver`, `gap-hunter`,
    `e2e-driver`) where a recurring friction shows the instructions were wrong or
    thin. Keep skill files ≤ 200 lines, agents ≤ 100. Smallest edit that removes
    the friction.

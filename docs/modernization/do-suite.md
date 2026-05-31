@@ -9,13 +9,25 @@ user-facing path, thin but whole, proven green before the next starts.
 Status: **coexists** with `modernize-*`. Prove it on 2-3 real journeys, then
 `/do-retro` files the cleanup that retires the superseded `modernize-*` skills.
 
-## The three skills
+## The four skills
 
 | Skill | Does |
 |---|---|
-| `/do-plan` | (Re-)shape the 113 `todo` stories into vertical **journeys**. Thin value-ordered roadmap (the new `_ORDER`), then deep-carve ONE journey JIT. Journey = the new story shape (`J-NNN`); horizontal stories *roll up* so refinement isn't lost. The 47 `implemented/` stay as history. |
-| `/do-ship` | Build ONE journey end-to-end: analyze → implement (TDD) → prove → document → green PR. Solo inline; escalate on signal. Stops at a green PR; the **operator merges**. |
+| `/do-plan` | (Re-)shape the 113 `todo` stories into vertical **journeys**. Thin value-ordered roadmap (the new `_ORDER`), then deep-carve ONE journey JIT. Journey = the new story shape (`J-NNN`); horizontal stories *roll up* so refinement isn't lost. The 47 `implemented/` stay as history. Stops at the journey + its spec contract — no tasks. |
+| `/do-ship` | **Journey manager.** Creates the journey integration branch `integration/J-NNN`, decides the task list, runs each task in a fresh-context worker, then runs the proof-chain gate + video and opens ONE journey PR. Stays lean (holds only task summaries); the **operator merges**. |
+| `/do-task` | **The worker.** Implements ONE task in a clean context — TDD the slice, commit directly to `integration/J-NNN`, tick the checklist, stop. Dispatched by `/do-ship` per task (fresh context each), and standalone-runnable (`/loop /do-task J-NNN`) for hand-driving a journey. |
 | `/do-retro` | Improve the suite from what shipping taught: tune skills/agents, propose ADR amendments, re-shape the backlog, memory hygiene, file infra/efficiency journeys. Purely manual; reconstructs lessons from git + PRs. |
+
+## Journey → tasks → clean context
+
+A journey takes many tasks to get working, so it lives on its **own integration
+branch** `integration/J-NNN`; tasks commit **directly** onto it. To stay out of
+the **dumb-zone** (a long conversation that accumulates a whole journey and
+degrades), **each task runs in a fresh worker context**: `/do-ship` is a flat
+manager that loops the task list and spawns one clean `/do-task` worker per task,
+holding only lean per-task summaries. The heavy per-task work never touches the
+manager's context. Tasks run sequentially (shared branch + working tree). The
+full proof-chain gate runs on `integration/J-NNN` before the journey PR merges up.
 
 ## The four agents
 
