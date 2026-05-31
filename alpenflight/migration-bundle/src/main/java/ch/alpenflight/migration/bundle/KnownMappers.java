@@ -15,6 +15,7 @@ import ch.alpenflight.migration.bundle.flight.AircraftOperatingCounterMapper;
 import ch.alpenflight.migration.bundle.flight.FlightCrewMapper;
 import ch.alpenflight.migration.bundle.flight.FlightMapper;
 import ch.alpenflight.migration.bundle.flight.FlightTypeMapper;
+import ch.alpenflight.migration.bundle.flight.InOutboundPointMapper;
 import ch.alpenflight.migration.bundle.flight.LocationMapper;
 import ch.alpenflight.migration.bundle.flight.StartTypeMapper;
 import ch.alpenflight.migration.bundle.identity.AuditLogMapper;
@@ -55,6 +56,7 @@ public final class KnownMappers {
             new PersonClubMapper(),
             new PersonCategoryAssignmentMapper(),
             new LocationMapper(),
+            new InOutboundPointMapper(),
             new StartTypeMapper(),
             new FlightTypeMapper(),
             new AircraftMapper(),

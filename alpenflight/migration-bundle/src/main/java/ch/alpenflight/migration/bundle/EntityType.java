@@ -29,6 +29,7 @@ public enum EntityType {
     PERSON_CATEGORY_ASSIGNMENT(Group.IDENTITY),
 
     LOCATION(Group.FLIGHT),
+    INOUTBOUND_POINT(Group.FLIGHT),
     START_TYPE(Group.FLIGHT),
     FLIGHT_TYPE(Group.FLIGHT),
     AIRCRAFT(Group.FLIGHT),
