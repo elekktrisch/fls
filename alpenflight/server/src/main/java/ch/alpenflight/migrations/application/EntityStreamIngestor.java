@@ -8,6 +8,7 @@ import ch.alpenflight.migrations.domain.BundleIngestException;
 import ch.alpenflight.tenancy.provisioning.application.ProvisioningResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -116,10 +117,12 @@ final class EntityStreamIngestor {
 
     void ingestEntityNdjson(Connection connection,
                             Mapper mapper,
-                            InputStream tarStream) throws SQLException, IOException {
+                            InputStream tarStream,
+                            ForeignKeyResolver foreignKeyResolver) throws SQLException, IOException {
         String[] columns = mapper.columns();
+        String[] destinationColumns = destinationColumnNames(columns);
         String insert = "INSERT INTO " + destinationTableFor(mapper.entityType()) + " ("
-                + String.join(", ", columns) + ") VALUES ("
+                + String.join(", ", destinationColumns) + ") VALUES ("
                 + "?,".repeat(columns.length - 1) + "?)";
         try (PreparedStatement ps = connection.prepareStatement(insert);
                 BundleStreamReader.NonClosingBufferedReader lines =
@@ -130,14 +133,26 @@ final class EntityStreamIngestor {
                 if (line.isBlank()) {
                     continue;
                 }
-                JsonNode row;
+                JsonNode parsed;
                 try {
-                    row = JSON.readTree(line);
+                    parsed = JSON.readTree(line);
                 } catch (IOException parseFailure) {
                     throw new BundleIngestException(
                             BundleIngestErrorCode.NDJSON_PARSE_FAILED,
                             "NDJSON parse failed on " + mapper.entityType(), parseFailure);
                 }
+                if (!(parsed instanceof ObjectNode row)) {
+                    throw new BundleIngestException(
+                            BundleIngestErrorCode.NDJSON_PARSE_FAILED,
+                            "NDJSON row on " + mapper.entityType()
+                                    + " must be a JSON object, got " + parsed.getNodeType());
+                }
+                // Translate legacy GUIDs in mapper.foreignKeys() targets to
+                // new-stack UUIDs via legacy_id_map_<entity>. The maps are
+                // seeded upstream — SYSTEM_GLOBAL_RESOLVE entries by the
+                // bundle's legacy_id_map/<entity>.pgcopy tar entries,
+                // FULL_PORT CLUB by seedClubLegacyIdMap.
+                foreignKeyResolver.rewriteForeignKeys(mapper, row);
                 mapper.readEntity(row, ps);
                 ps.addBatch();
                 batched++;
@@ -155,6 +170,28 @@ final class EntityStreamIngestor {
     static String destinationTableFor(EntityType entityType) {
         return "t_" + entityType.temporaryTableSuffix();
     }
+
+    /**
+     * Maps the mapper's wire-format column names to destination-table
+     * column names. The producer emits {@code legacy_guid} as the
+     * carrier for the destination's {@code id} per ADR 0019 (legacy GUID
+     * preservation); the alias lives at the orchestrator boundary so
+     * mappers stay symmetric between producer + consumer halves and the
+     * subset-coverage test ({@code MapperVsSchemaCompatibilityTest})
+     * already understands the alias.
+     */
+    private static String[] destinationColumnNames(String[] wireColumns) {
+        String[] destinationColumns = new String[wireColumns.length];
+        for (int i = 0; i < wireColumns.length; i++) {
+            destinationColumns[i] = WIRE_LEGACY_GUID_COLUMN.equals(wireColumns[i])
+                    ? DESTINATION_ID_COLUMN
+                    : wireColumns[i];
+        }
+        return destinationColumns;
+    }
+
+    private static final String WIRE_LEGACY_GUID_COLUMN = "legacy_guid";
+    private static final String DESTINATION_ID_COLUMN = "id";
 
     private static void validateColumnAllowlist(Mapper mapper) {
         for (String column : mapper.columns()) {
