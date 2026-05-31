@@ -27,23 +27,26 @@ invent a parallel convention.
   retain the **video on pass** as a CI artifact. This is the only run that
   proves verticality.
 
-## Parity video pair (legacy + AlpenFlight)
+## Gate: parity videos, parallel CI, helper tags
 
-When the journey has a legacy counterpart, capture **two** videos at the gate so
-the operator can eyeball UI parity with human intuition:
-
-- **Legacy video:** drive the legacy `flsweb` SPA through the equivalent journey
-  on the **seeded legacy data** (before migration). Reuse the top-level `e2e/`
-  legacy specs / parity oracle where one exists for that screen; author a minimal
-  drive only if none does. Bring up the legacy SPA (the top-level `e2e/` harness
-  knows how) — the proof chain already has legacy FLS up for seeding.
-- **AlpenFlight video:** the gate's real-chain run on the **migrated data**.
-
-Same data lineage (seed → migrate) makes the two visually comparable. This pair
-is a **review aid, not a pass/fail** — the AlpenFlight real-chain green remains
-the gate; the legacy video just accompanies it. Greenfield/freemium journeys
-have no legacy counterpart → ship the AlpenFlight video alone and note "no legacy
-counterpart."
+- **Paired videos.** When the journey has a legacy counterpart, capture two
+  videos at the gate so the operator can eyeball UI parity: the legacy `flsweb`
+  drive on the **seeded** data + the AlpenFlight real-chain run on the
+  **migrated** data. Same data lineage → comparable. Reuse the top-level `e2e/`
+  legacy specs where they exist; author a minimal drive only if none does. A
+  **review aid, not a pass/fail** — the AlpenFlight green is the gate. Greenfield
+  → AlpenFlight video alone, note "no legacy counterpart."
+- **Two parallel jobs.** Own the journey-gate workflow under `.github/workflows/`:
+  `alpenflight-proof` (required check; brings up legacy→seed→migrate→real,
+  uploads the pass video) and `parity-legacy-video` (non-blocking; legacy
+  FLS+`flsweb` drive on the same fixture, uploads the legacy video). Both seed
+  independently from the **deterministic** fixture, so they run in parallel with
+  no shared state.
+- **Helper tags.** An e2e case that exercises *logic / an error case* rather than
+  UI↔backend↔DB wiring is a **helper**: tag it `@helper` with a `covered-by:
+  <IntegrationTest>` pointer to the cheaper test that should own it. NEVER tag the
+  journey's wiring / happy-path spec as a helper — that one is irreplaceable.
+  `/do-retro` prunes verified helpers (the cheaper test exists + passes).
 
 ## Proof-chain rules
 

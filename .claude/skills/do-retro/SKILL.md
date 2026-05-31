@@ -63,6 +63,13 @@ Scan the journeys shipped since the last retro. For each, look for the
    - **Update** stale memories whose facts the recent work changed.
    - **Compact** redundant/overlapping memories into one.
    Follow the memory-file convention (frontmatter + `MEMORY.md` pointer).
+5. **Prune verified helper e2e.** Scan e2e specs tagged `@helper` with a
+   `covered-by: <IntegrationTest>` pointer. For each, verify the named
+   integration/unit test **exists and passes**; if so, delete the e2e helper and
+   report it (the tag is the author's pre-authorization; the deletion is
+   reversible via git). Keeps the expensive e2e suite to wiring + happy paths as
+   cheaper tests take over the logic/error cases. Never touch un-tagged or
+   wiring/happy-path specs.
 
 ## Coexist-then-retire (the modernize-* sunset)
 

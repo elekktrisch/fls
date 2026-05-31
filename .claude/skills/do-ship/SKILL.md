@@ -102,7 +102,9 @@ green, **video retained on pass**. When the journey has a legacy counterpart,
 `e2e-driver` also captures a **legacy `flsweb` video** of the same journey on the
 seeded data — a **parity-review aid for the operator, not a pass/fail** (the
 AlpenFlight green stays the gate). Greenfield journeys ship the AlpenFlight video
-alone. For **Journey-0** (`journey0: true`) the gate work is itself the tasks:
+alone. On the PR these run as **two parallel CI jobs** — `alpenflight-proof`
+(required) + `parity-legacy-video` (non-blocking artifact), `e2e-driver` owns the
+workflow. For **Journey-0** (`journey0: true`) the gate work is itself the tasks:
 stand up the thinnest whole chain for this one screen.
 
 **Mock governance.** Happy + key-error cases run fully real — no mocking. Any
