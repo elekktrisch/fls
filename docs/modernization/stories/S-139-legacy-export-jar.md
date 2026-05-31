@@ -2,7 +2,8 @@
 id: S-139
 title: Legacy FLS export tool — single-file Java JAR (build + CLI + JDBC + bundle writer + hybrid encrypt)
 epic: E-15
-status: todo
+status: in_progress
+started_at: 2026-05-31
 depends_on: [S-016, S-140, S-141, S-187a]
 integration_base: integration/migration
 refined: true
