@@ -299,7 +299,12 @@ jobs:
           # password into the uploaded backend.log artifact.
           LOGGING_LEVEL_ROOT: INFO
         run: |
-          nohup java -jar build/libs/server-*.jar > backend.log 2>&1 &
+          # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
+          # not "server" — and the plain `jar` task also emits a non-executable
+          # *-plain.jar. Resolve the executable boot jar by excluding -plain.
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          echo "Starting backend from: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
           echo "$!" > backend.pid
 
       - name: Wait for backend /actuator/health
