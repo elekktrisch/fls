@@ -64,8 +64,8 @@ Build only this task. Typical task shapes:
   mapper (lean on `e2e-driver` if the wiring is gnarly).
 - **Spec stub / thicken:** author or fill the journey's Playwright spec. Tag any
   e2e case that tests *logic / an error path* (not UI↔backend↔DB wiring) as a
-  helper — `@helper` + `covered-by: <IntegrationTest>` — so `/do-retro` can prune
-  it once the cheaper test exists. Never tag the wiring / happy-path spec.
+  helper — `@helper` + `covered-by: <IntegrationTest>` — so `/do-retro` can file
+  a pruning story once the cheaper test exists. Never tag the wiring/happy-path spec.
 
 Iterate to local green against the fast inner loop (mock-auth + Testcontainers,
 or `page.route` mocks for FE-only). Honor the ≥5-min wallclock budget — surface

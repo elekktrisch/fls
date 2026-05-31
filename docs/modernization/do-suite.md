@@ -80,9 +80,9 @@ AlpenFlight video alone.
   `alpenflight-proof` (required) + `parity-legacy-video` (non-blocking artifact),
   seeded independently from the deterministic fixture.
 - **Helper-test lifecycle:** e2e cases that test logic/error paths (not wiring)
-  are tagged `@helper` + `covered-by: <IntegrationTest>`; `/do-retro` deletes a
-  helper once that cheaper test exists and passes, keeping the e2e suite to
-  wiring + happy paths.
+  are tagged `@helper` + `covered-by: <IntegrationTest>`; `/do-retro` files a
+  pruning story once that cheaper test exists and passes (deletion is project
+  code → `/do-ship` does it), keeping the e2e suite to wiring + happy paths.
 - [ADR 0022](adrs/0022-modernization-primary-directives.md) governs unchanged:
   working software > docs; business logic on aggregates, not the schema.
 

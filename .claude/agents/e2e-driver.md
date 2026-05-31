@@ -46,7 +46,8 @@ invent a parallel convention.
   UI↔backend↔DB wiring is a **helper**: tag it `@helper` with a `covered-by:
   <IntegrationTest>` pointer to the cheaper test that should own it. NEVER tag the
   journey's wiring / happy-path spec as a helper — that one is irreplaceable.
-  `/do-retro` prunes verified helpers (the cheaper test exists + passes).
+  `/do-retro` files a pruning story for verified helpers (cheaper test exists +
+  passes); `/do-ship` does the actual deletion.
 
 ## Proof-chain rules
 

@@ -9,6 +9,12 @@ After a batch of journeys ship, digest what they taught and feed it back into
 the tooling, the architecture, the backlog, and memory. This is the only
 do-* skill that changes the suite itself.
 
+**Scope boundary — workflow + stories only, never project code.** `/do-retro`
+edits the do-* skills/agents, curates memory, and *files* stories +
+ADR-amendment proposals. It does **not** touch application code, tests, specs,
+or migrations — anything that needs a project-code change is **filed as a story**
+for `/do-ship` to execute, never done here.
+
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 Per directive 1: skills/agents exist to ship behavior — improve them when they
 got in the way, not to polish prose.
@@ -63,13 +69,13 @@ Scan the journeys shipped since the last retro. For each, look for the
    - **Update** stale memories whose facts the recent work changed.
    - **Compact** redundant/overlapping memories into one.
    Follow the memory-file convention (frontmatter + `MEMORY.md` pointer).
-5. **Prune verified helper e2e.** Scan e2e specs tagged `@helper` with a
-   `covered-by: <IntegrationTest>` pointer. For each, verify the named
-   integration/unit test **exists and passes**; if so, delete the e2e helper and
-   report it (the tag is the author's pre-authorization; the deletion is
-   reversible via git). Keeps the expensive e2e suite to wiring + happy paths as
-   cheaper tests take over the logic/error cases. Never touch un-tagged or
-   wiring/happy-path specs.
+5. **File a helper-e2e pruning story.** Scan (read-only) e2e specs tagged
+   `@helper` with a `covered-by: <IntegrationTest>` pointer; for each, verify the
+   named integration/unit test **exists and passes**. Enumerate the now-redundant
+   helpers and **file one pruning story** listing them (the actual deletion is a
+   project-code change → `/do-ship` does it). Keeps the expensive e2e suite to
+   wiring + happy paths as cheaper tests take over the logic/error cases. Never
+   delete a spec here; never list un-tagged or wiring/happy-path specs.
 
 ## Coexist-then-retire (the modernize-* sunset)
 
@@ -110,5 +116,6 @@ the modernize-* cleanup journey was filed and why.
 
 ## Not in scope
 
-Implementing the journeys it files (that's `/do-ship`), carving the roadmap
-(that's `/do-plan`), merging PRs, auto-applying ADR changes.
+Editing project code — application code, tests, specs, or migrations (filed as
+stories for `/do-ship`); implementing the journeys it files (that's `/do-ship`);
+carving the roadmap (that's `/do-plan`); merging PRs; auto-applying ADR changes.
