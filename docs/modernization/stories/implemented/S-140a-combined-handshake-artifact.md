@@ -5,6 +5,8 @@ epic: E-15
 status: done
 started_at: 2026-05-31
 done_at: 2026-05-31
+merged: true
+merged_at: 2026-05-31
 depends_on: [S-140]
 integration_base: integration/migration
 origin: refinement-followup
