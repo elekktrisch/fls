@@ -451,9 +451,19 @@ public class MigrationBundleIngestService {
                     BundleIngestErrorCode.BUNDLE_TAR_PARSE_FAILED,
                     "Bundle tar / gzip read failed", tarFailure);
         } catch (SQLException sql) {
+            // Include the SQLState + first message line so 500s carry
+            // enough detail for an ops engineer to triage without diving
+            // into the server logs. Subsequent newlines stay redacted —
+            // hostile bundle bytes must not influence the response body.
+            String sqlMessage = sql.getMessage() == null
+                    ? "(no SQL message)"
+                    : sql.getMessage().split("\\R", 2)[0];
+            String state = sql.getSQLState() == null ? "?" : sql.getSQLState();
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Database error during ingest", sql);
+                    "Database error during ingest [sqlstate=" + state
+                            + "]: " + sqlMessage,
+                    sql);
         }
     }
 
