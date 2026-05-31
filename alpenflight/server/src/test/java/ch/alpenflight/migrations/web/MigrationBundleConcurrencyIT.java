@@ -4,14 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.migrations.domain.MigrationBundleCipher;
-import ch.alpenflight.migrations.domain.MigrationUpload;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.PersistenceContext;
 import java.net.URI;
 import java.util.Base64;
 import java.util.UUID;
@@ -65,7 +61,6 @@ class MigrationBundleConcurrencyIT extends PostgresIntegrationTest {
     @Autowired JwtTestFixture jwts;
     @Autowired MigrationBundleCipher cipher;
     @Autowired PlatformTransactionManager txManager;
-    @PersistenceContext EntityManager entityManager;
 
     private UUID userId;
     private UUID userSub;
@@ -133,12 +128,14 @@ class MigrationBundleConcurrencyIT extends PostgresIntegrationTest {
         Thread lockHolder = new Thread(() -> {
             TransactionTemplate template = new TransactionTemplate(txManager);
             template.execute(status -> {
-                entityManager.createQuery(
-                                "select u from MigrationUpload u where u.id = :id",
-                                MigrationUpload.class)
-                        .setParameter("id", uploadId)
-                        .setLockMode(LockModeType.PESSIMISTIC_WRITE)
-                        .getSingleResult();
+                // Native SQL with explicit FOR UPDATE — same pessimistic
+                // row lock the orchestrator's lockUpload takes via JPA's
+                // PESSIMISTIC_WRITE hint, without the JPQL the project's
+                // bare-table-name linter (FixtureTableNamingConventionTest)
+                // does not understand.
+                jdbc.queryForMap(
+                        "SELECT id FROM t_migration_upload WHERE id = ?::uuid FOR UPDATE",
+                        uploadId.toString());
                 lockAcquired.countDown();
                 try {
                     releaseLock.await(10, TimeUnit.SECONDS);

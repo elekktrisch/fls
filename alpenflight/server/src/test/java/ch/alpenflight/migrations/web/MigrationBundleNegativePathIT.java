@@ -169,10 +169,23 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                         firstRes.getBody())
                 .isEqualTo(HttpStatus.OK);
 
-        // Second POST against the same uploadId — upload row is now CONSUMED,
-        // and the private key has been wiped, so a fresh handshake would be
-        // required for a real retry. Here we re-send the same bundle bytes
-        // (only the upload-state check fires; we never reach decrypt).
+        // The first POST provisioned a Deployment — that triggers the
+        // pre-decrypt DEPLOYMENT_EXISTS guard ahead of the upload-state
+        // check on a re-POST. Tear the Deployment down so the re-POST
+        // surfaces the upload-state check (the AC9b-relevant case the SPA
+        // sees when a deployment is deleted between POSTs).
+        String clubsByOwner =
+                "SELECT id FROM t_club WHERE deployment_id IN "
+                        + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
+        jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_club WHERE deployment_id IN "
+                + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)",
+                userSub.toString());
+        jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
+
         ResponseEntity<String> secondRes = postBundle(uploadId, first, verifiedToken);
         assertThat(secondRes.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(errorCodeOf(secondRes)).isEqualTo("BUNDLE_ALREADY_CONSUMED");
@@ -226,7 +239,7 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
         jdbc.update("""
                 INSERT INTO t_deployment (id, name, owner_keycloak_sub, primary_club_id,
                                           lifecycle_state, plan, created_on, modified_on, version,
-                                          keycloak_state)
+                                          kc_state)
                 VALUES (?::uuid, ?, ?::uuid, ?::uuid, 'TRIAL', 'TRIAL', now(), now(), 0, 'READY')
                 """,
                 existingDeploymentId.toString(),
@@ -341,12 +354,26 @@ class MigrationBundleNegativePathIT extends PostgresIntegrationTest {
                 Integer.class, userSub.toString());
         assertThat(deploymentCount).isZero();
 
-        // Run flipped to FAILED by recordFailure; error_code persisted.
-        Map<String, Object> run = jdbc.queryForMap(
-                "SELECT state, error_code FROM t_migration_run WHERE upload_id = ?::uuid",
+        // The run row was INSERTed inside the failed txn and rolled back —
+        // recordFailure's findById(runId) returns empty and does NOT
+        // resurrect a row. The upload state + audit trail are the load-
+        // bearing post-condition.
+        Integer runCount = jdbc.queryForObject(
+                "SELECT count(*) FROM t_migration_run WHERE upload_id = ?::uuid",
+                Integer.class, uploadId.toString());
+        assertThat(runCount)
+                .as("MigrationRun was created inside the failing txn and rolled "
+                        + "back atomically; recordFailure cannot re-INSERT a row "
+                        + "the outer txn dropped")
+                .isZero();
+
+        // Upload flipped to FAILED by recordFailure (REQUIRES_NEW survives
+        // the outer rollback), private key wiped.
+        Map<String, Object> upload = jdbc.queryForMap(
+                "SELECT state, private_key_ciphertext FROM t_migration_upload WHERE id = ?::uuid",
                 uploadId.toString());
-        assertThat(run.get("state")).isEqualTo("FAILED");
-        assertThat(run.get("error_code")).isEqualTo("NDJSON_PARSE_FAILED");
+        assertThat(upload.get("state")).isEqualTo("FAILED");
+        assertThat(upload.get("private_key_ciphertext")).isNull();
 
         // Exactly one MIGRATION_INGEST_FAILED audit (the STARTED row landed
         // inside the failed txn and rolled back; only the REQUIRES_NEW

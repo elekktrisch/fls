@@ -40,16 +40,16 @@ final class BundleStreamReader {
      */
     BundleHeader readHeader(InputStream encryptedBody) {
         byte[] fixedPrefix = readExactly(encryptedBody, BundleHeader.FIXED_PREFIX_BYTES);
-        int wrappedKeyLen = BundleHeader.peekWrappedKeyLen(fixedPrefix);
-        if (wrappedKeyLen > BundleHeader.MAX_WRAPPED_KEY_LEN || wrappedKeyLen <= 0) {
-            throw new BundleHeader.MalformedHeaderException(
-                    "wrappedKeyLen out of range: " + wrappedKeyLen);
-        }
-        byte[] wrappedKey = readExactly(encryptedBody, wrappedKeyLen);
-        byte[] fullHeader = new byte[fixedPrefix.length + wrappedKey.length];
-        System.arraycopy(fixedPrefix, 0, fullHeader, 0, fixedPrefix.length);
-        System.arraycopy(wrappedKey, 0, fullHeader, fixedPrefix.length, wrappedKey.length);
         try {
+            int wrappedKeyLen = BundleHeader.peekWrappedKeyLen(fixedPrefix);
+            if (wrappedKeyLen > BundleHeader.MAX_WRAPPED_KEY_LEN || wrappedKeyLen <= 0) {
+                throw new BundleHeader.MalformedHeaderException(
+                        "wrappedKeyLen out of range: " + wrappedKeyLen);
+            }
+            byte[] wrappedKey = readExactly(encryptedBody, wrappedKeyLen);
+            byte[] fullHeader = new byte[fixedPrefix.length + wrappedKey.length];
+            System.arraycopy(fixedPrefix, 0, fullHeader, 0, fixedPrefix.length);
+            System.arraycopy(wrappedKey, 0, fullHeader, fixedPrefix.length, wrappedKey.length);
             return BundleHeader.parse(fullHeader);
         } catch (BundleHeader.MalformedHeaderException malformed) {
             throw new BundleIngestException(
