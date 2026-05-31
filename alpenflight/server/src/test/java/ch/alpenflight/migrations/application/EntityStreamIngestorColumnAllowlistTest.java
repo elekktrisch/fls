@@ -1,0 +1,95 @@
+package ch.alpenflight.migrations.application;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.KnownMappers;
+import ch.alpenflight.migration.bundle.Mapper;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+/**
+ * S-141b column-name allow-list. The {@link EntityStreamIngestor}
+ * constructor runs the gate against every registered {@link Mapper}'s
+ * column list — the production wiring fails Spring boot on any column
+ * outside {@code [A-Za-z0-9_]+}. Defense-in-depth against a future mapper
+ * PR (or a tampered classpath) injecting through the INSERT-string builder.
+ */
+class EntityStreamIngestorColumnAllowlistTest {
+
+    @Test
+    void known_mappers_all_pass_the_column_allowlist() {
+        // Boot-time invariant: the shipped registry never violates the
+        // allow-list. If this test regresses, Spring boot itself would also
+        // refuse to start in production — caught here at unit speed.
+        assertThat(new EntityStreamIngestor(KnownMappers.all())).isNotNull();
+    }
+
+    @Test
+    void mapper_with_quote_in_column_fails_construction() {
+        Mapper offending = new FixedColumnsMapper(new String[] {"id", "username\""});
+        assertThatThrownBy(() -> new EntityStreamIngestor(List.of(offending)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(offending.entityType().name())
+                .hasMessageContaining("username\"")
+                .hasMessageContaining("[A-Za-z0-9_]+ allowlist");
+    }
+
+    @Test
+    void mapper_with_dash_in_column_fails_construction() {
+        Mapper offending = new FixedColumnsMapper(new String[] {"id", "club-id"});
+        assertThatThrownBy(() -> new EntityStreamIngestor(List.of(offending)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("club-id");
+    }
+
+    @Test
+    void mapper_with_null_column_fails_construction() {
+        Mapper offending = new FixedColumnsMapper(new String[] {"id", null});
+        assertThatThrownBy(() -> new EntityStreamIngestor(List.of(offending)))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    /** Test-only mapper that returns whatever column list the test supplies. */
+    private static final class FixedColumnsMapper implements Mapper {
+
+        private final String[] columns;
+
+        FixedColumnsMapper(String[] columns) {
+            this.columns = columns;
+        }
+
+        @Override
+        public EntityType entityType() {
+            // Pick any entity — the constructor only iterates columns.
+            return EntityType.COUNTRY;
+        }
+
+        @Override
+        public String[] columns() {
+            return columns.clone();
+        }
+
+        @Override
+        public List<EntityType> foreignKeys() {
+            return List.of();
+        }
+
+        @Override
+        public void writeNdjson(ResultSet source, JsonGenerator target) {
+            throw new UnsupportedOperationException("fixture");
+        }
+
+        @Override
+        public void readEntity(JsonNode source, PreparedStatement target) throws SQLException {
+            throw new UnsupportedOperationException("fixture");
+        }
+    }
+}

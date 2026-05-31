@@ -56,3 +56,10 @@ alpenflight:
   migration:
     master-keyset:
       source: EPHEMERAL
+    ingest:
+      # S-141b — raise the global gate from prod's permits=1 to 100 in the
+      # IT profile so the per-upload PESSIMISTIC_WRITE row-lock 409
+      # (BUNDLE_INGEST_IN_PROGRESS) is testable without the global gate
+      # short-circuiting to 429 DATABASE_CAPACITY_EXCEEDED. Production
+      # heap-cap reasoning does not apply to a CI test runner.
+      global-permits: 100
