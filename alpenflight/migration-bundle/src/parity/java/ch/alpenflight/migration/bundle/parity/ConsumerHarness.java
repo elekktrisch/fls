@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.parity;
 
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.MapperLegacyBindings;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.sql.Connection;

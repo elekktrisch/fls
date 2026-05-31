@@ -1,7 +1,7 @@
-package ch.alpenflight.migrations.domain;
+package ch.alpenflight.migration.bundle.crypto;
 
 /**
- * Parsed S-141 bundle envelope header. Wire format (big-endian):
+ * Parsed ALPF bundle envelope header. Wire format (big-endian):
  *
  * <pre>
  *   MAGIC                "ALPF"  4 B

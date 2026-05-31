@@ -58,6 +58,15 @@ dependencies {
     // runtime auto-config is needed in this library jar.
     compileOnly("org.springframework.modulith:spring-modulith-api:2.0.4")
 
+    // S-139: the ALPF crypto envelope (relocated from server) lives in
+    // ch.alpenflight.migration.bundle.crypto so the standalone export jar
+    // can reuse it. Tink owns the StreamingAead body + the RSA-OAEP
+    // session-key wrap. Same version + error_prone_annotations exclude as
+    // server (compile-only marker annotations would trip failOnVersionConflict()).
+    implementation("com.google.crypto.tink:tink:1.18.0") {
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+    }
+
     testImplementation(platform("org.junit:junit-bom:5.11.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

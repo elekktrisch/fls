@@ -1,13 +1,13 @@
-package ch.alpenflight.migrations.domain;
+package ch.alpenflight.migration.bundle.crypto;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.UUID;
 
 /**
- * Port over the bundle-level cryptographic envelope (S-141). Distinct
- * from {@link MigrationCryptoService} (which wraps the per-upload RSA
- * private key under the server master keyset): this port owns the
+ * Port over the bundle-level cryptographic envelope. Distinct from the
+ * server's per-upload key-management service (which wraps the per-upload
+ * RSA private key under the server master keyset): this port owns the
  * <em>body</em> path — RSA-OAEP unwrap of the ephemeral AES-256 session
  * key + Tink StreamingAead framed body decrypt.
  *

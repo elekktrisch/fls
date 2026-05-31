@@ -3,6 +3,7 @@ package ch.alpenflight.migrations.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
+import ch.alpenflight.migration.bundle.crypto.BundleHeader;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link BundleHeader} wire-format parser. */

@@ -70,21 +70,31 @@ jobs:
           else
             echo "web=false" >> $GITHUB_OUTPUT
           fi
+          if [ -f alpenflight/migration-tool/build.gradle.kts ]; then
+            echo "migration_tool=true" >> $GITHUB_OUTPUT
+          else
+            echo "migration_tool=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up JDK 25
-        if: steps.detect.outputs.server == 'true'
+        if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: temurin
 
       - name: Set up Gradle
-        if: steps.detect.outputs.server == 'true'
+        if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build alpenflight/server
         if: steps.detect.outputs.server == 'true'
         working-directory: alpenflight/server
+        run: ./gradlew build --no-daemon
+
+      - name: Build alpenflight/migration-tool
+        if: steps.detect.outputs.migration_tool == 'true'
+        working-directory: alpenflight/migration-tool
         run: ./gradlew build --no-daemon
 
       - name: Set up Node 22
