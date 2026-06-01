@@ -29,7 +29,7 @@ CI/workflow (no backend/domain/frontend). Shared contract: a **`preview` step
 (`alpenflight/proof-preview/<sanitized-head-ref>`) and `url` (full
 `https://elekktrisch.github.io/fls/<subdir>/`); T-02/T-03 consume them.
 
-- [ ] **T-01 — Per-PR preview publish + clickable link** (`.github/workflows/ci.yml`, `alpenflight-proof` job).
+- [x] **T-01 — Per-PR preview publish + clickable link** (`.github/workflows/ci.yml`, `alpenflight-proof` job).
   Add: (a) a `preview` step that sanitizes `github.head_ref` (`/`→`-`, strip non-`[A-Za-z0-9._-]`) and emits `subdir` + `url`; (b) a 2nd `peaceiris/actions-gh-pages@v4` deploy gated `github.event_name == 'pull_request' && steps.gallery.outcome == 'success'`, `publish_dir: public/alpenflight/proof`, `destination_dir: ${{ steps.preview.outputs.subdir }}`, `keep_files: true`; (c) a preview-scoped `concurrency` group keyed on `github.head_ref` (cancel-in-progress); (d) a sticky PR comment (upsert by hidden marker) + `$GITHUB_STEP_SUMMARY` line carrying `steps.preview.outputs.url`. Leave the canonical `main` deploy untouched. Validate YAML. One workflow edit.
 
 - [ ] **T-02 — Live link-check gate** (`.github/workflows/ci.yml`, `alpenflight-proof` job).

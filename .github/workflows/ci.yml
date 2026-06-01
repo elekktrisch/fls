@@ -198,11 +198,14 @@ jobs:
     if: needs.changes.outputs.next == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    # `contents: write` lets the main-gated gh-pages deploy step push the
-    # proof gallery to the gh-pages branch (mirrors alpenflight-e2e.yml).
-    # Without it the deploy fails with 403; the rest of the job needs read.
+    # `contents: write` lets the gh-pages deploy steps push the proof gallery
+    # to the gh-pages branch (mirrors alpenflight-e2e.yml). Without it the
+    # deploy fails with 403; the rest of the job needs read.
+    # `pull-requests: write` (J-25) lets the preview step post/update the
+    # sticky PR comment carrying the per-branch preview URL.
     permissions:
       contents: write
+      pull-requests: write
     env:
       E2E_REAL_IDP: '1'
     steps:
@@ -351,6 +354,29 @@ jobs:
             --out ../../public/alpenflight/proof \
             --order ../../docs/modernization/stories/_ORDER.md
 
+      # J-25 — compute the per-PR preview destination + clickable URL.
+      # PR-only. Sanitize github.head_ref (the PR source branch, e.g.
+      # `integration/J-26`): replace `/` and any non-[A-Za-z0-9._-] char with
+      # `-` (so `integration/J-26` → `integration-J-26`). Emit the gh-pages
+      # subdir + the full GitHub Pages URL as step outputs for the preview
+      # deploy + the sticky comment / step-summary to consume. The repo is
+      # elekktrisch/fls → project Pages base is https://elekktrisch.github.io/fls/
+      # (matches J-24's published /alpenflight/proof/ base).
+      - name: Compute proof-preview destination
+        id: preview
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}"
+          url="https://elekktrisch.github.io/fls/${subdir}/"
+          {
+            echo "subdir=${subdir}"
+            echo "url=${url}"
+          } >> "$GITHUB_OUTPUT"
+          echo "proof preview → ${url}"
+
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -397,6 +423,68 @@ jobs:
           keep_files: true
           enable_jekyll: false
           commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      # J-25 — per-PR preview deploy. PR-only + gallery-success-gated (a red
+      # run produces no valid gallery, so don't publish a broken preview).
+      # Publishes the SAME generated gallery (public/alpenflight/proof) to a
+      # per-branch subpath under gh-pages: alpenflight/proof-preview/<ref>/.
+      # keep_files: true + the disjoint per-branch destination_dir mean this
+      # NEVER touches the canonical /alpenflight/proof/ (main) or /alpenflight/
+      # (e2e dashboard) — and a second branch's preview can't clobber this one.
+      # Self-clobber on a branch's own rapid re-pushes is already prevented by
+      # the workflow-level `concurrency: ci-${{ github.ref }}` (cancel-in-progress)
+      # group, which cancels the prior run before its preview deploy lands; a
+      # job-level group keyed on head_ref would OVERRIDE that inherited group
+      # (and head_ref is empty on push, breaking main runs), so we intentionally
+      # do NOT add one — see the journey note.
+      - name: Deploy proof preview to gh-pages (PR)
+        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/alpenflight/proof
+          destination_dir: ${{ steps.preview.outputs.subdir }}
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
+
+      # J-25 — surface the clickable preview URL. Always-on $GITHUB_STEP_SUMMARY
+      # line (no PR-write token needed — the fallback for fork PRs) PLUS a
+      # sticky PR comment upserted by a hidden HTML marker (find-and-update via
+      # github-script, so re-runs update one comment instead of spamming).
+      # Both gated on the preview deploy having published (PR + gallery green).
+      - name: Surface preview URL (step summary)
+        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        run: |
+          {
+            echo "### Proof gallery preview"
+            echo ""
+            echo "[$PREVIEW_URL]($PREVIEW_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+
+      - name: Upsert sticky preview comment
+        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- proof-preview -->';
+            const body = `${marker}\n### Proof gallery preview\n\n[${process.env.PREVIEW_URL}](${process.env.PREVIEW_URL})\n\n_Updates in place on each green proof run for this branch._`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
       - name: Stop backend
         if: always()
