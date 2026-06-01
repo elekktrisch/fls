@@ -56,7 +56,7 @@ Ordered, one seam each. Workers commit directly to `integration/J-24`.
   reporter list in `playwright.config.ts`. Retrofit the 3 tests in
   `locations-crud-tenant-isolation.spec.ts` to call it. Depends on T-01 (format).
 
-- [ ] **T-04 — Publish wiring (every run builds + link-checks; main publishes).**
+- [x] **T-04 — Publish wiring (every run builds + link-checks; main publishes).**
   In `.github/workflows/ci.yml` `alpenflight-proof` job: add an `always()` generate
   step that runs the generator over `test-results` + `proof-manifest.json` →
   `public/alpenflight/proof/` (link-check fails the run red on a missing
