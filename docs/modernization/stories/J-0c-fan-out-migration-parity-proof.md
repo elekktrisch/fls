@@ -2,7 +2,8 @@
 id: J-0c
 title: Fan-out migration parity proof — legacy→migrate+Keycloak→AlpenFlight (UI + video)
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-06-01
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
