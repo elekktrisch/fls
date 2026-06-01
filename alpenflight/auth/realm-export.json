@@ -1673,7 +1673,7 @@
       "directAccessGrantsEnabled": false,
       "enabled": true,
       "frontchannelLogout": false,
-      "fullScopeAllowed": false,
+      "fullScopeAllowed": true,
       "id": "00000000-0000-0000-0000-000000000004",
       "implicitFlowEnabled": false,
       "name": "AlpenFlight backend → Keycloak admin (machine client)",
@@ -3277,6 +3277,7 @@
           "manage-realm",
           "manage-users",
           "query-users",
+          "view-realm",
           "view-users"
         ]
       },
