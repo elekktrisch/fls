@@ -66,7 +66,7 @@ Ordered, one seam each. Workers commit directly to `integration/J-24`.
   "Proof gallery" card/link to `.github/pages/alpenflight-index.html` Reports
   section. Depends on T-01 + T-03.
 
-- [ ] **T-05 — Gate-red fix: manifest path + lock AC5 + publish-on-green.** *(appended at the proof gate — the real proof run went red.)*
+- [x] **T-05 — Gate-red fix: manifest path + lock AC5 + publish-on-green.** *(appended at the proof gate — the real proof run went red.)*
   The real `alpenflight-proof` run passed the real-idp spec (4 passed) but the
   generate step `ENOENT`'d on `test-results/proof-manifest.json`: Playwright resolves
   a config-level `outputFile` against **configDir** (`alpenflight/web/e2e`, verified

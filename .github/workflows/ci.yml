@@ -342,6 +342,7 @@ jobs:
       # generator exits non-zero on a missing caption / missing .webm (AC5
       # link-check) — that MUST fail the job, so no `|| true` swallow here.
       - name: Build + link-check proof gallery
+        id: gallery
         if: always()
         working-directory: alpenflight/web
         run: |
@@ -380,11 +381,14 @@ jobs:
       # Publish the proof gallery to gh-pages — main only (carve decision 2:
       # build + link-check every run above; publish on merge). Mirrors the
       # main-gated deploy in alpenflight-e2e.yml (keep_files: true so it
-      # coexists with the e2e dashboard under /alpenflight/). `always()` keeps
-      # it alive on red so a green-then-red sequence still republishes; the
-      # generate step above already gates the run red on a broken gallery.
+      # coexists with the e2e dashboard under /alpenflight/). Gated on the
+      # generate step having SUCCEEDED (`steps.gallery.outcome == 'success'`),
+      # not `always()`: a red run (spec failure OR an AC5 link-check failure)
+      # must NOT re-push stale/broken proofs over the live gallery. The
+      # generate step itself still runs on `always()` above so a red run still
+      # fails the job — we only suppress the publish, not the gate.
       - name: Deploy proof gallery to gh-pages
-        if: ${{ always() && github.ref == 'refs/heads/main' }}
+        if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

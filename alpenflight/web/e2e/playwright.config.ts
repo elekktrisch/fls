@@ -27,14 +27,23 @@ export default defineConfig({
   // The mock chromium PR run produces this file with no proof-* annotations,
   // which the generator tolerates as "no proofs"; it does not break the
   // github/html reporters (Playwright runs all listed reporters).
-  // Path: `test-results/proof-manifest.json` (relative to the Playwright cwd,
-  // i.e. `alpenflight/web/`). T-04's `alpenflight-proof` job passes this exact
-  // path to the generator (alongside the `test-results/` videos dir).
+  // Path resolution: Playwright resolves a config-level reporter `outputFile`
+  // against the CONFIG DIR — the dir holding THIS config file, i.e.
+  // `alpenflight/web/e2e/` — NOT the process cwd (verified in the installed
+  // source: `runner/index.js` `resolveOutputFile` →
+  // `path.resolve(options.configDir, options.outputFile)`). So the leading
+  // `../` is required: `e2e/` + `../test-results/proof-manifest.json` lands the
+  // manifest at `alpenflight/web/test-results/proof-manifest.json` — co-located
+  // with the `test-results/` videos + the proof artifact upload path, and
+  // byte-identical to what the `alpenflight-proof` generate step reads (cwd
+  // `alpenflight/web` + `test-results/proof-manifest.json`). Without the `../`
+  // the manifest would land at `e2e/test-results/` and the generate step would
+  // ENOENT (the real gate-red this T-05 fixes).
   reporter: process.env['CI']
     ? [
         ['github'],
         ['html', { open: 'never' }],
-        ['json', { outputFile: 'test-results/proof-manifest.json' }],
+        ['json', { outputFile: '../test-results/proof-manifest.json' }],
       ]
     : 'html',
   use: {

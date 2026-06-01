@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -40,7 +40,7 @@ async function loadGenerator(): Promise<{
     outDir: string;
     orderPath?: string;
     branch?: string;
-  }) => { outFile: string; proofs: Array<{ journey: string }>; roadmap: string[] };
+  }) => { outFile: string; proofs: { journey: string }[]; roadmap: string[] };
 }> {
   const url = pathToFileURL(resolve(PROOF_GALLERY, 'generate-gallery.mjs')).href;
   return import(url);
@@ -135,5 +135,73 @@ test.describe('J-24 proof-video gallery', () => {
       path: 'screenshots/proof-gallery/03-pending-journey.png',
       fullPage: true,
     });
+  });
+
+  // (d) [key-error] AC5 — the link-check. The generator MUST reject a published
+  // proof video that has (i) a missing/empty caption, or (ii) a caption (an
+  // attachment) referencing a `.webm` not present in the proof output. This
+  // exercises the generator's REAL code path (no mocking): we copy the committed
+  // fixture manifest + its `videos/`, tamper one entry in a temp dir, and assert
+  // `generateGallery` throws the AC5 error. This locks the [key-error] AC at the
+  // spec level — previously it was only enforced in the generator's own code.
+  test('[key-error] AC5 — generator throws on missing caption / missing .webm', async () => {
+    const { generateGallery } = await loadGenerator();
+
+    // Narrow shape of the bits of the Playwright JSON report the tampers touch
+    // (avoids `any` — CLAUDE.md §10). Only the fields the generator reads.
+    interface ManifestTest {
+      annotations?: { type: string; description?: string }[];
+      results: { attachments: { name: string; path?: string }[] }[];
+    }
+    interface Manifest {
+      suites: { specs: { tests: ManifestTest[] }[] }[];
+    }
+    const firstTest = (report: Manifest): ManifestTest => {
+      const t = report.suites[0]?.specs[0]?.tests[0];
+      if (!t) throw new Error('fixture manifest is missing its first proof test');
+      return t;
+    };
+
+    // Stage a tamperable copy of the fixtures: a manifest + its videos/ dir,
+    // co-located so the generator resolves attachment paths against it (it
+    // resolves `att.path` relative to the report file's dir).
+    const stage = (mutate: (report: Manifest) => void): string => {
+      const dir = mkdtempSync(resolve(tmpdir(), 'proof-gallery-ac5-'));
+      mkdirSync(resolve(dir, 'videos'), { recursive: true });
+      for (const name of [
+        'j0-tenant-isolation.webm',
+        'j0-cross-tenant-404.webm',
+        'j0-icao-per-club.webm',
+      ]) {
+        copyFileSync(resolve(FIXTURES, 'videos', name), resolve(dir, 'videos', name));
+      }
+      const report = JSON.parse(readFileSync(REPORT, 'utf8')) as Manifest;
+      mutate(report);
+      const tampered = resolve(dir, 'proof-manifest.json');
+      writeFileSync(tampered, JSON.stringify(report), 'utf8');
+      return tampered;
+    };
+
+    // (i) missing/empty caption — null out the proof-caption annotation.
+    const noCaption = stage((report) => {
+      const t = firstTest(report);
+      t.annotations = (t.annotations ?? []).filter((a) => a.type !== 'proof-caption');
+    });
+    expect(() =>
+      generateGallery({ reportPath: noCaption, outDir: mkdtempSync(resolve(tmpdir(), 'pg-out-')) }),
+    ).toThrow(/link-check failed \(AC5\)[\s\S]*no caption/);
+
+    // (ii) caption references a .webm not present in the proof output — repoint
+    // the attachment at a file that does not exist.
+    const missingWebm = stage((report) => {
+      const att = firstTest(report).results[0]?.attachments.find((a) => a.name === 'proof-video');
+      if (att) att.path = 'videos/does-not-exist.webm';
+    });
+    expect(() =>
+      generateGallery({
+        reportPath: missingWebm,
+        outDir: mkdtempSync(resolve(tmpdir(), 'pg-out-')),
+      }),
+    ).toThrow(/link-check failed \(AC5\)[\s\S]*not present in the proof output/);
   });
 });
