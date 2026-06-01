@@ -25,7 +25,7 @@ adr_refs: []
 
 Ordered, one seam each. Workers commit directly to `integration/J-24`.
 
-- [ ] **T-01 — Gallery generator + committed fixtures (defines the manifest format).**
+- [x] **T-01 — Gallery generator + committed fixtures (defines the manifest format).**
   New build-time Node generator `alpenflight/web/e2e/proof-gallery/generate-gallery.mjs`:
   reads a Playwright JSON report (the `['json']` reporter output) + its
   `proof-caption`/`proof-ac-tag`/`proof-journey` annotations + `proof-video`
