@@ -143,7 +143,15 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
     try {
       await loginAsClubAdmin(page, fixture.clubA);
 
-      // Capture the created Location id from the 201 response body.
+      // Wait on the 201 only as a save-completion signal — do NOT read its body
+      // here. The SPA navigates to /locations the instant the save resolves, and
+      // Chrome evicts the response body across that navigation, so a deferred
+      // `(await created).json()` races the navigation and intermittently throws
+      // `No data found for resource`. We derive the created Location id from the
+      // rendered list row's `data-testid="location-row-<loc-uuid>"` AFTER
+      // navigation instead — the id (`loc-<uuid>` external form, same form the
+      // 201 body carries and the cross-tenant GET path expects) is then read
+      // from stable DOM, immune to body eviction.
       const created = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
@@ -158,16 +166,24 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
       await page.getByTestId('locations-type-select').locator('nz-select').click();
       await page.locator('nz-option-item').first().click();
       await page.getByTestId('locations-save-button').click();
-
-      const body = (await (await created).json()) as { id: string };
-      // LocationId external form is `loc-<uuid>`.
-      clubALocationId = body.id;
+      await created;
 
       await expect(page).toHaveURL('/locations');
       await expect(page.getByTestId('locations-table')).toBeVisible();
-      await expect(
-        page.locator('[data-testid^="location-row-"]').filter({ hasText: 'Zurich (Club A)' }),
-      ).toBeVisible();
+      const clubARow = page
+        .locator('[data-testid^="location-row-"]')
+        .filter({ hasText: 'Zurich (Club A)' });
+      await expect(clubARow).toBeVisible();
+
+      // Read the id from the rendered row's testid (`location-row-loc-<uuid>`).
+      const rowTestId = await clubARow.getAttribute('data-testid');
+      expect(rowTestId, 'club A row must carry a location-row-<id> testid').toBeTruthy();
+      clubALocationId = rowTestId!.replace(/^location-row-/, '');
+      // External form is `loc-<uuid>` — sanity-guard the derived id.
+      expect(
+        clubALocationId,
+        `derived club A location id must be loc-<uuid> form, got "${clubALocationId}"`,
+      ).toMatch(/^loc-[0-9a-f-]{36}$/);
     } finally {
       // Finalize the .webm (flushed only on close) BEFORE binding it to its
       // proof caption — see `proofVideo` / e2e/proof-gallery/README.md.

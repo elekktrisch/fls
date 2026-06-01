@@ -79,7 +79,7 @@ Ordered, one seam each. Workers commit directly to `integration/J-24`.
   red run's proofs). Files: `playwright.config.ts`, `proof-gallery.spec.ts`,
   `.github/workflows/ci.yml`. Depends on T-04.
 
-- [ ] **T-06 — Gate-red fix #2: prettier + harden the J-0 real-idp source spec.** *(appended at the gate — T-05 fixed the manifest path; the generate step now builds the gallery, but the proof spec flaked → 0 videos.)*
+- [x] **T-06 — Gate-red fix #2: prettier + harden the J-0 real-idp source spec.** *(appended at the gate — T-05 fixed the manifest path; the generate step now builds the gallery, but the proof spec flaked → 0 videos.)*
   Build red on prettier `--check` of `proof-gallery.spec.ts` (T-05 left it unformatted) — `prettier --write`. AND the real-idp source spec (`locations-crud-tenant-isolation.spec.ts` + `_helpers/two-club-fixture.ts`) flaked two pre-existing races that starve the gallery of videos: (1) test 1 reads the POST-201 body via `(await created).json()` AFTER the SPA navigates → Chrome `No data found for resource`; (2) `provisionTwoClubs` doesn't clean up between retries → `createClubB failed (409)` on retry. Both passed 4/4 on the prior commit (T-04) — latent, not J-24-introduced. Harden WITHOUT weakening any assertion (the cross-tenant 404 / per-club ICAO / tenant-isolation invariants stay). **Surface to operator: this modifies the inherited J-0 spec.** Owned by `e2e-driver`. Depends on T-05.
 
 ## Context (why — operator ask, /do-retro 2026-06-01)
