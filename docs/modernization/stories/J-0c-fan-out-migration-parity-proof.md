@@ -138,3 +138,59 @@ publishes the video to the gallery, while the per-PR required gate for J-0c's
    flsweb create flow → ship-time `legacy-oracle`.
 5. The CLUB-pgcopy fix is **owned here** (J-0c) because J-0c is the first journey
    to ingest a real full bundle (incl. CLUB); J-21 inherits the fix.
+
+## Ship-time grounding (2026-06-01, decided)
+
+- **Keycloak approach = fork (a), feasible.** `USER` is a migrated `EntityType` and
+  there's a **JIT materializer** (`JitUserMaterializer`/`JitUserMaterializationFilter`,
+  S-169): a Keycloak identity carrying the migrated club's `clubId` claim
+  JIT-projects a `t_user` on first login — no pre-seeded user row needed. The server
+  has a reusable **`KeycloakAdminClient`** + `KeycloakDeploymentDirectoryAdapter`
+  (S-138), so provisioning a club-admin identity on migrate is a real slice, not a
+  full-S-028 rebuild.
+- **Build order de-risks the heavy legacy stack last:** land the IT-provable code
+  (CLUB-pgcopy, Keycloak slice) → prove the AlpenFlight UI half on a *synthesized*
+  migrated bundle (no legacy stack) → then the heavy legacy half (stack workflow +
+  create-flow spec + export) → wire the full chain + gallery. The legacy stack is
+  nightly-tier; `e2e-driver` owns the chain tasks and confirms the gate shape.
+
+## Tasks
+
+Ordered, one seam each. Code tasks → general-purpose `/do-task`; proof-chain/
+Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
+
+- [ ] **T-01 — CLUB-pgcopy collision fix.** `BundleWriter.assembleTarGz`
+  (`migration-tool`) emits a `legacy_id_map/CLUB.pgcopy` that collides with the
+  orchestrator's `seedClubLegacyIdMap` on `legacy_id_map_club_pkey` (T-10 finding).
+  Fix: producer **skips** the CLUB identity pgcopy (CLUB reconciles via
+  `seedClubLegacyIdMap`, not a bundle map) — or `copyLegacyIdMap` reconciles via
+  `ON CONFLICT`. Extend `LocationRealProducerRoundTripIT` to drive **CLUB** through
+  the real `assembleTarGz` green. *(seam: BundleWriter + IT; unblocks the real bundle)*
+- [ ] **T-02 — Keycloak-provision-on-migrate slice (minimal).** On ingest, after
+  `provisionDeployment`, provision a **Keycloak club-admin identity per migrated
+  club** (`clubId` attr = provisioned club UUID, `CLUB_ADMINISTRATOR` realm role,
+  `UPDATE_PASSWORD` action) reusing `KeycloakAdminClient`/`KeycloakDeploymentDirectory
+  Adapter`. NOT full S-028 (no bulk endpoint/UI/dry-run/mail/audit/role-map S-026).
+  *(seam: migration ingest service + Keycloak adapter; gap-hunter checks it stays a slice)*
+- [ ] **T-03 — AlpenFlight parity spec (synth bundle first).** `e2e-driver`: real-idp
+  Playwright `fan-out-migration-parity.spec.ts` — seed a **synthesized** fan-out
+  bundle via the real `/api/v1/migrations` endpoint (reuse J-0b's bundle-build) →
+  club-A admin logs in, sees migrated Location (random name); club-B sees its own;
+  rename A → B unchanged; cross-tenant GET 404. Annotated `proof-journey: J-0c`.
+  Proves the UI half WITHOUT the legacy stack (fast inner loop). *(seam: one spec)*
+- [ ] **T-04 — Legacy create-flow spec (flsweb).** `e2e-driver` (+ `legacy-oracle`
+  for the exact flow): Playwright against legacy `flsweb` `masterdata/locations/` —
+  create a random-named Location, set as `Clubs.HomebaseId` on 2 clubs; record the
+  legacy parity video. *(seam: one legacy spec)*
+- [ ] **T-05 — Legacy-stack proof workflow + export + full-chain wire.** `e2e-driver`:
+  a dedicated/nightly CI workflow — bring up MSSQL + `flsserver` + `flsweb` (reuse
+  `nightly.yml` builds + `extract.yml` MSSQL) → run T-04 (create + video) → run
+  `alpenflight-export` against the legacy MSSQL → POST the real bundle to AlpenFlight
+  migrate (+ T-02 Keycloak) → run T-03 against the REAL migrated data → retain videos.
+  **Likely to split** (workflow-scaffold / export-step / chain-wire) — heaviest seam;
+  e2e-driver confirms the gate shape (nightly vs per-PR). *(seam: the proof chain)*
+- [ ] **T-06 — Gallery: legacy + AlpenFlight videos, J-0c-captioned.** Ensure both
+  videos land captioned + `J-0c`-tagged; extend `generate-gallery.mjs` if it can't
+  caption a non-AlpenFlight (legacy) video. *(seam: gallery generator + fixture)*
+
+**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-06.
