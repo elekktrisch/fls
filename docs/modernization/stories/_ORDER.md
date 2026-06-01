@@ -40,6 +40,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
+| J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 
@@ -54,6 +55,13 @@ every tenant-scoped migration uses) and re-enables the `@Disabled`
 branch (reference-FK resolve, InOutboundPoint mapper, producer SELECT bindings).
 J-0b wants an `implementation-architect` design pass on the keying approach before
 build. Every later journey's *migrated-data* fidelity depends on J-0b.
+
+**J-24 — Proof-video gallery (infra)** (filed by `/do-retro` 2026-06-01 on operator
+ask). J-0's pass-videos land only inside the per-run CI artifact as opaque
+`page@<hash>.webm` — not glanceable. J-24 publishes a clickable gh-pages gallery
+that captions each proof video with the assertion it proves (the human-parity half
+of the done-bar, made reviewable). Reuses the existing `alpenflight-e2e.yml`
+gh-pages pipeline; caption source is the load-bearing design choice (carve-time).
 
 ## Journey-0 — `J-0 Locations CRUD`
 
