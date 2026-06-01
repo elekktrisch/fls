@@ -210,7 +210,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   assertion** (a referencer in club A resolves to club A's replica id, not B's).
   Correct the `InOutboundPointMapper` javadoc (lines 28-31). Keep `@Disabled` — this
   commits the contract shape, T-08 makes it green. *(seam: the proof IT + 1 javadoc)*
-- [ ] **T-02 — Flyway: `t_location.legacy_guid` + composite identity UNIQUE.**
+- [x] **T-02 — Flyway: `t_location.legacy_guid` + composite identity UNIQUE.**
   One `V-next` migration: add `legacy_guid UUID` + identity-bearing partial UNIQUE
   `(legacy_guid, club_id) WHERE deleted_on IS NULL` (structural, ADR 0022 directive
   2). *(seam: one migration)*
