@@ -2,12 +2,13 @@
 id: J-0b
 title: Migration fan-out foundation — (legacy_guid, club_id) → distinct new_id
 epic: E-02
-status: in_progress
+status: done
 started_at: 2026-06-01
+done_at: 2026-06-01
 journey0: false
 carved: true
 depends_on: [J-0]
-rolls_up: [S-016, S-189]   # S-016 done (re-assert only); S-189 = audit-tenancy secondary slice
+rolls_up: [S-016]   # S-016 done (re-asserted by the IT, not rebuilt); S-189 deferred (T-09) — stays todo
 acceptance:
   - LocationMigrationRoundTripIT re-enabled (@Disabled removed) and GREEN against real Postgres ingest. [happy]
   - One shared legacy Location referenced by 2 clubs ingests to 2 t_location rows, one per club_id, with DISTINCT ids — no 23505 PK collision. [edge — the collision J-0 escalated on]
@@ -102,35 +103,10 @@ SYSTEM_GLOBAL via pgcopy are seeded; see `MigrationBundleIngestService.java:450-
 referencer's club) → that club's replica id`. This is the load-bearing new
 behavior and the riskiest part of the design.
 
-**⚠ Design pass before build (per roadmap).** This journey wants an
-`implementation-architect` consult on the keying approach *before* `/do-ship`
-decomposes it — the fork is real:
-- **Mint-vs-derive:** producer mints a distinct replica `id` and emits a composite
-  id-map row, *vs.* ingest derives `id = uuidv5(legacy_guid, club_id)`
-  deterministically (no producer mint; reproducible re-ingest).
-- **All-entities-vs-fan-out-only:** make the id-map composite for *every* entity
-  (uniform, but invasive — pgcopy maps, `LegacyIdMapWriter`, `LegacyIdMapTables`
-  all change shape), *vs.* only for entities flagged fan-out (needs per-entity
-  metadata on `EntityType`/`EntityPolicy`; CLUB/SYSTEM_GLOBAL/identity entities
-  stay 2-column). The narrower option keeps `LegacyIdMapWriter`'s 2-column pgcopy
-  format (used by SYSTEM_GLOBAL bundle entries + the IT's `pgcopyMap` helper)
-  untouched — likely lower blast radius.
-The architect picks; `/do-plan` does not resolve it.
-
-**Likely task seams (non-binding, seam granularity for `/do-ship`):**
-- *Flyway:* one migration adding `t_location.legacy_guid` (+ the
-  `(legacy_guid, club_id)` identity-bearing partial UNIQUE per CLAUDE.md directive
-  2 — structural identity invariant, not business logic).
-- *Producer:* `LocationMapper` + `MapperLegacyBindings.LOCATION` + `LegacyIdMapWriter`/
-  `LegacyIdMapTables` — replica-id minting + composite id-map emission (one seam).
-- *Ingest keying:* `EntityStreamIngestor.createTemporaryIdMapTables` +
-  `destinationColumnNames` — composite temp-table + `legacy_guid` as its own
-  destination column (one seam).
-- *FK resolution:* `ForeignKeyResolver` — club-aware replica selection for
-  fan-out targets + post-INSERT population of the fan-out entity's id-map (one
-  seam; the architecturally load-bearing one).
-- *Proof:* re-enable `LocationMigrationRoundTripIT` (remove `@Disabled`); add the
-  club-aware-FK assertion if not covered (one seam).
+**Design fork — RESOLVED** by the `implementation-architect` pass (see the
+`## Implementation-architect decision` section): **derive** the replica id
+producer-side + **fan-out-only** composite keying. The task seams that decision
+produced are the `## Tasks` checklist below — that's the record.
 
 **Proof shape — green IT, not a new Playwright run.** Consistent with the infra
 journeys J-24/J-25, J-0b's gate is the green server IT (it exercises the real

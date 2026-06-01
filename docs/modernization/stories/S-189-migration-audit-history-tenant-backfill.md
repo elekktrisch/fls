@@ -2,8 +2,7 @@
 id: S-189
 title: Migration — back-fill tenant_club_id on LEGACY_MIGRATED audit rows
 epic: E-02
-status: todo
-rolled_up_into: J-0b   # secondary/droppable slice — fan-out is J-0b's critical path
+status: todo   # considered for J-0b but DEFERRED (vertical-slices-first) — not rolled up; still open
 depends_on: [S-186]
 integration_base: integration/migration
 origin: scope-split
