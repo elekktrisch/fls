@@ -66,6 +66,19 @@ Ordered, one seam each. Workers commit directly to `integration/J-24`.
   "Proof gallery" card/link to `.github/pages/alpenflight-index.html` Reports
   section. Depends on T-01 + T-03.
 
+- [ ] **T-05 — Gate-red fix: manifest path + lock AC5 + publish-on-green.** *(appended at the proof gate — the real proof run went red.)*
+  The real `alpenflight-proof` run passed the real-idp spec (4 passed) but the
+  generate step `ENOENT`'d on `test-results/proof-manifest.json`: Playwright resolves
+  a config-level `outputFile` against **configDir** (`alpenflight/web/e2e`, verified
+  `runner/index.js:1485` `path.resolve(configDir, outputFile)`), so the manifest
+  lands at `e2e/test-results/`, but the generate step (cwd `alpenflight/web`) reads
+  `alpenflight/web/test-results/`. Fix so both agree on `alpenflight/web/test-results/`.
+  Also: lock AC5 ([key-error]) with a negative assertion in the gate spec (generator
+  throws on missing caption / missing `.webm` — currently only code-enforced, not
+  spec-locked), and gate the gh-pages deploy on a green generate (don't publish a
+  red run's proofs). Files: `playwright.config.ts`, `proof-gallery.spec.ts`,
+  `.github/workflows/ci.yml`. Depends on T-04.
+
 ## Context (why — operator ask, /do-retro 2026-06-01)
 
 J-0 shipped 3 pass-videos as the acceptance artifact, but they land only inside
