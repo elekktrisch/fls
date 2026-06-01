@@ -237,12 +237,21 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   helper to match the producer now that the child mints a distinct id. No wire-only
   `club_id` test-weakening was needed — the shared contract test only enforces
   `columns() ⊆ wire`, never the reverse.
+- [ ] **T-05b — Flyway: `t_inoutbound_point.legacy_guid` (child fan-out column).**
+  Discovered during T-05 (see carry-forward above). One `V-next` migration: add
+  `legacy_guid UUID` (nullable) + a structural identity partial UNIQUE
+  `(legacy_guid, location_id) WHERE legacy_guid IS NOT NULL AND deleted_on IS NULL`
+  — the child's identity is per parent replica (location_id encodes the club; the
+  child has no own `club_id` column). Mirrors V23. Keeps the de-alias (T-06) able to
+  land `legacy_guid` + `id` as separate destination columns on the child.
+  *(seam: one migration; unblocks T-06)*
 - [ ] **T-06 — Ingest fan-out keying.** `EntityStreamIngestor`: `destinationColumnNames`
   de-alias (emit both `legacy_guid` + `id` for fan-out entities); composite
   `(legacy_guid, club_id)` temp-table DDL in `createTemporaryIdMapTables`; 3-column
-  COPY in `copyLegacyIdMap` — all gated on the fan-out flag. **Resolve the
-  `t_inoutbound_point.legacy_guid` gap flagged under T-05 (add column or special-case
-  the child).** *(seam: ingest side; deps T-02, T-03)*
+  COPY in `copyLegacyIdMap` — all gated on the fan-out flag. The child's
+  `legacy_guid` column now exists (T-05b); the wire-only `club_id` field (not in IOP
+  `columns()`) must be stripped before INSERT, surviving only for T-07's FK lookup.
+  *(seam: ingest side; deps T-02, T-03, T-05b)*
 - [ ] **T-07 — Club-aware FK resolution.** `ForeignKeyResolver.rewriteForeignKeys` +
   `lookupOrNull`: composite `(legacy_guid, club_id)` branch for fan-out targets, reading
   the referencer row's own `club_id`; fail-closed on a composite miss. *(seam:
@@ -253,4 +262,4 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
 - [ ] **T-09 — (optional, droppable) S-189 audit tenant-backfill.** Build only if it
   stays thin per [[feedback-vertical-slices-first]]; else defer to a follow-up story.
 
-**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-06 → T-07 → T-08 → (T-09).
+**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → (T-09).
