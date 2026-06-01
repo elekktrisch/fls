@@ -1,10 +1,35 @@
-import { test, expect, type Page } from '@playwright/test';
+import {
+  test,
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 
 import {
   loginAsClubAdmin,
   provisionTwoClubs,
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
+
+/**
+ * Create the per-test browser context with video recording wired to the
+ * test's output dir. The `real-idp` project sets `video: 'on'` (J-0's
+ * pass-video acceptance artifact), but that only governs Playwright's
+ * auto-created `page` fixture — these tests drive their own
+ * `browser.newContext()` (one isolated session per club), which bypasses
+ * the project video option. Passing `recordVideo` explicitly is the
+ * documented way to record a manually-created context, so the green run's
+ * `.webm` lands in `test-results/` and is captured by the CI upload.
+ */
+async function newRecordedContext(
+  browser: Browser,
+  baseURL: string,
+  testInfo: TestInfo,
+): Promise<BrowserContext> {
+  return browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
+}
 
 /**
  * J-0 core real-chain proof — two-club tenant isolation for Locations against
@@ -109,8 +134,10 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
     await fixture?.dispose();
   });
 
-  test('club A admin creates a Location and sees it in club A list', async ({ browser }) => {
-    const ctx = await browser.newContext({ baseURL });
+  test('club A admin creates a Location and sees it in club A list', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsClubAdmin(page, fixture.clubA);
@@ -145,9 +172,11 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
     }
   });
 
-  test('club B admin does NOT see club A Location; cross-tenant GET 404s', async ({ browser }) => {
+  test('club B admin does NOT see club A Location; cross-tenant GET 404s', async ({
+    browser,
+  }, testInfo) => {
     expect(clubALocationId, 'club A must have created its Location first').toBeTruthy();
-    const ctx = await browser.newContext({ baseURL });
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsClubAdmin(page, fixture.clubB);
@@ -177,8 +206,8 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
 
   test('same ICAO (LSZH) is creatable in club B — per-club, not global uniqueness', async ({
     browser,
-  }) => {
-    const ctx = await browser.newContext({ baseURL });
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsClubAdmin(page, fixture.clubB);
