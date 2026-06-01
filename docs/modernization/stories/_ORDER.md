@@ -38,7 +38,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-18 | Passenger-flight registration | E-12 | J-16, J-1 | S-099 | `Flight` (pax subset) | `passengerflight/` → `/passengerflight` |
 | J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
-| J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
+| J-21 | Migrate-from-legacy upload wizard **+ full-chain fan-out parity proof** | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **owns the legacy→migrate+Keycloak→AlpenFlight video proof + CLUB-pgcopy fix** | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
 | ✅ J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
 | ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
@@ -114,7 +114,7 @@ and the proven mapper pattern.
 - **J-17 / J-18:** Public POST creates a trial/passenger flight scoped by tenant-from-URL; unsupported tenant ID rejected; nav-bar hidden.
 - **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
-- **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows.
+- **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. **+ Full-chain fan-out parity proof (operator gate, 2026-06-01):** in the **legacy flsweb UI** create a Location with a **random name** referenced by **2 clubs** (record video) → real export → migrate **+ Keycloak provisioning of the migrated club admins (S-028)** → in **AlpenFlight** each club logs in and sees its OWN migrated copy of that Location, edit-isolated (record per-club video). Side-by-side legacy + AlpenFlight videos in the gallery. **This is where J-0b's fan-out becomes UI-/video-demonstrable** (J-0b itself ships server-IT-proven). Prereqs J-21 must clear: **S-028** (migrated users get no Keycloak account today) + the **CLUB identity-pgcopy ↔ `seedClubLegacyIdMap` collision** (T-10/J-0b finding — a real full bundle *including CLUB* doesn't ingest green yet). See [[feedback-demonstrable-proof-prefer-ui]].
 - **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.
 
 ## Headless homing decisions
