@@ -28,8 +28,8 @@ public enum EntityType {
     PERSON_CLUB(Group.IDENTITY),
     PERSON_CATEGORY_ASSIGNMENT(Group.IDENTITY),
 
-    LOCATION(Group.FLIGHT),
-    INOUTBOUND_POINT(Group.FLIGHT),
+    LOCATION(Group.FLIGHT, FanOut.YES),
+    INOUTBOUND_POINT(Group.FLIGHT, FanOut.YES),
     START_TYPE(Group.FLIGHT),
     FLIGHT_TYPE(Group.FLIGHT),
     AIRCRAFT(Group.FLIGHT),
@@ -54,14 +54,42 @@ public enum EntityType {
 
     public enum Group { IDENTITY, FLIGHT, ACCOUNTING }
 
+    /** Internal tri-state-free marker so the constant table reads declaratively. */
+    private enum FanOut { YES, NO }
+
     private final Group group;
+    private final boolean fansOut;
 
     EntityType(Group group) {
+        this(group, FanOut.NO);
+    }
+
+    EntityType(Group group, FanOut fanOut) {
         this.group = group;
+        this.fansOut = fanOut == FanOut.YES;
     }
 
     public Group group() {
         return group;
+    }
+
+    /**
+     * Fan-out entities are tenant-scoped shared legacy masterdata: one legacy
+     * row referenced by many clubs must land as N {@code club_id}-distinct
+     * rows in the new stack (ADR 0008 tenant partitioning), so the producer
+     * derives a per-(legacy_guid, legacy club) id via
+     * {@link Coercions#deriveFanOutId} and emits a 3-column
+     * {@code (legacy_guid, club_id, new_uuid)} id-map row
+     * ({@link LegacyIdMapWriter#write(UUID, UUID, UUID)}).
+     *
+     * <p>{@code LOCATION} is the first fan-out entity; {@code INOUTBOUND_POINT}
+     * is its child and itself carries {@code club_id} per the J-0b architect
+     * decision, so it fans out too. Everything else — CLUB, COUNTRY,
+     * CLUB_STATE, and the identity entities — is NOT fan-out and keeps the
+     * existing 2-column id-map format untouched.
+     */
+    public boolean fansOut() {
+        return fansOut;
     }
 
     public String temporaryTableSuffix() {

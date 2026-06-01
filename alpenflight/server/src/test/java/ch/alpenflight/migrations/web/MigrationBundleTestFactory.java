@@ -189,6 +189,36 @@ final class MigrationBundleTestFactory {
                 unmappedReason);
     }
 
+    /**
+     * Wrap a pre-assembled {@code tar.gz} plaintext (e.g. one produced by the
+     * REAL {@code BundleWriter.assembleTarGz}, including its own manifest.json
+     * entry) in the ALPF wire envelope. Used by the real-producer round-trip IT
+     * (J-0b T-10) so it exercises the production tar-entry ordering rather than
+     * the hand-ordered {@link #wrapInTarGz}.
+     */
+    static byte[] encryptTarGzPlaintext(MigrationBundleCipher cipher,
+                                        UUID uploadId,
+                                        byte[] rsaPublicKeyDer,
+                                        byte[] tarGzPlaintext) throws IOException {
+        byte[] sessionKey = new byte[32];
+        RANDOM.nextBytes(sessionKey);
+        byte[] wrappedSessionKey = cipher.wrapSessionKey(rsaPublicKeyDer, sessionKey);
+        ByteArrayOutputStream encryptedBody = new ByteArrayOutputStream();
+        try (SecureBytes sessionBytes = new SecureBytes(sessionKey);
+             OutputStream encryptingStream =
+                     cipher.newEncryptingStream(sessionBytes, uploadId, encryptedBody)) {
+            encryptingStream.write(tarGzPlaintext);
+        }
+        ByteArrayOutputStream wireFormat = new ByteArrayOutputStream();
+        wireFormat.write(BundleHeader.magic());
+        wireFormat.write(BundleHeader.CURRENT_VERSION);
+        wireFormat.write((wrappedSessionKey.length >>> 8) & 0xFF);
+        wireFormat.write(wrappedSessionKey.length & 0xFF);
+        wireFormat.write(wrappedSessionKey);
+        wireFormat.write(encryptedBody.toByteArray());
+        return wireFormat.toByteArray();
+    }
+
     private static byte[] encryptedBundleWithEntries(MigrationBundleCipher cipher,
                                                      UUID uploadId,
                                                      byte[] rsaPublicKeyDer,

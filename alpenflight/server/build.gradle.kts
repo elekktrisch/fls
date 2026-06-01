@@ -199,6 +199,12 @@ dependencies {
     // Same artifact the migration-bundle module's parity producer uses on
     // the write side — keeps producer + consumer on lockstep tooling.
     implementation("org.apache.commons:commons-compress:1.27.1")
+
+    // J-0b T-10: TEST-only — LocationRealProducerRoundTripIT builds a bundle via
+    // the REAL BundleWriter.assembleTarGz (not the hand-ordered test factory) to
+    // prove the pgcopy-before-NDJSON tar entry order survives a real producer run
+    // through the real ingest. No production dependency on the export JAR.
+    testImplementation("ch.alpenflight:alpenflight-migration-tool")
 }
 
 nullaway {

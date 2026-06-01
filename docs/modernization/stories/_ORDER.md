@@ -16,8 +16,9 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` (clean-seed only; migrate→J-0b) | `masterdata/locations/` → `/locations` |
-| **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016, S-189 (fan-out slice) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
+| ✅ **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` (clean-seed only; migrate→J-0b) | `masterdata/locations/` → `/locations` |
+| ✅ **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016 (S-189 deferred→still todo) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
+| **J-0c** | **Fan-out migration parity proof (UI + video)** | E-02 | **J-0b** | S-028 (Location-scope slice), CLUB-pgcopy fix | full chain for **Location only**: legacy `flsweb` create→export→migrate+Keycloak→AlpenFlight per-club video | `Location` (real legacy→AlpenFlight) |
 | J-1 | Aircraft register | E-06 | J-0, **J-0b** (for migrate-fidelity) | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
 | J-2 | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064, S-067-poly | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
 | J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
@@ -38,24 +39,33 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-18 | Passenger-flight registration | E-12 | J-16, J-1 | S-099 | `Flight` (pax subset) | `passengerflight/` → `/passengerflight` |
 | J-19 | Lost-password / email-confirm landing | E-12 | J-16 | S-100 | N/A | `lostpassword/`, `confirm/` |
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
-| J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
+| J-21 | Migrate-from-legacy upload wizard (all entities) | E-15 | J-0..J-10, **J-0c** | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers); **reuses J-0c's legacy→migrate+Keycloak→AlpenFlight video harness** for every entity | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
-| J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
-| J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
+| ✅ J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
+| ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
+
+**✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-24 (#192),
+J-25 (#196). Done, PR open awaiting merge: **J-0b (#198)**. Next once J-0b merges:
+**J-0c** (the fan-out UI/video proof — operator priority, runs before J-1). All
+unmarked rows are `todo`.
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 
-**J-0b — Migration fan-out foundation** (filed 2026-05-31, ship-time discovery during
-J-0). J-0's live migrate proof revealed the core `(legacy_id, club_id)→distinct new_id`
-fan-out keying is entirely unbuilt — a shared legacy row referenced by 2 clubs
-PK-collides on ingest. J-0 narrowed to a clean-seed real chain; J-0b builds the
-fan-out subsystem (producer per-replica id mint + a `t_location.legacy_guid` Flyway
-column + composite `(legacy_guid, club_id)` id-map keying — the **shared** mechanism
-every tenant-scoped migration uses) and re-enables the `@Disabled`
-`LocationMigrationRoundTripIT`. The migrate-half foundation already landed on J-0's
-branch (reference-FK resolve, InOutboundPoint mapper, producer SELECT bindings).
-J-0b wants an `implementation-architect` design pass on the keying approach before
-build. Every later journey's *migrated-data* fidelity depends on J-0b.
+**J-0b — Migration fan-out foundation** ✅ **DONE** (PR #198, awaiting merge; filed
+2026-05-31 as a ship-time discovery during J-0). J-0's live migrate proof revealed the
+core `(legacy_id, club_id)→distinct new_id` fan-out keying was entirely unbuilt — a
+shared legacy row referenced by 2 clubs PK-collided on ingest. J-0b built the fan-out
+subsystem and re-enabled the `@Disabled` `LocationMigrationRoundTripIT`. **Shipped shape**
+(implementation-architect pass, 2026-06-01): id **derived** producer-side
+(`id = uuidv5(legacy_guid, legacy_club_id)`), **fan-out-only** composite keying gated by
+`EntityType.fansOut()`, the child carries its own `club_id` so `ForeignKeyResolver` keys
+`(legacy_guid, club_id)` and resolves to the referencer's own-club replica; `t_location`
++ `t_inoutbound_point` each gained a `legacy_guid` column (V23/V24). Proven by two real-
+Postgres ITs (`LocationMigrationRoundTripIT` + `LocationRealProducerRoundTripIT`, the
+latter gating the real `assembleTarGz` tar ordering — a gap-hunter blocker fixed at the
+gate). Every later journey's *migrated-data* fidelity depends on this. **Open follow-ups:**
+S-189 (deferred, still `todo`); the CLUB identity-pgcopy ↔ `seedClubLegacyIdMap` collision
+(no full real-producer bundle *including CLUB* runs end-to-end yet — **file before J-21**).
 
 **J-24 — Proof-video gallery (infra)** (filed by `/do-retro` 2026-06-01 on operator
 ask). J-0's pass-videos land only inside the per-run CI artifact as opaque
@@ -106,7 +116,8 @@ and the proven mapper pattern.
 - **J-17 / J-18:** Public POST creates a trial/passenger flight scoped by tenant-from-URL; unsupported tenant ID rejected; nav-bar hidden.
 - **J-19:** Lost-password + confirm pages render Keycloak callback results.
 - **J-20:** Anonymous session enters sandbox, edits data, nightly-reset cron wipes it.
-- **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows.
+- **J-0c (operator gate, 2026-06-01 — the fan-out UI/video proof, runs before J-1):** in the **legacy flsweb UI** create a Location with a **random name** referenced by **2 clubs** (record video) → real export → migrate **+ Keycloak provisioning of the 2 migrated club admins** → in **AlpenFlight** each club logs in and sees its OWN migrated copy of that Location, edit-isolated (record per-club video). Side-by-side legacy + AlpenFlight videos land in the gallery — this is J-0b's fan-out made UI-/video-demonstrable. Depends on **J-0b only** (Location is the sole entity), so it does NOT wait on J-1..J-10. Prereqs it must clear: a **Location-scope slice of S-028** (migrated users get no Keycloak account today) + the **CLUB identity-pgcopy ↔ `seedClubLegacyIdMap` collision** (T-10/J-0b finding — a real full bundle *including CLUB* doesn't ingest green yet). See [[feedback-demonstrable-proof-prefer-ui]].
+- **J-21:** Upload an encrypted bundle → ingest provisions a trial Deployment with migrated Clubs/Flights; 72h countdown banner shows. Reuses J-0c's full-chain video harness across **all** entities (not just Location).
 - **J-22:** Free tier hits a gated action → 402 → upgrade prompt → (test-mode) checkout → Deployment flips to active, auto-delete suppressed.
 
 ## Headless homing decisions

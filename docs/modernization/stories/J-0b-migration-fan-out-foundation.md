@@ -1,0 +1,316 @@
+---
+id: J-0b
+title: Migration fan-out foundation — (legacy_guid, club_id) → distinct new_id
+epic: E-02
+status: done
+started_at: 2026-06-01
+done_at: 2026-06-01
+journey0: false
+carved: true
+depends_on: [J-0]
+rolls_up: [S-016]   # S-016 done (re-asserted by the IT, not rebuilt); S-189 deferred (T-09) — stays todo
+acceptance:
+  - LocationMigrationRoundTripIT re-enabled (@Disabled removed) and GREEN against real Postgres ingest. [happy]
+  - One shared legacy Location referenced by 2 clubs ingests to 2 t_location rows, one per club_id, with DISTINCT ids — no 23505 PK collision. [edge — the collision J-0 escalated on]
+  - Each fanned-out row's reference-FK columns (location_type_id / elevation_unit_type_id / runway_length_unit_type_id) resolve to the real V3/V22 seed PK, not the synthetic UUID. [happy] (T-02a regression)
+  - The child InOutboundPoint attaches to a fanned-out parent Location, inheriting that replica's tenancy. [happy] (T-02b regression)
+  - A downstream FK referencing the shared legacy Location resolves to the replica in the referencer's OWN club (not an arbitrary replica). [key-behavior]
+  - J-0's existing Locations Playwright proof (tests/real-idp/locations-crud-tenant-isolation.spec.ts) still passes on clean-seed — no regression to the green gate. [happy]
+screen: none — migration foundation (infra journey, like J-24/J-25); proof is a green server IT, not a new SPA screen
+headless_pulled_in: the (legacy_guid, club_id) → distinct new_id fan-out keying — the shared mechanism every tenant-scoped masterdata migration reuses (Location is the first to exercise it)
+migration: the fan-out subsystem itself + a t_location.legacy_guid Flyway column. Location is the proving entity; the keying generalizes to every fanned-out tenant-scoped entity.
+parity_test: alpenflight/server/src/test/java/ch/alpenflight/migrations/web/LocationMigrationRoundTripIT.java (primary); tests/real-idp/locations-crud-tenant-isolation.spec.ts (regression guard)
+adr_refs: [0008, 0003, 0022]
+---
+
+## Context
+
+J-0 dragged the full proof chain into existence but its *live* migrate proof
+surfaced that the core migration primitive is unbuilt: legacy tenant-scoped
+masterdata is **shared** (one `Locations` row referenced by many clubs), but the
+new stack is **tenant-partitioned** (`t_location` carries `club_id` per ADR
+0008). So one legacy Location must *fan out* into N rows — one per referencing
+club, each with a distinct `id` — while a downstream FK (a Flight's
+`start_location_id`) must resolve to **its own club's** replica. The current
+ingest maps the legacy id verbatim to `t_location.id`, so the 2nd replica
+PK-collides (`sqlstate=23505`). J-0 narrowed to a clean-seed real chain and
+deferred the fan-out subsystem here. **Every later journey's migrated-data
+fidelity depends on this journey** — it builds the shared keying mechanism, and
+Location is just the first (lowest-risk: tenant-scoped, no inbound FKs) entity
+to exercise it.
+
+## Spec must assert
+
+The contract is the already-written, currently-`@Disabled` server IT
+`LocationMigrationRoundTripIT` — it builds an encrypted bundle and POSTs it
+through the **real** `/api/v1/migrations/{uploadId}/bundle` endpoint against real
+Postgres (not the parity `ConsumerHarness` stand-in), so the fan-out keying,
+`ForeignKeyResolver`, and `ReferenceLookupResolver` all run live. Re-enabling it
+green is the journey's gate. It proves three load-bearing invariants:
+
+1. **(a) Fan-out distinct ids.** The shared legacy Location (`legacy_guid`
+   identical, `club_id` distinct across two NDJSON rows — exactly what the
+   `LOCATION` producer SELECT emits when `Clubs.HomebaseId` references it from 2
+   clubs) lands as **2 `t_location` rows, one per `club_id`, with distinct
+   `id`s**. Asserted at `LocationMigrationRoundTripIT.java:200-243`. This is the
+   exact case that fails today with `500 INGEST_INTERNAL_ERROR sqlstate=23505`.
+2. **(b) Reference-FK resolve.** Each replica's `location_type_id` /
+   `elevation_unit_type_id` / `runway_length_unit_type_id` equals the real V3/V22
+   seed PK, not the synthetic `new UUID(0, legacyIntId)` (`:245-258`). This
+   already works (T-02a `ReferenceLookupResolver`); the IT re-asserts it survives
+   fan-out.
+3. **(c) Child nesting + tenancy.** The child `InOutboundPoint` attaches to a
+   fanned-out parent replica, inheriting its `club_id` (`:260-280`).
+
+Plus the **club-aware FK-resolution** invariant the IT's fan-out shape implies
+(and which `/do-ship` should add an assertion for if not already covered): a
+referencer in club A pointing at the shared legacy Location resolves to **club
+A's** replica id, not club B's.
+
+The J-0 Playwright proof stays the regression guard — it must remain green on the
+clean-seed gate (J-0b does not wire legacy-MSSQL→migrate into the Playwright CI
+job; see Notes).
+
+## Notes
+
+**Current-state gap (the three unbuilt pieces, file:line) —** confirmed against
+HEAD; the `LocationMapper` doc lines 29-32 describe the composite keying as if it
+exists ("S-141 temp-table change") but it is **not wired**:
+
+1. **No `legacy_guid` column on `t_location`.** The wire `legacy_guid` maps
+   verbatim to `t_location.id` via `destinationColumnNames`
+   (`EntityStreamIngestor.java:256-263`). There is no column to hold the shared
+   legacy key separate from a distinct minted `id`. No migration adds one
+   (V3 creates `t_location`, V7 adds `club_id`).
+2. **id-map temp table is single-key.** `createTemporaryIdMapTables` builds
+   `(legacy_guid uuid PRIMARY KEY, new_uuid uuid NOT NULL)`
+   (`EntityStreamIngestor.java:65-66`) — one `legacy_guid` can map to only **one**
+   `new_uuid`, so a fanned-out entity cannot record its N replica ids.
+3. **`LocationMapper.writeNdjson:123` mints no per-replica id** — it emits the
+   shared `LocationId` as `legacy_guid` for every replica. Combined with the
+   verbatim `legacy_guid → id` mapping, the 2nd replica collides on the
+   `t_location.id` PK.
+
+**The hidden fourth piece — club-aware FK resolution.** `ForeignKeyResolver.
+rewriteForeignKeys` (walked from `EntityStreamIngestor.ingestEntityNdjson:191`)
+resolves FK columns through the flat `legacy_id_map_<entity>` table. Today a
+downstream FK to a Location needs no lookup at all — `legacy_guid == id`, an
+identity. Once fan-out mints distinct replica ids that identity **breaks**: the
+`legacy_id_map_location` must be (a) *populated* as a side-effect of LOCATION's
+own INSERT (it currently never is — only CLUB via `seedClubLegacyIdMap` and
+SYSTEM_GLOBAL via pgcopy are seeded; see `MigrationBundleIngestService.java:450-
+451`), and (b) *keyed composite* so a referencer resolves `(legacy LocationId,
+referencer's club) → that club's replica id`. This is the load-bearing new
+behavior and the riskiest part of the design.
+
+**Design fork — RESOLVED** by the `implementation-architect` pass (see the
+`## Implementation-architect decision` section): **derive** the replica id
+producer-side + **fan-out-only** composite keying. The task seams that decision
+produced are the `## Tasks` checklist below — that's the record.
+
+**Proof shape — green IT, not a new Playwright run.** Consistent with the infra
+journeys J-24/J-25, J-0b's gate is the green server IT (it exercises the real
+ingest pipeline end-to-end at the data layer, which is where fan-out lives) plus
+no regression to J-0's clean-seed Playwright gate. Wiring legacy-MSSQL→migrate
+into the *Playwright* CI chain (so the SPA spec runs against migrated rather than
+clean-seed data) is heavier and belongs to J-21's migrate wizard, not here —
+recorded as an assumption, not silently dropped.
+
+**S-189 (secondary slice).** S-189 (back-fill `tenant_club_id` on
+`LEGACY_MIGRATED` audit rows) is the migration-tenancy slice the roadmap rolled
+up here. It's adjacent (audit-row tenancy under migration) but not on the
+fan-out critical path. Per [[feedback-vertical-slices-first]]: build it with the
+fan-out slice if it stays thin; if it bloats the journey, drop it to a named
+follow-up rather than blocking the fan-out proof. S-016 is `implemented/` — its
+parity-oracle harness is re-asserted by the IT, not rebuilt.
+
+## Assumptions made
+
+1. **Gate = green `LocationMigrationRoundTripIT` + J-0 Playwright regression.**
+   J-0b is an infra/foundation journey (no SPA screen); its proof is the real-
+   ingest server IT, matching how J-24/J-25 are CI-infra journeys. The "one green
+   Playwright run" quality bar is satisfied by J-0's existing spec staying green.
+2. **legacy-MSSQL→migrate→Playwright full chain stays deferred** (to J-21's
+   migrate wizard). J-0b proves fan-out at the data layer via the IT, which
+   synthesizes the NDJSON bundle directly — no MSSQL legacy-up needed in CI.
+3. **Fan-out-only composite keying is the likely-lower-blast-radius option**, but
+   the `implementation-architect` adjudicates mint-vs-derive and
+   all-entities-vs-fan-out-only before `/do-ship` decomposes.
+4. S-189 is a droppable secondary slice (see Notes); the fan-out proof is the
+   journey's reason to exist.
+
+## Implementation-architect decision (2026-06-01)
+
+Both forks resolved before decomposition:
+
+- **Fork 1 → Derive.** The producer computes `id = uuidv5(NS, legacy_guid + legacy
+  club_id)` in `writeNdjson` (it already holds the legacy join — `fanout.ClubId`
+  is in the `LocationMapper` SELECT) and emits a composite id-map row. Deterministic
+  → idempotent re-ingest (re-POST UPSERTs, matching CLUB's `ON CONFLICT` at
+  `EntityStreamIngestor.java:239`). **Do NOT derive in ingest** — ingest only sees
+  the *provisioned* (new) club id, never the legacy club id, so it can't reproduce
+  the namespace input. Key strictly on the **legacy** club id (stable producer↔
+  referencer); pin the uuidv5 namespace as a constant.
+- **Fork 2 → Fan-out-only**, gated by `EntityType.fansOut()` / a `Set<EntityType>
+  FAN_OUT` in the bundle module. Fan-out entities get composite `(legacy_guid,
+  club_id) PK` temp tables + 3-column pgcopy; CLUB/SYSTEM_GLOBAL/identity keep the
+  existing 2-column format (`LegacyIdMapWriter` `FIELD_COUNT_PER_ROW=2`) untouched —
+  S-183…S-189 already shipped against it. Decisive on blast radius.
+- **Club-aware FK resolution (the load-bearing part).** ⚠ **Carve/`InOutboundPoint
+  Mapper` javadoc (lines 28-31) correction:** fanning out the child row alone does
+  NOT disambiguate the parent — the legacy GUID is *shared* across replicas, so the
+  child still can't say which replica id it means. Fix: **the child carries its own
+  `club_id` on the wire** (producer fans out the child too, one row per (legacy IOP,
+  legacy club)); `ForeignKeyResolver.rewriteForeignKeys` keys the composite lookup
+  on `(location_id=legacy LocationId, club_id=child's own legacy club)`. The LOCATION
+  id-map is populated via a **producer-emitted 3-column `legacy_id_map/LOCATION`
+  pgcopy**, ordered before `INOUTBOUND_POINT.ndjson` by the existing topo order —
+  no post-INSERT `RETURNING` plumbing. Fail-closed on a composite miss (mirror the
+  SYSTEM_GLOBAL path `ForeignKeyResolver.java:87-94`); the aircraft-homebase
+  lowest-UUID fallback the `LocationMapper` javadoc mentions is **out of scope**
+  (Aircraft is J-1).
+- **Most load-bearing single line:** `EntityStreamIngestor.destinationColumnNames`
+  (`:256-263`) currently aliases wire `legacy_guid → id`. For fan-out entities it
+  must emit **both** `legacy_guid` (verbatim) **and** `id` (the derived value) as
+  separate destination columns. Audit every reader that assumes a LOCATION row's
+  `id == legacy GUID` (parity harness, `MapperVsSchemaCompatibilityTest`).
+
+## Tasks
+
+Ordered, one seam each (architect's strict dependency order 1→…→8). Workers commit
+directly to `integration/J-0b`. Sized per the do-ship gate.
+
+- [x] **T-01 — Proof IT → correct target shape (red contract), keep `@Disabled`.**
+  Edit `LocationMigrationRoundTripIT`: `inoutboundPointNdjson` emits **two** club-
+  tagged child rows (add `club_id` field), and add the explicit **club-aware-FK
+  assertion** (a referencer in club A resolves to club A's replica id, not B's).
+  Correct the `InOutboundPointMapper` javadoc (lines 28-31). Keep `@Disabled` — this
+  commits the contract shape, T-08 makes it green. *(seam: the proof IT + 1 javadoc)*
+- [x] **T-02 — Flyway: `t_location.legacy_guid` + composite identity UNIQUE.**
+  One `V-next` migration: add `legacy_guid UUID` + identity-bearing partial UNIQUE
+  `(legacy_guid, club_id) WHERE deleted_on IS NULL` (structural, ADR 0022 directive
+  2). *(seam: one migration)*
+- [x] **T-03 — Fan-out primitives (migration-bundle).** `EntityType.fansOut()` /
+  `FAN_OUT` set; `Coercions` uuidv5 helper (pinned namespace const); `LegacyIdMapWriter`
+  3-arg `write(legacyGuid, clubId, newUuid)` overload (keep 2-arg) + a 3-column pgcopy
+  round-trip unit test. *(seam: shared producer primitives)*
+- [x] **T-04 — LocationMapper fan-out producer.** `writeNdjson` derives `id`, emits
+  `legacy_guid` + `club_id`; `MapperLegacyBindings.LOCATION` SELECT carries
+  `legacy_guid`; emit the LOCATION 3-column id-map entry. *(seam: the Location producer)*
+- [x] **T-05 — InOutboundPointMapper fan-out producer.** Child `writeNdjson` emits its
+  own `club_id` + per-club fan-out; `MapperLegacyBindings` IOP SELECT joins the same
+  fan-out partner set. *(seam: the child producer)*
+  **→ T-06/T-08 carry-forward (found during T-05):** `t_inoutbound_point` has **no
+  `legacy_guid` column** (V3:608-623; T-02 only added it to `t_location`). IOP is in
+  `FAN_OUT`, so T-06's de-aliasing will try to emit `legacy_guid` AS a destination column
+  on `t_inoutbound_point` and fail at INSERT. T-06 must either (a) add a Flyway
+  `t_inoutbound_point.legacy_guid` column (mirror V23; the child needs no composite
+  identity UNIQUE — it's a leaf, nothing resolves TO it; the distinct minted `id` alone
+  prevents the PK collision), or (b) special-case the child so `legacy_guid` is dropped
+  and only the minted `id` lands. Also the T-01 IT helper `inoutboundPointNdjson`
+  (`LocationMigrationRoundTripIT:393-410`) emits **no `id` field** (it still relies on the
+  `legacy_guid → id` alias) — T-08 must add `id = deriveFanOutId(IopId, ClubId)` to that
+  helper to match the producer now that the child mints a distinct id. No wire-only
+  `club_id` test-weakening was needed — the shared contract test only enforces
+  `columns() ⊆ wire`, never the reverse.
+- [x] **T-05b — Flyway: `t_inoutbound_point.legacy_guid` (child fan-out column).**
+  Discovered during T-05 (see carry-forward above). One `V-next` migration: add
+  `legacy_guid UUID` (nullable) + a structural identity partial UNIQUE
+  `(legacy_guid, location_id) WHERE legacy_guid IS NOT NULL AND deleted_on IS NULL`
+  — the child's identity is per parent replica (location_id encodes the club; the
+  child has no own `club_id` column). Mirrors V23. Keeps the de-alias (T-06) able to
+  land `legacy_guid` + `id` as separate destination columns on the child.
+  *(seam: one migration; unblocks T-06)*
+- [x] **T-06 — Ingest fan-out keying.** `EntityStreamIngestor`: `destinationColumnNames`
+  de-alias (emit both `legacy_guid` + `id` for fan-out entities); composite
+  `(legacy_guid, club_id)` temp-table DDL in `createTemporaryIdMapTables`; 3-column
+  COPY in `copyLegacyIdMap` — all gated on the fan-out flag. The child's
+  `legacy_guid` column now exists (T-05b); the wire-only `club_id` field (not in IOP
+  `columns()`) must be stripped before INSERT, surviving only for T-07's FK lookup.
+  *(seam: ingest side; deps T-02, T-03, T-05b)*
+- [x] **T-07 — Club-aware FK resolution.** `ForeignKeyResolver.rewriteForeignKeys` +
+  `lookupOrNull`: composite `(legacy_guid, club_id)` branch for fan-out targets, reading
+  the referencer row's own `club_id`; fail-closed on a composite miss. *(seam:
+  ForeignKeyResolver — the load-bearing one; deps T-06)*
+- [x] **T-08 — Enable + green the proof IT.** Remove `@Disabled`; run
+  `LocationMigrationRoundTripIT` green against real Postgres; close any integration
+  gap surfaced. *(seam: the proof; deps all)*
+  **→ Done.** `@Disabled` removed; `locationNdjson` + `inoutboundPointNdjson` now emit
+  the derived `id` (`Coercions.deriveFanOutId`); a 3-column composite
+  `legacy_id_map/LOCATION.pgcopy` (via a `pgcopyMapFanOut` sibling of `pgcopyMap`)
+  ships ordered BEFORE `INOUTBOUND_POINT.ndjson` so the composite
+  `legacy_id_map_location` temp table is populated for T-07's club-aware FK resolve.
+  No production change needed — FULL_PORT LOCATION's pgcopy IS drained
+  (`MigrationBundleIngestService.drainEntityStreams` COPYs any `legacy_id_map/*.pgcopy`
+  regardless of policy). Test-support gap closed: `cleanup()` now tears down the
+  provisioning-seeded `t_flight_type` + `t_member_state` before `t_club` (mirrors
+  `MigrationBundleParityRoundTripIT.cleanup`). Real-Postgres run: 1 test, 0 failures,
+  0 errors (ACs a/b/c + club-aware FK all asserted in the one method).
+- [x] **T-10 — Fix real-producer tar ordering + gate it (gap-hunter blocker).**
+  `gap-hunter` (2026-06-01, PR #198 gate) proved the green was producer-ordering-blind:
+  `BundleWriter.assembleTarGz` (`migration-tool`, lines ~203-208) writes **all** NDJSON
+  entries first, then **all** `legacy_id_map/*.pgcopy` entries — so on a REAL bundle
+  `legacy_id_map/LOCATION.pgcopy` lands AFTER `INOUTBOUND_POINT.ndjson`. `drainEntityStreams`
+  is single-pass in tar order and resolves the child IOP→LOCATION FK synchronously during
+  IOP ingest, so the composite `legacy_id_map_location` is still empty → fail-closed
+  `BUNDLE_CROSS_TENANT_FK_LEAK` on every real bundle with a fanned-out Location that has a
+  child IOP. T-08's IT passes only because it hand-interleaves the pgcopy BETWEEN
+  `LOCATION.ndjson` and `INOUTBOUND_POINT.ndjson` (an order the producer never emits), and
+  no test ingests a real `assembleTarGz` bundle. **Fix:** emit all FULL_PORT pgcopy id-map
+  entries BEFORE the NDJSON entries in `assembleTarGz` (swap the two `putFileEntry` loops;
+  the temp tables are created up front by `createTemporaryIdMapTables`, and the derived
+  ids are producer-computed independent of NDJSON insertion, so pgcopy-first is correct).
+  **Gate it:** add a round-trip IT that ingests an ACTUAL `assembleTarGz` output (not the
+  hand-ordered `MigrationBundleTestFactory`) through the real ingest and asserts the child
+  IOP resolves to its own club's replica — so the ordering can't silently regress.
+  *(seam: BundleWriter ordering + one real-producer IT; deps T-04..T-08)*
+  **→ Done.** `assembleTarGz` now emits all FULL_PORT `legacy_id_map/*.pgcopy`
+  entries BEFORE the entity NDJSON (swapped the two loops; `manifest.json` still
+  first), so the composite `legacy_id_map_location` is populated before the child
+  IOP's club-aware FK resolve runs. Gate: new `LocationRealProducerRoundTripIT`
+  (server `…/migrations/web/`) builds the LOCATION+INOUTBOUND_POINT slice via the
+  REAL `BundleWriter.assembleTarGz` and ingests its actual output through the real
+  server — verified RED (`BUNDLE_CROSS_TENANT_FK_LEAK`) on the pre-fix order,
+  GREEN after. Wiring: server `settings.gradle.kts` composite-includes
+  `migration-tool`; server build adds it as `testImplementation` (TEST-only, no
+  prod dep). Real-Postgres run: `LocationRealProducerRoundTripIT` 1/1, +
+  `LocationMigrationRoundTripIT` 1/1, `MigrationBundleParityRoundTripIT` 4/4,
+  `MigrationBundleIngestIT` 3/3 — 0 failures/errors.
+  **→ Surfaced (out of T-10 scope, NOT fixed):** driving CLUB through the real
+  `assembleTarGz` emits a 2-column `legacy_id_map/CLUB.pgcopy` identity map that
+  COLLIDES with the orchestrator's `seedClubLegacyIdMap` on
+  `legacy_id_map_club_pkey` (sqlstate=23505) — a second real-producer gap distinct
+  from the ordering bug. The IT sidesteps it by driving only the FAN_OUT entities
+  (clubs provision from the manifest; `legacy_id_map_club` is orchestrator-seeded).
+  A real full-club bundle still hits this; needs its own seam (producer must skip
+  the CLUB identity pgcopy, or `copyLegacyIdMap`/`seedClubLegacyIdMap` must
+  reconcile) — file as a follow-up before J-21's real-bundle wizard.
+- [~] **T-09 — (deferred) S-189 audit tenant-backfill.** Deferred to a follow-up per
+  [[feedback-vertical-slices-first]] — the fan-out proof (J-0b's reason to exist) is green
+  and gated; S-189 (audit-row `tenant_club_id` backfill) is an orthogonal audit-tenancy
+  concern that would only pad this journey. S-189 stays `todo` (un-rolled here).
+
+## Gate outcome (2026-06-01)
+
+**Green + honest.** Proof IT `LocationMigrationRoundTripIT` green against real Postgres
+(all ACs a/b/c + club-aware FK), the new `LocationRealProducerRoundTripIT` gates the real
+`assembleTarGz`→ingest ordering (red-first proven), J-0's clean-seed Playwright regression
+(`alpenflight proof`) green, and `@Tag("slow")` ITs run in the `alpenflight build` CI job
+(no tag filter; Docker present) — the proof is CI-enforced, not local-only.
+
+`gap-hunter` ×3 at the gate: 2 real:true/high; 1 found a real **blocker** — the real
+`BundleWriter.assembleTarGz` emitted all NDJSON before all pgcopy id-maps, so a real bundle's
+child IOP FK resolved against an empty composite map and fail-closed. Fixed in **T-10**
+(pgcopy-before-NDJSON + a real-producer round-trip IT); re-confirmed closed by a third
+gap-hunter. No mocked seams (everything ran real ingest against real Postgres).
+
+**Surfaced follow-up (NOT a J-0b blocker — for the CLUB-migration / J-21 owner):** driving
+CLUB through the real `assembleTarGz` emits a 2-column `legacy_id_map/CLUB.pgcopy` identity
+map that collides with the orchestrator's `seedClubLegacyIdMap` on `legacy_id_map_club_pkey`
+(23505) — CLUB provisions from the manifest, it doesn't fan out, so J-0b's real-producer IT
+scopes to the FAN_OUT entities. No test exercises a full real-producer bundle *including
+CLUB* end-to-end. Belongs to J-21's real-bundle wizard (either the producer skips the CLUB
+identity pgcopy, or `copyLegacyIdMap`/`seedClubLegacyIdMap` reconcile via `ON CONFLICT`).
+**File before J-21 builds.**
+
+**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → T-10 → (T-09).

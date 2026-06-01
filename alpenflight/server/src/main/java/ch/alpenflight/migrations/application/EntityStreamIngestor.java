@@ -63,10 +63,25 @@ final class EntityStreamIngestor {
             for (EntityType entity : EntityType.values()) {
                 statement.execute(
                         "CREATE TEMP TABLE " + LegacyIdMapTables.temporaryTableName(entity)
-                                + " (legacy_guid uuid PRIMARY KEY, new_uuid uuid NOT NULL) "
-                                + "ON COMMIT DROP");
+                                + " " + idMapTableColumns(entity) + " ON COMMIT DROP");
             }
         }
+    }
+
+    /**
+     * Fan-out entities ({@link EntityType#fansOut()}) record N {@code club_id}-
+     * distinct replica ids per shared {@code legacy_guid}, so their id-map table
+     * is composite-keyed {@code (legacy_guid, club_id)} (a single-key table could
+     * hold only one replica id and the T-07 resolver SELECTs on the composite
+     * key). Non-fan-out entities keep the 2-column single-key shape that
+     * CLUB / SYSTEM_GLOBAL / identity entities rely on.
+     */
+    private static String idMapTableColumns(EntityType entity) {
+        if (entity.fansOut()) {
+            return "(legacy_guid uuid, club_id uuid, new_uuid uuid NOT NULL, "
+                    + "PRIMARY KEY (legacy_guid, club_id))";
+        }
+        return "(legacy_guid uuid PRIMARY KEY, new_uuid uuid NOT NULL)";
     }
 
     void seedClubLegacyIdMap(Connection connection,
@@ -122,10 +137,17 @@ final class EntityStreamIngestor {
                 LEGACY_ID_MAP_ENTRY_PREFIX.length(),
                 tarEntryName.length() - LEGACY_ID_MAP_ENTRY_SUFFIX.length());
         String table = "legacy_id_map_" + entitySuffix;
+        // The COPY column list is pinned to the table shape so the bundle's
+        // pgcopy field order is matched explicitly: a fan-out entity's pgcopy
+        // is 3-column (legacy_guid, club_id, new_uuid) targeting the composite
+        // table; non-fan-out stays 2-column (legacy_guid, new_uuid). The entity
+        // is the tar-entry suffix — fail closed if it is not a known EntityType
+        // (an unknown suffix never reaches a valid id-map table anyway).
+        String columnList = idMapCopyColumns(entitySuffix);
         try {
             PgConnection pg = connection.unwrap(PgConnection.class);
             CopyManager copy = pg.getCopyAPI();
-            copy.copyIn("COPY " + table + " FROM STDIN BINARY",
+            copy.copyIn("COPY " + table + " (" + columnList + ") FROM STDIN BINARY",
                     new BundleStreamReader.NonClosingInputStream(tarStream));
         } catch (IOException ioFailure) {
             throw new SQLException("I/O failure during COPY of " + table, ioFailure);
@@ -133,6 +155,25 @@ final class EntityStreamIngestor {
         try (java.sql.Statement stmt = connection.createStatement()) {
             stmt.execute("ANALYZE " + table);
         }
+    }
+
+    /**
+     * COPY column list for the {@code legacy_id_map_<entity>} table, pinned to
+     * the table's shape: a fan-out entity ({@link EntityType#fansOut()}) is the
+     * 3-column composite {@code (legacy_guid, club_id, new_uuid)}; everything
+     * else stays 2-column {@code (legacy_guid, new_uuid)}. A suffix that is not
+     * a known {@link EntityType} (e.g. SYSTEM_GLOBAL) keeps the 2-column shape.
+     */
+    private static String idMapCopyColumns(String entitySuffix) {
+        EntityType entity;
+        try {
+            entity = EntityType.valueOf(entitySuffix.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException notAnEntity) {
+            return "legacy_guid, new_uuid";
+        }
+        return entity.fansOut()
+                ? "legacy_guid, club_id, new_uuid"
+                : "legacy_guid, new_uuid";
     }
 
     Mapper mapperFor(EntityType entityType) {
@@ -241,19 +282,34 @@ final class EntityStreamIngestor {
 
     /** Package-private seam: the INSERT/UPSERT SQL a registered mapper produces. */
     String insertStatementFor(EntityType entityType) {
-        return buildInsertStatement(entityType, destinationColumnNames(mapperFor(entityType).columns()));
+        return buildInsertStatement(entityType,
+                destinationColumnNames(entityType, mapperFor(entityType).columns()));
     }
 
     /**
      * Maps the mapper's wire-format column names to destination-table
-     * column names. The producer emits {@code legacy_guid} as the
-     * carrier for the destination's {@code id} per ADR 0019 (legacy GUID
-     * preservation); the alias lives at the orchestrator boundary so
-     * mappers stay symmetric between producer + consumer halves and the
-     * subset-coverage test ({@code MapperVsSchemaCompatibilityTest})
-     * already understands the alias.
+     * column names.
+     *
+     * <p><strong>Non-fan-out (CLUB / COUNTRY / identity):</strong> the producer
+     * emits {@code legacy_guid} as the carrier for the destination's {@code id}
+     * per ADR 0019 (legacy GUID preservation); the alias lives at the
+     * orchestrator boundary so mappers stay symmetric between producer +
+     * consumer halves and the subset-coverage test
+     * ({@code MapperVsSchemaCompatibilityTest}) already understands the alias.
+     *
+     * <p><strong>Fan-out (J-0b — {@link EntityType#fansOut()}):</strong> one
+     * shared legacy row fans out to N {@code club_id}-distinct replicas, so the
+     * wire carries BOTH a derived per-replica {@code id} AND the shared
+     * {@code legacy_guid} as separate fields, and BOTH are real destination
+     * columns (the V23/V24 {@code legacy_guid} columns exist). Aliasing
+     * {@code legacy_guid → id} here would duplicate {@code id} (PK-colliding the
+     * 2nd replica) and drop the shared key — so for fan-out entities the wire
+     * column names pass through verbatim.
      */
-    private static String[] destinationColumnNames(String[] wireColumns) {
+    private static String[] destinationColumnNames(EntityType entityType, String[] wireColumns) {
+        if (entityType.fansOut()) {
+            return wireColumns.clone();
+        }
         String[] destinationColumns = new String[wireColumns.length];
         for (int i = 0; i < wireColumns.length; i++) {
             destinationColumns[i] = WIRE_LEGACY_GUID_COLUMN.equals(wireColumns[i])

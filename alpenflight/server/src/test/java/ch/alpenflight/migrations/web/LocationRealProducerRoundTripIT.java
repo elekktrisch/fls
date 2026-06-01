@@ -6,26 +6,39 @@ import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
+import ch.alpenflight.migration.bundle.Manifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
+import ch.alpenflight.migration.tool.BundleWriter;
+import ch.alpenflight.migration.tool.EntityStreamResult;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
@@ -40,38 +53,39 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * J-0 T-02 — the {@code Location} migrate-link proof: a legacy→export→ingest
- * round-trip exercised against the REAL server ingest pipeline (so T-02a's
- * {@link ch.alpenflight.migrations.application.ReferenceLookupResolver} and the
- * fan-out keying both run live, not the parity-set {@code ConsumerHarness}
- * stand-in, which never invokes the reference-lookup resolver).
+ * J-0b T-10 — real-producer round-trip gate for the fan-out tar-entry ordering.
  *
- * <p>The Location NDJSON is shaped EXACTLY as {@code LocationMapper.writeNdjson}
- * emits it over the {@code MapperLegacyBindings.LOCATION} producer SELECT
- * (T-02c): {@code legacy_guid} = the legacy {@code LocationId}, {@code club_id}
- * = the fan-out partner Club, the three lookup FKs as the synthetic
- * {@code new UUID(0, legacyIntId)} encoding. The child InOutboundPoint NDJSON
- * mirrors {@code InOutboundPointMapper.writeNdjson}.
+ * <p>Unlike {@link LocationMigrationRoundTripIT}, which hand-orders the tar
+ * entries via {@code MigrationBundleTestFactory.buildBundleWithEntries} (it
+ * interleaves {@code legacy_id_map/LOCATION.pgcopy} BETWEEN {@code LOCATION.ndjson}
+ * and {@code INOUTBOUND_POINT.ndjson} — an order the real producer never emits),
+ * this IT assembles the FULL_PORT slice through the <strong>real
+ * {@link BundleWriter#assembleTarGz}</strong> and ingests its actual output
+ * through the real server ingest pipeline.
  *
- * <p>Asserts the three load-bearing migration invariants J-0 exists to prove:
- * <ul>
- *   <li><strong>(a) Fan-out.</strong> One shared legacy Location referenced by
- *       N clubs lands as N {@code t_location} rows, one per club, distinct ids,
- *       keyed {@code (legacy_guid, club_id)}.</li>
- *   <li><strong>(b) Reference-FK resolve (T-02a).</strong> Each row's
- *       {@code location_type_id} / {@code elevation_unit_type_id} /
- *       {@code runway_length_unit_type_id} equals the REAL V3/V22 seed PK, not
- *       the synthetic {@code 00000000-…} UUID.</li>
- *   <li><strong>(c) Child nesting (T-02b).</strong> InOutboundPoint rows land
- *       attached to the correct fanned-out parent Location, inheriting
- *       tenancy.</li>
- * </ul>
+ * <p>The bug it guards (gap-hunter, PR #198 gate): {@code assembleTarGz} used to
+ * emit ALL entity NDJSON entries first, then ALL {@code legacy_id_map/*.pgcopy}.
+ * The server drains tar entries single-pass in arrival order and resolves a
+ * fan-out child's {@code (legacy_guid, club_id)} FK against
+ * {@code legacy_id_map_location} DURING the child's NDJSON ingest — so with the
+ * old order {@code LOCATION.pgcopy} landed AFTER {@code INOUTBOUND_POINT.ndjson},
+ * the composite map was empty, and the child FK resolve failed closed with
+ * {@code BUNDLE_CROSS_TENANT_FK_LEAK} on every real bundle. The fix emits all
+ * pgcopy maps before the NDJSON streams; this IT fails red if that ever
+ * regresses.
+ *
+ * <p>The producer emits {@code legacy_id_map} entries only for FULL_PORT
+ * entities (CLUB / LOCATION / INOUTBOUND_POINT). The SYSTEM_GLOBAL maps
+ * (COUNTRY / CLUB_STATE) the ingest also requires are not part of the
+ * producer's tar today, so they are spliced in right after {@code manifest.json}
+ * — leaving the real producer's FULL_PORT-pgcopy-then-NDJSON relative order
+ * (the thing under test) untouched.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
 @Tag("slow")
-class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
+class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -80,11 +94,10 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final UUID SEED_LANGUAGE_DE = UUID.fromString("019e2e15-2c00-77d0-8000-0000000007d0");
     private static final UUID SEED_TENANT_USER_CLUB = UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
 
-    // Real Flyway-seed PKs the reference-lookup resolver must land on.
-    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;     // GRASS_RUNWAY (V3)
+    private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final UUID SEED_LOCATION_TYPE_GRASS =
             UUID.fromString("019e2e15-2c00-72c9-8000-0000000032c9");
-    private static final int LEGACY_UNIT_FEET = 2;               // FEET (V22 backfill)
+    private static final int LEGACY_UNIT_FEET = 2;
     private static final UUID SEED_ELEVATION_UNIT_FEET =
             UUID.fromString("019e2e15-2c00-7771-8000-000000001771");
     private static final UUID SEED_LENGTH_UNIT_FEET =
@@ -96,6 +109,8 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
     @Autowired MigrationBundleCipher cipher;
+
+    @TempDir Path workDir;
 
     private UUID userId;
     private UUID userSub;
@@ -112,19 +127,16 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         actorUserId = UUID.randomUUID();
         legacyCountryId = UUID.randomUUID();
         String tag = userSub.toString().substring(0, 5);
-        testClubKey = "LOC-" + tag;
-        testClubSlug = "loc-" + tag;
-        // The migration principal must resolve to a real t_user (JIT first-login
-        // filter, S-169); seed one under the canonical dev-seed club, same as
-        // MigrationBundleParityRoundTripIT.
+        testClubKey = "RLP-" + tag;
+        testClubSlug = "rlp-" + tag;
         jdbc.update("""
                 INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
                                     language_id, keycloak_sub)
                 VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
                 """,
                 userId.toString(), SEED_TENANT_USER_CLUB.toString(),
-                "loc-it-" + userSub, "Location IT",
-                "loc-" + userSub + "@example.com",
+                "rlp-it-" + userSub, "Real-Producer IT",
+                "rlp-" + userSub + "@example.com",
                 SEED_LANGUAGE_DE.toString(), userSub.toString());
         verifiedToken = jwts.mint(c -> c
                 .subject(userSub.toString())
@@ -146,9 +158,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id IN "
                 + "(SELECT id FROM t_migration_upload WHERE user_id = ?::uuid)", userId.toString());
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
-        // Provisioning seeds per-club masterdata (t_flight_type.operating_club_id,
-        // t_member_state.club_id); tear those down before the Club delete so their
-        // FKs don't block it (mirrors MigrationBundleParityRoundTripIT.cleanup).
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
                 userSub.toString());
         jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
@@ -160,7 +169,7 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void shared_location_fans_out_per_club_resolves_reference_fks_and_nests_child() throws Exception {
+    void real_producer_bundle_orders_pgcopy_before_ndjson_so_child_resolves_to_own_club() throws Exception {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
         byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
@@ -170,15 +179,12 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         String keyA = testClubKey + "A";
         String keyB = testClubKey + "B";
         BundleManifest.ClubDeclaration clubA = new BundleManifest.ClubDeclaration(
-                legacyClubIdA, "Loc Club A", testClubSlug + "-a", keyA, false,
+                legacyClubIdA, "RLP Club A", testClubSlug + "-a", keyA, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
         BundleManifest.ClubDeclaration clubB = new BundleManifest.ClubDeclaration(
-                legacyClubIdB, "Loc Club B", testClubSlug + "-b", keyB, false,
+                legacyClubIdB, "RLP Club B", testClubSlug + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
-        // The shared legacy Location (referenced by BOTH clubs) + one child IOP
-        // per fan-out club (each child carries its OWN legacy club_id so the
-        // composite (legacy_guid, club_id) FK lookup can pick the right replica).
         UUID sharedLocationId = UUID.randomUUID();
         UUID childIopIdA = UUID.randomUUID();
         UUID childIopIdB = UUID.randomUUID();
@@ -190,48 +196,61 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                 EntityType.COUNTRY, systemGlobalPolicy(),
                 EntityType.CLUB_STATE, systemGlobalPolicy());
 
-        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
-        tarEntries.put("legacy_id_map/COUNTRY.pgcopy",
-                pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
-        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
-                pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
-        tarEntries.put("CLUB.ndjson", concat(
-                clubNdjson(legacyClubIdA, keyA, "Loc Club A Legacy", "Addr A"),
-                clubNdjson(legacyClubIdB, keyB, "Loc Club B Legacy", "Addr B")));
-        // Fan-out: the SAME legacy Location, one NDJSON row per referencing Club
-        // — legacy_guid identical, club_id distinct (exactly what the LOCATION
-        // producer SELECT emits when Clubs.HomebaseId references it from 2 clubs).
-        tarEntries.put("LOCATION.ndjson", concat(
+        // NDJSON temp files shaped EXACTLY as the production mappers emit (the
+        // same row builders LocationMigrationRoundTripIT uses), fed into the REAL
+        // BundleWriter so it computes the pgcopy maps + tar entry order itself.
+        //
+        // Only the two FAN_OUT FULL_PORT entities (LOCATION + INOUTBOUND_POINT) go
+        // through the real producer — that is the exact slice the ordering bug
+        // lives on. CLUB is deliberately omitted: the clubs are provisioned from
+        // the manifest and legacy_id_map_club is seeded by the orchestrator's
+        // seedClubLegacyIdMap, so the LOCATION.club_id FK resolves without a CLUB
+        // tar entry. (Driving CLUB through the real producer also emits a CLUB
+        // identity pgcopy that collides with seedClubLegacyIdMap on
+        // legacy_id_map_club_pkey — a SEPARATE real-producer gap, out of T-10's
+        // ordering scope; see report.)
+        EntityStreamResult locationStream = ndjsonStream(EntityType.LOCATION, concat(
                 locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId, "LSZH"),
-                locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, "LSZH")));
-        // Composite (legacy_guid, club_id, new_uuid) id-map for the fanned-out
-        // LOCATION — ordered BEFORE INOUTBOUND_POINT.ndjson so the temp table
-        // legacy_id_map_location is populated when the child's club-aware FK
-        // resolve runs (one row per fanned-out replica, keyed on the LEGACY
-        // club id; new_uuid = the same derived replica id the NDJSON carries).
-        // Without it the composite lookup fails closed and the child FK resolve
-        // throws BUNDLE_CROSS_TENANT_FK_LEAK.
-        tarEntries.put("legacy_id_map/LOCATION.pgcopy", pgcopyMapFanOut(
-                new FanOutMapRow(sharedLocationId, legacyClubIdA,
-                        Coercions.deriveFanOutId(sharedLocationId, legacyClubIdA)),
-                new FanOutMapRow(sharedLocationId, legacyClubIdB,
-                        Coercions.deriveFanOutId(sharedLocationId, legacyClubIdB))));
-        // Fan-out: one child waypoint per referencing Club. Each child carries
-        // its OWN legacy club_id (= the producer fans the child out too, one row
-        // per (legacy IOP, legacy club)) so the club-aware FK resolution keys the
-        // composite (location_id=legacy LocationId, club_id=child's own club)
-        // lookup onto the parent replica in the SAME club — not an arbitrary one.
-        tarEntries.put("INOUTBOUND_POINT.ndjson", concat(
+                locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, "LSZH")), 2);
+        EntityStreamResult iopStream = ndjsonStream(EntityType.INOUTBOUND_POINT, concat(
                 inoutboundPointNdjson(childIopIdA, sharedLocationId, legacyClubIdA),
-                inoutboundPointNdjson(childIopIdB, sharedLocationId, legacyClubIdB)));
+                inoutboundPointNdjson(childIopIdB, sharedLocationId, legacyClubIdB)), 2);
 
-        byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
-                cipher, uploadId, publicKeyDer, "Location Migrate IT Deployment",
-                List.of(clubA, clubB), entityPolicies, tarEntries);
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "Real-Producer IT Deployment",
+                List.of(clubA, clubB),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        // The REAL producer assembles the tar: manifest, then every FULL_PORT
+        // pgcopy id-map, then every entity NDJSON (the J-0b T-10 order).
+        Path producerTarGz = workDir.resolve("real-producer-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes, List.of(locationStream, iopStream),
+                producerTarGz);
+
+        // Splice the SYSTEM_GLOBAL maps (not produced by assembleTarGz today) in
+        // right after manifest.json, preserving the producer's FULL_PORT-pgcopy-
+        // then-NDJSON relative order — the ordering under test.
+        Map<String, byte[]> systemGlobalMaps = new LinkedHashMap<>();
+        systemGlobalMaps.put("legacy_id_map/COUNTRY.pgcopy",
+                pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
+        systemGlobalMaps.put("legacy_id_map/CLUB_STATE.pgcopy",
+                pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
+        byte[] tarGzPlaintext = spliceAfterManifest(
+                Files.readAllBytes(producerTarGz), systemGlobalMaps);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, tarGzPlaintext);
 
         ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
         assertThat(res.getStatusCode())
-                .as("Location migrate round-trip ingest failed; body=%s", res.getBody())
+                .as("real-producer bundle ingest failed (would be 500 "
+                        + "BUNDLE_CROSS_TENANT_FK_LEAK if assembleTarGz regressed to "
+                        + "NDJSON-before-pgcopy); body=%s", res.getBody())
                 .isEqualTo(HttpStatus.OK);
 
         JsonNode body = JSON.readTree(res.getBody());
@@ -240,38 +259,27 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID newClubA = clubIdByKey.get(keyA);
         UUID newClubB = clubIdByKey.get(keyB);
 
-        // (a) Fan-out — the shared legacy Location produced one row per club.
+        // Fan-out + reference-FK resolve survived the real producer ordering.
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT id, club_id, location_type_id, elevation_unit_type_id, "
                         + "runway_length_unit_type_id FROM t_location "
                         + "WHERE club_id IN (?::uuid, ?::uuid) ORDER BY club_id",
                 newClubA.toString(), newClubB.toString());
         assertThat(rows)
-                .as("shared legacy Location referenced by 2 clubs must fan out to 2 t_location rows")
+                .as("shared legacy Location fans out to one row per club")
                 .hasSize(2);
-        assertThat(rows.stream().map(r -> r.get("club_id").toString()).toList())
-                .as("each fanned-out row carries its own club_id (@TenantId)")
-                .containsExactlyInAnyOrder(newClubA.toString(), newClubB.toString());
         assertThat(rows.stream().map(r -> r.get("id").toString()).distinct().count())
-                .as("the two replicas must have DISTINCT new ids (fan-out keying "
-                        + "(legacy_guid, club_id) -> new_id)")
+                .as("the two replicas have DISTINCT ids")
                 .isEqualTo(2L);
-
-        // (b) Reference-FK resolve (T-02a) — synthetic UUID rewritten to the real seed PK.
         for (Map<String, Object> r : rows) {
             assertThat(UUID.fromString(r.get("location_type_id").toString()))
-                    .as("location_type_id must resolve to the real V3 seed PK, not the synthetic")
                     .isEqualTo(SEED_LOCATION_TYPE_GRASS);
             assertThat(UUID.fromString(r.get("elevation_unit_type_id").toString()))
-                    .as("elevation_unit_type_id must resolve to the real V22 seed PK")
                     .isEqualTo(SEED_ELEVATION_UNIT_FEET);
             assertThat(UUID.fromString(r.get("runway_length_unit_type_id").toString()))
-                    .as("runway_length_unit_type_id must resolve to the real V22 seed PK")
                     .isEqualTo(SEED_LENGTH_UNIT_FEET);
         }
 
-        // The fanned-out replica id in each club (club-aware FK resolution must
-        // pick THESE, keyed (legacy_guid, club_id) — not an arbitrary replica).
         Map<String, UUID> replicaIdByClub = new LinkedHashMap<>();
         for (Map<String, Object> r : rows) {
             replicaIdByClub.put(r.get("club_id").toString(),
@@ -280,10 +288,8 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         UUID replicaInClubA = replicaIdByClub.get(newClubA.toString());
         UUID replicaInClubB = replicaIdByClub.get(newClubB.toString());
 
-        // (c) Child nesting (T-02b) + club-aware FK resolution (key-behavior).
-        // Each fanned-out child resolves to the parent replica in ITS OWN club:
-        // the club-A child → club A's replica id, the club-B child → club B's —
-        // NOT "one of" the replicas (the shared legacy GUID does not disambiguate).
+        // The exact invariant the producer-ordering bug broke: each fanned-out
+        // child IOP resolves to the parent replica in ITS OWN club.
         List<Map<String, Object>> iops = jdbc.queryForList(
                 "SELECT iop.id, iop.location_id, loc.club_id "
                         + "FROM t_inoutbound_point iop "
@@ -291,8 +297,7 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                         + "WHERE loc.club_id IN (?::uuid, ?::uuid)",
                 newClubA.toString(), newClubB.toString());
         assertThat(iops)
-                .as("each fan-out club's child InOutboundPoint must attach to a "
-                        + "fanned-out parent Location")
+                .as("each fan-out club's child IOP attaches to a fanned-out parent")
                 .hasSize(2);
 
         Map<String, UUID> iopLocationIdByClub = new LinkedHashMap<>();
@@ -301,67 +306,70 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                     UUID.fromString(iop.get("location_id").toString()));
         }
         assertThat(iopLocationIdByClub.get(newClubA.toString()))
-                .as("club-aware FK: the club-A child must resolve to club A's OWN "
-                        + "Location replica id, not club B's (composite (legacy_guid, "
-                        + "club_id) lookup keyed on the child's own club)")
+                .as("club-aware FK: club-A child resolves to club A's OWN replica "
+                        + "(needs LOCATION.pgcopy drained before INOUTBOUND_POINT.ndjson)")
                 .isEqualTo(replicaInClubA);
         assertThat(iopLocationIdByClub.get(newClubB.toString()))
-                .as("club-aware FK: the club-B child must resolve to club B's OWN "
-                        + "Location replica id, not club A's")
+                .as("club-aware FK: club-B child resolves to club B's OWN replica")
                 .isEqualTo(replicaInClubB);
     }
 
-    private byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname, String address)
+    /** Write {@code payload} to a temp NDJSON file + wrap as a producer stream result. */
+    private EntityStreamResult ndjsonStream(EntityType type, byte[] payload, long rows)
             throws IOException {
-        var row = JSON.createObjectNode();
-        row.put("legacy_guid", legacyClubId.toString());
-        row.put("clubname", clubname);
-        row.put("club_key", clubKey);
-        row.put("address", address);
-        row.putNull("zip");
-        row.putNull("city");
-        row.put("country_id", legacyCountryId.toString());
-        row.putNull("phone");
-        row.putNull("fax_number");
-        row.putNull("email");
-        row.putNull("web_page");
-        row.putNull("contact");
-        row.put("club_state_id", LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC.toString());
-        row.putNull("send_aircraft_statistic_report_to");
-        row.putNull("send_planning_day_info_mail_to");
-        row.putNull("send_delivery_mail_export_to");
-        row.putNull("send_trial_flight_registration_operator_email");
-        row.putNull("send_passenger_flight_registration_operator_email");
-        row.putNull("reply_to_email_address");
-        row.put("run_delivery_creation_job", false);
-        row.put("run_delivery_mail_export_job", false);
-        row.putNull("last_person_synchronisation_on");
-        row.putNull("last_delivery_synchronisation_on");
-        row.putNull("last_article_synchronisation_on");
-        row.put("is_club_member_number_readonly", false);
-        String createdInstant = Instant.parse("2020-06-15T00:00:00Z").toString();
-        row.put("created_on", createdInstant);
-        row.putNull("created_by_user_id");
-        row.put("modified_on", createdInstant);
-        row.putNull("modified_by_user_id");
-        row.putNull("deleted_on");
-        row.putNull("deleted_by_user_id");
-        return ndjsonLine(row);
+        Path file = Files.createTempFile(workDir, type.name() + "-", ".ndjson");
+        Files.write(file, payload);
+        return new EntityStreamResult(type, file, rows, "sha-not-asserted");
     }
 
     /**
-     * NDJSON shaped exactly as {@code LocationMapper.writeNdjson}: legacy_guid =
-     * the legacy LocationId (identical across fan-out replicas), club_id = the
-     * fan-out partner Club, the three lookup FKs as the synthetic
-     * {@code new UUID(0, legacyIntId)} encoding the resolver decodes.
+     * Re-tar a producer tar.gz with the supplied entries spliced in immediately
+     * after {@code manifest.json}, every other entry kept in its original order.
      */
+    private static byte[] spliceAfterManifest(byte[] tarGz, Map<String, byte[]> afterManifest)
+            throws IOException {
+        // Preserve original order; a LinkedHashMap is enough — no duplicate
+        // entry names in a producer tar.
+        Map<String, byte[]> original = new LinkedHashMap<>();
+        try (TarArchiveInputStream tar = new TarArchiveInputStream(
+                new GZIPInputStream(new java.io.ByteArrayInputStream(tarGz)))) {
+            TarArchiveEntry e;
+            while ((e = tar.getNextEntry()) != null) {
+                if (e.isDirectory()) {
+                    continue;
+                }
+                original.put(e.getName(), tar.readAllBytes());
+            }
+        }
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(sink);
+             TarArchiveOutputStream out = new TarArchiveOutputStream(gzip)) {
+            out.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
+            for (Map.Entry<String, byte[]> e : original.entrySet()) {
+                writeTar(out, e.getKey(), e.getValue());
+                if (e.getKey().equals("manifest.json")) {
+                    for (Map.Entry<String, byte[]> sg : afterManifest.entrySet()) {
+                        writeTar(out, sg.getKey(), sg.getValue());
+                    }
+                }
+            }
+            out.finish();
+        }
+        return sink.toByteArray();
+    }
+
+    private static void writeTar(TarArchiveOutputStream out, String name, byte[] body)
+            throws IOException {
+        TarArchiveEntry entry = new TarArchiveEntry(name);
+        entry.setSize(body.length);
+        out.putArchiveEntry(entry);
+        out.write(body);
+        out.closeArchiveEntry();
+    }
+
     private byte[] locationNdjson(UUID legacyLocationId, UUID legacyClubId,
                                   UUID countryId, String icao) throws IOException {
         var row = JSON.createObjectNode();
-        // Fan-out: the wire carries BOTH the derived per-replica id AND the
-        // shared legacy_guid as separate destination columns (the de-alias).
-        // The id is derived with the SAME helper the producer uses, keyed on
-        // the LEGACY club id, so it matches the composite id-map row below.
         row.put("id", Coercions.deriveFanOutId(legacyLocationId, legacyClubId).toString());
         row.put("legacy_guid", legacyLocationId.toString());
         row.put("club_id", legacyClubId.toString());
@@ -396,22 +404,9 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /**
-     * NDJSON shaped exactly as {@code InOutboundPointMapper.writeNdjson} after the
-     * J-0b fan-out: the child carries its OWN legacy {@code club_id} on the wire
-     * (the producer fans the child out, one row per (legacy IOP, legacy club)) so
-     * the composite {@code (location_id, club_id)} FK lookup can disambiguate which
-     * fanned-out parent replica this child belongs to — the shared legacy
-     * {@code location_id} GUID alone cannot.
-     */
     private byte[] inoutboundPointNdjson(UUID legacyIopId, UUID legacyLocationId,
                                          UUID legacyClubId) throws IOException {
         var row = JSON.createObjectNode();
-        // Fan-out child: distinct derived id per replica (else the 2 replicas
-        // PK-collide on t_inoutbound_point.id), keyed on the child's OWN legacy
-        // club — same helper the producer uses. legacy_guid stays the shared
-        // legacy IOP id; club_id is the resolver-only wire field (= the child's
-        // own legacy club) T-07 keys the composite (location_id, club_id) lookup on.
         row.put("id", Coercions.deriveFanOutId(legacyIopId, legacyClubId).toString());
         row.put("legacy_guid", legacyIopId.toString());
         row.put("location_id", legacyLocationId.toString());
@@ -441,8 +436,18 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         return byKey;
     }
 
-    private static byte[] ndjsonLine(com.fasterxml.jackson.databind.node.ObjectNode row)
-            throws IOException {
+    private static Map<EntityType, String> unmappedReasonFor(
+            Map<EntityType, EntityPolicy> entityPolicies) {
+        Map<EntityType, String> unmapped = new EnumMap<>(EntityType.class);
+        for (EntityType type : EntityType.values()) {
+            if (!entityPolicies.containsKey(type)) {
+                unmapped.put(type, "TEST_OMITTED");
+            }
+        }
+        return unmapped;
+    }
+
+    private static byte[] ndjsonLine(ObjectNode row) throws IOException {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (JsonGenerator gen = JSON.getFactory().createGenerator(sink)) {
             JSON.writeTree(gen, row);
@@ -455,26 +460,6 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
             writer.write(legacyGuid, newUuid);
-        }
-        return sink.toByteArray();
-    }
-
-    /** One composite (legacy_guid, club_id, new_uuid) id-map row for a fan-out entity. */
-    private record FanOutMapRow(UUID legacyGuid, UUID legacyClubId, UUID newUuid) { }
-
-    /**
-     * 3-column sibling of {@link #pgcopyMap}: emits the composite
-     * {@code (legacy_guid, club_id, new_uuid)} id-map a fan-out entity
-     * ({@link EntityType#fansOut()}) needs so the ingest-side composite
-     * {@code legacy_id_map_<entity>} temp table is populated and the
-     * club-aware FK resolve can pick the right replica.
-     */
-    private static byte[] pgcopyMapFanOut(FanOutMapRow... mapRows) throws IOException {
-        ByteArrayOutputStream sink = new ByteArrayOutputStream();
-        try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
-            for (FanOutMapRow mapRow : mapRows) {
-                writer.write(mapRow.legacyGuid(), mapRow.legacyClubId(), mapRow.newUuid());
-            }
         }
         return sink.toByteArray();
     }
