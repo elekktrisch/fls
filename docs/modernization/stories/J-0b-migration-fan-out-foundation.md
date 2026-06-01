@@ -270,7 +270,25 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   provisioning-seeded `t_flight_type` + `t_member_state` before `t_club` (mirrors
   `MigrationBundleParityRoundTripIT.cleanup`). Real-Postgres run: 1 test, 0 failures,
   0 errors (ACs a/b/c + club-aware FK all asserted in the one method).
+- [ ] **T-10 — Fix real-producer tar ordering + gate it (gap-hunter blocker).**
+  `gap-hunter` (2026-06-01, PR #198 gate) proved the green was producer-ordering-blind:
+  `BundleWriter.assembleTarGz` (`migration-tool`, lines ~203-208) writes **all** NDJSON
+  entries first, then **all** `legacy_id_map/*.pgcopy` entries — so on a REAL bundle
+  `legacy_id_map/LOCATION.pgcopy` lands AFTER `INOUTBOUND_POINT.ndjson`. `drainEntityStreams`
+  is single-pass in tar order and resolves the child IOP→LOCATION FK synchronously during
+  IOP ingest, so the composite `legacy_id_map_location` is still empty → fail-closed
+  `BUNDLE_CROSS_TENANT_FK_LEAK` on every real bundle with a fanned-out Location that has a
+  child IOP. T-08's IT passes only because it hand-interleaves the pgcopy BETWEEN
+  `LOCATION.ndjson` and `INOUTBOUND_POINT.ndjson` (an order the producer never emits), and
+  no test ingests a real `assembleTarGz` bundle. **Fix:** emit all FULL_PORT pgcopy id-map
+  entries BEFORE the NDJSON entries in `assembleTarGz` (swap the two `putFileEntry` loops;
+  the temp tables are created up front by `createTemporaryIdMapTables`, and the derived
+  ids are producer-computed independent of NDJSON insertion, so pgcopy-first is correct).
+  **Gate it:** add a round-trip IT that ingests an ACTUAL `assembleTarGz` output (not the
+  hand-ordered `MigrationBundleTestFactory`) through the real ingest and asserts the child
+  IOP resolves to its own club's replica — so the ordering can't silently regress.
+  *(seam: BundleWriter ordering + one real-producer IT; deps T-04..T-08)*
 - [ ] **T-09 — (optional, droppable) S-189 audit tenant-backfill.** Build only if it
   stays thin per [[feedback-vertical-slices-first]]; else defer to a follow-up story.
 
-**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → (T-09).
+**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → **T-10** → (T-09).
