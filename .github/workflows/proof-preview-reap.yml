@@ -83,15 +83,41 @@ jobs:
           set -euo pipefail
           cd reap-gh-pages
 
-          # Guard: only ever touch alpenflight/proof-preview/<ref>. Never the
-          # canonical gallery, the index, or the legacy dashboard.
+          # Blast-radius guard: only ever touch alpenflight/proof-preview/<ref>.
+          # Never the canonical gallery, the index, or the legacy dashboard.
+          #
+          # The naive `case alpenflight/proof-preview/?*)` is bypassable in
+          # principle: a ref sanitizing to `..` yields
+          # `alpenflight/proof-preview/..` — `.` is in the allowed sed set, so it
+          # passes `?*`, but `git rm -r` resolves it to the PARENT `alpenflight/`,
+          # wiping the canonical gallery + index + sibling previews. Not reachable
+          # via real branch names (git rejects `..`/`.`), but this is a
+          # destructive op on the live published site, so we don't rely on that
+          # external invariant. Validate the COMPONENT (the part after
+          # alpenflight/proof-preview/) is a single safe path segment: matches
+          # ^[A-Za-z0-9._-]+$, is not `.`/`..`, has no `..` substring, and
+          # carries at least one alphanumeric (so a separator-only ref like `/`,
+          # which sanitizes to all `-`, doesn't reap a placeholder subdir).
+          # On failure: warn + clean-exit (refuse to rm) — a non-reapable ref
+          # shouldn't fail the whole run, just decline to delete anything.
+          prefix="alpenflight/proof-preview/"
           case "$SUBDIR" in
-            alpenflight/proof-preview/?*) : ;;
+            "${prefix}"*) component="${SUBDIR#"${prefix}"}" ;;
             *)
-              echo "::error::refusing to reap unexpected path: '${SUBDIR}'"
-              exit 1
+              echo "::error::refusing to reap path outside ${prefix}: '${SUBDIR}'"
+              echo "::warning::nothing reaped (path failed blast-radius guard)."
+              exit 0
               ;;
           esac
+          if [ "$component" = "." ] || [ "$component" = ".." ] \
+             || [ -z "$component" ] \
+             || ! printf '%s' "$component" | grep -Eq '^[A-Za-z0-9._-]+$' \
+             || printf '%s' "$component" | grep -q '\.\.' \
+             || ! printf '%s' "$component" | grep -Eq '[A-Za-z0-9]'; then
+            echo "::error::refusing to reap unsafe component: '${component}' (from '${SUBDIR}')"
+            echo "::warning::nothing reaped (component failed blast-radius guard)."
+            exit 0
+          fi
 
           if [ ! -d "$SUBDIR" ]; then
             echo "preview subpath '${SUBDIR}' absent on gh-pages — nothing to reap (clean exit)."

@@ -442,7 +442,7 @@ jobs:
       # (and head_ref is empty on push, breaking main runs), so we intentionally
       # do NOT add one — see the journey note.
       - name: Deploy proof preview to gh-pages (PR)
-        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -463,15 +463,15 @@ jobs:
       # generator emits (esc() only touches & < > " — none of which appear in
       # these captions, so they render verbatim and grep-match literally). The
       # caption substrings are the distinctive tails of the three J-0 captions
-      # in e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts (the
-      # `proofVideo({ caption })` calls). If the URL never 200s within budget,
+      # in alpenflight/web/e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
+      # (the `proofVideo({ caption })` calls). If the URL never 200s within budget,
       # OR 200s but a caption is absent, the step fails the job red. Inherent
       # timing caveat: on the FIRST-EVER push of a brand-new subpath, Pages
       # build latency can exceed even this budget — the failure message names
       # the URL so a transient propagation miss is diagnosable + re-runnable.
       # Dependency-free: bash + curl (both on the ubuntu runner).
       - name: Live link-check the deployed preview (200 + captions)
-        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
@@ -516,13 +516,16 @@ jobs:
           fi
           echo "live link-check passed: 200 + all 3 J-0 captions present at ${PREVIEW_URL}"
 
-      # J-25 — surface the clickable preview URL. Always-on $GITHUB_STEP_SUMMARY
-      # line (no PR-write token needed — the fallback for fork PRs) PLUS a
-      # sticky PR comment upserted by a hidden HTML marker (find-and-update via
-      # github-script, so re-runs update one comment instead of spamming).
-      # Both gated on the preview deploy having published (PR + gallery green).
+      # J-25 — surface the clickable preview URL: a $GITHUB_STEP_SUMMARY line
+      # PLUS a sticky PR comment upserted by a hidden HTML marker (find-and-update
+      # via github-script, so re-runs update one comment instead of spamming).
+      # Both gated on the preview deploy having published (PR + non-fork + gallery
+      # green) — there's no preview URL to surface when the deploy itself skipped,
+      # and a fork PR has no write token for the comment anyway, so both skip
+      # cleanly on fork PRs (the documented "fork PRs silently skip" contract)
+      # rather than failing the required proof gate red.
       - name: Surface preview URL (step summary)
-        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         run: |
           {
             echo "### Proof gallery preview"
@@ -533,7 +536,7 @@ jobs:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
 
       - name: Upsert sticky preview comment
-        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         uses: actions/github-script@v7
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
