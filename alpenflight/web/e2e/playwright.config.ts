@@ -20,7 +20,32 @@ export default defineConfig({
   // even on suite-abort where per-project teardown wouldn't. No-op on
   // mock-auth runs (no admin token, no probes — exits early).
   globalTeardown: require.resolve('./tests/real-idp/global-teardown.ts'),
-  reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : 'html',
+  // Config-level (shared across projects). In CI we also emit a JSON report:
+  // it IS the J-24 proof manifest (see e2e/proof-gallery/README.md) — the
+  // gallery generator reads the `proof-video` attachments + `proof-*`
+  // annotations the `proofVideo()` helper pushes from the real-idp proof specs.
+  // The mock chromium PR run produces this file with no proof-* annotations,
+  // which the generator tolerates as "no proofs"; it does not break the
+  // github/html reporters (Playwright runs all listed reporters).
+  // Path resolution: Playwright resolves a config-level reporter `outputFile`
+  // against the CONFIG DIR — the dir holding THIS config file, i.e.
+  // `alpenflight/web/e2e/` — NOT the process cwd (verified in the installed
+  // source: `runner/index.js` `resolveOutputFile` →
+  // `path.resolve(options.configDir, options.outputFile)`). So the leading
+  // `../` is required: `e2e/` + `../test-results/proof-manifest.json` lands the
+  // manifest at `alpenflight/web/test-results/proof-manifest.json` — co-located
+  // with the `test-results/` videos + the proof artifact upload path, and
+  // byte-identical to what the `alpenflight-proof` generate step reads (cwd
+  // `alpenflight/web` + `test-results/proof-manifest.json`). Without the `../`
+  // the manifest would land at `e2e/test-results/` and the generate step would
+  // ENOENT (the real gate-red this T-05 fixes).
+  reporter: process.env['CI']
+    ? [
+        ['github'],
+        ['html', { open: 'never' }],
+        ['json', { outputFile: '../test-results/proof-manifest.json' }],
+      ]
+    : 'html',
   use: {
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

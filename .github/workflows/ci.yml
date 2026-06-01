@@ -198,8 +198,11 @@ jobs:
     if: needs.changes.outputs.next == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
+    # `contents: write` lets the main-gated gh-pages deploy step push the
+    # proof gallery to the gh-pages branch (mirrors alpenflight-e2e.yml).
+    # Without it the deploy fails with 403; the rest of the job needs read.
     permissions:
-      contents: read
+      contents: write
     env:
       E2E_REAL_IDP: '1'
     steps:
@@ -333,6 +336,21 @@ jobs:
             --project=real-idp \
             e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
 
+      # J-24 — build + link-check the proof gallery from the run's manifest +
+      # videos (test-results/). `always()` so it runs even when the spec is red;
+      # on red there are no proof videos so it emits only pending rows. The
+      # generator exits non-zero on a missing caption / missing .webm (AC5
+      # link-check) — that MUST fail the job, so no `|| true` swallow here.
+      - name: Build + link-check proof gallery
+        id: gallery
+        if: always()
+        working-directory: alpenflight/web
+        run: |
+          node e2e/proof-gallery/generate-gallery.mjs \
+            --report test-results/proof-manifest.json \
+            --out ../../public/alpenflight/proof \
+            --order ../../docs/modernization/stories/_ORDER.md
+
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -356,8 +374,29 @@ jobs:
             alpenflight/web/test-results
             alpenflight/web/screenshots
             alpenflight/server/backend.log
+            public/alpenflight/proof
           retention-days: 14
           if-no-files-found: warn
+
+      # Publish the proof gallery to gh-pages — main only (carve decision 2:
+      # build + link-check every run above; publish on merge). Mirrors the
+      # main-gated deploy in alpenflight-e2e.yml (keep_files: true so it
+      # coexists with the e2e dashboard under /alpenflight/). Gated on the
+      # generate step having SUCCEEDED (`steps.gallery.outcome == 'success'`),
+      # not `always()`: a red run (spec failure OR an AC5 link-check failure)
+      # must NOT re-push stale/broken proofs over the live gallery. The
+      # generate step itself still runs on `always()` above so a red run still
+      # fails the job — we only suppress the publish, not the gate.
+      - name: Deploy proof gallery to gh-pages
+        if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
 
       - name: Stop backend
         if: always()

@@ -1,4 +1,4 @@
-import { type Browser, type Page, expect } from '@playwright/test';
+import { type Browser, type BrowserContext, type Page, expect } from '@playwright/test';
 
 import { assignRealmRole, createUserWithAttributes, deleteUser } from './keycloak-admin';
 import { fillKcLogin } from './kc-form';
@@ -112,7 +112,26 @@ async function captureSysadminBearer(browser: Browser, baseURL: string): Promise
   return bearer;
 }
 
-/** Create club B via the real `POST /api/v1/clubs` surface as sysadmin. */
+/** Strip the `clb-` external-form prefix to the raw tenant UUID. */
+function rawClubId(prefixedId: string): string {
+  // ClubResponse.id is the prefixed external form `clb-<uuid>`; the
+  // tenant claim + SpEL gate compare against the raw UUID.
+  return prefixedId.replace(/^clb-/, '');
+}
+
+/**
+ * Create club B via the real `POST /api/v1/clubs` surface as sysadmin.
+ *
+ * Idempotent across Playwright RETRIES: the slug is deterministic per run
+ * (`E2E_RUN_ID` is stable within a run, so retry attempts reuse it), and
+ * there is no per-retry teardown of the created club row. A naive create
+ * therefore 409s on the slug-unique index on the second attempt. We treat
+ * that 409 as "club B already provisioned by a prior attempt" and recover
+ * its id by listing clubs (sysadmin's read surface) and matching the slug —
+ * reusing the SAME distinct club, so the two-distinct-clubs tenant-isolation
+ * premise holds (club B is still the runtime-created club, never the
+ * Flyway-seeded club A).
+ */
 async function createClubB(browser: Browser, baseURL: string): Promise<string> {
   const bearer = await captureSysadminBearer(browser, baseURL);
   const slug = `e2e-${runId()}-club-b`;
@@ -129,16 +148,50 @@ async function createClubB(browser: Browser, baseURL: string): Promise<string> {
         clubStateId: ACTIVE_CLUB_STATE_ID,
       },
     });
+    if (res.status() === 409) {
+      // A prior (failed/retried) attempt already created club B under this
+      // run's slug. Recover its id rather than failing — and assert it is a
+      // DISTINCT club from the seeded club A.
+      const existingId = await findClubIdBySlug(ctx, bearer, slug);
+      if (!existingId) {
+        throw new Error(
+          `createClubB 409'd on slug "${slug}" but no club with that slug is listed — ` +
+            'slug collides with a non-recoverable row',
+        );
+      }
+      if (existingId === SEED_CLUB_A_ID) {
+        throw new Error(`createClubB recovered the seeded club A id for club B (${existingId})`);
+      }
+      return existingId;
+    }
     if (!res.ok()) {
       throw new Error(`createClubB failed (${res.status()}): ${await res.text()}`);
     }
     const body = (await res.json()) as { id: string };
-    // ClubResponse.id is the prefixed external form `clb-<uuid>`; the
-    // tenant claim + SpEL gate compare against the raw UUID.
-    return body.id.replace(/^clb-/, '');
+    return rawClubId(body.id);
   } finally {
     await ctx.close();
   }
+}
+
+/**
+ * Find an existing club's raw UUID by its slug via sysadmin's `GET
+ * /api/v1/clubs` catalog. Returns `undefined` when no club carries the slug.
+ */
+async function findClubIdBySlug(
+  ctx: BrowserContext,
+  bearer: string,
+  slug: string,
+): Promise<string | undefined> {
+  const res = await ctx.request.get('/api/v1/clubs', {
+    headers: { authorization: bearer },
+  });
+  if (!res.ok()) {
+    throw new Error(`listClubs failed (${res.status()}): ${await res.text()}`);
+  }
+  const clubs = (await res.json()) as { id: string; slug?: string | null }[];
+  const match = clubs.find((c) => c.slug === slug);
+  return match ? rawClubId(match.id) : undefined;
 }
 
 async function provisionClubAdmin(clubId: string, label: string): Promise<ClubAdmin> {
