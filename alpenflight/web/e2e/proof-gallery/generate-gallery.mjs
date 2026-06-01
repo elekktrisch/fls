@@ -14,8 +14,10 @@
  * caption, or a caption references a .webm not present in the proof output.
  *
  * Dual use:
- *   - CLI:    node generate-gallery.mjs --report <json> --out <dir> [--order <_ORDER.md>] [--videos <dir>]
- *             (also: `pnpm proof:gallery`)
+ *   - CLI:    node generate-gallery.mjs --report <json> --out <dir> [--order <_ORDER.md>] [--legacy-video <dir>]
+ *             (also: `pnpm proof:gallery`). `--legacy-video <dir>` adds declared
+ *             legacy (non-AlpenFlight) parity videos from a `legacy-video.json`
+ *             sidecar — see README.md "Legacy parity videos".
  *   - import: `import { generateGallery } from './generate-gallery.mjs'`
  *             generateGallery({ reportPath, outDir, orderPath?, videosDir? }) — T-02 drives this.
  */
@@ -149,6 +151,54 @@ export function extractProofs(report, { reportDir }) {
   return { proofs, errors };
 }
 
+/**
+ * Extract declared LEGACY parity videos (J-0c+) from a `legacy-video.json`
+ * sidecar in `legacyVideoDir`. The Playwright JSON report only carries
+ * AlpenFlight `real-idp` proofs; a legacy (e.g. flsweb) parity video has no
+ * manifest path, so it is declared in a sidecar keyed to a journey:
+ *
+ *   { "videos": [ { "journey": "J-0c", "file": "x.webm",
+ *                   "acTag": "happy", "caption": "Legacy flsweb: …" } ] }
+ *
+ * `file` resolves relative to the sidecar dir. Returns the same proof shape as
+ * `extractProofs`, flagged `legacy: true`, plus the AC5 link-check `errors`
+ * (caption required; .webm must exist on disk) — identical bar to AlpenFlight
+ * proofs. A missing dir / sidecar is a no-op (no legacy video this run).
+ */
+export function extractLegacyVideos(legacyVideoDir) {
+  const proofs = [];
+  const errors = [];
+  if (!legacyVideoDir) return { proofs, errors };
+  const sidecar = resolve(legacyVideoDir, 'legacy-video.json');
+  if (!existsSync(sidecar)) return { proofs, errors };
+
+  const decl = JSON.parse(readFileSync(sidecar, 'utf8'));
+  for (const v of decl.videos ?? []) {
+    const title = v.file ?? '(legacy video)';
+    const caption = v.caption;
+    const videoPath = v.file ? resolve(legacyVideoDir, v.file) : undefined;
+
+    if (!caption || !String(caption).trim()) {
+      errors.push(`published legacy proof video has no caption: "${title}"`);
+    }
+    if (!videoPath || !existsSync(videoPath)) {
+      errors.push(
+        `legacy caption references a .webm not present in the proof output: "${title}" → ${v.file ?? '(no file)'}`,
+      );
+    }
+
+    proofs.push({
+      journey: v.journey ?? 'unknown',
+      caption: caption ?? '',
+      acTag: v.acTag,
+      videoPath,
+      title,
+      legacy: true,
+    });
+  }
+  return { proofs, errors };
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -178,9 +228,15 @@ function renderHtml({ byJourney, roadmap, generatedAt, branch }) {
           const tag = p.acTag
             ? `<span class="status ${tagClass(p.acTag)}">${esc(p.acTag)}</span>`
             : '';
-          return `        <figure class="proof">
+          // A legacy parity video (e.g. legacy flsweb) is labelled as the
+          // legacy side so a reviewer reads legacy-vs-AlpenFlight side by side.
+          const legacyLabel = p.legacy
+            ? '<span class="legacy-label">legacy parity</span>'
+            : '';
+          const figClass = p.legacy ? 'proof legacy-proof' : 'proof';
+          return `        <figure class="${figClass}">
           <video controls preload="metadata" src="${esc(p.videoSrc)}"></video>
-          <figcaption>${tag}<span class="caption">${esc(p.caption)}</span></figcaption>
+          <figcaption>${legacyLabel}${tag}<span class="caption">${esc(p.caption)}</span></figcaption>
         </figure>`;
         })
         .join('\n');
@@ -253,6 +309,12 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .proof video { display: block; width: 100%; height: auto; background: #000; }
 .proof figcaption { padding: .65rem .75rem; font-size: .9rem; display: flex; flex-direction: column; gap: .4rem; }
 .proof .caption { color: var(--text); }
+.proof.legacy-proof { border-color: var(--pending); }
+.legacy-label {
+  display: inline-block; align-self: flex-start; padding: .2em .65em; border-radius: 4px;
+  font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--pending-bg); color: var(--pending);
+}
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
 </head>
@@ -290,6 +352,9 @@ ${sections}
  * @param {string} o.outDir       Directory to write index.html (+ copied videos/) into.
  * @param {string} [o.orderPath]  Path to _ORDER.md (roadmap). Falls back to ROADMAP_FALLBACK.
  * @param {string} [o.branch]     Branch label for the header.
+ * @param {string} [o.legacyVideoDir] Dir holding a `legacy-video.json` sidecar +
+ *   its `.webm`(s) — declared LEGACY parity videos (J-0c+), rendered side-by-side
+ *   with the AlpenFlight proof under the same journey. Absent dir/sidecar = no-op.
  * @returns {{ html: string, outFile: string, proofs: Array, roadmap: string[] }}
  * @throws on any AC5 link-check violation (no caption / missing .webm).
  */
@@ -298,10 +363,14 @@ export function generateGallery({
   outDir,
   orderPath,
   branch = process.env.GITHUB_REF_NAME ?? 'local',
+  legacyVideoDir,
 }) {
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
-  const { proofs, errors } = extractProofs(report, { reportDir });
+  const { proofs: manifestProofs, errors: manifestErrors } = extractProofs(report, { reportDir });
+  const { proofs: legacyProofs, errors: legacyErrors } = extractLegacyVideos(legacyVideoDir);
+  const proofs = [...manifestProofs, ...legacyProofs];
+  const errors = [...manifestErrors, ...legacyErrors];
 
   if (errors.length) {
     throw new Error(`proof-gallery link-check failed (AC5):\n  - ${errors.join('\n  - ')}`);
@@ -311,9 +380,11 @@ export function generateGallery({
   // the published page is self-contained.
   mkdirSync(resolve(outDir, 'videos'), { recursive: true });
   for (const p of proofs) {
-    const dest = resolve(outDir, 'videos', basename(p.videoPath));
-    copyFileSync(p.videoPath, dest);
-    p.videoSrc = `videos/${basename(p.videoPath)}`;
+    // Namespace legacy copies so a legacy .webm can never collide with an
+    // AlpenFlight one of the same basename in the shared videos/ dir.
+    const name = p.legacy ? `legacy-${basename(p.videoPath)}` : basename(p.videoPath);
+    copyFileSync(p.videoPath, resolve(outDir, 'videos', name));
+    p.videoSrc = `videos/${name}`;
   }
 
   const roadmap = parseRoadmap(orderPath);
@@ -321,6 +392,11 @@ export function generateGallery({
   for (const p of proofs) {
     if (!byJourney.has(p.journey)) byJourney.set(p.journey, []);
     byJourney.get(p.journey).push(p);
+  }
+  // Within a journey, render the legacy parity video FIRST so the reviewer reads
+  // legacy → AlpenFlight left-to-right (the side-by-side parity framing).
+  for (const list of byJourney.values()) {
+    list.sort((a, b) => (a.legacy === b.legacy ? 0 : a.legacy ? -1 : 1));
   }
   // A green proof for a journey not in the roadmap still gets shown (appended).
   for (const jid of byJourney.keys()) {
@@ -348,6 +424,7 @@ function parseArgs(argv) {
     else if (a === '--out') out.outDir = argv[++i];
     else if (a === '--order') out.orderPath = argv[++i];
     else if (a === '--branch') out.branch = argv[++i];
+    else if (a === '--legacy-video') out.legacyVideoDir = argv[++i];
   }
   return out;
 }
@@ -359,6 +436,9 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   // a local out dir so a generator change can be eyeballed without CI.
   const reportPath = args.reportPath ?? resolve(__dirname, 'fixtures', 'proof-manifest.json');
   const outDir = args.outDir ?? resolve(__dirname, '..', '..', 'public', 'alpenflight', 'proof');
+  // Default legacy-video dir for `pnpm proof:gallery` (fixtures); CI passes
+  // --legacy-video <staged dir>. Only picked up if a legacy-video.json exists.
+  const legacyVideoDir = args.legacyVideoDir ?? resolve(__dirname, 'fixtures', 'legacy-video');
   let orderPath = args.orderPath;
   if (!orderPath) {
     const guess = resolve(
@@ -380,6 +460,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       outDir,
       orderPath,
       branch: args.branch,
+      legacyVideoDir,
     });
     const pending = roadmap.filter((j) => !proofs.some((p) => p.journey === j));
     console.log(`proof-gallery: wrote ${outFile}`);

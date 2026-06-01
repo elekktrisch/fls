@@ -256,8 +256,29 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   manifest. **First LIVE green is this workflow's own first CI run** (the
   J-0/J-0b pattern, [[feedback-verify-infra-is-run-not-just-authored]]) — no
   live pass is claimed.
-- [ ] **T-06 — Gallery: legacy + AlpenFlight videos, J-0c-captioned.** Ensure both
+- [x] **T-06 — Gallery: legacy + AlpenFlight videos, J-0c-captioned.** Ensure both
   videos land captioned + `J-0c`-tagged; extend `generate-gallery.mjs` if it can't
   caption a non-AlpenFlight (legacy) video. *(seam: gallery generator + fixture)*
+  Landed: the AlpenFlight per-club videos already flow through the manifest path
+  (`proof-journey: J-0c` via `proofVideo()`) — verified they render under a J-0c
+  section. The LEGACY parity video gets a **declared sidecar source**:
+  `generate-gallery.mjs` grows an optional `--legacy-video <dir>` (param
+  `legacyVideoDir`) that reads a `legacy-video.json` sidecar declaring legacy
+  videos keyed to a journey (`{journey, file, acTag, caption}`); `extractLegacyVideos`
+  returns the same proof shape flagged `legacy:true`, under the SAME AC5 link-check
+  (caption required + `.webm` must exist). The generator renders the legacy video
+  FIRST within the J-0c section, labelled `legacy parity` (CSS `.legacy-proof`) so
+  a reviewer reads legacy → AlpenFlight side by side. AlpenFlight-video + "pending"
+  (J-0/J-0b) paths untouched; missing dir/sidecar is a no-op. The proof workflow
+  now stages the recorded legacy `.webm` + writes the sidecar (with the chain's
+  random Location name) BEFORE the generator runs (`--legacy-video`). Fixture +
+  spec extended: a J-0c AlpenFlight proof in `proof-manifest.json` + a
+  `fixtures/legacy-video/` sidecar; new spec case asserts the J-0c section shows
+  BOTH videos, captioned, legacy clearly labelled. STRUCTURAL-only on the box for
+  the two browser-driven spec cases (musl/glibc chromium relocation + `/home/agent`
+  inaccessible — J-0/J-0b "first live green is CI" pattern); verified: generator
+  green against the fixture via the exact CI invocation, AC5 (no-browser) case
+  passes, all 3 cases Playwright-discover, spec has no NEW tsc error, emitted HTML
+  is well-formed with the J-0c legacy + AlpenFlight entries.
 
 **Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-06.

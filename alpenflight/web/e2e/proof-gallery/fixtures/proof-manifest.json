@@ -1,5 +1,5 @@
 {
-  "_comment": "Trimmed Playwright JSON-reporter report — the J-24 manifest fixture. Shape MUST match what T-03's ['json'] reporter on the real-idp project emits; see ../README.md. One GREEN journey (J-0, 3 captioned proof videos); every other roadmap journey (J-1, J-2, ...) has no entry here, so the generator renders it PENDING. Video paths are relative to THIS file (resolved by the generator).",
+  "_comment": "Trimmed Playwright JSON-reporter report — the J-24 manifest fixture. Shape MUST match what T-03's ['json'] reporter on the real-idp project emits; see ../README.md. GREEN journeys: J-0 (3 captioned proof videos) + J-0c (one AlpenFlight proof video; paired with the legacy parity video declared in legacy-video/legacy-video.json — see the J-0c gallery section render). Every other roadmap journey (J-1, J-2, ...) has no entry here, so the generator renders it PENDING. Video paths are relative to THIS file (resolved by the generator).",
   "config": { "version": "1.x", "rootDir": "e2e/tests/real-idp" },
   "suites": [
     {
@@ -101,6 +101,42 @@
               "status": "expected",
               "annotations": [],
               "results": [{ "status": "passed", "attachments": [] }]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    },
+    {
+      "title": "fan-out-migration-parity.spec.ts",
+      "file": "real-idp/fan-out-migration-parity.spec.ts",
+      "specs": [
+        {
+          "title": "club-A admin sees its migrated Location under the random name",
+          "file": "real-idp/fan-out-migration-parity.spec.ts",
+          "tests": [
+            {
+              "status": "expected",
+              "annotations": [
+                { "type": "proof-journey", "description": "J-0c" },
+                { "type": "proof-ac-tag", "description": "happy" },
+                {
+                  "type": "proof-caption",
+                  "description": "AlpenFlight: club-A admin logs in via real Keycloak and sees its OWN migrated copy of the fanned-out Location (random name, distinct per-club row)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "passed",
+                  "attachments": [
+                    {
+                      "name": "proof-video",
+                      "contentType": "video/webm",
+                      "path": "videos/j0c-club-a-sees-migrated.webm"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }

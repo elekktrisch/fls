@@ -458,25 +458,50 @@ jobs:
       #    T-06 owns captioning the LEGACY video into the same gallery; here we
       #    build the AlpenFlight side + retain the legacy video as an artifact.
       # ========================================================================
-      - name: Build + link-check proof gallery (AlpenFlight side)
+      # Stage the legacy parity video + write the declared legacy-video.json
+      # sidecar BEFORE the generator runs — generate-gallery.mjs reads the
+      # sidecar (--legacy-video) and renders the legacy create video in the SAME
+      # J-0c section as the AlpenFlight per-club videos (T-06).
+      - name: Stage legacy parity video + caption sidecar (J-0c)
+        if: always()
+        run: |
+          # The legacy create video lands under /tmp/fls-e2e-results/<test>/video/.
+          STAGE="${{ github.workspace }}/j0c-legacy-video"
+          mkdir -p "$STAGE"
+          # Pick the first legacy .webm and give it a stable, named filename so
+          # the sidecar's `file` reference is deterministic.
+          LEGACY_WEBM="$(find /tmp/fls-e2e-results -name '*.webm' | head -1 || true)"
+          if [ -n "$LEGACY_WEBM" ]; then
+            cp "$LEGACY_WEBM" "$STAGE/locations-fanout-J0c.webm"
+            CAP="Legacy flsweb: Location '${J0C_LOCATION_NAME}' created + set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows"
+            node -e '
+              const fs = require("fs");
+              const out = process.argv[1], caption = process.argv[2];
+              fs.writeFileSync(out, JSON.stringify({
+                videos: [{ journey: "J-0c", file: "locations-fanout-J0c.webm", acTag: "happy", caption }],
+              }, null, 2));
+            ' "$STAGE/legacy-video.json" "$CAP"
+            echo "Staged legacy video + sidecar:"
+            ls -l "$STAGE/"
+          else
+            echo "No legacy .webm found under /tmp/fls-e2e-results — gallery renders AlpenFlight side only."
+          fi
+
+      - name: Build + link-check proof gallery (legacy + AlpenFlight, J-0c)
         id: gallery
         if: always()
         working-directory: alpenflight/web
         run: |
+          STAGE="${{ github.workspace }}/j0c-legacy-video"
+          LEGACY_ARG=""
+          if [ -f "$STAGE/legacy-video.json" ]; then
+            LEGACY_ARG="--legacy-video $STAGE"
+          fi
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md
-
-      - name: Stage legacy parity video alongside the gallery
-        if: always()
-        run: |
-          # The legacy create video lands under /tmp/fls-e2e-results/<test>/video/.
-          # Stage it next to the gallery so it ships in the artifact + (T-06) can
-          # be captioned into the gh-pages gallery.
-          mkdir -p public/alpenflight/proof/legacy-video
-          find /tmp/fls-e2e-results -name '*.webm' -exec cp {} public/alpenflight/proof/legacy-video/ \; || true
-          ls -l public/alpenflight/proof/legacy-video/ || true
+            --order ../../docs/modernization/stories/_ORDER.md \
+            $LEGACY_ARG
 
       - name: Collect logs on failure
         if: failure()
