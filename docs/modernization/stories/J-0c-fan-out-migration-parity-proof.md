@@ -84,6 +84,23 @@ publishes the video to the gallery, while the per-PR required gate for J-0c's
 *code* (the CLUB-pgcopy fix + the Keycloak-provision slice) stays unit/IT-level.
 `/do-ship` should confirm the gate shape with `e2e-driver` at ship time.
 
+**Gate-shape decision (T-05, CONFIRMED 2026-06-01, e2e-driver).** The full
+chain is a **dedicated workflow** — `alpenflight-proof-fanout.yml`,
+`workflow_dispatch` + nightly `cron`, NO `pull_request` trigger — and is
+deliberately NOT added to `ci.yml`'s `required` aggregator. Why: the legacy
+half is Mono `flsserver` (xbuild + NuGet restore) + Node8 `flsweb` (webpack-dev-
+server) + MSSQL seed, which `nightly.yml` already isolates from the per-PR lane;
+stacking it on top of the AlpenFlight half (Postgres + Keycloak + backend
+bootJar + 2× `ng serve`) far exceeds the ~8-min PR budget (the job's own
+`timeout-minutes: 45`). The per-PR gate for J-0c's CODE stays inside `ci.yml`
+at unit/IT level (T-01 `LocationRealProducerRoundTripIT` drives the CLUB-pgcopy
+fix; T-02's Keycloak slice is IT-covered; `alpenflight-proof` keeps proving the
+clean-seed UI half). A cross-workflow job can't be a `needs:` dependency anyway,
+so even if we wanted it required, it would have to live inside `ci.yml` — which
+would re-import the heavy legacy stack into every PR. The dedicated workflow is
+the only shape that keeps PR feedback fast AND proves the full chain on a
+schedule.
+
 **Fork — "including Keycloak" (operator wording):** record both, decide at ship.
 - *(a) Minimal provision-on-migrate slice (honors the wording).* On ingest, for
   each migrated club admin, create a Keycloak user (clubId attribute = the
@@ -194,13 +211,51 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   records the parity video; per-context `recordVideo` for the continuous flow.
   STRUCTURAL-only: tsc clean + `playwright test --list` discovers it; first LIVE
   green is T-05's legacy proof workflow (Mono+Node8+MSSQL stack only runs in CI).
-- [ ] **T-05 — Legacy-stack proof workflow + export + full-chain wire.** `e2e-driver`:
+- [x] **T-05 — Legacy-stack proof workflow + export + full-chain wire.** `e2e-driver`:
   a dedicated/nightly CI workflow — bring up MSSQL + `flsserver` + `flsweb` (reuse
   `nightly.yml` builds + `extract.yml` MSSQL) → run T-04 (create + video) → run
   `alpenflight-export` against the legacy MSSQL → POST the real bundle to AlpenFlight
   migrate (+ T-02 Keycloak) → run T-03 against the REAL migrated data → retain videos.
   **Likely to split** (workflow-scaffold / export-step / chain-wire) — heaviest seam;
   e2e-driver confirms the gate shape (nightly vs per-PR). *(seam: the proof chain)*
+  Landed as ONE seam (the chain + its bundle-source contract — see T-05 note):
+  - `.github/workflows/alpenflight-proof-fanout.yml` — dedicated workflow,
+    `workflow_dispatch` + nightly `cron: '0 5 * * *'`, NOT a `pull_request`
+    trigger and NOT wired into `ci.yml`'s `required` aggregator (gate-shape
+    decision below). Three jobs: `legacy-server-build` + `legacy-web-build`
+    (inlined from `nightly.yml` — a workflow can't `needs:` a cross-file job)
+    → `fanout-proof` (`needs:` both). The proof job runs the full chain on ONE
+    runner (no port collisions: MSSQL 1433 / legacy API 25567 / flsweb 3000 /
+    Postgres 5432 / Keycloak 8090 / AlpenFlight backend 8080 / SPA 4201): pin
+    a chain-wide random name → legacy up + seed + T-04 (legacy video) →
+    AlpenFlight up → mint handshake (SPA-driven) → `alpenflight-export`
+    (read-only) sealed to that handshake → T-03 in real-bundle mode (per-club
+    videos) → gallery + retain ALL videos → main-only gh-pages deploy.
+  - `fan-out-parity-fixture.ts` — bundle source made swappable, keyed off
+    `J0C_BUNDLE_SOURCE`: `synth` (default, Gradle seeder — fast inner loop /
+    T-03) vs `real` (reads the workflow's handshake JSON + `.enc` from
+    `J0C_REAL_HANDSHAKE_FILE` / `J0C_REAL_BUNDLE_FILE`, asserts on
+    `J0C_REAL_LOCATION_NAME`). The shared tail (principal bearer → bundle POST
+    → fan-out + Keycloak provision → `makeMigratedAdminLoginable`) is identical
+    across both modes. Exported `mintRealHandshakeToFile` for the workflow.
+  - `mint-handshake.spec.ts` (new real-idp spec) — workflow-only: mints the
+    handshake to `J0C_HANDSHAKE_OUT`; `test.skip` when the env var is absent so
+    it never gates ordinary real-idp runs. Needed because the `alpenflight-web`
+    SPA client has no direct-access grant (no curl-token path to a
+    verified-email principal JWT), and the export must seal the bundle to a
+    handshake BEFORE the parity spec ingests the same `uploadId`.
+  - `locations-fanout-J0c.spec.ts` (T-04) — now reads `J0C_LOCATION_NAME` (the
+    workflow's pinned random name) so the legacy-created name == the name the
+    AlpenFlight parity spec asserts; falls back to a fresh local random for
+    standalone runs.
+  STRUCTURAL-only (neither stack runs on the authoring box): workflow YAML
+  parses (3 jobs, `fanout-proof needs: [legacy-server-build, legacy-web-build]`,
+  triggers = schedule + workflow_dispatch); every referenced path resolves; the
+  3 web files + the legacy spec typecheck clean (zero NEW errors) and all
+  Playwright-discover (`--list`); the gallery generator runs against its fixture
+  manifest. **First LIVE green is this workflow's own first CI run** (the
+  J-0/J-0b pattern, [[feedback-verify-infra-is-run-not-just-authored]]) — no
+  live pass is claimed.
 - [ ] **T-06 — Gallery: legacy + AlpenFlight videos, J-0c-captioned.** Ensure both
   videos land captioned + `J-0c`-tagged; extend `generate-gallery.mjs` if it can't
   caption a non-AlpenFlight (legacy) video. *(seam: gallery generator + fixture)*

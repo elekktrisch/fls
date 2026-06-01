@@ -181,8 +181,18 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   // Random unique name = the freshness guarantee: proves data actually flowed
   // through the chain (T-05), not pre-seeded. Kept ICAO-short + uppercase so
   // the IcaoCode field (fixed-width) is happy.
-  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
-  const LOCATION_NAME = `J0C-${rand}`;
+  //
+  // T-05 full chain: the proof workflow generates the random name ONCE and
+  // pins it via `J0C_LOCATION_NAME`, so the SAME name created here in the
+  // legacy UI is the one the AlpenFlight parity spec later asserts on (the
+  // workflow forwards it as `J0C_REAL_LOCATION_NAME`). Standalone / inner-loop
+  // runs (no env var) fall back to a fresh local random — still a valid
+  // freshness guarantee, just not cross-process-pinned.
+  const envName = process.env['J0C_LOCATION_NAME'];
+  const rand = (envName?.replace(/^J0C-/, '') ?? Math.random().toString(36).slice(2, 8))
+    .toUpperCase()
+    .slice(0, 6);
+  const LOCATION_NAME = envName ?? `J0C-${rand}`;
   const ICAO = `J${rand.slice(0, 3)}`;
 
   // ---------------------------------------------------------------------------
