@@ -237,7 +237,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   helper to match the producer now that the child mints a distinct id. No wire-only
   `club_id` test-weakening was needed — the shared contract test only enforces
   `columns() ⊆ wire`, never the reverse.
-- [ ] **T-05b — Flyway: `t_inoutbound_point.legacy_guid` (child fan-out column).**
+- [x] **T-05b — Flyway: `t_inoutbound_point.legacy_guid` (child fan-out column).**
   Discovered during T-05 (see carry-forward above). One `V-next` migration: add
   `legacy_guid UUID` (nullable) + a structural identity partial UNIQUE
   `(legacy_guid, location_id) WHERE legacy_guid IS NOT NULL AND deleted_on IS NULL`
