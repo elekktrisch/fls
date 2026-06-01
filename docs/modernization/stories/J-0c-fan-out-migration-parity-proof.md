@@ -172,7 +172,7 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   `UPDATE_PASSWORD` action) reusing `KeycloakAdminClient`/`KeycloakDeploymentDirectory
   Adapter`. NOT full S-028 (no bulk endpoint/UI/dry-run/mail/audit/role-map S-026).
   *(seam: migration ingest service + Keycloak adapter; gap-hunter checks it stays a slice)*
-- [ ] **T-03 — AlpenFlight parity spec (synth bundle first).** `e2e-driver`: real-idp
+- [x] **T-03 — AlpenFlight parity spec (synth bundle first).** `e2e-driver`: real-idp
   Playwright `fan-out-migration-parity.spec.ts` — seed a **synthesized** fan-out
   bundle via the real `/api/v1/migrations` endpoint (reuse J-0b's bundle-build) →
   club-A admin logs in, sees migrated Location (random name); club-B sees its own;

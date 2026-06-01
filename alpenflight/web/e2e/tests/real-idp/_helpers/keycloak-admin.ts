@@ -206,6 +206,81 @@ export async function createUserWithAttributes(
   return location.split('/').pop()!;
 }
 
+/**
+ * Look a user up by username (exact). The migration-provisioned club admins
+ * (`migrated-admin+<clubId>@migrated.alpenflight.local`) carry their email ==
+ * username but with `emailVerified:false`, and they live OUTSIDE the
+ * `e2e-…@example.com` cleanup namespace — so the email-keyed lookup +
+ * cleanup-predicate path doesn't apply to them. Returns `undefined` when no
+ * user carries the username.
+ */
+export async function findUserByUsername(username: string): Promise<AdminUser | undefined> {
+  const res = await adminRequest(
+    `/users?username=${encodeURIComponent(username)}&exact=true&max=2`,
+  );
+  if (!res.ok) {
+    throw new Error(`findUserByUsername(${username}) failed (${res.status}): ${await res.text()}`);
+  }
+  const users = (await res.json()) as AdminUser[];
+  if (users.length > 1) {
+    throw new Error(`expected ≤1 user with username '${username}', found ${users.length}`);
+  }
+  return users[0];
+}
+
+/**
+ * Make a migration-provisioned club admin loginable for the proof spec.
+ *
+ * T-02 provisions each migrated club admin with the `UPDATE_PASSWORD` required
+ * action and NO usable password (S-082 reset-mail is out of that slice's
+ * scope). This helper does the test-only setup the operator would otherwise do
+ * by hand: set a known password (non-temporary) and clear the pending required
+ * actions, so the Playwright login form completes in one shot.
+ *
+ * This does NOT weaken production behavior — it only mutates the test user's
+ * own credential + required-action list via the Admin REST surface, exactly as
+ * `two-club-fixture` / `token-lifecycle.spec` mint loginable users. The
+ * username guard pins it to the `migrated-admin+…@migrated.alpenflight.local`
+ * synthetic namespace so it can never touch a seeded or `e2e-` user by typo.
+ */
+export async function makeMigratedAdminLoginable(
+  userId: string,
+  username: string,
+  password: string,
+): Promise<void> {
+  if (!username.startsWith('migrated-admin+') || !username.endsWith('@migrated.alpenflight.local')) {
+    throw new Error(
+      `makeMigratedAdminLoginable: refusing to mutate '${username}' — only the synthetic ` +
+        `migrated-admin+<clubId>@migrated.alpenflight.local namespace is allowed.`,
+    );
+  }
+  // (1) Set a known, non-temporary password via the dedicated reset-password
+  //     surface (PUT /users/{id}/reset-password).
+  const pwRes = await adminRequest(`/users/${encodeURIComponent(userId)}/reset-password`, {
+    method: 'PUT',
+    body: JSON.stringify({ type: 'password', value: password, temporary: false }),
+  });
+  if (!pwRes.ok) {
+    throw new Error(
+      `makeMigratedAdminLoginable: reset-password failed (${pwRes.status}): ${await pwRes.text()}`,
+    );
+  }
+  // (2) Clear the UPDATE_PASSWORD required action (else KC forces the
+  //     change-password screen mid-login) and mark the email verified so the
+  //     `email_verified` claim is true for any later verified-email gate. PUT
+  //     /users/{id} is a partial merge — only these two keys change.
+  const userRes = await adminRequest(`/users/${encodeURIComponent(userId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ requiredActions: [], emailVerified: true }),
+  });
+  if (!userRes.ok) {
+    throw new Error(
+      `makeMigratedAdminLoginable: clear required-actions failed (${userRes.status}): ` +
+        `${await userRes.text()}`,
+    );
+  }
+}
+
 interface RealmRoleRepresentation {
   id: string;
   name: string;
