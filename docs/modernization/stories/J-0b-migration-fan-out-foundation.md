@@ -2,7 +2,8 @@
 id: J-0b
 title: Migration fan-out foundation — (legacy_guid, club_id) → distinct new_id
 epic: E-02
-status: todo
+status: in_progress
+started_at: 2026-06-01
 journey0: false
 carved: true
 depends_on: [J-0]
@@ -161,3 +162,81 @@ parity-oracle harness is re-asserted by the IT, not rebuilt.
    all-entities-vs-fan-out-only before `/do-ship` decomposes.
 4. S-189 is a droppable secondary slice (see Notes); the fan-out proof is the
    journey's reason to exist.
+
+## Implementation-architect decision (2026-06-01)
+
+Both forks resolved before decomposition:
+
+- **Fork 1 → Derive.** The producer computes `id = uuidv5(NS, legacy_guid + legacy
+  club_id)` in `writeNdjson` (it already holds the legacy join — `fanout.ClubId`
+  is in the `LocationMapper` SELECT) and emits a composite id-map row. Deterministic
+  → idempotent re-ingest (re-POST UPSERTs, matching CLUB's `ON CONFLICT` at
+  `EntityStreamIngestor.java:239`). **Do NOT derive in ingest** — ingest only sees
+  the *provisioned* (new) club id, never the legacy club id, so it can't reproduce
+  the namespace input. Key strictly on the **legacy** club id (stable producer↔
+  referencer); pin the uuidv5 namespace as a constant.
+- **Fork 2 → Fan-out-only**, gated by `EntityType.fansOut()` / a `Set<EntityType>
+  FAN_OUT` in the bundle module. Fan-out entities get composite `(legacy_guid,
+  club_id) PK` temp tables + 3-column pgcopy; CLUB/SYSTEM_GLOBAL/identity keep the
+  existing 2-column format (`LegacyIdMapWriter` `FIELD_COUNT_PER_ROW=2`) untouched —
+  S-183…S-189 already shipped against it. Decisive on blast radius.
+- **Club-aware FK resolution (the load-bearing part).** ⚠ **Carve/`InOutboundPoint
+  Mapper` javadoc (lines 28-31) correction:** fanning out the child row alone does
+  NOT disambiguate the parent — the legacy GUID is *shared* across replicas, so the
+  child still can't say which replica id it means. Fix: **the child carries its own
+  `club_id` on the wire** (producer fans out the child too, one row per (legacy IOP,
+  legacy club)); `ForeignKeyResolver.rewriteForeignKeys` keys the composite lookup
+  on `(location_id=legacy LocationId, club_id=child's own legacy club)`. The LOCATION
+  id-map is populated via a **producer-emitted 3-column `legacy_id_map/LOCATION`
+  pgcopy**, ordered before `INOUTBOUND_POINT.ndjson` by the existing topo order —
+  no post-INSERT `RETURNING` plumbing. Fail-closed on a composite miss (mirror the
+  SYSTEM_GLOBAL path `ForeignKeyResolver.java:87-94`); the aircraft-homebase
+  lowest-UUID fallback the `LocationMapper` javadoc mentions is **out of scope**
+  (Aircraft is J-1).
+- **Most load-bearing single line:** `EntityStreamIngestor.destinationColumnNames`
+  (`:256-263`) currently aliases wire `legacy_guid → id`. For fan-out entities it
+  must emit **both** `legacy_guid` (verbatim) **and** `id` (the derived value) as
+  separate destination columns. Audit every reader that assumes a LOCATION row's
+  `id == legacy GUID` (parity harness, `MapperVsSchemaCompatibilityTest`).
+
+## Tasks
+
+Ordered, one seam each (architect's strict dependency order 1→…→8). Workers commit
+directly to `integration/J-0b`. Sized per the do-ship gate.
+
+- [ ] **T-01 — Proof IT → correct target shape (red contract), keep `@Disabled`.**
+  Edit `LocationMigrationRoundTripIT`: `inoutboundPointNdjson` emits **two** club-
+  tagged child rows (add `club_id` field), and add the explicit **club-aware-FK
+  assertion** (a referencer in club A resolves to club A's replica id, not B's).
+  Correct the `InOutboundPointMapper` javadoc (lines 28-31). Keep `@Disabled` — this
+  commits the contract shape, T-08 makes it green. *(seam: the proof IT + 1 javadoc)*
+- [ ] **T-02 — Flyway: `t_location.legacy_guid` + composite identity UNIQUE.**
+  One `V-next` migration: add `legacy_guid UUID` + identity-bearing partial UNIQUE
+  `(legacy_guid, club_id) WHERE deleted_on IS NULL` (structural, ADR 0022 directive
+  2). *(seam: one migration)*
+- [ ] **T-03 — Fan-out primitives (migration-bundle).** `EntityType.fansOut()` /
+  `FAN_OUT` set; `Coercions` uuidv5 helper (pinned namespace const); `LegacyIdMapWriter`
+  3-arg `write(legacyGuid, clubId, newUuid)` overload (keep 2-arg) + a 3-column pgcopy
+  round-trip unit test. *(seam: shared producer primitives)*
+- [ ] **T-04 — LocationMapper fan-out producer.** `writeNdjson` derives `id`, emits
+  `legacy_guid` + `club_id`; `MapperLegacyBindings.LOCATION` SELECT carries
+  `legacy_guid`; emit the LOCATION 3-column id-map entry. *(seam: the Location producer)*
+- [ ] **T-05 — InOutboundPointMapper fan-out producer.** Child `writeNdjson` emits its
+  own `club_id` + per-club fan-out; `MapperLegacyBindings` IOP SELECT joins the same
+  fan-out partner set. *(seam: the child producer)*
+- [ ] **T-06 — Ingest fan-out keying.** `EntityStreamIngestor`: `destinationColumnNames`
+  de-alias (emit both `legacy_guid` + `id` for fan-out entities); composite
+  `(legacy_guid, club_id)` temp-table DDL in `createTemporaryIdMapTables`; 3-column
+  COPY in `copyLegacyIdMap` — all gated on the fan-out flag. *(seam: ingest side; deps
+  T-02, T-03)*
+- [ ] **T-07 — Club-aware FK resolution.** `ForeignKeyResolver.rewriteForeignKeys` +
+  `lookupOrNull`: composite `(legacy_guid, club_id)` branch for fan-out targets, reading
+  the referencer row's own `club_id`; fail-closed on a composite miss. *(seam:
+  ForeignKeyResolver — the load-bearing one; deps T-06)*
+- [ ] **T-08 — Enable + green the proof IT.** Remove `@Disabled`; run
+  `LocationMigrationRoundTripIT` green against real Postgres; close any integration
+  gap surfaced. *(seam: the proof; deps all)*
+- [ ] **T-09 — (optional, droppable) S-189 audit tenant-backfill.** Build only if it
+  stays thin per [[feedback-vertical-slices-first]]; else defer to a follow-up story.
+
+**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-06 → T-07 → T-08 → (T-09).
