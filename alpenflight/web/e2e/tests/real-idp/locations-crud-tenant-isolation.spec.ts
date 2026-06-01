@@ -28,6 +28,25 @@ import {
 const ICAO = 'LSZH';
 const CH_COUNTRY_LABEL = 'Switzerland';
 
+/**
+ * Pick Switzerland from the country `nz-select`. Against the REAL backend the
+ * country catalog is the full ISO list (~250 rows, alphabetical), so the
+ * target option is far below the fold and not directly clickable. The select
+ * has `[showSearch]="true"` — open it, type into the auto-focused search box
+ * to filter the list down to Switzerland, then click the now-visible option.
+ * (The mock spec gets away with a bare click because it stubs a single-country
+ * catalog; the real list needs the search-filter.)
+ */
+async function selectSwitzerland(page: Page): Promise<void> {
+  await page.getByTestId('locations-country-select').locator('nz-select').click();
+  // The opened nz-select focuses its search input; type to filter.
+  await page.keyboard.type(CH_COUNTRY_LABEL);
+  await page
+    .locator('nz-option-item')
+    .filter({ hasText: new RegExp(`^${CH_COUNTRY_LABEL}$`) })
+    .click();
+}
+
 /** Drive the SPA's Location-create form to completion and return to the list. */
 async function createLocationViaUi(
   page: Page,
@@ -39,8 +58,7 @@ async function createLocationViaUi(
 
   await page.locator('#LocationName').fill(opts.name);
   await page.locator('#IcaoCode').fill(opts.icao);
-  await page.getByTestId('locations-country-select').locator('nz-select').click();
-  await page.locator('nz-option-item').filter({ hasText: CH_COUNTRY_LABEL }).click();
+  await selectSwitzerland(page);
   // First location type in the seeded reference list — any airfield type is
   // fine; the spec asserts isolation, not a specific type.
   await page.getByTestId('locations-type-select').locator('nz-select').click();
@@ -108,8 +126,7 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
       await page.getByRole('button', { name: 'New location' }).click();
       await page.locator('#LocationName').fill('Zurich (Club A)');
       await page.locator('#IcaoCode').fill(ICAO);
-      await page.getByTestId('locations-country-select').locator('nz-select').click();
-      await page.locator('nz-option-item').filter({ hasText: CH_COUNTRY_LABEL }).click();
+      await selectSwitzerland(page);
       await page.getByTestId('locations-type-select').locator('nz-select').click();
       await page.locator('nz-option-item').first().click();
       await page.getByTestId('locations-save-button').click();
