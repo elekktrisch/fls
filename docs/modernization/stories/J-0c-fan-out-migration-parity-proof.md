@@ -178,10 +178,22 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   club-A admin logs in, sees migrated Location (random name); club-B sees its own;
   rename A → B unchanged; cross-tenant GET 404. Annotated `proof-journey: J-0c`.
   Proves the UI half WITHOUT the legacy stack (fast inner loop). *(seam: one spec)*
-- [ ] **T-04 — Legacy create-flow spec (flsweb).** `e2e-driver` (+ `legacy-oracle`
+- [x] **T-04 — Legacy create-flow spec (flsweb).** `e2e-driver` (+ `legacy-oracle`
   for the exact flow): Playwright against legacy `flsweb` `masterdata/locations/` —
   create a random-named Location, set as `Clubs.HomebaseId` on 2 clubs; record the
   legacy parity video. *(seam: one legacy spec)*
+  Landed: `e2e/tests/masterdata/locations-fanout-J0c.spec.ts` in the existing
+  legacy e2e suite (top-level `e2e/`, `masterdata` project) — reuses `loginViaUi`
+  / `waitForLoggedInState` / `gotoRoute` from `e2e/fixtures.ts`, no new harness.
+  Flow: login as `testclubadmin` → create `J0C-<rand>` Location via
+  `#/masterdata/locations/new` (form `locationForm`, selectizes set via $scope per
+  TEST_WRITING.md §6) → set it as TestClub's `HomebaseId` on the club edit form
+  (`#HomebaseId`) → login as `othertestadmin` → set the SAME global Location as
+  OtherClub's `HomebaseId` (2 clubs, 1 Location = the fan-out trigger) → API
+  readback asserts BOTH `Clubs.HomebaseId` point at it. `test.use({ video: 'on' })`
+  records the parity video; per-context `recordVideo` for the continuous flow.
+  STRUCTURAL-only: tsc clean + `playwright test --list` discovers it; first LIVE
+  green is T-05's legacy proof workflow (Mono+Node8+MSSQL stack only runs in CI).
 - [ ] **T-05 — Legacy-stack proof workflow + export + full-chain wire.** `e2e-driver`:
   a dedicated/nightly CI workflow — bring up MSSQL + `flsserver` + `flsweb` (reuse
   `nightly.yml` builds + `extract.yml` MSSQL) → run T-04 (create + video) → run

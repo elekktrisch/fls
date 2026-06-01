@@ -1,0 +1,302 @@
+/**
+ * J-0c T-04 — LEGACY half of the fan-out migration parity proof.
+ *
+ * This is the "before" side of the side-by-side parity video. In the legacy
+ * flsweb UI it:
+ *   1. logs in (as the TestClub admin),
+ *   2. creates a Location with a RANDOM unique name (`J0C-<rand>`) via
+ *      `masterdata/locations/`,
+ *   3. makes that one global Location referenced by TWO clubs — the fan-out
+ *      trigger — by setting it as each club's `HomebaseId`,
+ *   4. records the whole flow as the legacy parity video.
+ *
+ * Why this proves the fan-out: legacy shares ONE global `Location` row across
+ * clubs. The `LocationMapper` SELECT fans that single row out into N distinct
+ * per-club AlpenFlight rows based on the union of references —
+ * `Clubs.HomebaseId` ∪ `Flights.Start/LdgLocationId` ∪ `Aircrafts.HomebaseId`
+ * (J-0c carve). Pointing 2 clubs' `HomebaseId` at the same Location is the
+ * most direct UI path to 2 references, so migration must fan it to 2 rows.
+ *
+ * Legacy-oracle grounding (verified against flsweb + flsserver + FLSTest seed):
+ *   - Location create:  route `#/masterdata/locations/new`
+ *     (`LocationsModule.js:49`), form `name="locationForm"`
+ *     (`locations-edit.html:10`), text inputs `#LocationName` / `#IcaoCode`
+ *     / `#Description` (`location-form-fields.html:6,12,182`), required
+ *     selectizes `#locationType` + `#Country` bound to `location.LocationTypeId`
+ *     / `location.CountryId` (`location-form-fields.html:18-29,36-47`). Submit
+ *     = `form[name="locationForm"] button[type="submit"]`, `ng-disabled=
+ *     "locationForm.$invalid || !location.CanUpdateRecord"` (new → true). On
+ *     success `save()` → `cancel()` → `$location.path('/masterdata/locations')`
+ *     (`LocationsEditController.js:102-123`). Locations are GLOBAL — the list
+ *     endpoint has no club filter (`LocationsServices.js:110`), which is the
+ *     legacy share mechanism the migration fans out.
+ *   - Homebase on a club:  route `#/masterdata/clubs/:id`
+ *     (`ClubsEditController.js`), form `name="clubForm"`
+ *     (`clubs-edit.html:6`), selectize `#HomebaseId` bound to `club.HomebaseId`
+ *     with `valueField: 'LocationId'`, `options="md.locations"`
+ *     (`club-form-fields.html:20-29`). Submit = `form[name="clubForm"]
+ *     button[type="submit"]`, `ng-disabled="clubForm.$invalid ||
+ *     !club.CanUpdateRecord"`. On success → `/masterdata/clubs`
+ *     (`ClubsEditController.js:84-102`).
+ *   - Two clubs, two admins:  both `testclubadmin` (TestClub) and
+ *     `othertestadmin` (OtherClub) are role `ClubAdministrator` only
+ *     (`_test-fixture.sql:155` + `4 or 5 Insert Test Data.sql`). A club-admin
+ *     can edit ONLY their own club (`CanUpdateRecord` is true only there —
+ *     see clubs-crud.spec.ts scope note). So the 2-club reference is built by
+ *     logging in as each admin in turn and setting their OWN club's homebase
+ *     to the SAME global Location. Password for both is the single letter `s`.
+ *
+ * Selectize widgets are hostile to clicking (TEST_WRITING.md §6) — set the
+ * `$scope`-bound value + `$apply()` directly, exactly as locations-crud.spec.ts
+ * does for its Country / LocationType dropdowns.
+ *
+ * STRUCTURAL STATUS (2026-06-01): the legacy stack (Mono `flsserver` + Node 8
+ * `flsweb` + MSSQL) only runs in `nightly` CI and does not run live on the dev
+ * box. This spec is authored against the REAL legacy selectors above and is
+ * structurally validated (tsc + `playwright test --list` discovers it). Its
+ * first LIVE green is T-05's dedicated legacy proof workflow, which brings up
+ * the stack, runs this spec, and retains/publishes the video to the gallery.
+ */
+
+import { test, expect, gotoRoute, loginViaUi, waitForLoggedInState, screenshot } from '../../fixtures';
+import type { Page } from '@playwright/test';
+
+// Record the create flow as the legacy parity video regardless of pass/fail.
+// T-05's workflow retains this artifact + publishes it to the proof gallery
+// (T-06). Authored here so the spec is self-describing; the gate workflow may
+// also set it at the project level.
+test.use({ video: 'on' });
+
+const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
+
+// The two seeded club-administrators, each scoped to their OWN club.
+// Password is the single letter `s` for both (_test-fixture.sql convention).
+const ADMINS = [
+  { username: 'testclubadmin', password: 's', label: 'TestClub' },
+  { username: 'othertestadmin', password: 's', label: 'OtherClub' },
+] as const;
+
+/** Resolve the logged-in admin's own ClubId from the hydrated ngStorage-user. */
+async function myClubId(page: Page): Promise<string> {
+  const id = await page.evaluate(() => {
+    const raw = sessionStorage.getItem('ngStorage-user');
+    if (!raw) return null;
+    try { return JSON.parse(raw)?.myClub?.ClubId ?? null; } catch { return null; }
+  });
+  expect(id, 'expected myClub.ClubId in ngStorage-user after UI login').toBeTruthy();
+  return id as string;
+}
+
+/** Read the bearer token the SPA persisted, for API-side verification. */
+async function bearer(page: Page): Promise<string> {
+  const token = await page.evaluate(() => {
+    const raw = sessionStorage.getItem('ngStorage-loginResult');
+    try { return raw ? (JSON.parse(raw).access_token as string) : null; } catch { return null; }
+  });
+  expect(token, 'expected access_token in ngStorage-loginResult').toBeTruthy();
+  return token as string;
+}
+
+/**
+ * Wait until the club edit form's `md.locations` master-data list has loaded
+ * and contains the target Location, then set `club.HomebaseId` to it via the
+ * $scope (selectize is not clickable — TEST_WRITING.md §6).
+ */
+async function setHomebaseViaScope(page: Page, locationId: string): Promise<void> {
+  await page.waitForFunction((id) => {
+    const w = window as unknown as {
+      angular: { element: (n: Element) => { scope: () => unknown } };
+    };
+    const form = document.querySelector('form[name="clubForm"]');
+    if (!form) return false;
+    const s = w.angular.element(form).scope() as {
+      md?: { locations?: { LocationId: string }[] };
+    };
+    const locs = s.md?.locations;
+    return Array.isArray(locs) && locs.some((l) => l.LocationId === id);
+  }, locationId, { timeout: 15_000 });
+
+  await page.evaluate((id) => {
+    const w = window as unknown as {
+      angular: { element: (n: Element) => { scope: () => unknown } };
+    };
+    const form = document.querySelector('form[name="clubForm"]')!;
+    const s = w.angular.element(form).scope() as {
+      club?: { HomebaseId?: string };
+      $apply: (fn?: () => void) => void;
+    };
+    if (!s.club) return;
+    s.club.HomebaseId = id;
+    s.$apply();
+  }, locationId);
+}
+
+/**
+ * Fill the Location create form's two required selectizes (LocationType +
+ * Country) via $scope, mirroring locations-crud.spec.ts. Without these the
+ * submit stays `ng-disabled` (locationForm.$invalid).
+ */
+async function fillLocationRequiredDropdowns(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const w = window as unknown as {
+      angular: { element: (n: Element) => { scope: () => unknown } };
+    };
+    const form = document.querySelector('form[name="locationForm"]');
+    if (!form) return false;
+    const s = w.angular.element(form).scope() as {
+      md?: { countries?: unknown[]; locationTypes?: unknown[] };
+    };
+    return Array.isArray(s.md?.countries) && (s.md?.countries.length ?? 0) > 0
+      && Array.isArray(s.md?.locationTypes) && (s.md?.locationTypes.length ?? 0) > 0;
+  }, undefined, { timeout: 15_000 });
+
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      angular: { element: (n: Element) => { scope: () => unknown } };
+    };
+    const form = document.querySelector('form[name="locationForm"]')!;
+    const s = w.angular.element(form).scope() as {
+      location?: { CountryId?: string; LocationTypeId?: string };
+      md: {
+        countries: { CountryId: string; CountryName: string }[];
+        locationTypes: { LocationTypeId: string; LocationTypeName: string }[];
+      };
+      $apply: (fn?: () => void) => void;
+    };
+    if (!s.location) return;
+    s.location.CountryId =
+      s.md.countries.find((c) => c.CountryName === 'Schweiz')?.CountryId
+      ?? s.md.countries[0].CountryId;
+    s.location.LocationTypeId = s.md.locationTypes[0].LocationTypeId;
+    s.$apply();
+  });
+}
+
+// Multi-step (create + two sequential UI logins + two club saves) on the
+// Mono/MSSQL legacy stack; give it real headroom like the other masterdata
+// flows.
+test.setTimeout(120_000);
+
+test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity video)', async ({ browser }, testInfo) => {
+  // Random unique name = the freshness guarantee: proves data actually flowed
+  // through the chain (T-05), not pre-seeded. Kept ICAO-short + uppercase so
+  // the IcaoCode field (fixed-width) is happy.
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  const LOCATION_NAME = `J0C-${rand}`;
+  const ICAO = `J${rand.slice(0, 3)}`;
+
+  // ---------------------------------------------------------------------------
+  // Admin 1 (TestClub): create the global Location + set it as TestClub's
+  // homebase. Same browser context throughout so the video is one continuous
+  // recording of the create + first reference.
+  // ---------------------------------------------------------------------------
+  const ctxA = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    recordVideo: { dir: testInfo.outputPath('video'), size: { width: 1280, height: 800 } },
+  });
+  const pageA = await ctxA.newPage();
+
+  await loginViaUi(pageA, ADMINS[0].username, ADMINS[0].password);
+  await waitForLoggedInState(pageA);
+  const clubAId = await myClubId(pageA);
+  const tokenA = await bearer(pageA);
+
+  // CREATE the Location via the UI form.
+  await gotoRoute(pageA, '/masterdata/locations/new');
+  await pageA.locator('#LocationName').waitFor({ state: 'visible' });
+  await pageA.locator('#LocationName').fill(LOCATION_NAME);
+  await pageA.locator('#IcaoCode').fill(ICAO);
+  await pageA.locator('#Description').fill('J-0c fan-out parity (legacy create)');
+  await fillLocationRequiredDropdowns(pageA);
+
+  const locationSubmit = pageA.locator('form[name="locationForm"] button[type="submit"]');
+  await expect(locationSubmit).toBeEnabled();
+  await locationSubmit.click();
+  await pageA.waitForURL('**/#/masterdata/locations', { timeout: 15_000 });
+  await pageA.waitForLoadState('domcontentloaded');
+  await screenshot(pageA, 'fanout-J0c-01-location-created');
+
+  // Resolve the new LocationId via the (global) list endpoint — the same path
+  // the migration export reads, and the value we feed both clubs' HomebaseId.
+  const authA = { Authorization: `Bearer ${tokenA}`, 'Content-Type': 'application/json' };
+  const listRes = await pageA.request.get(`${API_BASE}/api/v1/locations`, { headers: authA });
+  expect(
+    listRes.ok(),
+    `GET /locations: ${listRes.status()}: ${(await listRes.text().catch(() => '')).slice(0, 200)}`,
+  ).toBeTruthy();
+  const allLocations = (await listRes.json()) as Array<{ LocationId: string; LocationName: string }>;
+  const created = allLocations.find((l) => l.LocationName === LOCATION_NAME);
+  expect(created, `created Location "${LOCATION_NAME}" should be in the global /locations list`).toBeTruthy();
+  const locationId = created!.LocationId;
+
+  // REFERENCE 1: set the new Location as TestClub's homebase.
+  await gotoRoute(pageA, `/masterdata/clubs/${clubAId}`);
+  await pageA.locator('form[name="clubForm"] #ClubName').waitFor({ state: 'visible' });
+  await setHomebaseViaScope(pageA, locationId);
+  const clubASubmit = pageA.locator('form[name="clubForm"] button[type="submit"]');
+  await expect(clubASubmit).toBeEnabled();
+  await clubASubmit.click();
+  await pageA.waitForURL(/#\/masterdata\/clubs(?:\?.*)?$/, { timeout: 15_000 });
+  await screenshot(pageA, 'fanout-J0c-02-club-a-homebase');
+
+  await ctxA.close();
+
+  // ---------------------------------------------------------------------------
+  // Admin 2 (OtherClub): set the SAME global Location as OtherClub's homebase.
+  // Separate context = clean session for the second admin (no shared token).
+  // ---------------------------------------------------------------------------
+  const ctxB = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    recordVideo: { dir: testInfo.outputPath('video'), size: { width: 1280, height: 800 } },
+  });
+  const pageB = await ctxB.newPage();
+
+  await loginViaUi(pageB, ADMINS[1].username, ADMINS[1].password);
+  await waitForLoggedInState(pageB);
+  const clubBId = await myClubId(pageB);
+  const tokenB = await bearer(pageB);
+  expect(clubBId, 'the second admin must own a DIFFERENT club').not.toBe(clubAId);
+
+  // REFERENCE 2: set the new Location as OtherClub's homebase.
+  await gotoRoute(pageB, `/masterdata/clubs/${clubBId}`);
+  await pageB.locator('form[name="clubForm"] #ClubName').waitFor({ state: 'visible' });
+  await setHomebaseViaScope(pageB, locationId);
+  const clubBSubmit = pageB.locator('form[name="clubForm"] button[type="submit"]');
+  await expect(clubBSubmit).toBeEnabled();
+  await clubBSubmit.click();
+  await pageB.waitForURL(/#\/masterdata\/clubs(?:\?.*)?$/, { timeout: 15_000 });
+  await screenshot(pageB, 'fanout-J0c-03-club-b-homebase');
+
+  // ---------------------------------------------------------------------------
+  // Verify the fan-out trigger holds in the legacy DB: BOTH clubs' HomebaseId
+  // now point at the one global Location. This is the exact precondition the
+  // migration (T-05) reads to fan it out into 2 distinct per-club rows.
+  // ---------------------------------------------------------------------------
+  const authB = { Authorization: `Bearer ${tokenB}`, 'Content-Type': 'application/json' };
+  const clubBRes = await pageB.request.get(`${API_BASE}/api/v1/clubs/${clubBId}`, { headers: authB });
+  expect(clubBRes.ok(), `GET club B: ${clubBRes.status()}`).toBeTruthy();
+  const clubB = (await clubBRes.json()) as { HomebaseId?: string };
+  expect(
+    (clubB.HomebaseId ?? '').toLowerCase(),
+    'OtherClub.HomebaseId should be the new Location after save',
+  ).toBe(locationId.toLowerCase());
+
+  await ctxB.close();
+
+  // Re-check club A from a fresh token so the assertion that BOTH reference the
+  // same Location is airtight (the row that drives the 2-way fan-out).
+  const reAuthA = await pageB.request.post(`${API_BASE}/Token`, {
+    form: { grant_type: 'password', username: ADMINS[0].username, password: ADMINS[0].password },
+  });
+  expect(reAuthA.ok(), `re-token A: ${reAuthA.status()}`).toBeTruthy();
+  const reTokenA = (await reAuthA.json()).access_token as string;
+  const clubARes = await pageB.request.get(`${API_BASE}/api/v1/clubs/${clubAId}`, {
+    headers: { Authorization: `Bearer ${reTokenA}` },
+  });
+  expect(clubARes.ok(), `GET club A: ${clubARes.status()}`).toBeTruthy();
+  const clubA = (await clubARes.json()) as { HomebaseId?: string };
+  expect(
+    (clubA.HomebaseId ?? '').toLowerCase(),
+    'TestClub.HomebaseId should be the new Location too — 2 clubs, 1 Location = fan-out trigger',
+  ).toBe(locationId.toLowerCase());
+});
