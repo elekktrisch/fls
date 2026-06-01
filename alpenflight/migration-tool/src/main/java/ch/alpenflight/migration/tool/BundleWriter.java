@@ -48,9 +48,14 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
  *       ({@link EntityType#fansOut()}) get the 3-column composite map
  *       ({@code legacy_guid, club_id, id}) — see
  *       {@link #writeIdentityPgcopy}.</li>
- *   <li>Assemble the final tar (manifest.json entry 0, then the entity
- *       NDJSON streams, then the pgcopy streams) piped through gzip into the
- *       output temp file.</li>
+ *   <li>Assemble the final tar (manifest.json entry 0, then the pgcopy
+ *       streams, then the entity NDJSON streams) piped through gzip into the
+ *       output temp file. The server ingest drains entries single-pass in tar
+ *       order and resolves FKs synchronously during each NDJSON's ingest, so
+ *       every {@code legacy_id_map/*.pgcopy} must precede the NDJSON streams: a
+ *       fan-out child's composite {@code (legacy_guid, club_id)} FK lookup
+ *       against {@code legacy_id_map_location} runs while its own NDJSON is
+ *       ingested, and that map must already be populated (J-0b T-10).</li>
  * </ol>
  *
  * <p>Tar entry names match the server ingest contract: {@code <E>.ndjson}
@@ -178,9 +183,24 @@ public final class BundleWriter {
     }
 
     /**
-     * Assemble manifest + entity streams + identity pgcopy maps into a
+     * Assemble manifest + identity pgcopy maps + entity streams into a
      * gzip-compressed tar at {@code destination}. Entry order: manifest.json,
-     * then each entity's NDJSON, then each FULL_PORT entity's pgcopy.
+     * then each FULL_PORT entity's pgcopy, then each entity's NDJSON.
+     *
+     * <p>The pgcopy id-maps MUST precede the NDJSON streams. The server ingest
+     * ({@code MigrationBundleIngestService.drainEntityStreams}) is single-pass
+     * in tar arrival order: a {@code legacy_id_map/*.pgcopy} populates the
+     * (composite) {@code legacy_id_map_<entity>} temp table, an {@code *.ndjson}
+     * resolves that entity's FKs synchronously. A fan-out child
+     * (INOUTBOUND_POINT) resolves its {@code location_id} FK against
+     * {@code legacy_id_map_location} DURING its own NDJSON ingest, so the
+     * LOCATION pgcopy must already be drained — NDJSON-first fails closed with
+     * {@code BUNDLE_CROSS_TENANT_FK_LEAK} (J-0b T-10). The temp tables are
+     * created up front by {@code createTemporaryIdMapTables} and the derived
+     * replica ids are producer-computed ({@code Coercions.deriveFanOutId})
+     * independent of NDJSON insertion, so populating every id-map before
+     * draining any NDJSON is correct (it mirrors the seed-CLUB-map-before-drain
+     * pattern).
      */
     public void assembleTarGz(byte[] manifestBytes,
                               List<EntityStreamResult> entityResults,
@@ -200,11 +220,14 @@ public final class BundleWriter {
              TarArchiveOutputStream tar = new TarArchiveOutputStream(gzip)) {
             tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
             putBytesEntry(tar, "manifest.json", manifestBytes);
-            for (EntityStreamResult result : entityResults) {
-                putFileEntry(tar, result.tarEntryName(), result.ndjsonTempFile());
-            }
+            // pgcopy id-maps BEFORE NDJSON — see method javadoc: the server
+            // resolves fan-out FKs against legacy_id_map_<entity> during NDJSON
+            // ingest, so every map must be drained first (J-0b T-10).
             for (Map.Entry<String, Path> entry : pgcopyEntries.entrySet()) {
                 putFileEntry(tar, entry.getKey(), entry.getValue());
+            }
+            for (EntityStreamResult result : entityResults) {
+                putFileEntry(tar, result.tarEntryName(), result.ndjsonTempFile());
             }
             tar.finish();
         } catch (IOException e) {
