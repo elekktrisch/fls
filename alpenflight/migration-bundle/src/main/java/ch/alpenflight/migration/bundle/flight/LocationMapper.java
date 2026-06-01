@@ -25,11 +25,15 @@ import java.util.UUID;
  * producer is responsible for joining the fan-out partner Club into the
  * cursor; this mapper reads it as {@code ClubId}.
  *
- * <p>{@code legacy_id_map_location} is composite-keyed
- * {@code (legacy_guid, club_id)} (S-141 temp-table change). FK rewrites
- * pick the replica matching the source's operating/managing club —
- * Aircraft.homebase_id falls back to lowest-UUID when the matching
- * replica is missing, deterministic-fan-out invariant aside.
+ * <p>Fan-out keying (J-0b): {@code id} is derived per replica via
+ * {@link Coercions#deriveFanOutId}{@code (legacy LocationId, legacy ClubId)} —
+ * a distinct {@code club_id}-keyed PK per replica — while {@code legacy_guid}
+ * stays the shared legacy {@code LocationId} (identical across replicas). The
+ * producer emits a composite 3-column {@code legacy_id_map/LOCATION} pgcopy
+ * ({@code (legacy_guid, club_id, id)}) so the ingest-side
+ * {@code legacy_id_map_location} is composite-keyed {@code (legacy_guid,
+ * club_id)} and a downstream FK resolves the referencer's OWN replica.
+ * Aircraft.homebase_id's lowest-UUID fallback is out of scope here (J-1).
  *
  * <p>Outgoing structural FKs:
  * <ul>
@@ -49,6 +53,7 @@ import java.util.UUID;
  */
 public final class LocationMapper implements Mapper {
 
+    static final String ID = "id";
     static final String LEGACY_GUID = "legacy_guid";
     static final String CLUB_ID = "club_id";
     static final String LOCATION_NAME = "location_name";
@@ -80,7 +85,7 @@ public final class LocationMapper implements Mapper {
     static final String DELETED_BY_USER_ID = "deleted_by_user_id";
 
     private static final String[] COLUMNS = {
-            LEGACY_GUID, CLUB_ID, LOCATION_NAME, LOCATION_SHORT_NAME,
+            ID, LEGACY_GUID, CLUB_ID, LOCATION_NAME, LOCATION_SHORT_NAME,
             COUNTRY_ID, LOCATION_TYPE_ID,
             ICAO_CODE, LATITUDE, LONGITUDE,
             ELEVATION, ELEVATION_UNIT_TYPE_ID,
@@ -120,8 +125,16 @@ public final class LocationMapper implements Mapper {
     public void writeNdjson(ResultSet source, JsonGenerator target)
             throws SQLException, IOException {
         target.writeStartObject();
-        target.writeStringField(LEGACY_GUID, source.getString("LocationId"));
-        target.writeStringField(CLUB_ID, source.getString("ClubId"));
+        UUID legacyLocationId = UUID.fromString(source.getString("LocationId"));
+        UUID legacyClubId = UUID.fromString(source.getString("ClubId"));
+        // Fan-out (J-0b): one shared legacy Location referenced by N clubs lands
+        // as N rows, each with a distinct derived id keyed on the LEGACY club id
+        // (the only id stable producer↔referencer — ingest never sees it). The
+        // legacy_guid stays the shared LocationId across every replica.
+        target.writeStringField(ID,
+                Coercions.deriveFanOutId(legacyLocationId, legacyClubId).toString());
+        target.writeStringField(LEGACY_GUID, legacyLocationId.toString());
+        target.writeStringField(CLUB_ID, legacyClubId.toString());
         target.writeStringField(LOCATION_NAME, source.getString("LocationName"));
         Coercions.writeOptionalString(target, LOCATION_SHORT_NAME,
                 source.getString("LocationShortName"));
@@ -165,6 +178,10 @@ public final class LocationMapper implements Mapper {
     @Override
     public void readEntity(JsonNode source, PreparedStatement target) throws SQLException {
         int position = 1;
+        // Fan-out: id (the derived per-replica PK) and legacy_guid (the shared
+        // legacy LocationId) are SEPARATE destination columns per the J-0b
+        // architect decision — no longer the legacy_guid → id alias.
+        target.setObject(position++, UUID.fromString(source.get(ID).asText()));
         target.setObject(position++, UUID.fromString(source.get(LEGACY_GUID).asText()));
         target.setObject(position++, UUID.fromString(source.get(CLUB_ID).asText()));
         target.setString(position++, source.get(LOCATION_NAME).asText());

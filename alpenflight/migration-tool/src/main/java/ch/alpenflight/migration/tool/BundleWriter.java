@@ -41,9 +41,13 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
  *       through {@link Mapper#writeNdjson} into a per-entity temp NDJSON
  *       file, hashing (sha256) + counting rows as bytes are written.</li>
  *   <li>For {@code FULL_PORT} entities, emit
- *       {@code legacy_id_map/<E>.pgcopy} — a binary PGCOPY identity map
- *       ({@code legacy_guid -> legacy_guid}) the consumer COPYs into
- *       {@code legacy_id_map_<entity>} so same-entity FK rewrites resolve.</li>
+ *       {@code legacy_id_map/<E>.pgcopy} — a binary PGCOPY map the consumer
+ *       COPYs into {@code legacy_id_map_<entity>} so FK rewrites resolve.
+ *       Non-fan-out entities get the 2-column identity map
+ *       ({@code legacy_guid -> legacy_guid}); fan-out entities
+ *       ({@link EntityType#fansOut()}) get the 3-column composite map
+ *       ({@code legacy_guid, club_id, id}) — see
+ *       {@link #writeIdentityPgcopy}.</li>
  *   <li>Assemble the final tar (manifest.json entry 0, then the entity
  *       NDJSON streams, then the pgcopy streams) piped through gzip into the
  *       output temp file.</li>
@@ -115,12 +119,28 @@ public final class BundleWriter {
     }
 
     /**
-     * Build the {@code legacy_id_map/<E>.pgcopy} identity map for a FULL_PORT
-     * entity by re-reading the legacy_guid of every NDJSON line. Bounded
-     * per-entity read (not whole-bundle); the NDJSON temp file already exists.
+     * Build the {@code legacy_id_map/<E>.pgcopy} for a FULL_PORT entity by
+     * re-reading every NDJSON line. Bounded per-entity read (not whole-bundle);
+     * the NDJSON temp file already exists.
+     *
+     * <p>Two shapes, gated on {@link EntityType#fansOut()}:
+     * <ul>
+     *   <li><strong>Identity (2-column)</strong> — non-fan-out entities: the
+     *       legacy GUID maps to itself ({@code legacy_guid -> legacy_guid}), per
+     *       ADR 0019 legacy-GUID preservation, so same-entity FK rewrites
+     *       resolve.</li>
+     *   <li><strong>Composite (3-column)</strong> — fan-out entities (J-0b): one
+     *       shared legacy GUID fans out into N {@code club_id}-distinct replica
+     *       ids, so the map is {@code (legacy_guid, club_id, id)} — the
+     *       per-replica derived id the producer already emitted on the wire. The
+     *       ingest {@code legacy_id_map_<entity>} is composite-keyed so a
+     *       downstream FK resolves the referencer's OWN club replica.</li>
+     * </ul>
      */
     Path writeIdentityPgcopy(EntityStreamResult ndjsonResult) {
-        Path pgcopy = temp(ndjsonResult.entityType().name() + "-pgcopy");
+        EntityType entity = ndjsonResult.entityType();
+        boolean fanOut = entity.fansOut();
+        Path pgcopy = temp(entity.name() + "-pgcopy");
         try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(pgcopy));
              LegacyIdMapWriter writer = new LegacyIdMapWriter(fileOut);
              BufferedReader lines = Files.newBufferedReader(
@@ -131,21 +151,30 @@ public final class BundleWriter {
                     continue;
                 }
                 JsonNode row = JSON.readTree(line);
-                JsonNode guid = row.get("legacy_guid");
-                if (guid == null || !guid.isTextual()) {
-                    throw new ExportException(ExitCode.IO_ERROR,
-                            "FULL_PORT NDJSON row for " + ndjsonResult.entityType()
-                                    + " has no legacy_guid; cannot build identity map");
+                UUID legacyGuid = requireUuid(row, "legacy_guid", entity);
+                if (fanOut) {
+                    UUID clubId = requireUuid(row, "club_id", entity);
+                    UUID id = requireUuid(row, "id", entity);
+                    writer.write(legacyGuid, clubId, id);
+                } else {
+                    writer.write(legacyGuid, legacyGuid);
                 }
-                UUID id = UUID.fromString(guid.asText());
-                writer.write(id, id);
             }
         } catch (IOException e) {
             throw new ExportException(ExitCode.IO_ERROR,
-                    "Failed writing identity pgcopy for " + ndjsonResult.entityType()
-                            + ": " + e.getMessage(), e);
+                    "Failed writing id map for " + entity + ": " + e.getMessage(), e);
         }
         return pgcopy;
+    }
+
+    private static UUID requireUuid(JsonNode row, String field, EntityType entity) {
+        JsonNode node = row.get(field);
+        if (node == null || !node.isTextual()) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "NDJSON row for " + entity + " has no " + field
+                            + "; cannot build id map");
+        }
+        return UUID.fromString(node.asText());
     }
 
     /**

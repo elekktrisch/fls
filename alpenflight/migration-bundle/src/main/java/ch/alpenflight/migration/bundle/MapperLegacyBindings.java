@@ -170,9 +170,13 @@ public final class MapperLegacyBindings {
                     ) fanout ON fanout.LocationId = l.LocationId
                     """,
                     "t_location",
+                    // Fan-out (J-0b): id (the derived per-replica PK) and
+                    // legacy_guid (the shared legacy LocationId) are SEPARATE
+                    // destination columns — the producer emits both, matching
+                    // LocationMapper.columns() order. No legacy_guid → id alias.
                     """
                     INSERT INTO t_location (
-                      id, club_id, location_name, location_short_name,
+                      id, legacy_guid, club_id, location_name, location_short_name,
                       country_id, location_type_id, icao_code, latitude, longitude,
                       elevation, elevation_unit_type_id, runway_direction,
                       runway_length, runway_length_unit_type_id, airport_frequency,
@@ -181,7 +185,7 @@ public final class MapperLegacyBindings {
                       is_fast_entry_record,
                       created_on, created_by_user_id, modified_on,
                       modified_by_user_id, deleted_on, deleted_by_user_id)
-                    VALUES (?, ?, ?, ?,
+                    VALUES (?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?,
                             ?, ?, ?,
                             ?, ?, ?,

@@ -218,7 +218,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   `FAN_OUT` set; `Coercions` uuidv5 helper (pinned namespace const); `LegacyIdMapWriter`
   3-arg `write(legacyGuid, clubId, newUuid)` overload (keep 2-arg) + a 3-column pgcopy
   round-trip unit test. *(seam: shared producer primitives)*
-- [ ] **T-04 — LocationMapper fan-out producer.** `writeNdjson` derives `id`, emits
+- [x] **T-04 — LocationMapper fan-out producer.** `writeNdjson` derives `id`, emits
   `legacy_guid` + `club_id`; `MapperLegacyBindings.LOCATION` SELECT carries
   `legacy_guid`; emit the LOCATION 3-column id-map entry. *(seam: the Location producer)*
 - [ ] **T-05 — InOutboundPointMapper fan-out producer.** Child `writeNdjson` emits its
