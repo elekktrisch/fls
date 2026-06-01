@@ -166,7 +166,7 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   `seedClubLegacyIdMap`, not a bundle map) — or `copyLegacyIdMap` reconciles via
   `ON CONFLICT`. Extend `LocationRealProducerRoundTripIT` to drive **CLUB** through
   the real `assembleTarGz` green. *(seam: BundleWriter + IT; unblocks the real bundle)*
-- [ ] **T-02 — Keycloak-provision-on-migrate slice (minimal).** On ingest, after
+- [x] **T-02 — Keycloak-provision-on-migrate slice (minimal).** On ingest, after
   `provisionDeployment`, provision a **Keycloak club-admin identity per migrated
   club** (`clubId` attr = provisioned club UUID, `CLUB_ADMINISTRATOR` realm role,
   `UPDATE_PASSWORD` action) reusing `KeycloakAdminClient`/`KeycloakDeploymentDirectory

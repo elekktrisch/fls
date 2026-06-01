@@ -1,26 +1,38 @@
 package ch.alpenflight.migrations.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,7 +47,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-@Import(JwtTestFixture.class)
+@Import({JwtTestFixture.class, MigrationBundleIngestIT.MockDirectoryConfig.class})
 class MigrationBundleIngestIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -49,6 +61,7 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired JwtTestFixture jwts;
     @Autowired MigrationBundleCipher cipher;
+    @Autowired KeycloakDeploymentDirectory directory;
 
     private UUID userId;
     private UUID userSub;
@@ -80,6 +93,14 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         verifiedToken = jwts.mint(c -> c
                 .subject(userSub.toString())
                 .claim("email_verified", true));
+
+        // Mockable Keycloak boundary — no real realm in this IT. The
+        // provision-on-migrate slice (J-0c T-02) calls
+        // provisionClubAdminIdentity per migrated Club; return a synthetic
+        // sub so the ingest pipeline completes without an upstream realm.
+        Mockito.reset(directory);
+        when(directory.provisionClubAdminIdentity(any(UUID.class), anyString(), anyString()))
+                .thenAnswer(inv -> UUID.randomUUID());
     }
 
     @AfterEach
@@ -174,6 +195,56 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void two_club_bundle_provisions_a_keycloak_club_admin_identity_per_club() throws Exception {
+        // 1. Handshake.
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        // 2. Two-Club bundle (the J-0c fan-out shape — two migrated clubs).
+        String tagA = "a" + testClubSlug.substring(testClubSlug.length() - 4);
+        String tagB = "b" + testClubSlug.substring(testClubSlug.length() - 4);
+        BundleManifest.ClubDeclaration clubA = new BundleManifest.ClubDeclaration(
+                UUID.randomUUID(), "Aero Club A", "aero-" + tagA,
+                "K-" + tagA, false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+        BundleManifest.ClubDeclaration clubB = new BundleManifest.ClubDeclaration(
+                UUID.randomUUID(), "Aero Club B", "aero-" + tagB,
+                "K-" + tagB, false, SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+        byte[] bundle = MigrationBundleTestFactory.buildMultiClubSkeletonBundle(
+                cipher, uploadId, publicKeyDer, "Two Club Deployment", List.of(clubA, clubB));
+
+        // 3. Ingest.
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/migrations/" + uploadId + "/bundle"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + verifiedToken)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(bundle),
+                String.class);
+        assertThat(res.getStatusCode())
+                .as("Bundle ingest returned non-200; body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        assertThat(body.get("clubIds").size()).isEqualTo(2);
+        UUID provisionedClubA = UUID.fromString(body.get("clubIds").get(0).asText());
+        UUID provisionedClubB = UUID.fromString(body.get("clubIds").get(1).asText());
+
+        // 4. One Keycloak club-admin identity per PROVISIONED Club, keyed
+        // off the provisioned (not legacy) club UUID — so a real login
+        // carrying that clubId claim lands in the right tenant.
+        verify(directory, times(2))
+                .provisionClubAdminIdentity(any(UUID.class), anyString(), anyString());
+        verify(directory).provisionClubAdminIdentity(
+                eq(provisionedClubA),
+                eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"),
+                eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"));
+        verify(directory).provisionClubAdminIdentity(
+                eq(provisionedClubB),
+                eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"),
+                eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"));
+    }
+
+    @Test
     void non_owner_returns_403() throws Exception {
         JsonNode handshake = mintHandshake();
         UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
@@ -265,5 +336,20 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 .replace("-----END PUBLIC KEY-----", "")
                 .replaceAll("\\s", "");
         return Base64.getDecoder().decode(body);
+    }
+
+    /**
+     * Replaces the production {@link KeycloakDeploymentDirectory} adapter
+     * with a Mockito mock so the ingest pipeline's provision-on-migrate
+     * step (J-0c T-02) can be exercised + verified without an upstream
+     * realm — the same seam {@code DeploymentProvisioningServiceIT} uses.
+     */
+    @TestConfiguration
+    static class MockDirectoryConfig {
+        @Bean
+        @Primary
+        KeycloakDeploymentDirectory testKeycloakDeploymentDirectory() {
+            return Mockito.mock(KeycloakDeploymentDirectory.class);
+        }
     }
 }
