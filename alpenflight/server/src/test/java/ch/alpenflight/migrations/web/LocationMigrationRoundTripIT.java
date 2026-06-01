@@ -179,9 +179,12 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                 legacyClubIdB, "Loc Club B", testClubSlug + "-b", keyB, false,
                 SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
 
-        // The shared legacy Location (referenced by BOTH clubs) + a child IOP.
+        // The shared legacy Location (referenced by BOTH clubs) + one child IOP
+        // per fan-out club (each child carries its OWN legacy club_id so the
+        // composite (legacy_guid, club_id) FK lookup can pick the right replica).
         UUID sharedLocationId = UUID.randomUUID();
-        UUID childIopId = UUID.randomUUID();
+        UUID childIopIdA = UUID.randomUUID();
+        UUID childIopIdB = UUID.randomUUID();
 
         Map<EntityType, EntityPolicy> entityPolicies = Map.of(
                 EntityType.CLUB, fullPortPolicy(),
@@ -204,9 +207,14 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         tarEntries.put("LOCATION.ndjson", concat(
                 locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId, "LSZH"),
                 locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, "LSZH")));
-        // The child waypoint attaches to the shared parent Location.
-        tarEntries.put("INOUTBOUND_POINT.ndjson",
-                inoutboundPointNdjson(childIopId, sharedLocationId));
+        // Fan-out: one child waypoint per referencing Club. Each child carries
+        // its OWN legacy club_id (= the producer fans the child out too, one row
+        // per (legacy IOP, legacy club)) so the club-aware FK resolution keys the
+        // composite (location_id=legacy LocationId, club_id=child's own club)
+        // lookup onto the parent replica in the SAME club — not an arbitrary one.
+        tarEntries.put("INOUTBOUND_POINT.ndjson", concat(
+                inoutboundPointNdjson(childIopIdA, sharedLocationId, legacyClubIdA),
+                inoutboundPointNdjson(childIopIdB, sharedLocationId, legacyClubIdB)));
 
         byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
                 cipher, uploadId, publicKeyDer, "Location Migrate IT Deployment",
@@ -253,7 +261,20 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                     .isEqualTo(SEED_LENGTH_UNIT_FEET);
         }
 
-        // (c) Child nesting (T-02b) — the IOP lands under one of the fanned-out parents.
+        // The fanned-out replica id in each club (club-aware FK resolution must
+        // pick THESE, keyed (legacy_guid, club_id) — not an arbitrary replica).
+        Map<String, UUID> replicaIdByClub = new LinkedHashMap<>();
+        for (Map<String, Object> r : rows) {
+            replicaIdByClub.put(r.get("club_id").toString(),
+                    UUID.fromString(r.get("id").toString()));
+        }
+        UUID replicaInClubA = replicaIdByClub.get(newClubA.toString());
+        UUID replicaInClubB = replicaIdByClub.get(newClubB.toString());
+
+        // (c) Child nesting (T-02b) + club-aware FK resolution (key-behavior).
+        // Each fanned-out child resolves to the parent replica in ITS OWN club:
+        // the club-A child → club A's replica id, the club-B child → club B's —
+        // NOT "one of" the replicas (the shared legacy GUID does not disambiguate).
         List<Map<String, Object>> iops = jdbc.queryForList(
                 "SELECT iop.id, iop.location_id, loc.club_id "
                         + "FROM t_inoutbound_point iop "
@@ -261,15 +282,24 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
                         + "WHERE loc.club_id IN (?::uuid, ?::uuid)",
                 newClubA.toString(), newClubB.toString());
         assertThat(iops)
-                .as("the child InOutboundPoint must attach to a fanned-out parent Location")
-                .isNotEmpty();
+                .as("each fan-out club's child InOutboundPoint must attach to a "
+                        + "fanned-out parent Location")
+                .hasSize(2);
+
+        Map<String, UUID> iopLocationIdByClub = new LinkedHashMap<>();
         for (Map<String, Object> iop : iops) {
-            UUID parentLocationId = UUID.fromString(iop.get("location_id").toString());
-            assertThat(rows.stream()
-                    .anyMatch(r -> r.get("id").toString().equals(parentLocationId.toString())))
-                    .as("IOP parent location_id must be one of the fanned-out replica ids")
-                    .isTrue();
+            iopLocationIdByClub.put(iop.get("club_id").toString(),
+                    UUID.fromString(iop.get("location_id").toString()));
         }
+        assertThat(iopLocationIdByClub.get(newClubA.toString()))
+                .as("club-aware FK: the club-A child must resolve to club A's OWN "
+                        + "Location replica id, not club B's (composite (legacy_guid, "
+                        + "club_id) lookup keyed on the child's own club)")
+                .isEqualTo(replicaInClubA);
+        assertThat(iopLocationIdByClub.get(newClubB.toString()))
+                .as("club-aware FK: the club-B child must resolve to club B's OWN "
+                        + "Location replica id, not club A's")
+                .isEqualTo(replicaInClubB);
     }
 
     private byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname, String address)
@@ -352,12 +382,20 @@ class LocationMigrationRoundTripIT extends PostgresIntegrationTest {
         return ndjsonLine(row);
     }
 
-    /** NDJSON shaped exactly as {@code InOutboundPointMapper.writeNdjson}. */
-    private byte[] inoutboundPointNdjson(UUID legacyIopId, UUID legacyLocationId)
-            throws IOException {
+    /**
+     * NDJSON shaped exactly as {@code InOutboundPointMapper.writeNdjson} after the
+     * J-0b fan-out: the child carries its OWN legacy {@code club_id} on the wire
+     * (the producer fans the child out, one row per (legacy IOP, legacy club)) so
+     * the composite {@code (location_id, club_id)} FK lookup can disambiguate which
+     * fanned-out parent replica this child belongs to — the shared legacy
+     * {@code location_id} GUID alone cannot.
+     */
+    private byte[] inoutboundPointNdjson(UUID legacyIopId, UUID legacyLocationId,
+                                         UUID legacyClubId) throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyIopId.toString());
         row.put("location_id", legacyLocationId.toString());
+        row.put("club_id", legacyClubId.toString());
         row.put("point_name", "07N");
         row.putNull("point_type");
         row.put("direction", "INBOUND");

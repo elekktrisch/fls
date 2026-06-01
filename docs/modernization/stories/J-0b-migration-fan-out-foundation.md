@@ -204,7 +204,7 @@ Both forks resolved before decomposition:
 Ordered, one seam each (architect's strict dependency order 1→…→8). Workers commit
 directly to `integration/J-0b`. Sized per the do-ship gate.
 
-- [ ] **T-01 — Proof IT → correct target shape (red contract), keep `@Disabled`.**
+- [x] **T-01 — Proof IT → correct target shape (red contract), keep `@Disabled`.**
   Edit `LocationMigrationRoundTripIT`: `inoutboundPointNdjson` emits **two** club-
   tagged child rows (add `club_id` field), and add the explicit **club-aware-FK
   assertion** (a referencer in club A resolves to club A's replica id, not B's).

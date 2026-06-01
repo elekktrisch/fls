@@ -19,16 +19,20 @@ import java.util.UUID;
  * Represents an inbound/outbound routing waypoint at an airfield (V3
  * {@code t_inoutbound_point}, reclassified TENANT_SCOPED-by-parent under V7).
  *
- * <p><strong>Tenancy is inherited, not carried.</strong> Like
- * {@link FlightCrewMapper} under {@link FlightMapper}, this row has no own
+ * <p><strong>Tenancy is inherited at rest, but the wire row must carry its own
+ * {@code club_id} to be resolvable.</strong> Like {@link FlightCrewMapper} under
+ * {@link FlightMapper}, the persisted {@code t_inoutbound_point} row has no own
  * {@code club_id} column — it inherits the tenant of its parent {@code Location}
- * through the {@code location_id} FK. The parent {@code Location} is the
- * fan-out target keyed {@code (legacy_guid, club_id)}; the producer emits one
- * child row per fanned-out parent replica, so {@code location_id} already
- * carries the correct per-club parent legacy GUID and the existing
- * {@link #foreignKeys()} FK-rewrite resolves it to the matching replica. No
- * ingest-pipeline change is required: the data-driven dispatch keys off
- * {@link EntityType} and the INSERT is generated from {@link #columns()}.
+ * through the {@code location_id} FK. But the parent {@code Location} is a
+ * fan-out target keyed {@code (legacy_guid, club_id)}: the shared legacy GUID is
+ * IDENTICAL across every replica, so {@code location_id} alone does NOT
+ * disambiguate which per-club replica this child means. The child must therefore
+ * carry its OWN legacy {@code club_id} on the wire (the producer fans the child
+ * out too, one row per (legacy IOP, legacy club)); the
+ * {@code ForeignKeyResolver} then keys the composite lookup on
+ * {@code (location_id = legacy LocationId, club_id = child's own legacy club)} to
+ * land on the matching replica. (J-0b T-01 records this contract shape; the
+ * producer fan-out + composite resolution land in T-05/T-07.)
  *
  * <p>Column shape changes legacy → V3:
  * <ul>
