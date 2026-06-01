@@ -368,6 +368,10 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
+          # SANITIZE RULE — keep in sync with .github/workflows/proof-preview-reap.yml
+          # (the reaper derives the identical subpath from github.head_ref; the two
+          # sed expressions MUST stay byte-for-byte identical or the reaper deletes
+          # the wrong subdir / misses the live one).
           sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
           subdir="alpenflight/proof-preview/${sanitized}"
           url="https://elekktrisch.github.io/fls/${subdir}/"

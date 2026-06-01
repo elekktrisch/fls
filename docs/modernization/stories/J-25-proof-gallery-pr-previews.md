@@ -35,7 +35,7 @@ CI/workflow (no backend/domain/frontend). Shared contract: a **`preview` step
 - [x] **T-02 — Live link-check gate** (`.github/workflows/ci.yml`, `alpenflight-proof` job).
   After the preview deploy, a step (PR-only) that polls `steps.preview.outputs.url` with bounded retry (gh-pages propagation, ~up to 60s) asserting **HTTP 200** AND the body contains the J-0 proof captions (reuse the caption strings the generator emits). Fails the job red if the preview never serves / lacks captions. This is J-25's provable green. Keep J-24's `proof-gallery.spec.ts` untouched. Depends on T-01.
 
-- [ ] **T-03 — Preview reaper** (new `.github/workflows/proof-preview-reap.yml`).
+- [x] **T-03 — Preview reaper** (new `.github/workflows/proof-preview-reap.yml`).
   On `pull_request: { types: [closed] }`: sanitize the same ref (identical derivation as T-01 — factor the rule so they can't drift), check out `gh-pages`, `git rm -r --ignore-unmatch alpenflight/proof-preview/<sanitized-ref>`, commit + push (skip cleanly if the subdir is absent). Add a small assertion of the ref→subdir derivation (a tiny test/script-level check) so AC5 isn't only exercised by a real PR-close. `permissions: contents: write`. Validate YAML. One new workflow.
 
 ## Context (why — operator ask, 2026-06-01)

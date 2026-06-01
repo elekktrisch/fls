@@ -1,0 +1,120 @@
+name: proof-preview-reap
+
+# J-25 T-03 — Preview reaper (AC5). When a PR closes (merged OR abandoned
+# without merge), delete that branch's ephemeral proof-preview subpath from
+# gh-pages so previews don't accumulate. Mirrors the per-PR preview deploy in
+# ci.yml's `alpenflight-proof` job (the `id: preview` step): it derives the
+# identical sanitized subpath from github.head_ref and removes ONLY that
+# per-branch subdir — never the canonical /alpenflight/proof/, /alpenflight/
+# (e2e dashboard) /alpenflight/index.html, or /legacy/.
+#
+# Fork-PR caveat: fork PRs have no write token (consistent with ci.yml skipping
+# fork previews), so the push step no-ops/skips gracefully rather than failing.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  # Dependency-free (pure bash) assertion that the ref→subpath derivation is
+  # correct, so AC5 isn't only exercised by a real PR-close round-trip. Runs the
+  # SAME sanitize rule as ci.yml's preview step against sample refs and asserts
+  # the expected subpaths. If this drifts from ci.yml, this job goes red.
+  self-check:
+    name: ref→subpath derivation self-check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert sanitize rule against sample refs
+        run: bash .github/scripts/proof-preview-subpath-selfcheck.sh
+
+  reap:
+    name: reap preview subpath from gh-pages
+    needs: self-check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Derive sanitized preview subpath
+        id: preview
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # SANITIZE RULE — keep in sync with .github/workflows/ci.yml preview step
+          # (the `Compute proof-preview destination` step, id: preview). The two
+          # sed expressions MUST stay byte-for-byte identical or this reaper
+          # deletes the wrong subdir / misses the live one.
+          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}"
+          echo "subdir=${subdir}" >> "$GITHUB_OUTPUT"
+          echo "reaping preview subpath: ${subdir}"
+
+      # Fetch + check out gh-pages into a worktree. If gh-pages doesn't exist
+      # yet (no preview ever published), exit cleanly — nothing to reap.
+      - name: Checkout gh-pages
+        id: ghpages
+        run: |
+          git init -q reap-gh-pages
+          cd reap-gh-pages
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git fetch -q --depth 1 origin gh-pages; then
+            echo "gh-pages branch does not exist — nothing to reap."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git checkout -q -b gh-pages FETCH_HEAD
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Remove ONLY the per-branch preview subdir. --ignore-unmatch makes the
+      # absent-subdir case a clean no-op. Guard: refuse to operate unless the
+      # path is the expected proof-preview subpath (never the canonical proof,
+      # the index, or legacy).
+      - name: Remove preview subpath + push
+        if: ${{ steps.ghpages.outputs.exists == 'true' }}
+        env:
+          SUBDIR: ${{ steps.preview.outputs.subdir }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          cd reap-gh-pages
+
+          # Guard: only ever touch alpenflight/proof-preview/<ref>. Never the
+          # canonical gallery, the index, or the legacy dashboard.
+          case "$SUBDIR" in
+            alpenflight/proof-preview/?*) : ;;
+            *)
+              echo "::error::refusing to reap unexpected path: '${SUBDIR}'"
+              exit 1
+              ;;
+          esac
+
+          if [ ! -d "$SUBDIR" ]; then
+            echo "preview subpath '${SUBDIR}' absent on gh-pages — nothing to reap (clean exit)."
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git rm -r -q --ignore-unmatch "$SUBDIR"
+
+          if git diff --cached --quiet; then
+            echo "no changes staged after rm — nothing to reap (clean exit)."
+            exit 0
+          fi
+
+          git commit -q -m "chore: reap proof preview for ${HEAD_REF}"
+
+          # Fork PRs receive no write token, so the push 403s. Treat that as a
+          # graceful skip (consistent with ci.yml skipping fork previews) rather
+          # than failing the run.
+          if git push -q origin gh-pages; then
+            echo "reaped '${SUBDIR}' from gh-pages."
+          else
+            echo "::warning::push to gh-pages failed (likely a fork PR with no write token) — skipping reap."
+          fi
