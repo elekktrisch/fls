@@ -39,7 +39,7 @@ Ordered, one seam each. Workers commit directly to `integration/J-24`.
   videos) + one pending journey. Add the `proof:gallery` script to `package.json`.
   *Manifest format = the Playwright JSON reporter schema; pin it here so T-03 conforms.*
 
-- [ ] **T-02 — Gate spec `proof-gallery.spec.ts` (the journey's green bar).**
+- [x] **T-02 — Gate spec `proof-gallery.spec.ts` (the journey's green bar).**
   New `alpenflight/web/e2e/tests/proof-gallery/proof-gallery.spec.ts` (chromium /
   mock lane — no backend). Runs the T-01 generator against the committed fixtures
   into a temp dir, loads `proof/index.html`, asserts: every fixture video has a
