@@ -214,7 +214,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   One `V-next` migration: add `legacy_guid UUID` + identity-bearing partial UNIQUE
   `(legacy_guid, club_id) WHERE deleted_on IS NULL` (structural, ADR 0022 directive
   2). *(seam: one migration)*
-- [ ] **T-03 — Fan-out primitives (migration-bundle).** `EntityType.fansOut()` /
+- [x] **T-03 — Fan-out primitives (migration-bundle).** `EntityType.fansOut()` /
   `FAN_OUT` set; `Coercions` uuidv5 helper (pinned namespace const); `LegacyIdMapWriter`
   3-arg `write(legacyGuid, clubId, newUuid)` overload (keep 2-arg) + a 3-column pgcopy
   round-trip unit test. *(seam: shared producer primitives)*

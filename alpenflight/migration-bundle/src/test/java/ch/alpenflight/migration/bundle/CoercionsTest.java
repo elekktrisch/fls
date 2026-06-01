@@ -3,9 +3,29 @@ package ch.alpenflight.migration.bundle;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class CoercionsTest {
+
+    @Test
+    void deriveFanOutIdIsDeterministicAndAValidVersion5Uuid() {
+        UUID legacyGuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
+        UUID clubA = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        UUID clubB = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
+        UUID derived = Coercions.deriveFanOutId(legacyGuid, clubA);
+
+        assertThat(derived)
+                .as("same (legacy_guid, legacy club) inputs derive the same id — "
+                        + "re-ingest idempotency depends on byte-stability")
+                .isEqualTo(Coercions.deriveFanOutId(legacyGuid, clubA));
+        assertThat(derived.version()).as("RFC-4122 name-based v5").isEqualTo(5);
+        assertThat(derived.variant()).as("RFC-4122 variant 0b10").isEqualTo(2);
+        assertThat(Coercions.deriveFanOutId(legacyGuid, clubB))
+                .as("the SAME shared legacy row fans out to a DISTINCT id per club")
+                .isNotEqualTo(derived);
+    }
 
     @Test
     void legacyIntIdToUuidStringPlacesValueInLeastSignificantBits() {

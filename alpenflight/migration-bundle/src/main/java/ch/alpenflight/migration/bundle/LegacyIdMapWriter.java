@@ -24,16 +24,29 @@ import java.util.UUID;
  *      4 bytes  int32  flags             (zero)
  *      4 bytes  int32  header extension  (zero)
  *
- *   Per row:
- *      2 bytes  int16  field count       (always 2: legacy_guid, new_uuid)
+ *   Per 2-column row (SYSTEM_GLOBAL / CLUB / identity entities):
+ *      2 bytes  int16  field count       (2: legacy_guid, new_uuid)
  *      4 bytes  int32  legacy_guid length (16)
  *     16 bytes        legacy_guid raw bytes
+ *      4 bytes  int32  new_uuid length    (16)
+ *     16 bytes        new_uuid raw bytes
+ *
+ *   Per 3-column row (fan-out entities — {@link EntityType#fansOut()}):
+ *      2 bytes  int16  field count       (3: legacy_guid, club_id, new_uuid)
+ *      4 bytes  int32  legacy_guid length (16)
+ *     16 bytes        legacy_guid raw bytes
+ *      4 bytes  int32  club_id length     (16)
+ *     16 bytes        club_id raw bytes
  *      4 bytes  int32  new_uuid length    (16)
  *     16 bytes        new_uuid raw bytes
  *
  *   Trailer (2 bytes):
  *      2 bytes  int16  field count        (-1 — EOF marker)
  * </pre>
+ *
+ * <p>A single writer instance must emit rows of one shape only — the COPY
+ * target table's column count is fixed, so callers pick the 2-arg or 3-arg
+ * {@code write} per id-map table, never mix them on one stream.
  *
  * <p>This class wraps the caller's {@link OutputStream} in
  * {@link DataOutputStream} for big-endian primitives. Caller owns the
@@ -54,7 +67,8 @@ public final class LegacyIdMapWriter implements AutoCloseable {
             'P', 'G', 'C', 'O', 'P', 'Y', '\n', (byte) 0xFF, '\r', '\n', '\0'
     };
 
-    private static final int FIELD_COUNT_PER_ROW = 2;
+    private static final int TWO_COLUMN_FIELD_COUNT = 2;
+    private static final int THREE_COLUMN_FIELD_COUNT = 3;
     private static final int UUID_LENGTH_BYTES = 16;
 
     private final DataOutputStream out;
@@ -65,12 +79,35 @@ public final class LegacyIdMapWriter implements AutoCloseable {
         writeHeader();
     }
 
+    /**
+     * Emits a 2-column {@code (legacy_guid, new_uuid)} row. Used by
+     * SYSTEM_GLOBAL / CLUB / identity entities whose id-map table is not
+     * fan-out (see {@link EntityType#fansOut()}).
+     */
     public void write(UUID legacyGuid, UUID newUuid) throws IOException {
         if (trailerWritten) {
             throw new IllegalStateException("LegacyIdMapWriter closed");
         }
-        out.writeShort(FIELD_COUNT_PER_ROW);
+        out.writeShort(TWO_COLUMN_FIELD_COUNT);
         writeUuidField(legacyGuid);
+        writeUuidField(newUuid);
+    }
+
+    /**
+     * Emits a 3-column {@code (legacy_guid, club_id, new_uuid)} row for a
+     * fan-out entity ({@link EntityType#fansOut()}): one shared legacy
+     * masterdata GUID maps to a {@code club_id}-distinct replica id (typically
+     * {@link Coercions#deriveFanOutId}). {@code club_id} is the legacy club id
+     * the row fans out for, so a downstream FK resolves the composite
+     * {@code (legacy_guid, club_id)} key to the referencer's own replica.
+     */
+    public void write(UUID legacyGuid, UUID clubId, UUID newUuid) throws IOException {
+        if (trailerWritten) {
+            throw new IllegalStateException("LegacyIdMapWriter closed");
+        }
+        out.writeShort(THREE_COLUMN_FIELD_COUNT);
+        writeUuidField(legacyGuid);
+        writeUuidField(clubId);
         writeUuidField(newUuid);
     }
 

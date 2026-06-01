@@ -4,6 +4,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -21,6 +24,62 @@ import org.jspecify.annotations.Nullable;
 public final class Coercions {
 
     private Coercions() { }
+
+    /**
+     * Pinned namespace for fan-out id derivation. <strong>This constant must
+     * NEVER change.</strong> {@link #deriveFanOutId} is a name-based UUIDv5
+     * over {@code (namespace ++ legacyGuid bytes ++ legacyClubId bytes)}; a
+     * re-POST of the same legacy bundle must reproduce byte-identical ids so
+     * ingest UPSERTs idempotently (matching CLUB's {@code ON CONFLICT} path).
+     * Re-pinning this value would mint a fresh id for every previously-ingested
+     * fan-out row, breaking that idempotency. Randomly generated once for J-0b
+     * and frozen here.
+     */
+    private static final UUID FAN_OUT_NAMESPACE =
+            UUID.fromString("8f3b1c2a-5d47-5e9b-a1f0-6c2d4e8a7b30");
+
+    /**
+     * Deterministically derives a fan-out replica id from a shared legacy
+     * masterdata GUID and the <em>legacy</em> club id it is being fanned out
+     * for. One legacy row referenced by N clubs yields N distinct ids (one per
+     * club), so the tenant-partitioned new stack (ADR 0008) gets a
+     * {@code club_id}-distinct PK per replica with no producer-side mint and no
+     * {@code RETURNING} round-trip.
+     *
+     * <p>Computed as a name-based <strong>UUIDv5</strong> (RFC 4122 §4.3:
+     * SHA-1 over {@link #FAN_OUT_NAMESPACE} concatenated with the 16
+     * big-endian bytes of {@code legacyGuid} then {@code legacyClubId};
+     * version nibble forced to {@code 0x5}, variant bits to {@code 0b10}).
+     * Keying is strictly on the <em>legacy</em> club id — the only id stable
+     * across producer and referencer (ingest never sees it). Same inputs →
+     * same UUID forever; the byte-stability re-ingest depends on is anchored by
+     * the pinned namespace above.
+     */
+    public static UUID deriveFanOutId(UUID legacyGuid, UUID legacyClubId) {
+        MessageDigest sha1;
+        try {
+            sha1 = MessageDigest.getInstance("SHA-1");
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-1 is a mandated JCA algorithm — its absence is unrecoverable.
+            throw new IllegalStateException("SHA-1 unavailable", e);
+        }
+        ByteBuffer input = ByteBuffer.allocate(16 + 16 + 16);
+        putUuid(input, FAN_OUT_NAMESPACE);
+        putUuid(input, legacyGuid);
+        putUuid(input, legacyClubId);
+        byte[] hash = sha1.digest(input.array());
+
+        hash[6] = (byte) ((hash[6] & 0x0F) | 0x50);   // version 5
+        hash[8] = (byte) ((hash[8] & 0x3F) | 0x80);   // variant 0b10
+
+        ByteBuffer out = ByteBuffer.wrap(hash, 0, 16);
+        return new UUID(out.getLong(), out.getLong());
+    }
+
+    private static void putUuid(ByteBuffer buffer, UUID uuid) {
+        buffer.putLong(uuid.getMostSignificantBits());
+        buffer.putLong(uuid.getLeastSignificantBits());
+    }
 
     /** Null preserves the third state required by the S-129 string-enum encoding. */
     public static String bitToTriStateTag(@Nullable Boolean value) {
