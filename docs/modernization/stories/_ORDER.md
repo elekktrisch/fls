@@ -16,8 +16,8 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` (clean-seed only; migrate→J-0b) | `masterdata/locations/` → `/locations` |
-| **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016, S-189 (fan-out slice) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
+| ✅ **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` (clean-seed only; migrate→J-0b) | `masterdata/locations/` → `/locations` |
+| ✅ **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016 (S-189 deferred→still todo) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
 | J-1 | Aircraft register | E-06 | J-0, **J-0b** (for migrate-fidelity) | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
 | J-2 | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064, S-067-poly | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
 | J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
@@ -40,22 +40,30 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
-| J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
-| J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
+| ✅ J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
+| ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
+
+**✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-24 (#192),
+J-25 (#196). Done, PR open awaiting merge: **J-0b (#198)**. Next ready once J-0b merges:
+**J-1**. All unmarked rows are `todo`.
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 
-**J-0b — Migration fan-out foundation** (filed 2026-05-31, ship-time discovery during
-J-0). J-0's live migrate proof revealed the core `(legacy_id, club_id)→distinct new_id`
-fan-out keying is entirely unbuilt — a shared legacy row referenced by 2 clubs
-PK-collides on ingest. J-0 narrowed to a clean-seed real chain; J-0b builds the
-fan-out subsystem (producer per-replica id mint + a `t_location.legacy_guid` Flyway
-column + composite `(legacy_guid, club_id)` id-map keying — the **shared** mechanism
-every tenant-scoped migration uses) and re-enables the `@Disabled`
-`LocationMigrationRoundTripIT`. The migrate-half foundation already landed on J-0's
-branch (reference-FK resolve, InOutboundPoint mapper, producer SELECT bindings).
-J-0b wants an `implementation-architect` design pass on the keying approach before
-build. Every later journey's *migrated-data* fidelity depends on J-0b.
+**J-0b — Migration fan-out foundation** ✅ **DONE** (PR #198, awaiting merge; filed
+2026-05-31 as a ship-time discovery during J-0). J-0's live migrate proof revealed the
+core `(legacy_id, club_id)→distinct new_id` fan-out keying was entirely unbuilt — a
+shared legacy row referenced by 2 clubs PK-collided on ingest. J-0b built the fan-out
+subsystem and re-enabled the `@Disabled` `LocationMigrationRoundTripIT`. **Shipped shape**
+(implementation-architect pass, 2026-06-01): id **derived** producer-side
+(`id = uuidv5(legacy_guid, legacy_club_id)`), **fan-out-only** composite keying gated by
+`EntityType.fansOut()`, the child carries its own `club_id` so `ForeignKeyResolver` keys
+`(legacy_guid, club_id)` and resolves to the referencer's own-club replica; `t_location`
++ `t_inoutbound_point` each gained a `legacy_guid` column (V23/V24). Proven by two real-
+Postgres ITs (`LocationMigrationRoundTripIT` + `LocationRealProducerRoundTripIT`, the
+latter gating the real `assembleTarGz` tar ordering — a gap-hunter blocker fixed at the
+gate). Every later journey's *migrated-data* fidelity depends on this. **Open follow-ups:**
+S-189 (deferred, still `todo`); the CLUB identity-pgcopy ↔ `seedClubLegacyIdMap` collision
+(no full real-producer bundle *including CLUB* runs end-to-end yet — **file before J-21**).
 
 **J-24 — Proof-video gallery (infra)** (filed by `/do-retro` 2026-06-01 on operator
 ask). J-0's pass-videos land only inside the per-run CI artifact as opaque
