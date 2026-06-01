@@ -39,6 +39,15 @@ import org.jspecify.annotations.Nullable;
  * naturally — the orchestrator's per-mapper save and audit trail then
  * carries the failure cleanly.
  *
+ * <p>Fan-out FKs (J-0b T-07 — target {@link EntityType#fansOut()}, e.g.
+ * {@code InOutboundPoint.location_id} → {@code LOCATION}) cannot use the
+ * single-key lookup: the fan-out target's {@code legacy_id_map_<target>}
+ * holds N rows per shared {@code legacy_guid} (one per club). The lookup is
+ * keyed composite {@code (legacy_guid, club_id)} on the referencer row's
+ * OWN legacy {@code club_id} (a wire-only field the producer fans the
+ * referencer out with), landing on that club's replica. A composite miss is
+ * <em>fail-closed</em> (mirrors the SYSTEM_GLOBAL path) — never a verbatim FK.
+ *
  * <p>Column-name convention (vertical-slice mappers, S-187): the FK
  * column is {@code <target.name().toLowerCase()>_id} — e.g.
  * {@code club_id}, {@code country_id}, {@code language_id}. S-187a will
@@ -51,9 +60,18 @@ import org.jspecify.annotations.Nullable;
  */
 final class ForeignKeyResolver implements AutoCloseable {
 
+    /**
+     * Wire-only field a fan-out referencer carries to name its OWN legacy club
+     * (T-05). Absent from the referencer's destination columns — consumed here
+     * only to disambiguate which fan-out replica its FK points at.
+     */
+    private static final String REFERENCER_CLUB_FIELD = "club_id";
+
     private final Connection connection;
     private final BundleManifest manifest;
     private final Map<EntityType, PreparedStatement> lookups = new EnumMap<>(EntityType.class);
+    private final Map<EntityType, PreparedStatement> compositeLookups =
+            new EnumMap<>(EntityType.class);
 
     ForeignKeyResolver(Connection connection, BundleManifest manifest) {
         this.connection = connection;
@@ -81,6 +99,10 @@ final class ForeignKeyResolver implements AutoCloseable {
                                 + " is not a valid UUID: " + currentValue.asText(),
                         badUuid);
             }
+            if (target.fansOut()) {
+                resolveFanOutForeignKey(mapper, row, target, field, legacyGuid);
+                continue;
+            }
             UUID resolved = lookupOrNull(target, legacyGuid);
             if (resolved != null) {
                 row.put(field, resolved.toString());
@@ -96,6 +118,54 @@ final class ForeignKeyResolver implements AutoCloseable {
             // Else: FULL_PORT target with no mapping yet — let the FK
             // constraint surface the failure on INSERT.
         }
+    }
+
+    /**
+     * Composite FK resolution for a {@link EntityType#fansOut()} target (J-0b
+     * T-07). The fan-out target's {@code legacy_id_map_<target>} carries N rows
+     * per shared {@code legacy_guid} — one per club — so the single-key lookup
+     * is ambiguous. Disambiguate on the referencer's OWN legacy club: the
+     * wire-only {@code club_id} field the producer fans the referencer out with
+     * (the IOP child carries its own club; a downstream Flight referencer would
+     * likewise). Read it from the PARSED row, not from a destination column.
+     *
+     * <p>Fail-closed on a composite miss — mirror the SYSTEM_GLOBAL path: a
+     * {@code (legacy_guid, club_id)} pair absent from the composite map aborts
+     * the ingest with a clear error rather than landing a verbatim FK that
+     * violates a constraint opaquely.
+     */
+    private void resolveFanOutForeignKey(
+            Mapper mapper, ObjectNode row, EntityType target, String field, UUID legacyGuid)
+            throws SQLException {
+        JsonNode clubValue = row.get(REFERENCER_CLUB_FIELD);
+        if (clubValue == null || clubValue.isNull()) {
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK,
+                    "FK " + field + " on " + mapper.entityType() + " targets fan-out "
+                            + target + " but the referencer row carries no own "
+                            + REFERENCER_CLUB_FIELD + " to disambiguate which replica it means");
+        }
+        UUID referencerClubId;
+        try {
+            referencerClubId = UUID.fromString(clubValue.asText());
+        } catch (IllegalArgumentException badUuid) {
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.NDJSON_PARSE_FAILED,
+                    REFERENCER_CLUB_FIELD + " on " + mapper.entityType()
+                            + " is not a valid UUID: " + clubValue.asText(),
+                    badUuid);
+        }
+        UUID resolved = lookupCompositeOrNull(target, legacyGuid, referencerClubId);
+        if (resolved == null) {
+            throw new BundleIngestException(
+                    BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK,
+                    "FK " + field + " on " + mapper.entityType()
+                            + " carries legacy guid " + legacyGuid + " for club "
+                            + referencerClubId + " but legacy_id_map_" + target
+                            + " has no replica for that (legacy_guid, club_id) pair; the "
+                            + "fan-out producer must emit one id-map row per referencing club");
+        }
+        row.put(field, resolved.toString());
     }
 
     /**
@@ -149,6 +219,22 @@ final class ForeignKeyResolver implements AutoCloseable {
         }
     }
 
+    private @Nullable UUID lookupCompositeOrNull(
+            EntityType target, UUID legacyGuid, UUID clubId) throws SQLException {
+        PreparedStatement ps = compositeLookups.get(target);
+        if (ps == null) {
+            ps = connection.prepareStatement(
+                    "SELECT new_uuid FROM " + LegacyIdMapTables.temporaryTableName(target)
+                            + " WHERE legacy_guid = ? AND club_id = ?");
+            compositeLookups.put(target, ps);
+        }
+        ps.setObject(1, legacyGuid);
+        ps.setObject(2, clubId);
+        try (ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getObject(1, UUID.class) : null;
+        }
+    }
+
     private boolean isSystemGlobalResolve(EntityType target) {
         EntityPolicy policy = manifest.entityPolicies().get(target);
         return policy != null
@@ -161,13 +247,18 @@ final class ForeignKeyResolver implements AutoCloseable {
 
     @Override
     public void close() {
-        for (PreparedStatement ps : lookups.values()) {
+        closeAll(lookups);
+        closeAll(compositeLookups);
+    }
+
+    private static void closeAll(Map<EntityType, PreparedStatement> statements) {
+        for (PreparedStatement ps : statements.values()) {
             try {
                 ps.close();
             } catch (SQLException ignored) {
                 // Connection close-time will release whatever leaked.
             }
         }
-        lookups.clear();
+        statements.clear();
     }
 }

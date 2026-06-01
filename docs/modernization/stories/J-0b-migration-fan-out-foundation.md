@@ -252,7 +252,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   `legacy_guid` column now exists (T-05b); the wire-only `club_id` field (not in IOP
   `columns()`) must be stripped before INSERT, surviving only for T-07's FK lookup.
   *(seam: ingest side; deps T-02, T-03, T-05b)*
-- [ ] **T-07 — Club-aware FK resolution.** `ForeignKeyResolver.rewriteForeignKeys` +
+- [x] **T-07 — Club-aware FK resolution.** `ForeignKeyResolver.rewriteForeignKeys` +
   `lookupOrNull`: composite `(legacy_guid, club_id)` branch for fan-out targets, reading
   the referencer row's own `club_id`; fail-closed on a composite miss. *(seam:
   ForeignKeyResolver — the load-bearing one; deps T-06)*
