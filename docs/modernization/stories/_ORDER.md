@@ -41,6 +41,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
 | J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
+| J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 
@@ -62,6 +63,15 @@ ask). J-0's pass-videos land only inside the per-run CI artifact as opaque
 that captions each proof video with the assertion it proves (the human-parity half
 of the done-bar, made reviewable). Reuses the existing `alpenflight-e2e.yml`
 gh-pages pipeline; caption source is the load-bearing design choice (carve-time).
+
+**J-25 — Proof-gallery PR previews (infra)** (filed 2026-06-01 on operator ask, at
+J-24's green PR). J-24 publishes the gallery **only on merge to `main`** (publish-on-
+green, to avoid N integration branches racing one gh-pages branch), so a reviewer
+can't *click* it pre-merge — they download the proof artifact. J-25 adds a per-branch
+gh-pages preview (`/alpenflight/proof-preview/<branch>/`) published on each proof run
++ a clickable link on the PR. This is the fork J-24's carve deliberately deferred;
+the real carve-time costs are race-avoidance (per-branch namespacing) and preview
+**cleanup** (reaper on PR close, else unbounded accumulation).
 
 ## Journey-0 — `J-0 Locations CRUD`
 
