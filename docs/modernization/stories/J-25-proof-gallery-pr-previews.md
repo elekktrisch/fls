@@ -32,7 +32,7 @@ CI/workflow (no backend/domain/frontend). Shared contract: a **`preview` step
 - [x] **T-01 — Per-PR preview publish + clickable link** (`.github/workflows/ci.yml`, `alpenflight-proof` job).
   Add: (a) a `preview` step that sanitizes `github.head_ref` (`/`→`-`, strip non-`[A-Za-z0-9._-]`) and emits `subdir` + `url`; (b) a 2nd `peaceiris/actions-gh-pages@v4` deploy gated `github.event_name == 'pull_request' && steps.gallery.outcome == 'success'`, `publish_dir: public/alpenflight/proof`, `destination_dir: ${{ steps.preview.outputs.subdir }}`, `keep_files: true`; (c) a preview-scoped `concurrency` group keyed on `github.head_ref` (cancel-in-progress); (d) a sticky PR comment (upsert by hidden marker) + `$GITHUB_STEP_SUMMARY` line carrying `steps.preview.outputs.url`. Leave the canonical `main` deploy untouched. Validate YAML. One workflow edit.
 
-- [ ] **T-02 — Live link-check gate** (`.github/workflows/ci.yml`, `alpenflight-proof` job).
+- [x] **T-02 — Live link-check gate** (`.github/workflows/ci.yml`, `alpenflight-proof` job).
   After the preview deploy, a step (PR-only) that polls `steps.preview.outputs.url` with bounded retry (gh-pages propagation, ~up to 60s) asserting **HTTP 200** AND the body contains the J-0 proof captions (reuse the caption strings the generator emits). Fails the job red if the preview never serves / lacks captions. This is J-25's provable green. Keep J-24's `proof-gallery.spec.ts` untouched. Depends on T-01.
 
 - [ ] **T-03 — Preview reaper** (new `.github/workflows/proof-preview-reap.yml`).

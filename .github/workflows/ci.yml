@@ -449,6 +449,69 @@ jobs:
           enable_jekyll: false
           commit_message: "proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
 
+      # J-25 T-02 — THE provable green: a live link-check against the deployed
+      # preview. PR-only + gallery-green-gated, placed AFTER the preview deploy
+      # step above so the gh-pages push has already happened. Polls the computed
+      # preview URL (steps.preview.outputs.url) with bounded retry — gh-pages
+      # serves a freshly-pushed subpath anywhere from a few seconds to ~1 min
+      # later, so we loop 12× with 10s sleeps (≈2 min budget) until HTTP 200,
+      # then assert the returned HTML contains the J-0 proof captions the
+      # generator emits (esc() only touches & < > " — none of which appear in
+      # these captions, so they render verbatim and grep-match literally). The
+      # caption substrings are the distinctive tails of the three J-0 captions
+      # in e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts (the
+      # `proofVideo({ caption })` calls). If the URL never 200s within budget,
+      # OR 200s but a caption is absent, the step fails the job red. Inherent
+      # timing caveat: on the FIRST-EVER push of a brand-new subpath, Pages
+      # build latency can exceed even this budget — the failure message names
+      # the URL so a transient propagation miss is diagnosable + re-runnable.
+      # Dependency-free: bash + curl (both on the ubuntu runner).
+      - name: Live link-check the deployed preview (200 + captions)
+        if: ${{ github.event_name == 'pull_request' && steps.gallery.outcome == 'success' }}
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          set -uo pipefail
+          # Distinctive tails of the three J-0 captions emitted by the gallery
+          # generator (see locations-crud-tenant-isolation.spec.ts proofVideo
+          # captions). ASCII-only substrings (no multibyte `·`) for a robust grep.
+          captions=(
+            "club A admin creates a Location and sees it in club A's list"
+            "club B is denied club A's Location (404 not 403)"
+            "the same ICAO is creatable independently in club B"
+          )
+          attempts=12
+          sleep_s=10
+          body="$(mktemp)"
+          code=000
+          for i in $(seq 1 "$attempts"); do
+            code="$(curl -s -o "$body" -w '%{http_code}' "$PREVIEW_URL" || echo 000)"
+            if [ "$code" = "200" ]; then
+              echo "preview served HTTP 200 on attempt ${i}/${attempts}: ${PREVIEW_URL}"
+              break
+            fi
+            echo "attempt ${i}/${attempts}: preview not ready (HTTP ${code}) — sleeping ${sleep_s}s"
+            sleep "$sleep_s"
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::preview URL never served (last HTTP ${code}) within budget at ${PREVIEW_URL}"
+            exit 1
+          fi
+          missing=0
+          for c in "${captions[@]}"; do
+            if grep -qF -- "$c" "$body"; then
+              echo "  ✓ caption present: ${c}"
+            else
+              echo "::error::caption absent from served preview: \"${c}\""
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::preview served 200 but J-0 captions absent at ${PREVIEW_URL}"
+            exit 1
+          fi
+          echo "live link-check passed: 200 + all 3 J-0 captions present at ${PREVIEW_URL}"
+
       # J-25 — surface the clickable preview URL. Always-on $GITHUB_STEP_SUMMARY
       # line (no PR-write token needed — the fallback for fork PRs) PLUS a
       # sticky PR comment upserted by a hidden HTML marker (find-and-update via
