@@ -245,7 +245,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   child has no own `club_id` column). Mirrors V23. Keeps the de-alias (T-06) able to
   land `legacy_guid` + `id` as separate destination columns on the child.
   *(seam: one migration; unblocks T-06)*
-- [ ] **T-06 — Ingest fan-out keying.** `EntityStreamIngestor`: `destinationColumnNames`
+- [x] **T-06 — Ingest fan-out keying.** `EntityStreamIngestor`: `destinationColumnNames`
   de-alias (emit both `legacy_guid` + `id` for fan-out entities); composite
   `(legacy_guid, club_id)` temp-table DDL in `createTemporaryIdMapTables`; 3-column
   COPY in `copyLegacyIdMap` — all gated on the fan-out flag. The child's
