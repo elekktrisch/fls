@@ -7,10 +7,15 @@ name: alpenflight e2e
 # Why a separate workflow (not in ci.yml):
 #   - ci.yml is the PR gate; it must stay fast. Playwright + ng serve adds
 #     2–4 minutes to every push.
-#   - This workflow runs on push (any branch) so the report + screenshots
-#     are produced for in-flight feature work without gating the PR.
+#   - In-flight `integration/**` feature work is covered by its `pull_request`
+#     run (the report + screenshots are produced + uploaded as a workflow
+#     artifact there). `push` is `main`-only — that's the run that performs
+#     the `main`-ref-gated gh-pages publish below. (J-25 T-05 dedup: a branch
+#     listed under both `push` AND `pull_request` ran this workflow twice on
+#     one commit — the `alpenflight-e2e-${{ github.ref }}` concurrency groups
+#     don't cancel across the two refs — so `push` is now `main`-only.)
 #   - Publishes to gh-pages under /alpenflight/ on main pushes only;
-#     branches surface the same outputs as a workflow artifact.
+#     PR runs surface the same outputs as a workflow artifact.
 #
 # gh-pages publication uses `keep_files: true` and namespaces under
 # /alpenflight/. The legacy nightly workflow (`nightly.yml`) now publishes
@@ -22,7 +27,7 @@ name: alpenflight e2e
 
 on:
   push:
-    branches: [main, "integration/**"]
+    branches: [main]
     paths:
       - 'alpenflight/web/**'
       - '.github/workflows/alpenflight-e2e.yml'

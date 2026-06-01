@@ -1,8 +1,15 @@
 name: ci
 
+# Trigger policy (J-25 T-05 dedup): `push` is `main`-only — the post-merge
+# run that performs the canonical `github.ref == 'refs/heads/main'`-gated
+# gh-pages proof-gallery deploy. In-flight `integration/**` branches always
+# carry a (draft) PR in this flow, so the `pull_request` trigger covers them
+# with a SINGLE run (a branch listed under both `push` and `pull_request`
+# would otherwise run twice on one commit — different `github.ref` → the
+# `ci-${{ github.ref }}` concurrency groups don't cancel each other).
 on:
   push:
-    branches: [main, "integration/**"]
+    branches: [main]
   pull_request:
     branches: [main, "integration/**"]
   workflow_dispatch:
@@ -198,11 +205,14 @@ jobs:
     if: needs.changes.outputs.next == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    # `contents: write` lets the main-gated gh-pages deploy step push the
-    # proof gallery to the gh-pages branch (mirrors alpenflight-e2e.yml).
-    # Without it the deploy fails with 403; the rest of the job needs read.
+    # `contents: write` lets the gh-pages deploy steps push the proof gallery
+    # to the gh-pages branch (mirrors alpenflight-e2e.yml). Without it the
+    # deploy fails with 403; the rest of the job needs read.
+    # `pull-requests: write` (J-25) lets the preview step post/update the
+    # sticky PR comment carrying the per-branch preview URL.
     permissions:
       contents: write
+      pull-requests: write
     env:
       E2E_REAL_IDP: '1'
     steps:
@@ -214,19 +224,48 @@ jobs:
       - name: Create alpenflight_shared network
         run: docker network create alpenflight_shared --driver bridge
 
+      # Registry-pull retry (J-25 T-05): the three docker steps below touch
+      # external registries (quay.io for Keycloak, registry-1.docker.io for
+      # mailpit/postgres/pgadmin) and fail red on transient 5xx/timeout blips
+      # (observed: quay.io 502 + docker.io timeout → manual reruns). Each is
+      # wrapped in a bounded 3-attempt retry with 15s backoff. A genuinely
+      # persistent failure still exits non-zero after the 3rd attempt (the
+      # `exit 1` after the loop), so real breakage stays red — only transient
+      # blips self-heal. The retry is scoped to image-pull/build/up ONLY; the
+      # test/gallery/deploy steps are deliberately NOT retried (a flaky spec
+      # must not be silently retried into green — different policy).
       - name: Bring up alpenflight-infra (mailpit)
-        run: bash alpenflight/ops/dev-up-infra.sh
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
 
       - name: Build pgAdmin + Keycloak images
         run: |
-          docker compose -f docker-compose.yml --profile next build pgadmin keycloak
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
 
       # Clean seed: Postgres + Keycloak only. No MSSQL / legacy-up / migrate
       # (deferred to J-0b — see the J-0 journey file).
       - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
         run: |
-          docker compose -p alpenflight-dev -f docker-compose.yml \
-            up -d --wait --wait-timeout 240 postgres pgadmin keycloak
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
 
       - name: Set up Java 25
         uses: actions/setup-java@v4
@@ -351,6 +390,33 @@ jobs:
             --out ../../public/alpenflight/proof \
             --order ../../docs/modernization/stories/_ORDER.md
 
+      # J-25 — compute the per-PR preview destination + clickable URL.
+      # PR-only. Sanitize github.head_ref (the PR source branch, e.g.
+      # `integration/J-26`): replace `/` and any non-[A-Za-z0-9._-] char with
+      # `-` (so `integration/J-26` → `integration-J-26`). Emit the gh-pages
+      # subdir + the full GitHub Pages URL as step outputs for the preview
+      # deploy + the sticky comment / step-summary to consume. The repo is
+      # elekktrisch/fls → project Pages base is https://elekktrisch.github.io/fls/
+      # (matches J-24's published /alpenflight/proof/ base).
+      - name: Compute proof-preview destination
+        id: preview
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # SANITIZE RULE — keep in sync with .github/workflows/proof-preview-reap.yml
+          # (the reaper derives the identical subpath from github.head_ref; the two
+          # sed expressions MUST stay byte-for-byte identical or the reaper deletes
+          # the wrong subdir / misses the live one).
+          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}"
+          url="https://elekktrisch.github.io/fls/${subdir}/"
+          {
+            echo "subdir=${subdir}"
+            echo "url=${url}"
+          } >> "$GITHUB_OUTPUT"
+          echo "proof preview → ${url}"
+
       - name: Collect logs on failure
         if: failure()
         run: |
@@ -397,6 +463,134 @@ jobs:
           keep_files: true
           enable_jekyll: false
           commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      # J-25 — per-PR preview deploy. PR-only + gallery-success-gated (a red
+      # run produces no valid gallery, so don't publish a broken preview).
+      # Publishes the SAME generated gallery (public/alpenflight/proof) to a
+      # per-branch subpath under gh-pages: alpenflight/proof-preview/<ref>/.
+      # keep_files: true + the disjoint per-branch destination_dir mean this
+      # NEVER touches the canonical /alpenflight/proof/ (main) or /alpenflight/
+      # (e2e dashboard) — and a second branch's preview can't clobber this one.
+      # Self-clobber on a branch's own rapid re-pushes is already prevented by
+      # the workflow-level `concurrency: ci-${{ github.ref }}` (cancel-in-progress)
+      # group, which cancels the prior run before its preview deploy lands; a
+      # job-level group keyed on head_ref would OVERRIDE that inherited group
+      # (and head_ref is empty on push, breaking main runs), so we intentionally
+      # do NOT add one — see the journey note.
+      - name: Deploy proof preview to gh-pages (PR)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/alpenflight/proof
+          destination_dir: ${{ steps.preview.outputs.subdir }}
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
+
+      # J-25 T-02 — THE provable green: a live link-check against the deployed
+      # preview. PR-only + gallery-green-gated, placed AFTER the preview deploy
+      # step above so the gh-pages push has already happened. Polls the computed
+      # preview URL (steps.preview.outputs.url) with bounded retry — gh-pages
+      # serves a freshly-pushed subpath anywhere from a few seconds to ~1 min
+      # later, so we loop 12× with 10s sleeps (≈2 min budget) until HTTP 200,
+      # then assert the returned HTML contains the J-0 proof captions the
+      # generator emits (esc() only touches & < > " — none of which appear in
+      # these captions, so they render verbatim and grep-match literally). The
+      # caption substrings are the distinctive tails of the three J-0 captions
+      # in alpenflight/web/e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
+      # (the `proofVideo({ caption })` calls). If the URL never 200s within budget,
+      # OR 200s but a caption is absent, the step fails the job red. Inherent
+      # timing caveat: on the FIRST-EVER push of a brand-new subpath, Pages
+      # build latency can exceed even this budget — the failure message names
+      # the URL so a transient propagation miss is diagnosable + re-runnable.
+      # Dependency-free: bash + curl (both on the ubuntu runner).
+      - name: Live link-check the deployed preview (200 + captions)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          set -uo pipefail
+          # Distinctive tails of the three J-0 captions emitted by the gallery
+          # generator (see locations-crud-tenant-isolation.spec.ts proofVideo
+          # captions). ASCII-only substrings (no multibyte `·`) for a robust grep.
+          captions=(
+            "club A admin creates a Location and sees it in club A's list"
+            "club B is denied club A's Location (404 not 403)"
+            "the same ICAO is creatable independently in club B"
+          )
+          attempts=12
+          sleep_s=10
+          body="$(mktemp)"
+          code=000
+          for i in $(seq 1 "$attempts"); do
+            code="$(curl -s -o "$body" -w '%{http_code}' "$PREVIEW_URL" || echo 000)"
+            if [ "$code" = "200" ]; then
+              echo "preview served HTTP 200 on attempt ${i}/${attempts}: ${PREVIEW_URL}"
+              break
+            fi
+            echo "attempt ${i}/${attempts}: preview not ready (HTTP ${code}) — sleeping ${sleep_s}s"
+            sleep "$sleep_s"
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::preview URL never served (last HTTP ${code}) within budget at ${PREVIEW_URL}"
+            exit 1
+          fi
+          missing=0
+          for c in "${captions[@]}"; do
+            if grep -qF -- "$c" "$body"; then
+              echo "  ✓ caption present: ${c}"
+            else
+              echo "::error::caption absent from served preview: \"${c}\""
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::preview served 200 but J-0 captions absent at ${PREVIEW_URL}"
+            exit 1
+          fi
+          echo "live link-check passed: 200 + all 3 J-0 captions present at ${PREVIEW_URL}"
+
+      # J-25 — surface the clickable preview URL: a $GITHUB_STEP_SUMMARY line
+      # PLUS a sticky PR comment upserted by a hidden HTML marker (find-and-update
+      # via github-script, so re-runs update one comment instead of spamming).
+      # Both gated on the preview deploy having published (PR + non-fork + gallery
+      # green) — there's no preview URL to surface when the deploy itself skipped,
+      # and a fork PR has no write token for the comment anyway, so both skip
+      # cleanly on fork PRs (the documented "fork PRs silently skip" contract)
+      # rather than failing the required proof gate red.
+      - name: Surface preview URL (step summary)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        run: |
+          {
+            echo "### Proof gallery preview"
+            echo ""
+            echo "[$PREVIEW_URL]($PREVIEW_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+
+      - name: Upsert sticky preview comment
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- proof-preview -->';
+            const body = `${marker}\n### Proof gallery preview\n\n[${process.env.PREVIEW_URL}](${process.env.PREVIEW_URL})\n\n_Updates in place on each green proof run for this branch._`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
 
       - name: Stop backend
         if: always()
