@@ -159,7 +159,7 @@ publishes the video to the gallery, while the per-PR required gate for J-0c's
 Ordered, one seam each. Code tasks → general-purpose `/do-task`; proof-chain/
 Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
 
-- [ ] **T-01 — CLUB-pgcopy collision fix.** `BundleWriter.assembleTarGz`
+- [x] **T-01 — CLUB-pgcopy collision fix.** `BundleWriter.assembleTarGz`
   (`migration-tool`) emits a `legacy_id_map/CLUB.pgcopy` that collides with the
   orchestrator's `seedClubLegacyIdMap` on `legacy_id_map_club_pkey` (T-10 finding).
   Fix: producer **skips** the CLUB identity pgcopy (CLUB reconciles via

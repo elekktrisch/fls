@@ -40,8 +40,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
  *   <li>Per registered entity, drain its forward-only {@link ResultSet}
  *       through {@link Mapper#writeNdjson} into a per-entity temp NDJSON
  *       file, hashing (sha256) + counting rows as bytes are written.</li>
- *   <li>For {@code FULL_PORT} entities, emit
- *       {@code legacy_id_map/<E>.pgcopy} — a binary PGCOPY map the consumer
+ *   <li>For {@code FULL_PORT} entities (except CLUB, whose id-map is
+ *       orchestrator-owned — see {@link EntityType#idMapSeededFromProvisioning()}),
+ *       emit {@code legacy_id_map/<E>.pgcopy} — a binary PGCOPY map the consumer
  *       COPYs into {@code legacy_id_map_<entity>} so FK rewrites resolve.
  *       Non-fan-out entities get the 2-column identity map
  *       ({@code legacy_guid -> legacy_guid}); fan-out entities
@@ -205,11 +206,16 @@ public final class BundleWriter {
     public void assembleTarGz(byte[] manifestBytes,
                               List<EntityStreamResult> entityResults,
                               Path destination) {
-        // FULL_PORT identity maps, keyed by tar entry name.
+        // FULL_PORT identity maps, keyed by tar entry name. CLUB is excluded:
+        // its legacy_id_map_club is orchestrator-owned (seedClubLegacyIdMap maps
+        // legacy guid -> the provisioned t_club.id), so a producer-emitted CLUB
+        // identity pgcopy would collide on legacy_id_map_club_pkey AND be
+        // semantically wrong — see EntityType.idMapSeededFromProvisioning (J-0c T-01).
         Map<String, Path> pgcopyEntries = new LinkedHashMap<>();
         for (EntityStreamResult result : entityResults) {
             if (MapperLegacyBindings.portPolicy(result.entityType())
-                    == MapperLegacyBindings.PortPolicy.FULL_PORT) {
+                    == MapperLegacyBindings.PortPolicy.FULL_PORT
+                    && !result.entityType().idMapSeededFromProvisioning()) {
                 pgcopyEntries.put(
                         "legacy_id_map/" + result.entityType().name() + ".pgcopy",
                         writeIdentityPgcopy(result));

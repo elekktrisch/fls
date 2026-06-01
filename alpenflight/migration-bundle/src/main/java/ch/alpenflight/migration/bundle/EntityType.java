@@ -92,6 +92,27 @@ public enum EntityType {
         return fansOut;
     }
 
+    /**
+     * CLUB is the tenant root: its {@code legacy_id_map_club} is owned by the
+     * orchestrator, NOT the bundle. Migration provisions the clubs declared in
+     * the manifest (minting a NEW {@code t_club.id} per club) and
+     * {@code EntityStreamIngestor.seedClubLegacyIdMap} populates
+     * {@code legacy_id_map_club} with {@code legacy_club_guid -> provisioned
+     * t_club.id}. The CLUB NDJSON then reconciles onto that provisioned row via
+     * {@code rewriteSelfId} + an {@code ON CONFLICT (id) DO UPDATE} overlay.
+     *
+     * <p>So the producer must NOT emit a {@code legacy_id_map/CLUB.pgcopy}: an
+     * identity map ({@code legacy_guid -> legacy_guid}) would (a) collide with
+     * the orchestrator-seeded rows on {@code legacy_id_map_club_pkey} (23505),
+     * and (b) be semantically wrong — the real new club id is the provisioned
+     * one, not the legacy guid (J-0b T-10 finding, fixed in J-0c T-01). CLUB is
+     * the only such manifest-provisioned id-map; every other FULL_PORT entity's
+     * id-map is bundle-owned (the producer's identity / composite pgcopy).
+     */
+    public boolean idMapSeededFromProvisioning() {
+        return this == CLUB;
+    }
+
     public String temporaryTableSuffix() {
         return name().toLowerCase(Locale.ROOT);
     }

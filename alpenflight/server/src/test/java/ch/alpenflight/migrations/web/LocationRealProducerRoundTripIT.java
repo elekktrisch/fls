@@ -75,11 +75,17 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * regresses.
  *
  * <p>The producer emits {@code legacy_id_map} entries only for FULL_PORT
- * entities (CLUB / LOCATION / INOUTBOUND_POINT). The SYSTEM_GLOBAL maps
- * (COUNTRY / CLUB_STATE) the ingest also requires are not part of the
- * producer's tar today, so they are spliced in right after {@code manifest.json}
- * — leaving the real producer's FULL_PORT-pgcopy-then-NDJSON relative order
- * (the thing under test) untouched.
+ * entities EXCEPT CLUB: {@code legacy_id_map_club} is orchestrator-owned
+ * ({@code seedClubLegacyIdMap} maps the legacy club guid to the provisioned
+ * {@code t_club.id}), so a producer-emitted CLUB identity pgcopy would collide
+ * on {@code legacy_id_map_club_pkey} (J-0c T-01,
+ * {@link EntityType#idMapSeededFromProvisioning()}). This IT drives a real CLUB
+ * stream through {@link BundleWriter#assembleTarGz} to prove that collision is
+ * gone — the CLUB NDJSON upserts onto the provisioned row, no CLUB pgcopy is
+ * emitted. The SYSTEM_GLOBAL maps (COUNTRY / CLUB_STATE) the ingest also
+ * requires are not part of the producer's tar today, so they are spliced in
+ * right after {@code manifest.json} — leaving the real producer's
+ * FULL_PORT-pgcopy-then-NDJSON relative order (the thing under test) untouched.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -200,15 +206,18 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         // same row builders LocationMigrationRoundTripIT uses), fed into the REAL
         // BundleWriter so it computes the pgcopy maps + tar entry order itself.
         //
-        // Only the two FAN_OUT FULL_PORT entities (LOCATION + INOUTBOUND_POINT) go
-        // through the real producer — that is the exact slice the ordering bug
-        // lives on. CLUB is deliberately omitted: the clubs are provisioned from
-        // the manifest and legacy_id_map_club is seeded by the orchestrator's
-        // seedClubLegacyIdMap, so the LOCATION.club_id FK resolves without a CLUB
-        // tar entry. (Driving CLUB through the real producer also emits a CLUB
-        // identity pgcopy that collides with seedClubLegacyIdMap on
-        // legacy_id_map_club_pkey — a SEPARATE real-producer gap, out of T-10's
-        // ordering scope; see report.)
+        // CLUB drives through the real producer too (J-0c T-01): the real
+        // alpenflight-export bundle DOES contain a CLUB stream, and the producer
+        // must NOT emit a legacy_id_map/CLUB.pgcopy — legacy_id_map_club is
+        // orchestrator-owned (seedClubLegacyIdMap maps legacy guid -> the
+        // provisioned t_club.id), so a producer CLUB identity pgcopy would
+        // collide on legacy_id_map_club_pkey (23505). This IT fails red if that
+        // collision is reintroduced and proves the CLUB NDJSON upserts onto the
+        // provisioned row. LOCATION + INOUTBOUND_POINT remain the FAN_OUT slice
+        // the original ordering bug lived on.
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB, concat(
+                clubNdjson(legacyClubIdA, keyA, "RLP Club A Legacy", "Addr A"),
+                clubNdjson(legacyClubIdB, keyB, "RLP Club B Legacy", "Addr B")), 2);
         EntityStreamResult locationStream = ndjsonStream(EntityType.LOCATION, concat(
                 locationNdjson(sharedLocationId, legacyClubIdA, legacyCountryId, "LSZH"),
                 locationNdjson(sharedLocationId, legacyClubIdB, legacyCountryId, "LSZH")), 2);
@@ -226,10 +235,12 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
 
         // The REAL producer assembles the tar: manifest, then every FULL_PORT
-        // pgcopy id-map, then every entity NDJSON (the J-0b T-10 order).
+        // pgcopy id-map (CLUB excluded — orchestrator-owned), then every entity
+        // NDJSON (the J-0b T-10 order). CLUB leads the NDJSON streams as the
+        // tenant root.
         Path producerTarGz = workDir.resolve("real-producer-bundle.tar.gz");
         BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
-        writer.assembleTarGz(manifestBytes, List.of(locationStream, iopStream),
+        writer.assembleTarGz(manifestBytes, List.of(clubStream, locationStream, iopStream),
                 producerTarGz);
 
         // Splice the SYSTEM_GLOBAL maps (not produced by assembleTarGz today) in
@@ -258,6 +269,20 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         Map<String, UUID> clubIdByKey = clubIdsByKey(deploymentId);
         UUID newClubA = clubIdByKey.get(keyA);
         UUID newClubB = clubIdByKey.get(keyB);
+
+        // The real CLUB stream upserted onto the provisioned t_club (no pgcopy
+        // collision): the legacy clubname overlaid the provisioned row, keyed by
+        // the orchestrator-seeded legacy_id_map_club -> provisioned id (J-0c T-01).
+        assertThat(jdbc.queryForObject(
+                "SELECT clubname FROM t_club WHERE id = ?::uuid", String.class,
+                newClubA.toString()))
+                .as("CLUB NDJSON reconciled onto the provisioned club via the "
+                        + "orchestrator-seeded id-map (no legacy_id_map_club collision)")
+                .isEqualTo("RLP Club A Legacy");
+        assertThat(jdbc.queryForObject(
+                "SELECT clubname FROM t_club WHERE id = ?::uuid", String.class,
+                newClubB.toString()))
+                .isEqualTo("RLP Club B Legacy");
 
         // Fan-out + reference-FK resolve survived the real producer ordering.
         List<Map<String, Object>> rows = jdbc.queryForList(
@@ -365,6 +390,45 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         out.putArchiveEntry(entry);
         out.write(body);
         out.closeArchiveEntry();
+    }
+
+    /** NDJSON shaped exactly as {@code ClubMapper.writeNdjson}. */
+    private byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname, String address)
+            throws IOException {
+        var row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyClubId.toString());
+        row.put("clubname", clubname);
+        row.put("club_key", clubKey);
+        row.put("address", address);
+        row.putNull("zip");
+        row.putNull("city");
+        row.put("country_id", legacyCountryId.toString());
+        row.putNull("phone");
+        row.putNull("fax_number");
+        row.putNull("email");
+        row.putNull("web_page");
+        row.putNull("contact");
+        row.put("club_state_id", LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC.toString());
+        row.putNull("send_aircraft_statistic_report_to");
+        row.putNull("send_planning_day_info_mail_to");
+        row.putNull("send_delivery_mail_export_to");
+        row.putNull("send_trial_flight_registration_operator_email");
+        row.putNull("send_passenger_flight_registration_operator_email");
+        row.putNull("reply_to_email_address");
+        row.put("run_delivery_creation_job", false);
+        row.put("run_delivery_mail_export_job", false);
+        row.putNull("last_person_synchronisation_on");
+        row.putNull("last_delivery_synchronisation_on");
+        row.putNull("last_article_synchronisation_on");
+        row.put("is_club_member_number_readonly", false);
+        String createdInstant = Instant.parse("2020-06-15T00:00:00Z").toString();
+        row.put("created_on", createdInstant);
+        row.putNull("created_by_user_id");
+        row.put("modified_on", createdInstant);
+        row.putNull("modified_by_user_id");
+        row.putNull("deleted_on");
+        row.putNull("deleted_by_user_id");
+        return ndjsonLine(row);
     }
 
     private byte[] locationNdjson(UUID legacyLocationId, UUID legacyClubId,
