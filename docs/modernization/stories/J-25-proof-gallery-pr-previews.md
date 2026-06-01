@@ -2,8 +2,9 @@
 id: J-25
 title: Proof-gallery PR previews — clickable per-branch gallery before merge
 epic: E-13
-status: in_progress
+status: done
 started_at: 2026-06-01
+done_at: 2026-06-01
 journey0: false
 carved: true
 depends_on: [J-24]
@@ -44,6 +45,36 @@ CI/workflow (no backend/domain/frontend). Shared contract: a **`preview` step
 - [x] **T-05 — CI hygiene (boyscout, operator ask): dedup PR double-runs + retry flaky registry pulls.** *(not J-25-specific; folded in at operator request.)*
   (1) **Double-run dedup:** `ci.yml` and `alpenflight-e2e.yml` both trigger on `push` AND `pull_request` for `integration/**`, so a PR'd branch runs each workflow twice on one commit (different `github.ref` → no mutual cancel). Change both to `push: { branches: [main] }` + `pull_request: { branches: [main, "integration/**"] }` (keep `workflow_dispatch`). Integration branches always carry a draft PR in this flow → `pull_request` covers them (single run); `main` keeps its post-merge push run (canonical gh-pages deploy is `main`-ref-gated, unaffected). Update the now-stale header comments (esp. `alpenflight-e2e.yml`'s "runs on push any branch" note → PR covers in-flight). Confirm the `required` aggregator + branch protection still evaluate on PRs-to-main and on main-push.
   (2) **Registry-pull retry:** the `alpenflight-proof` job's docker image steps ("Build pgAdmin + Keycloak images", "Bring up alpenflight-infra (mailpit)", "Bring up alpenflight-dev …") fail red on transient registry blips (this session: quay.io 502 + docker.io timeout → 3 reruns). Wrap them in a bounded retry (a small bash retry loop, or `nick-fields/retry`) — ~3 attempts with backoff — so a transient 5xx/timeout self-heals instead of forcing a manual rerun. Files: `.github/workflows/ci.yml`, `.github/workflows/alpenflight-e2e.yml`. Validate YAML.
+
+## Outcome (shipped — green 2026-06-01, PR #196)
+
+Self-demonstrating green: PR #196's own `alpenflight-proof` run deployed a preview of
+its gallery to `/alpenflight/proof-preview/integration-J-25/`, posted the sticky
+comment, and the link-check step asserted **200 + all 3 J-0 captions** at that live URL
+(canonical `/alpenflight/proof/`, the dashboard, and `/legacy/` all still 200 — no
+clobber). `gap-hunter`-verified honest (×3 across the build).
+
+Load-bearing facts the YAML doesn't shout:
+- **Preview deploy** is a 2nd `peaceiris` step in the proof job, gated `pull_request &&
+  head.repo.fork == false && gallery success`, `destination_dir:
+  alpenflight/proof-preview/<sanitized-head_ref>`, `keep_files: true`. No standalone
+  preview `concurrency` group — a job-level group keyed on `head_ref` would override
+  the inherited workflow-level `ci-${{ github.ref }}` and break push/main runs (empty
+  `head_ref`); self-clobber is handled by that inherited group. Don't "add it back."
+- **Reaper** (`proof-preview-reap.yml`) deletes the subpath on `pull_request: closed`;
+  hardened to refuse any component that isn't `^[A-Za-z0-9._-]+$`/has `..`/is `.`/empty
+  (destructive `git rm` on the live site — guard is CI-asserted by the self-check, not
+  trusted to git's ref rules). **This bounds gh-pages growth to open PRs.**
+- **CI hygiene (T-05, boyscout):** `ci.yml` + `alpenflight-e2e.yml` now `push: [main]`
+  only (PRs cover integration branches → single run, no double-run); the proof job's
+  docker-image steps retry 3× w/ backoff to absorb transient registry 5xx/timeouts.
+- Branched off the J-24 carve branch (Option 1) → this PR carries the J-25 carve doc +
+  impl; **PR #194 is subsumed — close it when #196 merges.**
+
+**Deferred follow-ups (operator-acked):** intra-branch `keep_files` video accumulation
+on a long-lived PR's preview (bounded; reaped on close); canonical
+`/alpenflight/proof/videos/` accumulation across main deploys (J-24 vector); a
+byte-equality CI check for the 3 copies of the sanitize sed rule (nit; identical today).
 
 ## Context (why — operator ask, 2026-06-01)
 
