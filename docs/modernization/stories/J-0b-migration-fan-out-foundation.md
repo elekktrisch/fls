@@ -256,9 +256,20 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   `lookupOrNull`: composite `(legacy_guid, club_id)` branch for fan-out targets, reading
   the referencer row's own `club_id`; fail-closed on a composite miss. *(seam:
   ForeignKeyResolver — the load-bearing one; deps T-06)*
-- [ ] **T-08 — Enable + green the proof IT.** Remove `@Disabled`; run
+- [x] **T-08 — Enable + green the proof IT.** Remove `@Disabled`; run
   `LocationMigrationRoundTripIT` green against real Postgres; close any integration
   gap surfaced. *(seam: the proof; deps all)*
+  **→ Done.** `@Disabled` removed; `locationNdjson` + `inoutboundPointNdjson` now emit
+  the derived `id` (`Coercions.deriveFanOutId`); a 3-column composite
+  `legacy_id_map/LOCATION.pgcopy` (via a `pgcopyMapFanOut` sibling of `pgcopyMap`)
+  ships ordered BEFORE `INOUTBOUND_POINT.ndjson` so the composite
+  `legacy_id_map_location` temp table is populated for T-07's club-aware FK resolve.
+  No production change needed — FULL_PORT LOCATION's pgcopy IS drained
+  (`MigrationBundleIngestService.drainEntityStreams` COPYs any `legacy_id_map/*.pgcopy`
+  regardless of policy). Test-support gap closed: `cleanup()` now tears down the
+  provisioning-seeded `t_flight_type` + `t_member_state` before `t_club` (mirrors
+  `MigrationBundleParityRoundTripIT.cleanup`). Real-Postgres run: 1 test, 0 failures,
+  0 errors (ACs a/b/c + club-aware FK all asserted in the one method).
 - [ ] **T-09 — (optional, droppable) S-189 audit tenant-backfill.** Build only if it
   stays thin per [[feedback-vertical-slices-first]]; else defer to a follow-up story.
 
