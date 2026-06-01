@@ -2,8 +2,9 @@
 id: J-24
 title: Proof-video gallery — clickable gh-page explaining each pass-video
 epic: E-13
-status: in_progress
+status: done
 started_at: 2026-06-01
+done_at: 2026-06-01
 journey0: false
 carved: true
 depends_on: [J-0]
@@ -185,22 +186,36 @@ artifact for a PR reviewer), but **deployed to gh-pages only on merge to `main`*
   path already covers. AC3 ("regenerated when green") is satisfied on merge; the
   red-gate (AC5) runs every PR regardless.
 
-### Likely seams (one component each — non-binding, for /do-ship)
-- *Caption manifest convention* — `proofVideo()` e2e helper + JSON reporter wiring
-  on the `real-idp` project; retrofit J-0's `locations-crud-tenant-isolation.spec.ts`
-  to call it (3 tests = 3 captions). One e2e-side change.
-- *Gallery generator* — a build-time Node script reading proof `test-results/` +
-  `proof-manifest.json` + the roadmap journey list → `proof/index.html` (reuse the
-  `.github/pages/alpenflight-index.html` styling so it matches the dashboard).
-  Emits the link-check assertion (non-zero exit on missing caption / missing
-  `.webm`). One generator.
-- *J-24 gate spec* — `proof-gallery.spec.ts` (chromium) + a committed fixture
-  proof-output set (one green journey, one pending). Runs the generator, loads the
-  output, asserts. One spec + fixtures.
-- *Publish wiring* — generate step in `ci.yml` proof job (every run, artifact) +
-  `main`-gated gh-pages deploy of `proof/` + a link from `alpenflight-index.html`.
-  One workflow change (mind the `contents: write` permission if deploying from
-  ci.yml).
+### Likely seams (shipped — see the `## Tasks` checklist for the as-built record)
+The four carve-time seams landed as T-01..T-04; T-05/T-06 were gate-red fixes. Code
+is now the source of truth.
+
+## Outcome (shipped — green 2026-06-01, PR #192)
+
+Real `alpenflight-proof` gate green end-to-end: live Keycloak → backend → Postgres
+→ the J-0 real-idp spec passes (4/4) and emits **3 captioned `.webm`s** via
+`proofVideo()` → JSON manifest → generator → `public/alpenflight/proof/index.html`
+(**3 green proof videos + 24 pending**, AC5 link-check green) → artifact uploaded.
+Captions render human-readable (e.g. "J-0 · cross-tenant 404 · club B is denied
+club A's Location (404 not 403)"), not opaque `proof-video-<sha>.webm`.
+
+Load-bearing facts the code doesn't show:
+- **Manifest path (T-05):** a config-level Playwright `outputFile` resolves against
+  **configDir** (`web/e2e/`), not cwd (`runner/index.js:1485`). It's set to
+  `../test-results/proof-manifest.json` so it lands in `web/test-results/` next to
+  the videos + the generate step's `--report`. Don't "simplify" the `../` away.
+- **J-0 spec hardening (T-06, surfaced to operator):** this PR modifies the
+  inherited J-0 spec/fixture to kill two latent flakes — test 1 now derives the
+  created Location id from the rendered list-row testid (not the navigation-evicted
+  POST-201 body), and `createClubB` tolerates a 409 by recovering the existing
+  distinct club. No assertion weakened (gap-hunter-verified: cross-tenant 404 stays
+  a real tenancy assertion; club B stays a distinct tenant).
+- **Publish-on-green:** the gh-pages deploy is gated `steps.gallery.outcome ==
+  'success' && main`; build+link-check runs every proof run (red-gates pre-merge),
+  publish only on merge to `main`. So the gallery won't deploy until J-0/J-24 reach
+  `main` — by design.
+- **No mocked seams.** The real path runs fully real; the gate-spec fixtures are
+  generator test inputs, not happy-path mocks.
 
 ## Assumptions made
 
@@ -216,5 +231,3 @@ artifact for a PR reviewer), but **deployed to gh-pages only on merge to `main`*
   Playwright run" is the chromium gate spec against the generated gallery, not a
   Keycloak real-chain run. depends_on J-0 only for a real `.webm` to caption; the
   gate itself uses fixtures, so J-24 can be built before any further journey ships.
-</content>
-</invoke>
