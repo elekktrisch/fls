@@ -22,6 +22,12 @@ spring:
     schemas: public
     default-schema: public
     table: flyway_schema_history
+    placeholders:
+      # S-137 V14 backfill: the operator Deployment owns every pre-existing
+      # Club. Prod must set ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB; the migration
+      # fails loud if unset. application-dev.yml + application-test.yml
+      # carry a sentinel default so local dev + CI tests don't need the env.
+      alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB}
   jpa:
     # No JPA starter on the classpath yet — this is a no-op until S-012, but
     # locks the invariant so Hibernate session boundaries are correct when JPA
@@ -59,9 +65,11 @@ spring:
           issuer-uri: ${ALPENFLIGHT_OIDC_ISSUER_URI:http://localhost:8090/realms/alpenflight}
           jwk-set-uri: ${ALPENFLIGHT_OIDC_JWK_SET_URI:http://keycloak:8080/realms/alpenflight/protocol/openid-connect/certs}
 
-# S-052: backend → Keycloak admin-REST machine client (alpenflight-backend-admin).
-# Service-account scoped to manage-users + view-users + query-users only — see
-# alpenflight/auth/scripts/check-realm-shape.sh for the realm-shape pin.
+# Backend → Keycloak admin-REST machine client (alpenflight-backend-admin).
+# Service-account scope set is pinned by alpenflight/auth/scripts/check-realm-
+# shape.sh: manage-groups + manage-realm + manage-users + query-users +
+# view-users (the deployment-provisioning adapter needs the first two on top
+# of the user-directory adapter's baseline).
 keycloak:
   admin:
     base-url: ${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}
@@ -104,8 +112,30 @@ audit:
           - clubKey
           - countryId
           - clubStateId
+          - deploymentId
           - publicRegistrationEnabled
           - deletedOn
+      Deployment:
+        # S-137 lifecycle audit emission. The before/after snapshot is a
+        # LifecycleSnapshot record (lifecycleState only) — the policy is
+        # keyed by entityType="Deployment" and the redactor walks the
+        # snapshot's field names. The Deployment @Entity itself never
+        # serialises into an audit row directly; the @AuditRedact-annotated
+        # fields (name, ownerKeycloakSub, idempotencyKey, billingCustomerId,
+        # billingSubscriptionId) cover the AuditRedactionCoverageTest
+        # ArchUnit scan that walks the @Entity's fields.
+        allow:
+          - id
+          - lifecycleState
+          - plan
+          - trialStartedAt
+          - createdOn
+          - modifiedOn
+          - version
+          - pendingTransitions
+          # S-138 — Phase B (Keycloak reconcile) state. Two values: PENDING
+          # / READY. Operationally informative, never PII.
+          - keycloakState
       Location:
         # Lists both DTO field names and entity field names — see Club above.
         allow:
@@ -387,6 +417,81 @@ audit:
           - isForGlider
           - isForTow
           - isForMotor
+      MigrationUpload:
+        # S-140 — entity-path allow-list. privateKeyCiphertext is
+        # @AuditRedact on the field; the application-layer emitter passes
+        # a MigrationUploadAuditSnapshot snapshot, not the entity, so the
+        # entity walk only happens if a future code path mistakenly hands
+        # the entity to the redactor — in which case state/userId/expiresAt
+        # land and the ciphertext stays "[redacted]".
+        allow:
+          - id
+          - userId
+          - state
+          - publicKeyPem
+          - createdAt
+          - updatedAt
+          - expiresAt
+          - consumedAt
+      MigrationUploadAuditSnapshot:
+        # S-140 — snapshot record emitted on
+        # MIGRATION_HANDSHAKE_ISSUED / SUPERSEDED / EXPIRED. Tiny by design;
+        # privateKeyCiphertextSummary is the byte-length placeholder
+        # (`<bytes:NNN>`), never the raw ciphertext.
+        allow:
+          - uploadId
+          - state
+          - expiresAt
+          - privateKeyCiphertextSummary
+      MigrationRun:
+        # S-141 — t_migration_run entity allow-list. error_detail + warnings
+        # are @AuditRedact on the field (may capture failing-row PII); the
+        # application-layer audit emitter uses MigrationIngestAuditSnapshot
+        # which doesn't carry either column. This entity-walk allow-list
+        # exists for defense-in-depth if a future code path hands the entity
+        # straight to the redactor.
+        allow:
+          - id
+          - uploadId
+          - state
+          - currentEntity
+          - currentClubId
+          - startedAt
+          - completedAt
+          - deploymentId
+          - errorCode
+      MigrationIngestAuditSnapshot:
+        # S-141 — snapshot record emitted on MIGRATION_INGEST_STARTED /
+        # COMPLETED / FAILED. ids + ints + bounded enum codes only — never
+        # display names, never PII from the bundle.
+        allow:
+          - uploadId
+          - deploymentId
+          - clubCount
+          - errorCode
+          - phase
+
+# S-140 — Tink master keyset for migration-upload private-key wrapping.
+# Env-driven. Prod MUST supply ALPENFLIGHT_MIGRATION_MASTER_KEYSET (base64
+# of a Tink AES_256_GCM keyset JSON). Dev + test profiles seed a
+# deterministic keyset so local bootstrap + CI tests pass without
+# operator intervention.
+alpenflight:
+  migration:
+    master-keyset:
+      source: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE:INLINE}
+      value: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET:}
+    # S-141b — wall-clock cap on a single bundle ingest. Sized so a 200 MB
+    # typical FLS database (~3 min ingest) has 5x headroom; a 2 GB worst
+    # case (~25 min CPU) is hard-capped and the client should split the
+    # bundle rather than request more. Operator may override per-VPS.
+    bundle-timeout: PT15M
+    ingest:
+      # Global concurrency gate — single-VPS heap cap. Production stays at
+      # 1; the IT profile overrides to 100 so the per-upload row-lock 409
+      # path (BUNDLE_INGEST_IN_PROGRESS) is testable without the global
+      # gate short-circuiting to 429.
+      global-permits: 1
 
 server:
   port: 8080

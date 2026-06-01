@@ -92,6 +92,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    // S-137: AOP runtime (aspectjweaver + Spring AOP) for the
+    // @LifecycleStateFilter @Around advice on @Scheduled job classes.
+    // Webmvc starter pulls spring-aop transitively but not aspectjweaver;
+    // @Aspect needs the weaver. Spring Boot 4 restructured the starter
+    // hierarchy — spring-boot-starter-aop is no longer published; pull
+    // spring-aop (already managed by the BOM) + aspectjweaver directly.
+    implementation("org.springframework:spring-aop")
+    implementation("org.aspectj:aspectjweaver")
     // S-048 adds JPA on top of the JDBC starter (the JDBC dep stays so Flyway
     // keeps working with its lightweight DataSource). Hibernate ships under
     // the JPA umbrella.
@@ -134,6 +142,14 @@ dependencies {
     // .web.servlet.WebMvcProperties` path that Boot 4 moved to `.webmvc.autoconfigure`,
     // which broke springdoc context startup on this stack.
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
+    // S-140: Google Tink AEAD for the per-upload private-key envelope.
+    // AEAD primitive only at this story; S-141 may adopt StreamingAead
+    // (AES256_GCM_HKDF_4KB) on top of the same KeysetHandle.
+    // Exclude error_prone_annotations to dodge failOnVersionConflict() —
+    // same rationale as Caffeine above (compile-only marker annotations).
+    implementation("com.google.crypto.tink:tink:1.18.0") {
+        exclude(group = "com.google.errorprone", module = "error_prone_annotations")
+    }
     implementation("org.jspecify:jspecify:1.0.0")
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
     errorprone("com.google.errorprone:error_prone_core:2.49.0")
@@ -167,6 +183,22 @@ dependencies {
     // rules (ADR 0023). Test-only.
     testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // S-141 promoted to `implementation` (was testImplementation under S-187):
+    // the bundle-ingest pipeline calls `Mapper.readEntity` + `KnownMappers.all()`
+    // + `LegacyIdMapTables.resolveForeignKeyArrayQuery` from production code.
+    // Module coordinate matches `rootProject.name` in
+    // `migration-bundle/settings.gradle.kts`.
+    implementation("ch.alpenflight:alpenflight-migration-bundle")
+    // S-141 needs the org.postgresql driver classes on the COMPILE classpath
+    // (PgConnection + CopyManager for binary COPY into the per-bundle
+    // legacy_id_map_<entity> temporary tables). The driver itself stays
+    // runtimeOnly above; this compileOnly declaration exposes the API surface.
+    compileOnly("org.postgresql:postgresql")
+    // S-141 streaming gzip + tar reader for the encrypted bundle body.
+    // Same artifact the migration-bundle module's parity producer uses on
+    // the write side — keeps producer + consumer on lockstep tooling.
+    implementation("org.apache.commons:commons-compress:1.27.1")
 }
 
 nullaway {
@@ -270,6 +302,15 @@ flyway {
     cleanDisabled = true
     baselineOnMigrate = false
     validateMigrationNaming = true
+    // Mirror the application.yml placeholder shape so ad-hoc
+    // `./gradlew flywayMigrate` against a local DB doesn't trip on V14's
+    // ${alpenflight.operator.keycloak_sub} substitution. Env override
+    // honoured for non-loopback environments.
+    placeholders = mapOf(
+        "alpenflight.operator.keycloak_sub"
+            to (System.getenv("ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB")
+                ?: "00000000-0000-0000-0000-0000000000ff"),
+    )
 }
 
 tasks.withType<Test> {

@@ -27,7 +27,10 @@ export const routes: Routes = [
   },
   {
     path: 'migrate',
-    loadChildren: () => import('@features/signup/signup.routes').then((m) => m.MIGRATE_ROUTES),
+    loadChildren: () =>
+      import('@features/migrate-handshake/migrate-handshake.routes').then(
+        (m) => m.MIGRATE_HANDSHAKE_ROUTES,
+      ),
   },
   {
     path: 'start',

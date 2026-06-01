@@ -13,18 +13,39 @@ export default defineConfig({
   // step budget is more valuable than the coverage right now. Re-enable
   // when the underlying features become load-bearing — or move them to
   // a separate nightly project so they don't gate PR feedback.
-  testIgnore: [
-    '**/masterdata/articles-crud.spec.ts',
-    '**/masterdata/locations-crud.spec.ts',
-    '**/masterdata/flight-types-crud.spec.ts',
-  ],
+  testIgnore: ['**/masterdata/articles-crud.spec.ts', '**/masterdata/flight-types-crud.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   // Sweeps `e2e-*@example.com` users from the alpenflight realm. Runs
   // even on suite-abort where per-project teardown wouldn't. No-op on
   // mock-auth runs (no admin token, no probes — exits early).
   globalTeardown: require.resolve('./tests/real-idp/global-teardown.ts'),
-  reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : 'html',
+  // Config-level (shared across projects). In CI we also emit a JSON report:
+  // it IS the J-24 proof manifest (see e2e/proof-gallery/README.md) — the
+  // gallery generator reads the `proof-video` attachments + `proof-*`
+  // annotations the `proofVideo()` helper pushes from the real-idp proof specs.
+  // The mock chromium PR run produces this file with no proof-* annotations,
+  // which the generator tolerates as "no proofs"; it does not break the
+  // github/html reporters (Playwright runs all listed reporters).
+  // Path resolution: Playwright resolves a config-level reporter `outputFile`
+  // against the CONFIG DIR — the dir holding THIS config file, i.e.
+  // `alpenflight/web/e2e/` — NOT the process cwd (verified in the installed
+  // source: `runner/index.js` `resolveOutputFile` →
+  // `path.resolve(options.configDir, options.outputFile)`). So the leading
+  // `../` is required: `e2e/` + `../test-results/proof-manifest.json` lands the
+  // manifest at `alpenflight/web/test-results/proof-manifest.json` — co-located
+  // with the `test-results/` videos + the proof artifact upload path, and
+  // byte-identical to what the `alpenflight-proof` generate step reads (cwd
+  // `alpenflight/web` + `test-results/proof-manifest.json`). Without the `../`
+  // the manifest would land at `e2e/test-results/` and the generate step would
+  // ENOENT (the real gate-red this T-05 fixes).
+  reporter: process.env['CI']
+    ? [
+        ['github'],
+        ['html', { open: 'never' }],
+        ['json', { outputFile: '../test-results/proof-manifest.json' }],
+      ]
+    : 'html',
   use: {
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -78,6 +99,14 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         baseURL: REAL_IDP_BASE_URL,
+        // J-0 acceptance artifact: the real-chain proof retains its
+        // pass-video, not just the failure video. This is the only run
+        // that proves verticality end-to-end (real Keycloak + real
+        // backend + real Postgres), so the green run's video is archived
+        // as a CI artifact for operator parity review. Overrides the
+        // global `video: 'retain-on-failure'`; mock-auth chromium keeps
+        // the global policy so every PR run isn't bloated with videos.
+        video: 'on',
       },
       // Single worker against one realm + one Mailpit inbox — parallel
       // registration races against KC user-exists checks and Mailpit

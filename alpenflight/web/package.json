@@ -22,6 +22,7 @@
     "e2e:real-idp": "E2E_REAL_IDP=1 playwright test --config=e2e/playwright.config.ts --project=real-idp",
     "e2e:install": "playwright install --with-deps chromium",
     "generate-api": "orval --config ./orval.config.ts",
+    "proof:gallery": "node e2e/proof-gallery/generate-gallery.mjs",
     "sandbox:setup": "bash scripts/sandbox-bootstrap.sh",
     "sandbox:restore-windows": "bash scripts/sandbox-restore-windows.sh",
     "start:sandbox": "pnpm sandbox:setup && pnpm start:mock-auth",

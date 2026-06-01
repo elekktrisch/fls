@@ -11,6 +11,7 @@ import ch.alpenflight.clubs.domain.ClubNotFoundException;
 import ch.alpenflight.clubs.domain.ClubRepository;
 import ch.alpenflight.clubs.domain.InvalidClubReferenceException;
 import ch.alpenflight.clubs.domain.SlugAlreadyExistsException;
+import ch.alpenflight.deployments.domain.Deployment;
 import ch.alpenflight.platform.id.ClubId;
 import ch.alpenflight.platform.id.ClubStateId;
 import ch.alpenflight.platform.id.CountryId;
@@ -92,13 +93,19 @@ public class ClubsService {
             throw new SlugAlreadyExistsException(req.slug());
         }
         validateReferences(req.countryId(), req.clubStateId());
+        // The admin-managed Clubs surface lives under the operator Deployment
+        // (S-137). Self-service ingest (S-138) writes Clubs under the
+        // user's TRIAL Deployment via DeploymentProvisioningService — a
+        // different code path that constructs Club.create with that
+        // Deployment's id directly.
         Club club = Club.create(
                 req.name(),
                 req.slug(),
                 req.clubKey(),
                 req.publicRegistrationEnabled(),
                 req.countryId().value(),
-                req.clubStateId().value());
+                req.clubStateId().value(),
+                Deployment.OPERATOR_ID);
         ClubResponse created = ClubMapper.toResponse(persist(club, req.slug()));
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id().value(), created));

@@ -104,6 +104,35 @@ const it: Translations = {
       'Sola lettura. Gli aeroporti del tuo club sono gestiti dall’amministratore del club.',
     title: 'Aeroporti',
   },
+  migrateHandshake: {
+    copied: 'Handshake copiato.',
+    copy: 'Copia handshake',
+    download: 'Scarica il file di handshake',
+    error: 'Impossibile generare la chiave. Riprova.',
+    expires: 'Valido fino al {{expiresAt}}',
+    headline: 'Consegna la chiave pubblica allo strumento di esportazione',
+    jarPanel: {
+      cta: 'Apri lo strumento di esportazione',
+      title: 'Strumento di esportazione richiesto',
+    },
+    loading: 'Generazione della chiave…',
+    pemHint:
+      'Solo a scopo informativo — fornisci allo strumento di esportazione il file di handshake scaricato.',
+    pemLabel: 'Chiave pubblica (PEM)',
+    regenerate: 'Genera una nuova chiave',
+    regenerateConfirm: {
+      cancel: 'Annulla',
+      confirm: 'Genera una nuova chiave',
+      message:
+        'Una nuova chiave invalida la precedente. Se hai già iniziato l’esportazione con la vecchia chiave, abbandonala e ricomincia.',
+      title: 'Sostituire la chiave?',
+    },
+    regenerated:
+      'Nuova chiave generata. Scarica di nuovo il file di handshake e ricomincia l’esportazione — il file precedente non è più valido.',
+    retry: 'Riprova',
+    tagline:
+      'Scarica il file di handshake e forniscilo allo strumento di esportazione. I tuoi dati vengono crittografati prima di raggiungere i nostri server.',
+  },
   publicStub: {
     back: 'Torna alla pagina iniziale',
     body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',

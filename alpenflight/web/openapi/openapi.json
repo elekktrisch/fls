@@ -20,11 +20,17 @@
     "name" : "Audit Events",
     "description" : "Mutation-audit trail (per-tenant, admin-only)."
   }, {
+    "name" : "Migration bundle ingest",
+    "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
+  }, {
     "name" : "FlightTypes",
     "description" : "FlightType CRUD (per-club tenant-scoped masterdata)."
   }, {
     "name" : "AircraftTypes",
     "description" : "Aircraft-type reference catalog."
+  }, {
+    "name" : "Admin Deployments",
+    "description" : "System-administrator Deployment lifecycle management."
   }, {
     "name" : "ClubStates",
     "description" : "Club lifecycle-state catalog."
@@ -58,6 +64,9 @@
   }, {
     "name" : "AircraftStates",
     "description" : "Aircraft-state reference catalog."
+  }, {
+    "name" : "Migration handshake",
+    "description" : "Per-upload keypair handshake — public-key surface for the legacy export JAR (S-140)."
   }, {
     "name" : "MemberStates",
     "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
@@ -1341,6 +1350,53 @@
         }
       }
     },
+    "/api/v1/migrations/{uploadId}/bundle" : {
+      "post" : {
+        "tags" : [ "Migration bundle ingest" ],
+        "summary" : "Upload + decrypt + ingest an encrypted FLS migration bundle.",
+        "operationId" : "uploadBundle",
+        "parameters" : [ {
+          "name" : "uploadId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/IngestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/migrations/handshake" : {
+      "post" : {
+        "tags" : [ "Migration handshake" ],
+        "summary" : "Issue a fresh per-upload RSA-4096 keypair. Supersedes any prior in-flight row.",
+        "operationId" : "issue",
+        "responses" : {
+          "200" : {
+            "description" : "Handshake row created or replaced.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HandshakeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/locations" : {
       "get" : {
         "tags" : [ "Locations" ],
@@ -1982,6 +2038,75 @@
         }
       }
     },
+    "/api/v1/admin/deployments/{id}/lifecycle" : {
+      "post" : {
+        "tags" : [ "Admin Deployments" ],
+        "summary" : "Flip a Deployment's lifecycle state.",
+        "description" : "Admin-only surface for operator-driven transitions: ACTIVE for operator-owned tenants, CANCELLED for dunning-grace rescue, etc. Sandbox is immutable.",
+        "operationId" : "transitionLifecycle",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LifecycleTransitionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated Deployment projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Caller is not SYSTEM_ADMINISTRATOR.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No Deployment with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Illegal transition (sandbox / no edge).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights/{id}/process-state" : {
       "patch" : {
         "tags" : [ "flights" ],
@@ -2014,6 +2139,63 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/FlightProcessStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/migrations/{uploadId}/status" : {
+      "get" : {
+        "tags" : [ "Migration bundle ingest" ],
+        "summary" : "Poll the current bundle-ingest run state for an upload.",
+        "operationId" : "status",
+        "parameters" : [ {
+          "name" : "uploadId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MigrationRunStatusView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/migrations/handshake/current" : {
+      "get" : {
+        "tags" : [ "Migration handshake" ],
+        "summary" : "Restore the caller's current in-flight handshake row (SPA mount path).",
+        "operationId" : "current",
+        "responses" : {
+          "200" : {
+            "description" : "Caller has an in-flight handshake row.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HandshakeResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No in-flight handshake row for the caller.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HandshakeResponse"
                 }
               }
             }
@@ -2333,6 +2515,44 @@
         }
       }
     },
+    "/api/v1/admin/deployments/{id}" : {
+      "get" : {
+        "tags" : [ "Admin Deployments" ],
+        "summary" : "Read a Deployment by id.",
+        "operationId" : "getDeployment",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Deployment projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No Deployment with that id.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeploymentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/audit-events" : {
       "get" : {
         "tags" : [ "Audit Events" ],
@@ -2360,7 +2580,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -4260,6 +4480,43 @@
         },
         "required" : [ "matches" ]
       },
+      "IngestResponse" : {
+        "type" : "object",
+        "properties" : {
+          "deploymentId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "primaryClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
+      "HandshakeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "uploadId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "example" : "019e30c3-2c00-7001-8000-000000000001"
+          },
+          "publicKeyPem" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "LocationCreateRequest" : {
         "type" : "object",
         "description" : "Payload to create a Location. ICAO code is optional but uppercase-regex bound when present.",
@@ -4800,6 +5057,37 @@
         },
         "required" : [ "atDateTime" ]
       },
+      "LifecycleTransitionRequest" : {
+        "type" : "object",
+        "properties" : {
+          "targetState" : {
+            "type" : "string",
+            "enum" : [ "SANDBOX", "TRIAL", "ACTIVE", "PAST_DUE", "CANCELLED", "DELETING" ]
+          }
+        },
+        "required" : [ "targetState" ]
+      },
+      "DeploymentResponse" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "lifecycleState" : {
+            "type" : "string",
+            "enum" : [ "SANDBOX", "TRIAL", "ACTIVE", "PAST_DUE", "CANCELLED", "DELETING" ]
+          },
+          "plan" : {
+            "type" : "string",
+            "enum" : [ "FREE", "ACTIVE" ]
+          },
+          "trialStartedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "FlightProcessStateChangeRequest" : {
         "type" : "object",
         "description" : "Request body for `PATCH /api/v1/flights/{id}/process-state`. The transition matrix gates which state changes are legal under the OPERATOR trigger.",
@@ -4939,6 +5227,44 @@
           }
         },
         "required" : [ "firstname", "id", "isActive", "isGliderInstructor", "isGliderPilot", "isGliderTrainee", "isMotorInstructor", "isMotorPilot", "isTowPilot", "isWinchOperator", "lastname" ]
+      },
+      "MigrationRunStatusView" : {
+        "type" : "object",
+        "properties" : {
+          "uploadId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "DECRYPTING", "PROVISIONING", "INGESTING", "COMPLETING", "COMPLETED", "FAILED" ]
+          },
+          "currentEntity" : {
+            "type" : "string"
+          },
+          "currentClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "deploymentId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "clubIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "errorCode" : {
+            "type" : "string"
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
       },
       "MeResponse" : {
         "type" : "object",
@@ -5610,7 +5936,7 @@
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED" ]
           },
           "targetEntityType" : {
             "type" : "string"

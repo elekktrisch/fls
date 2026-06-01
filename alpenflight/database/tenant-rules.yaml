@@ -320,11 +320,17 @@ overrides:
 
   AuditLogs:
     kind: tenant-scoped
-    target_entity: AuditLog
+    target_entity: MutationAuditEvent
     rationale_ref: tenant-catalog.md#audit-logs
     pii_blob: true
     emits_audit: false  # audit logs are not themselves audited (no infinite recursion)
-    # The row is tenant-scoped; payload may reference cross-cluster Persons.
+    pii_columns: [legacy_actor_user_id, legacy_target_record_id]
+    ride_through_targets: [Users]  # actor_user_id is cross-tenant ride-through to historical Users
+    # Operating shape: new mutations write tenant_club_id from the @TenantId resolver
+    # (per-tenant audit search Just Works). S-186 cutover ports legacy AuditLogs as
+    # actor_kind='LEGACY_MIGRATED' with tenant_club_id NULL (legacy has no ClubId
+    # column); these rows are visible only via S-023 UnscopedTenantContext until S-189
+    # back-fills tenant_club_id by walking target_entity_type + target_entity_id.
 
   AuditLogDetails:
     kind: tenant-scoped
@@ -391,6 +397,9 @@ overrides:
       # Free-text quasi-PII.
       - delivery_information
       - additional_information
+      # Legal-record reference text — populated only on migrated rows
+      # whose legacy DeliveryNumber wasn't integer-parseable (V19).
+      - legacy_delivery_number_text
     pii_ride_through: [recipient_person_id]
     fadp_dsar_retention_exempt_when: "process_state_id >= 20"  # OR Art. 957a override
 

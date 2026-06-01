@@ -1,0 +1,111 @@
+{
+  "_comment": "Trimmed Playwright JSON-reporter report — the J-24 manifest fixture. Shape MUST match what T-03's ['json'] reporter on the real-idp project emits; see ../README.md. One GREEN journey (J-0, 3 captioned proof videos); every other roadmap journey (J-1, J-2, ...) has no entry here, so the generator renders it PENDING. Video paths are relative to THIS file (resolved by the generator).",
+  "config": { "version": "1.x", "rootDir": "e2e/tests/real-idp" },
+  "suites": [
+    {
+      "title": "locations-crud-tenant-isolation.spec.ts",
+      "file": "real-idp/locations-crud-tenant-isolation.spec.ts",
+      "specs": [
+        {
+          "title": "two club admins each see only their own club's Locations",
+          "file": "real-idp/locations-crud-tenant-isolation.spec.ts",
+          "tests": [
+            {
+              "status": "expected",
+              "annotations": [
+                { "type": "proof-journey", "description": "J-0" },
+                { "type": "proof-ac-tag", "description": "happy" },
+                {
+                  "type": "proof-caption",
+                  "description": "Two CLUB_ADMINISTRATORs in different clubs each see ONLY their own club's Locations (Hibernate @TenantId auto-filter)"
+                }
+              ],
+              "results": [
+                {
+                  "status": "passed",
+                  "attachments": [
+                    {
+                      "name": "proof-video",
+                      "contentType": "video/webm",
+                      "path": "videos/j0-tenant-isolation.webm"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "club-B is denied club-A's Location (cross-tenant 404)",
+          "file": "real-idp/locations-crud-tenant-isolation.spec.ts",
+          "tests": [
+            {
+              "status": "expected",
+              "annotations": [
+                { "type": "proof-journey", "description": "J-0" },
+                { "type": "proof-ac-tag", "description": "key-error" },
+                {
+                  "type": "proof-caption",
+                  "description": "A direct cross-tenant GET /api/v1/locations/{clubA_id} returns 404 (not 403) — the row is invisible under club-B's tenant scope"
+                }
+              ],
+              "results": [
+                {
+                  "status": "passed",
+                  "attachments": [
+                    {
+                      "name": "proof-video",
+                      "contentType": "video/webm",
+                      "path": "videos/j0-cross-tenant-404.webm"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "same ICAO is creatable independently in both clubs",
+          "file": "real-idp/locations-crud-tenant-isolation.spec.ts",
+          "tests": [
+            {
+              "status": "expected",
+              "annotations": [
+                { "type": "proof-journey", "description": "J-0" },
+                { "type": "proof-ac-tag", "description": "edge" },
+                {
+                  "type": "proof-caption",
+                  "description": "The same ICAO (LSZH) is creatable in BOTH clubs independently — per-club partial unique (club_id, icao_code), not global uniqueness"
+                }
+              ],
+              "results": [
+                {
+                  "status": "passed",
+                  "attachments": [
+                    {
+                      "name": "proof-video",
+                      "contentType": "video/webm",
+                      "path": "videos/j0-icao-per-club.webm"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "non-proof unit-ish test (no proof-video) — generator must ignore it",
+          "file": "real-idp/locations-crud-tenant-isolation.spec.ts",
+          "tests": [
+            {
+              "status": "expected",
+              "annotations": [],
+              "results": [{ "status": "passed", "attachments": [] }]
+            }
+          ]
+        }
+      ],
+      "suites": []
+    }
+  ]
+}

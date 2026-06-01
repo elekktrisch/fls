@@ -30,6 +30,11 @@ spring:
     # touching prod startup. Per S-009 performance plan.
     connect-retries: 5
     connect-retries-interval: 2s
+    placeholders:
+      # S-137 test sentinel — same shape as dev so the V14 backfill UPDATE
+      # writes a stable owner-sub on the operator Deployment for IT
+      # assertions to grep against.
+      alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB:00000000-0000-0000-0000-0000000000ff}
   security:
     oauth2:
       resourceserver:
@@ -42,3 +47,19 @@ spring:
           # during context startup.
           issuer-uri: http://test-issuer
           jwk-set-uri: http://test-issuer/jwks
+
+# S-140 — test profile generates an ephemeral master keyset per JVM. Tests
+# wanting deterministic key material `@Import(MasterKeyTestFixture.class)`
+# which registers a @Primary Aead bean that overrides this one for the
+# duration of that Spring context.
+alpenflight:
+  migration:
+    master-keyset:
+      source: EPHEMERAL
+    ingest:
+      # S-141b — raise the global gate from prod's permits=1 to 100 in the
+      # IT profile so the per-upload PESSIMISTIC_WRITE row-lock 409
+      # (BUNDLE_INGEST_IN_PROGRESS) is testable without the global gate
+      # short-circuiting to 429 DATABASE_CAPACITY_EXCEEDED. Production
+      # heap-cap reasoning does not apply to a CI test runner.
+      global-permits: 100

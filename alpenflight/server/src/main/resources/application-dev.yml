@@ -5,6 +5,13 @@ spring:
     url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/alpenflight}
     username: ${DATASOURCE_USER:alpenflight}
     password: ${DATASOURCE_PASSWORD:alpenflight}
+  flyway:
+    placeholders:
+      # S-137 dev sentinel — local Flyway runs use this nil-suffixed UUID so
+      # the operator-Deployment seed has a valid owner-sub. Distinct from
+      # the SANDBOX owner-sub (all-zeros) so the partial UNIQUE invariant
+      # has visible separation in dev.
+      alpenflight.operator.keycloak_sub: ${ALPENFLIGHT_OPERATOR_KEYCLOAK_SUB:00000000-0000-0000-0000-0000000000ff}
   security:
     oauth2:
       resourceserver:
@@ -36,3 +43,11 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+# S-140 — dev seeds a one-shot Tink keyset at startup (logged loudly).
+# Operators wanting persistence across restarts override with the env-pinned
+# inline keyset per the runbook (tinkey create-keyset ... | base64).
+alpenflight:
+  migration:
+    master-keyset:
+      source: EPHEMERAL

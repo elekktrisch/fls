@@ -11,6 +11,58 @@ This register is the gate.
 
 ## Approved escape hatches
 
+### `tenancy-provisioning-reference-data-seed` — `Per-Club reference-data defaults at trial provisioning`
+
+- **Caller:** `src/main/java/ch/alpenflight/tenancy/provisioning/application/ReferenceDataSeeder.java`
+- **Tenant-scoped tables touched:** t_member_state, t_flight_type
+- **Justification:** the seeder fires once per Club inside the S-138 trial-
+  provisioning transaction, BEFORE any caller has a JPA entity to save and
+  while the Hibernate session is mid-flight on the Deployment + Club inserts.
+  Using JdbcTemplate sidesteps `@TenantId` filter activation under a still-
+  null tenant carrier; the bundle-wins-on-conflict rule (refinement) needs
+  `ON CONFLICT (...) DO NOTHING` against the V11 / V15 partial UNIQUE
+  indexes, which JPA's batch insert doesn't expose. The structural gates
+  (`ux_flight_type_club_name`, `ux_member_state_club_name`) are the
+  idempotency anchors.
+- **Tenancy gate:** every INSERT carries an explicit `club_id` /
+  `operating_club_id` value (parameter-bound, never caller-controlled string
+  interpolation). The service call site is wrapped in
+  `Tenants.runAs(clubId, ...)` so the operating tenant matches the inserted
+  rows — defence in depth.
+- **Reviewer:** auto-registered with S-138 implementation; security-reviewer
+  panel (implement Step 7) re-confirms.
+- **Approved:** 2026-05-28.
+- **Expires:** 2027-05-28
+- **Remove when:** S-141 surfaces an ingest-pipeline-wide null-tenant write
+  context that the seeder can join, OR Hibernate adds a first-class
+  upsert API with partial-UNIQUE conflict targeting.
+
+### `mutation-audit-event-system-actor-write` — `Cross-tenant audit row for system events`
+
+- **Caller:** `src/main/java/ch/alpenflight/audit/application/MutationAuditEventListener.java`
+- **Tenant-scoped tables touched:** `t_mutation_audit_event`
+- **Justification:** true system events (no JWT principal — S-140 hourly
+  handshake-TTL sweep is the first such writer) legitimately store NULL
+  in `tenant_club_id`. JPA can't write that here: Hibernate's `@TenantId`
+  resolver would override the null field with `NO_TENANT` (nil UUID),
+  which fails the `fk_mutation_audit_event_tenant_club_id` FK because
+  no nil-UUID row exists in `t_club`. JDBC bypasses the discriminator
+  and lets the FK's "NULL ⇒ no parent" rule apply naturally — the
+  design intent captured in `MutationAuditEvent`'s javadoc. Gated on
+  `request.systemActor() == true`; authenticated principals still flow
+  through JPA.
+- **Tenancy gate:** the INSERT writes a literal `NULL` for
+  `tenant_club_id`. The row is forensic-only (system-actor audit) and
+  visible to S-056 admin readers under the deferred S-023 unscoped-read
+  context.
+- **Reviewer:** auto-registered with S-140 implementation; security-reviewer
+  panel (implement Step 7) re-confirms.
+- **Approved:** 2026-05-29.
+- **Expires:** 2027-05-29
+- **Remove when:** Hibernate's `@TenantId` exposes a per-write "leave null"
+  switch, OR S-023's `UnscopedTenantContext` lands and the listener can
+  flip back to JPA inside that context.
+
 ### `persons-cross-tenant-membership-check` — `Person soft-delete cross-tenant safety check`
 
 - **Caller:** `src/main/java/ch/alpenflight/persons/infra/JpaPersonRepository.java`

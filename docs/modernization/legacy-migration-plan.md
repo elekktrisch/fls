@@ -27,71 +27,124 @@ This file is maintained by `/modernize-refine` (Step 4.5). Each story that touch
 
 If a story needs a semantics value not in this list, add it via refine's Step 3.5 grill and update this header before stamping the row.
 
+## End-to-end migration flow
+
+```mermaid
+flowchart TB
+    subgraph Legacy["Legacy site (SQL Server, ASP.NET)"]
+        legacyDb[(Legacy DB<br/>59 tables)]
+        producerJar["migration-tool shadowJar (S-139)<br/>SELECT + Mapper.writeNdjson"]
+        legacyDb --> producerJar
+    end
+
+    subgraph Bundle["Encrypted bundle (.enc — header + RSA-wrapped key + AES-GCM ciphertext over a tar.gz)"]
+        manifest["manifest.json<br/>(S-183 — schemaVersion, per-entity<br/>EntityPolicy, tenantBypassFks,<br/>unmappedReason)"]
+        ndjson["per-entity NDJSON streams<br/>(one per mapped EntityType;<br/>S-184/S-185/S-186 mappers)"]
+        idMaps["legacy_id_map_&lt;entity&gt; loaders<br/>(Postgres COPY-binary format,<br/>S-183 LegacyIdMapWriter)"]
+        producerJar -. "AES-GCM<br/>(S-140 keypair)" .-> manifest
+        producerJar -. "AES-GCM" .-> ndjson
+        producerJar -. "AES-GCM" .-> idMaps
+    end
+
+    subgraph Operator["Operator browser"]
+        upload["POST /api/v1/migrations/<br/>{uploadId}/bundle<br/>(streaming, S-141)"]
+        ndjson -. "encrypted body" .-> upload
+        manifest -. "encrypted body" .-> upload
+        idMaps -. "encrypted body" .-> upload
+    end
+
+    subgraph NewStack["New stack (AlpenFlight Spring Boot + Postgres)"]
+        decrypt["Streaming decrypt + tar inflate<br/>(in-memory only, S-141)"]
+        provision["Provisioning service (S-138)<br/>1 Deployment + N Clubs<br/>+ reference data seeders<br/>(FlightType, MemberState)"]
+        ingest["Per-entity ingest in EntityType<br/>declaration order (S-183 ArchUnit<br/>topological invariant — FK targets<br/>precede sources; identity/flight/<br/>accounting interleave by ordinal)"]
+        twoPass["Two-pass UPDATE for self-FKs<br/>(PersonCategory parent, Flight tow)"]
+        newDb[(t_* tables<br/>UUID v7 PKs)]
+        upload --> decrypt
+        decrypt --> provision
+        provision --> ingest
+        ingest --> twoPass
+        twoPass --> newDb
+    end
+
+    subgraph Parity["Pre-cutover rehearsal (S-187)"]
+        oracle["Parity oracle harness<br/>Testcontainers MSSQL + Postgres<br/>(round-trip, row-count, FK sweep,<br/>sampled values, soft-delete invariant)"]
+    end
+
+    legacyDb -. "rehearsal seed" .-> oracle
+    newDb -. "rehearsal compare" .-> oracle
+
+    classDef defended fill:#e8f4f8,stroke:#0066cc,stroke-width:2px;
+    class manifest defended
+    class decrypt defended
+```
+
+The diagram covers the end-to-end migration as designed across stories S-016 (schema-mapping library + parity-oracle scope), S-138 (provisioning), S-139 (producer jar), S-140 (encryption keypair), S-141 (ingest pipeline), S-183 (mapper contract + manifest + LegacyIdMapWriter), S-184/S-185/S-186 (per-package mappers), and S-187 (parity oracle rehearsal). The `manifest.json` `TENANT_BYPASS_ALLOW_LIST` and the streaming-decrypt path are the two defense-in-depth surfaces (highlighted) — the manifest gates cross-tenant FK widening at parse, and the decrypt-pipeline ban on disk sinks (ArchUnit) keeps plaintext bytes off local storage.
+
 ## Final-state legacy artifacts
 
 > **Bootstrapped 2026-05-26.** Tables queried from the FLSTest fixture in the local `fls-e2e-mssql-1` container (`mcr.microsoft.com/mssql/server:2022-latest`) — the e2e/integration-test seed mirrors the post-DBUpdate prod schema. Entities enumerated from [`flsserver/src/FLS.Server.Data/DbEntities/`](../../flsserver/src/FLS.Server.Data/DbEntities/), with the `DbSet<E> N` map from [`flsserver/src/FLS.Server.Data/FLSDataEntities.cs`](../../flsserver/src/FLS.Server.Data/FLSDataEntities.cs) used to bind each table to its entity class. Per-table column detail under [`legacy-tables/`](./legacy-tables/) was emitted in the same pass. Row list is exhaustive — refine's Step 4.5 updates rows in place, never adds new ones. If a prod-DB extract via [`alpenflight/database/extract/`](../../alpenflight/database/extract/) later reveals a table absent here, treat it as a bootstrap defect and re-sync rather than appending ad-hoc.
 
 | Legacy entity | Legacy table | Destination | Semantics | Owned by | Notes | Detail |
 |---|---|---|---|---|---|---|
-| AccountingRuleFilter | AccountingRuleFilters | TBD | TBD | TBD | | [columns](legacy-tables/AccountingRuleFilters/) |
-| AccountingRuleFilterType | AccountingRuleFilterTypes | TBD | TBD | TBD | | [columns](legacy-tables/AccountingRuleFilterTypes/) |
-| AccountingUnitType | AccountingUnitTypes | TBD | TBD | TBD | | [columns](legacy-tables/AccountingUnitTypes/) |
-| AircraftAircraftState | AircraftAircraftStates | TBD | TBD | TBD | | [columns](legacy-tables/AircraftAircraftStates/) |
-| AircraftOperatingCounter | AircraftOperatingCounters | TBD | TBD | TBD | | [columns](legacy-tables/AircraftOperatingCounters/) |
-| AircraftReservation | AircraftReservations | TBD | TBD | TBD | | [columns](legacy-tables/AircraftReservations/) |
-| AircraftReservationType | AircraftReservationTypes | TBD | TBD | TBD | | [columns](legacy-tables/AircraftReservationTypes/) |
-| Aircraft | Aircrafts | TBD | TBD | TBD | | [columns](legacy-tables/Aircrafts/) |
-| AircraftState | AircraftStates | TBD | TBD | TBD | | [columns](legacy-tables/AircraftStates/) |
-| AircraftType | AircraftTypes | TBD | TBD | TBD | | [columns](legacy-tables/AircraftTypes/) |
-| Article | Articles | TBD | TBD | TBD | | [columns](legacy-tables/Articles/) |
-| — | AuditLogDetails | TBD | TBD | TBD | | [columns](legacy-tables/AuditLogDetails/) |
-| — | AuditLogEventTypes | TBD | TBD | TBD | | [columns](legacy-tables/AuditLogEventTypes/) |
-| — | AuditLogs | TBD | TBD | TBD | | [columns](legacy-tables/AuditLogs/) |
-| ClubExtension | ClubExtensions | TBD | TBD | TBD | | [columns](legacy-tables/ClubExtensions/) |
-| Club | Clubs | TBD | TBD | TBD | | [columns](legacy-tables/Clubs/) |
-| ClubState | ClubStates | TBD | TBD | TBD | | [columns](legacy-tables/ClubStates/) |
-| CounterUnitType | CounterUnitTypes | TBD | TBD | TBD | | [columns](legacy-tables/CounterUnitTypes/) |
-| Country | Countries | TBD | TBD | TBD | | [columns](legacy-tables/Countries/) |
-| Delivery | Deliveries | TBD | TBD | TBD | | [columns](legacy-tables/Deliveries/) |
-| DeliveryCreationTest | DeliveryCreationTests | TBD | TBD | TBD | | [columns](legacy-tables/DeliveryCreationTests/) |
-| DeliveryItem | DeliveryItems | TBD | TBD | TBD | | [columns](legacy-tables/DeliveryItems/) |
-| ElevationUnitType | ElevationUnitTypes | TBD | TBD | TBD | | [columns](legacy-tables/ElevationUnitTypes/) |
-| EmailTemplate | EmailTemplates | TBD | TBD | TBD | | [columns](legacy-tables/EmailTemplates/) |
-| Extension | Extensions | TBD | TBD | TBD | | [columns](legacy-tables/Extensions/) |
-| ExtensionType | ExtensionTypes | TBD | TBD | TBD | | [columns](legacy-tables/ExtensionTypes/) |
-| ExtensionValue | ExtensionValues | TBD | TBD | TBD | | [columns](legacy-tables/ExtensionValues/) |
-| FlightAirState | FlightAirStates | TBD | TBD | TBD | | [columns](legacy-tables/FlightAirStates/) |
-| FlightCostBalanceType | FlightCostBalanceTypes | TBD | TBD | TBD | | [columns](legacy-tables/FlightCostBalanceTypes/) |
-| FlightCrew | FlightCrew | TBD | TBD | TBD | | [columns](legacy-tables/FlightCrew/) |
-| FlightCrewType | FlightCrewTypes | TBD | TBD | TBD | | [columns](legacy-tables/FlightCrewTypes/) |
-| FlightProcessState | FlightProcessStates | TBD | TBD | TBD | | [columns](legacy-tables/FlightProcessStates/) |
-| Flight | Flights | TBD | TBD | TBD | | [columns](legacy-tables/Flights/) |
-| FlightType | FlightTypes | TBD | TBD | TBD | | [columns](legacy-tables/FlightTypes/) |
-| InOutboundPoint | InOutboundPoints | TBD | TBD | TBD | | [columns](legacy-tables/InOutboundPoints/) |
-| Language | Languages | TBD | TBD | TBD | | [columns](legacy-tables/Languages/) |
-| LanguageTranslation | LanguageTranslations | TBD | TBD | TBD | | [columns](legacy-tables/LanguageTranslations/) |
-| LengthUnitType | LengthUnitTypes | TBD | TBD | TBD | | [columns](legacy-tables/LengthUnitTypes/) |
-| Location | Locations | TBD | TBD | TBD | | [columns](legacy-tables/Locations/) |
-| LocationType | LocationTypes | TBD | TBD | TBD | | [columns](legacy-tables/LocationTypes/) |
-| MemberState | MemberStates | TBD | TBD | TBD | | [columns](legacy-tables/MemberStates/) |
-| PersonCategory | PersonCategories | TBD | TBD | TBD | | [columns](legacy-tables/PersonCategories/) |
-| PersonClub | PersonClub | TBD | TBD | TBD | | [columns](legacy-tables/PersonClub/) |
-| PersonFlightTimeCredit | PersonFlightTimeCredits | TBD | TBD | TBD | | [columns](legacy-tables/PersonFlightTimeCredits/) |
-| PersonFlightTimeCreditTransaction | PersonFlightTimeCreditTransactions | TBD | TBD | TBD | | [columns](legacy-tables/PersonFlightTimeCreditTransactions/) |
-| PersonPersonCategory | PersonPersonCategories | TBD | TBD | TBD | | [columns](legacy-tables/PersonPersonCategories/) |
-| Person | Persons | TBD | TBD | TBD | | [columns](legacy-tables/Persons/) |
-| PlanningDayAssignment | PlanningDayAssignments | TBD | TBD | TBD | | [columns](legacy-tables/PlanningDayAssignments/) |
-| PlanningDayAssignmentType | PlanningDayAssignmentTypes | TBD | TBD | TBD | | [columns](legacy-tables/PlanningDayAssignmentTypes/) |
-| PlanningDay | PlanningDays | TBD | TBD | TBD | | [columns](legacy-tables/PlanningDays/) |
-| Role | Roles | (dropped) | drop | S-052 | Realm-role catalog lives in Keycloak per ADR 0007; the legacy seed (ADMIN/FLIGHT_OPS/INSTRUCTOR/PILOT/READER) doesn't even match the realm catalog. Importer ignores legacy rows. | [columns](legacy-tables/Roles/) |
-| Setting | Settings | TBD | TBD | TBD | | [columns](legacy-tables/Settings/) |
-| StartType | StartTypes | TBD | TBD | TBD | | [columns](legacy-tables/StartTypes/) |
-| SystemData | SystemData | TBD | TBD | TBD | | [columns](legacy-tables/SystemData/) |
-| SystemLog | SystemLogs | TBD | TBD | TBD | | [columns](legacy-tables/SystemLogs/) |
-| SystemVersion | SystemVersion | TBD | TBD | TBD | | [columns](legacy-tables/SystemVersion/) |
+| AccountingRuleFilter | AccountingRuleFilters | `t_accounting_rule_filter` (V4) | port-as-rows | S-186 | Tenant-scoped; tombstones ported per S-016 ref policy. 30+ legacy predicate columns fold producer-side into `filter_config jsonb` keyed by `filter_type_id` legacy value (10/20/30/40/50/60/70/80 V4 seed) via per-discriminator allow-list. Boolean-pair preservation: `{useAllExcept: bool, matched: [...]}` shape (flattening loses inversion semantics). Mapper emits jsonb as opaque text (no Jackson default-typing — V4 A03 mitigation). `filter_type_id` + `accounting_unit_type_id` resolve via `Coercions.legacyIntIdToUuidString` against V4-seeded `legacy_int_id`. `(operating_club_id, sort_indicator)` UNIQUE collisions: producer-side re-number on detection + `ACCOUNTING_RULE_SORT_RENUMBERED` warning. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/AccountingRuleFilters/) |
+| AccountingRuleFilterType | AccountingRuleFilterTypes | `t_accounting_rule_filter_type` (V4) | port-as-rows | S-186 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-014). Also touched by S-183 (registry scaffold). | [columns](legacy-tables/AccountingRuleFilterTypes/) |
+| AccountingUnitType | AccountingUnitTypes | `t_accounting_unit_type` (V4) | port-as-rows | S-186 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-014). Also touched by S-183 (registry scaffold). | [columns](legacy-tables/AccountingUnitTypes/) |
+| AircraftAircraftState | AircraftAircraftStates | `t_aircraft_aircraft_state` (V3) | port-as-rows | S-185 | Inherits cross-tenant from Aircraft (ADR 0008). Composite legacy PK → surrogate UUID v7. Tenant-bypass FK: `noticed_by_person_id` (→ Person). Reference FK: `aircraft_state_id` resolves via `legacy_int_id`. `Manifest.TENANT_BYPASS_ALLOW_LIST` widens. Also touched by S-183. | [columns](legacy-tables/AircraftAircraftStates/) |
+| AircraftOperatingCounter | AircraftOperatingCounters | `t_aircraft_operating_counter` (V3) | port-as-rows | S-185 | Per-aircraft counter readings; inherits cross-tenant from Aircraft. Only FK is intra-aggregate `aircraft_id`; declares empty `tenantBypassFks`. Also touched by S-183. | [columns](legacy-tables/AircraftOperatingCounters/) |
+| AircraftReservation | AircraftReservations | `t_aircraft_reservation` (V4) | port-as-rows | S-186 | Tenant-scoped reservation rows. `reservation_range tstzrange` is GENERATED — `columns()` excludes it. `location_id` resolves through composite `legacy_id_map_location` replica selection (S-185 pattern, replica matches `operating_club_id`). `reservation_type_id` + `flight_type_id` resolve via per-bundle tenant-scoped ref maps. Tenant-bypass FKs: `aircraft_id` (→ cross-tenant Aircraft), `pilot_person_id` + `second_crew_person_id` (→ cross-tenant Person). Legacy NULL `PilotPersonId` → producer drop + `RESERVATION_NO_PILOT` warning. Empty-range degenerate (`Start == End`) passes through (S-064 aggregate rejects on read). `Manifest.TENANT_BYPASS_ALLOW_LIST` widens to include AIRCRAFT_RESERVATION. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/AircraftReservations/) |
+| AircraftReservationType | AircraftReservationTypes | `t_aircraft_reservation_type` (V4) | port-as-rows | S-186 | TENANT_SCOPED ref; ports via per-bundle map. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/AircraftReservationTypes/) |
+| Aircraft | Aircrafts | `t_aircraft` (V3 + V10) | port-as-rows | S-185 | Cross-tenant entity per ADR 0008 / V10 + S-058 amendment. Producer cascade for `managing_club_id` NOT NULL: legacy `OwnerClubId` → single-`PersonClub`-of-`AircraftOwnerPersonId` in bundle → drop+warn `AIRCRAFT_NO_MANAGING_CLUB`. Tenant-bypass FKs: `aircraft_owner_person_id` (→ Person), `homebase_id` (→ tenant-scoped Location). Mapper-side `spot_link` https reject. `Manifest.TENANT_BYPASS_ALLOW_LIST` widens to include AIRCRAFT. Also touched by S-183 (registry scaffold), S-159 (V10). | [columns](legacy-tables/Aircrafts/) |
+| AircraftState | AircraftStates | `t_aircraft_state` (V3) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-013). | [columns](legacy-tables/AircraftStates/) |
+| AircraftType | AircraftTypes | `t_aircraft_type` (V3) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-013). | [columns](legacy-tables/AircraftTypes/) |
+| Article | Articles | `t_article` (V4) | port-as-rows | S-186 | Catalog item; tenant-scoped. `(operating_club_id, article_number)` UNIQUE partial: legacy has no equivalent — producer hard-fails with `ARTICLE_DUPLICATE_NUMBER` warning + bundle reject (DeliveryItem snapshots reference `article_number` per OR Art. 957a; silent dedupe would rewrite legal records). Also touched by S-183 (registry scaffold). | [columns](legacy-tables/Articles/) |
+| — | AuditLogDetails | (dropped) | drop | S-183 | Framework-managed by legacy `TrackerEnabledDbContext`; superseded by S-027's `t_mutation_audit_event`. Manifest WHY-not-mapped. | [columns](legacy-tables/AuditLogDetails/) |
+| — | AuditLogEventTypes | (dropped) | drop | S-183 | Framework-managed; superseded by S-027 `action` enum. Manifest WHY-not-mapped. | [columns](legacy-tables/AuditLogEventTypes/) |
+| — | AuditLogs | `t_mutation_audit_event` (V9 + V18) | port-as-rows | S-186 | V18 (S-186) adds `actor_kind VARCHAR(32) NOT NULL DEFAULT 'NORMAL'` (Java enum `AuditActorKind {NORMAL,SYSTEM,LEGACY_MIGRATED}` — no CHECK IN-set per ADR 0022 D2), `legacy_actor_user_id TEXT NULL`, `legacy_int_id BIGINT NULL` (`AuditLogs.AuditLogId`), `legacy_target_record_id TEXT NULL` (raw `RecordId` when not UUID-parseable). Mapper emits `actor_kind='LEGACY_MIGRATED'` + `legacy_actor_user_id` + NULL `actor_keycloak_sub`. Producer-side actor resolution: legacy `UserName` looked up against bundle's `Users.UserName` set (USER precedes AUDIT_LOG in `EntityType` ordering — S-184 guarantee) → real `User.id`; miss → synthetic UUID v7 per distinct legacy UserName (bundle-local `ON COMMIT DROP` cache) + `migration_run.warnings.AUDIT_ORPHAN_ACTOR`. NULL or whitespace UserName → NULL `actor_user_id`. Cross-club UserName ambiguity → producer hard-fail (`AUDIT_USERNAME_AMBIGUOUS`). `EventType` mapping: `Added→CREATE`, `Modified→UPDATE`, `Deleted→DELETE`, `SoftDeleted→UPDATE`, `UnDeleted→UPDATE`. `TypeFullName` strips `FLS.Server.Data.DbEntities.` prefix → `target_entity_type`; >64 chars → producer reject. `RecordId` parsed as UUID; non-UUID → `target_entity_id` NULL + raw text into `legacy_target_record_id` + `AUDIT_TARGET_NOT_UUID` warning. `tenant_club_id` all-NULL for migrated rows (cross-tenant system semantics; S-023 read path). `before_state` / `after_state` NULL (AuditLogDetails dropped — parity exclusion). `Manifest.TENANT_BYPASS_ALLOW_LIST` widens to include AUDIT_LOG. S-027 read-back test (under `alpenflight/server/`) + S-024 leakage exemption (`mutation_audit_event` cross-tenant historical) added per S-186 hand-off. S-189 (filed) back-fills `tenant_club_id` post-cutover via `legacy_id_map_<entity>` lookup. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/AuditLogs/) |
+| ClubExtension | ClubExtensions | `t_club_extension` (V2) | port-as-rows | S-183 | Per-club extension-type enablement; legacy `Extensions` master table is dropped. | [columns](legacy-tables/ClubExtensions/) |
+| Club | Clubs | `t_club` (V5) | port-as-rows | S-184 | Tenant root; 1..N Clubs per Deployment per S-138. FKs: Country (SYSTEM_GLOBAL), ClubState (SYSTEM_GLOBAL). `OwnerPersonId` set NULL at first pass; S-141 resolves in second pass after Person ingest. Renamed `t_club` per S-170. Also touched by S-048 (walking skeleton); S-141c (CLUB FULL_PORT reconciles onto the provisioned `t_club` via self-id rewrite + `ON CONFLICT (id) DO UPDATE`). | [columns](legacy-tables/Clubs/) |
+| ClubState | ClubStates | `t_club_state` (V2) | port-as-rows | S-184 | SYSTEM_GLOBAL_RESOLVE via `code` lookup against V2 seeds — V2 carries no `legacy_int_id` on `t_club_state`. Legacy `0=System` is dropped (system-row policy); `1=Active → ACTIVE`, `2=Passiv → CLOSED`, `3=Inactive → SUSPENDED`. | [columns](legacy-tables/ClubStates/) |
+| CounterUnitType | CounterUnitTypes | `t_counter_unit_type` (V2) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-012). | [columns](legacy-tables/CounterUnitTypes/) |
+| Country | Countries | `t_country` (V2) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-012). Sample mapper shipped in S-016. | [columns](legacy-tables/Countries/) |
+| Delivery | Deliveries | `t_delivery` (V4 + V19) | port-as-rows | S-186 | Invoice delivery; Swiss OR Art. 957a retention — tombstones ported per S-016 ref. V19 (S-186) adds `legacy_delivery_number_text TEXT NULL` for non-integer-parseable legacy values. `delivery_number NVARCHAR(100) → INTEGER NULL` via producer-side `Integer.parseInt`; parse failure → `delivery_number` NULL + raw text into `legacy_delivery_number_text` + `DELIVERY_NUMBER_NON_INTEGER` warning (avoids per-club UNIQUE collisions while preserving Art. 957a forensic recall). `process_state_id` resolved producer-side by JOIN to `Flights.ProcessStateId` + `Deliveries.IsFurtherProcessed` per V4 header cutover (50→10, 45→30, 60→20, `IsFurtherProcessed=true`→20 wins on conflict). 9 frozen `recipient_*` columns straight passthrough. Pre-snapshot rows (RecipientPersonId set, recipient_* NULL) → NULL passthrough + `DELIVERY_RECIPIENT_NOT_FROZEN` warning. `flight_id` via `legacy_id_map_flight`. `recipient_person_id` cross-tenant Person (FK SET-NULL). `Manifest.TENANT_BYPASS_ALLOW_LIST` widens to include DELIVERY. S-024 leakage exemption (`delivery.recipient_person_id` cross-tenant SET-NULL) added per S-186 hand-off. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/Deliveries/) |
+| DeliveryCreationTest | DeliveryCreationTests | `t_delivery_creation_test` + `t_delivery_creation_test_item` (V4) | split-into-t_delivery_creation_test+t_delivery_creation_test_item | S-186 | Legacy stored test root + line items in one table; new schema separates. Tenant-scoped via `operating_club_id`. `flight_id` same-tenant FK CASCADE on flight delete. Two jsonb snapshots (`expected_delivery`, `last_test_created_delivery`) port as opaque text — no Jackson default-typing (A03 mitigation per V4 schema comment). `expected_matched_filter_ids BIGINT[]` carries legacy `accounting_rule_filter.legacy_int_id` values verbatim (NOT FK-enforced — deleted filter is legitimate regression signal). Also touched by S-183 (registry scaffold). | [columns](legacy-tables/DeliveryCreationTests/) |
+| DeliveryItem | DeliveryItems | `t_delivery_item` (V4) | port-as-rows | S-186 | Delivery line items; tombstones ported (invoice retention). `unit_price NUMERIC(12,4) NOT NULL` back-filled producer-side from Article master keyed by `article_id` (legacy has no `UnitPrice` — V4 header cutover). `quantity decimal(18,3) → NUMERIC(12,4)`: overflow → producer reject + `DELIVERY_ITEM_QUANTITY_OVERFLOW` warning. `unit_type_code VARCHAR(50)` from legacy `UnitType NVARCHAR(250)`: > 50 chars → producer reject + `DELIVERY_ITEM_UNIT_TYPE_TOO_LONG` warning (no silent truncation). `total_amount` GENERATED column removed at schema (V4) — `DeliveryItem.totalAmount()` VO at S-022 replaces it. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/DeliveryItems/) |
+| ElevationUnitType | ElevationUnitTypes | `t_elevation_unit_type` (V2) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-012). | [columns](legacy-tables/ElevationUnitTypes/) |
+| EmailTemplate | EmailTemplates | `t_email_template` (V2) | port-as-rows | S-183 | Tenant-scoped templates. | [columns](legacy-tables/EmailTemplates/) |
+| Extension | Extensions | (dropped) | drop | S-183 | Legacy .NET DLL-extension plugin manifest (`ExtensionClassName` / `ExtensionDllFilename` / `ExtensionDllPublicKey`) — irrelevant to the Java rewrite. Manifest WHY-not-mapped. | [columns](legacy-tables/Extensions/) |
+| ExtensionType | ExtensionTypes | `t_extension_type` (V2) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-012). | [columns](legacy-tables/ExtensionTypes/) |
+| ExtensionValue | ExtensionValues | `t_extension_value` (V2) | port-as-rows | S-183 | Per-instance extension values; tenant-scoped via parent FK. | [columns](legacy-tables/ExtensionValues/) |
+| FlightAirState | FlightAirStates | (dropped) | drop | S-183 | V13 dropped destination — air state is computed not stored per ADR 0022 D2 (S-060). Flight mapper translates legacy `Flight.AirStateId == FlightPlanOpen` → `t_flight.flight_plan_opened_on` timestamp; other legacy air-state values dropped. Manifest WHY-not-mapped. | [columns](legacy-tables/FlightAirStates/) |
+| FlightCostBalanceType | FlightCostBalanceTypes | `t_flight_cost_balance_type` (V4) | port-as-rows | S-183 | SYSTEM_GLOBAL ref per S-138 deviation note; resolves via `legacy_int_id` (S-014). | [columns](legacy-tables/FlightCostBalanceTypes/) |
+| FlightCrew | FlightCrew | `t_flight_crew` (V3) | port-as-rows | S-185 | **JMH-benched mapper (S-188)** — allocation discipline: no per-row allocation beyond Jackson + JDBC inherent. Tenant-bypass FK: `person_id` (→ cross-tenant Person). Reference FK: `flight_crew_type_id` via `legacy_int_id`. Budget ≥ 200K rows/sec / ≤ 50 MB/s alloc. `Manifest.TENANT_BYPASS_ALLOW_LIST` widens. Also touched by S-183. | [columns](legacy-tables/FlightCrew/) |
+| FlightCrewType | FlightCrewTypes | `t_flight_crew_type` (V3) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-013). | [columns](legacy-tables/FlightCrewTypes/) |
+| FlightProcessState | FlightProcessStates | `t_flight_process_state` (V3) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-013). | [columns](legacy-tables/FlightProcessStates/) |
+| Flight | Flights | `t_flight` (V3 + V13) | port-as-rows | S-185 | Tenant-scoped via `operating_club_id`; tombstones ported. **V13 air-state translation**: `AirStateId == FlightPlanOpen(5)` → `flight_plan_opened_on = ModifiedOn`; other legacy values → NULL. `flight_aircraft_type_id` SMALLINT passes through — sparse-enum (1,2,4) guard lives on Flight aggregate (S-058) per ADR 0022 D2. Self-FK `tow_flight_id` deferred to S-141 two-pass UPDATE (PersonCategory precedent). Tenant-bypass FK: `aircraft_id` (→ cross-tenant Aircraft). `Manifest.TENANT_BYPASS_ALLOW_LIST` widens. Also touched by S-183, S-060 (V13). | [columns](legacy-tables/Flights/) |
+| FlightType | FlightTypes | `t_flight_type` (V3) | port-as-rows | S-185 | TENANT_SCOPED ref; ports via per-bundle map; S-138 per-Club seed wins on `(operating_club_id, flight_type_name)` collision (legacy FK resolves to seeded UUID via natural-key lookup). No tenant bypass. Also touched by S-183, S-138. | [columns](legacy-tables/FlightTypes/) |
+| InOutboundPoint | InOutboundPoints | `t_inoutbound_point` (V3) | port-as-rows | S-183 | Per-flight in/out points; aggregate-internal under Location per S-024. | [columns](legacy-tables/InOutboundPoints/) |
+| Language | Languages | `t_language` (V2) | port-as-rows | S-184 | SYSTEM_GLOBAL_RESOLVE via `code` lookup against V2 seeds — V2 carries no `legacy_int_id` on `t_language`; bundle emits `(legacy_guid, LOWER(LanguageKey))`. Drift past V2 seed fails closed as `BUNDLE_LANGUAGE_NOT_SEEDED`. | [columns](legacy-tables/Languages/) |
+| LanguageTranslation | LanguageTranslations | (dropped) | drop | S-183 | i18n owned by the Angular client per ADR 0004; server-side translation table superseded. Manifest WHY-not-mapped. | [columns](legacy-tables/LanguageTranslations/) |
+| LengthUnitType | LengthUnitTypes | `t_length_unit_type` (V2) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-012). | [columns](legacy-tables/LengthUnitTypes/) |
+| Location | Locations | `t_location` (V3 + V7) | port-as-rows | S-185 | Tenant-scoped via `club_id NOT NULL` per V7 (supersedes pre-V7 cross-tenant note). Producer **fans out one bundle row per (legacy Location, referencing Club)** with fresh UUID v7 per replica; referencing-Club set = `Flights.{StartLocationId, LdgLocationId}` ∪ `Clubs.HomebaseId` ∪ `Aircrafts.HomebaseId` (by managing_club_id). `legacy_id_map_location` is composite-keyed `(legacy_guid, club_id)` — S-141 temp-table DDL change. FK resolution: pick replica whose `club_id` matches the source's operating/managing club; lowest-UUID fallback. LOCATION does NOT join `Manifest.TENANT_BYPASS_ALLOW_LIST` (tenant-scoped). Also touched by S-183 (registry scaffold), S-049b (V7). | [columns](legacy-tables/Locations/) |
+| LocationType | LocationTypes | `t_location_type` (V3) | port-as-rows | S-183 | SYSTEM_GLOBAL ref; resolves via `legacy_int_id` (S-013). | [columns](legacy-tables/LocationTypes/) |
+| MemberState | MemberStates | `t_member_state` (V2) | port-as-rows | S-184 | TENANT_SCOPED ref; ports via per-bundle map; S-138 per-Club seed runs as no-op for ported states (bundle-wins via `ux_member_state_club_name`). | [columns](legacy-tables/MemberStates/) |
+| PersonCategory | PersonCategories | `t_person_category` (V2) | port-as-rows | S-184 | Per-Club category definitions; ports via per-bundle map. Self-FK `ParentPersonCategoryId` resolves via two-pass UPDATE (no DEFERRABLE on the V2 constraint). | [columns](legacy-tables/PersonCategories/) |
+| PersonClub | PersonClub | `t_person_club` (V2) | port-as-rows | S-184 | Person↔Club junction; surrogate UUID v7 PK (legacy composite collapses); Person FK is cross-tenant — declared in `tenantBypassFks`. No `legacy_id_map_person_club` (leaf junction). Boolean role flags derived from legacy `Person.Has*Licence` projected to per-club scope. | [columns](legacy-tables/PersonClub/) |
+| PersonFlightTimeCredit | PersonFlightTimeCredits | (dropped) | drop | S-183 | Per `UnmappedTables.REGISTRY` — feature retired; balance never materialised into a new flight-credit aggregate. Manifest WHY-not-mapped. | [columns](legacy-tables/PersonFlightTimeCredits/) |
+| PersonFlightTimeCreditTransaction | PersonFlightTimeCreditTransactions | (dropped) | drop | S-183 | Per `UnmappedTables.REGISTRY` — transaction history retired alongside parent. Manifest WHY-not-mapped. | [columns](legacy-tables/PersonFlightTimeCreditTransactions/) |
+| PersonPersonCategory | PersonPersonCategories | `t_person_category_assignment` (V17) | port-as-rows | S-184 | Per-Club person↔category association. New V17 migration adds `t_person_category_assignment(id UUID PK, person_id UUID FK, person_category_id UUID FK, club_id UUID FK)`. New `EntityType.PERSON_CATEGORY_ASSIGNMENT`. Cross-tenant Person FK in `tenantBypassFks`. | [columns](legacy-tables/PersonPersonCategories/) |
+| Person | Persons | `t_person` (V2) | port-as-rows | S-184 | Cross-tenant entity per ADR 0008; per-bundle cross-tenant sub-map drives FK rewrites (S-141 AC10). Only outgoing FK is Country (SYSTEM_GLOBAL, no bypass needed). S-024 exemption add owned by S-186. | [columns](legacy-tables/Persons/) |
+| PlanningDayAssignment | PlanningDayAssignments | `t_planning_day_assignment` (V4) | port-as-rows | S-186 | Tenant-scoped planning roles. `assigned_person_id` → cross-tenant Person (FK RESTRICT). `assignment_type_id` → tenant-scoped per-bundle ref map. `Manifest.TENANT_BYPASS_ALLOW_LIST` widens to include PLANNING_DAY_ASSIGNMENT. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/PlanningDayAssignments/) |
+| PlanningDayAssignmentType | PlanningDayAssignmentTypes | `t_planning_day_assignment_type` (V4) | port-as-rows | S-186 | TENANT_SCOPED ref; ports via per-bundle map. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/PlanningDayAssignmentTypes/) |
+| PlanningDay | PlanningDays | `t_planning_day` (V4) | port-as-rows | S-186 | Tenant-scoped planning calendar. `location_id` resolves through composite `legacy_id_map_location` replica selection (S-185 pattern, replica matches `operating_club_id`). No tenant bypass on PlanningDay itself (Location replica is tenant-scoped per V7). `(operating_club_id, planning_date, location_id)` UNIQUE collisions: producer-side dedupe-keep-first (deterministic on `(CreatedOn, PlanningDayId)`) + `PLANNING_DAY_DUPLICATE` warning. Also touched by S-183 (registry scaffold). | [columns](legacy-tables/PlanningDays/) |
+| Role | Roles | (dropped) | drop | S-184 | Added to `UnmappedTables.REGISTRY` + removed from `EntityType` (retroactive S-183 edit). Realm-role catalog lives in Keycloak per ADR 0007; the legacy seed (ADMIN/FLIGHT_OPS/INSTRUCTOR/PILOT/READER) doesn't even match the realm catalog. Importer ignores legacy rows. Also touched by S-052. | [columns](legacy-tables/Roles/) |
+| Setting | Settings | (dropped) | drop | S-183 | Per `UnmappedTables.REGISTRY` — per-club KV config moved to typed `ClubSettings` aggregate / env config; legacy KV store not ported. Manifest WHY-not-mapped. S-024 exemption list adds system tables. | [columns](legacy-tables/Settings/) |
+| StartType | StartTypes | `t_start_type` (V2) | port-as-schema-only | S-185 | SYSTEM_GLOBAL_RESOLVE via `code` lookup against V2 seeds (LanguageMapper pattern; V2 carries no `legacy_int_id` on `t_start_type`). Legacy PK is INT identity (not UUID); mapper emits `(legacy_guid_synth_uuid, code)` pairs — table rows are NOT row-ported. Legacy `IsFor*Flights` boolean trio dropped (V2's `applicable_categories TEXT[]` per ADR 0020 owns the categorisation). Also touched by S-183. | [columns](legacy-tables/StartTypes/) |
+| SystemData | SystemData | (dropped) | drop | S-183 | Per `UnmappedTables.REGISTRY` — runtime/process metadata superseded by Spring Boot Actuator + ops tooling. Manifest WHY-not-mapped. | [columns](legacy-tables/SystemData/) |
+| SystemLog | SystemLogs | (dropped) | drop | S-183 | Per `UnmappedTables.REGISTRY` — replaced by structured logging stack (no DB target). Manifest WHY-not-mapped. | [columns](legacy-tables/SystemLogs/) |
+| SystemVersion | SystemVersion | (dropped) | drop | S-183 | Per `UnmappedTables.REGISTRY` — replaced by Flyway `flyway_schema_history`. Manifest WHY-not-mapped. | [columns](legacy-tables/SystemVersion/) |
 | UserAccountState | UserAccountStates | (dropped) | drop | S-052 | KC `enabled` flag + `deleted_on` cover the states. Importer ignores legacy rows. | [columns](legacy-tables/UserAccountStates/) |
-| UserRole | UserRoles | (dropped) | drop | S-052 | Roles live in Keycloak realm-roles per ADR 0007. Importer maps legacy role names to KC realm roles at provisioning time (S-028) without persisting the junction. | [columns](legacy-tables/UserRoles/) |
-| User | Users | `t_user` (V2) | port-as-rows | S-052 | Created as `t_user` at S-052 (Postgres reserved-word collision); S-170 retroactively brought every other AlpenFlight table under the same convention without touching this row's contract. `keycloak_sub` minted by S-028 bulk-provision; passwords NEVER copied (C14). Legacy KC-shadow columns (`lockout_*`, `access_failed_count`, `two_factor_enabled`, `phone_number_confirmed`, `email_confirmed`) NOT mapped — KC owns those; importer maps legacy `email_confirmed=true` → KC `emailVerified=true` at provisioning. | [columns](legacy-tables/Users/) |
+| UserRole | UserRoles | (dropped) | drop | S-184 | Added to `UnmappedTables.REGISTRY` + removed from `EntityType` (retroactive S-183 edit). Roles live in Keycloak realm-roles per ADR 0007. Importer maps legacy role names to KC realm roles at S-028 provisioning without persisting the junction. Also touched by S-052. | [columns](legacy-tables/UserRoles/) |
+| User | Users | `t_user` (V2) | port-as-rows | S-184 | FKs: Club, Person (cross-tenant per S-141 AC10), Language (SYSTEM_GLOBAL). System actor row `13731ee2-c1d8-455c-8ad1-c39399893fff` dropped at producer (system-row policy); refs re-routed to S-186 orphan-actor synthesis. Password + KC-shadow deny-list: `Password`, `LastPasswordChangeOn`, `ForcePasswordChangeNextLogon`, `FailedLoginCounts`, `AccountState` NOT carried in bundle. `keycloak_sub` minted by S-028 bulk-provision (NULL on ingest). Created as `t_user` at S-052 (Postgres reserved-word collision); S-170 retroactively brought every other AlpenFlight table under the same convention. | [columns](legacy-tables/Users/) |
 
 ## Coverage check
 

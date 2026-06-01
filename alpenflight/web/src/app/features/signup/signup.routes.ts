@@ -1,7 +1,5 @@
 import { Routes } from '@angular/router';
 
-import { authGuard } from '@core/session/session.guard';
-
 export const SIGNUP_ROUTES: Routes = [
   {
     path: '',
@@ -10,13 +8,5 @@ export const SIGNUP_ROUTES: Routes = [
   },
 ];
 
-// /migrate/* is a temporary home inside features/signup/ until S-141 lands
-// the JAR-download / upload wizard in its own features/migrate/ folder.
-export const MIGRATE_ROUTES: Routes = [
-  {
-    path: 'start',
-    loadComponent: () => import('./migrate-start.component').then((m) => m.MigrateStartComponent),
-    canActivate: [authGuard],
-    data: { showNavBar: false },
-  },
-];
+// /migrate/* moved to features/migrate-handshake/ at S-140; the
+// migrate-start.component.ts placeholder was promoted into the handshake page.

@@ -10,10 +10,11 @@ class ClubDomainTest {
 
     private static final UUID CH = UUID.fromString("019e2e15-2c00-74be-8000-0000000004be");
     private static final UUID ACTIVE = UUID.fromString("019e2e15-2c00-7bb8-8000-000000000bb8");
+    private static final UUID DEPLOYMENT = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     @Test
     void rename_trims_and_rejects_blank() {
-        Club club = Club.create("Old", "old-club", "OLD", false, CH, ACTIVE);
+        Club club = Club.create("Old", "old-club", "OLD", false, CH, ACTIVE, DEPLOYMENT);
         club.rename("  Mountain Soaring  ");
         assertThat(club.getClubname()).isEqualTo("Mountain Soaring");
 
@@ -24,7 +25,7 @@ class ClubDomainTest {
 
     @Test
     void rebrand_rejects_uppercase_and_special_chars() {
-        Club club = Club.create("Mountain Soaring", "ms-club", "MS", false, CH, ACTIVE);
+        Club club = Club.create("Mountain Soaring", "ms-club", "MS", false, CH, ACTIVE, DEPLOYMENT);
 
         assertThatThrownBy(() -> club.rebrand("Bad-Slug"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -36,7 +37,7 @@ class ClubDomainTest {
 
     @Test
     void rebrand_enforces_3_to_64_length_bounds() {
-        Club club = Club.create("Mountain Soaring", "ms-club", "MS", false, CH, ACTIVE);
+        Club club = Club.create("Mountain Soaring", "ms-club", "MS", false, CH, ACTIVE, DEPLOYMENT);
 
         assertThatThrownBy(() -> club.rebrand("ab"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -53,7 +54,7 @@ class ClubDomainTest {
 
     @Test
     void publicRegistration_toggles_via_aggregate_methods() {
-        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE);
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
         assertThat(club.isPublicRegistrationEnabled()).isFalse();
         club.enablePublicRegistration();
         assertThat(club.isPublicRegistrationEnabled()).isTrue();

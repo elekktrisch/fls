@@ -3,6 +3,7 @@ id: S-062g
 title: Wire alpenflight Playwright into PR CI required aggregator
 epic: E-10
 status: todo
+rolled_up_into: J-0
 depends_on: [S-062b, S-062f]
 acceptance:
   - The `alpenflight-e2e` workflow's Playwright job is included in `ci.yml`'s `required` aggregator (or run as a parallel `required` job) so a failing Playwright run blocks PR merge under branch protection.

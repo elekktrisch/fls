@@ -59,6 +59,13 @@ public class Club {
     @Column(name = "club_state_id", nullable = false)
     private @Nullable UUID clubStateId;
 
+    // FK to the parent Deployment (S-137). Plain UUID, NOT @ManyToOne —
+    // keeps the Club aggregate boundary tight; cross-Club iteration goes
+    // through DeploymentContext.forEachClub, which sets the tenant per
+    // Club rather than fetch-joining the Deployment.
+    @Column(name = "deployment_id", nullable = false, updatable = false)
+    private @Nullable UUID deploymentId;
+
     @Column(name = "deleted_on")
     private java.time.@Nullable Instant deletedOn;
 
@@ -68,7 +75,11 @@ public class Club {
 
     public static Club create(String name, String slug, String clubKey,
                               boolean publicRegistrationEnabled,
-                              UUID countryId, UUID clubStateId) {
+                              UUID countryId, UUID clubStateId,
+                              UUID deploymentId) {
+        if (deploymentId == null) {
+            throw new IllegalArgumentException("deploymentId must not be null");
+        }
         Club club = new Club();
         club.rename(name);
         club.rebrand(slug);
@@ -76,6 +87,7 @@ public class Club {
         club.publicRegistrationEnabled = publicRegistrationEnabled;
         club.countryId = countryId;
         club.clubStateId = clubStateId;
+        club.deploymentId = deploymentId;
         return club;
     }
 
@@ -168,6 +180,10 @@ public class Club {
 
     public @Nullable UUID getClubStateId() {
         return clubStateId;
+    }
+
+    public @Nullable UUID getDeploymentId() {
+        return deploymentId;
     }
 
     public boolean isDeleted() {

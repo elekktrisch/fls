@@ -70,21 +70,31 @@ jobs:
           else
             echo "web=false" >> $GITHUB_OUTPUT
           fi
+          if [ -f alpenflight/migration-tool/build.gradle.kts ]; then
+            echo "migration_tool=true" >> $GITHUB_OUTPUT
+          else
+            echo "migration_tool=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up JDK 25
-        if: steps.detect.outputs.server == 'true'
+        if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: temurin
 
       - name: Set up Gradle
-        if: steps.detect.outputs.server == 'true'
+        if: steps.detect.outputs.server == 'true' || steps.detect.outputs.migration_tool == 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build alpenflight/server
         if: steps.detect.outputs.server == 'true'
         working-directory: alpenflight/server
+        run: ./gradlew build --no-daemon
+
+      - name: Build alpenflight/migration-tool
+        if: steps.detect.outputs.migration_tool == 'true'
+        working-directory: alpenflight/migration-tool
         run: ./gradlew build --no-daemon
 
       - name: Set up Node 22
@@ -164,6 +174,245 @@ jobs:
         run: bash alpenflight/auth/scripts/check-realm-shape.sh
 
   # ---------------------------------------------------------------------------
+  # alpenflight-proof — J-0's real-chain proof gate (clean-seed) (S-062g, S-110).
+  #
+  # Brings up the real stack — Postgres + Keycloak + Mailpit + the alpenflight
+  # backend + `ng serve --configuration=development` — applies a CLEAN Flyway
+  # seed (NO legacy-up / NO MSSQL / NO migrate; the legacy→migrate half is
+  # DEFERRED to J-0b), then runs the real-idp two-club Locations
+  # tenant-isolation spec against the real backend. This is the only run that
+  # proves verticality (real Keycloak JWT → @TenantId filter → Postgres).
+  #
+  # Scoped to the single isolation spec (plus its `real-idp-setup` dependency,
+  # which Playwright runs automatically) to stay inside the ~8-min PR budget —
+  # the heavier full real-idp suite stays nightly in `alpenflight-e2e-real-idp.yml`.
+  # Lives INSIDE ci.yml (not the nightly workflow) so the `required` aggregator
+  # below can `needs:` it — a cross-workflow job cannot be a `needs:` dependency.
+  #
+  # The `real-idp` project's `video: 'on'` (playwright.config.ts) retains the
+  # pass-video; the upload step archives it as J-0's acceptance artifact.
+  # ---------------------------------------------------------------------------
+  alpenflight-proof:
+    name: alpenflight proof (real-idp, clean-seed)
+    needs: changes
+    if: needs.changes.outputs.next == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    # `contents: write` lets the main-gated gh-pages deploy step push the
+    # proof gallery to the gh-pages branch (mirrors alpenflight-e2e.yml).
+    # Without it the deploy fails with 403; the rest of the job needs read.
+    permissions:
+      contents: write
+    env:
+      E2E_REAL_IDP: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cross-project shared network (S-172). Create explicitly first so the
+      # bring-up scripts' inspect-first diag message isn't ambiguous on a
+      # clean runner.
+      - name: Create alpenflight_shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      - name: Bring up alpenflight-infra (mailpit)
+        run: bash alpenflight/ops/dev-up-infra.sh
+
+      - name: Build pgAdmin + Keycloak images
+        run: |
+          docker compose -f docker-compose.yml --profile next build pgadmin keycloak
+
+      # Clean seed: Postgres + Keycloak only. No MSSQL / legacy-up / migrate
+      # (deferred to J-0b — see the J-0 journey file).
+      - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
+        run: |
+          docker compose -p alpenflight-dev -f docker-compose.yml \
+            up -d --wait --wait-timeout 240 postgres pgadmin keycloak
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Apply Flyway migrations against the target Postgres so the alpenflight
+      # backend has the (clean-seeded) schema it expects at boot.
+      - name: Flyway migrate (alpenflight Postgres)
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          ./gradlew flywayMigrate --no-daemon --console=plain --quiet
+
+      - name: Build alpenflight backend bootJar
+        working-directory: alpenflight/server
+        run: ./gradlew bootJar --no-daemon --console=plain --quiet
+
+      - name: Start alpenflight backend
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          SPRING_PROFILES_ACTIVE: dev
+          # Pin log level so payload logging can't leak the canned dev
+          # password into the uploaded backend.log artifact.
+          LOGGING_LEVEL_ROOT: INFO
+        run: |
+          # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
+          # not "server" — and the plain `jar` task also emits a non-executable
+          # *-plain.jar. Resolve the executable boot jar by excluding -plain.
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          echo "Starting backend from: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "$!" > backend.pid
+
+      - name: Wait for backend /actuator/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after 120s" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          exit 1
+
+      # Just the J-0 isolation spec (its `real-idp-setup` dependency runs
+      # automatically) — not the full real-idp suite. Keeps the gate scoped
+      # to the proof + inside the PR budget.
+      - name: Run real-idp Locations isolation spec
+        id: pw
+        working-directory: alpenflight/web
+        timeout-minutes: 12
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
+
+      # J-24 — build + link-check the proof gallery from the run's manifest +
+      # videos (test-results/). `always()` so it runs even when the spec is red;
+      # on red there are no proof videos so it emits only pending rows. The
+      # generator exits non-zero on a missing caption / missing .webm (AC5
+      # link-check) — that MUST fail the job, so no `|| true` swallow here.
+      - name: Build + link-check proof gallery
+        id: gallery
+        if: always()
+        working-directory: alpenflight/web
+        run: |
+          node e2e/proof-gallery/generate-gallery.mjs \
+            --report test-results/proof-manifest.json \
+            --out ../../public/alpenflight/proof \
+            --order ../../docs/modernization/stories/_ORDER.md
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "── backend log ─────────────────────────────" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          echo "── keycloak log ────────────────────────────" >&2
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
+          echo "── mailpit log ─────────────────────────────" >&2
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra logs --tail 100 mailpit >&2 || true
+
+      # The pass-video is J-0's acceptance artifact (`video: 'on'` on the
+      # real-idp project). Uploaded on always() so the report is available on
+      # red too, but on green it carries the proof video.
+      - name: Upload proof artifact (incl. pass-video)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-proof-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/test-results
+            alpenflight/web/screenshots
+            alpenflight/server/backend.log
+            public/alpenflight/proof
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Publish the proof gallery to gh-pages — main only (carve decision 2:
+      # build + link-check every run above; publish on merge). Mirrors the
+      # main-gated deploy in alpenflight-e2e.yml (keep_files: true so it
+      # coexists with the e2e dashboard under /alpenflight/). Gated on the
+      # generate step having SUCCEEDED (`steps.gallery.outcome == 'success'`),
+      # not `always()`: a red run (spec failure OR an AC5 link-check failure)
+      # must NOT re-push stale/broken proofs over the live gallery. The
+      # generate step itself still runs on `always()` above so a red run still
+      # fails the job — we only suppress the publish, not the gate.
+      - name: Deploy proof gallery to gh-pages
+        if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f alpenflight/server/backend.pid ]; then
+            kill "$(cat alpenflight/server/backend.pid)" 2>/dev/null || true
+          fi
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
+          docker network rm alpenflight_shared || true
+
+  # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
   # every upstream job either succeeded or was correctly skipped (e.g.
   # docs-only PRs skip the next lane, that job reports `skipped`, aggregator
@@ -171,7 +420,7 @@ jobs:
   # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build, next-auth-realm-shape]
+    needs: [changes, next-build, next-auth-realm-shape, alpenflight-proof]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -181,12 +430,14 @@ jobs:
           R_CHANGES: ${{ needs.changes.result }}
           R_NEXT: ${{ needs.next-build.result }}
           R_AUTH: ${{ needs.next-auth-realm-shape.result }}
+          R_PROOF: ${{ needs.alpenflight-proof.result }}
         run: |
           fail=0
           for pair in \
               "changes:$R_CHANGES" \
               "alpenflight-build:$R_NEXT" \
-              "alpenflight-auth-realm-shape:$R_AUTH" ; do
+              "alpenflight-auth-realm-shape:$R_AUTH" \
+              "alpenflight-proof:$R_PROOF" ; do
             name="${pair%%:*}"
             result="${pair##*:}"
             case "$result" in

@@ -51,9 +51,17 @@ five screens; not a single atomic action.
 - **Spot Journey-0.** The first journey must be the *thinnest* one that drags
   the full proof chain (legacy-up → migrate → Keycloak → real Playwright) into
   existence — pick an already-built, low-risk screen (e.g. Aircraft/Locations).
+  **Authored ≠ proven.** `implemented/` code + any CI/proof harness is unit-tested
+  at best and may never have run *end-to-end green*. Don't size Journey-0 as "the
+  chain mostly exists, just wire it" — assume it drags latent never-run gaps into
+  the light (J-0 found the migration fan-out unbuilt + 3 never-run real-idp CI
+  layers). Size it as *building* the chain. [[verify-infra-is-run-not-just-authored]]
 - **Note the migration contribution.** For each journey, name the legacy
   entity/table it migrates so its per-journey mapper + seed can be scoped. Flag
-  journeys with no legacy data (greenfield/freemium) — migration is N/A there.
+  greenfield/freemium journeys — migration is N/A. A mapper with a passing unit
+  test is NOT a working migrate (J-0's `LocationMapper` unit-passed, fan-out-
+  collided live) — treat migrate-fidelity as unproven until a real legacy→ingest
+  round-trip runs green.
 
 ## Output format
 
