@@ -20,7 +20,23 @@ export default defineConfig({
   // even on suite-abort where per-project teardown wouldn't. No-op on
   // mock-auth runs (no admin token, no probes — exits early).
   globalTeardown: require.resolve('./tests/real-idp/global-teardown.ts'),
-  reporter: process.env['CI'] ? [['github'], ['html', { open: 'never' }]] : 'html',
+  // Config-level (shared across projects). In CI we also emit a JSON report:
+  // it IS the J-24 proof manifest (see e2e/proof-gallery/README.md) — the
+  // gallery generator reads the `proof-video` attachments + `proof-*`
+  // annotations the `proofVideo()` helper pushes from the real-idp proof specs.
+  // The mock chromium PR run produces this file with no proof-* annotations,
+  // which the generator tolerates as "no proofs"; it does not break the
+  // github/html reporters (Playwright runs all listed reporters).
+  // Path: `test-results/proof-manifest.json` (relative to the Playwright cwd,
+  // i.e. `alpenflight/web/`). T-04's `alpenflight-proof` job passes this exact
+  // path to the generator (alongside the `test-results/` videos dir).
+  reporter: process.env['CI']
+    ? [
+        ['github'],
+        ['html', { open: 'never' }],
+        ['json', { outputFile: 'test-results/proof-manifest.json' }],
+      ]
+    : 'html',
   use: {
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

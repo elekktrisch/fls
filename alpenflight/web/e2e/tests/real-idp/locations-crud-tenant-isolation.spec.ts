@@ -12,6 +12,7 @@ import {
   provisionTwoClubs,
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
+import { proofVideo } from './_helpers/proof-video';
 
 /**
  * Create the per-test browser context with video recording wired to the
@@ -168,7 +169,15 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
         page.locator('[data-testid^="location-row-"]').filter({ hasText: 'Zurich (Club A)' }),
       ).toBeVisible();
     } finally {
+      // Finalize the .webm (flushed only on close) BEFORE binding it to its
+      // proof caption — see `proofVideo` / e2e/proof-gallery/README.md.
       await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-0',
+        caption:
+          "J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list",
+        acTag: 'happy',
+      });
     }
   });
 
@@ -201,6 +210,11 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
       ).toBe(404);
     } finally {
       await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-0',
+        caption: "J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)",
+        acTag: 'key-error',
+      });
     }
   });
 
@@ -222,6 +236,11 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
       ).toBeVisible();
     } finally {
       await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-0',
+        caption: 'J-0 · per-club ICAO · the same ICAO is creatable independently in club B',
+        acTag: 'edge',
+      });
     }
   });
 });

@@ -47,7 +47,7 @@ Ordered, one seam each. Workers commit directly to `integration/J-24`.
   exists / 200); the pending journey renders a "pending" marker, not a broken link;
   writes screenshots per §8. Depends on T-01.
 
-- [ ] **T-03 — Real manifest emission: `proofVideo()` helper + JSON reporter + J-0 retrofit.**
+- [x] **T-03 — Real manifest emission: `proofVideo()` helper + JSON reporter + J-0 retrofit.**
   New `alpenflight/web/e2e/tests/real-idp/_helpers/proof-video.ts` exporting
   `proofVideo(page, testInfo, { journey, caption, acTag })` — in the test's
   `finally` AFTER `ctx.close()`, resolve `page.video()?.path()`, `testInfo.attach`
