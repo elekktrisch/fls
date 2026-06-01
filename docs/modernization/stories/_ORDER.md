@@ -16,8 +16,9 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 
 | J | Title (screen/route) | Epic | Depends on | Rolls up (todo S-NNN) | Migration | Replaces legacy |
 |---|---|---|---|---|---|---|
-| **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` | `masterdata/locations/` → `/locations` |
-| J-1 | Aircraft register | E-06 | J-0 | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
+| **J-0** | **Locations CRUD — chain bootstrap** | E-06 | — | S-062g, S-110 (+reuses impl S-049/049b/049c) | `Location` (clean-seed only; migrate→J-0b) | `masterdata/locations/` → `/locations` |
+| **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016, S-189 (fan-out slice) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
+| J-1 | Aircraft register | E-06 | J-0, **J-0b** (for migrate-fidelity) | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
 | J-2 | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064, S-067-poly | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
 | J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
 | J-4 | Profile self-edit | E-06 | J-2 | S-182 | `Person` (self) | `profile/` → `/profile` |
@@ -39,8 +40,28 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-20 | Sandbox demo | E-15 | J-2, J-5 | S-135, S-136 | N/A (greenfield) | none (new) |
 | J-21 | Migrate-from-legacy upload wizard | E-15 | J-0..J-10 | S-142, S-189, S-028 (+impl S-138/139/140/141) | all (orchestrates per-journey mappers) | none (new) → `/migrate` |
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
+| J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
+
+**J-0b — Migration fan-out foundation** (filed 2026-05-31, ship-time discovery during
+J-0). J-0's live migrate proof revealed the core `(legacy_id, club_id)→distinct new_id`
+fan-out keying is entirely unbuilt — a shared legacy row referenced by 2 clubs
+PK-collides on ingest. J-0 narrowed to a clean-seed real chain; J-0b builds the
+fan-out subsystem (producer per-replica id mint + a `t_location.legacy_guid` Flyway
+column + composite `(legacy_guid, club_id)` id-map keying — the **shared** mechanism
+every tenant-scoped migration uses) and re-enables the `@Disabled`
+`LocationMigrationRoundTripIT`. The migrate-half foundation already landed on J-0's
+branch (reference-FK resolve, InOutboundPoint mapper, producer SELECT bindings).
+J-0b wants an `implementation-architect` design pass on the keying approach before
+build. Every later journey's *migrated-data* fidelity depends on J-0b.
+
+**J-24 — Proof-video gallery (infra)** (filed by `/do-retro` 2026-06-01 on operator
+ask). J-0's pass-videos land only inside the per-run CI artifact as opaque
+`page@<hash>.webm` — not glanceable. J-24 publishes a clickable gh-pages gallery
+that captions each proof video with the assertion it proves (the human-parity half
+of the done-bar, made reviewable). Reuses the existing `alpenflight-e2e.yml`
+gh-pages pipeline; caption source is the load-bearing design choice (carve-time).
 
 ## Journey-0 — `J-0 Locations CRUD`
 

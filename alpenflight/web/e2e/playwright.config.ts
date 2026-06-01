@@ -13,11 +13,7 @@ export default defineConfig({
   // step budget is more valuable than the coverage right now. Re-enable
   // when the underlying features become load-bearing — or move them to
   // a separate nightly project so they don't gate PR feedback.
-  testIgnore: [
-    '**/masterdata/articles-crud.spec.ts',
-    '**/masterdata/locations-crud.spec.ts',
-    '**/masterdata/flight-types-crud.spec.ts',
-  ],
+  testIgnore: ['**/masterdata/articles-crud.spec.ts', '**/masterdata/flight-types-crud.spec.ts'],
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   // Sweeps `e2e-*@example.com` users from the alpenflight realm. Runs
@@ -78,6 +74,14 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         baseURL: REAL_IDP_BASE_URL,
+        // J-0 acceptance artifact: the real-chain proof retains its
+        // pass-video, not just the failure video. This is the only run
+        // that proves verticality end-to-end (real Keycloak + real
+        // backend + real Postgres), so the green run's video is archived
+        // as a CI artifact for operator parity review. Overrides the
+        // global `video: 'retain-on-failure'`; mock-auth chromium keeps
+        // the global policy so every PR run isn't bloated with videos.
+        video: 'on',
       },
       // Single worker against one realm + one Mailpit inbox — parallel
       // registration races against KC user-exists checks and Mailpit

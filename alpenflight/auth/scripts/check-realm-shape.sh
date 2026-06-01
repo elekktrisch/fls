@@ -6,9 +6,10 @@
 #
 #   - alpenflight-web is PKCE-S256 public; standardFlow only.
 #   - alpenflight-backend is bearer-only.
-#   - alpenflight-backend-admin is confidential service-accounts-only, scoped
-#     to manage-realm + manage-users + view-users + query-users on
-#     realm-management (NOT manage-clients / impersonation), with the
+#   - alpenflight-backend-admin is confidential service-accounts-only,
+#     full-scope, scoped to manage-groups + manage-realm + manage-users +
+#     query-users + view-realm + view-users on realm-management (NOT
+#     manage-clients / impersonation / create-client), with the
 #     dev-placeholder secret. The localhost-issuer guard in the e2e
 #     keycloak-admin client bounds the manage-realm scope to local dev +
 #     nightly CI.
@@ -72,11 +73,20 @@ ADMIN=$(jq '.clients[] | select(.clientId=="alpenflight-backend-admin")' "$EXPOR
 [[ $(jq -r '.publicClient' <<<"$ADMIN") == "false" ]] || fail "alpenflight-backend-admin must be confidential"
 [[ $(jq -r '.secret' <<<"$ADMIN") == "alpenflight-backend-admin-dev-secret" ]] || fail "alpenflight-backend-admin must carry the dev-placeholder secret in source (rotate at deploy)"
 
-# Service-account role binding: exactly manage-realm + manage-users +
-# view-users + query-users, scoped to realm-management. Anything broader
-# (manage-clients / impersonation) makes this client a tenant-escalation
-# surface — fail loud. Equality not subset: drift in either direction
-# fails the gate.
+# Service-account role binding: exactly manage-groups + manage-realm +
+# manage-users + query-users + view-realm + view-users, scoped to
+# realm-management. Anything broader (manage-clients / impersonation /
+# create-client) makes this client a tenant-escalation surface — fail loud.
+# Equality not subset: drift in either direction fails the gate.
+#
+# view-realm is read-only and STRICTLY weaker than the already-granted
+# manage-realm; it is required because Keycloak authorizes GET
+# /admin/realms/{realm} (getRealm — the real-idp accessTokenLifespan
+# read/restore) and GET /admin/realms/{realm}/roles/{name} (findRealmRole —
+# CLUB_ADMINISTRATOR assignment in the two-club fixture) against view-realm
+# specifically, NOT manage-realm. Adding a read role weaker than an existing
+# write grant does not widen the surface. The localhost-issuer guard in
+# keycloak-admin.ts still bounds the whole grant to local dev + CI.
 ADMIN_SA_ROLES=$(jq -r '
   .users[]
   | select(.serviceAccountClientId == "alpenflight-backend-admin")
@@ -84,10 +94,22 @@ ADMIN_SA_ROLES=$(jq -r '
   | sort
   | join(",")
 ' "$EXPORT")
-EXPECTED_SA_ROLES="manage-groups,manage-realm,manage-users,query-users,view-users"
+EXPECTED_SA_ROLES="manage-groups,manage-realm,manage-users,query-users,view-realm,view-users"
 [[ "$ADMIN_SA_ROLES" == "$EXPECTED_SA_ROLES" ]] \
   || fail "alpenflight-backend-admin realm-management role grant drifted: have [$ADMIN_SA_ROLES], want [$EXPECTED_SA_ROLES]"
-ok "alpenflight-backend-admin: confidential, service-accounts only, manage-realm/manage/view/query-users scope"
+
+# fullScopeAllowed MUST be true so the client-credentials token actually
+# carries the service-account's realm-management roles in
+# resource_access.realm-management.roles. With fullScopeAllowed=false and no
+# scope mapping, KC strips those roles from the issued token and EVERY admin
+# REST call 403s (the J-0 T-09 symptom). This does NOT escalate privilege:
+# the token's effective roles are still exactly the SA grant pinned above —
+# fullScopeAllowed only governs whether assigned roles survive the token
+# scope filter, not which roles are assigned. The sibling machine clients
+# (alpenflight-backend, alpenflight-proffix) carry the same flag.
+[[ $(jq -r '.clients[] | select(.clientId=="alpenflight-backend-admin") | .fullScopeAllowed' "$EXPORT") == "true" ]] \
+  || fail "alpenflight-backend-admin must have fullScopeAllowed=true (else realm-management roles are stripped from the SA token → admin REST 403s)"
+ok "alpenflight-backend-admin: confidential, service-accounts only, full-scope, manage-groups/realm/users + query-users + view-realm/users"
 
 # --- roles ---
 EXPECTED_ROLES="CLUB_ADMINISTRATOR FLIGHT_OPERATOR GUEST OFFICE_USER PILOT SYSTEM_ADMINISTRATOR proffix-sync"

@@ -148,7 +148,9 @@ final class EntityStreamIngestor {
     void ingestEntityNdjson(Connection connection,
                             Mapper mapper,
                             InputStream tarStream,
-                            ForeignKeyResolver foreignKeyResolver) throws SQLException, IOException {
+                            ForeignKeyResolver foreignKeyResolver,
+                            ReferenceLookupResolver referenceLookupResolver)
+            throws SQLException, IOException {
         String insert = insertStatementFor(mapper.entityType());
         try (PreparedStatement ps = connection.prepareStatement(insert);
                 BundleStreamReader.NonClosingBufferedReader lines =
@@ -187,6 +189,12 @@ final class EntityStreamIngestor {
                 // bundle's legacy_id_map/<entity>.pgcopy tar entries,
                 // FULL_PORT CLUB by seedClubLegacyIdMap.
                 foreignKeyResolver.rewriteForeignKeys(mapper, row);
+                // FLIGHT-group reference-lookup columns carry a synthetic
+                // new UUID(0, legacyIntId) for a row in the V2/V3 Flyway seed
+                // (outside EntityType, so no legacy_id_map). Resolve each to
+                // the real seed PK by joining <seedTable>.legacy_int_id; a miss
+                // fails closed rather than FK-violating verbatim on INSERT.
+                referenceLookupResolver.rewriteReferenceLookups(mapper, row);
                 mapper.readEntity(row, ps);
                 ps.addBatch();
                 batched++;

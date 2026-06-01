@@ -451,9 +451,11 @@ public class MigrationBundleIngestService {
             entityStreamIngestor.seedClubLegacyIdMap(connection, manifest, provisioned);
 
             run.transitionTo(MigrationRunState.INGESTING);
-            try (ForeignKeyResolver foreignKeyResolver = new ForeignKeyResolver(connection, manifest)) {
+            try (ForeignKeyResolver foreignKeyResolver = new ForeignKeyResolver(connection, manifest);
+                    ReferenceLookupResolver referenceLookupResolver =
+                            new ReferenceLookupResolver(connection)) {
                 drainEntityStreams(connection, run, tarStream, manifest, provisioned,
-                        foreignKeyResolver);
+                        foreignKeyResolver, referenceLookupResolver);
             }
 
             run.transitionTo(MigrationRunState.COMPLETING);
@@ -573,7 +575,8 @@ public class MigrationBundleIngestService {
                                     TarArchiveInputStream tar,
                                     BundleManifest manifest,
                                     ProvisioningResult provisioned,
-                                    ForeignKeyResolver foreignKeyResolver)
+                                    ForeignKeyResolver foreignKeyResolver,
+                                    ReferenceLookupResolver referenceLookupResolver)
             throws IOException, SQLException {
         TarArchiveEntry entry;
         while ((entry = tar.getNextEntry()) != null) {
@@ -603,7 +606,7 @@ public class MigrationBundleIngestService {
                         currentClubFor(entityType, manifest, provisioned));
                 runs.save(run);
                 entityStreamIngestor.ingestEntityNdjson(connection, mapper, tar,
-                        foreignKeyResolver);
+                        foreignKeyResolver, referenceLookupResolver);
             } else {
                 throw new BundleIngestException(
                         BundleIngestErrorCode.BUNDLE_EXTRA_ENTRIES,

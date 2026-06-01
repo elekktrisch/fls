@@ -37,6 +37,23 @@ public interface Mapper {
     List<EntityType> foreignKeys();
 
     /**
+     * Reference-lookup columns this mapper emits as the synthetic UUID
+     * {@code new UUID(0, legacyIntId)} (via
+     * {@link Coercions#legacyIntIdToUuidString}) and that the ingest pipeline
+     * must resolve structurally to the real Flyway-seed PK by joining the named
+     * seed table's {@code legacy_int_id} column.
+     *
+     * <p>Distinct from {@link #foreignKeys()}: those targets are bundle
+     * {@link EntityType} entities resolved via {@code legacy_id_map_<entity>};
+     * these targets are FLIGHT-group lookup tables in the V2/V3 seed, outside
+     * the {@link EntityType} enum, with no per-bundle id map. Default empty so
+     * existing mappers are unaffected — a mapper opts in by overriding.
+     */
+    default List<ReferenceLookup> referenceLookups() {
+        return List.of();
+    }
+
+    /**
      * Export-side: stream one NDJSON line from the cursor's current row.
      * Caller has positioned the {@link ResultSet} on the row; this method
      * writes one {@code start-object} … {@code end-object} sequence to the

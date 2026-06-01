@@ -165,6 +165,25 @@ export async function findUserByEmail(email: string): Promise<AdminUser | undefi
 }
 
 export async function createUser(user: TestUser): Promise<string> {
+  return createUserWithAttributes(user, {});
+}
+
+/**
+ * Create a user with arbitrary realm user-attributes. The realm's
+ * `clubId` client scope projects the `clubId` user-attribute as a `clubId`
+ * claim on the access token (realm-export.json `clubId-mapper`); the
+ * backend's `ClubTenantIdentifierResolver` parses that claim as the tenant
+ * UUID directly when it is a valid UUID. So a CLUB_ADMINISTRATOR bound to a
+ * real `t_club` id only needs `{ clubId: ['<club-uuid>'] }` here — no
+ * `t_user` seed row is required for tenant resolution.
+ *
+ * Attribute values are string arrays per KC's representation; callers pass
+ * single-element arrays for scalar attributes.
+ */
+export async function createUserWithAttributes(
+  user: TestUser,
+  attributes: Record<string, string[]>,
+): Promise<string> {
   const res = await adminRequest('/users', {
     method: 'POST',
     body: JSON.stringify({
@@ -174,6 +193,7 @@ export async function createUser(user: TestUser): Promise<string> {
       lastName: user.lastName,
       enabled: true,
       emailVerified: true,
+      attributes,
       credentials: [{ type: 'password', value: user.password, temporary: false }],
     }),
   });
@@ -184,6 +204,42 @@ export async function createUser(user: TestUser): Promise<string> {
   const location = res.headers.get('location');
   if (!location) throw new Error('createUser: no Location header on 201');
   return location.split('/').pop()!;
+}
+
+interface RealmRoleRepresentation {
+  id: string;
+  name: string;
+}
+
+/**
+ * Fetch a realm-role representation by name. The role must already exist in
+ * the realm-export (the `manage-users`/`manage-realm` service-account scope
+ * does NOT include role creation — this helper assigns existing roles only).
+ */
+export async function findRealmRole(roleName: string): Promise<RealmRoleRepresentation> {
+  const res = await adminRequest(`/roles/${encodeURIComponent(roleName)}`);
+  if (!res.ok) {
+    throw new Error(`findRealmRole(${roleName}) failed (${res.status}): ${await res.text()}`);
+  }
+  return (await res.json()) as RealmRoleRepresentation;
+}
+
+/**
+ * Assign an existing realm role to a user via the role-mappings REST surface
+ * (`POST /users/{id}/role-mappings/realm`). Idempotent on KC's side — a
+ * repeat assignment of an already-held role is a no-op 204.
+ */
+export async function assignRealmRole(userId: string, roleName: string): Promise<void> {
+  const role = await findRealmRole(roleName);
+  const res = await adminRequest(`/users/${encodeURIComponent(userId)}/role-mappings/realm`, {
+    method: 'POST',
+    body: JSON.stringify([{ id: role.id, name: role.name }]),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `assignRealmRole(${userId}, ${roleName}) failed (${res.status}): ${await res.text()}`,
+    );
+  }
 }
 
 /**
