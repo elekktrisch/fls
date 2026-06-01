@@ -309,7 +309,32 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   A real full-club bundle still hits this; needs its own seam (producer must skip
   the CLUB identity pgcopy, or `copyLegacyIdMap`/`seedClubLegacyIdMap` must
   reconcile) — file as a follow-up before J-21's real-bundle wizard.
-- [ ] **T-09 — (optional, droppable) S-189 audit tenant-backfill.** Build only if it
-  stays thin per [[feedback-vertical-slices-first]]; else defer to a follow-up story.
+- [~] **T-09 — (deferred) S-189 audit tenant-backfill.** Deferred to a follow-up per
+  [[feedback-vertical-slices-first]] — the fan-out proof (J-0b's reason to exist) is green
+  and gated; S-189 (audit-row `tenant_club_id` backfill) is an orthogonal audit-tenancy
+  concern that would only pad this journey. S-189 stays `todo` (un-rolled here).
+
+## Gate outcome (2026-06-01)
+
+**Green + honest.** Proof IT `LocationMigrationRoundTripIT` green against real Postgres
+(all ACs a/b/c + club-aware FK), the new `LocationRealProducerRoundTripIT` gates the real
+`assembleTarGz`→ingest ordering (red-first proven), J-0's clean-seed Playwright regression
+(`alpenflight proof`) green, and `@Tag("slow")` ITs run in the `alpenflight build` CI job
+(no tag filter; Docker present) — the proof is CI-enforced, not local-only.
+
+`gap-hunter` ×3 at the gate: 2 real:true/high; 1 found a real **blocker** — the real
+`BundleWriter.assembleTarGz` emitted all NDJSON before all pgcopy id-maps, so a real bundle's
+child IOP FK resolved against an empty composite map and fail-closed. Fixed in **T-10**
+(pgcopy-before-NDJSON + a real-producer round-trip IT); re-confirmed closed by a third
+gap-hunter. No mocked seams (everything ran real ingest against real Postgres).
+
+**Surfaced follow-up (NOT a J-0b blocker — for the CLUB-migration / J-21 owner):** driving
+CLUB through the real `assembleTarGz` emits a 2-column `legacy_id_map/CLUB.pgcopy` identity
+map that collides with the orchestrator's `seedClubLegacyIdMap` on `legacy_id_map_club_pkey`
+(23505) — CLUB provisions from the manifest, it doesn't fan out, so J-0b's real-producer IT
+scopes to the FAN_OUT entities. No test exercises a full real-producer bundle *including
+CLUB* end-to-end. Belongs to J-21's real-bundle wizard (either the producer skips the CLUB
+identity pgcopy, or `copyLegacyIdMap`/`seedClubLegacyIdMap` reconcile via `ON CONFLICT`).
+**File before J-21 builds.**
 
 **Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → T-10 → (T-09).
