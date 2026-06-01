@@ -3,12 +3,14 @@ package ch.alpenflight.migration.bundle.flight;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.migration.bundle.AbstractMapperContractTest;
+import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 import net.datafaker.Faker;
 import org.junit.jupiter.api.Test;
 
@@ -25,10 +27,15 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
     protected Map<String, Object> legacyRow(Faker faker) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("InOutboundPointId", randomUuidString(faker));
-        // The parent Location legacy GUID — the producer fan-out keys the
-        // parent (legacy_guid, club_id); the child carries only the parent
-        // legacy GUID here and inherits tenancy through it (no own ClubId).
+        // The parent Location legacy GUID — stays the shared legacy GUID on the
+        // wire; T-07's ForeignKeyResolver resolves it composite via club_id.
         row.put("LocationId", randomUuidString(faker));
+        // ClubId comes from the producer's per-Club fan-out: the child fans out
+        // one row per (legacy IOP, partner club) joining its parent Location's
+        // fan-out partner set. It is the child's OWN legacy club id, carried as a
+        // RESOLVER-ONLY wire field (no own column on t_inoutbound_point — tenancy
+        // is inherited via location_id).
+        row.put("ClubId", randomUuidString(faker));
         row.put("InOutboundPointName", "07N");
         row.put("IsInboundPoint", true);
         row.put("IsOutboundPoint", false);
@@ -57,23 +64,77 @@ class InOutboundPointMapperTest extends AbstractMapperContractTest<InOutboundPoi
     }
 
     @Test
-    void carriesNoOwnClubColumn() {
+    void carriesNoOwnClubColumnEvenThoughTheWireRowDoes() {
         assertThat(mapper.columns())
-                .as("Tenancy is inherited via location_id, not carried — a club_id "
-                        + "column would break the child-of-fanned-out-parent invariant")
+                .as("club_id is a RESOLVER-ONLY wire field, not a destination column — "
+                        + "t_inoutbound_point has no club_id (tenancy inherited via "
+                        + "location_id), so it must be absent from columns() while still "
+                        + "being emitted on the wire for T-07's composite FK lookup")
                 .doesNotContain("club_id")
                 .contains("location_id");
     }
 
     @Test
-    void keysTheChildUnderItsParentLocationGuid() throws Exception {
-        JsonNode emitted = invokeWriteNdjson(mapper, legacyRow(seededFaker()));
-        // legacy_guid (the child's own id, aliased to t_inoutbound_point.id by
-        // the ingest orchestrator) and location_id (the parent fan-out key)
-        // are both present, so the FK-rewrite can resolve the parent replica.
-        assertThat(emitted.has("legacy_guid")).isTrue();
-        assertThat(emitted.has("location_id")).isTrue();
-        assertThat(emitted.get("location_id").asText()).isNotBlank();
+    void emitsDerivedIdSharedParentGuidAndResolverOnlyClubForAFannedOutChild()
+            throws Exception {
+        Faker faker = seededFaker();
+        Map<String, Object> row = legacyRow(faker);
+        UUID iopId = UUID.fromString(row.get("InOutboundPointId").toString());
+        UUID locationId = UUID.fromString(row.get("LocationId").toString());
+        UUID clubId = UUID.fromString(row.get("ClubId").toString());
+
+        JsonNode emitted = invokeWriteNdjson(mapper, row);
+
+        assertThat(emitted.get("id").asText())
+                .as("fan-out child id = deriveFanOutId(IopId, ClubId) — distinct per "
+                        + "replica, mirroring the parent Location fan-out")
+                .isEqualTo(Coercions.deriveFanOutId(iopId, clubId).toString());
+        assertThat(emitted.get("legacy_guid").asText())
+                .as("legacy_guid stays the shared legacy IOP id across every replica")
+                .isEqualTo(iopId.toString());
+        assertThat(emitted.get("location_id").asText())
+                .as("location_id stays the shared legacy parent LocationId — T-07 "
+                        + "resolves it composite via the wire club_id")
+                .isEqualTo(locationId.toString());
+        assertThat(emitted.get("club_id").asText())
+                .as("club_id is the child's OWN legacy club id, carried on the wire as a "
+                        + "resolver-only field (not a destination column)")
+                .isEqualTo(clubId.toString());
+    }
+
+    @Test
+    void twoClubsSharingOneParentLocationYieldTwoChildRowsWithDistinctIds()
+            throws Exception {
+        UUID sharedIop = UUID.fromString("33333333-3333-3333-3333-333333333333");
+        UUID sharedParent = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UUID clubA = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        UUID clubB = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
+        JsonNode childA = invokeWriteNdjson(mapper, fanOutRow(sharedIop, sharedParent, clubA));
+        JsonNode childB = invokeWriteNdjson(mapper, fanOutRow(sharedIop, sharedParent, clubB));
+
+        assertThat(childA.get("legacy_guid").asText())
+                .isEqualTo(childB.get("legacy_guid").asText())
+                .isEqualTo(sharedIop.toString());
+        assertThat(childA.get("location_id").asText())
+                .as("both children point at the SAME shared legacy parent LocationId")
+                .isEqualTo(childB.get("location_id").asText())
+                .isEqualTo(sharedParent.toString());
+        assertThat(childA.get("id").asText())
+                .as("one IOP fanned out to two clubs must mint two DISTINCT ids")
+                .isNotEqualTo(childB.get("id").asText());
+        assertThat(childA.get("id").asText())
+                .isEqualTo(Coercions.deriveFanOutId(sharedIop, clubA).toString());
+        assertThat(childB.get("id").asText())
+                .isEqualTo(Coercions.deriveFanOutId(sharedIop, clubB).toString());
+    }
+
+    private Map<String, Object> fanOutRow(UUID iopId, UUID locationId, UUID clubId) {
+        Map<String, Object> row = legacyRow(seededFaker());
+        row.put("InOutboundPointId", iopId.toString());
+        row.put("LocationId", locationId.toString());
+        row.put("ClubId", clubId.toString());
+        return row;
     }
 
     @Test

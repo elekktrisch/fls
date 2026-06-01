@@ -221,14 +221,28 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
 - [x] **T-04 — LocationMapper fan-out producer.** `writeNdjson` derives `id`, emits
   `legacy_guid` + `club_id`; `MapperLegacyBindings.LOCATION` SELECT carries
   `legacy_guid`; emit the LOCATION 3-column id-map entry. *(seam: the Location producer)*
-- [ ] **T-05 — InOutboundPointMapper fan-out producer.** Child `writeNdjson` emits its
+- [x] **T-05 — InOutboundPointMapper fan-out producer.** Child `writeNdjson` emits its
   own `club_id` + per-club fan-out; `MapperLegacyBindings` IOP SELECT joins the same
   fan-out partner set. *(seam: the child producer)*
+  **→ T-06/T-08 carry-forward (found during T-05):** `t_inoutbound_point` has **no
+  `legacy_guid` column** (V3:608-623; T-02 only added it to `t_location`). IOP is in
+  `FAN_OUT`, so T-06's de-aliasing will try to emit `legacy_guid` AS a destination column
+  on `t_inoutbound_point` and fail at INSERT. T-06 must either (a) add a Flyway
+  `t_inoutbound_point.legacy_guid` column (mirror V23; the child needs no composite
+  identity UNIQUE — it's a leaf, nothing resolves TO it; the distinct minted `id` alone
+  prevents the PK collision), or (b) special-case the child so `legacy_guid` is dropped
+  and only the minted `id` lands. Also the T-01 IT helper `inoutboundPointNdjson`
+  (`LocationMigrationRoundTripIT:393-410`) emits **no `id` field** (it still relies on the
+  `legacy_guid → id` alias) — T-08 must add `id = deriveFanOutId(IopId, ClubId)` to that
+  helper to match the producer now that the child mints a distinct id. No wire-only
+  `club_id` test-weakening was needed — the shared contract test only enforces
+  `columns() ⊆ wire`, never the reverse.
 - [ ] **T-06 — Ingest fan-out keying.** `EntityStreamIngestor`: `destinationColumnNames`
   de-alias (emit both `legacy_guid` + `id` for fan-out entities); composite
   `(legacy_guid, club_id)` temp-table DDL in `createTemporaryIdMapTables`; 3-column
-  COPY in `copyLegacyIdMap` — all gated on the fan-out flag. *(seam: ingest side; deps
-  T-02, T-03)*
+  COPY in `copyLegacyIdMap` — all gated on the fan-out flag. **Resolve the
+  `t_inoutbound_point.legacy_guid` gap flagged under T-05 (add column or special-case
+  the child).** *(seam: ingest side; deps T-02, T-03)*
 - [ ] **T-07 — Club-aware FK resolution.** `ForeignKeyResolver.rewriteForeignKeys` +
   `lookupOrNull`: composite `(legacy_guid, club_id)` branch for fan-out targets, reading
   the referencer row's own `club_id`; fail-closed on a composite miss. *(seam:

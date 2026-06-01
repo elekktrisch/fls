@@ -42,9 +42,14 @@ class MapperLegacyBindingsTest {
             "IsFastEntryRecord", "CreatedOn", "CreatedByUserId", "ModifiedOn",
             "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
 
-    /** Every legacy ResultSet column {@code InOutboundPointMapper.writeNdjson} reads. */
+    /**
+     * Every legacy ResultSet column {@code InOutboundPointMapper.writeNdjson}
+     * reads. {@code ClubId} is the child's own fan-out partner club (the child
+     * fans out across its parent Location's partner set, exactly like LOCATION) —
+     * no base-table column, projected via the SELECT's join, aliased on the cursor.
+     */
     private static final List<String> INOUTBOUND_POINT_LEGACY_COLUMNS = List.of(
-            "InOutboundPointId", "LocationId", "InOutboundPointName",
+            "InOutboundPointId", "LocationId", "ClubId", "InOutboundPointName",
             "IsInboundPoint", "IsOutboundPoint", "CreatedOn", "CreatedByUserId",
             "ModifiedOn", "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
 
@@ -107,6 +112,26 @@ class MapperLegacyBindingsTest {
                             + "must project it", legacyColumn)
                     .contains(legacyColumn);
         }
+    }
+
+    @Test
+    void inOutboundPointSelectFansOutOverTheSameParentPartnerSetAsLocation() {
+        String iop = MapperLegacyBindings.selectForProducer(EntityType.INOUTBOUND_POINT)
+                .toUpperCase();
+        // The child fans out one row per (legacy IOP, partner club), joining its
+        // parent Location's fan-out partner set — the SAME union the LOCATION
+        // binding uses — and aliasing the partner Club id AS ClubId so the child
+        // carries its OWN legacy club on the wire (resolver-only) for T-07's
+        // composite (location_id, club_id) FK lookup.
+        assertThat(iop)
+                .as("child must alias its own fan-out partner Club AS ClubId")
+                .contains("AS CLUBID");
+        assertThat(iop)
+                .as("child fan-out joins the parent Location partner set "
+                        + "(Clubs.HomebaseId + Flights start/landing via OwnerId)")
+                .contains("HOMEBASEID")
+                .contains("STARTLOCATIONID")
+                .contains("LDGLOCATIONID");
     }
 
     @Test
