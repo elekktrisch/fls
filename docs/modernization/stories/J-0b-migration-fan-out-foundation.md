@@ -270,7 +270,7 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   provisioning-seeded `t_flight_type` + `t_member_state` before `t_club` (mirrors
   `MigrationBundleParityRoundTripIT.cleanup`). Real-Postgres run: 1 test, 0 failures,
   0 errors (ACs a/b/c + club-aware FK all asserted in the one method).
-- [ ] **T-10 — Fix real-producer tar ordering + gate it (gap-hunter blocker).**
+- [x] **T-10 — Fix real-producer tar ordering + gate it (gap-hunter blocker).**
   `gap-hunter` (2026-06-01, PR #198 gate) proved the green was producer-ordering-blind:
   `BundleWriter.assembleTarGz` (`migration-tool`, lines ~203-208) writes **all** NDJSON
   entries first, then **all** `legacy_id_map/*.pgcopy` entries — so on a REAL bundle
@@ -288,7 +288,28 @@ directly to `integration/J-0b`. Sized per the do-ship gate.
   hand-ordered `MigrationBundleTestFactory`) through the real ingest and asserts the child
   IOP resolves to its own club's replica — so the ordering can't silently regress.
   *(seam: BundleWriter ordering + one real-producer IT; deps T-04..T-08)*
+  **→ Done.** `assembleTarGz` now emits all FULL_PORT `legacy_id_map/*.pgcopy`
+  entries BEFORE the entity NDJSON (swapped the two loops; `manifest.json` still
+  first), so the composite `legacy_id_map_location` is populated before the child
+  IOP's club-aware FK resolve runs. Gate: new `LocationRealProducerRoundTripIT`
+  (server `…/migrations/web/`) builds the LOCATION+INOUTBOUND_POINT slice via the
+  REAL `BundleWriter.assembleTarGz` and ingests its actual output through the real
+  server — verified RED (`BUNDLE_CROSS_TENANT_FK_LEAK`) on the pre-fix order,
+  GREEN after. Wiring: server `settings.gradle.kts` composite-includes
+  `migration-tool`; server build adds it as `testImplementation` (TEST-only, no
+  prod dep). Real-Postgres run: `LocationRealProducerRoundTripIT` 1/1, +
+  `LocationMigrationRoundTripIT` 1/1, `MigrationBundleParityRoundTripIT` 4/4,
+  `MigrationBundleIngestIT` 3/3 — 0 failures/errors.
+  **→ Surfaced (out of T-10 scope, NOT fixed):** driving CLUB through the real
+  `assembleTarGz` emits a 2-column `legacy_id_map/CLUB.pgcopy` identity map that
+  COLLIDES with the orchestrator's `seedClubLegacyIdMap` on
+  `legacy_id_map_club_pkey` (sqlstate=23505) — a second real-producer gap distinct
+  from the ordering bug. The IT sidesteps it by driving only the FAN_OUT entities
+  (clubs provision from the manifest; `legacy_id_map_club` is orchestrator-seeded).
+  A real full-club bundle still hits this; needs its own seam (producer must skip
+  the CLUB identity pgcopy, or `copyLegacyIdMap`/`seedClubLegacyIdMap` must
+  reconcile) — file as a follow-up before J-21's real-bundle wizard.
 - [ ] **T-09 — (optional, droppable) S-189 audit tenant-backfill.** Build only if it
   stays thin per [[feedback-vertical-slices-first]]; else defer to a follow-up story.
 
-**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → **T-10** → (T-09).
+**Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-05b → T-06 → T-07 → T-08 → T-10 → (T-09).
