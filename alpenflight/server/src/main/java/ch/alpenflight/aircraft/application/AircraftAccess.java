@@ -4,8 +4,7 @@ import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
-import ch.alpenflight.users.domain.User;
-import ch.alpenflight.users.domain.UserRepository;
+import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import java.util.Collection;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -46,7 +45,8 @@ import org.springframework.stereotype.Component;
  * replacement of) the managing-club gate. This is net-new behavior, not
  * legacy parity (legacy {@code BaseService.IsOwner} gated on the creating
  * club and never read the owner-person). The branch resolves the JWT
- * {@code sub} → active {@link User} → {@link User#getPersonId()} and compares.
+ * {@code sub} → active user → {@code person_id} (via the exposed
+ * {@code platform.tenancy.UserPrincipalLookup}) and compares.
  * It relies on the User→Person link being populated; for migrated admins that
  * link is null until S-052 wires it, so the predicate fails closed (null
  * person → no admit) and the caller falls back to the managing-club gate.
@@ -59,11 +59,11 @@ public class AircraftAccess {
     private static final String ROLE_FLIGHT_OPERATOR = "ROLE_FLIGHT_OPERATOR";
 
     private final AircraftRepository aircrafts;
-    private final UserRepository users;
+    private final UserPrincipalLookup principals;
 
-    public AircraftAccess(AircraftRepository aircrafts, UserRepository users) {
+    public AircraftAccess(AircraftRepository aircrafts, UserPrincipalLookup principals) {
         this.aircrafts = aircrafts;
-        this.users = users;
+        this.principals = principals;
     }
 
     /**
@@ -171,36 +171,21 @@ public class AircraftAccess {
 
     /**
      * S-163: does the caller's linked Person match the aircraft's
-     * {@code aircraft_owner_person_id}? Resolves JWT {@code sub} (a UUID) →
-     * active {@link User} → {@link User#getPersonId()}, then compares. Returns
-     * {@code false} (fail-closed) when the owner-person is null, the sub is not
-     * a UUID, no active User binds to it, or the User carries no person link.
+     * {@code aircraft_owner_person_id}? Resolves the caller's
+     * {@code person_id} from the JWT {@code sub} via the exposed
+     * {@link UserPrincipalLookup} (raw-JDBC sub → {@code t_user.person_id}),
+     * then compares. Using the {@code platform.tenancy} lookup — rather than
+     * reaching into {@code users.domain} — keeps the cross-module dependency
+     * on an exposed type (Spring Modulith). Returns {@code false}
+     * (fail-closed) when the owner-person is null, the sub is not a UUID, no
+     * active user binds to it, or the user carries no person link.
      */
     private boolean isOwnerPerson(Jwt jwt, @Nullable UUID ownerPersonId) {
         if (ownerPersonId == null) {
             return false;
         }
-        UUID sub = parseSub(jwt.getSubject());
-        if (sub == null) {
-            return false;
-        }
-        UUID callerPersonId = users.findActiveByKeycloakSub(sub)
-                .map(User::getPersonId)
-                .orElse(null);
+        UUID callerPersonId = principals.resolvePersonIdFor(jwt).orElse(null);
         return callerPersonId != null && callerPersonId.equals(ownerPersonId);
-    }
-
-    private static @Nullable UUID parseSub(@Nullable String sub) {
-        if (sub == null || sub.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(sub);
-        } catch (IllegalArgumentException e) {
-            // Sysadmin / federated subjects aren't bare UUIDs — no User row to
-            // bind, so no owner-person admit.
-            return null;
-        }
     }
 
     private @Nullable UUID resolveCallerClubId(Jwt jwt) {

@@ -216,7 +216,7 @@ the migration proof, the real chain, and folded boyscout riders.
   `generate-gallery.mjs` parseRoadmap regex + a generator spec). *(seam: generate-gallery.mjs + spec)*
 - [x] **T-09** — Docker Hub image-pull bounded retry in the fanout + nightly workflows (boyscout).
   *(seam: .github/workflows/alpenflight-proof-fanout.yml + nightly.yml image-pull steps)*
-- [ ] **T-10** — Gate-revealed: fix the Spring Modulith boundary violation T-03 introduced.
+- [x] **T-10** — Gate-revealed: fix the Spring Modulith boundary violation T-03 introduced.
   `ApplicationModulesTest.verifyModuleStructure()` fails — `aircraft` depends on non-exposed
   `users.domain.UserRepository`/`User`. No `@NamedInterface` convention in this repo → root-package
   types are exposed, sub-packages internal. Expose a caller-person-resolution API from `users`

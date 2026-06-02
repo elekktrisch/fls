@@ -48,6 +48,8 @@ public class UserPrincipalLookup {
             + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
     private static final String SELECT_USER_ID = "SELECT id FROM t_user "
             + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
+    private static final String SELECT_PERSON_ID = "SELECT person_id FROM t_user "
+            + "WHERE keycloak_sub = ?::uuid AND deleted_on IS NULL";
 
     private final JdbcTemplate jdbc;
 
@@ -81,6 +83,40 @@ public class UserPrincipalLookup {
             return Optional.of(uuid);
         }
         return querySingleUuid(jwt, SELECT_USER_ID, "user_id");
+    }
+
+    /**
+     * Returns the linked {@code person_id} for the JWT subject's active
+     * {@code user} row, or empty when no active row matches the sub, the
+     * subject is not a UUID literal, or the matched row carries no
+     * {@code person_id} link.
+     *
+     * <p>Cross-module caller-Person resolution seam: lets feature modules
+     * (e.g. {@code aircraft}'s owner-person edit gate, S-163) resolve the
+     * caller's Person without depending on {@code users.domain} internals —
+     * the same JWT-sub → {@code t_user} raw-JDBC lookup the {@code me} module
+     * uses for its read projection. Fail-closed by construction: a null
+     * person link or an unbound sub yields empty.
+     */
+    public Optional<UUID> resolvePersonIdFor(Jwt jwt) {
+        String sub = jwt.getSubject();
+        if (sub == null || sub.isBlank()) {
+            return Optional.empty();
+        }
+        UUID parsed;
+        try {
+            parsed = UUID.fromString(sub);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+        List<UUID> matches = jdbc.queryForList(SELECT_PERSON_ID, UUID.class, parsed.toString());
+        // A matched active row with a NULL person_id yields a single null
+        // element — that's "user exists but unlinked", which is empty for our
+        // purposes (and keeps the Optional non-null).
+        if (matches.size() == 1 && matches.get(0) != null) {
+            return Optional.of(matches.get(0));
+        }
+        return Optional.empty();
     }
 
     /**
