@@ -51,11 +51,10 @@ counts (J-0c: synthetic ITs were green while three real-data fidelity bugs hid).
 Resolve `J-NNN` from arg or a `integration/J-NNN` branch. Bail if the journey
 file isn't `carved: true` ("run /do-plan J-NNN first") or not `status: todo`
 (in_progress → resume; done → refuse). Every `depends_on` journey must be `done`
-+ its PR `MERGED`. `/do-plan` already created + pushed `integration/J-NNN` (the
-carve, possibly carrying `/do-retro` riders + suite edits) — **`git fetch` +
-checkout + pull it**, don't re-create; create off the current integration line
-only if absent. Flip `status: in_progress` + `started_at`; create a GitHub
-issue (`J-NNN: <title>`) if `gh`+remote.
++ its PR `MERGED`. `/do-plan` already created + pushed `integration/J-NNN` (carve
++ any `/do-retro` riders) — **`git fetch` + checkout + pull it**, don't re-create
+(only create off the integration line if absent). Flip `status: in_progress` +
+`started_at`; create a GitHub issue (`J-NNN: <title>`) if `gh`+remote.
 
 ### 2 — Decide the task list (stay lean)
 
