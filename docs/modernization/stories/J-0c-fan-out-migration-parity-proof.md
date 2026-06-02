@@ -605,12 +605,50 @@ this over server-side provisioning resolution (option 1).
 T-15 worked (export streams all 7 entities incl. 196 countries; provisioning resolves). New
 real-data gap from T-15's fail-closed club-state map:
 
-- [ ] **T-16 — legacy ClubState `System`(0) has no new-stack destination.** A real legacy club
+- [x] **T-16 — legacy ClubState `System`(0) has no new-stack destination.** A real legacy club
   has `ClubStateId=0` (`ClubState.System`, per `FLS.Data.WebApi/Club/ClubState.cs`: System=0,
   Active=1, Inactive=3); T-15's `ClubStateMapper.v2CodeForLegacyId` maps only 1/2/3. New seed
   `t_club_state` = ACTIVE/SUSPENDED/CLOSED. Complete the full legacy-enum→new-state mapping
   (incl. 0 and 2) with a documented parity decision, extend the guard/mapping test, and audit
   the other registered lookups for the same unmapped-legacy-value class. Escalate only if
   `System(0)`’s target is genuinely ambiguous. *(seam: ClubState mapping + lookup audit)*
+  Landed (mapping completed, NOT escalated — System(0) was unambiguous). **Full
+  legacy ClubState enum (`ClubState.cs`: System=0, Active=1, Passive=2, Inactive=3) → V2 code,
+  value-bound in `ClubStateMapper.LEGACY_ID_TO_V2_CODE`:**
+  - `Active(1) → ACTIVE` (operating tenant).
+  - `Passive(2) → CLOSED` — legacy seed comment for id 2 ("Passiv club"): "Club without tenant
+    activities and no users (just information about the club)" → permanently non-operational ⇒ CLOSED.
+  - `Inactive(3) → SUSPENDED` — legacy seed comment for id 3 ("Inactive club"): "Club tenant which
+    was active before" → reactivatable dormant ⇒ SUSPENDED.
+  - **`System(0) → ACTIVE`** — the FLSTest seed's single `ClubStateId=0` club is `System-Verein`
+    / ClubKey `SystemClub` (`PRINT 'INSERT SystemClub'`), the FLS internal system tenant owning the
+    default system user (`s`) + workflow user. Seed comment "System used club (will not be shown in
+    club entities)" is a UI presentation rule, NOT lifecycle-dead. V2 has no SYSTEM lifecycle; a
+    migrated system club must stay a usable tenant (its owned users depend on it) — CLOSED/SUSPENDED
+    would break it. ACTIVE is the only defensible target, so not genuinely ambiguous → no escalation.
+  Two producer paths fixed (both consumed the partial 1/2/3 map): (1) `ManifestBuilder.resolveClubStateSeedPk`
+  (the failing chain step) now resolves id 0 → ACTIVE → seed PK; (2) `MapperLegacyBindings.CLUB_STATE`
+  SELECT dropped its `WHERE ClubStateId <> 0` filter so the System row enters the catalogue stream —
+  otherwise `legacy_id_map_club_state` would lack `legacyIntIdToUuidString(0)` and a System club's CLUB
+  NDJSON `club_state_id` FK would fail to resolve at server ingest. `v2CodeForLegacyId` now returns null
+  ONLY for a value outside the known enum (a data-corruption signal the callers fail-closed on, with a
+  clearer error). **Guard/mapping test:** `ClubStateMapperTest` flipped — was asserting id 0 THROWS, now
+  asserts every enum value 0/1/2/3 emits its V2 code + `v2CodeForLegacyId` covers all 4 (and returns null
+  for 99); contract `legacyRow` widened to include System/0. **Full-chain regression (no live MSSQL):**
+  new `LocationRealProducerRoundTripIT.real_producer_migrates_legacy_system_club_state_zero_to_active_through_chain`
+  drives a `ClubStateId=0` System club end to end through the real `BundleWriter` → server ingest,
+  asserting `t_club.club_state_id` resolves to the ACTIVE seed PK (would 500 pre-fix). **Sibling
+  unmapped-legacy-value audit (the other registered lookups):** ClubState is the ONLY registered mapper
+  doing a producer-side legacy-int → semantic-*code* translation via a hand-curated partial `Map.of` — the
+  exact class that silently produced null. The siblings differ structurally and were NOT vulnerable to the
+  same gap: LANGUAGE (`USER.language_id`), LOCATION_TYPE (`LocationTypeCupId`, the T-14 JOIN), and the unit
+  types (`elevation_unit_type_id`/`runway_length_unit_type_id`) all encode the legacy int *structurally*
+  via `Coercions.legacyIntIdToUuidString` (no value map, no producer-side null) and fail **closed** at the
+  SERVER ingest layer with named errors (`BUNDLE_LANGUAGE_NOT_SEEDED`, `legacy_int_id`-resolution miss) if a
+  value isn't seeded — they never swallow an unmapped value. COUNTRY resolves by ISO2 and already fails-closed
+  (T-15). No sibling gap to fix. **Validated:** no live MSSQL; `migration-bundle` + `migration-tool`
+  `./gradlew build` green; server `LocationRealProducerRoundTripIT` 3/3 (incl. new System case) +
+  `SeedReferenceUuidsSeedParityTest` 2/2 + `ClubStateMapperTest` 13/13, all on real Testcontainers Postgres.
+  First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-16 → re-run the full chain.

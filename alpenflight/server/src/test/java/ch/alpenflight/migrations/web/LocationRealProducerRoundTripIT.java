@@ -437,6 +437,98 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(SEED_CLUB_STATE_ACTIVE);
     }
 
+    /**
+     * J-0c T-16 regression guard — a real legacy club with {@code ClubStateId=0}
+     * ("System-Verein", the FLS internal system club) migrates cleanly. The
+     * producer maps the FULL legacy ClubState enum (System=0/Active=1/Passive=2/
+     * Inactive=3) to a V2 code; System(0) → ACTIVE (a migrated system club must
+     * stay a usable tenant — see {@code ClubStateMapper} Javadoc). This drives the
+     * id=0 row end to end through the REAL {@link BundleWriter}:
+     *
+     * <ul>
+     *   <li>the CLUB_STATE catalogue stream carries the System row
+     *       ({@code legacy_guid=legacyIntIdToUuidString(0), code='ACTIVE'}), so the
+     *       producer-derived {@code legacy_id_map/CLUB_STATE.pgcopy} contains an
+     *       entry for it (the catalogue no longer filters {@code ClubStateId <> 0});</li>
+     *   <li>the CLUB NDJSON's {@code club_state_id} is
+     *       {@code legacyIntIdToUuidString(0)} (exactly what {@code ClubMapper}
+     *       emits for a System club), resolved against that pgcopy;</li>
+     *   <li>the manifest's {@code ClubDeclaration} carries the resolved
+     *       {@code SEED_CLUB_STATE_ACTIVE} (what {@code ManifestBuilder} now
+     *       computes for legacy INT 0).</li>
+     * </ul>
+     *
+     * Pre-T-16 this 500'd: {@code v2CodeForLegacyId(0)} returned null, so the
+     * export aborted with "no V2 lifecycle-code destination". Asserts the migrated
+     * System club resolves to {@code SEED_CLUB_STATE_ACTIVE}.
+     */
+    @Test
+    void real_producer_migrates_legacy_system_club_state_zero_to_active_through_chain()
+            throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        String key = testClubKey + "S";
+        UUID systemClubStateGuid =
+                UUID.fromString(Coercions.legacyIntIdToUuidString(0));
+
+        // ManifestBuilder resolves legacy INT 0 -> code ACTIVE -> seed PK.
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "System-Verein", testClubSlug + "-s", key, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy(),
+                EntityType.CLUB, fullPortPolicy());
+
+        EntityStreamResult countryStream = ndjsonStream(EntityType.COUNTRY,
+                countryNdjson(legacyCountryId, "CH"), 1);
+        // The System(0) catalogue row — code ACTIVE, exactly what
+        // ClubStateMapper.writeNdjson now emits for ClubStateId=0.
+        EntityStreamResult clubStateStream = ndjsonStream(EntityType.CLUB_STATE,
+                clubStateNdjson(systemClubStateGuid, "ACTIVE"), 1);
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
+                clubNdjson(legacyClubId, key, "System-Verein Legacy", "Addr",
+                        systemClubStateGuid), 1);
+
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "T16 System Club Deployment",
+                List.of(club),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        Path producerTarGz = workDir.resolve("t16-system-club-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes,
+                List.of(countryStream, clubStateStream, clubStream), producerTarGz);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, Files.readAllBytes(producerTarGz));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("a legacy System club (ClubStateId=0) must ingest 200 (pre-T-16 the "
+                        + "export aborted: ClubStateId 0 had no V2 destination); body=%s",
+                        res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        UUID newClub = clubIdsByKey(deploymentId).get(key);
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT club_state_id FROM t_club WHERE id = ?::uuid", newClub.toString());
+        assertThat(UUID.fromString(row.get("club_state_id").toString()))
+                .as("legacy System club (ClubStateId=0) resolves to the ACTIVE seed PK")
+                .isEqualTo(SEED_CLUB_STATE_ACTIVE);
+    }
+
     /** NDJSON shaped exactly as {@code CountryMapper.writeNdjson}. */
     private byte[] countryNdjson(UUID legacyCountryGuid, String iso2) throws IOException {
         var row = JSON.createObjectNode();
@@ -509,6 +601,13 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     /** NDJSON shaped exactly as {@code ClubMapper.writeNdjson}. */
     private byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname, String address)
             throws IOException {
+        return clubNdjson(legacyClubId, clubKey, clubname, address,
+                LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC);
+    }
+
+    private byte[] clubNdjson(UUID legacyClubId, String clubKey, String clubname, String address,
+            UUID clubStateLegacyGuid)
+            throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyClubId.toString());
         row.put("clubname", clubname);
@@ -522,7 +621,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         row.putNull("email");
         row.putNull("web_page");
         row.putNull("contact");
-        row.put("club_state_id", LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC.toString());
+        row.put("club_state_id", clubStateLegacyGuid.toString());
         row.putNull("send_aircraft_statistic_report_to");
         row.putNull("send_planning_day_info_mail_to");
         row.putNull("send_delivery_mail_export_to");

@@ -174,7 +174,9 @@ public final class ManifestBuilder {
         if (code == null) {
             throw new ExportException(ExitCode.IO_ERROR,
                     "Club references legacy ClubStateId " + legacyClubStateId
-                            + " which has no V2 lifecycle-code destination (only 1/2/3 map).");
+                            + " which is outside the known legacy ClubState enum "
+                            + "(System=0, Active=1, Passive=2, Inactive=3) — a new value "
+                            + "needs a story-level mapping decision before it can migrate.");
         }
         UUID seedPk = SeedReferenceUuids.clubStateByCode(code);
         if (seedPk == null) {

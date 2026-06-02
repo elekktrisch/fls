@@ -28,8 +28,9 @@ class ClubStateMapperTest extends AbstractMapperContractTest<ClubStateMapper> {
     @Override
     protected Map<String, Object> legacyRow(Faker faker) {
         return Map.of(
-                "ClubStateId", faker.options().option(1, 2, 3),
-                "ClubStateName", faker.options().option("Active", "Passiv", "Inactive"));
+                "ClubStateId", faker.options().option(0, 1, 2, 3),
+                "ClubStateName",
+                faker.options().option("System", "Active", "Passiv", "Inactive"));
     }
 
     @Test
@@ -43,22 +44,34 @@ class ClubStateMapperTest extends AbstractMapperContractTest<ClubStateMapper> {
     }
 
     @Test
-    void writeNdjsonRejectsLegacyIdWithoutV2Destination() throws Exception {
+    void writeNdjsonRejectsLegacyIdOutsideTheKnownEnum() throws Exception {
         ResultSet rs = Mockito.mock(ResultSet.class);
-        Mockito.when(rs.getInt("ClubStateId")).thenReturn(0);
+        Mockito.when(rs.getInt("ClubStateId")).thenReturn(99);
         ByteArrayOutputStream sink = new ByteArrayOutputStream();
         try (JsonGenerator generator = new JsonFactory().createGenerator(sink)) {
             assertThatThrownBy(() -> mapper.writeNdjson(rs, generator))
                     .isInstanceOf(SQLException.class)
-                    .hasMessageContaining("Legacy ClubStateId 0");
+                    .hasMessageContaining("Legacy ClubStateId 99");
         }
     }
 
     @Test
-    void writeNdjsonEmitsTheV2CodeForEachKnownLegacyId() throws Exception {
+    void writeNdjsonEmitsTheV2CodeForEveryLegacyEnumValue() throws Exception {
+        // The full legacy ClubState enum (FLS.Data.WebApi/Club/ClubState.cs):
+        // System=0, Active=1, Passive=2, Inactive=3 — ALL must resolve (J-0c T-16).
+        assertEmittedCode(0, "ACTIVE"); // System club → usable tenant; see mapper Javadoc
         assertEmittedCode(1, "ACTIVE");
         assertEmittedCode(2, "CLOSED");
         assertEmittedCode(3, "SUSPENDED");
+    }
+
+    @Test
+    void v2CodeForLegacyIdCoversEveryLegacyEnumValue() {
+        assertThat(ClubStateMapper.v2CodeForLegacyId(0)).isEqualTo("ACTIVE");
+        assertThat(ClubStateMapper.v2CodeForLegacyId(1)).isEqualTo("ACTIVE");
+        assertThat(ClubStateMapper.v2CodeForLegacyId(2)).isEqualTo("CLOSED");
+        assertThat(ClubStateMapper.v2CodeForLegacyId(3)).isEqualTo("SUSPENDED");
+        assertThat(ClubStateMapper.v2CodeForLegacyId(99)).isNull();
     }
 
     private void assertEmittedCode(int legacyId, String expectedCode) throws Exception {

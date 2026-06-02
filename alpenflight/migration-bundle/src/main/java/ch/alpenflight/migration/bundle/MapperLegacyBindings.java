@@ -53,9 +53,13 @@ public final class MapperLegacyBindings {
                     ""),
             EntityType.CLUB_STATE, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
-                    // ClubStateId=0 ("System") has no V2 destination; filter
-                    // structurally per ClubStateMapper class Javadoc.
-                    "SELECT ClubStateId FROM ClubStates WHERE ClubStateId <> 0",
+                    // ALL legacy ClubStates (System=0/Active=1/Passive=2/Inactive=3)
+                    // map to a V2 code (ClubStateMapper.v2CodeForLegacyId, J-0c T-16),
+                    // so every row must enter the catalogue stream — the CLUB NDJSON's
+                    // club_state_id (= legacyIntIdToUuidString(ClubStateId)) resolves
+                    // against legacy_id_map_club_state, which is built from THIS stream.
+                    // Dropping id=0 here would leave a System club's FK unresolved.
+                    "SELECT ClubStateId FROM ClubStates",
                     "t_club_state",
                     ""),
             EntityType.CLUB, new Binding(
