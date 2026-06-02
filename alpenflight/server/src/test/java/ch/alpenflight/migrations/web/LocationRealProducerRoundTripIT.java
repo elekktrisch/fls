@@ -127,6 +127,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     private String testClubSlug;
     private UUID legacyCountryId;
     private UUID actorUserId;
+    private UUID legacyPersonId;
 
     @BeforeEach
     void seedActor() {
@@ -134,6 +135,7 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         userId = UUID.randomUUID();
         actorUserId = UUID.randomUUID();
         legacyCountryId = UUID.randomUUID();
+        legacyPersonId = UUID.randomUUID();
         String tag = userSub.toString().substring(0, 5);
         testClubKey = "RLP-" + tag;
         testClubSlug = "rlp-" + tag;
@@ -174,6 +176,10 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
                 + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)", userSub.toString());
         jdbc.update("DELETE FROM t_deployment WHERE owner_keycloak_sub = ?::uuid", userSub.toString());
         jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", userId.toString());
+        // t_person is cross-tenant (no club_id) — clean the per-test migrated
+        // person by its preserved legacy id AFTER the referencing t_user rows are
+        // gone (fk_user_person_id). FULL_PORT keeps id == legacy PersonId.
+        jdbc.update("DELETE FROM t_person WHERE id = ?::uuid", legacyPersonId.toString());
     }
 
     @Test
@@ -534,6 +540,121 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     }
 
     /**
+     * J-0c T-21 regression guard — a real migrated USER carries a non-null
+     * {@code person_id} (a passed-through legacy GUID — PERSON is FULL_PORT
+     * identity, id preserved, not remapped). Pre-T-21 PERSON had NO
+     * {@code MapperLegacyBindings} binding, so {@code Persons} was never exported,
+     * {@code t_person} stayed empty, and the USER batch INSERT 500'd with
+     * {@code violates fk_user_person_id — Key (person_id)=… is not present in
+     * table "t_person"}. The app-level FK-leak guard did NOT catch it: person_id
+     * is already a V2-style uuid (the preserved legacy GUID), so no id-map
+     * resolution was needed and it was treated as pre-resolved.
+     *
+     * <p>This drives a PERSON catalogue stream (carrying the RAW legacy Country
+     * GUID as {@code country_id}, resolved via the SYSTEM_GLOBAL COUNTRY seed
+     * map — the COUNTRY FK PersonMapper declares) + a CLUB + a USER whose
+     * {@code person_id} is that legacy PersonId, all through the REAL
+     * {@link BundleWriter}. The producer now emits a {@code PERSON.ndjson}
+     * (+ a {@code legacy_id_map/PERSON.pgcopy} identity map), so {@code t_person}
+     * is populated before the USER INSERT and {@code fk_user_person_id} resolves.
+     */
+    @Test
+    void real_producer_emits_person_so_user_person_id_fk_resolves() throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        UUID legacyUserId = UUID.randomUUID();
+        String key = testClubKey + "P";
+        UUID syntheticLanguageGuid = new UUID(0L, 1L);
+
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "T21 Club", testClubSlug + "-p", key, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy(),
+                EntityType.LANGUAGE, systemGlobalPolicy(),
+                EntityType.CLUB, fullPortPolicy(),
+                EntityType.PERSON, fullPortPolicy(),
+                EntityType.USER, fullPortPolicy());
+
+        EntityStreamResult countryStream = ndjsonStream(EntityType.COUNTRY,
+                countryNdjson(legacyCountryId, "CH"), 1);
+        EntityStreamResult clubStateStream = ndjsonStream(EntityType.CLUB_STATE,
+                clubStateNdjson(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, "ACTIVE"), 1);
+        EntityStreamResult languageStream = ndjsonStream(EntityType.LANGUAGE,
+                languageNdjson(syntheticLanguageGuid, "de"), 1);
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
+                clubNdjson(legacyClubId, key, "T21 Club Legacy", "Addr"), 1);
+        // PERSON carries the RAW legacy Country GUID — resolved via the COUNTRY
+        // seed map (the FK PersonMapper declares). FULL_PORT: id preserved.
+        EntityStreamResult personStream = ndjsonStream(EntityType.PERSON,
+                personNdjson(legacyPersonId, legacyCountryId, "Otheradmin", "Other"), 1);
+        // USER.person_id = the legacy PersonId (the non-null passed-through GUID
+        // that dangled pre-T-21).
+        EntityStreamResult userStream = ndjsonStream(EntityType.USER,
+                userNdjson(legacyUserId, legacyClubId, "t21-user",
+                        syntheticLanguageGuid, legacyPersonId), 1);
+
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "T21 Person Resolve Deployment",
+                List.of(club),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        // The REAL producer assembles the tar AND derives the FULL_PORT PERSON
+        // identity pgcopy (legacy guid -> preserved id) alongside the
+        // SYSTEM_GLOBAL seed maps — no hand-spliced legacy_id_map here.
+        Path producerTarGz = workDir.resolve("t21-person-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes,
+                List.of(countryStream, clubStateStream, languageStream, clubStream,
+                        personStream, userStream),
+                producerTarGz);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, Files.readAllBytes(producerTarGz));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("a USER with a non-null person_id must ingest 200 (pre-T-21 the "
+                        + "USER INSERT 500'd: t_person was empty because PERSON had no "
+                        + "MapperLegacyBindings binding, so fk_user_person_id dangled); "
+                        + "body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        UUID newClub = clubIdsByKey(deploymentId).get(key);
+
+        // t_person is populated (the migrated person, id == preserved legacy GUID,
+        // country_id resolved to the seed PK).
+        Map<String, Object> person = jdbc.queryForMap(
+                "SELECT id, lastname, firstname, country_id FROM t_person WHERE id = ?::uuid",
+                legacyPersonId.toString());
+        assertThat(person.get("lastname")).isEqualTo("Otheradmin");
+        assertThat(person.get("firstname")).isEqualTo("Other");
+        assertThat(UUID.fromString(person.get("country_id").toString()))
+                .as("PERSON.country_id resolved the legacy Country GUID to the seed PK "
+                        + "via the COUNTRY id-map (the FK PersonMapper declares)")
+                .isEqualTo(SEED_COUNTRY_CH);
+
+        // The USER landed and its person_id FK resolved to the migrated person.
+        Map<String, Object> userRow = jdbc.queryForMap(
+                "SELECT person_id FROM t_user WHERE club_id = ?::uuid AND username = ?",
+                newClub.toString(), "t21-user");
+        assertThat(UUID.fromString(userRow.get("person_id").toString()))
+                .as("USER.person_id resolved to the migrated t_person row")
+                .isEqualTo(legacyPersonId);
+    }
+
+    /**
      * J-0c T-16 regression guard — a real legacy club with {@code ClubStateId=0}
      * ("System-Verein", the FLS internal system club) migrates cleanly. The
      * producer maps the FULL legacy ClubState enum (System=0/Active=1/Passive=2/
@@ -787,18 +908,100 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     /** NDJSON shaped exactly as {@code UserMapper.writeNdjson} (no person FK). */
     private byte[] userNdjson(UUID legacyUserId, UUID legacyClubId, String username,
                               UUID syntheticLanguageGuid) throws IOException {
+        return userNdjson(legacyUserId, legacyClubId, username, syntheticLanguageGuid, null);
+    }
+
+    /**
+     * NDJSON shaped exactly as {@code UserMapper.writeNdjson}. When
+     * {@code legacyPersonId} is non-null it is carried verbatim as the
+     * {@code person_id} FK — a passed-through legacy GUID (PERSON is FULL_PORT
+     * identity, id preserved) the server resolves against {@code legacy_id_map_PERSON}.
+     */
+    private byte[] userNdjson(UUID legacyUserId, UUID legacyClubId, String username,
+                              UUID syntheticLanguageGuid, UUID legacyPersonId) throws IOException {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", legacyUserId.toString());
         row.put("club_id", legacyClubId.toString());
         row.put("username", username);
         row.put("friendly_name", "T20 User");
-        row.putNull("person_id");
+        if (legacyPersonId == null) {
+            row.putNull("person_id");
+        } else {
+            row.put("person_id", legacyPersonId.toString());
+        }
         row.put("notification_email", username + "@example.com");
         row.putNull("phone_number");
         row.putNull("remarks");
         row.put("language_id", syntheticLanguageGuid.toString());
         row.putNull("keycloak_sub");
         String createdInstant = Instant.parse("2021-05-01T00:00:00Z").toString();
+        row.put("created_on", createdInstant);
+        row.putNull("created_by_user_id");
+        row.put("modified_on", createdInstant);
+        row.putNull("modified_by_user_id");
+        row.putNull("deleted_on");
+        row.putNull("deleted_by_user_id");
+        return ndjsonLine(row);
+    }
+
+    /**
+     * NDJSON shaped exactly as {@code PersonMapper.writeNdjson}. Cross-tenant
+     * (no club_id); {@code country_id} carries the RAW legacy Country GUID the
+     * server resolves to the seed PK via {@code legacy_id_map_COUNTRY} (the
+     * COUNTRY FK PersonMapper declares). All {@code Has*} / boolean flags are
+     * required fields; optional strings/dates omitted via putNull.
+     */
+    private byte[] personNdjson(UUID legacyPersonId, UUID legacyCountryGuid,
+                                String lastname, String firstname) throws IOException {
+        var row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyPersonId.toString());
+        row.put("lastname", lastname);
+        row.put("firstname", firstname);
+        row.putNull("midname");
+        row.putNull("company_name");
+        row.putNull("address_line1");
+        row.putNull("address_line2");
+        row.putNull("zip");
+        row.putNull("city");
+        row.putNull("region");
+        if (legacyCountryGuid == null) {
+            row.putNull("country_id");
+        } else {
+            row.put("country_id", legacyCountryGuid.toString());
+        }
+        row.putNull("private_phone");
+        row.putNull("mobile_phone");
+        row.putNull("business_phone");
+        row.putNull("fax_number");
+        row.putNull("email_private");
+        row.putNull("email_business");
+        row.put("prefer_mail_to_business_mail", false);
+        row.putNull("birthday");
+        row.put("has_motor_pilot_licence", false);
+        row.put("has_tow_pilot_licence", false);
+        row.put("has_glider_instructor_licence", false);
+        row.put("has_glider_pilot_licence", true);
+        row.put("has_glider_trainee_licence", false);
+        row.put("has_glider_pax_licence", false);
+        row.put("has_tmg_licence", false);
+        row.put("has_winch_operator_licence", false);
+        row.put("has_motor_instructor_licence", false);
+        row.put("has_part_m_licence", false);
+        row.putNull("licence_number");
+        row.putNull("medical_class1_expire_date");
+        row.putNull("medical_class2_expire_date");
+        row.putNull("medical_lapl_expire_date");
+        row.putNull("glider_instructor_licence_expire_date");
+        row.putNull("motor_instructor_licence_expire_date");
+        row.putNull("part_m_licence_expire_date");
+        row.put("has_glider_towing_start_permission", false);
+        row.put("has_glider_self_start_permission", false);
+        row.put("has_glider_winch_start_permission", false);
+        row.putNull("spot_link");
+        row.put("receive_owned_aircraft_statistic_reports", false);
+        row.put("enable_address", false);
+        row.put("is_fast_entry_record", false);
+        String createdInstant = Instant.parse("2019-09-01T00:00:00Z").toString();
         row.put("created_on", createdInstant);
         row.putNull("created_by_user_id");
         row.put("modified_on", createdInstant);

@@ -53,6 +53,34 @@ class MapperLegacyBindingsTest {
             "IsInboundPoint", "IsOutboundPoint", "CreatedOn", "CreatedByUserId",
             "ModifiedOn", "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
 
+    /**
+     * Every legacy {@code Persons} ResultSet column {@code PersonMapper.writeNdjson}
+     * reads (J-0c T-21). {@code Persons} is cross-tenant (no {@code ClubId}); its
+     * only outgoing FK is the nullable {@code CountryId} → {@code Countries},
+     * resolved via the SYSTEM_GLOBAL COUNTRY id-map (T-15 mechanism), so the
+     * column is projected verbatim and {@code PersonMapper.foreignKeys()} declares
+     * COUNTRY. Note the British-spelled {@code LicenceNumber} (added by
+     * DBUpdate_v1.8.1) and {@code Has*Licence}/{@code Has*StartPermission} flags
+     * the later DBUpdate scripts add — the SELECT must project the names the
+     * mapper actually reads, not the v1.0 base-schema names.
+     */
+    private static final List<String> PERSON_LEGACY_COLUMNS = List.of(
+            "PersonId", "Lastname", "Firstname", "Midname", "CompanyName",
+            "AddressLine1", "AddressLine2", "Zip", "City", "Region", "CountryId",
+            "PrivatePhone", "MobilePhone", "BusinessPhone", "FaxNumber",
+            "EmailPrivate", "EmailBusiness", "PreferMailToBusinessMail", "Birthday",
+            "HasMotorPilotLicence", "HasTowPilotLicence", "HasGliderInstructorLicence",
+            "HasGliderPilotLicence", "HasGliderTraineeLicence", "HasGliderPAXLicence",
+            "HasTMGLicence", "HasWinchOperatorLicence", "HasMotorInstructorLicence",
+            "HasPartMLicence", "LicenceNumber", "MedicalClass1ExpireDate",
+            "MedicalClass2ExpireDate", "MedicalLaplExpireDate",
+            "GliderInstructorLicenceExpireDate", "MotorInstructorLicenceExpireDate",
+            "PartMLicenceExpireDate", "HasGliderTowingStartPermission",
+            "HasGliderSelfStartPermission", "HasGliderWinchStartPermission",
+            "SpotLink", "ReceiveOwnedAircraftStatisticReports", "EnableAddress",
+            "IsFastEntryRecord", "CreatedOn", "CreatedByUserId", "ModifiedOn",
+            "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
+
     @Test
     void locationIsRegistered() {
         assertThat(MapperLegacyBindings.isRegistered(EntityType.LOCATION))
@@ -160,6 +188,54 @@ class MapperLegacyBindingsTest {
                 .contains("Locations");
         assertThat(MapperLegacyBindings.selectForProducer(EntityType.INOUTBOUND_POINT))
                 .contains("InOutboundPoints");
+    }
+
+    @Test
+    void personIsRegistered() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.PERSON))
+                .as("PERSON must be bound so the producer exports t_person and "
+                        + "USER.person_id (a passed-through legacy GUID) resolves "
+                        + "against fk_user_person_id at ingest (J-0c T-21)")
+                .isTrue();
+    }
+
+    @Test
+    void personIsFullPort() {
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.PERSON))
+                .as("Person is the cross-tenant FULL_PORT aggregate root (ADR 0008)")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void personSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.PERSON);
+        for (String legacyColumn : PERSON_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("PersonMapper.writeNdjson reads %s from the ResultSet — the "
+                            + "bound SELECT must project it (else: silent NULL)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+    }
+
+    @Test
+    void personSelectTargetsTheLegacyPersonsTable() {
+        assertThat(MapperLegacyBindings.selectForProducer(EntityType.PERSON))
+                .as("base table is the legacy Persons table")
+                .contains("Persons");
+    }
+
+    @Test
+    void personHasNoConsumerInsertOnlyWriteAccessIsValidated() {
+        // PERSON is FULL_PORT, so it carries a real INSERT (unlike SYSTEM_GLOBAL
+        // entries whose consumer half is empty). Cross-tenant: t_person has NO
+        // club_id column, so the INSERT must not reference one.
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.PERSON);
+        assertThat(insert)
+                .as("PERSON FULL_PORT consumer INSERT targets t_person")
+                .contains("INSERT INTO t_person");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_person is cross-tenant — the INSERT must not bind a club_id")
+                .doesNotContain("club_id");
     }
 
     @Test

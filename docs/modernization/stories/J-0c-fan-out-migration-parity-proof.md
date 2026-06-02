@@ -838,7 +838,7 @@ INSERT INTO t_user (... person_id='f1500002-…-b1' ...) violates fk_user_person
 Detail: Key (person_id)=(f1500002-…-b1) is not present in table "t_person".
 ```
 
-- [ ] **T-21 — PERSON authored but never wired into the export bindings.** `MapperLegacyBindings`
+- [x] **T-21 — PERSON authored but never wired into the export bindings.** `MapperLegacyBindings`
   binds exactly 7 entities (COUNTRY, LANGUAGE, CLUB_STATE, CLUB, USER, LOCATION, INOUTBOUND_POINT).
   **PERSON has no `Binding`**, so `Persons` is never exported, `t_person` stays empty, and the
   migrated club-admin USER's non-null `person_id` (a passed-through legacy GUID, FULL_PORT identity —
