@@ -58,6 +58,12 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .proof video { display: block; width: 100%; height: auto; background: #000; }
 .proof figcaption { padding: .65rem .75rem; font-size: .9rem; display: flex; flex-direction: column; gap: .4rem; }
 .proof .caption { color: var(--text); }
+.proof.legacy-proof { border-color: var(--pending); }
+.legacy-label {
+  display: inline-block; align-self: flex-start; padding: .2em .65em; border-radius: 4px;
+  font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--pending-bg); color: var(--pending);
+}
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
 </head>
@@ -67,22 +73,38 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>main</code> &middot; 2026-06-01T22:24:20.317Z
+      assertion it proves. Generated on <code>integration/J-0c</code> &middot; 2026-06-02T18:54:08.116Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
     </p>
-    <p class="meta" style="margin-top:.75rem;padding:.6rem .8rem;border:2px solid #2563eb;border-radius:4px;background:#eff6ff;">
-      <strong>Per-run proof galleries</strong> (heavy chains not in the main gallery):<br>
-      &rarr; <a href="j-0c-fanout/"><strong>J-0c — fan-out migration parity</strong></a>
-      &nbsp;<em>(real legacy&rarr;migrate+Keycloak&rarr;AlpenFlight, with the legacy create video &amp; per-club AlpenFlight videos — green run 26840707863, pre-merge)</em>
-    </p>
   </header>
 
   <section>
-      <div class="journey pending-journey">
-        <h3>J-0c <span class="status pending">pending</span></h3>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+      <div class="journey">
+        <h3>J-0c <span class="status success">5 proofs</span></h3>
+        <div class="proofs">
+        <figure class="proof legacy-proof">
+          <video controls preload="metadata" src="videos/legacy-locations-fanout-J0c.webm"></video>
+          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: Location 'J0C-P35UA0' created + set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-b1e942830fa64636f9e0504d78dfb49776cccc29.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-89142469d1a28efe7f71b4faa24a98ab8661996c.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-b245c2706bc692640f7563da2943f650a0f5a710.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · edit isolation · renaming club-A’s migrated copy does not touch club-B’s copy (the two are DISTINCT fanned-out rows)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-f1da33d9a450ea4b035b973ae365d8f3b1a78695.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
+        </figure>
+        </div>
       </div>
       <div class="journey pending-journey">
         <h3>J-1 <span class="status pending">pending</span></h3>
@@ -171,23 +193,6 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
       <div class="journey pending-journey">
         <h3>J-22 <span class="status pending">pending</span></h3>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey">
-        <h3>J-0 <span class="status success">3 proofs</span></h3>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9504024d92559a084bfe9a47a674dfcca45b1c54.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-0f8f0ba603b9babc02e9f25cd0e782167d8c8e1b.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-d3377d01785fcbbd86e452308012876836a03748.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
-        </figure>
-        </div>
       </div>
   </section>
 
