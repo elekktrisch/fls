@@ -18,6 +18,7 @@ import {
   type FormGroup,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 import type {
   AircraftCreateRequest,
@@ -85,329 +86,339 @@ type AircraftForm = FormGroup<{
     AfPageComponent,
     AfPageHeaderComponent,
     AfPageErrorComponent,
+    TranslocoDirective,
   ],
   host: { class: 'block' },
   template: `
     <af-page>
-      <af-page-header [title]="isCreate() ? 'New aircraft' : 'Edit aircraft'" />
+      <ng-container *transloco="let t; read: 'aircraft'">
+        <af-page-header [title]="isCreate() ? t('edit.titleNew') : t('edit.title')" />
 
-      <af-page-error
-        [message]="store.saveError()"
-        [retryLabel]="null"
-        data-testid="aircraft-save-error"
-      />
-      <af-page-error
-        [message]="referenceData.loadError() ? 'Reference data unavailable.' : null"
-        (retry)="referenceData.loadAll()"
-        data-testid="aircraft-ref-data-error"
-      />
+        <af-page-error
+          [message]="store.saveError()"
+          [retryLabel]="null"
+          data-testid="aircraft-save-error"
+        />
+        <af-page-error
+          [message]="referenceData.loadError() ? 'Reference data unavailable.' : null"
+          (retry)="referenceData.loadAll()"
+          data-testid="aircraft-ref-data-error"
+        />
 
-      @if (!isCreate() && currentState(); as state) {
-        <div
-          class="mb-3 px-3 py-2 text-sm border border-slate-200 bg-slate-50"
-          data-testid="aircraft-current-state"
-        >
-          <span class="text-slate-500">Current state:</span>
-          <span class="ml-1 font-medium text-slate-900">{{ state.aircraftStateCode }}</span>
-          <span class="ml-2 text-slate-500">since {{ state.validFromDisplay }}</span>
-        </div>
-      }
-      @if (!isCreate() && latestCounter(); as counter) {
-        <div
-          class="mb-4 px-3 py-2 text-sm border border-slate-200 bg-slate-50 tabular"
-          data-testid="aircraft-latest-counter"
-        >
-          <span class="text-slate-500">Latest counter:</span>
-          <span class="ml-1 text-slate-900">{{ counter }}</span>
-        </div>
-      }
+        @if (!isCreate() && currentState(); as state) {
+          <div
+            class="mb-3 px-3 py-2 text-sm border border-slate-200 bg-slate-50"
+            data-testid="aircraft-current-state"
+          >
+            <span class="text-slate-500">Current state:</span>
+            <span class="ml-1 font-medium text-slate-900">{{ state.aircraftStateCode }}</span>
+            <span class="ml-2 text-slate-500">since {{ state.validFromDisplay }}</span>
+          </div>
+        }
+        @if (!isCreate() && latestCounter(); as counter) {
+          <div
+            class="mb-4 px-3 py-2 text-sm border border-slate-200 bg-slate-50 tabular"
+            data-testid="aircraft-latest-counter"
+          >
+            <span class="text-slate-500">Latest counter:</span>
+            <span class="ml-1 text-slate-900">{{ counter }}</span>
+          </div>
+        }
 
-      @if (store.isLoadingDetail() && !isCreate()) {
-        <div
-          class="mb-4 px-3 py-2 text-sm text-slate-500 border border-slate-200 bg-slate-50"
-          data-testid="aircraft-loading"
-          role="status"
-          aria-live="polite"
-        >
-          Loading aircraft…
-        </div>
-      } @else {
-        <form
-          [formGroup]="form"
-          (ngSubmit)="onSubmit()"
-          data-testid="aircraft-edit-form"
-          class="flex flex-col gap-6"
-          novalidate
-        >
-          <!-- Section 1: Master data -->
-          <section class="flex flex-col gap-2" data-testid="aircraft-section-masterdata">
-            <h2
-              class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
-            >
-              Master data
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <af-form-field
-                label="Immatriculation"
-                for="Immatriculation"
-                [required]="true"
-                [errors]="
-                  form.controls.immatriculation.touched
-                    ? form.controls.immatriculation.errors
-                    : null
-                "
+        @if (store.isLoadingDetail() && !isCreate()) {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-500 border border-slate-200 bg-slate-50"
+            data-testid="aircraft-loading"
+            role="status"
+            aria-live="polite"
+          >
+            Loading aircraft…
+          </div>
+        } @else {
+          <form
+            [formGroup]="form"
+            (ngSubmit)="onSubmit()"
+            data-testid="aircraft-edit-form"
+            class="flex flex-col gap-6"
+            novalidate
+          >
+            <!-- Section 1: Master data -->
+            <section class="flex flex-col gap-2" data-testid="aircraft-section-masterdata">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
               >
-                <af-input
-                  inputId="Immatriculation"
-                  formControlName="immatriculation"
-                  autocomplete="off"
-                  placeholder="HB-3000"
-                />
-              </af-form-field>
-              <af-form-field
-                label="Competition sign"
-                for="CompetitionSign"
-                [errors]="
-                  form.controls.competitionSign.touched
-                    ? form.controls.competitionSign.errors
-                    : null
-                "
-              >
-                <af-input
-                  inputId="CompetitionSign"
-                  formControlName="competitionSign"
-                  autocomplete="off"
-                  placeholder="A123"
-                />
-              </af-form-field>
-              <af-form-field
-                label="Type"
-                for="AircraftTypeId"
-                [required]="true"
-                [errors]="
-                  form.controls.aircraftTypeId.touched ? form.controls.aircraftTypeId.errors : null
-                "
-              >
-                <af-select
-                  inputId="AircraftTypeId"
-                  formControlName="aircraftTypeId"
-                  placeholder="Select type"
-                  [options]="typeOptions()"
-                  data-testid="aircraft-type-select"
-                />
-              </af-form-field>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <af-form-field label="Manufacturer" for="ManufacturerName">
-                <af-input
-                  inputId="ManufacturerName"
-                  formControlName="manufacturerName"
-                  autocomplete="off"
-                />
-              </af-form-field>
-              <af-form-field label="Model" for="AircraftModel">
-                <af-input
-                  inputId="AircraftModel"
-                  formControlName="aircraftModel"
-                  autocomplete="off"
-                />
-              </af-form-field>
-              <af-form-field label="Seats" for="NrOfSeats">
-                <af-input
-                  inputId="NrOfSeats"
-                  type="number"
-                  formControlName="nrOfSeats"
-                  autocomplete="off"
-                />
-              </af-form-field>
-            </div>
-          </section>
-
-          <!-- Section 2: Operational data -->
-          <section class="flex flex-col gap-2" data-testid="aircraft-section-operational">
-            <h2
-              class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
-            >
-              Operational data
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <af-form-field label="Homebase" for="HomebaseId">
-                <af-select
-                  inputId="HomebaseId"
-                  formControlName="homebaseId"
-                  placeholder="No homebase"
-                  [options]="homebaseOptions()"
-                  data-testid="aircraft-homebase-select"
-                />
-              </af-form-field>
-            </div>
-            <af-form-field
-              label="SPOT tracker link"
-              for="SpotLink"
-              [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
-            >
-              <af-input-group>
-                <af-input
-                  inputId="SpotLink"
-                  formControlName="spotLink"
-                  autocomplete="off"
-                  placeholder="https://share.findmespot.com/…"
-                />
-                <af-button
-                  htmlType="button"
-                  [disabled]="!canTestSpotLink()"
-                  (clicked)="openSpotLink()"
-                  data-testid="aircraft-spotlink-test"
+                {{ t('sections.masterdata') }}
+              </h2>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <af-form-field
+                  label="Immatriculation"
+                  for="Immatriculation"
+                  [required]="true"
+                  [errors]="
+                    form.controls.immatriculation.touched
+                      ? form.controls.immatriculation.errors
+                      : null
+                  "
                 >
-                  Test link
-                </af-button>
-              </af-input-group>
-            </af-form-field>
-            <div class="flex flex-col gap-1 mt-1">
-              <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  formControlName="isTowingAircraft"
-                  class="w-4 h-4 accent-brand-500 cursor-pointer"
-                />
-                <span>This aircraft is a towing aircraft</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  formControlName="isTowingOrWinchRequired"
-                  class="w-4 h-4 accent-brand-500 cursor-pointer"
-                />
-                <span>Towing or winch required</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  formControlName="isTowingStartAllowed"
-                  class="w-4 h-4 accent-brand-500 cursor-pointer"
-                />
-                <span>Towing start allowed</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  formControlName="isWinchStartAllowed"
-                  class="w-4 h-4 accent-brand-500 cursor-pointer"
-                />
-                <span>Winch start allowed</span>
-              </label>
-            </div>
-          </section>
-
-          <!-- Section 3: Technical data -->
-          <section class="flex flex-col gap-2" data-testid="aircraft-section-technical">
-            <h2
-              class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
-            >
-              Technical data
-            </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <af-form-field label="MTOM (kg)" for="Mtom">
-                <af-input inputId="Mtom" type="number" formControlName="mtom" autocomplete="off" />
-              </af-form-field>
-              <af-form-field label="Serial number" for="SerialNumber">
-                <af-input
-                  inputId="SerialNumber"
-                  formControlName="aircraftSerialNumber"
-                  autocomplete="off"
-                />
-              </af-form-field>
-              <af-form-field
-                label="Year of manufacture"
-                for="YearOfManufacture"
-                [errors]="
-                  form.controls.yearOfManufacture.touched
-                    ? form.controls.yearOfManufacture.errors
-                    : null
-                "
-              >
-                <af-select
-                  inputId="YearOfManufacture"
-                  formControlName="yearOfManufacture"
-                  placeholder="Select year"
-                  [options]="yearOfManufactureOptions()"
-                  data-testid="aircraft-year-select"
-                />
-              </af-form-field>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <af-form-field
-                label="FLARM ID"
-                for="FlarmId"
-                [errors]="form.controls.flarmId.touched ? form.controls.flarmId.errors : null"
-              >
-                <af-input
-                  inputId="FlarmId"
-                  formControlName="flarmId"
-                  autocomplete="off"
-                  placeholder="DDAABB"
-                />
-              </af-form-field>
-              <af-form-field label="DAEC index" for="DaecIndex">
-                <af-input
-                  inputId="DaecIndex"
-                  type="number"
-                  formControlName="daecIndex"
-                  autocomplete="off"
-                />
-              </af-form-field>
-              <af-form-field label="Noise class" for="NoiseClass">
-                <af-input
-                  inputId="NoiseClass"
-                  formControlName="noiseClass"
-                  autocomplete="off"
-                  placeholder="A"
-                />
-              </af-form-field>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <af-form-field label="Noise level (dB)" for="NoiseLevel">
-                <af-input
-                  inputId="NoiseLevel"
-                  type="number"
-                  formControlName="noiseLevel"
-                  autocomplete="off"
-                />
-              </af-form-field>
-              @if (selectedTypeHasEngine()) {
-                <af-form-field label="Engine counter unit" for="EngineCounterUnitTypeId">
-                  <af-select
-                    inputId="EngineCounterUnitTypeId"
-                    formControlName="engineOperatingCounterUnitTypeId"
-                    placeholder="Select unit"
-                    [options]="counterUnitTypeOptions()"
-                    data-testid="aircraft-engine-counter-unit-select"
+                  <af-input
+                    inputId="Immatriculation"
+                    formControlName="immatriculation"
+                    autocomplete="off"
+                    placeholder="HB-3000"
                   />
                 </af-form-field>
+                <af-form-field
+                  label="Competition sign"
+                  for="CompetitionSign"
+                  [errors]="
+                    form.controls.competitionSign.touched
+                      ? form.controls.competitionSign.errors
+                      : null
+                  "
+                >
+                  <af-input
+                    inputId="CompetitionSign"
+                    formControlName="competitionSign"
+                    autocomplete="off"
+                    placeholder="A123"
+                  />
+                </af-form-field>
+                <af-form-field
+                  label="Type"
+                  for="AircraftTypeId"
+                  [required]="true"
+                  [errors]="
+                    form.controls.aircraftTypeId.touched
+                      ? form.controls.aircraftTypeId.errors
+                      : null
+                  "
+                >
+                  <af-select
+                    inputId="AircraftTypeId"
+                    formControlName="aircraftTypeId"
+                    placeholder="Select type"
+                    [options]="typeOptions()"
+                    data-testid="aircraft-type-select"
+                  />
+                </af-form-field>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <af-form-field label="Manufacturer" for="ManufacturerName">
+                  <af-input
+                    inputId="ManufacturerName"
+                    formControlName="manufacturerName"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+                <af-form-field label="Model" for="AircraftModel">
+                  <af-input
+                    inputId="AircraftModel"
+                    formControlName="aircraftModel"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+                <af-form-field label="Seats" for="NrOfSeats">
+                  <af-input
+                    inputId="NrOfSeats"
+                    type="number"
+                    formControlName="nrOfSeats"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+              </div>
+            </section>
+
+            <!-- Section 2: Operational data -->
+            <section class="flex flex-col gap-2" data-testid="aircraft-section-operational">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
+              >
+                {{ t('sections.operational') }}
+              </h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <af-form-field label="Homebase" for="HomebaseId">
+                  <af-select
+                    inputId="HomebaseId"
+                    formControlName="homebaseId"
+                    placeholder="No homebase"
+                    [options]="homebaseOptions()"
+                    data-testid="aircraft-homebase-select"
+                  />
+                </af-form-field>
+              </div>
+              <af-form-field
+                label="SPOT tracker link"
+                for="SpotLink"
+                [errors]="form.controls.spotLink.touched ? form.controls.spotLink.errors : null"
+              >
+                <af-input-group>
+                  <af-input
+                    inputId="SpotLink"
+                    formControlName="spotLink"
+                    autocomplete="off"
+                    placeholder="https://share.findmespot.com/…"
+                  />
+                  <af-button
+                    htmlType="button"
+                    [disabled]="!canTestSpotLink()"
+                    (clicked)="openSpotLink()"
+                    data-testid="aircraft-spotlink-test"
+                  >
+                    Test link
+                  </af-button>
+                </af-input-group>
+              </af-form-field>
+              <div class="flex flex-col gap-1 mt-1">
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    formControlName="isTowingAircraft"
+                    class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  />
+                  <span>This aircraft is a towing aircraft</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    formControlName="isTowingOrWinchRequired"
+                    class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  />
+                  <span>Towing or winch required</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    formControlName="isTowingStartAllowed"
+                    class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  />
+                  <span>Towing start allowed</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    formControlName="isWinchStartAllowed"
+                    class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  />
+                  <span>Winch start allowed</span>
+                </label>
+              </div>
+            </section>
+
+            <!-- Section 3: Technical data -->
+            <section class="flex flex-col gap-2" data-testid="aircraft-section-technical">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
+              >
+                {{ t('sections.technical') }}
+              </h2>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <af-form-field label="MTOM (kg)" for="Mtom">
+                  <af-input
+                    inputId="Mtom"
+                    type="number"
+                    formControlName="mtom"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+                <af-form-field label="Serial number" for="SerialNumber">
+                  <af-input
+                    inputId="SerialNumber"
+                    formControlName="aircraftSerialNumber"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+                <af-form-field
+                  label="Year of manufacture"
+                  for="YearOfManufacture"
+                  [errors]="
+                    form.controls.yearOfManufacture.touched
+                      ? form.controls.yearOfManufacture.errors
+                      : null
+                  "
+                >
+                  <af-select
+                    inputId="YearOfManufacture"
+                    formControlName="yearOfManufacture"
+                    placeholder="Select year"
+                    [options]="yearOfManufactureOptions()"
+                    data-testid="aircraft-year-select"
+                  />
+                </af-form-field>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <af-form-field
+                  label="FLARM ID"
+                  for="FlarmId"
+                  [errors]="form.controls.flarmId.touched ? form.controls.flarmId.errors : null"
+                >
+                  <af-input
+                    inputId="FlarmId"
+                    formControlName="flarmId"
+                    autocomplete="off"
+                    placeholder="DDAABB"
+                  />
+                </af-form-field>
+                <af-form-field label="DAEC index" for="DaecIndex">
+                  <af-input
+                    inputId="DaecIndex"
+                    type="number"
+                    formControlName="daecIndex"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+                <af-form-field label="Noise class" for="NoiseClass">
+                  <af-input
+                    inputId="NoiseClass"
+                    formControlName="noiseClass"
+                    autocomplete="off"
+                    placeholder="A"
+                  />
+                </af-form-field>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <af-form-field label="Noise level (dB)" for="NoiseLevel">
+                  <af-input
+                    inputId="NoiseLevel"
+                    type="number"
+                    formControlName="noiseLevel"
+                    autocomplete="off"
+                  />
+                </af-form-field>
+                @if (selectedTypeHasEngine()) {
+                  <af-form-field label="Engine counter unit" for="EngineCounterUnitTypeId">
+                    <af-select
+                      inputId="EngineCounterUnitTypeId"
+                      formControlName="engineOperatingCounterUnitTypeId"
+                      placeholder="Select unit"
+                      [options]="counterUnitTypeOptions()"
+                      data-testid="aircraft-engine-counter-unit-select"
+                    />
+                  </af-form-field>
+                }
+              </div>
+              <af-form-field label="Comment" for="Comment">
+                <af-input inputId="Comment" formControlName="comment" autocomplete="off" />
+              </af-form-field>
+            </section>
+
+            <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
+              <af-button htmlType="button" (clicked)="router.navigateByUrl('/aircraft')">
+                Cancel
+              </af-button>
+              @if (canMutate()) {
+                <af-button
+                  type="primary"
+                  htmlType="submit"
+                  [disabled]="form.invalid || saveSubmitted()"
+                  data-testid="aircraft-save-button"
+                >
+                  Save
+                </af-button>
               }
             </div>
-            <af-form-field label="Comment" for="Comment">
-              <af-input inputId="Comment" formControlName="comment" autocomplete="off" />
-            </af-form-field>
-          </section>
-
-          <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
-            <af-button htmlType="button" (clicked)="router.navigateByUrl('/aircraft')">
-              Cancel
-            </af-button>
-            @if (canMutate()) {
-              <af-button
-                type="primary"
-                htmlType="submit"
-                [disabled]="form.invalid || saveSubmitted()"
-                data-testid="aircraft-save-button"
-              >
-                Save
-              </af-button>
-            }
-          </div>
-        </form>
-      }
+          </form>
+        }
+      </ng-container>
     </af-page>
   `,
 })

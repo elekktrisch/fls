@@ -1,6 +1,48 @@
 import type { Translations } from './de';
 
 const en: Translations = {
+  aircraft: {
+    blastRadiusBanner: 'Club master data — changes affect only your club.',
+    deleteConfirm: 'Delete aircraft "{{immatriculation}}"? This cannot be undone.',
+    edit: {
+      title: 'Edit aircraft',
+      titleNew: 'New aircraft',
+    },
+    errors: {
+      immatriculationDuplicate: 'Immatriculation is already in use.',
+    },
+    fields: {
+      comment: 'Comment',
+      competitionSign: 'Competition sign',
+      daecIndex: 'DAEC index',
+      flarmId: 'FLARM ID',
+      homebase: 'Homebase',
+      immatriculation: 'Immatriculation',
+      manufacturer: 'Manufacturer',
+      model: 'Model',
+      mtom: 'MTOM (kg)',
+      noiseClass: 'Noise class',
+      noiseLevel: 'Noise level (dB)',
+      seats: 'Seats',
+      serialNumber: 'Serial number',
+      spotLink: 'SPOT tracker link',
+      type: 'Type',
+      yearOfManufacture: 'Year of manufacture',
+    },
+    list: {
+      readonlyBanner: 'Read-only. Your club’s aircraft are managed by your club administrator.',
+      typeFilter: {
+        label: 'Filter by type',
+      },
+    },
+    new: 'New aircraft',
+    sections: {
+      masterdata: 'Master data',
+      operational: 'Operational data',
+      technical: 'Technical data',
+    },
+    title: 'Aircraft',
+  },
   landing: {
     actions: {
       requestAccess: 'Request access',

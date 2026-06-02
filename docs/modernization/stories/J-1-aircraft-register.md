@@ -125,7 +125,7 @@ Verify-wire-prove journey — backend, frontend, and all 3 migration mappers alr
 (explorers 2026-06-02); net work is the missing bindings, the two parity policies (S-163/S-164),
 the migration proof, the real chain, and folded boyscout riders.
 
-- [ ] **T-01** — Frontend `/aircrafts` align: verify the existing `features/aircraft/` screen
+- [x] **T-01** — Frontend `/aircrafts` align: verify the existing `features/aircraft/` screen
   (list+edit+store) meets the journey ACs, wire the nav entry + an `aircraft:` i18n section
   (de/en/fr/it), align `e2e/tests/masterdata/aircraft-crud.spec.ts` selectors/test-ids to the ACs
   with thin assertions. *(seam: features/aircraft + i18n + nav + mock spec)*
