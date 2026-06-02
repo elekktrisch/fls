@@ -439,6 +439,101 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
     }
 
     /**
+     * J-0c T-20 regression guard — {@code USER.language_id} is emitted as the
+     * synthetic {@code new UUID(0, LanguageId)} ({@link Coercions#legacyIntIdToUuidString}),
+     * and resolves on the NDJSON FK path through {@code legacy_id_map_LANGUAGE}.
+     * Pre-T-20 the producer emitted COUNTRY + CLUB_STATE seed id-maps but NOT
+     * LANGUAGE, so a real USER ingest 400'd with
+     * {@code BUNDLE_CROSS_TENANT_FK_LEAK: FK language_id on USER carries legacy
+     * guid 00000000-…-001 but legacy_id_map_LANGUAGE has no resolution}.
+     *
+     * <p>This drives the LANGUAGE catalogue stream ({@code legacy_guid=new
+     * UUID(0,1)}, {@code code='de'}) + a CLUB + a USER (with that synthetic
+     * {@code language_id}, no person) through the REAL {@link BundleWriter}, which
+     * now derives {@code legacy_id_map/LANGUAGE.pgcopy} (synthetic → the V2
+     * {@code t_language} seed PK, joined by code) so the server resolves
+     * {@code t_user.language_id} to {@link #SEED_LANGUAGE_DE}.
+     */
+    @Test
+    void real_producer_resolves_user_language_id_synthetic_to_seed_language_pk()
+            throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        UUID legacyUserId = UUID.randomUUID();
+        String key = testClubKey + "L";
+        // The synthetic FK exactly as UserMapper/LanguageMapper encode legacy
+        // LanguageId 1 — the unresolved GUID the pre-T-20 ingest rejected.
+        UUID syntheticLanguageGuid = new UUID(0L, 1L);
+
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "T20 Club", testClubSlug + "-l", key, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy(),
+                EntityType.LANGUAGE, systemGlobalPolicy(),
+                EntityType.CLUB, fullPortPolicy(),
+                EntityType.USER, fullPortPolicy());
+
+        EntityStreamResult countryStream = ndjsonStream(EntityType.COUNTRY,
+                countryNdjson(legacyCountryId, "CH"), 1);
+        EntityStreamResult clubStateStream = ndjsonStream(EntityType.CLUB_STATE,
+                clubStateNdjson(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, "ACTIVE"), 1);
+        // The LANGUAGE catalogue row: legacy_guid=synthetic(1), code='de' — exactly
+        // what LanguageMapper.writeNdjson emits for legacy Languages row (1,'DE').
+        EntityStreamResult languageStream = ndjsonStream(EntityType.LANGUAGE,
+                languageNdjson(syntheticLanguageGuid, "de"), 1);
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
+                clubNdjson(legacyClubId, key, "T20 Club Legacy", "Addr"), 1);
+        EntityStreamResult userStream = ndjsonStream(EntityType.USER,
+                userNdjson(legacyUserId, legacyClubId, "t20-user", syntheticLanguageGuid), 1);
+
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "T20 Language Resolve Deployment",
+                List.of(club),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        // The REAL producer assembles the tar AND derives the LANGUAGE seed id-map
+        // (alongside COUNTRY/CLUB_STATE) from the catalogue NDJSON — no hand-spliced
+        // legacy_id_map/LANGUAGE.pgcopy here.
+        Path producerTarGz = workDir.resolve("t20-language-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes,
+                List.of(countryStream, clubStateStream, languageStream, clubStream, userStream),
+                producerTarGz);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, Files.readAllBytes(producerTarGz));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("a USER whose language_id is the synthetic new UUID(0,LanguageId) must "
+                        + "ingest 200 (pre-T-20 this 400'd BUNDLE_CROSS_TENANT_FK_LEAK: "
+                        + "legacy_id_map_LANGUAGE had no resolution); body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        UUID newClub = clubIdsByKey(deploymentId).get(key);
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT language_id FROM t_user WHERE club_id = ?::uuid AND username = ?",
+                newClub.toString(), "t20-user");
+        assertThat(UUID.fromString(row.get("language_id").toString()))
+                .as("USER.language_id resolved the synthetic legacy LanguageId to the "
+                        + "new-stack t_language seed PK (de)")
+                .isEqualTo(SEED_LANGUAGE_DE);
+    }
+
+    /**
      * J-0c T-16 regression guard — a real legacy club with {@code ClubStateId=0}
      * ("System-Verein", the FLS internal system club) migrates cleanly. The
      * producer maps the FULL legacy ClubState enum (System=0/Active=1/Passive=2/
@@ -678,6 +773,38 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         var row = JSON.createObjectNode();
         row.put("legacy_guid", syntheticLegacyGuid.toString());
         row.put("code", code);
+        return ndjsonLine(row);
+    }
+
+    /** NDJSON shaped exactly as {@code LanguageMapper.writeNdjson}. */
+    private byte[] languageNdjson(UUID syntheticLegacyGuid, String code) throws IOException {
+        var row = JSON.createObjectNode();
+        row.put("legacy_guid", syntheticLegacyGuid.toString());
+        row.put("code", code);
+        return ndjsonLine(row);
+    }
+
+    /** NDJSON shaped exactly as {@code UserMapper.writeNdjson} (no person FK). */
+    private byte[] userNdjson(UUID legacyUserId, UUID legacyClubId, String username,
+                              UUID syntheticLanguageGuid) throws IOException {
+        var row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyUserId.toString());
+        row.put("club_id", legacyClubId.toString());
+        row.put("username", username);
+        row.put("friendly_name", "T20 User");
+        row.putNull("person_id");
+        row.put("notification_email", username + "@example.com");
+        row.putNull("phone_number");
+        row.putNull("remarks");
+        row.put("language_id", syntheticLanguageGuid.toString());
+        row.putNull("keycloak_sub");
+        String createdInstant = Instant.parse("2021-05-01T00:00:00Z").toString();
+        row.put("created_on", createdInstant);
+        row.putNull("created_by_user_id");
+        row.put("modified_on", createdInstant);
+        row.putNull("modified_by_user_id");
+        row.putNull("deleted_on");
+        row.putNull("deleted_by_user_id");
         return ndjsonLine(row);
     }
 

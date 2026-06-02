@@ -271,7 +271,9 @@ public final class BundleWriter {
 
     /** SYSTEM_GLOBAL entities for which a legacy-guid -> seed-PK map is emitted. */
     private static boolean hasSeedResolver(EntityType entity) {
-        return entity == EntityType.COUNTRY || entity == EntityType.CLUB_STATE;
+        return entity == EntityType.COUNTRY
+                || entity == EntityType.CLUB_STATE
+                || entity == EntityType.LANGUAGE;
     }
 
     /** Resolve a SYSTEM_GLOBAL NDJSON row's natural key to its new-stack seed PK. */
@@ -280,6 +282,10 @@ public final class BundleWriter {
         switch (entity) {
             case COUNTRY -> seedPk = SeedReferenceUuids.countryByIso2(textOrNull(row, "iso2_code"));
             case CLUB_STATE -> seedPk = SeedReferenceUuids.clubStateByCode(textOrNull(row, "code"));
+            // LANGUAGE: USER.language_id is the synthetic new UUID(0, LanguageId)
+            // (legacy_guid here); the row's `code` is the lower-cased legacy
+            // LanguageKey, which joins to the V2 t_language seed by code (J-0c T-20).
+            case LANGUAGE -> seedPk = SeedReferenceUuids.languageByCode(textOrNull(row, "code"));
             default -> throw new ExportException(ExitCode.IO_ERROR,
                     "No seed-PK resolver wired for SYSTEM_GLOBAL entity " + entity
                             + "; add it before emitting its id-map.");
@@ -345,13 +351,12 @@ public final class BundleWriter {
                         writeIdentityPgcopy(result));
             } else if (policy == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL
                     && hasSeedResolver(entity)) {
-                // SYSTEM_GLOBAL reference entities (COUNTRY / CLUB_STATE) a
-                // FULL_PORT entity FKs against need a legacy-guid -> seed-PK map
-                // so the server's ForeignKeyResolver resolves the CLUB NDJSON's
-                // country_id / club_state_id (J-0c T-15). LANGUAGE is SYSTEM_GLOBAL
-                // too but has no seed resolver wired (no FULL_PORT FK targets it in
-                // this slice — USER.language_id is a reference-lookup, not an FK),
-                // so it is skipped until a referencing entity needs it.
+                // SYSTEM_GLOBAL reference entities (COUNTRY / CLUB_STATE / LANGUAGE)
+                // a FULL_PORT entity FKs against need a legacy-guid -> seed-PK map
+                // so the server's ForeignKeyResolver resolves the referencing
+                // NDJSON's FK: CLUB.country_id / CLUB.club_state_id (J-0c T-15) and
+                // USER.language_id (the synthetic new UUID(0, LanguageId) -> the V2
+                // t_language seed PK, joined by lower-cased LanguageKey, J-0c T-20).
                 pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
                         writeSystemGlobalSeedPgcopy(result));
             }

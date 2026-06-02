@@ -43,6 +43,10 @@ class SeedReferenceUuidsSeedParityTest {
     // ('019e2e15-2c00-7bb8-8000-000000000bb8', 'ACTIVE',    'Active'),
     private static final Pattern CLUB_STATE_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z_]+)'");
+    // ('019e2e15-2c00-77d0-8000-0000000007d0', 'de',    'Deutsch'),
+    // codes are BCP-47: lower-case base + optional region tag (e.g. de-CH).
+    private static final Pattern LANGUAGE_ROW = Pattern.compile(
+            "\\('([0-9a-fA-F-]{36})',\\s*'([a-zA-Z-]+)'");
 
     @Test
     void recomputed_country_seed_pks_equal_the_flyway_seed() throws Exception {
@@ -60,6 +64,24 @@ class SeedReferenceUuidsSeedParityTest {
             assertThat(recomputed.get(e.getKey()))
                     .as("recomputed t_country.id for ISO2 %s must equal the Flyway seed PK "
                             + "(else the producer maps Club.country_id to a wrong/nonexistent PK)",
+                            e.getKey())
+                    .isEqualTo(e.getValue());
+        }
+    }
+
+    @Test
+    void recomputed_language_seed_pks_equal_the_flyway_seed() throws Exception {
+        Map<String, UUID> seeded = parseSeed("t_language", LANGUAGE_ROW);
+        Map<String, UUID> recomputed = SeedReferenceUuids.languagesByCode();
+
+        assertThat(recomputed.keySet())
+                .as("SeedReferenceUuids must cover EXACTLY the seeded t_language code set "
+                        + "(a seed reorder/regeneration must fail this guard, J-0c T-20)")
+                .containsExactlyInAnyOrderElementsOf(seeded.keySet());
+        for (Map.Entry<String, UUID> e : seeded.entrySet()) {
+            assertThat(recomputed.get(e.getKey()))
+                    .as("recomputed t_language.id for code %s must equal the Flyway seed PK "
+                            + "(else the producer maps USER.language_id to a wrong/nonexistent PK)",
                             e.getKey())
                     .isEqualTo(e.getValue());
         }

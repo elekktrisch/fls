@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * Single source of truth for the deterministic seed UUIDs the Flyway baseline
  * {@code V2__identity_and_reference.sql} embeds for the SYSTEM_GLOBAL reference
- * tables {@code t_country} and {@code t_club_state}.
+ * tables {@code t_country}, {@code t_club_state} and {@code t_language}.
  *
  * <p><strong>Why this exists (J-0c T-15).</strong> The new stack seeds COUNTRY
  * and CLUB_STATE with a fixed, deterministic catalogue keyed by
@@ -43,6 +43,7 @@ public final class SeedReferenceUuids {
 
     /** Per-table offset locked by {@code GenerateCanonicalUuids.TABLE_OFFSETS}. */
     private static final long COUNTRY_OFFSET = 1_000L;
+    private static final long LANGUAGE_OFFSET = 2_000L;
     private static final long CLUB_STATE_OFFSET = 3_000L;
 
     /**
@@ -72,6 +73,17 @@ public final class SeedReferenceUuids {
     };
 
     /**
+     * BCP-47 language codes in the EXACT ordinal order {@code GenerateCanonicalUuids}
+     * emits them and the V2 {@code t_language} INSERT preserves. The seed PK of
+     * {@code LANGUAGE_CODES[i]} is {@code uuidV7(LANGUAGE_OFFSET + i)}. The migration
+     * producer joins a legacy {@code Languages.LanguageKey} (lower-cased) to this
+     * code — {@code t_language} carries no {@code legacy_int_id}, so the resolution
+     * is by code, not by the legacy INT.
+     */
+    private static final String[] LANGUAGE_CODES =
+            {"de", "fr", "it", "en", "rm", "de-CH", "fr-CH", "it-CH"};
+
+    /**
      * V2 lifecycle codes in the EXACT ordinal order {@code GenerateCanonicalUuids}
      * emits them and the V2 {@code t_club_state} INSERT preserves. The seed PK of
      * {@code CLUB_STATE_CODES[i]} is {@code uuidV7(CLUB_STATE_OFFSET + i)}.
@@ -83,6 +95,23 @@ public final class SeedReferenceUuids {
             indexByNaturalKey(COUNTRY_ISO2, COUNTRY_OFFSET);
     private static final Map<String, UUID> CLUB_STATE_BY_CODE =
             indexByNaturalKey(CLUB_STATE_CODES, CLUB_STATE_OFFSET);
+
+    /**
+     * {@code code -> seed PK} keyed by the EXACT V2 seed code (e.g. {@code de},
+     * {@code de-CH}) for the guard's natural-key assertion.
+     */
+    private static final Map<String, UUID> LANGUAGE_BY_CODE =
+            indexByExactKey(LANGUAGE_CODES, LANGUAGE_OFFSET);
+
+    /**
+     * {@code lower(code) -> seed PK} for the producer lookup. The migration's
+     * {@code LanguageMapper} lower-cases the legacy {@code LanguageKey} before
+     * emitting it as the NDJSON {@code code}, so the resolver matches
+     * case-insensitively (BCP-47 codes like {@code de-CH} round-trip through the
+     * lower-cased form {@code de-ch}).
+     */
+    private static final Map<String, UUID> LANGUAGE_BY_LOWER_CODE =
+            indexByLowerKey(LANGUAGE_CODES, LANGUAGE_OFFSET);
 
     private SeedReferenceUuids() {
     }
@@ -103,6 +132,15 @@ public final class SeedReferenceUuids {
         return code == null ? null : CLUB_STATE_BY_CODE.get(code.trim().toUpperCase(Locale.ROOT));
     }
 
+    /**
+     * Seed {@code t_language.id} for a BCP-47 code (matched case-insensitively
+     * against the V2 seed, since {@code LanguageMapper} lower-cases the legacy
+     * {@code LanguageKey}), or {@code null} if the code is not in the seed.
+     */
+    public static @Nullable UUID languageByCode(@Nullable String code) {
+        return code == null ? null : LANGUAGE_BY_LOWER_CODE.get(code.trim().toLowerCase(Locale.ROOT));
+    }
+
     /** Immutable {@code ISO2 -> seed PK} view (guard test asserts vs Flyway). */
     public static Map<String, UUID> countriesByIso2() {
         return Map.copyOf(COUNTRY_BY_ISO2);
@@ -113,10 +151,35 @@ public final class SeedReferenceUuids {
         return Map.copyOf(CLUB_STATE_BY_CODE);
     }
 
+    /**
+     * Immutable {@code code -> seed PK} view keyed by the EXACT V2 seed code
+     * (e.g. {@code de}, {@code de-CH}); the guard test asserts this equals the
+     * Flyway {@code t_language} seed.
+     */
+    public static Map<String, UUID> languagesByCode() {
+        return Map.copyOf(LANGUAGE_BY_CODE);
+    }
+
     private static Map<String, UUID> indexByNaturalKey(String[] keys, long offset) {
         Map<String, UUID> map = new LinkedHashMap<>(keys.length * 2);
         for (int i = 0; i < keys.length; i++) {
             map.put(keys[i].toUpperCase(Locale.ROOT), uuidV7(offset + i));
+        }
+        return map;
+    }
+
+    private static Map<String, UUID> indexByExactKey(String[] keys, long offset) {
+        Map<String, UUID> map = new LinkedHashMap<>(keys.length * 2);
+        for (int i = 0; i < keys.length; i++) {
+            map.put(keys[i], uuidV7(offset + i));
+        }
+        return map;
+    }
+
+    private static Map<String, UUID> indexByLowerKey(String[] keys, long offset) {
+        Map<String, UUID> map = new LinkedHashMap<>(keys.length * 2);
+        for (int i = 0; i < keys.length; i++) {
+            map.put(keys[i].toLowerCase(Locale.ROOT), uuidV7(offset + i));
         }
         return map;
     }

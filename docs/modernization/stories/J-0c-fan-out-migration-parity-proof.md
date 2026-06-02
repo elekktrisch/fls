@@ -816,7 +816,7 @@ T-18 worked: Keycloak provisioning fully succeeds. Ingest now runs; last data-fi
 
 T-19 worked (modified_on coalesced). Last SYSTEM_GLOBAL resolution gap:
 
-- [ ] **T-20 — LANGUAGE SYSTEM_GLOBAL id-map missing.** Ingest 400s `BUNDLE_CROSS_TENANT_FK_LEAK:
+- [x] **T-20 — LANGUAGE SYSTEM_GLOBAL id-map missing.** Ingest 400s `BUNDLE_CROSS_TENANT_FK_LEAK:
   FK language_id on USER carries legacy guid 00000000-…-001 but legacy_id_map_LANGUAGE has no
   resolution`. T-15 emitted COUNTRY + CLUB_STATE id-maps (the provisioning FKs) but **not LANGUAGE**,
   because `USER.language_id` resolves on the NDJSON path, not provisioning. Extend T-15's mechanism:
