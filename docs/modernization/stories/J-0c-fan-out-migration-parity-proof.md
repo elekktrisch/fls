@@ -565,3 +565,12 @@ parity spec); real-bundle migrate POST 500s:
   fresh uploadId/handshake per attempt (test-robustness, fold in or note).
 
 **Order:** T-15 → re-run the full chain.
+
+**T-15 DECISION (operator, 2026-06-02): Option 2 — producer recomputes seed UUIDs (ISO-keyed map).**
+The export resolves CLUB.countryId (legacy GUID→seed PK by ISO2) + clubStateId (synthetic int→seed
+by code) by replicating the deterministic seed-UUID derivation, so the manifest carries resolved
+seed PKs (provisioning inserts valid FKs) + the bundle emits COUNTRY/CLUB_STATE id-maps for the
+NDJSON FK path. **Brittleness mitigation (required, since the producer now couples to the seed):**
+a guard test asserts the recomputed iso2/code→UUID map equals the actual Flyway t_country/
+t_club_state seed — a seed reorder fails CI loudly, never silently breaks migration. Operator chose
+this over server-side provisioning resolution (option 1).
