@@ -370,7 +370,22 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
     }
 
-    /** Minimal projection over Keycloak's {id, name, ...} shape. */
+    /**
+     * Minimal projection over Keycloak's {id, name, ...} shape.
+     *
+     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} is load-bearing:
+     * the injected Spring {@code ObjectMapper} runs with
+     * {@code spring.jackson.deserialization.fail-on-unknown-properties: true}
+     * (strict DTO boundary, see application.yml). Keycloak's real responses
+     * are verbose — a {@code RoleRepresentation} from {@code GET /roles/{name}}
+     * carries {@code composite}, {@code clientRole}, {@code containerId},
+     * {@code attributes}; a {@code UserRepresentation} / {@code GroupRepresentation}
+     * carry many more. Without per-record opt-out, the very first such body
+     * blows up as {@code UnrecognizedPropertyException} and the adapter
+     * mislabels it "malformed JSON". Pin tolerance on the projection so the
+     * directory contract is independent of the global wire-boundary policy.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     record KeycloakNamedRef(@Nullable UUID id, @Nullable String name) {}
 
     /**

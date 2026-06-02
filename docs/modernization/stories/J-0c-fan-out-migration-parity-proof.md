@@ -721,7 +721,7 @@ which fails:
 
 T-17 worked: backend reaches Keycloak (localhost:8090). T-02's adapter now meets real Keycloak:
 
-- [ ] **T-18 — KeycloakDeploymentDirectoryAdapter response handling vs real Keycloak.** Ingest 500s:
+- [x] **T-18 — KeycloakDeploymentDirectoryAdapter response handling vs real Keycloak.** Ingest 500s:
   `KeycloakProvisioningException: malformed JSON object from directory`. The admin client connects
   but mis-parses a Keycloak response in `provisionClubAdminIdentity` — likely a client-credentials
   token/secret mismatch returning an error body, or a response-shape assumption (create-user 201
@@ -731,5 +731,33 @@ T-17 worked: backend reaches Keycloak (localhost:8090). T-02's adapter now meets
   imported realm matches T-17's `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`. *(seam: KeycloakDeploymentDirectoryAdapter)*
   Note: a real Docker-Hub mailpit-pull timeout flaked one run (re-run cleared) — harden image pulls
   with retry as a /do-retro follow-up (nightly will hit it).
+
+  **Done (run 26799888533 logs, not a guess).** NOT auth/secret/role — the realm export is correct:
+  `CLUB_ADMINISTRATOR` realm role exists, `alpenflight-backend-admin` secret == T-17's
+  `alpenflight-backend-admin-dev-secret`, service account has `manage-users`/`manage-realm`/
+  `manage-groups`/`view-realm`. The client-credentials grant AND the create-user call both
+  SUCCEEDED (user-create uses the 201-empty-body + `Location` header → `uuidFromLocation`, no JSON
+  parse; no transport failure logged). The 500 was the *next* call: backend stacktrace pins it to
+  `provisionClubAdminIdentity:211` → `findRealmRoleIdByName:306` → `readNamed:343`, i.e.
+  `GET /admin/realms/alpenflight/roles/CLUB_ADMINISTRATOR`. Keycloak 26 returns that as **200 with a
+  full `RoleRepresentation`** (`composite`, `clientRole`, `containerId`, `description`, `attributes`,
+  …). The adapter is handed Spring Boot's auto-configured `ObjectMapper`, which runs with
+  `spring.jackson.deserialization.fail-on-unknown-properties: true` (application.yml:43, strict DTO
+  boundary). The `{id, name}` projection record `KeycloakNamedRef` then threw
+  `UnrecognizedPropertyException` on `composite`, caught + rethrown as "malformed JSON object". (The
+  server ITs never caught this: `MockKeycloakDirectoryConfig` `@Primary`-mocks the whole directory
+  port, bypassing the real adapter.)
+  **Fix:** pinned `@JsonIgnoreProperties(ignoreUnknown = true)` on `KeycloakNamedRef`
+  (`KeycloakDeploymentDirectoryAdapter.java:388`) so the projection tolerates Keycloak's verbose
+  representations independent of the global strict wire policy — the same pattern already used in
+  `BundleManifest`. This also protects the sibling list-parses (`findUserIdByUsername`,
+  `addUserToGroupIfAbsent`, `assignRoleIfAbsent`) whose `UserRepresentation`/`GroupRepresentation`
+  arrays would have hit the identical wall on later hops.
+  **Validation (no live Keycloak on this box):** added
+  `KeycloakNamedRefDeserializationTest` (adapter package) driving a mapper configured with the two
+  production flags (`FAIL_ON_UNKNOWN_PROPERTIES` on, `ACCEPT_CASE_INSENSITIVE_PROPERTIES` off)
+  against verbatim Keycloak 26 role-object + user-array + group-array bodies. Confirmed the test
+  reproduces the exact prod exception when the annotation is removed (red) and goes green with it.
+  Server module + test build green. First live green is the next manager-triggered chain run.
 
 **Order:** T-18 → re-run the full chain.
