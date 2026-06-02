@@ -2,11 +2,12 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-06-02
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
-rolls_up: [S-161, S-162, S-163, S-164]
+rolls_up: [S-161, S-163, S-164]  # S-162 descoped at ship time (no legacy parity — own admin journey; see Parity decisions)
 acceptance:
   - Club admin opens /aircrafts and sees their club's aircraft, sorted by immatriculation, showing immatriculation + competition sign + aircraft type. [happy]
   - Add a new aircraft via the form (immatriculation, type, manufacturer/model, seats, club-vs-private owner, owner club/person, homebase, spot link); it appears in the list. [happy]
@@ -86,6 +87,77 @@ DELETE/{id}, POST `/{id}/transfer-ownership`) + `AircraftAccess`:
   Playwright spec stub · spec thicken (real parity assertions) · each boyscout rider above.
 - **Migration shape:** Aircraft fans out per-club like Location (J-0b infra); the migrated
   admin must own the migrated aircraft's managing club to pass the edit-isolation assertion.
+
+## Parity decisions (ship-time, from legacy-oracle + operator 2026-06-02)
+
+The four flagged questions, resolved against legacy (`flsserver` `AircraftService`/`BaseService`)
++ operator adjudication:
+
+- **S-161 (cross-club read visibility) — PARITY-CONFIRMED, asserted.** Legacy has **no ClubId
+  filter on any aircraft read** (`AircraftService.cs` GetAircrafts* — unlike FlightService).
+  Aircraft are globally readable; charter/cross-club aircraft show read-only in a using club's
+  list (`CanUpdateRecord=false`). New code matches (cross-tenant `AircraftRepository`, S-058
+  reversion of S-159). Spec asserts list shows other-club aircraft, edit/delete gated per-row.
+- **S-162 (sysadmin variant) — DESCOPED (operator).** No legacy sysadmin endpoint / no
+  `managingClubId` param anywhere in legacy `AircraftsController`; a pure sysadmin gets no edit
+  rights in legacy. No parity to assert. Removed from `rolls_up`; **note for /do-plan** to carve
+  a dedicated admin journey later.
+- **S-163 (owner-person edit) — BUILD NOW (operator).** Oracle finding: legacy `IsOwner`
+  (`BaseService.cs:73-86`) gates on the **creating club** (`OwnerId`/`OwnershipType`) and never
+  reads `AircraftOwnerPersonId`, so admitting the owner-person is **net-new**, not parity. Operator
+  chose to build it this journey anyway (T-03). Needs caller-Person resolution (legacy had none;
+  S-052 User→Person is not yet built) — **T-03 investigates the JWT→Person link and escalates if
+  it's a hard blocker**. The `AircraftAccess:37` comment flips from "intentionally NOT" to admitting
+  owner-person.
+- **S-164 (latestCounter redaction) — BUILD NOW (AC line 16).** Net-new policy (legacy never
+  redacted the separate counter). T-02 adds caller-aware redaction in `AircraftMapper.toDetail`
+  (present for managing-club caller, null otherwise).
+
+**Parity exclusion (recorded, not built here):** `AircraftMapper` derives `managing_club_id` from
+legacy **`AircraftOwnerClubId`**, but legacy's *edit gate* used **`OwnerId`** (creating club) —
+these differ only when an aircraft's form owner-club ≠ its creating club. Does **not** affect J-1's
+ACs (real-data AC is read/render; edit-isolation AC is clean-seed where we control the value).
+**Flag for /do-plan** to weigh `OwnerId`-fidelity when carving J-21 (full migration) / J-2 (flights→aircraft).
+
+## Tasks
+
+Verify-wire-prove journey — backend, frontend, and all 3 migration mappers already exist
+(explorers 2026-06-02); net work is the missing bindings, the two parity policies (S-163/S-164),
+the migration proof, the real chain, and folded boyscout riders.
+
+- [ ] **T-01** — Frontend `/aircrafts` align: verify the existing `features/aircraft/` screen
+  (list+edit+store) meets the journey ACs, wire the nav entry + an `aircraft:` i18n section
+  (de/en/fr/it), align `e2e/tests/masterdata/aircraft-crud.spec.ts` selectors/test-ids to the ACs
+  with thin assertions. *(seam: features/aircraft + i18n + nav + mock spec)*
+- [ ] **T-02** — S-164 caller-aware `latestCounter` redaction in `AircraftMapper.toDetail` (present
+  for managing-club caller, null otherwise) + `AircraftsAuthorizationIT` assertion (manager sees /
+  non-manager null). *(seam: AircraftMapper + IT)*
+- [ ] **T-03** — S-163 owner-person edit predicate: extend `AircraftAccess.canMutate` to admit the
+  caller whose Person matches `aircraft_owner_person_id`; resolve the JWT→Person link (investigate;
+  escalate if S-052 is a hard blocker), flip the `:37` comment, add `AircraftsAuthorizationIT` case.
+  *(seam: AircraftAccess + person resolution + IT)*
+- [ ] **T-04** — Register AIRCRAFT (+ AIRCRAFT_AIRCRAFT_STATE, AIRCRAFT_OPERATING_COUNTER) in
+  `MapperLegacyBindings` with the producer SELECT (managing_club_id cascade + homebase Location
+  fan-out source); flip `MapperLegacyBindingsTest.unregisteredEntityStillFailsLoudly`; add the
+  **binding-completeness guard** (boyscout: every mapper `foreignKeys()` target has a binding).
+  *(seam: MapperLegacyBindings + AircraftMapper producer + tests)*
+- [ ] **T-05** — `AircraftMigrationRoundTripIT` + `AircraftRealProducerRoundTripIT` mirroring the
+  Location IT templates (FK resolve CLUB/PERSON/LOCATION; real `BundleWriter` tar ordering).
+  *(seam: 2 migration ITs)* — deps T-04.
+- [ ] **T-06** — Migrated-admin profile completion (boyscout, blocks reaching /aircrafts):
+  `KeycloakDeploymentDirectoryAdapter.provisionClubAdminIdentity` sets firstName/lastName from the
+  legacy Person; remove the e2e `makeMigratedAdminLoginable` name fixup; reconcile the Keycloak
+  fail-closed contract doc. *(seam: KeycloakDeploymentDirectoryAdapter + e2e helper + doc)*
+- [ ] **T-07** — Aircraft parity bundle seeder (mirror `FanOutParityBundleSeeder`) + real-idp spec
+  thicken: clean-seed real chain (Keycloak login, CRUD, cross-club edit 403, owner-person edit OK,
+  S-164 redaction) + migrated-data render. *(seam: seeder + real-idp spec)* — deps T-02,T-03,T-04,T-05,T-06.
+- [ ] **T-08** — Gallery roadmap `✅ `-prefix ordering fix + generator guard (boyscout:
+  `generate-gallery.mjs` parseRoadmap regex + a generator spec). *(seam: generate-gallery.mjs + spec)*
+- [ ] **T-09** — Docker Hub image-pull bounded retry in the fanout + nightly workflows (boyscout).
+  *(seam: .github/workflows/alpenflight-proof-fanout.yml + nightly.yml image-pull steps)*
+
+Then **§4 gate** (e2e-driver): full legacy→migrate→Keycloak→Playwright chain, both fidelities,
+video retained. **§5**: prune body, flip done, post video.
 
 ## Assumptions made
 
