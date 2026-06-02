@@ -854,3 +854,32 @@ Detail: Key (person_id)=(f1500002-…-b1) is not present in table "t_person".
   PERSON binding + PersonMapper country_id resolution + round-trip IT)*
 
 **Order:** T-21 → re-run the full chain.
+
+### Gate-run round 14 (2026-06-02) → T-22
+
+**Ingest fully cleared** — T-21 (PERSON) closed the FK chain; the bundle now ingests with no
+400/500. The parity spec ran against real migrated data for the FIRST time and failed on its OWN
+assumption (`fan-out-parity-fixture.ts:355`):
+
+```
+Error: the legacy-exported bundle fans the shared Location out to exactly 2 clubs → ingest provisions 2
+Expected: 2   Received: 4
+```
+
+- [ ] **T-22 — parity fixture assumes a 2-club bundle; real FLSTest has 4 clubs.** The synth bundle
+  declared exactly 2 clubs, so `ingest.clubIds.length === 2` held and the fixture grabbed
+  `clubIds[0]`/`[1]` as clubA/clubB. The **real** legacy DB migrates all 4 clubs (FULL_PORT CLUB);
+  only 2 of them (TestClub `testclubadmin`, OtherClub `othertestadmin`) reference the shared random
+  Location via `Clubs.HomebaseId` — those are the 2 fan-out targets. `IngestResponse` exposes only
+  `clubIds: string[]` (no names), and the provisioned admin username is
+  `migrated-admin+{clubId}@migrated.alpenflight.local` (derived from clubId, **not** the legacy
+  username) — so the 2 relevant clubs can't be picked by identity. Fix the fixture to **identify the
+  fan-out targets by which tenants actually carry the random-named Location**: iterate `ingest.clubIds`,
+  log in as each migrated admin, query that tenant's locations for the random name; assert **exactly 2**
+  carry it (that IS the fan-out assertion, replacing the broken `clubIds.length===2`); set clubA/clubB
+  to those 2. Bonus: a non-referencing club (one of the other 2) becomes a real subject for the
+  cross-tenant 404 assertion. Keep the synth-mode path working (still 2 clubs total). This is e2e
+  proof-chain work — owned by e2e-driver. *(seam: fan-out-parity-fixture.ts seedFanOutParity + the
+  spec's per-club assertions)*
+
+**Order:** T-22 → re-run the full chain.
