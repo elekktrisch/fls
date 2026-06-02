@@ -187,6 +187,16 @@ jobs:
           (sudo apt-get update -qq && sudo apt-get install -y -qq mono-complete && touch /tmp/.done-mono) > /tmp/mono.log 2>&1 &
           echo "mono install PID=$!"
 
+      # The mssql service (and later the AlpenFlight-half services) attaches to
+      # the `alpenflight_shared` network, declared `external: true` in
+      # docker-compose.yml. An external network must already exist or the
+      # compose `up` fails — and the MSSQL `up` below is backgrounded, so a
+      # failure here would silently leave MSSQL down and the healthcheck wait
+      # would spin to the job timeout. Create it idempotently BEFORE any
+      # compose `up` (J-0c T-08).
+      - name: Create alpenflight_shared network
+        run: docker network inspect alpenflight_shared >/dev/null 2>&1 || docker network create alpenflight_shared --driver bridge
+
       - name: Start MSSQL (fls-e2e compose, default profile)
         run: |
           (docker compose -p fls-e2e up -d mssql && touch /tmp/.done-stack) > /tmp/stack.log 2>&1 &
@@ -306,10 +316,9 @@ jobs:
       # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
+      #    The alpenflight_shared network is created EARLIER (before "Start
+      #    MSSQL"), so it already exists by the time these services come up.
       # ========================================================================
-      - name: Create alpenflight_shared network
-        run: docker network create alpenflight_shared --driver bridge
-
       - name: Bring up alpenflight-infra (mailpit)
         run: bash alpenflight/ops/dev-up-infra.sh
 

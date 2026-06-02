@@ -326,11 +326,23 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   honest test fix is purely the shared mock (the ITs now pass with provisioning
   invoked, mirroring the real wiring), so changing the coupling is out of T-07's
   seam. Filed as a follow-up call for `/do-ship`/operator.
-- [ ] **T-08 — Fix fanout-workflow MSSQL network ordering.** The full-chain run hung at
+- [x] **T-08 — Fix fanout-workflow MSSQL network ordering.** The full-chain run hung at
   "Wait for MSSQL healthcheck" → 45-min timeout: `alpenflight_shared` is `external: true`
   and MSSQL references it, but the workflow **creates the network (step 19) AFTER starting
   MSSQL (step 5)**, so the compose `up` fails and MSSQL never starts. **Fix:** create the
   `alpenflight_shared` network BEFORE the "Start MSSQL" step (move the `docker network
   create` up). *(seam: one workflow ordering fix)*
+  Landed: moved the "Create alpenflight_shared network" step out of the AlpenFlight-half
+  section (where it ran ~30 steps too late) to immediately BEFORE "Start MSSQL (fls-e2e
+  compose, default profile)" in `.github/workflows/alpenflight-proof-fanout.yml`. Made it
+  idempotent — `docker network inspect alpenflight_shared >/dev/null 2>&1 || docker network
+  create alpenflight_shared --driver bridge` — so a second create can't fail the job. The
+  external network now exists before any compose `up` references it (MSSQL early + the
+  AlpenFlight-half services later, which already ran after this step). YAML-only ordering
+  fix; nothing else depended on the old position. STRUCTURAL-only (legacy stack can't run
+  on the authoring box): validated YAML parses (node `yaml`), the parsed `fanout-proof`
+  step list has network-create (index 2) preceding MSSQL-start (index 3) with exactly one
+  network-create step, and the create is idempotent. First LIVE green is the workflow's
+  next run (manager-triggered).
 
 **Order (rework):** T-07 (code gate) → re-run per-PR CI → T-08 (workflow) → re-run full chain.
