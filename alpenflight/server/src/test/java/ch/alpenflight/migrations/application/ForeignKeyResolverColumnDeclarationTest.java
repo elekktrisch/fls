@@ -10,6 +10,7 @@ import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.LegacyIdMapTables;
 import ch.alpenflight.migration.bundle.Mapper;
+import ch.alpenflight.migration.bundle.flight.AircraftMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -105,6 +106,60 @@ class ForeignKeyResolverColumnDeclarationTest {
         assertThat(row.get("country_id").asText()).isEqualTo(COUNTRY_NEW.toString());
     }
 
+    @Test
+    void real_aircraft_mapper_resolves_all_four_columns_including_fan_out_homebase()
+            throws SQLException {
+        // Legacy GUIDs the AIRCRAFT row carries on the wire + their resolutions.
+        UUID managingClubLegacy = UUID.randomUUID();
+        UUID managingClubNew = UUID.randomUUID();
+        UUID ownerClubLegacy = UUID.randomUUID();
+        UUID ownerClubNew = UUID.randomUUID();
+        UUID ownerPersonLegacy = UUID.randomUUID();
+        UUID ownerPersonNew = UUID.randomUUID();
+        UUID homebaseLegacy = UUID.randomUUID();
+        UUID homebaseNewForManagingClub = UUID.randomUUID();
+
+        // CLUB + PERSON resolve via the single-key id-map; LOCATION fans out, so
+        // homebase resolves via the composite (legacy_guid, club_id) lookup keyed on
+        // the aircraft's OWN managing_club_id (the declared disambiguator) — NOT the
+        // resolver's default "club_id" referencer field, which the row never carries.
+        Connection connection = stubConnection(
+                Map.of(
+                        EntityType.CLUB,
+                        Map.of(
+                                managingClubLegacy, managingClubNew,
+                                ownerClubLegacy, ownerClubNew),
+                        EntityType.PERSON, Map.of(ownerPersonLegacy, ownerPersonNew)),
+                Map.of(
+                        EntityType.LOCATION,
+                        Map.of(
+                                new CompositeKey(homebaseLegacy, managingClubNew),
+                                homebaseNewForManagingClub)));
+
+        // Wire column names (package-private constants on AircraftMapper; the
+        // mapper's own unit test asserts the constants equal these literals).
+        ObjectNode row = JSON.createObjectNode();
+        row.put("managing_club_id", managingClubLegacy.toString());
+        row.put("owner_club_id", ownerClubLegacy.toString());
+        row.put("aircraft_owner_person_id", ownerPersonLegacy.toString());
+        row.put("homebase_id", homebaseLegacy.toString());
+
+        try (ForeignKeyResolver resolver = new ForeignKeyResolver(connection, emptyManifest())) {
+            resolver.rewriteForeignKeys(new AircraftMapper(), row);
+        }
+
+        assertThat(row.get("managing_club_id").asText()).isEqualTo(managingClubNew.toString());
+        assertThat(row.get("owner_club_id").asText()).isEqualTo(ownerClubNew.toString());
+        assertThat(row.get("aircraft_owner_person_id").asText())
+                .isEqualTo(ownerPersonNew.toString());
+        // Fan-out homebase resolved against the managing_club_id disambiguator: the
+        // composite lookup is keyed on the ALREADY-RESOLVED managing club (rewritten
+        // in this same pass), proving managing_club_id is read as both a CLUB FK and
+        // the homebase replica selector.
+        assertThat(row.get("homebase_id").asText())
+                .isEqualTo(homebaseNewForManagingClub.toString());
+    }
+
     private static BundleManifest emptyManifest() {
         return new BundleManifest(1, "test", List.of(), null, Map.of(), Map.of());
     }
@@ -197,6 +252,62 @@ class ForeignKeyResolverColumnDeclarationTest {
             when(connection.prepareStatement(eq(sql))).thenReturn(ps);
         }
         return connection;
+    }
+
+    /**
+     * As {@link #stubConnection(Map)} but additionally answers the composite
+     * fan-out SQL ({@code … WHERE legacy_guid = ? AND club_id = ?}) for each
+     * supplied target — the path a {@link EntityType#fansOut()} FK (LOCATION)
+     * takes.
+     */
+    private static Connection stubConnection(
+            Map<EntityType, Map<UUID, UUID>> singleKeyMaps,
+            Map<EntityType, Map<CompositeKey, UUID>> compositeMaps)
+            throws SQLException {
+        Connection connection = stubConnection(singleKeyMaps);
+        for (var entry : compositeMaps.entrySet()) {
+            String sql = "SELECT new_uuid FROM "
+                    + LegacyIdMapTables.temporaryTableName(entry.getKey())
+                    + " WHERE legacy_guid = ? AND club_id = ?";
+            PreparedStatement ps = stubCompositeStatement(entry.getValue());
+            when(connection.prepareStatement(eq(sql))).thenReturn(ps);
+        }
+        return connection;
+    }
+
+    /** (legacy_guid, club_id) composite key for the fan-out lookup stub. */
+    private record CompositeKey(UUID legacyGuid, UUID clubId) {}
+
+    private static PreparedStatement stubCompositeStatement(Map<CompositeKey, UUID> idMap)
+            throws SQLException {
+        PreparedStatement ps = mock(PreparedStatement.class);
+        ResultSet rs = mock(ResultSet.class);
+
+        // Mutable per-execution state: bound (legacy_guid @1, club_id @2) + cursor.
+        UUID[] bound = new UUID[2];
+        boolean[] cursorConsumed = {false};
+
+        org.mockito.Mockito.doAnswer(invocation -> {
+            int index = invocation.getArgument(0);
+            if (index == 1 || index == 2) {
+                bound[index - 1] = invocation.getArgument(1);
+            }
+            return null;
+        }).when(ps).setObject(anyInt(), org.mockito.ArgumentMatchers.any());
+
+        when(ps.executeQuery()).thenAnswer(invocation -> {
+            cursorConsumed[0] = false;
+            return rs;
+        });
+        when(rs.next()).thenAnswer(invocation -> {
+            CompositeKey key = new CompositeKey(bound[0], bound[1]);
+            boolean hasRow = idMap.containsKey(key) && !cursorConsumed[0];
+            cursorConsumed[0] = true;
+            return hasRow;
+        });
+        when(rs.getObject(1, UUID.class))
+                .thenAnswer(invocation -> idMap.get(new CompositeKey(bound[0], bound[1])));
+        return ps;
     }
 
     private static PreparedStatement stubStatement(Map<UUID, UUID> idMap) throws SQLException {

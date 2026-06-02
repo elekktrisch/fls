@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.flight;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import ch.alpenflight.migration.bundle.ReferenceLookup;
@@ -152,6 +153,37 @@ public final class AircraftMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB, EntityType.PERSON, EntityType.LOCATION);
+    }
+
+    /**
+     * AIRCRAFT's FK columns are off the {@code <target>_id} convention, so each
+     * {@code (column, target)} pair is declared explicitly (S-187a / T-05b):
+     *
+     * <ul>
+     *   <li>{@code managing_club_id} + {@code owner_club_id} → CLUB — one target
+     *       reached through TWO columns, which the convention cannot express;</li>
+     *   <li>{@code aircraft_owner_person_id} → PERSON — off-convention name;</li>
+     *   <li>{@code homebase_id} → LOCATION ({@link EntityType#fansOut()}) — the
+     *       per-club replica is disambiguated by the aircraft's OWN
+     *       {@code managing_club_id}, NOT the resolver's default {@code club_id}
+     *       referencer field (which this row never carries). By declaration order
+     *       {@code managing_club_id} is rewritten to its new-stack id before
+     *       {@code homebase_id} resolves, so the composite
+     *       {@code (legacy_guid, club_id)} lookup lands on the managing club's
+     *       Location replica.</li>
+     * </ul>
+     *
+     * <p>The {@code aircraft_type_id} + counter-unit-type FKs are NOT here: they
+     * resolve through the V3 {@code legacy_int_id} reference-lookup path
+     * ({@link #referenceLookups()}), not the GUID id-map this declares.
+     */
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        return List.of(
+                new ForeignKeyColumn(MANAGING_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(OWNER_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(AIRCRAFT_OWNER_PERSON_ID, EntityType.PERSON),
+                new ForeignKeyColumn(HOMEBASE_ID, EntityType.LOCATION, MANAGING_CLUB_ID));
     }
 
     /**

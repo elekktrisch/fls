@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 
 import ch.alpenflight.migration.bundle.AbstractMapperContractTest;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
@@ -82,6 +83,25 @@ class AircraftMapperTest extends AbstractMapperContractTest<AircraftMapper> {
                         + "ride through TENANT_BYPASS_ALLOW_LIST")
                 .containsExactlyInAnyOrder(
                         EntityType.CLUB, EntityType.PERSON, EntityType.LOCATION);
+    }
+
+    @Test
+    void declaresNonCanonicalForeignKeyColumnsWithHomebaseDisambiguator() {
+        // S-187a / T-05b: AIRCRAFT's FK columns are off-convention (managing_club_id
+        // / owner_club_id both → CLUB, aircraft_owner_person_id → PERSON, homebase_id
+        // → fan-out LOCATION). The fan-out homebase resolves against the aircraft's
+        // OWN managing_club_id, not the resolver's default referencer-club field.
+        assertThat(mapper.foreignKeyColumns())
+                .as("AIRCRAFT declares each off-convention FK column → target pair; "
+                        + "homebase_id (fan-out LOCATION) disambiguates via managing_club_id")
+                .containsExactly(
+                        new ForeignKeyColumn(AircraftMapper.MANAGING_CLUB_ID, EntityType.CLUB),
+                        new ForeignKeyColumn(AircraftMapper.OWNER_CLUB_ID, EntityType.CLUB),
+                        new ForeignKeyColumn(
+                                AircraftMapper.AIRCRAFT_OWNER_PERSON_ID, EntityType.PERSON),
+                        new ForeignKeyColumn(
+                                AircraftMapper.HOMEBASE_ID, EntityType.LOCATION,
+                                AircraftMapper.MANAGING_CLUB_ID));
     }
 
     @Test

@@ -179,7 +179,7 @@ the migration proof, the real chain, and folded boyscout riders.
   target, `disambiguatorColumn` overrides the hardcoded `REFERENCER_CLUB_FIELD="club_id"` — so T-05b
   declares `new ForeignKeyColumn("homebase_id", LOCATION, "managing_club_id")` and the other three as
   the 2-arg form; no further resolver/contract change needed.
-- [ ] **T-05b** — AIRCRAFT FK column declarations + fan-out homebase disambiguator: override
+- [x] **T-05b** — AIRCRAFT FK column declarations + fan-out homebase disambiguator: override
   `foreignKeyColumns()` on `flight/AircraftMapper` (managing_club_id→CLUB, owner_club_id→CLUB,
   aircraft_owner_person_id→PERSON, homebase_id→LOCATION); make the fan-out disambiguator column
   configurable so `homebase_id` resolves via AIRCRAFT's own `managing_club_id` instead of the
