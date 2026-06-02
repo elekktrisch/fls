@@ -716,3 +716,20 @@ which fails:
   manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-17 → re-run the full chain.
+
+### Gate-run round 10 (2026-06-02) → T-18 (+ transient mailpit Docker-Hub pull flake, re-run cleared)
+
+T-17 worked: backend reaches Keycloak (localhost:8090). T-02's adapter now meets real Keycloak:
+
+- [ ] **T-18 — KeycloakDeploymentDirectoryAdapter response handling vs real Keycloak.** Ingest 500s:
+  `KeycloakProvisioningException: malformed JSON object from directory`. The admin client connects
+  but mis-parses a Keycloak response in `provisionClubAdminIdentity` — likely a client-credentials
+  token/secret mismatch returning an error body, or a response-shape assumption (create-user 201
+  empty body / Location header, role-lookup array-vs-object). Pull the run's collected keycloak +
+  backend logs (artifact / "Collect logs on failure") for the ACTUAL Keycloak HTTP response, read
+  the adapter, fix the parsing/auth. Verify the `alpenflight-backend-admin` client secret in the
+  imported realm matches T-17's `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET`. *(seam: KeycloakDeploymentDirectoryAdapter)*
+  Note: a real Docker-Hub mailpit-pull timeout flaked one run (re-run cleared) — harden image pulls
+  with retry as a /do-retro follow-up (nightly will hit it).
+
+**Order:** T-18 → re-run the full chain.
