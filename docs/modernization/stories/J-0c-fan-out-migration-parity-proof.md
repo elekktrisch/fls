@@ -282,3 +282,27 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   is well-formed with the J-0c legacy + AlpenFlight entries.
 
 **Order:** T-01 → T-02 → T-03 → T-04 → T-05 → T-06.
+
+### Gate-run findings (2026-06-01, first live runs) → new tasks
+
+- [ ] **T-07 — Fix migration-ingest IT regression (T-02 Keycloak call).** The per-PR
+  `alpenflight build` went RED: T-02 wired a **real Keycloak HTTP call**
+  (`provisionMigratedClubAdmins` → `KeycloakDeploymentDirectoryAdapter`) into the
+  **shared** ingest path, but the server-IT env has no Keycloak. T-02 only mocked the
+  `KeycloakDeploymentDirectory` in `MigrationBundleIngestIT`; the other ingest ITs
+  (`LocationRealProducerRoundTripIT` ← J-0c's own gate, `MigrationBundleNegativePathIT`,
+  `LocationMigrationRoundTripIT`, `MigrationBundleParityRoundTripIT`) now 500 with
+  `ResourceAccessException: …keycloak:8080`. **Fix:** hoist the mock
+  `KeycloakDeploymentDirectory` into a **shared `@TestConfiguration`** applied across
+  all migration-ingest ITs (they test ingest, not Keycloak — the boundary should be
+  consistently mocked). Also decide: should a Keycloak-provision failure hard-fail the
+  whole data ingest (current) or be best-effort? Surface if changing it. *(seam: shared
+  test-config across the ingest IT suite; blocks the per-PR required gate)*
+- [ ] **T-08 — Fix fanout-workflow MSSQL network ordering.** The full-chain run hung at
+  "Wait for MSSQL healthcheck" → 45-min timeout: `alpenflight_shared` is `external: true`
+  and MSSQL references it, but the workflow **creates the network (step 19) AFTER starting
+  MSSQL (step 5)**, so the compose `up` fails and MSSQL never starts. **Fix:** create the
+  `alpenflight_shared` network BEFORE the "Start MSSQL" step (move the `docker network
+  create` up). *(seam: one workflow ordering fix)*
+
+**Order (rework):** T-07 (code gate) → re-run per-PR CI → T-08 (workflow) → re-run full chain.
