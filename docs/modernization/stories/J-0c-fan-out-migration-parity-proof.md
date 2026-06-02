@@ -652,3 +652,20 @@ real-data gap from T-15's fail-closed club-state map:
   First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-16 → re-run the full chain.
+
+### Gate-run round 9 (2026-06-02) → T-17
+
+T-16 worked: provisioning + ClubState resolve. Migrate now reaches T-02's Keycloak provisioning,
+which fails:
+
+- [ ] **T-17 — backend Keycloak admin-base unreachable in the fanout workflow.** Real-bundle
+  ingest 500s: `ResourceAccessException: I/O error on POST http://keycloak:8080/realms/alpenflight/
+  .../token`. T-02's `provisionMigratedClubAdmins` (KeycloakAdminClient/KeycloakDeploymentDirectory
+  Adapter) uses the backend's Keycloak **admin-base** URL, which defaults to the compose-internal
+  `keycloak:8080` — unreachable from the host-run bootJar (Keycloak is host-mapped to `localhost:8090`).
+  Fix: in `alpenflight-proof-fanout.yml`, set the backend's Keycloak admin-base (+ any client-creds)
+  env to the host-reachable address, mirroring how `alpenflight-e2e-real-idp.yml` wires backend→
+  Keycloak (issuer + admin). Latent until T-02 first exercised the admin client. *(seam: workflow
+  backend Keycloak env)* Once green, the parity UI assertions finally run.
+
+**Order:** T-17 → re-run the full chain.
