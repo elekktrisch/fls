@@ -203,7 +203,7 @@ the migration proof, the real chain, and folded boyscout riders.
   S-164 redaction) + migrated-data render. *(seam: seeder + real-idp spec)* — deps T-02,T-03,T-04,T-05,T-06.
 - [x] **T-08** — Gallery roadmap `✅ `-prefix ordering fix + generator guard (boyscout:
   `generate-gallery.mjs` parseRoadmap regex + a generator spec). *(seam: generate-gallery.mjs + spec)*
-- [ ] **T-09** — Docker Hub image-pull bounded retry in the fanout + nightly workflows (boyscout).
+- [x] **T-09** — Docker Hub image-pull bounded retry in the fanout + nightly workflows (boyscout).
   *(seam: .github/workflows/alpenflight-proof-fanout.yml + nightly.yml image-pull steps)*
 
 Then **§4 gate** (e2e-driver): full legacy→migrate→Keycloak→Playwright chain, both fidelities,

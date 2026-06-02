@@ -14,10 +14,6 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-retro 2026-06-02, J-0b+J-0c window)
 
-- **Docker Hub image-pull retry.** The fanout + nightly workflows pull images
-  (mailpit/pgAdmin/Keycloak/MSSQL); a transient Docker Hub timeout caused a non-code red
-  round. Add bounded pull-retry to the image-pull steps. *(seam: .github/workflows/
-  alpenflight-proof-fanout.yml + nightly.yml image-pull steps)*
 - **modernize-* sunset.** do-* is proven on J-0/J-0b/J-0c (the 2-3 bar is met). Delete the 9
   `modernize-*` skills + ~12 modernize agents and prune the `rolled_up_into:` horizontal
   stories. Mechanical (however many files) → rides forward; ideally after do-* ships one

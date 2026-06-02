@@ -189,9 +189,20 @@ jobs:
       - name: Create alpenflight_shared network
         run: docker network inspect alpenflight_shared >/dev/null 2>&1 || docker network create alpenflight_shared --driver bridge
 
+      # Backgrounded MSSQL bring-up pulls mcr.microsoft.com/mssql/server. The
+      # bounded 3-attempt/15s-backoff retry lives INSIDE the subshell so
+      # /tmp/.done-stack is touched only on a successful `up` (J-1 T-09); on a
+      # persistent failure the marker is never written and the later "Wait for
+      # MSSQL healthcheck" step times out red, which is correct.
       - name: Start MSSQL (fls-e2e compose, default profile)
         run: |
-          (docker compose -p fls-e2e up -d mssql && touch /tmp/.done-stack) > /tmp/stack.log 2>&1 &
+          (
+            for i in 1 2 3; do
+              docker compose -p fls-e2e up -d mssql && touch /tmp/.done-stack && break
+              echo "MSSQL up attempt $i failed (registry blip?) — retrying in 15s" >&2
+              sleep 15
+            done
+          ) > /tmp/stack.log 2>&1 &
           echo "compose up PID=$!"
 
       - name: Download FLS.Server.Console bin
@@ -311,16 +322,44 @@ jobs:
       #    The alpenflight_shared network is created EARLIER (before "Start
       #    MSSQL"), so it already exists by the time these services come up.
       # ========================================================================
+      # Registry-pull retry (J-1 T-09, mirrors ci.yml J-25 T-05): the docker
+      # steps below touch external registries (quay.io for Keycloak,
+      # registry-1.docker.io for mailpit/postgres/pgadmin) and fail red on
+      # transient 5xx/timeout blips. Each is wrapped in a bounded 3-attempt
+      # retry with 15s backoff; a persistent failure still exits non-zero after
+      # the 3rd attempt, so real breakage stays red. Scoped to image-pull/
+      # build/up ONLY — the test/gallery/deploy steps are deliberately NOT
+      # retried (a flaky spec must not be silently retried into green).
       - name: Bring up alpenflight-infra (mailpit)
-        run: bash alpenflight/ops/dev-up-infra.sh
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
 
       - name: Build pgAdmin + Keycloak images
-        run: docker compose -f docker-compose.yml --profile next build pgadmin keycloak
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
 
       - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
         run: |
-          docker compose -p alpenflight-dev -f docker-compose.yml \
-            up -d --wait --wait-timeout 240 postgres pgadmin keycloak
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
 
       - name: Set up Java 25
         uses: actions/setup-java@v4
