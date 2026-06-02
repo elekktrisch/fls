@@ -42,6 +42,17 @@ public final class ClubStateMapper implements Mapper {
             2, "CLOSED",
             3, "SUSPENDED");
 
+    /**
+     * The legacy {@code ClubStateId} INT to V2 lifecycle-code translation, shared
+     * with the migration producer so {@code ManifestBuilder} can resolve a Club's
+     * {@code clubStateId} to the seed PK by the same value-binding this mapper
+     * uses (avoids a second, drift-prone copy of the 1/2/3 mapping). Returns
+     * {@code null} for the System row (id 0) or any value outside (1, 2, 3).
+     */
+    public static String v2CodeForLegacyId(int legacyClubStateId) {
+        return LEGACY_ID_TO_V2_CODE.get(legacyClubStateId);
+    }
+
     @Override
     public EntityType entityType() {
         return EntityType.CLUB_STATE;

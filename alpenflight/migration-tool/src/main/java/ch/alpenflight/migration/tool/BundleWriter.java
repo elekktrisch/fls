@@ -5,6 +5,7 @@ import ch.alpenflight.migration.bundle.KnownMappers;
 import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.MapperLegacyBindings;
+import ch.alpenflight.migration.bundle.SeedReferenceUuids;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.StreamWriteFeature;
@@ -226,6 +227,76 @@ public final class BundleWriter {
         return pgcopy;
     }
 
+    /**
+     * Build the {@code legacy_id_map/<E>.pgcopy} for a SYSTEM_GLOBAL reference
+     * entity (COUNTRY / CLUB_STATE) the migration's FULL_PORT entities FK against
+     * (J-0c T-15). Unlike {@link #writeIdentityPgcopy}'s identity / fan-out maps,
+     * the value is the RESOLVED new-stack seed PK: the legacy GUID / synthetic
+     * INT-UUID maps to the deterministic {@code t_<entity>} seed row, looked up
+     * by the entity's stable natural key (ISO2 for COUNTRY, the V2 lifecycle code
+     * for CLUB_STATE) via {@link SeedReferenceUuids}. Each NDJSON row already
+     * carries both the {@code legacy_guid} and the natural key, so the map is
+     * derived from the producer's own stream with no extra DB read.
+     *
+     * <p>Without this map the server's {@code ForeignKeyResolver} fails closed
+     * with {@code BUNDLE_CROSS_TENANT_FK_LEAK} on the CLUB NDJSON's
+     * {@code country_id} / {@code club_state_id} (SYSTEM_GLOBAL_RESOLVE FKs are
+     * required to resolve). The seed PKs here MATCH the ones
+     * {@code ManifestBuilder} resolves into the manifest's {@code ClubDeclaration},
+     * so provisioning and NDJSON ingest land identical FK targets.
+     */
+    Path writeSystemGlobalSeedPgcopy(EntityStreamResult ndjsonResult) {
+        EntityType entity = ndjsonResult.entityType();
+        Path pgcopy = temp(entity.name() + "-seed-pgcopy");
+        try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(pgcopy));
+             LegacyIdMapWriter writer = new LegacyIdMapWriter(fileOut);
+             BufferedReader lines = Files.newBufferedReader(
+                     ndjsonResult.ndjsonTempFile(), StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = lines.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                JsonNode row = JSON.readTree(line);
+                UUID legacyGuid = requireUuid(row, "legacy_guid", entity);
+                UUID seedPk = resolveSeedPk(entity, row);
+                writer.write(legacyGuid, seedPk);
+            }
+        } catch (IOException e) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "Failed writing seed id map for " + entity + ": " + e.getMessage(), e);
+        }
+        return pgcopy;
+    }
+
+    /** SYSTEM_GLOBAL entities for which a legacy-guid -> seed-PK map is emitted. */
+    private static boolean hasSeedResolver(EntityType entity) {
+        return entity == EntityType.COUNTRY || entity == EntityType.CLUB_STATE;
+    }
+
+    /** Resolve a SYSTEM_GLOBAL NDJSON row's natural key to its new-stack seed PK. */
+    private static UUID resolveSeedPk(EntityType entity, JsonNode row) {
+        UUID seedPk;
+        switch (entity) {
+            case COUNTRY -> seedPk = SeedReferenceUuids.countryByIso2(textOrNull(row, "iso2_code"));
+            case CLUB_STATE -> seedPk = SeedReferenceUuids.clubStateByCode(textOrNull(row, "code"));
+            default -> throw new ExportException(ExitCode.IO_ERROR,
+                    "No seed-PK resolver wired for SYSTEM_GLOBAL entity " + entity
+                            + "; add it before emitting its id-map.");
+        }
+        if (seedPk == null) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    entity + " NDJSON row " + row + " has no matching new-stack seed PK "
+                            + "(its natural key is absent from the V2 seed catalogue).");
+        }
+        return seedPk;
+    }
+
+    private static String textOrNull(JsonNode row, String field) {
+        JsonNode node = row.get(field);
+        return (node == null || node.isNull()) ? null : node.asText();
+    }
+
     private static UUID requireUuid(JsonNode row, String field, EntityType entity) {
         JsonNode node = row.get(field);
         if (node == null || !node.isTextual()) {
@@ -266,12 +337,23 @@ public final class BundleWriter {
         // semantically wrong — see EntityType.idMapSeededFromProvisioning (J-0c T-01).
         Map<String, Path> pgcopyEntries = new LinkedHashMap<>();
         for (EntityStreamResult result : entityResults) {
-            if (MapperLegacyBindings.portPolicy(result.entityType())
-                    == MapperLegacyBindings.PortPolicy.FULL_PORT
-                    && !result.entityType().idMapSeededFromProvisioning()) {
-                pgcopyEntries.put(
-                        "legacy_id_map/" + result.entityType().name() + ".pgcopy",
+            EntityType entity = result.entityType();
+            MapperLegacyBindings.PortPolicy policy = MapperLegacyBindings.portPolicy(entity);
+            if (policy == MapperLegacyBindings.PortPolicy.FULL_PORT
+                    && !entity.idMapSeededFromProvisioning()) {
+                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
                         writeIdentityPgcopy(result));
+            } else if (policy == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL
+                    && hasSeedResolver(entity)) {
+                // SYSTEM_GLOBAL reference entities (COUNTRY / CLUB_STATE) a
+                // FULL_PORT entity FKs against need a legacy-guid -> seed-PK map
+                // so the server's ForeignKeyResolver resolves the CLUB NDJSON's
+                // country_id / club_state_id (J-0c T-15). LANGUAGE is SYSTEM_GLOBAL
+                // too but has no seed resolver wired (no FULL_PORT FK targets it in
+                // this slice — USER.language_id is a reference-lookup, not an FK),
+                // so it is skipped until a referencing entity needs it.
+                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
+                        writeSystemGlobalSeedPgcopy(result));
             }
         }
         try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(destination));
@@ -286,6 +368,19 @@ public final class BundleWriter {
                 putFileEntry(tar, entry.getKey(), entry.getValue());
             }
             for (EntityStreamResult result : entityResults) {
+                // SYSTEM_GLOBAL reference data (COUNTRY / CLUB_STATE / LANGUAGE)
+                // is pre-seeded in the V2 Flyway baseline — it must NOT be
+                // re-ingested into t_country / t_club_state / t_language (the
+                // mappers carry only the resolver natural key, not the full seed
+                // row: a COUNTRY INSERT would NOT-NULL-violate iso3_code). The
+                // server resolves a referencing FULL_PORT FK through the
+                // legacy_id_map/<E>.pgcopy emitted above (legacy ref -> seed PK),
+                // so the SYSTEM_GLOBAL NDJSON is redundant and is dropped from the
+                // tar entirely (J-0c T-15).
+                if (MapperLegacyBindings.portPolicy(result.entityType())
+                        == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL) {
+                    continue;
+                }
                 putFileEntry(tar, result.tarEntryName(), result.ndjsonTempFile());
             }
             tar.finish();

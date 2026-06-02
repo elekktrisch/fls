@@ -110,7 +110,10 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     // Seeds through the REAL migration endpoint — fan-out + Keycloak provision
     // both run live. ~30-60s (Gradle seeder + ingest); covered by the
     // real-idp project's 60s timeout.
-    fixture = await seedFanOutParity(browser, request, baseURL);
+    // Pass the retry index so a re-run mints a FRESH handshake/uploadId (synth
+    // path) — a prior failed ingest sealed its upload FAILED, and re-POSTing it
+    // would 409 BUNDLE_PRIOR_RUN_FAILED.
+    fixture = await seedFanOutParity(browser, request, baseURL, testInfo.retry);
   });
 
   test('club-A admin sees the migrated Location under its random name', async ({

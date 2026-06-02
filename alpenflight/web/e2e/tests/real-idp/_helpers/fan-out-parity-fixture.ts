@@ -103,9 +103,20 @@ interface ResolvedBundle {
   locationName: string;
 }
 
-async function resolveSynthBundle(api: APIRequestContext, bearer: string): Promise<ResolvedBundle> {
-  const locationName = `J0C-${runId()}-${Date.now().toString(36)}`;
-  const clubKeyPrefix = `J0C${runId().slice(0, 4).toUpperCase()}`;
+async function resolveSynthBundle(
+  api: APIRequestContext,
+  bearer: string,
+  attempt: number,
+): Promise<ResolvedBundle> {
+  // Attempt-scoped suffix so a Playwright retry NEVER reuses the prior run's
+  // uploadId / club keys / Location name: a failed ingest seals its upload
+  // FAILED (a re-POST of the same uploadId 409s BUNDLE_PRIOR_RUN_FAILED), and a
+  // half-provisioned deployment would collide a re-run on the club keys. Each
+  // attempt mints a fresh handshake (new uploadId) below AND derives unique
+  // keys here, so the retry re-handshakes cleanly.
+  const attemptTag = `${Date.now().toString(36)}${attempt > 0 ? `r${attempt}` : ''}`;
+  const locationName = `J0C-${runId()}-${attemptTag}`;
+  const clubKeyPrefix = `J0C${runId().slice(0, 4).toUpperCase()}${attempt}`;
   const handshake = await mintHandshake(api, bearer);
   const bundle = await buildBundleBytes(
     handshake.publicKeyPem,
@@ -318,15 +329,21 @@ export async function seedFanOutParity(
   browser: Browser,
   api: APIRequestContext,
   baseURL: string,
+  attempt = 0,
 ): Promise<FanOutParityFixture> {
   // The migration PRINCIPAL bearer is needed by BOTH modes (the bundle POST is
   // an authenticated, verified-email call). The synth path additionally uses it
   // to mint its own handshake; the real path reuses the workflow's handshake.
   const bearer = await capturePrincipalBearer(browser, baseURL);
 
+  // `attempt` (Playwright's testInfo.retry) makes the synth seed unique per try
+  // so a retry after a failed ingest re-handshakes with a fresh uploadId rather
+  // than re-POSTing the FAILED upload (409 BUNDLE_PRIOR_RUN_FAILED). The real
+  // path's bundle is sealed to the workflow's handshake, so a retry there is the
+  // workflow's job to re-mint — the spec can't re-seal a pre-encrypted bundle.
   const { bundle, uploadId, locationName } = useRealBundle()
     ? await resolveRealBundle()
-    : await resolveSynthBundle(api, bearer);
+    : await resolveSynthBundle(api, bearer, attempt);
 
   const ingest = await ingestBundle(api, bearer, uploadId, bundle);
 

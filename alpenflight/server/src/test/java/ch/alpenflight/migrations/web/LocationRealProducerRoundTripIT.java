@@ -340,6 +340,119 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(replicaInClubB);
     }
 
+    /**
+     * J-0c T-15 regression guard — the producer resolves an UNRESOLVED legacy
+     * Country GUID (and synthetic club-state) to the new-stack SEED PKs entirely
+     * via the real {@link BundleWriter}, with NO hand-spliced
+     * {@code legacy_id_map} entries. Unlike the test above (which pre-resolves
+     * SEED_COUNTRY_CH into the manifest + hand-builds the COUNTRY pgcopy), here:
+     *
+     * <ul>
+     *   <li>the CLUB NDJSON carries the RAW legacy Country GUID + the synthetic
+     *       club-state UUID (exactly what {@code ClubMapper.writeNdjson} emits);</li>
+     *   <li>a COUNTRY NDJSON ({@code legacy_guid=GUID, iso2_code='CH'}) and a
+     *       CLUB_STATE NDJSON ({@code legacy_guid=synthetic, code='ACTIVE'}) flow
+     *       through {@link BundleWriter#assembleTarGz}, which derives the
+     *       {@code legacy_id_map/COUNTRY.pgcopy} + {@code CLUB_STATE.pgcopy}
+     *       seed maps from those streams via the same
+     *       {@code SeedReferenceUuids} derivation the manifest uses;</li>
+     *   <li>the manifest's {@code ClubDeclaration} carries the resolved SEED PKs
+     *       (what {@code ManifestBuilder} now produces) so provisioning inserts a
+     *       valid {@code fk_club_country_id} / {@code fk_club_club_state_id}.</li>
+     * </ul>
+     *
+     * Pre-T-15 this 500'd: provisioning inserted the raw legacy Country GUID into
+     * {@code t_club.country_id}, FK-violating {@code fk_club_country_id}. Asserts
+     * the migrated club resolves to {@code SEED_COUNTRY_CH} /
+     * {@code SEED_CLUB_STATE_ACTIVE}.
+     */
+    @Test
+    void real_producer_resolves_legacy_country_guid_to_seed_pk_through_provisioning_and_ndjson()
+            throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        String key = testClubKey + "G";
+        // The manifest carries the RESOLVED seed PKs — exactly what ManifestBuilder
+        // computes from the legacy GUID/INT (legacyCountryId -> ISO2 'CH' -> seed,
+        // synthetic 1 -> code ACTIVE -> seed).
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "T15 Club", testClubSlug + "-g", key, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy(),
+                EntityType.CLUB, fullPortPolicy());
+
+        // COUNTRY + CLUB_STATE NDJSON carry the natural key the producer resolves
+        // the seed map from; the CLUB NDJSON carries the RAW legacy refs.
+        EntityStreamResult countryStream = ndjsonStream(EntityType.COUNTRY,
+                countryNdjson(legacyCountryId, "CH"), 1);
+        EntityStreamResult clubStateStream = ndjsonStream(EntityType.CLUB_STATE,
+                clubStateNdjson(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, "ACTIVE"), 1);
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
+                clubNdjson(legacyClubId, key, "T15 Club Legacy", "Addr"), 1);
+
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "T15 Resolve Deployment",
+                List.of(club),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        // The REAL producer assembles the tar AND derives the COUNTRY/CLUB_STATE
+        // seed id-maps from their NDJSON — no hand-spliced legacy_id_map here.
+        Path producerTarGz = workDir.resolve("t15-real-producer-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes,
+                List.of(countryStream, clubStateStream, clubStream), producerTarGz);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, Files.readAllBytes(producerTarGz));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("real-producer bundle with an UNRESOLVED legacy Country GUID must "
+                        + "ingest 200 (pre-T-15 this 500'd with fk_club_country_id "
+                        + "violation at provisioning); body=%s", res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        UUID newClub = clubIdsByKey(deploymentId).get(key);
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT country_id, club_state_id FROM t_club WHERE id = ?::uuid",
+                newClub.toString());
+        assertThat(UUID.fromString(row.get("country_id").toString()))
+                .as("CLUB.country_id resolved the legacy GUID to the new-stack seed PK")
+                .isEqualTo(SEED_COUNTRY_CH);
+        assertThat(UUID.fromString(row.get("club_state_id").toString()))
+                .as("CLUB.club_state_id resolved the synthetic INT to the seed PK")
+                .isEqualTo(SEED_CLUB_STATE_ACTIVE);
+    }
+
+    /** NDJSON shaped exactly as {@code CountryMapper.writeNdjson}. */
+    private byte[] countryNdjson(UUID legacyCountryGuid, String iso2) throws IOException {
+        var row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyCountryGuid.toString());
+        row.put("iso2_code", iso2);
+        return ndjsonLine(row);
+    }
+
+    /** NDJSON shaped exactly as {@code ClubStateMapper.writeNdjson}. */
+    private byte[] clubStateNdjson(UUID syntheticLegacyGuid, String code) throws IOException {
+        var row = JSON.createObjectNode();
+        row.put("legacy_guid", syntheticLegacyGuid.toString());
+        row.put("code", code);
+        return ndjsonLine(row);
+    }
+
     /** Write {@code payload} to a temp NDJSON file + wrap as a producer stream result. */
     private EntityStreamResult ndjsonStream(EntityType type, byte[] payload, long rows)
             throws IOException {
