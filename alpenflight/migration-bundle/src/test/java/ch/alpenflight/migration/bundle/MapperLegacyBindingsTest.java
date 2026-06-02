@@ -104,6 +104,25 @@ class MapperLegacyBindingsTest {
     }
 
     @Test
+    void locationSelectProjectsTheLocationTypeIntCupIdNotTheGuidFk() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.LOCATION).toUpperCase();
+        // Legacy Locations.LocationTypeId is a uniqueidentifier (GUID FK to
+        // LocationTypes), but LocationMapper.writeNdjson reads it via getInt +
+        // legacyIntIdToUuidString — the legacy_int_id resolution expects the int
+        // LocationTypeCupId (== t_location_type.legacy_int_id), which lives on
+        // LocationTypes, not on Locations. The producer must JOIN LocationTypes
+        // and project the int CupId AS LocationTypeId, else getInt throws
+        // "conversion from uniqueidentifier to INTEGER is unsupported" (J-0c T-14).
+        assertThat(select)
+                .as("SELECT must JOIN LocationTypes to source the int CupId")
+                .contains("LOCATIONTYPES");
+        assertThat(select)
+                .as("SELECT must project LocationTypeCupId aliased AS LocationTypeId "
+                        + "so writeNdjson's getInt reads the int code, not the GUID")
+                .contains("LOCATIONTYPECUPID AS LOCATIONTYPEID");
+    }
+
+    @Test
     void inOutboundPointSelectProjectsEveryColumnTheMapperReads() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.INOUTBOUND_POINT);
         for (String legacyColumn : INOUTBOUND_POINT_LEGACY_COLUMNS) {

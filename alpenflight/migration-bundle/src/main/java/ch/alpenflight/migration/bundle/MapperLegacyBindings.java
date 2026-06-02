@@ -146,10 +146,22 @@ public final class MapperLegacyBindings {
                     // referenced ONLY by an aircraft homebase — no club homebase,
                     // no flights — would miss that club's replica until the
                     // Aircraft binding lands. Tracked there, not papered over.
+                    //
+                    // LocationTypeId source: legacy Locations.LocationTypeId is a
+                    // uniqueidentifier (GUID FK to LocationTypes), but LocationMapper
+                    // reads it via getInt + legacyIntIdToUuidString — the
+                    // legacy_int_id resolution (t_location_type.legacy_int_id =
+                    // 1,2,3,4,5,99) keys on the int LocationTypes.LocationTypeCupId,
+                    // NOT the GUID. So JOIN LocationTypes and project the int CupId
+                    // AS LocationTypeId (the column writeNdjson reads). INNER JOIN
+                    // matches semantics: Location.LocationTypeId is non-null Guid
+                    // (FLS.Server.Data/DbEntities/Location.cs:36), so every row has a
+                    // type. (J-0c T-14 parity fix.)
                     """
                     SELECT l.LocationId, fanout.ClubId AS ClubId,
                            l.LocationName, l.LocationShortName, l.CountryId,
-                           l.LocationTypeId, l.IcaoCode, l.Latitude, l.Longitude,
+                           lt.LocationTypeCupId AS LocationTypeId,
+                           l.IcaoCode, l.Latitude, l.Longitude,
                            l.Elevation, l.ElevationUnitType, l.RunwayDirection,
                            l.RunwayLength, l.RunwayLengthUnitType, l.AirportFrequency,
                            l.Description, l.SortIndicator,
@@ -158,6 +170,7 @@ public final class MapperLegacyBindings {
                            l.CreatedOn, l.CreatedByUserId, l.ModifiedOn,
                            l.ModifiedByUserId, l.DeletedOn, l.DeletedByUserId
                     FROM Locations l
+                    JOIN LocationTypes lt ON lt.LocationTypeId = l.LocationTypeId
                     JOIN (
                         SELECT DISTINCT HomebaseId AS LocationId, ClubId
                         FROM Clubs WHERE HomebaseId IS NOT NULL

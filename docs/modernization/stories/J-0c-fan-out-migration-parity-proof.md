@@ -532,7 +532,7 @@ T-12 diagnostics worked: COUNTRY now reports the REAL error.
 T-13 (AUTO_CLOSE_TARGET) worked: COUNTRY/CLUB(4)/USER(4) now stream. LOCATION fails
 at row 1 — a real **parity finding** (exactly J-0c's purpose):
 
-- [ ] **T-14 — LocationType FK is a legacy GUID, not int.** `LocationMapper.writeNdjson:143`
+- [x] **T-14 — LocationType FK is a legacy GUID, not int.** `LocationMapper.writeNdjson:143`
   reads `getInt("LocationTypeId")` but legacy `Locations.LocationTypeId` is a `uniqueidentifier`
   (GUID FK to `LocationTypes`) → `SQLServerException: conversion from uniqueidentifier to
   INTEGER is unsupported`. J-0b's data-layer IT missed it (fed synthetic int-encoded NDJSON
