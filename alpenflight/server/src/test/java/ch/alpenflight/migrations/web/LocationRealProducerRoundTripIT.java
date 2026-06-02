@@ -7,6 +7,7 @@ import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
 import ch.alpenflight.migration.bundle.Manifest;
+import ch.alpenflight.migration.bundle.identity.ClubMapper;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.migration.tool.BundleWriter;
 import ch.alpenflight.migration.tool.EntityStreamResult;
@@ -527,6 +528,141 @@ class LocationRealProducerRoundTripIT extends PostgresIntegrationTest {
         assertThat(UUID.fromString(row.get("club_state_id").toString()))
                 .as("legacy System club (ClubStateId=0) resolves to the ACTIVE seed PK")
                 .isEqualTo(SEED_CLUB_STATE_ACTIVE);
+    }
+
+    /**
+     * J-0c T-19 regression guard — a real legacy Club created-but-never-modified
+     * has {@code ModifiedOn} NULL, yet {@code t_club.modified_on} is {@code NOT
+     * NULL} (audit invariant). The producer coalesces {@code modified_on =
+     * COALESCE(ModifiedOn, CreatedOn)} so the NDJSON carries a value rather than
+     * emitting null and 23502-ing at ingest. This drives the CLUB NDJSON through
+     * the <strong>real {@link ClubMapper#writeNdjson}</strong> with a NULL
+     * ModifiedOn fake cursor (exactly what a never-modified legacy row produces),
+     * ingests it, and asserts the migrated row lands with
+     * {@code modified_on == created_on}.
+     *
+     * <p>Pre-T-19 this 500'd: {@code ClubMapper} emitted
+     * {@code "modified_on": null}, the CLUB INSERT bound a NULL, and Postgres
+     * rejected it with {@code 23502 null value in column "modified_on"}.
+     */
+    @Test
+    void real_producer_coalesces_null_modified_on_to_created_on_for_never_modified_club()
+            throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        String key = testClubKey + "M";
+        Instant createdOn = Instant.parse("2017-03-09T08:30:00Z");
+
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "Never-Modified Club", testClubSlug + "-m", key, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        Map<EntityType, EntityPolicy> entityPolicies = Map.of(
+                EntityType.COUNTRY, systemGlobalPolicy(),
+                EntityType.CLUB_STATE, systemGlobalPolicy(),
+                EntityType.CLUB, fullPortPolicy());
+
+        EntityStreamResult countryStream = ndjsonStream(EntityType.COUNTRY,
+                countryNdjson(legacyCountryId, "CH"), 1);
+        EntityStreamResult clubStateStream = ndjsonStream(EntityType.CLUB_STATE,
+                clubStateNdjson(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, "ACTIVE"), 1);
+        // The CLUB NDJSON is produced by the REAL ClubMapper from a cursor whose
+        // ModifiedOn is NULL — the exact never-modified legacy shape that hit the
+        // 23502. The mapper must coalesce modified_on to CreatedOn.
+        EntityStreamResult clubStream = ndjsonStream(EntityType.CLUB,
+                clubNdjsonViaRealMapper(legacyClubId, key, "Never-Modified Club Legacy",
+                        createdOn, /* modifiedOn */ null), 1);
+
+        BundleManifest manifest = new BundleManifest(
+                Manifest.CURRENT_SCHEMA_VERSION,
+                "T19 Never-Modified Deployment",
+                List.of(club),
+                null,
+                entityPolicies,
+                unmappedReasonFor(entityPolicies));
+        byte[] manifestBytes = JSON.writeValueAsBytes(manifest);
+
+        Path producerTarGz = workDir.resolve("t19-never-modified-bundle.tar.gz");
+        BundleWriter writer = new BundleWriter(/* reader */ null, workDir, false);
+        writer.assembleTarGz(manifestBytes,
+                List.of(countryStream, clubStateStream, clubStream), producerTarGz);
+
+        byte[] bundle = MigrationBundleTestFactory.encryptTarGzPlaintext(
+                cipher, uploadId, publicKeyDer, Files.readAllBytes(producerTarGz));
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+        assertThat(res.getStatusCode())
+                .as("a never-modified legacy Club (ModifiedOn NULL) must ingest 200 "
+                        + "(pre-T-19 the producer emitted modified_on=null and the CLUB "
+                        + "INSERT 23502'd on t_club.modified_on NOT NULL); body=%s",
+                        res.getBody())
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID deploymentId = UUID.fromString(body.get("deploymentId").asText());
+        UUID newClub = clubIdsByKey(deploymentId).get(key);
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT created_on, modified_on FROM t_club WHERE id = ?::uuid",
+                newClub.toString());
+        assertThat(((java.sql.Timestamp) row.get("modified_on")).toInstant())
+                .as("never-modified Club's modified_on coalesced to its created_on")
+                .isEqualTo(createdOn);
+        assertThat(((java.sql.Timestamp) row.get("modified_on")).toInstant())
+                .as("modified_on equals created_on for a never-modified row")
+                .isEqualTo(((java.sql.Timestamp) row.get("created_on")).toInstant());
+    }
+
+    /**
+     * Produces a CLUB NDJSON line through the <strong>real
+     * {@code ClubMapper.writeNdjson}</strong> from a fake forward-only cursor, so
+     * the producer's COALESCE(ModifiedOn, CreatedOn) audit-timestamp logic is the
+     * thing under test (T-19) rather than a hand-built ObjectNode.
+     */
+    private byte[] clubNdjsonViaRealMapper(
+            UUID legacyClubId, String clubKey, String clubname,
+            Instant createdOn, Instant modifiedOn) throws Exception {
+        Map<String, Object> legacy = new LinkedHashMap<>();
+        legacy.put("ClubId", legacyClubId.toString());
+        legacy.put("Clubname", clubname);
+        legacy.put("ClubKey", clubKey);
+        legacy.put("CountryId", legacyCountryId.toString());
+        legacy.put("ClubStateId", 1);
+        legacy.put("RunDeliveryCreationJob", false);
+        legacy.put("RunDeliveryMailExportJob", false);
+        legacy.put("IsClubMemberNumberReadonly", false);
+        legacy.put("CreatedOn", java.sql.Timestamp.from(createdOn));
+        legacy.put("ModifiedOn",
+                modifiedOn == null ? null : java.sql.Timestamp.from(modifiedOn));
+
+        java.sql.ResultSet rs = org.mockito.Mockito.mock(java.sql.ResultSet.class);
+        org.mockito.Mockito.lenient().when(rs.getString(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> {
+                    Object v = legacy.get(inv.<String>getArgument(0));
+                    return v == null ? null : v.toString();
+                });
+        org.mockito.Mockito.lenient().when(rs.getInt(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> {
+                    Object v = legacy.get(inv.<String>getArgument(0));
+                    return v instanceof Number n ? n.intValue() : 0;
+                });
+        org.mockito.Mockito.lenient().when(rs.getBoolean(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> {
+                    Object v = legacy.get(inv.<String>getArgument(0));
+                    return v instanceof Boolean b && b;
+                });
+        org.mockito.Mockito.lenient().when(rs.getTimestamp(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(inv -> legacy.get(inv.<String>getArgument(0)));
+
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = JSON.getFactory().createGenerator(sink)) {
+            new ClubMapper().writeNdjson(rs, gen);
+        }
+        sink.write('\n');
+        return sink.toByteArray();
     }
 
     /** NDJSON shaped exactly as {@code CountryMapper.writeNdjson}. */

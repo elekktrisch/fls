@@ -43,6 +43,60 @@ class CoercionsTest {
     }
 
     @Test
+    void writeRequiredTimestampCoalescingFallsBackToCreatedOnWhenModifiedOnIsNull()
+            throws Exception {
+        // J-0c T-19: a real legacy row created-but-never-modified has
+        // ModifiedOn NULL, yet the new-stack modified_on is NOT NULL. A
+        // never-modified row's last-modified equals its creation, so the
+        // producer coalesces to CreatedOn — parity-correct, NOT-NULL preserved.
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = new JsonFactory().createGenerator(sink)) {
+            gen.writeStartObject();
+            Coercions.writeRequiredTimestampCoalescing(
+                    gen,
+                    "modified_on",
+                    null,
+                    Timestamp.from(Instant.parse("2016-06-07T22:53:46Z")));
+            gen.writeEndObject();
+        }
+        assertThat(sink.toString())
+                .contains("\"modified_on\":\"2016-06-07T22:53:46Z\"");
+    }
+
+    @Test
+    void writeRequiredTimestampCoalescingPrefersModifiedOnWhenBothPresent()
+            throws Exception {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = new JsonFactory().createGenerator(sink)) {
+            gen.writeStartObject();
+            Coercions.writeRequiredTimestampCoalescing(
+                    gen,
+                    "modified_on",
+                    Timestamp.from(Instant.parse("2020-02-02T02:02:02Z")),
+                    Timestamp.from(Instant.parse("2016-06-07T22:53:46Z")));
+            gen.writeEndObject();
+        }
+        assertThat(sink.toString())
+                .as("ModifiedOn wins when present — only a NULL falls back to CreatedOn")
+                .contains("\"modified_on\":\"2020-02-02T02:02:02Z\"");
+    }
+
+    @Test
+    void writeRequiredTimestampCoalescingFailsWhenBothNull() throws Exception {
+        // Both NULL means even CreatedOn (itself NOT NULL) is absent — genuinely
+        // malformed legacy data, not the expected never-modified case. Fail with
+        // the column-naming diagnostic rather than a NOT-NULL constraint 23502.
+        JsonGenerator gen = new JsonFactory().createGenerator(new ByteArrayOutputStream());
+        gen.writeStartObject();
+        assertThatThrownBy(
+                () -> Coercions.writeRequiredTimestampCoalescing(
+                        gen, "modified_on", null, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("modified_on")
+                .hasMessageContaining("NOT NULL");
+    }
+
+    @Test
     void deriveFanOutIdIsDeterministicAndAValidVersion5Uuid() {
         UUID legacyGuid = UUID.fromString("11111111-2222-3333-4444-555555555555");
         UUID clubA = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");

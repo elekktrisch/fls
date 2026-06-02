@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.migration.bundle.AbstractMapperContractTest;
 import ch.alpenflight.migration.bundle.EntityType;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -66,6 +67,27 @@ class ClubMapperTest extends AbstractMapperContractTest<ClubMapper> {
     void declaresCountryAndClubStateAsStructuralFks() {
         assertThat(mapper.foreignKeys())
                 .containsExactly(EntityType.COUNTRY, EntityType.CLUB_STATE);
+    }
+
+    @Test
+    void modifiedOnFallsBackToCreatedOnForANeverModifiedClub() throws Exception {
+        // J-0c T-19: a real legacy Club created-but-never-modified has
+        // ModifiedOn NULL; t_club.modified_on is NOT NULL (audit invariant).
+        // The producer must coalesce to CreatedOn so the NDJSON carries a
+        // value rather than emitting null and 23502-ing at ingest.
+        Map<String, Object> row = legacyRow(seededFaker());
+        row.put("ModifiedOn", null);
+        Timestamp createdOn = Timestamp.from(Instant.parse("2016-06-07T22:53:46Z"));
+        row.put("CreatedOn", createdOn);
+
+        JsonNode emitted = invokeWriteNdjson(mapper, row);
+
+        assertThat(emitted.get("modified_on").asText())
+                .as("never-modified Club's modified_on == its created_on")
+                .isEqualTo("2016-06-07T22:53:46Z");
+        assertThat(emitted.get("modified_on").isNull())
+                .as("modified_on must NOT be emitted null — t_club.modified_on is NOT NULL")
+                .isFalse();
     }
 
 }

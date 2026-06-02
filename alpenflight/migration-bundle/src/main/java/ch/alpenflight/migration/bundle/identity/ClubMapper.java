@@ -157,7 +157,9 @@ public final class ClubMapper implements Mapper {
                 source.getBoolean("IsClubMemberNumberReadonly"));
         Coercions.writeRequiredTimestamp(target, CREATED_ON, source.getTimestamp("CreatedOn"));
         target.writeStringField(CREATED_BY_USER_ID, source.getString("CreatedByUserId"));
-        Coercions.writeOptionalTimestamp(target, MODIFIED_ON, source.getTimestamp("ModifiedOn"));
+        Coercions.writeRequiredTimestampCoalescing(
+                target, MODIFIED_ON, source.getTimestamp("ModifiedOn"),
+                source.getTimestamp("CreatedOn"));
         Coercions.writeOptionalString(target, MODIFIED_BY_USER_ID,
                 source.getString("ModifiedByUserId"));
         Coercions.writeOptionalTimestamp(target, DELETED_ON, source.getTimestamp("DeletedOn"));

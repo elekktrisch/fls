@@ -766,7 +766,7 @@ T-17 worked: backend reaches Keycloak (localhost:8090). T-02's adapter now meets
 
 T-18 worked: Keycloak provisioning fully succeeds. Ingest now runs; last data-fidelity gap:
 
-- [ ] **T-19 — legacy nullable `ModifiedOn` vs new NOT-NULL `modified_on`.** Ingest 500s
+- [x] **T-19 — legacy nullable `ModifiedOn` vs new NOT-NULL `modified_on`.** Ingest 500s
   `sqlstate=23502: null value in column "modified_on" of relation "t_club"` — a real legacy Club
   has `ModifiedOn` NULL (created, never modified) but `t_club.modified_on` is NOT NULL (audit
   invariant). Same class as T-12's created_on guard. **Fix:** coalesce `modified_on = COALESCE(
@@ -775,5 +775,39 @@ T-18 worked: Keycloak provisioning fully succeeds. Ingest now runs; last data-fi
   **Audit ALL registered mappers** (CLUB hit first; USER/LOCATION/INOUTBOUND_POINT etc. likely next)
   + their new-schema `modified_on`/other-required-timestamp nullability, and fix the same class in
   one pass. *(seam: mapper/Coercions required-timestamp coalescing + audit)*
+  Landed (shared helper + one-pass mapper sweep). **New `Coercions.writeRequiredTimestampCoalescing(
+  target, field, primary, fallback)`** — emits `COALESCE(primary, fallback)` via the existing
+  `writeRequiredTimestamp` (so both-null still throws the column-naming diagnostic from T-12, never a
+  bare NPE/23502). **Schema audit (Flyway `db/migration/`):** EVERY `t_*.modified_on` in the schema is
+  `TIMESTAMPTZ NOT NULL DEFAULT now()` — there is no nullable `modified_on`. The 23 registered mappers
+  that emit a `modified_on` (CLUB, USER, PERSON, PERSON_CLUB, PERSON_CATEGORY, PERSON_CATEGORY_ASSIGNMENT,
+  MEMBER_STATE, ARTICLE, PLANNING_DAY, PLANNING_DAY_ASSIGNMENT, PLANNING_DAY_ASSIGNMENT_TYPE,
+  DELIVERY, DELIVERY_ITEM, AIRCRAFT_RESERVATION, AIRCRAFT_RESERVATION_TYPE, ACCOUNTING_RULE_FILTER,
+  LOCATION, INOUTBOUND_POINT, FLIGHT, FLIGHT_TYPE, AIRCRAFT, AIRCRAFT_AIRCRAFT_STATE,
+  AIRCRAFT_OPERATING_COUNTER) ALL targeted a NOT-NULL `modified_on` but emitted it via
+  `writeOptionalTimestamp(..., getTimestamp("ModifiedOn"))` — every one switched to
+  `writeRequiredTimestampCoalescing(..., getTimestamp("ModifiedOn"), getTimestamp("CreatedOn"))`. Each
+  mapper's SELECT already projects both `CreatedOn`+`ModifiedOn` (verified — `created_on` is the T-12
+  `writeRequiredTimestamp` source), so no binding changes were needed. The 3 reference mappers
+  (COUNTRY/LANGUAGE/CLUB_STATE) carry NO audit timestamp — not affected. `FlightMapper`'s separate
+  nullable `flight_plan_opened_on` (the V13 air-state translation off `ModifiedOn`) stays
+  `writeOptionalTimestamp` — it is a nullable destination, not the audit `modified_on`.
+  **Other-required-timestamp / required-column audit:** (1) `modified_by_user_id` is nullable in EVERY
+  `t_*` table (grep: zero NOT-NULL) — the FK by-user columns are not at risk, matching the task's note.
+  (2) `created_on` (also NOT NULL) is already guarded by T-12's `writeRequiredTimestamp`. (3) The
+  non-audit required timestamps — `AuditLog.occurred_at`←legacy `MutationAuditEvents.EventDateUTC`
+  (legacy `[datetime] NOT NULL`), `AircraftReservation.RESERVATION_START/END`,
+  `AircraftAircraftState.VALID_FROM`, `AircraftOperatingCounter.AT_DATE_TIME` — all map from legacy
+  NOT-NULL business columns, so no coalesce is correct for them; left as `writeRequiredTimestamp`.
+  **Validated (no live MSSQL on box):** `migration-bundle` + `migration-tool` `./gradlew build` green.
+  New `CoercionsTest` cases (null ModifiedOn + present CreatedOn → emits CreatedOn; both present →
+  ModifiedOn wins; both null → column-naming `IllegalStateException`) + new `ClubMapperTest` case
+  (real `ClubMapper.writeNdjson` with NULL ModifiedOn → `modified_on == created_on`, not null).
+  **Full-chain regression guard:** new `LocationRealProducerRoundTripIT
+  .real_producer_coalesces_null_modified_on_to_created_on_for_never_modified_club` drives a CLUB NDJSON
+  produced by the REAL `ClubMapper.writeNdjson` from a NULL-ModifiedOn cursor through the real
+  `BundleWriter` → server ingest, asserting `t_club.modified_on == created_on` (would 23502 pre-fix) —
+  on real Testcontainers Postgres: `LocationRealProducerRoundTripIT` 4/4 green. First LIVE green is the
+  next manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-19 → re-run the full chain.
