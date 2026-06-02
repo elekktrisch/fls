@@ -2,11 +2,45 @@ package ch.alpenflight.migration.bundle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import java.io.ByteArrayOutputStream;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class CoercionsTest {
+
+    @Test
+    void writeRequiredTimestampFailsWithDiagnosticOnNullInsteadOfBareNpe() throws Exception {
+        // J-0c T-12: a NULL legacy value for a NOT-NULL destination column used
+        // to NPE inside value.toInstant() — getMessage() == null, so the
+        // export's per-entity handler reported ": null", forcing an
+        // entity-by-entity CI grind. The diagnostic now names the column.
+        JsonGenerator gen = new JsonFactory().createGenerator(new ByteArrayOutputStream());
+        gen.writeStartObject();
+        assertThatThrownBy(
+                () -> Coercions.writeRequiredTimestamp(gen, "created_on", null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("created_on")
+                .hasMessageContaining("NOT NULL");
+    }
+
+    @Test
+    void writeRequiredTimestampEmitsIsoInstantWhenPresent() throws Exception {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = new JsonFactory().createGenerator(sink)) {
+            gen.writeStartObject();
+            Coercions.writeRequiredTimestamp(
+                    gen, "created_on", Timestamp.from(Instant.parse("2016-06-07T22:53:46Z")));
+            gen.writeEndObject();
+        }
+        assertThat(sink.toString())
+                .contains("\"created_on\":\"2016-06-07T22:53:46Z\"");
+    }
 
     @Test
     void deriveFanOutIdIsDeterministicAndAValidVersion5Uuid() {

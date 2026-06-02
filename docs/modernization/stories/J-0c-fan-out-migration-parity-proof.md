@@ -427,7 +427,7 @@ the attempt + retry:
 prettier). Chain cleared the ENTIRE legacy half (create + video, T-11 ✓) + AlpenFlight
 stack bring-up + handshake mint, then failed at the export:
 
-- [ ] **T-12 — `alpenflight-export` mappers vs real FLSTest schema.** `alpenflight-export`
+- [x] **T-12 — `alpenflight-export` mappers vs real FLSTest schema.** `alpenflight-export`
   connected to the real legacy MSSQL and began `Streaming 7 registered entities...` but
   failed on the first: `ERROR: Failed streaming entity COUNTRY: null` (exit 6) — a swallowed
   exception (likely NPE) in the COUNTRY producer reading a real `Countries` row. This is the
@@ -436,5 +436,51 @@ stack bring-up + handshake mint, then failed at the export:
   in one pass** (avoid an entity-by-entity round grind), and improve the export's error
   surfacing so `: null` becomes the real cause. *(seam: migration-tool/bundle producer vs
   FLSTest; general-purpose)*
+  Landed (2 seams, batched per the task's "one fix-class across ≤7 entities" mandate):
+  **(1) Error surfacing — the primary fix, done first.** `BundleWriter.streamOne` caught only
+  `SQLException | IOException` and logged `e.getMessage()`, which is `null` for an NPE — hence
+  the opaque `: null`. Now it ALSO catches `RuntimeException` (so a mapper NULL-deref /
+  `UUID.fromString` on a NULL legacy GUID surfaces with per-entity context instead of crashing
+  bare), reports the failing ROW NUMBER, and renders the cause via a new package-private
+  `BundleWriter.describe(Throwable)` that walks the cause chain printing `class: message` at
+  each level (null-message throwables still name their type). Under `--verbose` (the workflow
+  runs `--verbose`) it also dumps the full stack trace to stderr. So the next chain run names
+  COUNTRY's exact class + stack instead of `: null`.
+  **(2) COUNTRY root cause — NOT in the mapper; it is below it (JDBC/driver/cursor layer).**
+  Audited exhaustively against the real FLSTest schema (the EF `DbEntities/Country.cs` is the
+  column-name/nullability source of truth + the seed `3 Insert Static Data.sql`): COUNTRY's
+  `writeNdjson` does only two `getString` reads (`CountryId`, `CountryCodeIso2`) — neither can
+  NPE, and `writeStringField(name, null)` is null-safe in Jackson. All 196 real `Countries`
+  rows carry a non-NULL `CountryCodeIso2`; no other seed/fixture/alter file inserts or mutates
+  a Country (verified), and the `ParityOracleHarnessTest` round-trips COUNTRY against the SAME
+  seed in MSSQL with zero deltas. The failure is ~110 ms (before any row materialises), so it
+  is at `executeQuery`/cursor-open under the export's connection hardening — which the parity
+  harness does NOT replicate: `ApplicationIntent=ReadOnly` + `responseBuffering=adaptive` +
+  `TYPE_FORWARD_ONLY`/`CONCUR_READ_ONLY` + `setFetchSize(1000)` + `closeOnCompletion()` (vs the
+  parity harness's plain `prepareStatement(sql)`). This is invisible to static analysis and to
+  the authoring box (no live MSSQL). Surfacing (1) is the correct, honest unblock for COUNTRY's
+  exact class; the connection-hardening strategy is a SEPARATE seam not speculatively touched
+  here (it carries the read-only guarantees). If the next chain run confirms a driver/cursor
+  fault, that is a one-line cursor-strategy follow-up.
+  **(3) NPE-class audit across all 7 registered mappers — the real, fixable NPE-class bug.**
+  `Coercions.writeRequiredTimestamp(target, col, value)` did `value.toInstant()` with NO null
+  guard → an NPE with `getMessage() == null` (exactly the COUNTRY symptom shape) the FIRST time
+  any registered entity hits a NULL `CreatedOn` in real data. Called by ClubMapper / UserMapper
+  / LocationMapper / InOutboundPointMapper (`CreatedOn`). The new-stack destination `created_on`
+  is `NOT NULL` (V2/V3), so a NULL cannot silently round-trip — the helper now throws a
+  diagnostic `IllegalStateException` NAMING the column + the NOT-NULL contract instead of a bare
+  NPE, so error-surfacing (1) reports a clear cause. (COUNTRY/LANGUAGE/CLUB_STATE carry no
+  timestamp, so this is not COUNTRY's blocker, but it is the same null-message-NPE class the
+  audit was asked to sweep — fixed across all callers via the shared helper.) Other reads were
+  already null-safe: every nullable string/int/timestamp goes through `Coercions.writeOptional*`
+  / typed `getObject(.., Integer.class)`; `getString` on a NULL emits a null JSON field
+  (consumer-side `UUID.fromString` validates at ingest, a different layer).
+  **Validated** (legacy MSSQL can't run on this box): `./gradlew build` green in BOTH
+  `migration-bundle` (incl. the gated-off `parityTest` excluded) and `migration-tool`. New
+  regression tests: `CoercionsTest` (NULL required-timestamp → diagnostic `IllegalStateException`
+  naming the column, + the present-value ISO-instant path) and `BundleWriterFanOutIdMapTest`
+  (`describe` names the class for a null-message NPE + renders the full cause chain). First LIVE
+  green is the next manager-triggered `alpenflight-proof-fanout.yml` run — which will now print
+  COUNTRY's real exception class + stack trace if it still fails at the driver layer.
 
-**Order:** T-12 → re-run the full chain.
+**Order:** T-12 (done) → re-run the full chain (will now surface COUNTRY's real cause).

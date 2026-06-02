@@ -164,9 +164,24 @@ public final class Coercions {
         }
     }
 
-    /** Emit ISO-8601 instant; {@code Timestamp} must not be null. */
+    /**
+     * Emit ISO-8601 instant; the destination column is {@code NOT NULL}, so a
+     * NULL legacy value cannot round-trip. Fail with a diagnostic message that
+     * names the column rather than letting {@code value.toInstant()} surface as
+     * an opaque {@link NullPointerException} (null getMessage) — the export's
+     * per-entity error handler reports the message, so a clear cause beats a
+     * bare {@code : null} that forces an entity-by-entity CI grind.
+     */
     public static void writeRequiredTimestamp(
-            JsonGenerator target, String fieldName, Timestamp value) throws IOException {
+            JsonGenerator target, String fieldName, @Nullable Timestamp value)
+            throws IOException {
+        if (value == null) {
+            throw new IllegalStateException(
+                    "Required timestamp column '" + fieldName + "' is NULL in the "
+                            + "legacy row, but the destination column is NOT NULL. "
+                            + "Either the legacy data has an unexpected NULL or the "
+                            + "mapper must treat this column as optional.");
+        }
         target.writeStringField(fieldName, value.toInstant().toString());
     }
 

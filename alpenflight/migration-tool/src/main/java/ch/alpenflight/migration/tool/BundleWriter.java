@@ -113,9 +113,26 @@ public final class BundleWriter {
                 digestOut.write('\n');
                 rows++;
             }
-        } catch (SQLException | IOException e) {
+        } catch (SQLException | IOException | RuntimeException e) {
+            // Surface the real cause: many failures here are NPEs / driver
+            // SQLExceptions whose getMessage() is null (a NULL legacy column
+            // read as a primitive, a uniqueidentifier coercion, a cursor-level
+            // driver fault). e.getMessage() alone collapses those to ": null"
+            // and forces an entity-by-entity CI grind to diagnose. Print the
+            // exception class + the full cause chain, and dump the stack trace
+            // to stderr so the next chain run names the offending row read.
+            // RuntimeException is caught alongside the checked types because a
+            // mapper NULL-deref (writeRequired*) or UUID.fromString on a NULL
+            // legacy GUID is a RuntimeException that would otherwise crash the
+            // process with no per-entity context.
+            if (verbose) {
+                System.err.println("  streaming " + entity + " failed at row "
+                        + (rows + 1) + " — stack trace follows:");
+                e.printStackTrace();
+            }
             throw new ExportException(ExitCode.IO_ERROR,
-                    "Failed streaming entity " + entity + ": " + e.getMessage(), e);
+                    "Failed streaming entity " + entity + " at row " + (rows + 1)
+                            + ": " + describe(e), e);
         }
         String hex = HexFormat.of().formatHex(digest.digest());
         if (verbose) {
@@ -280,6 +297,29 @@ public final class BundleWriter {
             byType.put(mapper.entityType(), mapper);
         }
         return byType;
+    }
+
+    /**
+     * Render an exception as {@code class: message} plus its cause chain, so a
+     * null-message throwable (NPE, some driver SQLExceptions) still names its
+     * type and underlying cause instead of surfacing as a bare {@code null}.
+     */
+    static String describe(Throwable e) {
+        StringBuilder sb = new StringBuilder();
+        Throwable current = e;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (depth > 0) {
+                sb.append(" <- caused by ");
+            }
+            sb.append(current.getClass().getName());
+            if (current.getMessage() != null) {
+                sb.append(": ").append(current.getMessage());
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return sb.toString();
     }
 
     private static MessageDigest newSha256() {

@@ -75,6 +75,26 @@ class BundleWriterFanOutIdMapTest {
                         replicaB.getLeastSignificantBits());
     }
 
+    @Test
+    void describeNamesTheClassAndCauseChainEvenWhenMessageIsNull() {
+        // J-0c T-12: COUNTRY failed live with "Failed streaming entity COUNTRY:
+        // null" — getMessage() was null (NPE-shaped). describe() must surface
+        // the exception CLASS plus the full cause chain so a null-message
+        // throwable no longer collapses to a bare ": null".
+        NullPointerException npe = new NullPointerException();
+        assertThat(BundleWriter.describe(npe))
+                .as("null-message throwable still names its type")
+                .isEqualTo("java.lang.NullPointerException");
+
+        Exception wrapped = new RuntimeException("outer",
+                new IllegalStateException("required column 'created_on' is NULL"));
+        assertThat(BundleWriter.describe(wrapped))
+                .as("cause chain is rendered with class + message at each level")
+                .contains("java.lang.RuntimeException: outer")
+                .contains("caused by")
+                .contains("java.lang.IllegalStateException: required column 'created_on' is NULL");
+    }
+
     private static String fanOutLine(UUID id, UUID legacyGuid, UUID clubId) {
         return "{\"id\":\"" + id + "\",\"legacy_guid\":\"" + legacyGuid
                 + "\",\"club_id\":\"" + clubId + "\"}";
