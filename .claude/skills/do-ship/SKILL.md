@@ -119,6 +119,12 @@ Push at task boundaries; after the first locally-green backend task, open a
 integration/J-NNN`, body `Closes #N` + AC checklist). Watch CI in background;
 a red CI run becomes the next task, not a blocked wait.
 
+**Drive to the goal with tasks — never follow-ups.** A gap between the journey and its
+ACs (worker- or gate-revealed) becomes **another `T-NN`** until the done bar — never a
+follow-up story / new journey / "we should later…". Exception: work with **significant
+overlap with an already-roadmapped journey** stays that journey's (note it for
+`/do-plan`; don't build or spin a story here).
+
 ### 3a — Autonomous re-plan on overflow
 
 A worker returns `status: overflow` with an `OVERFLOW:` note (naming the distinct
@@ -127,30 +133,25 @@ partial work is on the branch. When it does — or when you spot a task that fai
 sizing gate — **re-plan without the operator** (once):
 
 1. Read the worker's `OVERFLOW:` note (it names the seams).
-2. In the journey file, mark the task `~~T-NN~~ (split)` and insert lettered
-   sub-tasks `T-NNa, T-NNb, …` right after it, one seam each, in dependency order.
-   **Re-run the sizing gate on each proposed sub-task** before accepting it — the
-   worker that mis-sized once may propose slices that are themselves too big; carve
-   finer if so.
+2. Mark the task `~~T-NN~~ (split)`, insert lettered sub-tasks `T-NNa, T-NNb, …` after
+   it (one seam each, dependency order); **re-run the sizing gate on each** before
+   accepting — carve finer if a proposed slice is itself too big.
 3. Re-dispatch a fresh worker for `T-NNa`; continue the loop.
 
-**Loop guard (generation-based).** Only an un-lettered `T-NN` may be auto-split.
-If a *lettered* sub-task (`T-NNa`) itself returns overflow, do **not** split again
-— stop and escalate (the journey shape is wrong; a `/do-plan` re-carve is likely).
-Never re-dispatch the same id unchanged.
+**Loop guard.** Only an un-lettered `T-NN` auto-splits; if a *lettered* `T-NNa`
+overflows, **stop and escalate** (shape is wrong → likely `/do-plan` re-carve). Never
+re-dispatch the same id unchanged.
 
 ### 4 — Proof-chain gate
 
 When every task is ticked, run the gate (delegate to `e2e-driver`): the full
 chain — legacy seed → migrate → Keycloak → real Playwright — both fidelities
-green, **video retained on pass**. When the journey has a legacy counterpart,
-`e2e-driver` also captures a **legacy `flsweb` video** of the same journey on the
-seeded data — a **parity-review aid for the operator, not a pass/fail** (the
-AlpenFlight green stays the gate). Greenfield journeys ship the AlpenFlight video
-alone. On the PR these run as **two parallel CI jobs** — `alpenflight-proof`
-(required) + `parity-legacy-video` (non-blocking artifact), `e2e-driver` owns the
-workflow. For **Journey-0** (`journey0: true`) the gate work is itself the tasks:
-stand up the thinnest whole chain for this one screen.
+green, **video retained on pass**. With a legacy counterpart, `e2e-driver` also
+captures a **legacy `flsweb` video** on the seeded data — a parity-review aid, not
+pass/fail (AlpenFlight green is the gate); greenfield ships the AlpenFlight video
+alone. On the PR: **two parallel CI jobs** — `alpenflight-proof` (required) +
+`parity-legacy-video` (non-blocking); `e2e-driver` owns the workflow. For
+**Journey-0** the gate work *is* the tasks: stand up the thinnest whole chain.
 
 **Mock governance.** Happy + key-error cases run fully real — no mocking. Any
 mocked seam (edge/error only) carries an inline `@mocked: <seam> — <reason>` tag
@@ -186,8 +187,7 @@ was wrong.
 
 - One journey per invocation. `carved: false` is a hard bail.
 - Every task runs in a fresh worker context — you never do task work inline.
-- The green bar is the real full-chain run — never a mocked-only pass.
-- Default real; declared+signed mocks only; undeclared mock = red.
+- Green bar = the real full-chain run; default real, declared+signed mocks only, undeclared mock = red.
 - Schema structural; business rules on aggregates (ADR 0022 directive 2).
 - Tasks commit directly to `integration/J-NNN`; never merge red; one PR per journey.
 - Prune before done. Cite by file:line / PR# / J-ID, never SHAs.
