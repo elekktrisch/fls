@@ -381,3 +381,42 @@ T-07 fixed the server ITs (22/22 green) and T-08 fixed MSSQL (legacy stack now c
   First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-09 (done) → T-10 → re-run both gates.
+
+### Gate-run round 3 (2026-06-02) → T-11
+
+T-10's login-race fix WORKED — the spec now gets past login (10.5s vs the old
+2.4s fast-fail) into the Location-create step. New red, two failure modes across
+the attempt + retry:
+
+- [x] **T-11 — duplicate-name on retry + context-closed readback.** The reported
+  failure was `waitForURL '**/#/masterdata/locations'` 15s timeout after the
+  create submit — looking like a selectize/validation miss. **The artifact
+  (run 26790752624) disproves that:** the retry page snapshot shows ALL required
+  fields correctly set (Name `J0C-1081F9`, ICAO `J108`, **Typ `Wegpunkt`, Land
+  `Schweiz`** — the `$scope` selectize poke DID take), and a red banner "Failed
+  to insert location / {{Error_GeneralDatabaseException}}". The legacy server log
+  is conclusive: insert `J0C-1081F9` at 00:34:04 **succeeded**, re-insert at
+  00:34:15 hit `Violation of UNIQUE KEY constraint 'UNIQUE_Locations_LocationName'`.
+  Root cause chain: `J0C_LOCATION_NAME` pins ONE name for the whole CI run and
+  that pin survives Playwright retries; **attempt 1 created the Location fine and
+  ran the entire flow through both club saves, then died at the post-`ctxB.close()`
+  readback** (`pageB.request.post(/Token)` → "Target page, context or browser has
+  been closed" — the API readback raced the browser-context teardown); Playwright
+  retried the WHOLE test against the SAME pinned name → duplicate INSERT → DB
+  exception → no navigation → the 15s `waitForURL` timeout. So the create looked
+  like a validation problem but was a duplicate-name problem *caused by* the
+  context-closed bug forcing a retry. NOT a selectize/validation issue, NOT a
+  seed gap, NOT a legacy bug. Fix (both seams): (1) added `ensureLocationDeleted`
+  (mirrors locations-crud.spec.ts — list-by-name → soft-DELETE via
+  `X-HTTP-Method-Override`) called BEFORE the UI create, so the create is
+  idempotent and a retry can't collide on `UNIQUE_Locations_LocationName`; (2)
+  moved every API readback onto a standalone `playwright.request` context created
+  up front and disposed in `finally`, and do ALL readbacks (club B homebase +
+  re-token A + club A homebase) BEFORE `ctxB.close()` — the readback no longer
+  races any browser-context teardown. Validated STRUCTURAL-only (legacy stack
+  can't run on this box): `npx tsc --noEmit` clean for the file (only the
+  pre-existing repo-wide `moduleResolution` deprecation warning, exit 0), `npx
+  playwright test --list` discovers the single test. First LIVE green is the next
+  manager-triggered `alpenflight-proof-fanout.yml` run.
+
+**Order:** T-11 → re-run the full chain.

@@ -59,7 +59,7 @@
  */
 
 import { test, expect, gotoRoute, loginViaUi, waitForLoggedInState, screenshot } from '../../fixtures';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 // Record the create flow as the legacy parity video regardless of pass/fail.
 // T-05's workflow retains this artifact + publishes it to the proof gallery
@@ -123,6 +123,57 @@ async function bearer(page: Page): Promise<string> {
   });
   expect(token, 'expected access_token in ngStorage-loginResult').toBeTruthy();
   return token as string;
+}
+
+/**
+ * Drop any leftover Location with this name BEFORE creating it, so the create
+ * never collides on `UNIQUE_Locations_LocationName`.
+ *
+ * Why this matters here (the actual T-11 root cause): the chain pins ONE name
+ * via `J0C_LOCATION_NAME` for the whole CI run, and that pin survives Playwright
+ * retries. The first attempt creates the Location successfully; if the attempt
+ * then fails LATER (e.g. the post-`ctxB.close()` readback raced the context
+ * teardown), Playwright retries the WHOLE test against the SAME name — and the
+ * legacy server rejects the second INSERT with `Violation of UNIQUE KEY
+ * constraint 'UNIQUE_Locations_LocationName'` (legacy server log, run
+ * 26790752624: insert J0C-… at 00:34:04 OK, re-insert at 00:34:15 → DB
+ * exception → form shows "Failed to insert location" → no navigation →
+ * `waitForURL` 15s timeout). So the create looked like a validation problem but
+ * was a duplicate-name problem on retry. Mirrors locations-crud.spec.ts's
+ * `ensureLocationDeleted` (list-by-name → soft-DELETE via the override header).
+ */
+async function ensureLocationDeleted(page: Page, token: string, name: string): Promise<void> {
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const listRes = await page.request.post(`${API_BASE}/api/v1/locations/page/0/100`, {
+    headers,
+    data: { Sorting: {}, SearchFilter: { LocationName: name } },
+  });
+  if (!listRes.ok()) return;
+  const body = (await listRes.json()) as { Items?: { LocationId: string; LocationName: string }[] };
+  for (const row of body.Items ?? []) {
+    if (row.LocationName !== name) continue;
+    await page.request.post(`${API_BASE}/api/v1/locations/${row.LocationId}`, {
+      headers: { ...headers, 'X-HTTP-Method-Override': 'DELETE' },
+    });
+  }
+}
+
+/**
+ * Read a club's `HomebaseId` from a request context that OUTLIVES the page
+ * contexts. The original spec called `pageB.request.post(...)` AFTER
+ * `ctxB.close()`, so the readback raced the context teardown and threw
+ * "Target page, context or browser has been closed" (run 26790752624, line
+ * 326). Using a standalone `playwright.request` context — created up front,
+ * disposed in `finally` — decouples the API readback from the browser-context
+ * lifecycle entirely.
+ */
+async function clubHomebaseId(api: APIRequestContext, token: string, clubId: string): Promise<string> {
+  const res = await api.get(`${API_BASE}/api/v1/clubs/${clubId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(res.ok(), `GET club ${clubId}: ${res.status()}`).toBeTruthy();
+  const club = (await res.json()) as { HomebaseId?: string };
+  return (club.HomebaseId ?? '').toLowerCase();
 }
 
 /**
@@ -205,7 +256,7 @@ async function fillLocationRequiredDropdowns(page: Page): Promise<void> {
 // flows.
 test.setTimeout(120_000);
 
-test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity video)', async ({ browser }, testInfo) => {
+test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity video)', async ({ browser, playwright }, testInfo) => {
   // Random unique name = the freshness guarantee: proves data actually flowed
   // through the chain (T-05), not pre-seeded. Kept ICAO-short + uppercase so
   // the IcaoCode field (fixed-width) is happy.
@@ -234,10 +285,22 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   });
   const pageA = await ctxA.newPage();
 
+  // Standalone API context for the cross-context readback at the end. Created
+  // up front and disposed in `finally` so it never races a browser-context
+  // close (the original spec read back via `pageB.request` AFTER `ctxB.close()`
+  // → "context has been closed").
+  const api = await playwright.request.newContext();
+
+  try {
   await loginViaUi(pageA, ADMINS[0].username, ADMINS[0].password);
   await waitForLoggedInState(pageA);
   const clubAId = await myClubId(pageA);
   const tokenA = await bearer(pageA);
+
+  // Idempotency: a pinned `J0C_LOCATION_NAME` survives Playwright retries, and
+  // legacy enforces `UNIQUE_Locations_LocationName`. Soft-delete any leftover
+  // of this name before the UI create so a retry can't collide (T-11 fix).
+  await ensureLocationDeleted(pageA, tokenA, LOCATION_NAME);
 
   // CREATE the Location via the UI form.
   await gotoRoute(pageA, '/masterdata/locations/new');
@@ -309,32 +372,36 @@ test('J-0c fan-out: legacy Location created + referenced by 2 clubs (parity vide
   // Verify the fan-out trigger holds in the legacy DB: BOTH clubs' HomebaseId
   // now point at the one global Location. This is the exact precondition the
   // migration (T-05) reads to fan it out into 2 distinct per-club rows.
+  //
+  // CRITICAL: do every API readback through the standalone `api` context (NOT
+  // `pageB.request`) and BEFORE `ctxB.close()`. The original spec re-tokened +
+  // read back via `pageB.request` AFTER closing `ctxB`, which races the context
+  // teardown ("Target page, context or browser has been closed", run
+  // 26790752624). `api` outlives both browser contexts and is disposed in the
+  // outer `finally`.
   // ---------------------------------------------------------------------------
-  const authB = { Authorization: `Bearer ${tokenB}`, 'Content-Type': 'application/json' };
-  const clubBRes = await pageB.request.get(`${API_BASE}/api/v1/clubs/${clubBId}`, { headers: authB });
-  expect(clubBRes.ok(), `GET club B: ${clubBRes.status()}`).toBeTruthy();
-  const clubB = (await clubBRes.json()) as { HomebaseId?: string };
+  const clubBHomebase = await clubHomebaseId(api, tokenB, clubBId);
   expect(
-    (clubB.HomebaseId ?? '').toLowerCase(),
+    clubBHomebase,
     'OtherClub.HomebaseId should be the new Location after save',
   ).toBe(locationId.toLowerCase());
 
-  await ctxB.close();
-
   // Re-check club A from a fresh token so the assertion that BOTH reference the
-  // same Location is airtight (the row that drives the 2-way fan-out).
-  const reAuthA = await pageB.request.post(`${API_BASE}/Token`, {
+  // same Location is airtight (the row that drives the 2-way fan-out). tokenA
+  // came from ctxA (now closed) — mint a fresh one on the standalone context.
+  const reAuthA = await api.post(`${API_BASE}/Token`, {
     form: { grant_type: 'password', username: ADMINS[0].username, password: ADMINS[0].password },
   });
   expect(reAuthA.ok(), `re-token A: ${reAuthA.status()}`).toBeTruthy();
   const reTokenA = (await reAuthA.json()).access_token as string;
-  const clubARes = await pageB.request.get(`${API_BASE}/api/v1/clubs/${clubAId}`, {
-    headers: { Authorization: `Bearer ${reTokenA}` },
-  });
-  expect(clubARes.ok(), `GET club A: ${clubARes.status()}`).toBeTruthy();
-  const clubA = (await clubARes.json()) as { HomebaseId?: string };
+  const clubAHomebase = await clubHomebaseId(api, reTokenA, clubAId);
   expect(
-    (clubA.HomebaseId ?? '').toLowerCase(),
+    clubAHomebase,
     'TestClub.HomebaseId should be the new Location too — 2 clubs, 1 Location = fan-out trigger',
   ).toBe(locationId.toLowerCase());
+
+  await ctxB.close();
+  } finally {
+    await api.dispose();
+  }
 });
