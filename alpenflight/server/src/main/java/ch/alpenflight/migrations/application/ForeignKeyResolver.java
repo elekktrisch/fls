@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -98,6 +99,14 @@ final class ForeignKeyResolver implements AutoCloseable {
      * one-column-per-target convention without changing it (S-187a).
      */
     void rewriteForeignKeys(Mapper mapper, ObjectNode row) throws SQLException {
+        // Snapshot every fan-out disambiguator column's LEGACY value before the
+        // loop rewrites any FK in place. A disambiguator can itself be a FK column
+        // (AIRCRAFT's homebase_id disambiguates on managing_club_id, which is ALSO
+        // a CLUB FK rewritten earlier in this same loop). The fan-out composite
+        // map legacy_id_map_<target> is keyed by the LEGACY club guid, so the
+        // lookup must use the pre-rewrite value — not the new-stack UUID the CLUB
+        // resolution already substituted.
+        Map<String, UUID> legacyDisambiguators = snapshotDisambiguators(mapper, row);
         for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
             EntityType target = binding.target();
             String field = binding.column();
@@ -116,8 +125,8 @@ final class ForeignKeyResolver implements AutoCloseable {
                         badUuid);
             }
             if (target.fansOut()) {
-                resolveFanOutForeignKey(
-                        mapper, row, target, field, binding.disambiguatorColumn(), legacyGuid);
+                resolveFanOutForeignKey(mapper, row, target, field,
+                        binding.disambiguatorColumn(), legacyDisambiguators, legacyGuid);
                 continue;
             }
             UUID resolved = lookupOrNull(target, legacyGuid);
@@ -157,27 +166,21 @@ final class ForeignKeyResolver implements AutoCloseable {
             EntityType target,
             String field,
             @Nullable String disambiguatorColumn,
+            Map<String, UUID> legacyDisambiguators,
             UUID legacyGuid)
             throws SQLException {
         String clubField =
                 disambiguatorColumn != null ? disambiguatorColumn : REFERENCER_CLUB_FIELD;
-        JsonNode clubValue = row.get(clubField);
-        if (clubValue == null || clubValue.isNull()) {
+        // Use the pre-rewrite LEGACY value captured before the loop: clubField may
+        // itself be a FK column the loop already rewrote to a new-stack UUID, but
+        // the composite map is keyed by the LEGACY club guid.
+        UUID referencerClubId = legacyDisambiguators.get(clubField);
+        if (referencerClubId == null) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK,
                     "FK " + field + " on " + mapper.entityType() + " targets fan-out "
                             + target + " but the referencer row carries no own "
                             + clubField + " to disambiguate which replica it means");
-        }
-        UUID referencerClubId;
-        try {
-            referencerClubId = UUID.fromString(clubValue.asText());
-        } catch (IllegalArgumentException badUuid) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.NDJSON_PARSE_FAILED,
-                    clubField + " on " + mapper.entityType()
-                            + " is not a valid UUID: " + clubValue.asText(),
-                    badUuid);
         }
         UUID resolved = lookupCompositeOrNull(target, legacyGuid, referencerClubId);
         if (resolved == null) {
@@ -291,6 +294,39 @@ final class ForeignKeyResolver implements AutoCloseable {
 
     private static String conventionalForeignKeyField(EntityType target) {
         return target.name().toLowerCase(Locale.ROOT) + "_id";
+    }
+
+    /**
+     * Capture the LEGACY (pre-rewrite) value of every fan-out binding's
+     * disambiguator column, keyed by column name. Run before
+     * {@link #rewriteForeignKeys} mutates the row so a disambiguator that is
+     * itself a FK column (AIRCRAFT's {@code managing_club_id}) is read at its
+     * legacy value, matching the legacy-keyed composite fan-out map. A
+     * malformed value is left out and surfaces as a missing-disambiguator error
+     * at resolve time (same fail-closed message as a genuinely absent column).
+     */
+    private static Map<String, UUID> snapshotDisambiguators(Mapper mapper, ObjectNode row) {
+        Map<String, UUID> snapshot = new HashMap<>();
+        for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
+            if (!binding.target().fansOut()) {
+                continue;
+            }
+            String clubField = binding.disambiguatorColumn() != null
+                    ? binding.disambiguatorColumn() : REFERENCER_CLUB_FIELD;
+            if (snapshot.containsKey(clubField)) {
+                continue;
+            }
+            JsonNode value = row.get(clubField);
+            if (value == null || value.isNull()) {
+                continue;
+            }
+            try {
+                snapshot.put(clubField, UUID.fromString(value.asText()));
+            } catch (IllegalArgumentException ignored) {
+                // Leave unmapped: resolveFanOutForeignKey reports the miss.
+            }
+        }
+        return snapshot;
     }
 
     /** One resolved FK column → target pair (with optional fan-out disambiguator). */

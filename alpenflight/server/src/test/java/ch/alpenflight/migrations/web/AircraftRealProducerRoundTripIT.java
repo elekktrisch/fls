@@ -37,7 +37,6 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -74,11 +73,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
 @Tag("slow")
-@Disabled("J-1 T-05 real-producer round-trip proof — BLOCKED on S-187a (same "
-        + "non-canonical FK resolution gap as AircraftMigrationRoundTripIT). The "
-        + "real BundleWriter tar ordering this IT guards is correct, but the ingest "
-        + "ForeignKeyResolver cannot resolve AIRCRAFT's non-canonical FK columns, so "
-        + "the round-trip cannot reach 200 until S-187a lands. Flips to enabled then.")
 class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -96,6 +90,10 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-7ee0-8000-000000002ee0");
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
+    // Counter-unit-type reference FK (V25 backfill): legacy 2 -> HOURS_DECIMAL.
+    private static final int LEGACY_COUNTER_UNIT_DECIMAL_HOURS = 2;
+    private static final UUID SEED_COUNTER_UNIT_HOURS_DECIMAL =
+            UUID.fromString("019e2e15-2c00-7b58-8000-000000001b58");
 
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
@@ -260,7 +258,8 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
         // The AIRCRAFT survived the real producer ordering with every FK resolved.
         Map<String, Object> aircraft = jdbc.queryForMap(
                 "SELECT id, managing_club_id, aircraft_type_id, aircraft_owner_person_id, "
-                        + "homebase_id, immatriculation FROM t_aircraft WHERE id = ?::uuid",
+                        + "homebase_id, immatriculation, flight_operating_counter_unit_type_id "
+                        + "FROM t_aircraft WHERE id = ?::uuid",
                 legacyAircraftId.toString());
         assertThat(UUID.fromString(aircraft.get("managing_club_id").toString()))
                 .as("managing_club_id resolved to the real migrated club")
@@ -276,6 +275,10 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
                         + "(needs LOCATION.pgcopy drained before AIRCRAFT.ndjson)")
                 .isEqualTo(homebaseReplicaId);
         assertThat(aircraft.get("immatriculation")).isEqualTo("HB-3000");
+        assertThat(UUID.fromString(aircraft.get("flight_operating_counter_unit_type_id").toString()))
+                .as("flight_operating_counter_unit_type_id resolved to the real V25-seeded "
+                        + "t_counter_unit_type HOURS_DECIMAL PK through the real producer")
+                .isEqualTo(SEED_COUNTER_UNIT_HOURS_DECIMAL);
 
         // The children attached to the migrated aircraft with resolved values.
         Map<String, Object> stateRow = jdbc.queryForMap(
@@ -314,7 +317,10 @@ class AircraftRealProducerRoundTripIT extends PostgresIntegrationTest {
         row.putNull("mtom");
         row.put("nr_of_seats", 2);
         row.put("aircraft_owner_person_id", ownerPersonId.toString());
-        row.putNull("flight_operating_counter_unit_type_id");
+        // Counter unit-type reference FK exercised through the real producer →
+        // resolves to the real HOURS_DECIMAL seed PK (V25 backfill).
+        row.put("flight_operating_counter_unit_type_id",
+                Coercions.legacyIntIdToUuidString(LEGACY_COUNTER_UNIT_DECIMAL_HOURS));
         row.putNull("engine_operating_counter_unit_type_id");
         row.put("homebase_id", homebaseLocationId.toString());
         row.putNull("spot_link");

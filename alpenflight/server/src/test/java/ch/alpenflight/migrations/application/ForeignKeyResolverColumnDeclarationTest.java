@@ -123,6 +123,10 @@ class ForeignKeyResolverColumnDeclarationTest {
         // homebase resolves via the composite (legacy_guid, club_id) lookup keyed on
         // the aircraft's OWN managing_club_id (the declared disambiguator) — NOT the
         // resolver's default "club_id" referencer field, which the row never carries.
+        // The composite legacy_id_map_LOCATION is keyed by the LEGACY club guid (the
+        // fan-out producer writes (legacy_guid, legacy club_id, new_uuid)), so the
+        // disambiguator must use managing_club_id's PRE-REWRITE legacy value even
+        // though it is ALSO a CLUB FK rewritten earlier in the same pass.
         Connection connection = stubConnection(
                 Map.of(
                         EntityType.CLUB,
@@ -133,7 +137,7 @@ class ForeignKeyResolverColumnDeclarationTest {
                 Map.of(
                         EntityType.LOCATION,
                         Map.of(
-                                new CompositeKey(homebaseLegacy, managingClubNew),
+                                new CompositeKey(homebaseLegacy, managingClubLegacy),
                                 homebaseNewForManagingClub)));
 
         // Wire column names (package-private constants on AircraftMapper; the
@@ -152,10 +156,10 @@ class ForeignKeyResolverColumnDeclarationTest {
         assertThat(row.get("owner_club_id").asText()).isEqualTo(ownerClubNew.toString());
         assertThat(row.get("aircraft_owner_person_id").asText())
                 .isEqualTo(ownerPersonNew.toString());
-        // Fan-out homebase resolved against the managing_club_id disambiguator: the
-        // composite lookup is keyed on the ALREADY-RESOLVED managing club (rewritten
-        // in this same pass), proving managing_club_id is read as both a CLUB FK and
-        // the homebase replica selector.
+        // Fan-out homebase resolved against the managing_club_id disambiguator's
+        // PRE-REWRITE legacy value (the composite map is legacy-keyed), proving
+        // managing_club_id is read as both a CLUB FK (rewritten to the new id) and,
+        // via the snapshot, the legacy homebase replica selector.
         assertThat(row.get("homebase_id").asText())
                 .isEqualTo(homebaseNewForManagingClub.toString());
     }

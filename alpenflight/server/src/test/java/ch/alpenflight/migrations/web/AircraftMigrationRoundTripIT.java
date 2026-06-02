@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,18 +82,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @AutoConfigureTestRestTemplate
 @Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
 @Tag("slow")
-@Disabled("J-1 T-05 round-trip proof — BLOCKED on S-187a (non-canonical FK "
-        + "resolution). Empirically red against real Postgres with sqlstate=23503 "
-        + "fk_aircraft_owner_club_id: the ingest ForeignKeyResolver derives the FK "
-        + "column by convention (<entity>_id), so AIRCRAFT's non-canonical FK "
-        + "columns — managing_club_id/owner_club_id (CLUB), aircraft_owner_person_id "
-        + "(PERSON), homebase_id (fan-out LOCATION) — are never resolved and the "
-        + "legacy GUIDs reach the INSERT verbatim. The T-04 binding is "
-        + "authored-but-unwired against the resolver. This IT is the executable "
-        + "end-state spec; it flips to enabled when S-187a wires non-canonical + "
-        + "fan-out-club-disambiguated FK resolution. The aircraft_type_id "
-        + "reference-lookup gap T-05 surfaced is already fixed (AircraftMapper / "
-        + "AircraftAircraftStateMapper now declare referenceLookups()).")
 class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -113,6 +100,11 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
             UUID.fromString("019e2e15-2c00-7ee0-8000-000000002ee0");
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2; // GRASS_RUNWAY (V3)
     private static final int LEGACY_UNIT_FEET = 2; // FEET (V22 backfill)
+    // Counter-unit-type reference FK (V25 backfill): legacy 2 = '2 decimals per
+    // hour' -> HOURS_DECIMAL seed PK.
+    private static final int LEGACY_COUNTER_UNIT_DECIMAL_HOURS = 2;
+    private static final UUID SEED_COUNTER_UNIT_HOURS_DECIMAL =
+            UUID.fromString("019e2e15-2c00-7b58-8000-000000001b58");
 
     private static final UUID LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC = new UUID(0L, 1L);
 
@@ -270,7 +262,8 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         // migrated/seed target and the identity columns preserved.
         Map<String, Object> aircraft = jdbc.queryForMap(
                 "SELECT id, managing_club_id, aircraft_type_id, aircraft_owner_person_id, "
-                        + "homebase_id, immatriculation FROM t_aircraft WHERE id = ?::uuid",
+                        + "homebase_id, immatriculation, flight_operating_counter_unit_type_id "
+                        + "FROM t_aircraft WHERE id = ?::uuid",
                 legacyAircraftId.toString());
         assertThat(UUID.fromString(aircraft.get("id").toString()))
                 .as("AIRCRAFT is non-fan-out: legacy_guid preserved as id")
@@ -291,6 +284,11 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         assertThat(aircraft.get("immatriculation"))
                 .as("immatriculation preserved verbatim")
                 .isEqualTo("HB-3000");
+        assertThat(UUID.fromString(aircraft.get("flight_operating_counter_unit_type_id").toString()))
+                .as("flight_operating_counter_unit_type_id resolved to the real V25-seeded "
+                        + "t_counter_unit_type HOURS_DECIMAL PK, not the synthetic "
+                        + "new UUID(0, legacyIntId)")
+                .isEqualTo(SEED_COUNTER_UNIT_HOURS_DECIMAL);
 
         // (c) The state-history child attached to the parent aircraft, with its
         // aircraft_state_id resolved to the real V3 seed PK.
@@ -346,11 +344,11 @@ class AircraftMigrationRoundTripIT extends PostgresIntegrationTest {
         row.putNull("mtom");
         row.put("nr_of_seats", 2);
         row.put("aircraft_owner_person_id", ownerPersonId.toString());
-        // Counter unit-type FKs ride NULL: t_counter_unit_type carries no
-        // legacy_int_id seed yet (V22 backfilled only elevation/length), so a
-        // present synthetic ref would have nothing to resolve against — that
-        // seed gap is out of this round-trip's scope (recorded for S-187a).
-        row.putNull("flight_operating_counter_unit_type_id");
+        // Counter unit-type reference FK exercised: V25 backfilled
+        // t_counter_unit_type.legacy_int_id, so the synthetic
+        // new UUID(0, legacyIntId) resolves to the real HOURS_DECIMAL seed PK.
+        row.put("flight_operating_counter_unit_type_id",
+                Coercions.legacyIntIdToUuidString(LEGACY_COUNTER_UNIT_DECIMAL_HOURS));
         row.putNull("engine_operating_counter_unit_type_id");
         row.put("homebase_id", homebaseLocationId.toString());
         row.putNull("spot_link");

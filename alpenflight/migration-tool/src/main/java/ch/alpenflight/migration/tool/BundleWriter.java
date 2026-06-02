@@ -346,7 +346,8 @@ public final class BundleWriter {
             EntityType entity = result.entityType();
             MapperLegacyBindings.PortPolicy policy = MapperLegacyBindings.portPolicy(entity);
             if (policy == MapperLegacyBindings.PortPolicy.FULL_PORT
-                    && !entity.idMapSeededFromProvisioning()) {
+                    && !entity.idMapSeededFromProvisioning()
+                    && entity.emitsIdentityMap()) {
                 pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
                         writeIdentityPgcopy(result));
             } else if (policy == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL
