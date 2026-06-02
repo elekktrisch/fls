@@ -64,6 +64,7 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
   background: var(--pending-bg); color: var(--pending);
 }
+.nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
 </head>
@@ -73,10 +74,14 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>200/merge</code> &middot; 2026-06-02T19:04:19.407Z
+      assertion it proves. Generated on <code>200/merge</code> &middot; 2026-06-02T19:24:26.846Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
+    </p>
+    <p class="meta nav-galleries">
+      <strong>Per-run proof galleries</strong> (heavy chains not in the index below):<br>
+      &rarr; <a href="j-0c-fanout/"><strong>J-0c — fan-out migration parity</strong></a> <em>(real legacy → migrate + Keycloak → AlpenFlight, with the legacy create video &amp; per-club AlpenFlight fan-out videos)</em>
     </p>
   </header>
 
@@ -182,15 +187,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <h3>J-0 <span class="status success">3 proofs</span></h3>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f32cded1b3b2b7a271aea88cc2a0f1833225fa8a.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-45e8a8b7c2321efd0742ab7bf38ca0189de4a4ad.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5306ac1fe747fcd4cea00502dfc0d703689cd697.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f7421eb8e1a671082c0c52e29e8b4b8f7a84ef7b.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-be05f7cd81a7ad2f3c1bc4267fde737fab8daf76.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-48602c44e5f49fb0816b4eba32f548d711874010.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
         </figure>
         </div>
