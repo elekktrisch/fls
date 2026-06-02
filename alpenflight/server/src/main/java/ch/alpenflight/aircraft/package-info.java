@@ -19,8 +19,9 @@
  *       only. NULL when owned by an external organisation or by a
  *       private person.</li>
  *   <li>{@code aircraft_owner_person_id} (NULL OK): private-person owner
- *       metadata. Today informational; person-edit predicate deferred
- *       until S-052 wires User→Person.</li>
+ *       metadata. Also a write gate (S-163): a caller whose linked Person
+ *       matches it may edit/delete the aircraft. Relies on the User→Person
+ *       link (S-052) being populated; null link → no admit (fail-closed).</li>
  * </ul>
  *
  * <p>Owner-kind discriminator (own-club / other-organisation /
@@ -44,13 +45,15 @@
  *       sysadmin-driven register variant is tracked separately (S-162).</li>
  *   <li><b>Edit / soft-delete / transfer-ownership</b>: CLUB_ADMINISTRATOR
  *       of the aircraft's {@code managing_club_id}, or SYSTEM_ADMINISTRATOR
- *       as universal fallback.</li>
+ *       as universal fallback, or the aircraft's owner-person (S-163).</li>
  *   <li><b>State / counter</b>: same predicate, FLIGHT_OPERATOR also
  *       admitted.</li>
  * </ul>
  *
- * <p>Person-owner edit predicate is deferred to a follow-up story when
- * User→Person (S-052) wires up.
+ * <p>The owner-person admit (S-163) is net-new (legacy never gated on the
+ * owner-person); it resolves the JWT sub → User → person_id and admits when
+ * that matches {@code aircraft_owner_person_id}. It relies on the User→Person
+ * link (S-052) being populated and fails closed when it is null.
  */
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.aircraft;

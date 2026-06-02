@@ -4,6 +4,8 @@ import ch.alpenflight.aircraft.domain.Aircraft;
 import ch.alpenflight.aircraft.domain.AircraftRepository;
 import ch.alpenflight.platform.id.AircraftId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
+import ch.alpenflight.users.domain.User;
+import ch.alpenflight.users.domain.UserRepository;
 import java.util.Collection;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -27,7 +29,8 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>{@link #canEdit canEdit} — masterdata mutations (update,
  *       soft-delete, transfer-ownership). Requires CLUB_ADMINISTRATOR of
- *       {@code managing_club_id}, or SYSTEM_ADMINISTRATOR.</li>
+ *       {@code managing_club_id}, or SYSTEM_ADMINISTRATOR, or the aircraft's
+ *       owner-person (S-163).</li>
  *   <li>{@link #canOperate canOperate} — operational mutations (state /
  *       counter). Same predicate as {@link #canEdit} but admits the
  *       FLIGHT_OPERATOR role within the managing club.</li>
@@ -37,9 +40,16 @@ import org.springframework.stereotype.Component;
  *       caller's club.</li>
  * </ul>
  *
- * <p>The {@code aircraft_owner_person_id} field is intentionally NOT
- * consulted here. A future story layers in the person-owner predicate when
- * S-052 (Users CRUD) wires User→Person.
+ * <p><strong>Owner-person admit (S-163).</strong> {@link #canEdit} /
+ * {@link #canOperate} also admit a caller whose linked Person matches the
+ * aircraft's {@code aircraft_owner_person_id} — an OR-branch added to (not a
+ * replacement of) the managing-club gate. This is net-new behavior, not
+ * legacy parity (legacy {@code BaseService.IsOwner} gated on the creating
+ * club and never read the owner-person). The branch resolves the JWT
+ * {@code sub} → active {@link User} → {@link User#getPersonId()} and compares.
+ * It relies on the User→Person link being populated; for migrated admins that
+ * link is null until S-052 wires it, so the predicate fails closed (null
+ * person → no admit) and the caller falls back to the managing-club gate.
  */
 @Component("aircraftAccess")
 public class AircraftAccess {
@@ -49,9 +59,11 @@ public class AircraftAccess {
     private static final String ROLE_FLIGHT_OPERATOR = "ROLE_FLIGHT_OPERATOR";
 
     private final AircraftRepository aircrafts;
+    private final UserRepository users;
 
-    public AircraftAccess(AircraftRepository aircrafts) {
+    public AircraftAccess(AircraftRepository aircrafts, UserRepository users) {
         this.aircrafts = aircrafts;
+        this.users = users;
     }
 
     /**
@@ -129,15 +141,26 @@ public class AircraftAccess {
         if (hasAnyRole(jwt, ROLE_SYSTEM_ADMIN)) {
             return true;
         }
-        UUID managingClubId = resolveManagingClubId(id);
-        if (managingClubId == null) {
+        Aircraft aircraft = aircrafts.findActiveById(id.value()).orElse(null);
+        if (aircraft == null) {
             // Missing / soft-deleted aircraft: deny non-sysadmin to keep the
             // 404-on-write IDOR contract — the SpEL gate returns false; the
             // service-layer load surfaces the 404 to the caller anyway.
             return false;
         }
+        // S-163 owner-person branch (net-new, not legacy parity): a caller
+        // whose linked Person matches the aircraft's owner-person may
+        // edit/delete regardless of club. Resolved JWT sub → User.person_id.
+        // Fail-closed: a caller with no User row or a User with null person_id
+        // (e.g. a migrated admin before S-052 wires User→Person) is not
+        // admitted here and falls through to the managing-club gate below.
+        if (isOwnerPerson(jwt, aircraft.getAircraftOwnerPersonId())) {
+            return true;
+        }
+        UUID managingClubId = aircraft.getManagingClubId();
         UUID callerClubId = resolveCallerClubId(jwt);
-        if (callerClubId == null || !managingClubId.equals(callerClubId)) {
+        if (managingClubId == null || callerClubId == null
+                || !managingClubId.equals(callerClubId)) {
             return false;
         }
         if (hasAnyRole(jwt, ROLE_CLUB_ADMIN)) {
@@ -146,10 +169,38 @@ public class AircraftAccess {
         return allowFlightOperator && hasAnyRole(jwt, ROLE_FLIGHT_OPERATOR);
     }
 
-    private @Nullable UUID resolveManagingClubId(AircraftId id) {
-        return aircrafts.findActiveById(id.value())
-                .map(Aircraft::getManagingClubId)
+    /**
+     * S-163: does the caller's linked Person match the aircraft's
+     * {@code aircraft_owner_person_id}? Resolves JWT {@code sub} (a UUID) →
+     * active {@link User} → {@link User#getPersonId()}, then compares. Returns
+     * {@code false} (fail-closed) when the owner-person is null, the sub is not
+     * a UUID, no active User binds to it, or the User carries no person link.
+     */
+    private boolean isOwnerPerson(Jwt jwt, @Nullable UUID ownerPersonId) {
+        if (ownerPersonId == null) {
+            return false;
+        }
+        UUID sub = parseSub(jwt.getSubject());
+        if (sub == null) {
+            return false;
+        }
+        UUID callerPersonId = users.findActiveByKeycloakSub(sub)
+                .map(User::getPersonId)
                 .orElse(null);
+        return callerPersonId != null && callerPersonId.equals(ownerPersonId);
+    }
+
+    private static @Nullable UUID parseSub(@Nullable String sub) {
+        if (sub == null || sub.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(sub);
+        } catch (IllegalArgumentException e) {
+            // Sysadmin / federated subjects aren't bare UUIDs — no User row to
+            // bind, so no owner-person admit.
+            return null;
+        }
     }
 
     private @Nullable UUID resolveCallerClubId(Jwt jwt) {

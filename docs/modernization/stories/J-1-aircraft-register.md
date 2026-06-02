@@ -132,7 +132,7 @@ the migration proof, the real chain, and folded boyscout riders.
 - [x] **T-02** — S-164 caller-aware `latestCounter` redaction in `AircraftMapper.toDetail` (present
   for managing-club caller, null otherwise) + `AircraftsAuthorizationIT` assertion (manager sees /
   non-manager null). *(seam: AircraftMapper + IT)*
-- [ ] **T-03** — S-163 owner-person edit predicate: extend `AircraftAccess.canMutate` to admit the
+- [x] **T-03** — S-163 owner-person edit predicate: extend `AircraftAccess.canMutate` to admit the
   caller whose Person matches `aircraft_owner_person_id`; resolve the JWT→Person link (investigate;
   escalate if S-052 is a hard blocker), flip the `:37` comment, add `AircraftsAuthorizationIT` case.
   *(seam: AircraftAccess + person resolution + IT)*

@@ -57,6 +57,7 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String CLUB_A = "019e30c3-2c00-7001-8000-000000000001";
     private static final String CLUB_B = "019e30c3-2c00-7001-8000-000000000002";
+    private static final String LANG_DE_UUID = "019e2e15-2c00-77d0-8000-0000000007d0";
 
     @Autowired TestRestTemplate rest;
     @Autowired JwtTestFixture jwts;
@@ -67,6 +68,14 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
      * cross-tenant matrix needs to ensure the FK target exists. Idempotent
      * via {@code ON CONFLICT DO NOTHING}.
      */
+    @BeforeEach
+    void cleanOwnerPersonFixtures() {
+        // S-163 owner-person rows from prior runs (the User FK to Person means
+        // users must drop before persons).
+        jdbc.update("DELETE FROM t_user WHERE username LIKE 'aircraft-authz-it-%'");
+        jdbc.update("DELETE FROM t_person WHERE firstname = 'AircraftAuthzIT'");
+    }
+
     @BeforeEach
     void seedClubB() {
         UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
@@ -139,6 +148,73 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
         assertThat(foreignRead.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode foreignCounter = readJson(foreignRead).get("latestCounter");
         assertThat(foreignCounter == null || foreignCounter.isNull()).isTrue();
+    }
+
+    @Test
+    void ownerPerson_ofNonManagingClub_canEditAndDelete() {
+        // S-163: net-new owner-person edit gate (legacy never admitted the
+        // owner-person; operator chose to build it for J-1). A caller whose
+        // linked Person (t_user.person_id, resolved from JWT sub) matches the
+        // aircraft's aircraft_owner_person_id may edit + delete the aircraft
+        // even though their club is NOT the managing club — admitted IN
+        // ADDITION to the managing-club gate.
+        String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation()), adminA);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String id = readJson(created).get("id").asText();
+        // External id is `ac-<uuid>`; strip the prefix for the raw-SQL update.
+        UUID aircraftId = UUID.fromString(id.substring("ac-".length()));
+
+        // The owner-person and the CLUB_B user that links to it via the
+        // JWT sub → User.person_id chain.
+        UUID personId = UUID.randomUUID();
+        UUID ownerSub = UUID.randomUUID();
+        seedPerson(personId);
+        seedUserLinkedToPerson(ownerSub, UUID.fromString(CLUB_B), personId);
+        setAircraftOwnerPerson(aircraftId, personId);
+
+        // CLUB_B (non-managing) but the JWT sub resolves to a User whose
+        // person_id == the aircraft's owner person → admitted.
+        String ownerToken = mintJitReady(ownerSub, CLUB_B, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
+                updatePayload(uniqueImmatriculation()), ownerToken);
+        assertThat(upd.getStatusCode())
+                .as("owner-person of a non-managing club may edit")
+                .isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<String> del = delete("/api/v1/aircraft/" + id, ownerToken);
+        assertThat(del.getStatusCode())
+                .as("owner-person of a non-managing club may delete")
+                .isEqualTo(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void nonManagingCaller_withoutMatchingPersonLink_stillDenied() {
+        // Regression guard for the managing-club gate: a non-managing caller
+        // whose JWT sub resolves to a User whose person_id does NOT match the
+        // aircraft's owner-person (here: no owner-person at all, and a
+        // mismatched person link) still gets 403. The owner-person branch
+        // must be a strict OR-add, never a widening of the existing gate.
+        String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation()), adminA);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String id = readJson(created).get("id").asText();
+
+        // A CLUB_B user with a person link that does NOT match the aircraft's
+        // owner-person (the aircraft has no owner-person set at all).
+        UUID otherPersonId = UUID.randomUUID();
+        UUID otherSub = UUID.randomUUID();
+        seedPerson(otherPersonId);
+        seedUserLinkedToPerson(otherSub, UUID.fromString(CLUB_B), otherPersonId);
+
+        String otherToken = mintJitReady(otherSub, CLUB_B, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> upd = put("/api/v1/aircraft/" + id,
+                updatePayload(uniqueImmatriculation()), otherToken);
+        assertThat(upd.getStatusCode())
+                .as("non-managing caller with no matching person link is denied")
+                .isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
@@ -287,6 +363,52 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
             c.claim("realm_access", Map.of("roles", List.of(role)));
         };
         return jwts.mint(body);
+    }
+
+    /**
+     * Mint a token whose {@code sub} is a bare UUID (so the JWT→User→Person
+     * chain resolves) carrying the given club + role. Distinct from
+     * {@link #mintToken} (whose sub is a random {@code test-user-*} string the
+     * User lookup never matches).
+     */
+    private String mintJitReady(UUID sub, String clubId, String role) {
+        return jwts.mint(c -> {
+            c.subject(sub.toString());
+            if (clubId != null) {
+                c.claim("clubId", clubId);
+            }
+            c.claim("realm_access", Map.of("roles", List.of(role)));
+        });
+    }
+
+    private void seedPerson(UUID personId) {
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+                personId.toString(), "AircraftAuthzIT", "OwnerPerson");
+    }
+
+    private void seedUserLinkedToPerson(UUID kcSub, UUID clubId, UUID personId) {
+        jdbc.update("""
+                INSERT INTO t_user (id, club_id, username, friendly_name, person_id,
+                                    notification_email, language_id, keycloak_sub)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?::uuid, ?, ?::uuid, ?::uuid)
+                """,
+                UUID.randomUUID().toString(), clubId.toString(),
+                "aircraft-authz-it-" + kcSub, "Aircraft Authz IT Owner",
+                personId.toString(), "owner@example.com",
+                LANG_DE_UUID, kcSub.toString());
+    }
+
+    private void setAircraftOwnerPerson(UUID aircraftId, UUID personId) {
+        jdbc.update("UPDATE t_aircraft SET aircraft_owner_person_id = ?::uuid WHERE id = ?::uuid",
+                personId.toString(), aircraftId.toString());
+    }
+
+    private ResponseEntity<String> delete(String path, String token) {
+        return rest.exchange(
+                RequestEntity.delete(URI.create(path))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .build(),
+                String.class);
     }
 
     private ResponseEntity<String> get(String path, String token) {
