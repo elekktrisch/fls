@@ -420,3 +420,21 @@ the attempt + retry:
   manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-11 → re-run the full chain.
+
+### Gate-run round 4 (2026-06-02) → T-12
+
+**Code gate GREEN** ✅ (`alpenflight build` + `required` pass — server ITs + full-glob
+prettier). Chain cleared the ENTIRE legacy half (create + video, T-11 ✓) + AlpenFlight
+stack bring-up + handshake mint, then failed at the export:
+
+- [ ] **T-12 — `alpenflight-export` mappers vs real FLSTest schema.** `alpenflight-export`
+  connected to the real legacy MSSQL and began `Streaming 7 registered entities...` but
+  failed on the first: `ERROR: Failed streaming entity COUNTRY: null` (exit 6) — a swallowed
+  exception (likely NPE) in the COUNTRY producer reading a real `Countries` row. This is the
+  export producer meeting real legacy data for the first time. **Fix COUNTRY + proactively
+  audit the other 6 registered mappers' SELECTs/`writeNdjson` against the real FLSTest schema
+  in one pass** (avoid an entity-by-entity round grind), and improve the export's error
+  surfacing so `: null` becomes the real cause. *(seam: migration-tool/bundle producer vs
+  FLSTest; general-purpose)*
+
+**Order:** T-12 → re-run the full chain.
