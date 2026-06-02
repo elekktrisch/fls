@@ -48,7 +48,8 @@ public class MockKeycloakDirectoryConfig {
     public KeycloakDeploymentDirectory testKeycloakDeploymentDirectory() {
         KeycloakDeploymentDirectory mock = Mockito.mock(KeycloakDeploymentDirectory.class);
         lenient()
-                .when(mock.provisionClubAdminIdentity(any(UUID.class), anyString(), anyString()))
+                .when(mock.provisionClubAdminIdentity(
+                        any(UUID.class), anyString(), anyString(), anyString(), anyString()))
                 .thenAnswer(inv -> UUID.randomUUID());
         return mock;
     }

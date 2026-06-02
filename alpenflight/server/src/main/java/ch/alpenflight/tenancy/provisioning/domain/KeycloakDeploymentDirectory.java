@@ -4,10 +4,22 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Directory-side reconcile port for trial-Deployment provisioning. The
- * DB-half (Deployment + Clubs + reference-data) commits inside the ingest
- * transaction; this port runs post-commit, best-effort, and is retried
- * by the hourly reconcile job when it fails mid-flight.
+ * Directory-side port for Deployment provisioning. Two contracts, by
+ * caller:
+ *
+ * <ul>
+ *   <li><b>Self-service signup (best-effort + reconcile).</b> The DB-half
+ *       (Deployment + Clubs + reference-data) commits inside the signup
+ *       transaction; the directory methods below ({@code findOrCreate*},
+ *       {@code addUserToGroupIfAbsent}, {@code assignRoleIfAbsent},
+ *       {@code setUserAttribute}) run post-commit, best-effort, and are
+ *       retried by the hourly reconcile job from {@code kc_state=PENDING}
+ *       when they fail mid-flight.</li>
+ *   <li><b>Migration ingest (fail-closed).</b>
+ *       {@link #provisionClubAdminIdentity} runs <em>inside</em> the ingest
+ *       transaction and has NO reconcile-later fallback — a failure rolls
+ *       the whole migrate back. See that method's javadoc.</li>
+ * </ul>
  *
  * <p>Implementations MUST be idempotent — every method is "create-if-absent
  * + state-if-not-already" so a retry from any failure point is safe:
@@ -101,6 +113,14 @@ public interface KeycloakDeploymentDirectory {
      *       {@code @TenantId} resolves off — the same mechanism J-0's
      *       {@code two-club-fixture} relies on);</li>
      *   <li>the realm role {@code CLUB_ADMINISTRATOR};</li>
+     *   <li>{@code firstName} + {@code lastName} — the realm's declarative
+     *       user-profile marks both {@code required: { roles: ["user"] }}
+     *       (realm-export.json), so a {@code user}-roled account with a
+     *       blank name triggers Keycloak's dynamically-triggered
+     *       {@code VERIFY_PROFILE} required action on first login and never
+     *       leaves {@code /realms/}. Setting both at mint time makes the
+     *       migrated admin loginable in one shot (J-1 T-06 — replaces the
+     *       removed e2e {@code makeMigratedAdminLoginable} name fixup);</li>
      *   <li>the {@code UPDATE_PASSWORD} required action — migrated legacy
      *       passwords never cross over (C14), so the operator sets one on
      *       first login.</li>
@@ -110,8 +130,28 @@ public interface KeycloakDeploymentDirectory {
      * exists short-circuits to the existing directory sub rather than
      * surfacing the directory's 409.
      *
+     * <p><b>Fail-closed on the migration path.</b> The migration-ingest
+     * caller ({@code MigrationBundleIngestService}) invokes this
+     * <em>inside</em> the ingest transaction, before any entity stream
+     * drains — a thrown {@link ch.alpenflight.tenancy.provisioning.infra.KeycloakDeploymentDirectoryAdapter}
+     * provisioning exception propagates out and rolls the whole ingest
+     * back. There is no PENDING / reconcile-later fallback for this method:
+     * either the migrated admin is loginable or the migrate fails (operator
+     * intent — "Keycloak has to work", no shortcuts). The best-effort +
+     * hourly-reconcile contract documented on this interface applies to the
+     * <em>self-service-signup</em> methods above ({@code findOrCreate*},
+     * {@code addUserToGroupIfAbsent}, {@code assignRoleIfAbsent},
+     * {@code setUserAttribute}), which the reconcile job retries from
+     * {@code kc_state=PENDING} — NOT to this migration-provisioning call.
+     *
+     * @param firstName non-blank given name set on the directory user so
+     *     {@code VERIFY_PROFILE} does not fire (synthetic for the migrated
+     *     admin — the identity is a per-Club service account, not a legacy
+     *     Person row; see {@code DeploymentProvisioningService}).
+     * @param lastName  non-blank family name, same rationale.
      * @return the directory-assigned {@code sub} of the (created or
      *     pre-existing) club-admin user.
      */
-    UUID provisionClubAdminIdentity(UUID clubId, String username, String email);
+    UUID provisionClubAdminIdentity(UUID clubId, String username, String email,
+                                    String firstName, String lastName);
 }

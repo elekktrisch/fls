@@ -97,7 +97,8 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
         // provisionClubAdminIdentity per migrated Club; return a synthetic
         // sub so the ingest pipeline completes without an upstream realm.
         Mockito.reset(directory);
-        when(directory.provisionClubAdminIdentity(any(UUID.class), anyString(), anyString()))
+        when(directory.provisionClubAdminIdentity(
+                any(UUID.class), anyString(), anyString(), anyString(), anyString()))
                 .thenAnswer(inv -> UUID.randomUUID());
     }
 
@@ -229,17 +230,22 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
 
         // 4. One Keycloak club-admin identity per PROVISIONED Club, keyed
         // off the provisioned (not legacy) club UUID — so a real login
-        // carrying that clubId claim lands in the right tenant.
-        verify(directory, times(2))
-                .provisionClubAdminIdentity(any(UUID.class), anyString(), anyString());
+        // carrying that clubId claim lands in the right tenant. The
+        // firstName/lastName are non-blank (J-1 T-06) so the migrated admin
+        // clears Keycloak's VERIFY_PROFILE on first login without the
+        // (removed) e2e name fixup.
+        verify(directory, times(2)).provisionClubAdminIdentity(
+                any(UUID.class), anyString(), anyString(), anyString(), anyString());
         verify(directory).provisionClubAdminIdentity(
                 eq(provisionedClubA),
                 eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"),
-                eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"));
+                eq("migrated-admin+" + provisionedClubA + "@migrated.alpenflight.local"),
+                eq("Migrated"), eq("Admin"));
         verify(directory).provisionClubAdminIdentity(
                 eq(provisionedClubB),
                 eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"),
-                eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"));
+                eq("migrated-admin+" + provisionedClubB + "@migrated.alpenflight.local"),
+                eq("Migrated"), eq("Admin"));
     }
 
     @Test

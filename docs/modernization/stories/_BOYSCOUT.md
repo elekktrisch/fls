@@ -21,19 +21,6 @@ genuinely new vertical feature scope.
   before `J-NN`; add a generator unit test locking (a) ✅-prefix parses, (b) shipped
   journeys render in roadmap order, nothing silently appended. *(seam: generate-gallery.mjs
   parseRoadmap + a new generator spec)* — operator-facing; self-corrects on the next gate.
-- **Migrated-admin profile completion (prod gap, not a test fixup).** Production
-  `provisionClubAdminIdentity` (`KeycloakDeploymentDirectoryAdapter`) creates migrated
-  admins with blank firstName/lastName → a real migrated admin hits Keycloak `VERIFY_PROFILE`
-  on first login. Set firstName/lastName from the legacy `Person` during provisioning so the
-  admin is genuinely loginable; then REMOVE the test-side name fixup in
-  `e2e/.../keycloak-admin.ts` `makeMigratedAdminLoginable` (it was masking this). *(seam:
-  KeycloakDeploymentDirectoryAdapter.provisionClubAdminIdentity + e2e helper)* — Q3.
-- **Keycloak migration-contract doc reconciliation.** Migration ingest provisions Keycloak
-  **fail-closed** (hard-fail, rolls back ingest) — the operator's intent ("no shortcuts,
-  Keycloak has to work"). But `KeycloakDeploymentDirectory` documents a best-effort+reconcile
-  contract, so gap-hunter/T-07 flagged drift. Reconcile the contract doc (+ ADR note if
-  load-bearing) to state the migration path is fail-closed; scope best-effort language to
-  non-migration callers. *(seam: KeycloakDeploymentDirectory javadoc/contract + ADR)* — Q2.
 - **Docker Hub image-pull retry.** The fanout + nightly workflows pull images
   (mailpit/pgAdmin/Keycloak/MSSQL); a transient Docker Hub timeout caused a non-code red
   round. Add bounded pull-retry to the image-pull steps. *(seam: .github/workflows/

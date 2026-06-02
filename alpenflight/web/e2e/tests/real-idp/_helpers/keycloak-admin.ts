@@ -231,11 +231,18 @@ export async function findUserByUsername(username: string): Promise<AdminUser | 
 /**
  * Make a migration-provisioned club admin loginable for the proof spec.
  *
- * T-02 provisions each migrated club admin with the `UPDATE_PASSWORD` required
- * action and NO usable password (S-082 reset-mail is out of that slice's
- * scope). This helper does the test-only setup the operator would otherwise do
- * by hand: set a known password (non-temporary) and clear the pending required
- * actions, so the Playwright login form completes in one shot.
+ * Production `provisionClubAdminIdentity` provisions each migrated club admin
+ * with the `UPDATE_PASSWORD` required action and NO usable password (S-082
+ * reset-mail is out of that slice's scope). This helper does the test-only
+ * setup the operator would otherwise do by hand: set a known password
+ * (non-temporary) and clear the pending required actions, so the Playwright
+ * login form completes in one shot.
+ *
+ * firstName/lastName are NOT set here (J-1 T-06): production
+ * `provisionClubAdminIdentity` now stamps them at mint time, so the migrated
+ * admin already satisfies the realm's declarative user-profile and never hits
+ * the VERIFY_PROFILE interstitial. The earlier name fixup masked that prod gap
+ * and is removed.
  *
  * This does NOT weaken production behavior — it only mutates the test user's
  * own credential + required-action list via the Admin REST surface, exactly as
@@ -269,28 +276,16 @@ export async function makeMigratedAdminLoginable(
     );
   }
   // (2) Clear the UPDATE_PASSWORD required action (else KC forces the
-  //     change-password screen mid-login), mark the email verified so the
-  //     `email_verified` claim is true for any later verified-email gate, AND
-  //     give the user a firstName/lastName.
-  //
-  //     T-23: the realm's declarative user-profile marks firstName + lastName
-  //     `required: { roles: ["user"] }` (realm-export.json), so KC fires the
-  //     dynamically-triggered VERIFY_PROFILE required action at login for any
-  //     `user`-roled account whose firstName/lastName is blank. T-02's
-  //     `provisionClubAdminIdentity` creates migrated admins with neither name
-  //     set, so login lands on the "Update Account Information" interstitial and
-  //     never leaves /realms/ — the round-15 hang. VERIFY_PROFILE is NOT a
-  //     stored `requiredActions` entry, so clearing `requiredActions: []` cannot
-  //     suppress it; the only fix is to satisfy the profile. Filling both names
-  //     here makes the migrated-admin login complete in one shot for every club.
-  //     PUT /users/{id} is a partial merge — only these four keys change.
+  //     change-password screen mid-login) and mark the email verified so the
+  //     `email_verified` claim is true for any later verified-email gate.
+  //     PUT /users/{id} is a partial merge — only these two keys change.
+  //     firstName/lastName are intentionally NOT touched: production
+  //     provisioning already sets them, so VERIFY_PROFILE never fires.
   const userRes = await adminRequest(`/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
     body: JSON.stringify({
       requiredActions: [],
       emailVerified: true,
-      firstName: 'Migrated',
-      lastName: 'Admin',
     }),
   });
   if (!userRes.ok) {

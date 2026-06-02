@@ -189,10 +189,15 @@ the migration proof, the real chain, and folded boyscout riders.
   DEFAULT) was never given an `id` at ingest — `EntityStreamIngestor` now mints a UUID v7 surrogate
   for such leaves, and `BundleWriter`/`EntityType.emitsIdentityMap()` skip its identity pgcopy.
   *(seam: V25 + AircraftMapper.referenceLookups + the fan-out/surrogate-id ingest fixes the proof exposed)*
-- [ ] **T-06** — Migrated-admin profile completion (boyscout, blocks reaching /aircrafts):
-  `KeycloakDeploymentDirectoryAdapter.provisionClubAdminIdentity` sets firstName/lastName from the
-  legacy Person; remove the e2e `makeMigratedAdminLoginable` name fixup; reconcile the Keycloak
-  fail-closed contract doc. *(seam: KeycloakDeploymentDirectoryAdapter + e2e helper + doc)*
+- [x] **T-06** — Migrated-admin profile completion (boyscout, blocks reaching /aircrafts):
+  `KeycloakDeploymentDirectoryAdapter.provisionClubAdminIdentity` now sets firstName/lastName (5-arg
+  signature; service supplies deterministic synthetic `Migrated`/`Admin` — the migrated admin is a
+  per-Club *service identity*, not a legacy Person row, and Person streams drain AFTER provisioning,
+  so no real Person name is available at the call site); removed the e2e `makeMigratedAdminLoginable`
+  name fixup; reconciled the `KeycloakDeploymentDirectory` contract javadoc to scope best-effort+reconcile
+  to the self-service-signup methods and document the migration path as fail-closed (no ADR governs it —
+  contract lives in the port javadoc). *(seam: KeycloakDeploymentDirectoryAdapter + interface + service
+  call site + e2e helper + doc)*
 - [ ] **T-07** — Aircraft parity bundle seeder (mirror `FanOutParityBundleSeeder`) + real-idp spec
   thicken: clean-seed real chain (Keycloak login, CRUD, cross-club edit 403, owner-person edit OK,
   S-164 redaction) + migrated-data render. *(seam: seeder + real-idp spec)* — deps T-02,T-03,T-04,T-05,T-06.
