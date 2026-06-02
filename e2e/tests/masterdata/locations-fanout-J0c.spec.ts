@@ -76,8 +76,36 @@ const ADMINS = [
   { username: 'othertestadmin', password: 's', label: 'OtherClub' },
 ] as const;
 
-/** Resolve the logged-in admin's own ClubId from the hydrated ngStorage-user. */
+/**
+ * Resolve the logged-in admin's own ClubId from the hydrated ngStorage-user.
+ *
+ * Timing quirk this works around: `waitForLoggedInState` only polls
+ * `ngStorage-loginResult` for the `access_token` (the FIRST step of the SPA's
+ * login chain). But `myClub` is written by the LAST step. `AuthService.login`
+ * (AuthService.js:67-93) is a 4-call promise chain: POST /Token →
+ * `storage.loginResult`, GET /users/my → `storage.user`, GET /userroles →
+ * `storage.userRoles`, then `Clubs.getMyClub()` (GET /clubs/my) →
+ * `storage.user.myClub = club`. So immediately after the token lands,
+ * `ngStorage-user` is either still absent (the /users/my write hasn't fired)
+ * or present-but-without-`myClub` (the /clubs/my round-trip hasn't resolved),
+ * and a single read races to empty — the original "expected myClub.ClubId in
+ * ngStorage-user after UI login" failure.
+ *
+ * The injected-sessionStorage `loggedInPage` fixture (used by the passing
+ * locations-crud / clubs-crud specs) never hits this: it seeds a fully-formed
+ * `ngStorage-user` (with `myClub` set by fetchAuthData's own /clubs/my call)
+ * via addInitScript, so `myClub.ClubId` is present before the first read.
+ * Driving the REAL UI login here, we must instead WAIT for the SPA's final
+ * digest to write `myClub` — poll sessionStorage, same philosophy as
+ * `waitForLoggedInState`. The shape is identical (`myClub.ClubId`), it just
+ * lands ~3 async /api round-trips after the token.
+ */
 async function myClubId(page: Page): Promise<string> {
+  await page.waitForFunction(() => {
+    const raw = sessionStorage.getItem('ngStorage-user');
+    if (!raw) return false;
+    try { return !!JSON.parse(raw)?.myClub?.ClubId; } catch { return false; }
+  }, undefined, { timeout: 15_000 });
   const id = await page.evaluate(() => {
     const raw = sessionStorage.getItem('ngStorage-user');
     if (!raw) return null;

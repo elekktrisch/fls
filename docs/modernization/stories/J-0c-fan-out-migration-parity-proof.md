@@ -355,11 +355,29 @@ T-07 fixed the server ITs (22/22 green) and T-08 fixed MSSQL (legacy stack now c
   `alpenflight build` job then failed at the web lint/format step: `keycloak-admin.ts`
   + `fan-out-parity-fixture.ts` (e2e-driver edits) weren't prettier-clean. Fixed inline
   (`prettier --write`, locally `--check`-verified — trivial/mechanical, no CI round burned).
-- [ ] **T-10 — legacy login in the T-04 spec.** The full chain now reaches "Run T-04
+- [x] **T-10 — legacy login in the T-04 spec.** The full chain now reaches "Run T-04
   legacy create-flow spec" (MSSQL up ✓) but fails fast: `Error: expected myClub.ClubId in
   ngStorage-user after UI login` (`locations-fanout-J0c.spec.ts:180`). The legacy
   `loginViaUi` either doesn't populate the expected club for the seed user, the
   assertion/wait is wrong, or the FLSTest seed user lacks the club. `e2e-driver` — debug
   via CI (legacy stack can't run on this box). *(seam: T-04 spec/login)*
+  Root cause: a login-chain TIMING race, NOT the seed (both `testclubadmin`/`@testClubId`
+  and `othertestadmin`/`@otherClubId` carry a `Users.ClubId` in `_test-fixture.sql`, so
+  `/api/v1/clubs/my` resolves for each). The SPA's `AuthService.login` (AuthService.js:67-93)
+  is a 4-call promise chain: POST /Token → `storage.loginResult`; GET /users/my →
+  `storage.user`; GET /userroles → `storage.userRoles`; then `Clubs.getMyClub()` (GET
+  /clubs/my) → `storage.user.myClub = club` — written LAST. But `waitForLoggedInState`
+  only polls `ngStorage-loginResult` for the `access_token` (the FIRST step). So the
+  `myClubId()` read fired immediately after the token landed, ~3 async round-trips before
+  `myClub` was written — racing to empty (`ngStorage-user` absent or present-without-myClub),
+  hence the fast ~2.4s fail. The passing locations-crud/clubs-crud specs never hit this:
+  they use the injected-sessionStorage `loggedInPage` fixture, which seeds a fully-formed
+  `ngStorage-user` (with `myClub` set by `fetchAuthData`'s own /clubs/my call) before the
+  first read. Fix: `myClubId()` now `page.waitForFunction`-polls `sessionStorage` until
+  `ngStorage-user.myClub.ClubId` lands (15s, same philosophy as `waitForLoggedInState`)
+  before reading — the shape is unchanged (`myClub.ClubId`), it just had to be awaited.
+  Validated STRUCTURAL-only (legacy stack can't run on this box): `npx tsc --noEmit` clean
+  (no new errors for the file), `npx playwright test --list` discovers the single test.
+  First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-09 (done) → T-10 → re-run both gates.
