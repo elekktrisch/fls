@@ -827,3 +827,30 @@ T-19 worked (modified_on coalesced). Last SYSTEM_GLOBAL resolution gap:
   SeedReferenceUuids + BundleWriter LANGUAGE id-map + guard)*
 
 **Order:** T-20 → re-run the full chain.
+
+### Gate-run round 13 (2026-06-02) → T-21
+
+T-20 worked — no more `BUNDLE_CROSS_TENANT_FK_LEAK`; all SYSTEM_GLOBAL refs resolve and the chain
+now reaches the batch INSERT. New layer surfaced a real Postgres FK violation:
+
+```
+INSERT INTO t_user (... person_id='f1500002-…-b1' ...) violates fk_user_person_id
+Detail: Key (person_id)=(f1500002-…-b1) is not present in table "t_person".
+```
+
+- [ ] **T-21 — PERSON authored but never wired into the export bindings.** `MapperLegacyBindings`
+  binds exactly 7 entities (COUNTRY, LANGUAGE, CLUB_STATE, CLUB, USER, LOCATION, INOUTBOUND_POINT).
+  **PERSON has no `Binding`**, so `Persons` is never exported, `t_person` stays empty, and the
+  migrated club-admin USER's non-null `person_id` (a passed-through legacy GUID, FULL_PORT identity —
+  *not* a remapped id, which is why the app-level FK-leak guard didn't catch it) dangles at INSERT.
+  `PersonMapper` already exists and is column-complete; `UserMapper:134` already declares PERSON as a
+  dependency. Fix: add `EntityType.PERSON, new Binding(FROM Persons …)` to `MapperLegacyBindings`,
+  projecting the columns `PersonMapper` reads. t_person is **cross-tenant (no club_id)**; its only FK
+  is the **nullable** `country_id` → t_country, resolvable via the SYSTEM_GLOBAL COUNTRY id-map
+  (T-15 mechanism) — so PersonMapper must emit `country_id` as the legacy GUID + declare the COUNTRY
+  dependency. Enum order already places PERSON before USER, so insert ordering is correct. Extend
+  `LocationRealProducerRoundTripIT` (red-first): assert the real producer emits a PERSON stream and
+  that ingest populates `t_person` so `t_user.person_id` resolves. *(seam: MapperLegacyBindings
+  PERSON binding + PersonMapper country_id resolution + round-trip IT)*
+
+**Order:** T-21 → re-run the full chain.
