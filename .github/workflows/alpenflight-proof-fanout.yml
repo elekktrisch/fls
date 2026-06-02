@@ -37,14 +37,6 @@ on:
     # so a shared-runner-minute spike doesn't stack on the same instant.
     - cron: '0 5 * * *'
   workflow_dispatch:
-  # TEMPORARY (J-0c bring-up): run on pushes to the J-0c integration branch so the
-  # full chain gets its first live green + videos BEFORE merge (workflow_dispatch
-  # can't fire until this file is on the default branch). REMOVE this trigger once
-  # J-0c merges — post-merge the workflow runs via schedule + workflow_dispatch only
-  # (it is deliberately NOT a per-PR required gate; the legacy stack is too heavy).
-  push:
-    branches:
-      - integration/J-0c
 
 concurrency:
   group: alpenflight-proof-fanout-${{ github.ref }}
