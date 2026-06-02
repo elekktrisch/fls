@@ -552,7 +552,7 @@ at row 1 — a real **parity finding** (exactly J-0c's purpose):
 Export half COMPLETE (all 7 entities stream). Chain reached the FINAL step (AlpenFlight
 parity spec); real-bundle migrate POST 500s:
 
-- [ ] **T-15 — COUNTRY reference-data resolution on real bundle.** Real-bundle ingest fails:
+- [x] **T-15 — COUNTRY reference-data resolution on real bundle.** Real-bundle ingest fails:
   `ConstraintViolationException: t_club violates fk_club_country_id — country_id=(77cc3be6-…)
   not present in t_country`. CLUB references a legacy Country GUID that does not resolve into
   `t_country`. Investigate COUNTRY's `EntityPolicy` in the real export manifest (FULL_PORT vs
@@ -574,3 +574,28 @@ NDJSON FK path. **Brittleness mitigation (required, since the producer now coupl
 a guard test asserts the recomputed iso2/code→UUID map equals the actual Flyway t_country/
 t_club_state seed — a seed reorder fails CI loudly, never silently breaks migration. Operator chose
 this over server-side provisioning resolution (option 1).
+  Landed (producer-only, Option 2): new shared `SeedReferenceUuids` (migration-bundle)
+  replicates the `GenerateCanonicalUuids` derivation for `t_country` (by ISO2) +
+  `t_club_state` (by V2 code). `ManifestBuilder.readClubDeclarations` resolves legacy
+  Country GUID → ISO2 → seed PK and legacy ClubState INT → code → seed PK (fail-closed),
+  so the manifest's `ClubDeclaration` carries valid FKs → `provisionDeployment`'s `t_club`
+  INSERT no longer violates `fk_club_country_id`/`fk_club_club_state_id`. `BundleWriter`
+  emits `legacy_id_map/COUNTRY.pgcopy` + `CLUB_STATE.pgcopy` (legacy ref → seed PK, derived
+  from the SYSTEM_GLOBAL NDJSON it reads) so the server `ForeignKeyResolver` resolves the
+  CLUB NDJSON's `country_id`/`club_state_id`; and it DROPS the pre-seeded SYSTEM_GLOBAL
+  NDJSON (COUNTRY/CLUB_STATE/LANGUAGE) from the tar — re-inserting `t_country` would
+  NOT-NULL-violate `iso3_code` (the next bug the resolved provisioning exposed). `ClubStateMapper`
+  exposes its 1/2/3→code map so producer + mapper can't drift. **Guard test**
+  `SeedReferenceUuidsSeedParityTest` parses the V2 `t_country`/`t_club_state` INSERTs off the
+  classpath and asserts `SeedReferenceUuids` reproduces every seeded row EXACTLY (count + each
+  natural-key→UUID) — verified RED on an offset bump, GREEN on the real seed; a seed reorder
+  now fails CI loudly. **Regression-guarded without live MSSQL:**
+  `LocationRealProducerRoundTripIT` gains a method driving a CLUB with an UNRESOLVED legacy
+  Country GUID + synthetic club-state through the real `BundleWriter`→server ingest, asserting
+  `t_club` resolves to `SEED_COUNTRY_CH`/`SEED_CLUB_STATE_ACTIVE` (RED 500 pre-fix, GREEN after).
+  Secondary: `fan-out-parity-fixture.ts`'s `seedFanOutParity` takes `testInfo.retry` so the synth
+  path mints a fresh handshake/uploadId per attempt (a retry re-handshakes instead of 409-ing the
+  sealed-FAILED upload). **Validated** (no live MSSQL): `migration-bundle` + `migration-tool`
+  `./gradlew build` green; server ITs green (RealProducer 2/2 incl. new method, Parity/Migration/
+  NegativePath/Ingest suite green); guard test green; web specs tsc-clean + Playwright-discover.
+  First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
