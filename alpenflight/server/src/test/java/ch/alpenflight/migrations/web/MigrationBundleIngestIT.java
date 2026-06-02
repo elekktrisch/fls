@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.alpenflight.tenancy.provisioning.domain.KeycloakDeploymentDirectory;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,10 +30,7 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -47,7 +45,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-@Import({JwtTestFixture.class, MigrationBundleIngestIT.MockDirectoryConfig.class})
+@Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
 class MigrationBundleIngestIT extends PostgresIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -336,20 +334,5 @@ class MigrationBundleIngestIT extends PostgresIntegrationTest {
                 .replace("-----END PUBLIC KEY-----", "")
                 .replaceAll("\\s", "");
         return Base64.getDecoder().decode(body);
-    }
-
-    /**
-     * Replaces the production {@link KeycloakDeploymentDirectory} adapter
-     * with a Mockito mock so the ingest pipeline's provision-on-migrate
-     * step (J-0c T-02) can be exercised + verified without an upstream
-     * realm — the same seam {@code DeploymentProvisioningServiceIT} uses.
-     */
-    @TestConfiguration
-    static class MockDirectoryConfig {
-        @Bean
-        @Primary
-        KeycloakDeploymentDirectory testKeycloakDeploymentDirectory() {
-            return Mockito.mock(KeycloakDeploymentDirectory.class);
-        }
     }
 }

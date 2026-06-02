@@ -285,7 +285,7 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
 
 ### Gate-run findings (2026-06-01, first live runs) → new tasks
 
-- [ ] **T-07 — Fix migration-ingest IT regression (T-02 Keycloak call).** The per-PR
+- [x] **T-07 — Fix migration-ingest IT regression (T-02 Keycloak call).** The per-PR
   `alpenflight build` went RED: T-02 wired a **real Keycloak HTTP call**
   (`provisionMigratedClubAdmins` → `KeycloakDeploymentDirectoryAdapter`) into the
   **shared** ingest path, but the server-IT env has no Keycloak. T-02 only mocked the
@@ -298,6 +298,34 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   consistently mocked). Also decide: should a Keycloak-provision failure hard-fail the
   whole data ingest (current) or be best-effort? Surface if changing it. *(seam: shared
   test-config across the ingest IT suite; blocks the per-PR required gate)*
+  Landed: new shared `@TestConfiguration`
+  `ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig` — a `@Primary`
+  Mockito mock of `KeycloakDeploymentDirectory` with a `lenient` default stub
+  (`provisionClubAdminIdentity` → random `sub`) so the real ingest path completes
+  without a realm. `@Import`-ed into every `migrations/web` IT that drives ingest:
+  `MigrationBundleIngestIT` (its own nested `MockDirectoryConfig` deleted — now
+  consumes the shared one; `reset` + re-stub + `verify` unchanged so T-02's
+  behavior assertion still holds), `LocationRealProducerRoundTripIT`,
+  `LocationMigrationRoundTripIT`, `MigrationBundleParityRoundTripIT`,
+  `MigrationBundleNegativePathIT`, plus `MigrationBundleConcurrencyIT` +
+  `MigrationBundlePlaintextLeakIT` (both reach the OK/provision path too). The mock
+  generalizes the exact pattern T-02 used and `DeploymentProvisioningServiceIT`
+  uses — no new mock style. Real Postgres (Testcontainers) run: 22/22 green
+  (RealProducer 1, Migration 1, Parity 4, NegativePath 10, Ingest 4, Concurrency 1,
+  PlaintextLeak 1; 0 failures/errors/skips).
+  **Design question (hard-fail vs best-effort) — surfaced, NOT changed.** T-02
+  makes a Keycloak-provision failure roll back the whole data ingest (a 500),
+  yet `KeycloakDeploymentDirectory`'s own Javadoc states the directory port "runs
+  post-commit, best-effort, and is retried by the hourly reconcile job when it
+  fails mid-flight." So the *intended* contract is best-effort + reconcile; the
+  T-02 wiring contradicts it by coupling provisioning into the ingest transaction's
+  success. **Recommendation: make club-admin provisioning best-effort** — let data
+  ingest COMMIT, enqueue/leave provisioning for the existing reconcile path, and
+  surface a partial-success status — to match the documented contract and avoid a
+  transient Keycloak outage failing an otherwise-good migration. NOT done here: the
+  honest test fix is purely the shared mock (the ITs now pass with provisioning
+  invoked, mirroring the real wiring), so changing the coupling is out of T-07's
+  seam. Filed as a follow-up call for `/do-ship`/operator.
 - [ ] **T-08 — Fix fanout-workflow MSSQL network ordering.** The full-chain run hung at
   "Wait for MSSQL healthcheck" → 45-min timeout: `alpenflight_shared` is `external: true`
   and MSSQL references it, but the workflow **creates the network (step 19) AFTER starting
