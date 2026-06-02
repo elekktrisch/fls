@@ -43,6 +43,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-22 | Freemium upgrade + billing | E-15 | J-21 | S-143, S-144, S-145, S-146, S-147 | N/A (greenfield) | none (new) |
 | ✅ J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
 | ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
+| J-26 | Per-run gallery nav + heavy-chain pre-merge preview deploy (infra) | E-13 | J-24, J-25 | — | N/A (CI tooling) | gh-pages nav + fanout preview |
 
 **✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-24 (#192),
 J-25 (#196). Done, PR open awaiting merge: **J-0b (#198)**. Next once J-0b merges:
