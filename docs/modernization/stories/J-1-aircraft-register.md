@@ -136,7 +136,7 @@ the migration proof, the real chain, and folded boyscout riders.
   caller whose Person matches `aircraft_owner_person_id`; resolve the JWT→Person link (investigate;
   escalate if S-052 is a hard blocker), flip the `:37` comment, add `AircraftsAuthorizationIT` case.
   *(seam: AircraftAccess + person resolution + IT)*
-- [ ] **T-04** — Register AIRCRAFT (+ AIRCRAFT_AIRCRAFT_STATE, AIRCRAFT_OPERATING_COUNTER) in
+- [x] **T-04** — Register AIRCRAFT (+ AIRCRAFT_AIRCRAFT_STATE, AIRCRAFT_OPERATING_COUNTER) in
   `MapperLegacyBindings` with the producer SELECT (managing_club_id cascade + homebase Location
   fan-out source); flip `MapperLegacyBindingsTest.unregisteredEntityStillFailsLoudly`; add the
   **binding-completeness guard** (boyscout: every mapper `foreignKeys()` target has a binding).
