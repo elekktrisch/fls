@@ -141,9 +141,10 @@ the migration proof, the real chain, and folded boyscout riders.
   fan-out source); flip `MapperLegacyBindingsTest.unregisteredEntityStillFailsLoudly`; add the
   **binding-completeness guard** (boyscout: every mapper `foreignKeys()` target has a binding).
   *(seam: MapperLegacyBindings + AircraftMapper producer + tests)*
-- [x] **T-05** — `AircraftMigrationRoundTripIT` + `AircraftRealProducerRoundTripIT` mirroring the
+- [~] **T-05** — `AircraftMigrationRoundTripIT` + `AircraftRealProducerRoundTripIT` mirroring the
   Location IT templates (FK resolve CLUB/PERSON/LOCATION; real `BundleWriter` tar ordering).
-  *(seam: 2 migration ITs)* — deps T-04.
+  *(seam: 2 migration ITs)* — deps T-04. **ITs authored + committed `@Disabled("S-187a")`; the
+  proof is red until T-05a/b/c land — then flip both ITs to enabled and this completes.**
   ESCALATED (structural, S-187a): the round-trip proof did its job — both ITs are empirically
   red against real Postgres (`sqlstate=23503 fk_aircraft_owner_club_id`). The ingest
   `ForeignKeyResolver` derives the FK column by convention (`<entity>_id`), so AIRCRAFT's
@@ -158,6 +159,29 @@ the migration proof, the real chain, and folded boyscout riders.
   `AircraftMapper` + `AircraftAircraftStateMapper` now declare `referenceLookups()`
   (aircraft_type_id / aircraft_state_id → V3-seeded `legacy_int_id`). **Blocks T-07's
   real-data render AC + the §4 real chain** until S-187a is carved/built.
+
+  **S-187a absorbed as J-1 tasks (implementation-architect 2026-06-02: task-sized + additive,
+  NOT a foundation journey — it reuses the proven composite fan-out lookup + reference-lookup
+  resolver; the contract change mirrors the shipped `referenceLookups()` default-empty opt-in,
+  so no existing mapper changes):**
+- [ ] **T-05a** — Resolver contract generalization: add a `default Map<String,EntityType>
+  foreignKeyColumns()` (or `List<ForeignKeyColumn>`) to `Mapper`; teach
+  `ForeignKeyResolver.rewriteForeignKeys` to resolve a target's column from the declaration when
+  present, else fall back to `conventionalForeignKeyField` (`:244-246`); support two-columns-one-
+  target (CLUB ← managing_club_id + owner_club_id) by iterating column→target pairs. Default empty
+  → all 30 existing mappers unchanged. *(seam: Mapper + ForeignKeyResolver)*
+- [ ] **T-05b** — AIRCRAFT FK column declarations + fan-out homebase disambiguator: override
+  `foreignKeyColumns()` on `flight/AircraftMapper` (managing_club_id→CLUB, owner_club_id→CLUB,
+  aircraft_owner_person_id→PERSON, homebase_id→LOCATION); make the fan-out disambiguator column
+  configurable so `homebase_id` resolves via AIRCRAFT's own `managing_club_id` instead of the
+  hardcoded `REFERENCER_CLUB_FIELD="club_id"` (`ForeignKeyResolver:68`). No producer wire change
+  (managing_club_id already emitted). *(seam: AircraftMapper + resolver disambiguator plumbing)* — deps T-05a.
+- [ ] **T-05c** — counter-unit-type `legacy_int_id` seed + reference-lookup: new
+  `Vxx__counter_unit_type_legacy_int_id.sql` mirroring V22 (ADD COLUMN, UPDATE per legacy key,
+  NOT NULL, UNIQUE index); add the two counter-unit-type FKs to `AircraftMapper.referenceLookups()`
+  and un-omit them in the producer. **Confirm the legacy `CounterUnitType` int keys via legacy-oracle
+  before writing the UPDATE values.** *(seam: new Vxx + AircraftMapper.referenceLookups)*
+  Then **flip both `@Disabled("S-187a")` ITs to enabled** (the executable end-state spec) → T-05 completes.
 - [ ] **T-06** — Migrated-admin profile completion (boyscout, blocks reaching /aircrafts):
   `KeycloakDeploymentDirectoryAdapter.provisionClubAdminIdentity` sets firstName/lastName from the
   legacy Person; remove the e2e `makeMigratedAdminLoginable` name fixup; reconcile the Keycloak
