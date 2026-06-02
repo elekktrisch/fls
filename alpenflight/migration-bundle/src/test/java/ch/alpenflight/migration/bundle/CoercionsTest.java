@@ -2,11 +2,99 @@ package ch.alpenflight.migration.bundle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import java.io.ByteArrayOutputStream;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class CoercionsTest {
+
+    @Test
+    void writeRequiredTimestampFailsWithDiagnosticOnNullInsteadOfBareNpe() throws Exception {
+        // J-0c T-12: a NULL legacy value for a NOT-NULL destination column used
+        // to NPE inside value.toInstant() — getMessage() == null, so the
+        // export's per-entity handler reported ": null", forcing an
+        // entity-by-entity CI grind. The diagnostic now names the column.
+        JsonGenerator gen = new JsonFactory().createGenerator(new ByteArrayOutputStream());
+        gen.writeStartObject();
+        assertThatThrownBy(
+                () -> Coercions.writeRequiredTimestamp(gen, "created_on", null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("created_on")
+                .hasMessageContaining("NOT NULL");
+    }
+
+    @Test
+    void writeRequiredTimestampEmitsIsoInstantWhenPresent() throws Exception {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = new JsonFactory().createGenerator(sink)) {
+            gen.writeStartObject();
+            Coercions.writeRequiredTimestamp(
+                    gen, "created_on", Timestamp.from(Instant.parse("2016-06-07T22:53:46Z")));
+            gen.writeEndObject();
+        }
+        assertThat(sink.toString())
+                .contains("\"created_on\":\"2016-06-07T22:53:46Z\"");
+    }
+
+    @Test
+    void writeRequiredTimestampCoalescingFallsBackToCreatedOnWhenModifiedOnIsNull()
+            throws Exception {
+        // J-0c T-19: a real legacy row created-but-never-modified has
+        // ModifiedOn NULL, yet the new-stack modified_on is NOT NULL. A
+        // never-modified row's last-modified equals its creation, so the
+        // producer coalesces to CreatedOn — parity-correct, NOT-NULL preserved.
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = new JsonFactory().createGenerator(sink)) {
+            gen.writeStartObject();
+            Coercions.writeRequiredTimestampCoalescing(
+                    gen,
+                    "modified_on",
+                    null,
+                    Timestamp.from(Instant.parse("2016-06-07T22:53:46Z")));
+            gen.writeEndObject();
+        }
+        assertThat(sink.toString())
+                .contains("\"modified_on\":\"2016-06-07T22:53:46Z\"");
+    }
+
+    @Test
+    void writeRequiredTimestampCoalescingPrefersModifiedOnWhenBothPresent()
+            throws Exception {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (JsonGenerator gen = new JsonFactory().createGenerator(sink)) {
+            gen.writeStartObject();
+            Coercions.writeRequiredTimestampCoalescing(
+                    gen,
+                    "modified_on",
+                    Timestamp.from(Instant.parse("2020-02-02T02:02:02Z")),
+                    Timestamp.from(Instant.parse("2016-06-07T22:53:46Z")));
+            gen.writeEndObject();
+        }
+        assertThat(sink.toString())
+                .as("ModifiedOn wins when present — only a NULL falls back to CreatedOn")
+                .contains("\"modified_on\":\"2020-02-02T02:02:02Z\"");
+    }
+
+    @Test
+    void writeRequiredTimestampCoalescingFailsWhenBothNull() throws Exception {
+        // Both NULL means even CreatedOn (itself NOT NULL) is absent — genuinely
+        // malformed legacy data, not the expected never-modified case. Fail with
+        // the column-naming diagnostic rather than a NOT-NULL constraint 23502.
+        JsonGenerator gen = new JsonFactory().createGenerator(new ByteArrayOutputStream());
+        gen.writeStartObject();
+        assertThatThrownBy(
+                () -> Coercions.writeRequiredTimestampCoalescing(
+                        gen, "modified_on", null, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("modified_on")
+                .hasMessageContaining("NOT NULL");
+    }
 
     @Test
     void deriveFanOutIdIsDeterministicAndAValidVersion5Uuid() {

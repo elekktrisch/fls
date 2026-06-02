@@ -5,8 +5,10 @@ import ch.alpenflight.migration.bundle.KnownMappers;
 import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.MapperLegacyBindings;
+import ch.alpenflight.migration.bundle.SeedReferenceUuids;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.StreamWriteFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedOutputStream;
@@ -40,8 +42,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
  *   <li>Per registered entity, drain its forward-only {@link ResultSet}
  *       through {@link Mapper#writeNdjson} into a per-entity temp NDJSON
  *       file, hashing (sha256) + counting rows as bytes are written.</li>
- *   <li>For {@code FULL_PORT} entities, emit
- *       {@code legacy_id_map/<E>.pgcopy} — a binary PGCOPY map the consumer
+ *   <li>For {@code FULL_PORT} entities (except CLUB, whose id-map is
+ *       orchestrator-owned — see {@link EntityType#idMapSeededFromProvisioning()}),
+ *       emit {@code legacy_id_map/<E>.pgcopy} — a binary PGCOPY map the consumer
  *       COPYs into {@code legacy_id_map_<entity>} so FK rewrites resolve.
  *       Non-fan-out entities get the 2-column identity map
  *       ({@code legacy_guid -> legacy_guid}); fan-out entities
@@ -64,7 +67,19 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
  */
 public final class BundleWriter {
 
-    private static final JsonFactory JSON_FACTORY = new JsonFactory();
+    // AUTO_CLOSE_TARGET disabled: streamOne creates a JsonGenerator PER ROW
+    // wrapping the SAME shared per-entity DigestOutputStream, so the generator's
+    // close() at the end of each row's try-with-resources must NOT close the
+    // underlying stream. With Jackson's default (auto-close on), the first row's
+    // gen.close() closes digestOut -> fileOut -> the NIO file channel; subsequent
+    // writes ('\n', the next row's bytes) only surface once the 8KB
+    // BufferedOutputStream flushes — i.e. mid-stream, not on row 2 — manifesting
+    // as a ClosedChannelException at a buffer-boundary row (J-0c T-13: COUNTRY
+    // died at row 115). The stream is owned by streamOne's try-with-resources and
+    // closed exactly once there; the per-row generators must only flush.
+    private static final JsonFactory JSON_FACTORY = JsonFactory.builder()
+            .disable(StreamWriteFeature.AUTO_CLOSE_TARGET)
+            .build();
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final LegacyJdbcReader reader;
@@ -98,12 +113,35 @@ public final class BundleWriter {
     }
 
     private EntityStreamResult streamOne(EntityType entity, Mapper mapper) {
-        Path ndjson = temp(entity.name() + "-ndjson");
         String sql = MapperLegacyBindings.selectForProducer(entity);
+        try (ResultSet rs = reader.openEntityCursor(sql)) {
+            return drainCursor(entity, mapper, rs);
+        } catch (SQLException e) {
+            // Cursor open / close failures (driver/socket level) — same surfacing
+            // contract as the per-row drain below.
+            if (verbose) {
+                System.err.println("  streaming " + entity
+                        + " failed opening/closing cursor — stack trace follows:");
+                e.printStackTrace();
+            }
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "Failed streaming entity " + entity + ": " + describe(e), e);
+        }
+    }
+
+    /**
+     * Drain one open forward-only cursor into a per-entity NDJSON temp file,
+     * hashing + counting rows. Package-private so a test can drive the
+     * multi-fetch-window / buffer-boundary path with a fake {@link ResultSet}
+     * (no live MSSQL): the per-row {@link JsonGenerator} writes share one
+     * {@link DigestOutputStream} buffered over an NIO file channel, and that
+     * stream must survive every row's {@code gen.close()} (J-0c T-13).
+     */
+    EntityStreamResult drainCursor(EntityType entity, Mapper mapper, ResultSet rs) {
+        Path ndjson = temp(entity.name() + "-ndjson");
         long rows = 0;
         MessageDigest digest = newSha256();
-        try (ResultSet rs = reader.openEntityCursor(sql);
-             OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(ndjson));
+        try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(ndjson));
              DigestOutputStream digestOut = new DigestOutputStream(fileOut, digest)) {
             while (rs.next()) {
                 try (JsonGenerator gen = JSON_FACTORY.createGenerator(digestOut)) {
@@ -112,9 +150,26 @@ public final class BundleWriter {
                 digestOut.write('\n');
                 rows++;
             }
-        } catch (SQLException | IOException e) {
+        } catch (SQLException | IOException | RuntimeException e) {
+            // Surface the real cause: many failures here are NPEs / driver
+            // SQLExceptions whose getMessage() is null (a NULL legacy column
+            // read as a primitive, a uniqueidentifier coercion, a cursor-level
+            // driver fault). e.getMessage() alone collapses those to ": null"
+            // and forces an entity-by-entity CI grind to diagnose. Print the
+            // exception class + the full cause chain, and dump the stack trace
+            // to stderr so the next chain run names the offending row read.
+            // RuntimeException is caught alongside the checked types because a
+            // mapper NULL-deref (writeRequired*) or UUID.fromString on a NULL
+            // legacy GUID is a RuntimeException that would otherwise crash the
+            // process with no per-entity context.
+            if (verbose) {
+                System.err.println("  streaming " + entity + " failed at row "
+                        + (rows + 1) + " — stack trace follows:");
+                e.printStackTrace();
+            }
             throw new ExportException(ExitCode.IO_ERROR,
-                    "Failed streaming entity " + entity + ": " + e.getMessage(), e);
+                    "Failed streaming entity " + entity + " at row " + (rows + 1)
+                            + ": " + describe(e), e);
         }
         String hex = HexFormat.of().formatHex(digest.digest());
         if (verbose) {
@@ -172,6 +227,82 @@ public final class BundleWriter {
         return pgcopy;
     }
 
+    /**
+     * Build the {@code legacy_id_map/<E>.pgcopy} for a SYSTEM_GLOBAL reference
+     * entity (COUNTRY / CLUB_STATE) the migration's FULL_PORT entities FK against
+     * (J-0c T-15). Unlike {@link #writeIdentityPgcopy}'s identity / fan-out maps,
+     * the value is the RESOLVED new-stack seed PK: the legacy GUID / synthetic
+     * INT-UUID maps to the deterministic {@code t_<entity>} seed row, looked up
+     * by the entity's stable natural key (ISO2 for COUNTRY, the V2 lifecycle code
+     * for CLUB_STATE) via {@link SeedReferenceUuids}. Each NDJSON row already
+     * carries both the {@code legacy_guid} and the natural key, so the map is
+     * derived from the producer's own stream with no extra DB read.
+     *
+     * <p>Without this map the server's {@code ForeignKeyResolver} fails closed
+     * with {@code BUNDLE_CROSS_TENANT_FK_LEAK} on the CLUB NDJSON's
+     * {@code country_id} / {@code club_state_id} (SYSTEM_GLOBAL_RESOLVE FKs are
+     * required to resolve). The seed PKs here MATCH the ones
+     * {@code ManifestBuilder} resolves into the manifest's {@code ClubDeclaration},
+     * so provisioning and NDJSON ingest land identical FK targets.
+     */
+    Path writeSystemGlobalSeedPgcopy(EntityStreamResult ndjsonResult) {
+        EntityType entity = ndjsonResult.entityType();
+        Path pgcopy = temp(entity.name() + "-seed-pgcopy");
+        try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(pgcopy));
+             LegacyIdMapWriter writer = new LegacyIdMapWriter(fileOut);
+             BufferedReader lines = Files.newBufferedReader(
+                     ndjsonResult.ndjsonTempFile(), StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = lines.readLine()) != null) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                JsonNode row = JSON.readTree(line);
+                UUID legacyGuid = requireUuid(row, "legacy_guid", entity);
+                UUID seedPk = resolveSeedPk(entity, row);
+                writer.write(legacyGuid, seedPk);
+            }
+        } catch (IOException e) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "Failed writing seed id map for " + entity + ": " + e.getMessage(), e);
+        }
+        return pgcopy;
+    }
+
+    /** SYSTEM_GLOBAL entities for which a legacy-guid -> seed-PK map is emitted. */
+    private static boolean hasSeedResolver(EntityType entity) {
+        return entity == EntityType.COUNTRY
+                || entity == EntityType.CLUB_STATE
+                || entity == EntityType.LANGUAGE;
+    }
+
+    /** Resolve a SYSTEM_GLOBAL NDJSON row's natural key to its new-stack seed PK. */
+    private static UUID resolveSeedPk(EntityType entity, JsonNode row) {
+        UUID seedPk;
+        switch (entity) {
+            case COUNTRY -> seedPk = SeedReferenceUuids.countryByIso2(textOrNull(row, "iso2_code"));
+            case CLUB_STATE -> seedPk = SeedReferenceUuids.clubStateByCode(textOrNull(row, "code"));
+            // LANGUAGE: USER.language_id is the synthetic new UUID(0, LanguageId)
+            // (legacy_guid here); the row's `code` is the lower-cased legacy
+            // LanguageKey, which joins to the V2 t_language seed by code (J-0c T-20).
+            case LANGUAGE -> seedPk = SeedReferenceUuids.languageByCode(textOrNull(row, "code"));
+            default -> throw new ExportException(ExitCode.IO_ERROR,
+                    "No seed-PK resolver wired for SYSTEM_GLOBAL entity " + entity
+                            + "; add it before emitting its id-map.");
+        }
+        if (seedPk == null) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    entity + " NDJSON row " + row + " has no matching new-stack seed PK "
+                            + "(its natural key is absent from the V2 seed catalogue).");
+        }
+        return seedPk;
+    }
+
+    private static String textOrNull(JsonNode row, String field) {
+        JsonNode node = row.get(field);
+        return (node == null || node.isNull()) ? null : node.asText();
+    }
+
     private static UUID requireUuid(JsonNode row, String field, EntityType entity) {
         JsonNode node = row.get(field);
         if (node == null || !node.isTextual()) {
@@ -205,14 +336,29 @@ public final class BundleWriter {
     public void assembleTarGz(byte[] manifestBytes,
                               List<EntityStreamResult> entityResults,
                               Path destination) {
-        // FULL_PORT identity maps, keyed by tar entry name.
+        // FULL_PORT identity maps, keyed by tar entry name. CLUB is excluded:
+        // its legacy_id_map_club is orchestrator-owned (seedClubLegacyIdMap maps
+        // legacy guid -> the provisioned t_club.id), so a producer-emitted CLUB
+        // identity pgcopy would collide on legacy_id_map_club_pkey AND be
+        // semantically wrong — see EntityType.idMapSeededFromProvisioning (J-0c T-01).
         Map<String, Path> pgcopyEntries = new LinkedHashMap<>();
         for (EntityStreamResult result : entityResults) {
-            if (MapperLegacyBindings.portPolicy(result.entityType())
-                    == MapperLegacyBindings.PortPolicy.FULL_PORT) {
-                pgcopyEntries.put(
-                        "legacy_id_map/" + result.entityType().name() + ".pgcopy",
+            EntityType entity = result.entityType();
+            MapperLegacyBindings.PortPolicy policy = MapperLegacyBindings.portPolicy(entity);
+            if (policy == MapperLegacyBindings.PortPolicy.FULL_PORT
+                    && !entity.idMapSeededFromProvisioning()) {
+                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
                         writeIdentityPgcopy(result));
+            } else if (policy == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL
+                    && hasSeedResolver(entity)) {
+                // SYSTEM_GLOBAL reference entities (COUNTRY / CLUB_STATE / LANGUAGE)
+                // a FULL_PORT entity FKs against need a legacy-guid -> seed-PK map
+                // so the server's ForeignKeyResolver resolves the referencing
+                // NDJSON's FK: CLUB.country_id / CLUB.club_state_id (J-0c T-15) and
+                // USER.language_id (the synthetic new UUID(0, LanguageId) -> the V2
+                // t_language seed PK, joined by lower-cased LanguageKey, J-0c T-20).
+                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
+                        writeSystemGlobalSeedPgcopy(result));
             }
         }
         try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(destination));
@@ -227,6 +373,19 @@ public final class BundleWriter {
                 putFileEntry(tar, entry.getKey(), entry.getValue());
             }
             for (EntityStreamResult result : entityResults) {
+                // SYSTEM_GLOBAL reference data (COUNTRY / CLUB_STATE / LANGUAGE)
+                // is pre-seeded in the V2 Flyway baseline — it must NOT be
+                // re-ingested into t_country / t_club_state / t_language (the
+                // mappers carry only the resolver natural key, not the full seed
+                // row: a COUNTRY INSERT would NOT-NULL-violate iso3_code). The
+                // server resolves a referencing FULL_PORT FK through the
+                // legacy_id_map/<E>.pgcopy emitted above (legacy ref -> seed PK),
+                // so the SYSTEM_GLOBAL NDJSON is redundant and is dropped from the
+                // tar entirely (J-0c T-15).
+                if (MapperLegacyBindings.portPolicy(result.entityType())
+                        == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL) {
+                    continue;
+                }
                 putFileEntry(tar, result.tarEntryName(), result.ndjsonTempFile());
             }
             tar.finish();
@@ -274,6 +433,29 @@ public final class BundleWriter {
             byType.put(mapper.entityType(), mapper);
         }
         return byType;
+    }
+
+    /**
+     * Render an exception as {@code class: message} plus its cause chain, so a
+     * null-message throwable (NPE, some driver SQLExceptions) still names its
+     * type and underlying cause instead of surfacing as a bare {@code null}.
+     */
+    static String describe(Throwable e) {
+        StringBuilder sb = new StringBuilder();
+        Throwable current = e;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (depth > 0) {
+                sb.append(" <- caused by ");
+            }
+            sb.append(current.getClass().getName());
+            if (current.getMessage() != null) {
+                sb.append(": ").append(current.getMessage());
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return sb.toString();
     }
 
     private static MessageDigest newSha256() {

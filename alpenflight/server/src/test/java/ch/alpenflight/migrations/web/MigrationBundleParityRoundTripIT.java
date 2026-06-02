@@ -8,6 +8,7 @@ import ch.alpenflight.migration.bundle.LegacyIdMapWriter;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,7 +73,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-@Import(JwtTestFixture.class)
+@Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
 @Tag("slow")
 class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
 

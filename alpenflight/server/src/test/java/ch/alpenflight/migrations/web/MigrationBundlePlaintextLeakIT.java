@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.migrations.application.BundleManifest;
 import ch.alpenflight.migration.bundle.crypto.MigrationBundleCipher;
 import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.server.testsupport.MockKeycloakDirectoryConfig;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -70,7 +71,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-@Import(JwtTestFixture.class)
+@Import({JwtTestFixture.class, MockKeycloakDirectoryConfig.class})
 @Tag("slow")
 class MigrationBundlePlaintextLeakIT extends PostgresIntegrationTest {
 

@@ -22,6 +22,15 @@ public final class KeycloakDeploymentNames {
     /** Attribute name on the Keycloak user whose value is the primary Club id. */
     public static final String CLUB_ID_USER_ATTRIBUTE = "clubId";
 
+    /**
+     * Realm role granting club-administrator authority. Static fixture in
+     * the realm export ({@code auth/realm-export.json}), unlike the
+     * per-Deployment dynamic roles built by {@link #clubAdminRoleName}.
+     * The J-0c provision-on-migrate slice grants this realm role to the
+     * synthetic migrated club admin.
+     */
+    public static final String CLUB_ADMINISTRATOR_REALM_ROLE = "CLUB_ADMINISTRATOR";
+
     private KeycloakDeploymentNames() {}
 
     /** Group label that carries Deployment membership. */

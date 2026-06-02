@@ -164,10 +164,48 @@ public final class Coercions {
         }
     }
 
-    /** Emit ISO-8601 instant; {@code Timestamp} must not be null. */
+    /**
+     * Emit ISO-8601 instant; the destination column is {@code NOT NULL}, so a
+     * NULL legacy value cannot round-trip. Fail with a diagnostic message that
+     * names the column rather than letting {@code value.toInstant()} surface as
+     * an opaque {@link NullPointerException} (null getMessage) — the export's
+     * per-entity error handler reports the message, so a clear cause beats a
+     * bare {@code : null} that forces an entity-by-entity CI grind.
+     */
     public static void writeRequiredTimestamp(
-            JsonGenerator target, String fieldName, Timestamp value) throws IOException {
+            JsonGenerator target, String fieldName, @Nullable Timestamp value)
+            throws IOException {
+        if (value == null) {
+            throw new IllegalStateException(
+                    "Required timestamp column '" + fieldName + "' is NULL in the "
+                            + "legacy row, but the destination column is NOT NULL. "
+                            + "Either the legacy data has an unexpected NULL or the "
+                            + "mapper must treat this column as optional.");
+        }
         target.writeStringField(fieldName, value.toInstant().toString());
+    }
+
+    /**
+     * Emit a {@code NOT NULL} audit timestamp whose <em>legacy</em> source column
+     * is nullable, coalescing to a fallback. Legacy {@code ModifiedOn} is NULL for
+     * a row that was created but never modified, yet the new-stack
+     * {@code modified_on} is {@code NOT NULL} (audit invariant). A never-modified
+     * row's last-modified equals its creation, so we emit
+     * {@code COALESCE(primary, fallback)} — parity-correct, and it preserves the
+     * NOT-NULL invariant without relaxing the schema (J-0c T-19).
+     *
+     * <p>If <em>both</em> are NULL the destination cannot be satisfied; we fail
+     * with the same column-naming diagnostic as {@link #writeRequiredTimestamp}
+     * (the fallback {@code CreatedOn} is itself NOT NULL, so this signals genuinely
+     * malformed legacy data rather than the expected never-modified case).
+     */
+    public static void writeRequiredTimestampCoalescing(
+            JsonGenerator target,
+            String fieldName,
+            @Nullable Timestamp primary,
+            @Nullable Timestamp fallback)
+            throws IOException {
+        writeRequiredTimestamp(target, fieldName, primary != null ? primary : fallback);
     }
 
     /** Emit ISO-8601 instant or null. */

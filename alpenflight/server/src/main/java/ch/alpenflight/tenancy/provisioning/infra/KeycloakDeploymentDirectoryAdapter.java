@@ -197,6 +197,83 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
     }
 
+    @Override
+    public UUID provisionClubAdminIdentity(UUID clubId, String username, String email) {
+        Objects.requireNonNull(clubId, "clubId");
+        Objects.requireNonNull(username, "username");
+        Objects.requireNonNull(email, "email");
+
+        UUID sub = createClubAdminUserOrResolveExisting(clubId, username, email);
+
+        // Static realm role (realm-export fixture), not a per-Deployment
+        // dynamic role — so it's resolved by its fixed name, not minted.
+        String roleName = KeycloakDeploymentNames.CLUB_ADMINISTRATOR_REALM_ROLE;
+        UUID roleId = findRealmRoleIdByName(roleName);
+        if (roleId == null) {
+            throw new KeycloakProvisioningException(
+                    "realm role " + roleName + " missing from realm — cannot make migrated "
+                            + "club admin loginable (expected in realm-export.json)");
+        }
+        assignRoleIfAbsent(sub, roleId, roleName);
+        return sub;
+    }
+
+    private UUID createClubAdminUserOrResolveExisting(UUID clubId, String username, String email) {
+        Map<String, Object> body = Map.of(
+                "username", username,
+                "email", email,
+                "enabled", true,
+                "emailVerified", false,
+                "requiredActions", List.of("UPDATE_PASSWORD"),
+                "attributes", Map.of(
+                        KeycloakDeploymentNames.CLUB_ID_USER_ATTRIBUTE,
+                        List.of(clubId.toString())));
+        try {
+            ResponseEntity<Void> response = http.post()
+                    .uri(props.adminBase() + "/users")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+            URI location = Objects.requireNonNull(response, "null response from users POST")
+                    .getHeaders().getLocation();
+            if (location != null) {
+                return uuidFromLocation(location, "create club-admin user");
+            }
+        } catch (HttpStatusCodeException e) {
+            if (e.getStatusCode().value() != 409) {
+                throw transportFailure("club-admin user create", e);
+            }
+            // Idempotent replay — a prior migrate already minted this user.
+        }
+        UUID existing = findUserIdByUsername(username);
+        if (existing == null) {
+            throw new KeycloakProvisioningException(
+                    "club-admin user create returned no Location and post-race read missed "
+                            + username);
+        }
+        return existing;
+    }
+
+    private @Nullable UUID findUserIdByUsername(String username) {
+        String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/users")
+                .queryParam("username", username)
+                .queryParam("exact", true)
+                .queryParam("max", 2)
+                .build()
+                .toUriString();
+        try {
+            String responseBody = http.get()
+                    .uri(uri)
+                    .retrieve()
+                    .body(String.class);
+            List<KeycloakNamedRef> matches = readListOf(responseBody);
+            return matches.isEmpty() ? null : matches.get(0).id();
+        } catch (HttpStatusCodeException e) {
+            throw transportFailure("club-admin user lookup", e);
+        }
+    }
+
     private @Nullable UUID findGroupIdByName(String name) {
         String uri = UriComponentsBuilder.fromUriString(props.adminBase() + "/groups")
                 .queryParam("search", name)
@@ -293,7 +370,22 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         }
     }
 
-    /** Minimal projection over Keycloak's {id, name, ...} shape. */
+    /**
+     * Minimal projection over Keycloak's {id, name, ...} shape.
+     *
+     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} is load-bearing:
+     * the injected Spring {@code ObjectMapper} runs with
+     * {@code spring.jackson.deserialization.fail-on-unknown-properties: true}
+     * (strict DTO boundary, see application.yml). Keycloak's real responses
+     * are verbose — a {@code RoleRepresentation} from {@code GET /roles/{name}}
+     * carries {@code composite}, {@code clientRole}, {@code containerId},
+     * {@code attributes}; a {@code UserRepresentation} / {@code GroupRepresentation}
+     * carry many more. Without per-record opt-out, the very first such body
+     * blows up as {@code UnrecognizedPropertyException} and the adapter
+     * mislabels it "malformed JSON". Pin tolerance on the projection so the
+     * directory contract is independent of the global wire-boundary policy.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     record KeycloakNamedRef(@Nullable UUID id, @Nullable String name) {}
 
     /**

@@ -447,6 +447,14 @@ public class MigrationBundleIngestService {
             ProvisioningResult provisioned = provisionDeployment(upload, principalKeycloakSub, manifest);
             run.attachDeployment(provisioned.deploymentId());
 
+            // J-0c provision-on-migrate slice: each migrated Club gets a
+            // loginable Keycloak club-admin identity (clubId attr +
+            // CLUB_ADMINISTRATOR realm role + UPDATE_PASSWORD), so a real
+            // Keycloak login lands in that Club and JitUserMaterializer
+            // (S-169) projects the t_user. Thin slice of S-028 — no bulk
+            // endpoint / UI / mail / role-map / audit here.
+            provisioning.provisionMigratedClubAdmins(provisioned.clubIds());
+
             entityStreamIngestor.createTemporaryIdMapTables(connection);
             entityStreamIngestor.seedClubLegacyIdMap(connection, manifest, provisioned);
 

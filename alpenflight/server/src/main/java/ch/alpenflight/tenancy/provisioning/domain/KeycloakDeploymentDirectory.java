@@ -88,4 +88,30 @@ public interface KeycloakDeploymentDirectory {
      * read-then-merge if the per-user attribute surface grows.
      */
     void setUserAttribute(UUID userKeycloakSub, String attributeName, List<String> values);
+
+    /**
+     * Provisions a fresh, loginable club-admin identity for a migrated
+     * Club (J-0c, the thin provision-on-migrate slice of S-028). Unlike
+     * the self-service-signup reconcile above — which binds the existing
+     * Deployment owner to a per-Deployment dynamic role — this mints a
+     * brand-new directory user carrying:
+     * <ul>
+     *   <li>the migrated Club's {@code clubId} user-attribute (so the
+     *       realm's {@code clubId} mapper projects the claim
+     *       {@code @TenantId} resolves off — the same mechanism J-0's
+     *       {@code two-club-fixture} relies on);</li>
+     *   <li>the realm role {@code CLUB_ADMINISTRATOR};</li>
+     *   <li>the {@code UPDATE_PASSWORD} required action — migrated legacy
+     *       passwords never cross over (C14), so the operator sets one on
+     *       first login.</li>
+     * </ul>
+     *
+     * <p>Idempotent: a repeat call for a username/email that already
+     * exists short-circuits to the existing directory sub rather than
+     * surfacing the directory's 409.
+     *
+     * @return the directory-assigned {@code sub} of the (created or
+     *     pre-existing) club-admin user.
+     */
+    UUID provisionClubAdminIdentity(UUID clubId, String username, String email);
 }

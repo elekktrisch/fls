@@ -189,6 +189,45 @@ public class DeploymentProvisioningService {
         // explicit save needed.
     }
 
+    /**
+     * J-0c provision-on-migrate slice (a thin slice of S-028, NOT the
+     * full story). For each migrated Club, mints a fresh loginable
+     * Keycloak club-admin identity carrying that Club's id as the
+     * tenant user-attribute + the {@code CLUB_ADMINISTRATOR} realm role +
+     * {@code UPDATE_PASSWORD} required action. A later real Keycloak login
+     * lands in that Club and {@code JitUserMaterializer} (S-169) projects
+     * the {@code t_user} — no legacy User row crosses over (C14), so none
+     * is seeded here.
+     *
+     * <p>Username/email are deterministic per Club so a replayed migrate
+     * resolves the existing identity rather than colliding (the directory
+     * port is idempotent on username).
+     *
+     * @return the directory subs of the provisioned club admins, in
+     *     {@code clubIds} order.
+     */
+    public List<UUID> provisionMigratedClubAdmins(List<UUID> clubIds) {
+        Objects.requireNonNull(clubIds, "clubIds");
+        List<UUID> subs = new ArrayList<>(clubIds.size());
+        for (UUID clubId : clubIds) {
+            String username = migratedClubAdminUsername(clubId);
+            subs.add(directory.provisionClubAdminIdentity(clubId, username, username));
+        }
+        return subs;
+    }
+
+    /**
+     * Deterministic synthetic identity for a migrated Club admin. The
+     * {@code +<clubId>} tag keys it to the provisioned Club so a replayed
+     * migrate resolves the same user; {@code @migrated.alpenflight.local}
+     * is a non-routable sentinel domain (migrated admins set their
+     * password via {@code UPDATE_PASSWORD} on first login, no mail is
+     * sent — S-082 is out of this slice's scope).
+     */
+    static String migratedClubAdminUsername(UUID clubId) {
+        return "migrated-admin+" + clubId + "@migrated.alpenflight.local";
+    }
+
     private ProvisioningResult loadResult(Deployment deployment) {
         UUID deploymentId = Objects.requireNonNull(deployment.getId(),
                 "Persisted Deployment must carry an id");

@@ -77,6 +77,36 @@ Field rules the generator enforces:
   journey id from the spec file path (`…/real-idp/<jN>-….spec.ts`) as a fallback.
 - `proof-ac-tag` renders as the `[happy]/[edge]/[key-error]` chip; absent → no chip.
 
+## Legacy parity videos (J-0c+) — the declared sidecar source
+
+The Playwright JSON report only carries AlpenFlight `real-idp` proofs. A **legacy**
+parity video (e.g. the legacy `flsweb` create flow J-0c records) has no manifest
+entry — it's not an AlpenFlight test. So the generator takes a second, optional
+source: a `legacy-video.json` **sidecar** in a `--legacy-video <dir>` directory,
+declaring legacy videos keyed to a journey:
+
+```jsonc
+{
+  "videos": [
+    {
+      "journey": "J-0c",                       // groups under the SAME journey section as the AlpenFlight proof
+      "file": "locations-fanout-J0c.webm",     // resolved relative to the sidecar dir; must exist on disk (AC5)
+      "acTag": "happy",                         // optional chip
+      "caption": "Legacy flsweb: Location created + set as homebase on 2 clubs"  // REQUIRED (AC5)
+    }
+  ]
+}
+```
+
+The legacy video renders **first** within its journey section (so a reviewer reads
+legacy → AlpenFlight left-to-right), labelled `legacy parity` (CSS `.legacy-proof`).
+Same AC5 link-check as AlpenFlight proofs: a missing caption or a `.webm` not on
+disk fails the generator non-zero. A missing dir / sidecar is a silent no-op (no
+legacy video that run). `pnpm proof:gallery` defaults `--legacy-video` to
+`fixtures/legacy-video/`; the J-0c proof workflow stages the recorded legacy
+`.webm` + writes the sidecar (with the run's random Location name) before invoking
+the generator.
+
 ## Roadmap / pending rows
 
 The set of journeys the gallery iterates = the roadmap IDs in

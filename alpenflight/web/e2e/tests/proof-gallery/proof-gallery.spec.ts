@@ -47,11 +47,18 @@ async function loadGenerator(): Promise<{
     outDir: string;
     orderPath?: string;
     branch?: string;
-  }) => { outFile: string; proofs: { journey: string }[]; roadmap: string[] };
+    legacyVideoDir?: string;
+  }) => {
+    outFile: string;
+    proofs: { journey: string; legacy?: boolean }[];
+    roadmap: string[];
+  };
 }> {
   const url = pathToFileURL(resolve(PROOF_GALLERY, 'generate-gallery.mjs')).href;
   return import(url);
 }
+
+const LEGACY_VIDEO_DIR = resolve(FIXTURES, 'legacy-video');
 
 // A caption must read as a human assertion, not an opaque slug/hash/filename.
 const SLUG_OR_HASH = /^page@|\.webm$|^[a-f0-9-]{16,}$/;
@@ -70,9 +77,10 @@ test.describe('J-24 proof-video gallery', () => {
       branch: 'integration/J-24',
     });
 
-    // Fixture sanity: the green journey (J-0) emitted exactly its 3 proofs, and
-    // at least one roadmap journey is pending (otherwise (c) tests nothing).
-    expect(proofs.length, 'fixtures must emit the J-0 proof videos').toBe(3);
+    // Fixture sanity: the green journeys (J-0 ×3 + J-0c ×1 AlpenFlight) emitted
+    // their 4 manifest proofs, and at least one roadmap journey is pending
+    // (otherwise (c) tests nothing).
+    expect(proofs.length, 'fixtures must emit the J-0 + J-0c proof videos').toBe(4);
     const pending = roadmap.filter((j) => !proofs.some((p) => p.journey === j));
     expect(pending.length, 'at least one roadmap journey must be pending').toBeGreaterThan(0);
 
@@ -210,5 +218,62 @@ test.describe('J-24 proof-video gallery', () => {
         outDir: mkdtempSync(resolve(tmpdir(), 'pg-out-')),
       }),
     ).toThrow(/link-check failed \(AC5\)[\s\S]*not present in the proof output/);
+  });
+
+  // (e) [happy] J-0c — the gallery shows the legacy + AlpenFlight videos SIDE BY
+  // SIDE in one J-0c section: the AlpenFlight proof flows through the manifest
+  // path (proof-journey: J-0c), the legacy flsweb parity video is sourced from a
+  // declared `legacy-video/legacy-video.json` sidecar keyed to J-0c. Both are
+  // captioned; the legacy one is clearly labelled as the legacy parity side.
+  test('[happy] J-0c — legacy parity video + AlpenFlight proof render together, captioned', async ({
+    page,
+  }) => {
+    const { generateGallery } = await loadGenerator();
+
+    const outDir = mkdtempSync(resolve(tmpdir(), 'proof-gallery-j0c-'));
+    const { outFile, proofs } = generateGallery({
+      reportPath: REPORT,
+      outDir,
+      legacyVideoDir: LEGACY_VIDEO_DIR,
+      branch: 'integration/J-0c',
+    });
+
+    // The legacy declared source adds one J-0c proof on top of the manifest's
+    // J-0 ×3 + J-0c ×1 → 5 total; the legacy one carries the `legacy` flag.
+    expect(proofs.length, 'manifest proofs + the declared legacy video').toBe(5);
+    const legacyProofs = proofs.filter((p) => p.legacy);
+    expect(legacyProofs, 'exactly one legacy parity video, on J-0c').toHaveLength(1);
+    expect(legacyProofs.map((p) => p.journey)).toEqual(['J-0c']);
+
+    await page.goto(pathToFileURL(outFile).href);
+
+    // The J-0c section holds BOTH videos (legacy + AlpenFlight), side by side.
+    const j0cCard = page
+      .locator('.journey:not(.pending-journey)')
+      .filter({ has: page.locator('h3', { hasText: 'J-0c' }) });
+    await expect(j0cCard).toHaveCount(1);
+    await expect(j0cCard.locator('figure.proof')).toHaveCount(2);
+
+    // The legacy figure is clearly labelled as the legacy parity side and
+    // carries its own caption + a resolving video src.
+    const legacyFigure = j0cCard.locator('figure.proof.legacy-proof');
+    await expect(legacyFigure).toHaveCount(1);
+    await expect(legacyFigure.locator('.legacy-label')).toHaveText(/legacy/i);
+    const legacyCaption = (await legacyFigure.locator('figcaption .caption').innerText()).trim();
+    expect(legacyCaption, 'legacy video must be captioned').not.toBe('');
+    expect(legacyCaption, 'legacy caption names the legacy flsweb create flow').toMatch(
+      /legacy flsweb/i,
+    );
+    const legacySrc = (await legacyFigure.locator('video').getAttribute('src')) ?? '';
+    expect(legacySrc, 'legacy video has a relative src').toMatch(/^videos\//);
+    expect(existsSync(resolve(outDir, legacySrc)), 'legacy .webm copied into out dir').toBe(true);
+
+    // The AlpenFlight proof in the same section is NOT labelled legacy.
+    await expect(j0cCard.locator('figure.proof:not(.legacy-proof)')).toHaveCount(1);
+
+    await page.screenshot({
+      path: 'screenshots/proof-gallery/04-j0c-legacy-and-alpenflight.png',
+      fullPage: true,
+    });
   });
 });

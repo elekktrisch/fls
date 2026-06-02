@@ -53,9 +53,13 @@ public final class MapperLegacyBindings {
                     ""),
             EntityType.CLUB_STATE, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
-                    // ClubStateId=0 ("System") has no V2 destination; filter
-                    // structurally per ClubStateMapper class Javadoc.
-                    "SELECT ClubStateId FROM ClubStates WHERE ClubStateId <> 0",
+                    // ALL legacy ClubStates (System=0/Active=1/Passive=2/Inactive=3)
+                    // map to a V2 code (ClubStateMapper.v2CodeForLegacyId, J-0c T-16),
+                    // so every row must enter the catalogue stream — the CLUB NDJSON's
+                    // club_state_id (= legacyIntIdToUuidString(ClubStateId)) resolves
+                    // against legacy_id_map_club_state, which is built from THIS stream.
+                    // Dropping id=0 here would leave a System club's FK unresolved.
+                    "SELECT ClubStateId FROM ClubStates",
                     "t_club_state",
                     ""),
             EntityType.CLUB, new Binding(
@@ -98,6 +102,87 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?, ?)
+                    """),
+            EntityType.PERSON, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // Cross-tenant aggregate root (ADR 0008): legacy `Persons` has
+                    // no own ClubId and t_person has NO club_id column, so there is
+                    // no tenancy/fan-out projection here (unlike LOCATION). The only
+                    // outgoing FK is the NULLABLE CountryId -> Countries, emitted as
+                    // the legacy GUID and resolved through legacy_id_map_COUNTRY (the
+                    // SYSTEM_GLOBAL seed map, T-15 mechanism) because
+                    // PersonMapper.foreignKeys() declares COUNTRY. No system-actor
+                    // exclusion: unlike USER (ADR 0007 system identity), no system
+                    // Person exists in the legacy static data, and PersonMapper drops
+                    // the legacy ASP.NET artifacts (OwnerId/OwnershipType/RecordState/
+                    // IsDeleted) rather than filtering on them. Projects exactly the
+                    // columns PersonMapper.writeNdjson reads — note the British-spelled
+                    // LicenceNumber (DBUpdate_v1.8.1) and the Has*Licence /
+                    // Has*StartPermission / Medical*ExpireDate columns the later
+                    // DBUpdate scripts add to the v1.0 base Persons table.
+                    """
+                    SELECT PersonId, Lastname, Firstname, Midname, CompanyName,
+                           AddressLine1, AddressLine2, Zip, City, Region, CountryId,
+                           PrivatePhone, MobilePhone, BusinessPhone, FaxNumber,
+                           EmailPrivate, EmailBusiness, PreferMailToBusinessMail, Birthday,
+                           HasMotorPilotLicence, HasTowPilotLicence,
+                           HasGliderInstructorLicence, HasGliderPilotLicence,
+                           HasGliderTraineeLicence, HasGliderPAXLicence, HasTMGLicence,
+                           HasWinchOperatorLicence, HasMotorInstructorLicence,
+                           HasPartMLicence, LicenceNumber,
+                           MedicalClass1ExpireDate, MedicalClass2ExpireDate,
+                           MedicalLaplExpireDate,
+                           GliderInstructorLicenceExpireDate,
+                           MotorInstructorLicenceExpireDate, PartMLicenceExpireDate,
+                           HasGliderTowingStartPermission, HasGliderSelfStartPermission,
+                           HasGliderWinchStartPermission,
+                           SpotLink, ReceiveOwnedAircraftStatisticReports,
+                           EnableAddress, IsFastEntryRecord,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM Persons
+                    """,
+                    "t_person",
+                    """
+                    INSERT INTO t_person (
+                      id, lastname, firstname, midname, company_name,
+                      address_line1, address_line2, zip, city, region, country_id,
+                      private_phone, mobile_phone, business_phone, fax_number,
+                      email_private, email_business, prefer_mail_to_business_mail, birthday,
+                      has_motor_pilot_licence, has_tow_pilot_licence,
+                      has_glider_instructor_licence, has_glider_pilot_licence,
+                      has_glider_trainee_licence, has_glider_pax_licence, has_tmg_licence,
+                      has_winch_operator_licence, has_motor_instructor_licence,
+                      has_part_m_licence, licence_number,
+                      medical_class1_expire_date, medical_class2_expire_date,
+                      medical_lapl_expire_date,
+                      glider_instructor_licence_expire_date,
+                      motor_instructor_licence_expire_date, part_m_licence_expire_date,
+                      has_glider_towing_start_permission, has_glider_self_start_permission,
+                      has_glider_winch_start_permission,
+                      spot_link, receive_owned_aircraft_statistic_reports,
+                      enable_address, is_fast_entry_record,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?, ?,
+                            ?, ?, ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?,
+                            ?,
+                            ?, ?,
+                            ?, ?,
+                            ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
                     """),
             EntityType.USER, new Binding(
                     PortPolicy.FULL_PORT,
@@ -146,10 +231,22 @@ public final class MapperLegacyBindings {
                     // referenced ONLY by an aircraft homebase — no club homebase,
                     // no flights — would miss that club's replica until the
                     // Aircraft binding lands. Tracked there, not papered over.
+                    //
+                    // LocationTypeId source: legacy Locations.LocationTypeId is a
+                    // uniqueidentifier (GUID FK to LocationTypes), but LocationMapper
+                    // reads it via getInt + legacyIntIdToUuidString — the
+                    // legacy_int_id resolution (t_location_type.legacy_int_id =
+                    // 1,2,3,4,5,99) keys on the int LocationTypes.LocationTypeCupId,
+                    // NOT the GUID. So JOIN LocationTypes and project the int CupId
+                    // AS LocationTypeId (the column writeNdjson reads). INNER JOIN
+                    // matches semantics: Location.LocationTypeId is non-null Guid
+                    // (FLS.Server.Data/DbEntities/Location.cs:36), so every row has a
+                    // type. (J-0c T-14 parity fix.)
                     """
                     SELECT l.LocationId, fanout.ClubId AS ClubId,
                            l.LocationName, l.LocationShortName, l.CountryId,
-                           l.LocationTypeId, l.IcaoCode, l.Latitude, l.Longitude,
+                           lt.LocationTypeCupId AS LocationTypeId,
+                           l.IcaoCode, l.Latitude, l.Longitude,
                            l.Elevation, l.ElevationUnitType, l.RunwayDirection,
                            l.RunwayLength, l.RunwayLengthUnitType, l.AirportFrequency,
                            l.Description, l.SortIndicator,
@@ -158,6 +255,7 @@ public final class MapperLegacyBindings {
                            l.CreatedOn, l.CreatedByUserId, l.ModifiedOn,
                            l.ModifiedByUserId, l.DeletedOn, l.DeletedByUserId
                     FROM Locations l
+                    JOIN LocationTypes lt ON lt.LocationTypeId = l.LocationTypeId
                     JOIN (
                         SELECT DISTINCT HomebaseId AS LocationId, ClubId
                         FROM Clubs WHERE HomebaseId IS NOT NULL

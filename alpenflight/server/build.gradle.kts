@@ -390,3 +390,25 @@ val compareOpenApiSnapshot by tasks.registering(JavaExec::class) {
     mainClass = "ch.alpenflight.platform.openapi.OpenApiSnapshotMain"
     args = listOf("--compare", openApiSnapshotFile.absolutePath)
 }
+
+// J-0c T-03: launchable seam for the fan-out parity Playwright spec
+// (alpenflight/web/e2e/tests/real-idp/fan-out-migration-parity.spec.ts). The
+// ALPF bundle envelope is built in Java (reusing the server-IT bundle factory),
+// so the TS spec shells out to this task to materialize the encrypted fan-out
+// bundle bytes; it then POSTs them through the REAL /api/v1/migrations endpoint.
+// Pure byte-factory — no Keycloak / backend / DB access (see the class javadoc).
+// Test runtime classpath: the seeder + MigrationBundleTestFactory live in
+// src/test/java alongside the round-trip ITs they share the bundle shape with.
+val seedFanOutParityBundle by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Build the J-0c synthesized fan-out parity bundle (base64) for the e2e spec."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "ch.alpenflight.migrations.web.FanOutParityBundleSeeder"
+    // Args supplied by the spec at invocation:
+    //   <publicKeyPemPath> <uploadId> <locationName> <clubKeyPrefix> <outputPath>
+    // Read from the `-PseederArgs=` project property (space-separated).
+    val seederArgs = providers.gradleProperty("seederArgs")
+    if (seederArgs.isPresent) {
+        args = seederArgs.get().split(" ")
+    }
+}
