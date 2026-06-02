@@ -7,10 +7,7 @@ import { promisify } from 'node:util';
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 
 import { fillKcLogin } from './kc-form';
-import {
-  findUserByUsername,
-  makeMigratedAdminLoginable,
-} from './keycloak-admin';
+import { findUserByUsername, makeMigratedAdminLoginable } from './keycloak-admin';
 import { E2E_CANNED_PASSWORD } from './test-user';
 
 const execFileAsync = promisify(execFile);
@@ -106,10 +103,7 @@ interface ResolvedBundle {
   locationName: string;
 }
 
-async function resolveSynthBundle(
-  api: APIRequestContext,
-  bearer: string,
-): Promise<ResolvedBundle> {
+async function resolveSynthBundle(api: APIRequestContext, bearer: string): Promise<ResolvedBundle> {
   const locationName = `J0C-${runId()}-${Date.now().toString(36)}`;
   const clubKeyPrefix = `J0C${runId().slice(0, 4).toUpperCase()}`;
   const handshake = await mintHandshake(api, bearer);

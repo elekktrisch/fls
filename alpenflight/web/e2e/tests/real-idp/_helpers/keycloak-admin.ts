@@ -248,7 +248,10 @@ export async function makeMigratedAdminLoginable(
   username: string,
   password: string,
 ): Promise<void> {
-  if (!username.startsWith('migrated-admin+') || !username.endsWith('@migrated.alpenflight.local')) {
+  if (
+    !username.startsWith('migrated-admin+') ||
+    !username.endsWith('@migrated.alpenflight.local')
+  ) {
     throw new Error(
       `makeMigratedAdminLoginable: refusing to mutate '${username}' — only the synthetic ` +
         `migrated-admin+<clubId>@migrated.alpenflight.local namespace is allowed.`,

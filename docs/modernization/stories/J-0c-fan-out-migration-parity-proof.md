@@ -346,3 +346,20 @@ Playwright tasks → `e2e-driver`. Workers commit to `integration/J-0c`.
   next run (manager-triggered).
 
 **Order (rework):** T-07 (code gate) → re-run per-PR CI → T-08 (workflow) → re-run full chain.
+
+### Gate-run round 2 (2026-06-02) → more reworks
+
+T-07 fixed the server ITs (22/22 green) and T-08 fixed MSSQL (legacy stack now comes up — the chain got past the healthcheck into the legacy spec). Two new reds:
+
+- [x] **T-09 — web prettier format (code gate).** With the server ITs green, the
+  `alpenflight build` job then failed at the web lint/format step: `keycloak-admin.ts`
+  + `fan-out-parity-fixture.ts` (e2e-driver edits) weren't prettier-clean. Fixed inline
+  (`prettier --write`, locally `--check`-verified — trivial/mechanical, no CI round burned).
+- [ ] **T-10 — legacy login in the T-04 spec.** The full chain now reaches "Run T-04
+  legacy create-flow spec" (MSSQL up ✓) but fails fast: `Error: expected myClub.ClubId in
+  ngStorage-user after UI login` (`locations-fanout-J0c.spec.ts:180`). The legacy
+  `loginViaUi` either doesn't populate the expected club for the seed user, the
+  assertion/wait is wrong, or the FLSTest seed user lacks the club. `e2e-driver` — debug
+  via CI (legacy stack can't run on this box). *(seam: T-04 spec/login)*
+
+**Order:** T-09 (done) → T-10 → re-run both gates.
