@@ -761,3 +761,19 @@ T-17 worked: backend reaches Keycloak (localhost:8090). T-02's adapter now meets
   Server module + test build green. First live green is the next manager-triggered chain run.
 
 **Order:** T-18 → re-run the full chain.
+
+### Gate-run round 11 (2026-06-02) → T-19
+
+T-18 worked: Keycloak provisioning fully succeeds. Ingest now runs; last data-fidelity gap:
+
+- [ ] **T-19 — legacy nullable `ModifiedOn` vs new NOT-NULL `modified_on`.** Ingest 500s
+  `sqlstate=23502: null value in column "modified_on" of relation "t_club"` — a real legacy Club
+  has `ModifiedOn` NULL (created, never modified) but `t_club.modified_on` is NOT NULL (audit
+  invariant). Same class as T-12's created_on guard. **Fix:** coalesce `modified_on = COALESCE(
+  ModifiedOn, CreatedOn)` in the producer/mapper for entities whose new `modified_on` is NOT NULL —
+  a never-modified row's last-modified = its creation (parity-correct, keeps the NOT-NULL invariant).
+  **Audit ALL registered mappers** (CLUB hit first; USER/LOCATION/INOUTBOUND_POINT etc. likely next)
+  + their new-schema `modified_on`/other-required-timestamp nullability, and fix the same class in
+  one pass. *(seam: mapper/Coercions required-timestamp coalescing + audit)*
+
+**Order:** T-19 → re-run the full chain.
