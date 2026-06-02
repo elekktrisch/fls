@@ -489,7 +489,7 @@ stack bring-up + handshake mint, then failed at the export:
 
 T-12 diagnostics worked: COUNTRY now reports the REAL error.
 
-- [ ] **T-13 — export `ClosedChannelException` mid-stream (row 115).** `alpenflight-export`
+- [x] **T-13 — export `ClosedChannelException` mid-stream (row 115).** `alpenflight-export`
   streams COUNTRY fine for 114 rows then dies: `java.nio.channels.ClosedChannelException`
   at `BundleWriter.streamOne(BundleWriter.java:112)` — an I/O/cursor fault, NOT a mapper bug.
   Suspect the read-side JDBC connection hardening in `LegacyJdbcReader` (`ApplicationIntent`
@@ -497,5 +497,32 @@ T-12 diagnostics worked: COUNTRY now reports the REAL error.
   `closeOnCompletion()`) closing the socket channel mid-iteration, or a write-side channel
   close. `e2e-driver`/general — diagnose `BundleWriter.java:112` + the reader config, fix so
   COUNTRY (196 rows) + all entities stream fully. *(seam: migration-tool JDBC streaming)*
+  Root cause: **WRITE-side, NOT the JDBC reader.** The `:112` line was the per-row
+  `try (JsonGenerator gen = JSON_FACTORY.createGenerator(digestOut)) { … }` close. `streamOne`
+  creates a **new `JsonGenerator` per row** wrapping ONE shared per-entity
+  `DigestOutputStream` → `BufferedOutputStream` → NIO file channel, and `JSON_FACTORY` was a
+  default `new JsonFactory()` with `AUTO_CLOSE_TARGET` ON. So the **first** row's `gen.close()`
+  closed `digestOut` → `fileOut` → the file channel. The closed-channel write then surfaced
+  not on row 2 but at the next 8 KB `BufferedOutputStream` flush — a buffer-flush boundary
+  (~row 115 for COUNTRY's wide rows; ~row 693 in the test's narrow rows), which is exactly why
+  it looked like a consistent-boundary cursor/buffering fault. The `ClosedChannelException`
+  comes from `java.nio.channels` (the NIO file output channel) — a SQL Server socket fault
+  would surface as `SQLException` — so the `LegacyJdbcReader` hardening (`ApplicationIntent`
+  =ReadOnly, `closeOnCompletion`, fetchSize 1000, adaptive buffering) was a **red herring**;
+  it is left untouched, the read-only export contract preserved. Fix (smallest correct):
+  build `JSON_FACTORY` with `StreamWriteFeature.AUTO_CLOSE_TARGET` **disabled** so each per-row
+  `gen.close()` FLUSHES but does not close the shared stream (the stream is owned + closed once
+  by `streamOne`'s try-with-resources). Also extracted the drain loop into a package-private
+  `BundleWriter.drainCursor(entity, mapper, rs)` so the multi-fetch-window / buffer-boundary
+  path is unit-testable without live MSSQL (the `SQLException` from `rs.next()` now surfaces
+  inside `drainCursor`; only cursor open/close `SQLException` reaches `streamOne`). Validated
+  (no live MSSQL on box): new `BundleWriterStreamTest` drives a `Proxy`-backed forward-only
+  fake cursor of **5000 rows** (>> the 8 KB buffer and the 1000-row fetch window) through
+  `drainCursor` — RED before the fix with the EXACT production stack (`UTF8JsonGenerator.close`
+  → `_flushBuffer` → `BufferedOutputStream.flushBuffer` → `FileChannelImpl.ensureOpen` →
+  `ClosedChannelException`, failing at row 693), GREEN after (all 5000 rows + 5000 NDJSON
+  lines, last row intact). Full `migration-tool` `./gradlew build` green (shadowJar + all
+  tests incl. the existing `BundleWriterFanOutIdMapTest`). First LIVE green is the next
+  manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-13 → re-run the full chain.

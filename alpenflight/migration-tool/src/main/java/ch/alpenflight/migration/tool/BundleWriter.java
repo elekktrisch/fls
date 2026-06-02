@@ -7,6 +7,7 @@ import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.MapperLegacyBindings;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.StreamWriteFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedOutputStream;
@@ -65,7 +66,19 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
  */
 public final class BundleWriter {
 
-    private static final JsonFactory JSON_FACTORY = new JsonFactory();
+    // AUTO_CLOSE_TARGET disabled: streamOne creates a JsonGenerator PER ROW
+    // wrapping the SAME shared per-entity DigestOutputStream, so the generator's
+    // close() at the end of each row's try-with-resources must NOT close the
+    // underlying stream. With Jackson's default (auto-close on), the first row's
+    // gen.close() closes digestOut -> fileOut -> the NIO file channel; subsequent
+    // writes ('\n', the next row's bytes) only surface once the 8KB
+    // BufferedOutputStream flushes — i.e. mid-stream, not on row 2 — manifesting
+    // as a ClosedChannelException at a buffer-boundary row (J-0c T-13: COUNTRY
+    // died at row 115). The stream is owned by streamOne's try-with-resources and
+    // closed exactly once there; the per-row generators must only flush.
+    private static final JsonFactory JSON_FACTORY = JsonFactory.builder()
+            .disable(StreamWriteFeature.AUTO_CLOSE_TARGET)
+            .build();
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final LegacyJdbcReader reader;
@@ -99,12 +112,35 @@ public final class BundleWriter {
     }
 
     private EntityStreamResult streamOne(EntityType entity, Mapper mapper) {
-        Path ndjson = temp(entity.name() + "-ndjson");
         String sql = MapperLegacyBindings.selectForProducer(entity);
+        try (ResultSet rs = reader.openEntityCursor(sql)) {
+            return drainCursor(entity, mapper, rs);
+        } catch (SQLException e) {
+            // Cursor open / close failures (driver/socket level) — same surfacing
+            // contract as the per-row drain below.
+            if (verbose) {
+                System.err.println("  streaming " + entity
+                        + " failed opening/closing cursor — stack trace follows:");
+                e.printStackTrace();
+            }
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "Failed streaming entity " + entity + ": " + describe(e), e);
+        }
+    }
+
+    /**
+     * Drain one open forward-only cursor into a per-entity NDJSON temp file,
+     * hashing + counting rows. Package-private so a test can drive the
+     * multi-fetch-window / buffer-boundary path with a fake {@link ResultSet}
+     * (no live MSSQL): the per-row {@link JsonGenerator} writes share one
+     * {@link DigestOutputStream} buffered over an NIO file channel, and that
+     * stream must survive every row's {@code gen.close()} (J-0c T-13).
+     */
+    EntityStreamResult drainCursor(EntityType entity, Mapper mapper, ResultSet rs) {
+        Path ndjson = temp(entity.name() + "-ndjson");
         long rows = 0;
         MessageDigest digest = newSha256();
-        try (ResultSet rs = reader.openEntityCursor(sql);
-             OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(ndjson));
+        try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(ndjson));
              DigestOutputStream digestOut = new DigestOutputStream(fileOut, digest)) {
             while (rs.next()) {
                 try (JsonGenerator gen = JSON_FACTORY.createGenerator(digestOut)) {
