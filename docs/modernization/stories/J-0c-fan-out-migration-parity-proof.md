@@ -546,3 +546,22 @@ at row 1 — a real **parity finding** (exactly J-0c's purpose):
   same GUID-read-as-int class.** *(seam: LOCATION binding + sibling audit; migration-bundle)*
 
 **Order:** T-14 → re-run the full chain.
+
+### Gate-run round 7 (2026-06-02) → T-15
+
+Export half COMPLETE (all 7 entities stream). Chain reached the FINAL step (AlpenFlight
+parity spec); real-bundle migrate POST 500s:
+
+- [ ] **T-15 — COUNTRY reference-data resolution on real bundle.** Real-bundle ingest fails:
+  `ConstraintViolationException: t_club violates fk_club_country_id — country_id=(77cc3be6-…)
+  not present in t_country`. CLUB references a legacy Country GUID that does not resolve into
+  `t_country`. Investigate COUNTRY's `EntityPolicy` in the real export manifest (FULL_PORT vs
+  SYSTEM_GLOBAL_RESOLVE), the bundle entity/tar ordering (COUNTRY before CLUB?), and how
+  `CLUB.country_id` is resolved — the new-stack `t_country` seed is a fixed set; real legacy has
+  ~196 countries with their own GUIDs. Fix so CLUB.country_id resolves. **If this is a genuine
+  country-reconciliation DESIGN question (map legacy country GUID→seed by ISO code, etc.) rather
+  than a wiring bug, ESCALATE** with the precise options. *(seam: migrate-ingest COUNTRY resolution)*
+  Secondary: a failed ingest seals the upload FAILED so the spec retry 409s — the spec needs a
+  fresh uploadId/handshake per attempt (test-robustness, fold in or note).
+
+**Order:** T-15 → re-run the full chain.
