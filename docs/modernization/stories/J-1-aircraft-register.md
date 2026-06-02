@@ -164,12 +164,21 @@ the migration proof, the real chain, and folded boyscout riders.
   NOT a foundation journey — it reuses the proven composite fan-out lookup + reference-lookup
   resolver; the contract change mirrors the shipped `referenceLookups()` default-empty opt-in,
   so no existing mapper changes):**
-- [ ] **T-05a** — Resolver contract generalization: add a `default Map<String,EntityType>
+- [x] **T-05a** — Resolver contract generalization: add a `default Map<String,EntityType>
   foreignKeyColumns()` (or `List<ForeignKeyColumn>`) to `Mapper`; teach
   `ForeignKeyResolver.rewriteForeignKeys` to resolve a target's column from the declaration when
   present, else fall back to `conventionalForeignKeyField` (`:244-246`); support two-columns-one-
   target (CLUB ← managing_club_id + owner_club_id) by iterating column→target pairs. Default empty
   → all 30 existing mappers unchanged. *(seam: Mapper + ForeignKeyResolver)*
+  **DONE — contract shape for T-05b:** chose the record form (not `Map`) so two-columns-one-target
+  composes and the fan-out disambiguator lands without another contract change.
+  `Mapper.foreignKeyColumns(): List<ForeignKeyColumn>` (default empty). Record
+  `ForeignKeyColumn(String column, EntityType target, @Nullable String disambiguatorColumn)` with a
+  2-arg `(column, target)` convenience ctor (disambiguator = null). Resolver iterates declared
+  bindings first, then convention-fills any `foreignKeys()` target NOT declared. For a fan-out
+  target, `disambiguatorColumn` overrides the hardcoded `REFERENCER_CLUB_FIELD="club_id"` — so T-05b
+  declares `new ForeignKeyColumn("homebase_id", LOCATION, "managing_club_id")` and the other three as
+  the 2-arg form; no further resolver/contract change needed.
 - [ ] **T-05b** — AIRCRAFT FK column declarations + fan-out homebase disambiguator: override
   `foreignKeyColumns()` on `flight/AircraftMapper` (managing_club_id→CLUB, owner_club_id→CLUB,
   aircraft_owner_person_id→PERSON, homebase_id→LOCATION); make the fan-out disambiguator column
