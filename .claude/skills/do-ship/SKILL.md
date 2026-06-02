@@ -40,7 +40,9 @@ end and passes — first on a clean seed, then on real legacy data migrated into
 AlpenFlight (Postgres + Keycloak). The pass-video is the acceptance artifact.
 
 **Red is the work-list, not a wall.** Never done while red; the green bar is
-self-imposed and absolute. **A journey never merges red.**
+self-imposed and absolute. **A journey never merges red.** Synthetic / mocked-seam
+green is an inner-loop aid, **never** progress toward done — only the real-chain green
+counts (J-0c: synthetic ITs were green while three real-data fidelity bugs hid).
 
 ## Procedure
 
@@ -70,6 +72,11 @@ detail). Then write an ordered `## Tasks` checklist into the journey file —
    cluster, one component) — sized per the gate below.
 3. **Proof-chain contribution.** This entity's legacy seed + per-entity mapper.
 4. **Final task — thicken spec** to full real assertions from the oracle.
+
+**Pull boyscout riders.** Before finalizing, fold any pending riders from
+`docs/modernization/stories/_BOYSCOUT.md` that touch this journey's surface (or stale
+infra/cleanup riders) into `T-NN`s, sized per the gate; clear them from the file as
+they ship. Riders are how `/do-retro` fixes reach the proof loop — don't skip them.
 
 **Sizing gate (a pre-dispatch heuristic — apply to every task before writing it).**
 Each `T-NN` should pass all of:

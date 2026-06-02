@@ -29,25 +29,25 @@ invent a parallel convention.
 
 ## Gate: parity videos, parallel CI, helper tags
 
-- **Paired videos.** When the journey has a legacy counterpart, capture two
-  videos at the gate so the operator can eyeball UI parity: the legacy `flsweb`
-  drive on the **seeded** data + the AlpenFlight real-chain run on the
-  **migrated** data. Same data lineage → comparable. Reuse the top-level `e2e/`
-  legacy specs where they exist; author a minimal drive only if none does. A
-  **review aid, not a pass/fail** — the AlpenFlight green is the gate. Greenfield
-  → AlpenFlight video alone, note "no legacy counterpart."
+- **Paired videos.** With a legacy counterpart, capture two gate videos for UI-parity
+  eyeballing: legacy `flsweb` on **seeded** data + AlpenFlight real-chain on
+  **migrated** data (same lineage → comparable). Reuse top-level `e2e/` legacy specs;
+  author a drive only if none exists. Review aid, not pass/fail (AlpenFlight green is
+  the gate); greenfield → AlpenFlight video alone.
 - **Two parallel jobs.** Own the journey-gate workflow under `.github/workflows/`:
   `alpenflight-proof` (required check; brings up legacy→seed→migrate→real,
   uploads the pass video) and `parity-legacy-video` (non-blocking; legacy
   FLS+`flsweb` drive on the same fixture, uploads the legacy video). Both seed
   independently from the **deterministic** fixture, so they run in parallel with
   no shared state.
-- **Helper tags.** An e2e case that exercises *logic / an error case* rather than
-  UI↔backend↔DB wiring is a **helper**: tag it `@helper` with a `covered-by:
-  <IntegrationTest>` pointer to the cheaper test that should own it. NEVER tag the
-  journey's wiring / happy-path spec as a helper — that one is irreplaceable.
-  `/do-retro` files a pruning story for verified helpers (cheaper test exists +
-  passes); `/do-ship` does the actual deletion.
+- **A proof the operator can't click isn't done.** Deploy a heavy-chain gallery to a
+  **namespaced subpath** (`destination_dir`+`keep_files`, never `publish_dir: public`
+  — it clobbers the canonical index), link it from the canonical per-run nav, and
+  verify it's **clickable pre-merge** (J-0c hit an empty gallery → reactive T-24/T-25).
+- **Helper tags.** An e2e case exercising *logic / an error case* (not
+  UI↔backend↔DB wiring) is a **helper**: tag `@helper` + `covered-by:
+  <IntegrationTest>`. NEVER tag the wiring/happy-path spec — it's irreplaceable.
+  `/do-retro` files the pruning story for verified helpers; `/do-ship` deletes.
 
 ## Proof-chain rules
 

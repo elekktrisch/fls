@@ -57,7 +57,9 @@ Deep-carve a single journey JIT, just before `/do-ship` needs it. `next` =
 the first roadmap journey whose `depends_on` are all done.
 
 1. Pull the journey's roll-up stories + their refinement; read the legacy
-   screen(s) it replaces.
+   screen(s) it replaces. Also scan `docs/modernization/stories/_BOYSCOUT.md` for
+   pending riders that touch this journey's surface — note them in the journey file
+   so `/do-ship` folds them into the task list (they ride forward, not as own stories).
 2. For the load-bearing behavior the implementer can't derive from code alone,
    you MAY dispatch `legacy-oracle` now — but it's cheap to defer to ship time.
    Carve captures *shape + contract*; the oracle captures *exact behavior*.

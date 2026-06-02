@@ -1,6 +1,6 @@
 ---
 name: do-retro
-description: Improve the suite from what shipping just taught you — tune the do-* skills/agents, propose ADR amendments, re-shape the backlog, do memory hygiene, file infra/efficiency journeys. Purely manual; reconstructs lessons from git + PR threads. Trigger: /do-retro.
+description: Improve the suite from what shipping just taught you — tune the do-* skills/agents, propose ADR amendments, re-shape the backlog, do memory hygiene, file infra/efficiency journeys. A Scrum-style ceremony: reconstructs lessons from git + PR threads, then grills the operator. Purely manual. Trigger: /do-retro.
 ---
 
 # do-retro — the suite's immune system
@@ -34,6 +34,12 @@ lean. When invoked, `/do-retro` reconstructs the lessons itself from git history
 landed since the last retro. Run it deliberately — end of day, after a batch,
 before a release — not on a loop.
 
+**It's a ceremony, not a solo pass.** Treat `/do-retro` as a **Scrum-style
+retrospective**: the git/PR reconstruction is your *prep*; the live grill of the
+operator (see "Ceremony" below) is the ceremony itself — where the operator
+contributes the intent, priorities, and judgment calls you can't recover from
+history. Reconstruct first so you arrive with concrete signals; then interview.
+
 ## What it digests
 
 Scan the journeys shipped since the last retro. For each, look for the
@@ -50,6 +56,32 @@ Scan the journeys shipped since the last retro. For each, look for the
   task, or a task was too big for a clean context → `/do-ship`'s task-list
   decomposition needs tuning).
 
+## Ceremony: grill the operator
+
+Once the friction signals are reconstructed, **interview the operator** to surface the
+intent, priorities, and judgment calls that aren't in the history — then let their
+answers shape what you fix, file, and defer. This is the retro's human half.
+
+Method (embedded from `grill-me`):
+
+- Ask **one question at a time** and wait for the answer — never batch.
+- For **each** question, give your **recommended answer** + the trade-off, so the
+  operator reacts to a concrete proposal, not a blank prompt.
+- If a question is answerable from the codebase / git / PRs, **go find the answer
+  instead of asking** — spend the operator's attention only on genuine judgment calls.
+- Walk the decision tree: resolve upstream calls (e.g. testing posture, an open
+  architecture decision) before the downstream ones they constrain.
+- Drive each branch to a **shared, recorded conclusion** — that conclusion is the
+  input to the fix/file/defer decisions below.
+
+Frame the questions from the reconstructed signals + any open decisions a journey
+left (a deferred design call, a recurring mocked seam, a re-carve). Aim for the few
+that change what you do next; stop when the backlog + suite edits are unambiguous.
+
+**Non-interactive run** (headless / `/loop` / scheduled): skip the grill, proceed from
+reconstruction alone, and note in the report that the ceremony was skipped (no operator
+present) — the lessons are then reconstruction-only.
+
 ## What it's allowed to change
 
 1. **Tune the suite itself.** Edit `do-plan` / `do-ship` / `do-task` / `do-retro`
@@ -60,43 +92,57 @@ Scan the journeys shipped since the last retro. For each, look for the
 2. **Propose ADR amendments.** When a journey revealed an architecture decision
    was wrong/incomplete, draft the amendment to `docs/modernization/adrs/` for
    operator approval — **propose, don't auto-apply** load-bearing ADR changes.
-3. **Re-shape the backlog.** File follow-up journeys / re-carves when shipping
-   showed the plan was wrong (a journey too big, a missing screen, a wrong dep).
-   File **infrastructure and efficiency journeys** (proof-chain speedups,
-   snapshot reuse, flake fixes, CI sharding) the same way. Feeds `/do-plan`.
+3. **Re-shape the backlog — boyscout-riders by default, never tiny stories.**
+   Mechanical or bounded work (a bug fix, a one-line regex, a doc reconciliation, a
+   guard test, deleting files — *however many*) does **NOT** get its own story/journey.
+   Record it as a **boyscout rider** in `docs/modernization/stories/_BOYSCOUT.md` (one
+   bullet: what + which seam + why), to be folded into the **next journey** that runs
+   the gate — so the fix flows through the do-* workflow and produces a gate + gallery
+   proof the operator can see. A tiny standalone story bypasses that proof loop and is
+   an anti-pattern. **File a standalone journey ONLY for genuinely new vertical feature
+   scope** (a missing screen, a re-carve of an oversized journey) — that, and only that,
+   feeds `/do-plan`. Infra/efficiency work (proof-chain speedups, flake fixes, CI
+   hardening) is a rider too unless it's a vertical slice in its own right.
 4. **Memory hygiene** (via `codebase-memory-mcp` + `.claude/memory/`):
    - **Capture** durable, non-obvious lessons (feedback/project facts).
    - **Update** stale memories whose facts the recent work changed.
    - **Compact** redundant/overlapping memories into one.
    Follow the memory-file convention (frontmatter + `MEMORY.md` pointer).
-5. **File a helper-e2e pruning story.** Scan (read-only) e2e specs tagged
+5. **Record a helper-e2e pruning rider.** Scan (read-only) e2e specs tagged
    `@helper` with a `covered-by: <IntegrationTest>` pointer; for each, verify the
-   named integration/unit test **exists and passes**. Enumerate the now-redundant
-   helpers and **file one pruning story** listing them (the actual deletion is a
-   project-code change → `/do-ship` does it). Keeps the expensive e2e suite to
-   wiring + happy paths as cheaper tests take over the logic/error cases. Never
-   delete a spec here; never list un-tagged or wiring/happy-path specs.
+   named integration/unit test **exists and passes**. Record the now-redundant helpers
+   as a **boyscout rider** in `_BOYSCOUT.md` (the deletion is project code → rides the
+   next journey via `/do-ship`). Keeps the expensive e2e suite to wiring + happy paths
+   as cheaper tests take over the logic/error cases. Never delete a spec here; never
+   list un-tagged or wiring/happy-path specs.
 
 ## Coexist-then-retire (the modernize-* sunset)
 
 The do-* suite coexists with the legacy `modernize-*` skills + 12 agents. Once
-do-* is proven on 2-3 real journeys, `/do-retro` files the **cleanup journey**
-that deletes the superseded `modernize-*` skills/agents and prunes the
-`rolled_up_into:` horizontal stories. Don't delete on day one — file it when the
-shipped evidence says do-* covers the ground. The 47 `implemented/` stories and
-their docs stay as history.
+do-* is proven on 2-3 real journeys, record the cleanup as a **boyscout rider** (not
+a journey — deleting the superseded `modernize-*` skills/agents + pruning the
+`rolled_up_into:` horizontal stories is mechanical, however many files). It rides the
+next journey via `/do-ship`. Don't delete on day one — record the rider once the
+shipped evidence says do-* covers the ground (ideally including one *non-migration*
+journey, since the early proofs are all fan-out flavored). The 47 `implemented/`
+stories and their docs stay as history.
 
 ## Procedure
 
 1. Reconstruct the since-last-retro journey set (git log on `implemented/`,
    merged PRs). Note the date window in the report.
 2. Extract friction signals per journey (above).
-3. For each recurring signal, decide the smallest fix and which lever it
-   belongs to (suite edit / ADR amendment / backlog journey / memory).
-4. Apply suite edits + memory hygiene directly. **Draft** ADR amendments and
-   **file** backlog journeys (don't implement them).
-5. If the 2-3-journey bar is met, file the modernize-* cleanup journey.
-6. Report (below). Don't squash-merge anything — this skill edits tooling on the
+3. **Grill the operator** (the ceremony, above) on the signals + open decisions —
+   one question at a time, a recommendation each; record the conclusions. Skip only
+   on a non-interactive run.
+4. For each recurring signal + grill conclusion, decide the smallest fix and which
+   lever it belongs to (suite edit / ADR amendment / **boyscout rider** / new-scope
+   journey / memory).
+5. Apply suite edits + memory hygiene directly. **Draft** ADR amendments. Record
+   fixes/deletions/docs as **boyscout riders** in `_BOYSCOUT.md`; file a standalone
+   journey only for genuinely new vertical scope (don't implement either).
+6. If the 2-3-journey bar is met, record the modernize-* cleanup as a rider.
+7. Report (below). Don't squash-merge anything — this skill edits tooling on the
    current branch; the operator reviews the diff.
 
 ## Quality bar
@@ -109,10 +155,11 @@ their docs stay as history.
 
 ## When done
 
-Print: the journey window digested; friction signals found; suite edits made
-(file + one-line why each); ADR amendments drafted (operator decides); backlog /
-infra / efficiency journeys filed; memory captured/updated/compacted; whether
-the modernize-* cleanup journey was filed and why.
+Print: the journey window digested; friction signals found; the grill conclusions
+(or that the ceremony was skipped — non-interactive); suite edits made (file +
+one-line why each); ADR amendments drafted (operator decides); backlog / infra /
+efficiency journeys filed; memory captured/updated/compacted; whether the
+modernize-* cleanup journey was filed and why.
 
 ## Not in scope
 
