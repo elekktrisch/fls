@@ -264,8 +264,7 @@ test.describe('J-24 proof-video gallery', () => {
     expect(legacyCaption, 'legacy caption names the legacy flsweb create flow').toMatch(
       /legacy flsweb/i,
     );
-    const legacySrc =
-      (await legacyFigure.locator('video').getAttribute('src')) ?? '';
+    const legacySrc = (await legacyFigure.locator('video').getAttribute('src')) ?? '';
     expect(legacySrc, 'legacy video has a relative src').toMatch(/^videos\//);
     expect(existsSync(resolve(outDir, legacySrc)), 'legacy .webm copied into out dir').toBe(true);
 

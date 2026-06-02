@@ -30,7 +30,10 @@ test('J-0c: mint migration handshake to file (full-chain only)', async ({
   const baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
   const handshake = await mintRealHandshakeToFile(browser, request, baseURL, outFile!);
 
-  expect(handshake.uploadId, 'handshake must carry an uploadId the export seals the bundle to').toBeTruthy();
+  expect(
+    handshake.uploadId,
+    'handshake must carry an uploadId the export seals the bundle to',
+  ).toBeTruthy();
   expect(
     handshake.publicKeyPem,
     'handshake must carry the RSA public key the export encrypts the bundle against',
