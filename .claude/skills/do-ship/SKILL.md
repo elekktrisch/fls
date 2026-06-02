@@ -51,9 +51,11 @@ counts (J-0c: synthetic ITs were green while three real-data fidelity bugs hid).
 Resolve `J-NNN` from arg or a `integration/J-NNN` branch. Bail if the journey
 file isn't `carved: true` ("run /do-plan J-NNN first") or not `status: todo`
 (in_progress → resume; done → refuse). Every `depends_on` journey must be `done`
-+ its PR `MERGED`. Create/checkout `integration/J-NNN` off the current
-integration line. Flip `status: in_progress` + `started_at`; create a GitHub
-issue (`J-NNN: <title>`) if `gh`+remote; initial commit `#N: start`.
++ its PR `MERGED`. `/do-plan` already created + pushed `integration/J-NNN` (the
+carve, possibly carrying `/do-retro` riders + suite edits) — **`git fetch` +
+checkout + pull it**, don't re-create; create off the current integration line
+only if absent. Flip `status: in_progress` + `started_at`; create a GitHub
+issue (`J-NNN: <title>`) if `gh`+remote.
 
 ### 2 — Decide the task list (stay lean)
 
@@ -73,10 +75,10 @@ detail). Then write an ordered `## Tasks` checklist into the journey file —
 3. **Proof-chain contribution.** This entity's legacy seed + per-entity mapper.
 4. **Final task — thicken spec** to full real assertions from the oracle.
 
-**Pull boyscout riders.** Before finalizing, fold any pending riders from
-`docs/modernization/stories/_BOYSCOUT.md` that touch this journey's surface (or stale
-infra/cleanup riders) into `T-NN`s, sized per the gate; clear them from the file as
-they ship. Riders are how `/do-retro` fixes reach the proof loop — don't skip them.
+**Pull boyscout riders.** Before finalizing, fold pending `_BOYSCOUT.md` riders that
+touch this journey's surface (or stale infra/cleanup riders) into `T-NN`s sized per the
+gate, and clear them from the file as they ship — that's how `/do-retro` fixes reach the
+proof loop.
 
 **Sizing gate (a pre-dispatch heuristic — apply to every task before writing it).**
 Each `T-NN` should pass all of:

@@ -142,8 +142,15 @@ stories and their docs stay as history.
    fixes/deletions/docs as **boyscout riders** in `_BOYSCOUT.md`; file a standalone
    journey only for genuinely new vertical scope (don't implement either).
 6. If the 2-3-journey bar is met, record the modernize-* cleanup as a rider.
-7. Report (below). Don't squash-merge anything — this skill edits tooling on the
-   current branch; the operator reviews the diff.
+7. **Land the output on a clean branch that rides the next journey.** `git fetch`
+   first; commit the suite edits + `_BOYSCOUT.md` on a **fresh branch off the latest
+   `origin/main`** — never onto a stale/merged branch you happen to be sitting on
+   (prune dangling local pointers: `git branch -D` the merged `integration/*`). This
+   branch becomes the **base the next `/do-plan` carve builds `integration/J-NNN` on**,
+   so the riders + tuned skills flow onto that journey and merge with it (fix-forward —
+   suite improvements ship through the same proof loop). Memory files live outside the
+   repo (no commit). Don't squash-merge; the operator reviews the diff.
+8. Report (below).
 
 ## Quality bar
 
