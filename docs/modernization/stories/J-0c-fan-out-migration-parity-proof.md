@@ -526,3 +526,23 @@ T-12 diagnostics worked: COUNTRY now reports the REAL error.
   manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-13 → re-run the full chain.
+
+### Gate-run round 6 (2026-06-02) → T-14
+
+T-13 (AUTO_CLOSE_TARGET) worked: COUNTRY/CLUB(4)/USER(4) now stream. LOCATION fails
+at row 1 — a real **parity finding** (exactly J-0c's purpose):
+
+- [ ] **T-14 — LocationType FK is a legacy GUID, not int.** `LocationMapper.writeNdjson:143`
+  reads `getInt("LocationTypeId")` but legacy `Locations.LocationTypeId` is a `uniqueidentifier`
+  (GUID FK to `LocationTypes`) → `SQLServerException: conversion from uniqueidentifier to
+  INTEGER is unsupported`. J-0b's data-layer IT missed it (fed synthetic int-encoded NDJSON
+  matching the wrong assumption). **Root cause + fix (verified):** the new-stack
+  `t_location_type.legacy_int_id` (1,2,3,4,5,99) == legacy `LocationTypes.LocationTypeCupId`
+  (1,2,3,4,5,...), so J-0b's int-resolution is CORRECT — only the producer mis-projected the
+  GUID. Fix `MapperLegacyBindings.LOCATION` to JOIN `LocationTypes` ON `LocationTypeId` and
+  project `LocationTypeCupId` (int) so `writeNdjson` keeps `getInt`+`legacyIntIdToUuidString`.
+  The unit-type FKs (`ElevationUnitTypeId`, `RunwayLengthUnitType`) ARE `int?` in legacy — fine.
+  **Also audit the other registered mappers (esp. INOUTBOUND_POINT, not yet reached) for the
+  same GUID-read-as-int class.** *(seam: LOCATION binding + sibling audit; migration-bundle)*
+
+**Order:** T-14 → re-run the full chain.
