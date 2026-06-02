@@ -129,7 +129,7 @@ the migration proof, the real chain, and folded boyscout riders.
   (list+edit+store) meets the journey ACs, wire the nav entry + an `aircraft:` i18n section
   (de/en/fr/it), align `e2e/tests/masterdata/aircraft-crud.spec.ts` selectors/test-ids to the ACs
   with thin assertions. *(seam: features/aircraft + i18n + nav + mock spec)*
-- [ ] **T-02** — S-164 caller-aware `latestCounter` redaction in `AircraftMapper.toDetail` (present
+- [x] **T-02** — S-164 caller-aware `latestCounter` redaction in `AircraftMapper.toDetail` (present
   for managing-club caller, null otherwise) + `AircraftsAuthorizationIT` assertion (manager sees /
   non-manager null). *(seam: AircraftMapper + IT)*
 - [ ] **T-03** — S-163 owner-person edit predicate: extend `AircraftAccess.canMutate` to admit the

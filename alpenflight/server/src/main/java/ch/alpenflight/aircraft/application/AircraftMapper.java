@@ -47,15 +47,28 @@ final class AircraftMapper {
     }
 
     /**
-     * Build the detail projection. Aircraft is cross-tenant (S-058 reversion
-     * of S-159) — any authenticated user may read the row to surface it on
-     * a Flight picker. {@code latestCounter} is still surfaced here for the
-     * managing club's own use; a future story may redact it (and other
-     * sensitive fields like flarm id, mtom, comment) for non-managing
-     * readers via a caller-aware mapper. For now the counter-history list
-     * endpoint already gates to the managing club via {@code AircraftAccess}.
+     * Build the detail projection with the manager-only counter inlined.
+     * Used on write paths (register / update / transfer), where the caller
+     * is the managing club by construction. Read paths use the caller-aware
+     * {@link #toDetail(Aircraft, boolean)} overload.
      */
     static AircraftDetail toDetail(Aircraft a) {
+        return toDetail(a, true);
+    }
+
+    /**
+     * Build the detail projection, redacting the manager-only
+     * {@code latestCounter} when {@code includeLatestCounter} is false
+     * (S-164). Aircraft is cross-tenant (S-058 reversion of S-159) — any
+     * authenticated user may read the row to surface it on a Flight picker —
+     * but the managing club's operational counter is nulled for non-managing
+     * readers via the {@code AircraftAccess.canViewManagerOnlyData} predicate
+     * (same managing-club match as edit). The counter-history list endpoint
+     * gates to the managing club via {@code AircraftAccess} the same way.
+     * Other fields (flarm id, mtom, comment) are intentionally NOT redacted
+     * here — only {@code latestCounter} per the S-164 AC.
+     */
+    static AircraftDetail toDetail(Aircraft a, boolean includeLatestCounter) {
         return new AircraftDetail(
                 Objects.requireNonNull(a.getId(), "Cannot map an unpersisted Aircraft"),
                 ClubId.ofNullable(a.getOwnerClubId()),
@@ -85,7 +98,9 @@ final class AircraftMapper {
                 a.getComment(),
                 a.getDaecIndex(),
                 a.getCurrentStateEntry().map(AircraftMapper::toStateResponse).orElse(null),
-                a.getLatestCounter().map(AircraftMapper::toCounterResponse).orElse(null));
+                includeLatestCounter
+                        ? a.getLatestCounter().map(AircraftMapper::toCounterResponse).orElse(null)
+                        : null);
     }
 
     static AircraftStateHistoryEntryResponse toStateResponse(AircraftStateHistoryEntry entry) {

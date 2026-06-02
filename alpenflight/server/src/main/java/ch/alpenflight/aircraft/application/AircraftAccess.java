@@ -7,7 +7,10 @@ import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.util.Collection;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 
 /**
@@ -82,6 +85,41 @@ public class AircraftAccess {
      */
     public boolean canOperate(AircraftId id, @Nullable Jwt jwt) {
         return canMutate(id, jwt, true);
+    }
+
+    /**
+     * Read-side gate for manager-only fields inlined on the cross-tenant
+     * detail projection — currently {@code latestCounter} (S-164). Reads of
+     * the row stay open (any authenticated user, S-058), but the managing
+     * club's operational counter is redacted for everyone else. Uses the
+     * same managing-club predicate as {@link #canEdit}: caller's
+     * {@code clubId} == {@code managingClubId}, with SYSTEM_ADMINISTRATOR as
+     * the universal fallback (consistent with {@link #canMutate}). The JWT is
+     * read from the current {@link SecurityContextHolder} so the service can
+     * apply the redaction without leaking the principal through the
+     * controller signature.
+     */
+    public boolean canViewManagerOnlyData(@Nullable UUID managingClubId) {
+        Jwt jwt = currentJwt();
+        if (jwt == null) {
+            return false;
+        }
+        if (hasAnyRole(jwt, ROLE_SYSTEM_ADMIN)) {
+            return true;
+        }
+        if (managingClubId == null) {
+            return false;
+        }
+        UUID callerClubId = resolveCallerClubId(jwt);
+        return callerClubId != null && managingClubId.equals(callerClubId);
+    }
+
+    private static @Nullable Jwt currentJwt() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken jwtAuth && auth.isAuthenticated()) {
+            return jwtAuth.getToken();
+        }
+        return null;
     }
 
     private boolean canMutate(AircraftId id, @Nullable Jwt jwt, boolean allowFlightOperator) {

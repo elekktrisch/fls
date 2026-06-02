@@ -66,6 +66,7 @@ public class AircraftsService {
     private final AircraftStateRepository aircraftStates;
     private final CounterUnitTypeRepository counterUnitTypes;
     private final ClubTenantIdentifierResolver tenantResolver;
+    private final AircraftAccess aircraftAccess;
     private final Clock clock;
     private final AuditTrail auditTrail;
 
@@ -74,6 +75,7 @@ public class AircraftsService {
                             AircraftStateRepository aircraftStates,
                             CounterUnitTypeRepository counterUnitTypes,
                             ClubTenantIdentifierResolver tenantResolver,
+                            AircraftAccess aircraftAccess,
                             Clock clock,
                             AuditTrail auditTrail) {
         this.aircrafts = aircrafts;
@@ -81,6 +83,7 @@ public class AircraftsService {
         this.aircraftStates = aircraftStates;
         this.counterUnitTypes = counterUnitTypes;
         this.tenantResolver = tenantResolver;
+        this.aircraftAccess = aircraftAccess;
         this.clock = clock;
         this.auditTrail = auditTrail;
     }
@@ -115,7 +118,14 @@ public class AircraftsService {
 
     @Transactional(readOnly = true)
     public AircraftDetail getAircraft(AircraftId id) {
-        return AircraftMapper.toDetail(loadOrThrow(id));
+        Aircraft a = loadOrThrow(id);
+        // S-164: latestCounter is manager-only. Reads of the row stay
+        // cross-tenant (S-058), but the counter is redacted for callers
+        // outside the managing club (sysadmin excepted) — same predicate as
+        // AircraftAccess.canEdit.
+        boolean includeLatestCounter =
+                aircraftAccess.canViewManagerOnlyData(a.getManagingClubId());
+        return AircraftMapper.toDetail(a, includeLatestCounter);
     }
 
     public AircraftDetail registerAircraft(AircraftCreateRequest req) {

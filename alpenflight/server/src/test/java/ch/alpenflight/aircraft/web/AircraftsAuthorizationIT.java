@@ -103,6 +103,45 @@ class AircraftsAuthorizationIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void latestCounter_isRedacted_forNonManagingClubReader() {
+        // S-164: the inlined latestCounter on the detail projection reflects
+        // the managing club's bookkeeping. It is surfaced to the managing
+        // club's callers and redacted (null) for any other authenticated
+        // reader — same managing-club predicate as edit (callerClubId ==
+        // managingClubId). Reads stay cross-tenant otherwise (200, not 403).
+        String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> created = post("/api/v1/aircraft",
+                createPayload(uniqueImmatriculation()), adminA);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String id = readJson(created).get("id").asText();
+
+        // Seed at least one operating counter so latestCounter is non-null
+        // for the manager.
+        ResponseEntity<String> counter = post("/api/v1/aircraft/" + id + "/counters",
+                Map.of(
+                        "atDateTime", "2026-01-01T10:00:00Z",
+                        "flightOperatingCounterInSeconds", 3600),
+                adminA);
+        assertThat(counter.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // Managing-club caller sees the counter (present + non-null).
+        ResponseEntity<String> managerRead = get("/api/v1/aircraft/" + id, adminA);
+        assertThat(managerRead.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode managerCounter = readJson(managerRead).get("latestCounter");
+        assertThat(managerCounter).isNotNull();
+        assertThat(managerCounter.isNull()).isFalse();
+
+        // Different-club caller reads the same aircraft (cross-tenant catalog,
+        // 200) but latestCounter is redacted — the field is absent / null in
+        // the JSON (Jackson omits the null record component).
+        String adminB = mintToken(CLUB_B, "CLUB_ADMINISTRATOR");
+        ResponseEntity<String> foreignRead = get("/api/v1/aircraft/" + id, adminB);
+        assertThat(foreignRead.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode foreignCounter = readJson(foreignRead).get("latestCounter");
+        assertThat(foreignCounter == null || foreignCounter.isNull()).isTrue();
+    }
+
+    @Test
     void clubAdminOfManagingClub_canMutate_ownAircraft() {
         String adminA = mintToken(CLUB_A, "CLUB_ADMINISTRATOR");
         ResponseEntity<String> created = post("/api/v1/aircraft",
