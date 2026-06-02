@@ -866,7 +866,7 @@ Error: the legacy-exported bundle fans the shared Location out to exactly 2 club
 Expected: 2   Received: 4
 ```
 
-- [ ] **T-22 — parity fixture assumes a 2-club bundle; real FLSTest has 4 clubs.** The synth bundle
+- [x] **T-22 — parity fixture assumes a 2-club bundle; real FLSTest has 4 clubs.** The synth bundle
   declared exactly 2 clubs, so `ingest.clubIds.length === 2` held and the fixture grabbed
   `clubIds[0]`/`[1]` as clubA/clubB. The **real** legacy DB migrates all 4 clubs (FULL_PORT CLUB);
   only 2 of them (TestClub `testclubadmin`, OtherClub `othertestadmin`) reference the shared random
@@ -881,5 +881,28 @@ Expected: 2   Received: 4
   cross-tenant 404 assertion. Keep the synth-mode path working (still 2 clubs total). This is e2e
   proof-chain work — owned by e2e-driver. *(seam: fan-out-parity-fixture.ts seedFanOutParity + the
   spec's per-club assertions)*
+  Landed (`fan-out-parity-fixture.ts` only — the spec needed NO change; its 3 cases consume
+  `fixture.clubA`/`clubB`/`locationName`, unchanged). **Fan-out targets identified by Location
+  ownership, not clubIds ordering:** `seedFanOutParity` now iterates ALL `ingest.clubIds`, resolves
+  each via `loginableAdmin`, then — since the `alpenflight-web` SPA client has NO direct-access grant
+  (the same constraint `capturePrincipalBearer` already works around) — captures a tenant-scoped
+  Bearer by SPA-logging-in each migrated admin in a throwaway context (`bearerForMigratedAdmin`,
+  mirroring `loginAsMigratedAdmin` + the existing `/api/v1/locations`-request bearer-capture pattern)
+  and queries THAT tenant's `GET /api/v1/locations` (`tenantHasLocation`, the same read API the spec
+  asserts on, deserialized as the generated `LocationListItem` — match on `locationName`). Clubs whose
+  list contains the random-named Location are the owners. **The broken `clubIds.length===2` assertion
+  is replaced by `expect(owners.length).toBe(2)`** with a failure message that names the real-data
+  shape (N clubs migrate FULL_PORT, only the 2 referencing `Clubs.HomebaseId` fan out). `clubA`/`clubB`
+  are set to the 2 owners. **Synth mode unchanged:** the 2-club synth bundle has 2 clubIds, both own
+  the Location → owners.length===2 naturally, no ordering assumption. **Non-owner exposed (minimal):**
+  `FanOutParityFixture` grows an OPTIONAL `nonOwner?` (real mode has ≥1; synth has none, so the key is
+  omitted — `exactOptionalPropertyTypes` forbids `nonOwner: undefined`); the current 404 case still
+  proves isolation between the two OWNING tenants and consumes only clubA/clubB, so nothing in the spec
+  changed. **Validated** (no legacy MSSQL/Keycloak on the box — STRUCTURAL only, J-0/J-0b "first live
+  green is CI" pattern): `tsc --noEmit -p e2e/tsconfig.json` introduces ZERO new errors (23 pre-existing
+  repo-wide errors in unrelated files before AND after the change — stash-compared); `prettier --check`
+  on the fixture + spec clean (T-09 guard); all 4 parity tests Playwright-`--list`-discover in BOTH
+  synth and `J0C_BUNDLE_SOURCE=real` modes. First LIVE green is the next manager-triggered
+  `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-22 → re-run the full chain.

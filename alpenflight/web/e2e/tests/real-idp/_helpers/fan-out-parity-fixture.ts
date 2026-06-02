@@ -53,8 +53,18 @@ const execFileAsync = promisify(execFile);
  *     Playwright login completes (test-only setup — does not weaken production
  *     provisioning).
  *
- * Returns the two club ids + their loginable admin handles + the
- * (synth-random OR legacy-created) Location name the UI asserts on.
+ * Fan-out target selection: ALL migrated clubs are provisioned (FULL_PORT
+ * CLUB), but only the ones that referenced the shared legacy Location get a
+ * fanned-out `t_location` copy — 2 of 2 in synth mode, 2 of 4 against the real
+ * FLSTest DB. Since `IngestResponse` carries no club names and the provisioned
+ * admin username is derived from the clubId (not the legacy username), the 2
+ * targets are identified by OWNERSHIP: each migrated admin logs in and queries
+ * its own `/api/v1/locations` (the read API the spec asserts on); exactly 2 must
+ * carry the Location (the true fan-out assertion). clubA/clubB are those 2.
+ *
+ * Returns the two Location-owning club admin handles + the (synth-random OR
+ * legacy-created) Location name the UI asserts on (+ an optional non-owning
+ * club in real mode).
  */
 
 /** Seeded `clubadmin1` (V8 dev user seed + realm-export). The migration principal. */
@@ -171,8 +181,17 @@ export interface MigratedClubAdmin {
 
 export interface FanOutParityFixture {
   locationName: string;
+  /** A migrated club that owns a fanned-out copy of the shared Location. */
   clubA: MigratedClubAdmin;
+  /** The OTHER migrated club that owns a copy (distinct fanned-out row). */
   clubB: MigratedClubAdmin;
+  /**
+   * A migrated club that does NOT carry the fanned-out Location (real FLSTest
+   * has ≥1; synth mode has none, so `undefined` there). Not consumed by the
+   * current 3 spec cases — exposed for a future cross-tenant case that wants a
+   * club that should never see the Location.
+   */
+  nonOwner?: MigratedClubAdmin;
 }
 
 interface HandshakeResponse {
@@ -184,6 +203,12 @@ interface IngestResponse {
   deploymentId: string;
   clubIds: string[];
   primaryClubId: string;
+}
+
+/** `GET /api/v1/locations` list-item projection (the SPA's generated `LocationListItem`). */
+interface LocationListItem {
+  id: string;
+  locationName: string;
 }
 
 interface SeederOutput {
@@ -325,6 +350,60 @@ async function loginableAdmin(clubId: string): Promise<MigratedClubAdmin> {
   return { clubId, username, password: E2E_CANNED_PASSWORD, kcUserId: kcUser.id };
 }
 
+/**
+ * Drive a migrated club admin through the SPA + real-KC login in a throwaway
+ * context and capture the tenant-scoped Bearer the OIDC interceptor attaches to
+ * its first `/api/v1/locations` call. This is the ONLY path to a per-tenant
+ * token here: the `alpenflight-web` SPA client has no direct-access grant
+ * (resource-owner-password flow is disabled), so a curl-token mint is
+ * impossible — the login form is the only way to a tenant JWT (same constraint
+ * `capturePrincipalBearer` works around for the migration principal).
+ */
+async function bearerForMigratedAdmin(
+  browser: Browser,
+  baseURL: string,
+  admin: MigratedClubAdmin,
+): Promise<string> {
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  try {
+    const bearerPromise = page.waitForRequest(
+      (req) =>
+        new URL(req.url()).pathname === '/api/v1/locations' &&
+        typeof req.headers()['authorization'] === 'string' &&
+        /^Bearer /i.test(req.headers()['authorization']!),
+    );
+    await loginAsMigratedAdmin(page, admin);
+    // `loginAsMigratedAdmin` lands on the authed root; navigate to the list to
+    // guarantee the tenant-scoped GET /api/v1/locations fires.
+    await page.goto('/locations');
+    const req = await bearerPromise;
+    return req.headers()['authorization']!;
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * `true` when this tenant (resolved off `bearer`'s `clubId` claim) carries a
+ * Location with the random fan-out name — i.e. this is one of the clubs the
+ * shared legacy Location fanned out into. Uses the SAME read API the parity
+ * spec asserts on (`GET /api/v1/locations`), so "who owns the Location" is
+ * judged by the product's own tenant-filtered list, not a side channel.
+ */
+async function tenantHasLocation(
+  api: APIRequestContext,
+  bearer: string,
+  locationName: string,
+): Promise<boolean> {
+  const res = await api.get('/api/v1/locations', { headers: { authorization: bearer } });
+  if (!res.ok()) {
+    throw new Error(`GET /api/v1/locations failed (${res.status()}): ${await res.text()}`);
+  }
+  const items = (await res.json()) as LocationListItem[];
+  return items.some((item) => item.locationName === locationName);
+}
+
 export async function seedFanOutParity(
   browser: Browser,
   api: APIRequestContext,
@@ -347,22 +426,63 @@ export async function seedFanOutParity(
 
   const ingest = await ingestBundle(api, bearer, uploadId, bundle);
 
+  // Every migrated club gets a provisioned admin (FULL_PORT CLUB) — but only
+  // the clubs that referenced the shared legacy Location (via Clubs.HomebaseId)
+  // get a fanned-out `t_location` copy. So we CANNOT pick the 2 fan-out targets
+  // by `clubIds[0]/[1]`:
+  //   - synth bundle: declares exactly 2 clubs, both referencing → 2 clubIds,
+  //     both own the Location.
+  //   - real FLSTest: 4 clubs migrate, only TestClub + OtherClub reference the
+  //     Location → 4 clubIds, exactly 2 own a copy. `IngestResponse` carries no
+  //     club names and the provisioned admin username is derived from the
+  //     clubId (not the legacy username), so there is no identity-based map back
+  //     to TestClub/OtherClub.
+  // Instead, identify the fan-out targets by WHICH tenants actually carry the
+  // random-named Location: log in as each migrated admin, query that tenant's
+  // own `/api/v1/locations` (the same read API the spec asserts on), and keep
+  // the ones whose list contains it. Exactly-2-owning IS the fan-out assertion.
+  if (ingest.clubIds.length < 2) {
+    throw new Error(
+      `ingest provisioned ${ingest.clubIds.length} club(s) — need ≥2 to host a 2-way fan-out`,
+    );
+  }
+
+  const owners: MigratedClubAdmin[] = [];
+  const nonOwners: MigratedClubAdmin[] = [];
+  for (const clubId of ingest.clubIds) {
+    const admin = await loginableAdmin(clubId);
+    const tenantBearer = await bearerForMigratedAdmin(browser, baseURL, admin);
+    if (await tenantHasLocation(api, tenantBearer, locationName)) {
+      owners.push(admin);
+    } else {
+      nonOwners.push(admin);
+    }
+  }
+
   expect(
-    ingest.clubIds.length,
+    owners.length,
     useRealBundle()
-      ? 'the legacy-exported bundle fans the shared Location out to exactly 2 clubs → ingest provisions 2'
-      : 'the synthesized bundle declares exactly 2 clubs → ingest provisions 2',
+      ? `real FLSTest migrates ${ingest.clubIds.length} clubs (FULL_PORT CLUB), but only the 2 that ` +
+          `reference the shared legacy Location "${locationName}" via Clubs.HomebaseId fan it out → ` +
+          `exactly 2 tenants must carry a copy (found ${owners.length} of ${ingest.clubIds.length})`
+      : `the synthesized bundle declares 2 clubs both referencing the shared Location "${locationName}" → ` +
+          `exactly 2 tenants must carry a copy (found ${owners.length} of ${ingest.clubIds.length})`,
   ).toBe(2);
 
-  const clubAId = ingest.clubIds[0];
-  const clubBId = ingest.clubIds[1];
-  if (!clubAId || !clubBId) {
-    throw new Error(`ingest returned ${ingest.clubIds.length} clubIds, expected 2`);
+  const [clubA, clubB] = owners;
+  if (!clubA || !clubB) {
+    throw new Error(`expected 2 Location-owning clubs, got ${owners.length}`);
   }
-  const clubA = await loginableAdmin(clubAId);
-  const clubB = await loginableAdmin(clubBId);
 
-  return { locationName, clubA, clubB };
+  // A non-owning club (real mode has ≥1; synth mode has none) is a real subject
+  // for a stronger cross-tenant check, but the current spec's 404 case already
+  // proves isolation between the two OWNING tenants (GET club-B's copy as
+  // club-A). Surface the first non-owner for any future case that wants a club
+  // that should never see the Location; the spec consumes only clubA/clubB.
+  // (`exactOptionalPropertyTypes` forbids `nonOwner: undefined` — omit the key
+  // when there is no non-owner, e.g. the synth path's exactly-2-club bundle.)
+  const nonOwner = nonOwners[0];
+  return { locationName, clubA, clubB, ...(nonOwner ? { nonOwner } : {}) };
 }
 
 /**
