@@ -385,6 +385,23 @@ jobs:
           DATASOURCE_PASSWORD: alpenflight
           SPRING_PROFILES_ACTIVE: dev
           LOGGING_LEVEL_ROOT: INFO
+          # T-17: the backend runs as a HOST bootJar but Keycloak is a container
+          # host-mapped to localhost:8090 (compose `127.0.0.1:8090:8080`), so the
+          # compose-internal `http://keycloak:8080` is unresolvable from the host.
+          # The `dev` profile already redirects JWKS + issuer to localhost:8090,
+          # but `keycloak.admin.base-url` (application.yml) still defaults to
+          # `http://keycloak:8080` — latent until T-02's provisionMigratedClubAdmins
+          # first exercised the admin client at ingest. Point the admin-base at the
+          # host-published port; realm / client-id / client-secret defaults already
+          # match the committed realm-export's `alpenflight-backend-admin` client.
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          # Token-issuer URL Keycloak emits (KC_HOSTNAME_URL=http://localhost:8090)
+          # — kept explicit so backend `iss` validation matches host tokens even if
+          # the application.yml default drifts.
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
         run: |
           JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
           echo "Starting backend from: $JAR"

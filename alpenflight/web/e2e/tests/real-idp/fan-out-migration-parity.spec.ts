@@ -46,6 +46,20 @@ import { proofVideo } from './_helpers/proof-video';
 const RENAMED_SUFFIX = ' (renamed by club A)';
 
 /**
+ * Real-bundle mode (`J0C_BUNDLE_SOURCE=real`, the T-05 full chain): the bundle is
+ * the `alpenflight-export` output, sealed to the workflow's handshake `uploadId`.
+ * Unlike the synth path — which re-mints a fresh handshake/uploadId per attempt
+ * (see `seedFanOutParity(..., testInfo.retry)`) — the spec CANNOT re-seal a
+ * pre-encrypted bundle, so a Playwright retry would re-POST the SAME uploadId that
+ * the first failed ingest already sealed FAILED → a 409 BUNDLE_PRIOR_RUN_FAILED
+ * masking the REAL first-attempt cause. So in real-bundle mode we run with zero
+ * retries: the real failure shows clearly. (Re-running `alpenflight-export`
+ * against a fresh handshake on retry is the workflow's job, not the spec's.)
+ * The synth path keeps the real-idp project's CI retry for genuine jitter.
+ */
+const REAL_BUNDLE = (process.env['J0C_BUNDLE_SOURCE'] ?? 'synth').toLowerCase() === 'real';
+
+/**
  * Per-test recorded context — the `real-idp` project's `video: 'on'` only
  * governs Playwright's auto-created `page`; these tests drive their own
  * `browser.newContext()` per club, so pass `recordVideo` explicitly to land
@@ -99,7 +113,7 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
   // One realm + one backend; seed once, run the parity asserts in order.
   // Serial keeps the two migrated sessions from racing the rename/isolation
   // ordering (club A must rename BEFORE club B re-checks its copy).
-  test.describe.configure({ mode: 'serial' });
+  test.describe.configure({ mode: 'serial', ...(REAL_BUNDLE ? { retries: 0 } : {}) });
 
   let fixture: FanOutParityFixture;
   let baseURL: string;

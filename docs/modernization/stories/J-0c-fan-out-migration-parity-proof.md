@@ -658,7 +658,7 @@ real-data gap from T-15's fail-closed club-state map:
 T-16 worked: provisioning + ClubState resolve. Migrate now reaches T-02's Keycloak provisioning,
 which fails:
 
-- [ ] **T-17 — backend Keycloak admin-base unreachable in the fanout workflow.** Real-bundle
+- [x] **T-17 — backend Keycloak admin-base unreachable in the fanout workflow.** Real-bundle
   ingest 500s: `ResourceAccessException: I/O error on POST http://keycloak:8080/realms/alpenflight/
   .../token`. T-02's `provisionMigratedClubAdmins` (KeycloakAdminClient/KeycloakDeploymentDirectory
   Adapter) uses the backend's Keycloak **admin-base** URL, which defaults to the compose-internal
@@ -667,5 +667,52 @@ which fails:
   env to the host-reachable address, mirroring how `alpenflight-e2e-real-idp.yml` wires backend→
   Keycloak (issuer + admin). Latent until T-02 first exercised the admin client. *(seam: workflow
   backend Keycloak env)* Once green, the parity UI assertions finally run.
+  **Root cause confirmed (config layering, not a bug):** `KeycloakAdminProperties` binds
+  `keycloak.admin.*`; `application.yml` defaults `keycloak.admin.base-url` to
+  `${ALPENFLIGHT_KC_ADMIN_BASE_URL:http://keycloak:8080}` (the compose-internal DNS). The `dev`
+  Spring profile (`application-dev.yml`) overrides ONLY `jwk-set-uri` → `localhost:8090` for the
+  host-run bootJar; it does NOT touch `keycloak.admin.base-url`. The real-idp workflow runs the
+  backend with `SPRING_PROFILES_ACTIVE: dev` and sets NO admin env, so it inherited
+  `keycloak:8080` — fine there because real-idp NEVER exercised the admin client (T-02's
+  `provisionMigratedClubAdmins` is the first caller). In the fanout chain the host-run bootJar hits
+  `keycloak:8080` (unresolvable from the host; Keycloak is `127.0.0.1:8090:8080` in docker-compose)
+  → the reported I/O error.
+  **Fix landed in `.github/workflows/alpenflight-proof-fanout.yml` "Start alpenflight backend" step**
+  — added these env vars (keys verified against `KeycloakAdminProperties` `@ConfigurationProperties(prefix="keycloak.admin")`
+  + `application.yml`'s env placeholders; values verified against `docker-compose.yml` port map
+  `127.0.0.1:8090:8080` + `KC_HOSTNAME_URL=http://localhost:8090` + the realm-export's
+  `alpenflight-backend-admin` client):
+  - `ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090` — **the actual fix** (host-published
+    Keycloak port; `tokenEndpoint()` becomes `http://localhost:8090/realms/alpenflight/protocol/openid-connect/token`).
+  - `ALPENFLIGHT_KC_ADMIN_REALM: alpenflight`, `ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin`,
+    `ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret` — set explicitly so the
+    chain doesn't silently depend on application.yml defaults; all three EQUAL the committed
+    realm-export client (`clientId`/`secret` at realm-export.json:1662/1691, `serviceAccountsEnabled:true`,
+    client-credentials grant = what `KeycloakAdminTokenSupplier` uses).
+  - `ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight` — kept explicit so `iss`
+    validation matches the host token issuer (`KC_HOSTNAME_URL`); the dev profile already had JWKS at
+    `localhost:8090`. **Source: mirrored from `alpenflight-e2e-real-idp.yml`'s proven backend-start
+    posture** (same `SPRING_PROFILES_ACTIVE: dev` + host-port topology) — that workflow simply never
+    needed the admin-base override because it never calls the admin client.
+  **realm-shape guard NOT violated:** `check-realm-shape.sh` asserts the SPA client's
+  `${ALPENFLIGHT_WEB_BASE_URL}` baseUrl marker + the service-account role surface — neither is touched
+  by a backend *runtime env* change; the admin client `alpenflight-backend-admin` exists in the
+  imported realm export (id `00000000-0000-0000-0000-000000000004`).
+  **Secondary (real-bundle retry → 409) fixed:** the synth path already re-mints a fresh handshake/uploadId
+  per attempt (T-15, `seedFanOutParity(..., testInfo.retry)`). The real path CANNOT re-seal a
+  pre-encrypted `alpenflight-export` bundle (it's sealed to the workflow's handshake `uploadId`), so a
+  Playwright retry re-POSTed the SAME sealed-FAILED upload → `409 BUNDLE_PRIOR_RUN_FAILED` masking the
+  real first-attempt cause. Chose the clean simpler option: `fan-out-migration-parity.spec.ts` now sets
+  `test.describe.configure({ retries: 0 })` ONLY in real-bundle mode (`J0C_BUNDLE_SOURCE=real`), so the
+  real failure shows clearly instead of a confusing 409; the synth path keeps the real-idp project's CI
+  retry for genuine jitter. (Re-running the export against a fresh handshake on retry is the workflow's
+  job, not the spec's.)
+  **Validated (no full stack on the box):** fanout YAML parses (3 jobs; the new env keys present on the
+  backend-start step with the values above); the env keys bind to `KeycloakAdminProperties`
+  (`keycloak.admin.base-url/realm/client-id/client-secret` via the `ALPENFLIGHT_KC_ADMIN_*` placeholders)
+  + the realm-export client matches; the issuer/admin-base host-port topology matches docker-compose +
+  the real-idp workflow; the spec typechecks clean (`tsc -p e2e/tsconfig.json`, no new errors) and all 4
+  parity tests Playwright-discover under `J0C_BUNDLE_SOURCE=real`. First LIVE green is the next
+  manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-17 → re-run the full chain.
