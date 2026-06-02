@@ -599,3 +599,18 @@ this over server-side provisioning resolution (option 1).
   `./gradlew build` green; server ITs green (RealProducer 2/2 incl. new method, Parity/Migration/
   NegativePath/Ingest suite green); guard test green; web specs tsc-clean + Playwright-discover.
   First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
+
+### Gate-run round 8 (2026-06-02) → T-16
+
+T-15 worked (export streams all 7 entities incl. 196 countries; provisioning resolves). New
+real-data gap from T-15's fail-closed club-state map:
+
+- [ ] **T-16 — legacy ClubState `System`(0) has no new-stack destination.** A real legacy club
+  has `ClubStateId=0` (`ClubState.System`, per `FLS.Data.WebApi/Club/ClubState.cs`: System=0,
+  Active=1, Inactive=3); T-15's `ClubStateMapper.v2CodeForLegacyId` maps only 1/2/3. New seed
+  `t_club_state` = ACTIVE/SUSPENDED/CLOSED. Complete the full legacy-enum→new-state mapping
+  (incl. 0 and 2) with a documented parity decision, extend the guard/mapping test, and audit
+  the other registered lookups for the same unmapped-legacy-value class. Escalate only if
+  `System(0)`’s target is genuinely ambiguous. *(seam: ClubState mapping + lookup audit)*
+
+**Order:** T-16 → re-run the full chain.
