@@ -14,7 +14,7 @@
     "build:mock-auth": "ng build --configuration mock-auth",
     "watch": "ng build --watch --configuration development",
     "test": "ng test && pnpm test:scripts",
-    "test:scripts": "vitest run --root scripts --config vitest.config.ts",
+    "test:scripts": "vitest run --config scripts/vitest.config.ts",
     "lint": "ng lint",
     "format": "prettier --check \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",
     "format:fix": "prettier --write \"src/**/*.{ts,html,css,json}\" \"e2e/**/*.{ts,json}\"",

@@ -14,13 +14,6 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-retro 2026-06-02, J-0b+J-0c window)
 
-- **Gallery roadmap ordering + guard.** `generate-gallery.mjs` `parseRoadmap` regex
-  doesn't tolerate the `✅ ` prefix `_ORDER.md` uses for shipped journeys, so ✅-marked
-  journeys (J-0, J-0b, J-24) fall out of roadmap order and render at the BOTTOM of the
-  gallery (operator saw "J-0 not back"). Fix the regex to skip a leading emoji/decoration
-  before `J-NN`; add a generator unit test locking (a) ✅-prefix parses, (b) shipped
-  journeys render in roadmap order, nothing silently appended. *(seam: generate-gallery.mjs
-  parseRoadmap + a new generator spec)* — operator-facing; self-corrects on the next gate.
 - **Docker Hub image-pull retry.** The fanout + nightly workflows pull images
   (mailpit/pgAdmin/Keycloak/MSSQL); a transient Docker Hub timeout caused a non-code red
   round. Add bounded pull-retry to the image-pull steps. *(seam: .github/workflows/

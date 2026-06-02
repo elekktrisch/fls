@@ -201,7 +201,7 @@ the migration proof, the real chain, and folded boyscout riders.
 - [ ] **T-07** — Aircraft parity bundle seeder (mirror `FanOutParityBundleSeeder`) + real-idp spec
   thicken: clean-seed real chain (Keycloak login, CRUD, cross-club edit 403, owner-person edit OK,
   S-164 redaction) + migrated-data render. *(seam: seeder + real-idp spec)* — deps T-02,T-03,T-04,T-05,T-06.
-- [ ] **T-08** — Gallery roadmap `✅ `-prefix ordering fix + generator guard (boyscout:
+- [x] **T-08** — Gallery roadmap `✅ `-prefix ordering fix + generator guard (boyscout:
   `generate-gallery.mjs` parseRoadmap regex + a generator spec). *(seam: generate-gallery.mjs + spec)*
 - [ ] **T-09** — Docker Hub image-pull bounded retry in the fanout + nightly workflows (boyscout).
   *(seam: .github/workflows/alpenflight-proof-fanout.yml + nightly.yml image-pull steps)*

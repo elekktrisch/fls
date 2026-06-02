@@ -62,15 +62,25 @@ export const ROADMAP_FALLBACK = [
   'J-24',
 ];
 
-/** Parse the `| **J-N** | …` roadmap table rows out of _ORDER.md, in order. */
-function parseRoadmap(orderPath) {
-  if (!orderPath || !existsSync(orderPath)) return ROADMAP_FALLBACK;
-  const text = readFileSync(orderPath, 'utf8');
+/**
+ * Parse the journey ids out of the `| … | J-N | …` roadmap table rows of an
+ * _ORDER.md body, in table order. Exported (text-in, pure) so the ordering
+ * contract is unit-testable without a temp file.
+ *
+ * The leading table cell may carry decoration before the id — a shipped journey
+ * is marked with a `✅ ` prefix in _ORDER.md (`| ✅ **J-0** |`, `| ✅ J-24 |`),
+ * and ids are optionally bold (`**J-0**`). We must skip that leading emoji /
+ * whitespace / bold so a shipped journey parses in its roadmap-table position —
+ * not dropped (which would let the `generateGallery` append-loop tack it onto
+ * the BOTTOM, the operator's "J-0 not back" complaint).
+ */
+export function parseRoadmapText(text) {
   const ids = [];
   const seen = new Set();
-  // Match a leading table cell whose content is a journey id, bold or plain:
-  //   | **J-0** | …   or   | J-1 | …
-  const re = /^\|\s*\*{0,2}(J-\d+[a-z]?)\*{0,2}\s*\|/gm;
+  // First table cell of a row, then any leading decoration (✅ / whitespace /
+  // bold `**`) before the `J-NN` id, then the id, bold-close optional.
+  //   | ✅ **J-0** | …   | ✅ J-24 | …   | **J-0c** | …   | J-1 | …
+  const re = /^\|\s*(?:[^\sA-Za-z|]+\s*)*\*{0,2}(J-\d+[a-z]?)\*{0,2}\s*\|/gm;
   let m;
   while ((m = re.exec(text)) !== null) {
     const id = m[1];
@@ -79,6 +89,13 @@ function parseRoadmap(orderPath) {
       ids.push(id);
     }
   }
+  return ids;
+}
+
+/** Parse the `| **J-N** | …` roadmap table rows out of _ORDER.md, in order. */
+function parseRoadmap(orderPath) {
+  if (!orderPath || !existsSync(orderPath)) return ROADMAP_FALLBACK;
+  const ids = parseRoadmapText(readFileSync(orderPath, 'utf8'));
   return ids.length ? ids : ROADMAP_FALLBACK;
 }
 
