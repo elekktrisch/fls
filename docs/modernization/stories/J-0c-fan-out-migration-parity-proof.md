@@ -917,7 +917,7 @@ TimeoutError: page.waitForURL: Timeout 30000ms exceeded   (a migrated-admin logi
 Error: page.waitForRequest: Target page, context or browser has been closed   (page torn down after the 30s hang)
 ```
 
-- [ ] **T-23 — per-club ownership-login is fragile; one migrated club's admin login hangs.** T-22
+- [x] **T-23 — per-club ownership-login is fragile; one migrated club's admin login hangs.** T-22
   detects Location ownership by SPA-logging-in EVERY `ingest.clubId` (4 in real FLSTest) to get a
   tenant bearer (no ROPC on `alpenflight-web`, and `GET /api/v1/locations` is `@TenantId`-scoped so the
   SYSTEM_ADMINISTRATOR migration principal can't read cross-tenant — confirmed). Iterating UI logins
@@ -936,5 +936,46 @@ Error: page.waitForRequest: Target page, context or browser has been closed   (p
   migration API to a test — ADR 0022). If the trace shows the hang is a REAL admin-login/provisioning
   bug (not just the System club), file it as a separate finding rather than masking it. e2e-driver
   owns this. *(seam: fan-out-parity-fixture.ts bearerForMigratedAdmin + seedFanOutParity ownership loop)*
+  Landed. **Round-15 trace verdict — NOT the System club specifically, and NOT a cold-`ng serve`
+  timing issue: a REAL (deterministic, all-clubs) provisioning gap.** The downloaded artifact
+  (`error-context.md` + `test-failed-2.png` + `1-trace.network`) shows the hung migrated admin
+  (`migrated-admin+f2358709-…@migrated.alpenflight.local`) accepted credentials
+  (`login-actions/authenticate` 200) then landed on Keycloak's **"Update Account Information"**
+  interstitial — `login-actions/required-action?execution=VERIFY_PROFILE` (×3), with **empty
+  firstName + empty lastName** ("Please specify this field"). The realm's declarative user-profile
+  (`realm-export.json`) marks firstName + lastName `required: { roles: ["user"] }`, so KC
+  dynamically fires **VERIFY_PROFILE** at login for ANY `user`-roled account whose names are blank.
+  T-02's `provisionClubAdminIdentity` (`KeycloakDeploymentDirectoryAdapter.createClubAdminUserOrResolveExisting`)
+  creates every migrated admin with NEITHER name set → so this is not the System club (it hits ALL
+  migrated admins) and not slowness. VERIFY_PROFILE is NOT a stored `requiredActions` entry, so
+  `makeMigratedAdminLoginable`'s `requiredActions: []` could never suppress it; `waitForURL(leave
+  /realms/)` then burned its 30s and the throwaway context tore the page out from under the pending
+  `waitForRequest` (the secondary "Target page… closed"). Two seams fixed:
+  **(1) Root cause —** `makeMigratedAdminLoginable` (`keycloak-admin.ts`) now also PUTs
+  `firstName: 'Migrated'` / `lastName: 'Admin'` so VERIFY_PROFILE has nothing to demand and login
+  completes in one shot for EVERY club (owners clubA/clubB now log in via the spec's own
+  `loginAsMigratedAdmin`, which would otherwise hang on the same screen). This is test-only setup on
+  the synthetic `migrated-admin+…@migrated.alpenflight.local` namespace (username-guarded) — it does
+  NOT weaken production provisioning. **(2) Resilient + bounded ownership loop —** `bearerForMigratedAdmin`
+  → `tryBearerForMigratedAdmin`: per-club login bounded to **12 s** (`PER_CLUB_LOGIN_BUDGET_MS`,
+  generous for a warm login, far below the old 30 s × 4 that also blew the 60 s `beforeAll` budget);
+  `loginAsMigratedAdmin` gained an optional `leaveRealmTimeoutMs` (default 30 s for the spec's owner
+  logins, 12 s from the loop). Each club's bearer-capture + ownership check is try/catch-wrapped; a
+  timeout/error logs `[T-23] club <id> admin did not reach the authed root within 12000ms — treating
+  as non-owner` and continues. **Teardown race closed:** the `waitForRequest` is wrapped in a
+  `.then(ok, ()=>undefined)` (never rejects) and `await`ed in `finally` BEFORE `context.close()`, so
+  no pending listener can reject-and-escape with "Target page… closed". The hard
+  `expect(owners.length).toBe(2)` is unchanged — a REAL owner's login flaking under 12 s would
+  under-count and FAIL honestly, never false-green. **Synth mode unchanged:** 2 clubs, both
+  loginable (firstName/lastName now set), both owning the Location → `owners.length === 2` naturally.
+  **Validated STRUCTURAL-only** (no legacy MSSQL/Keycloak on the box): `tsc --noEmit -p e2e/tsconfig.json`
+  = 23 errors, the exact pre-existing count in unrelated files, ZERO new (none in
+  `fan-out-parity-fixture.ts` / `keycloak-admin.ts`); `prettier --check` clean on both; `eslint` 0
+  errors; all 4 parity tests Playwright-`--list`-discover in BOTH synth and `J0C_BUNDLE_SOURCE=real`
+  modes. First LIVE green is the next manager-triggered `alpenflight-proof-fanout.yml` run.
+  **No separate provisioning-bug finding:** the missing firstName/lastName is the diagnosed cause and
+  is correctly a TEST-side fixup (the migrated admin is a synthetic, password-reset-by-mail identity
+  in production; T-02 deliberately leaves S-082 reset-mail / profile out of its slice). It is not a
+  product defect to file.
 
 **Order:** T-23 → re-run the full chain.

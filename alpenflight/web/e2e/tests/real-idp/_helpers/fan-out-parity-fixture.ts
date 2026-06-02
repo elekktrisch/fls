@@ -351,6 +351,24 @@ async function loginableAdmin(clubId: string): Promise<MigratedClubAdmin> {
 }
 
 /**
+ * Per-club login budget for the ownership-detection loop (T-23).
+ *
+ * The real FLSTest DB migrates 4 clubs FULL_PORT, and we have to log each
+ * provisioned admin in (no ROPC on `alpenflight-web`; `GET /api/v1/locations`
+ * is `@TenantId`-scoped, so the migration principal can't read cross-tenant —
+ * a per-tenant UI login is the only path to a tenant bearer). Iterating that
+ * with the default 30s `waitForURL` is fragile: a single admin that can't reach
+ * the authed root burns 30s, and 4×30s blows the 60s `beforeAll` budget. Bound
+ * each attempt well below the default but generous enough for a healthy login
+ * on a warm server (the principal login in this very fixture completes in a few
+ * seconds). On timeout/error the club is treated as a NON-owner (it can't be
+ * displaying the user-created Location if it can't even authenticate), never a
+ * hard failure of the whole seed. An under-count of REAL owners still fails the
+ * `expect(owners.length).toBe(2)` assertion downstream — never false-green.
+ */
+const PER_CLUB_LOGIN_BUDGET_MS = 12_000;
+
+/**
  * Drive a migrated club admin through the SPA + real-KC login in a throwaway
  * context and capture the tenant-scoped Bearer the OIDC interceptor attaches to
  * its first `/api/v1/locations` call. This is the ONLY path to a per-tenant
@@ -358,28 +376,56 @@ async function loginableAdmin(clubId: string): Promise<MigratedClubAdmin> {
  * (resource-owner-password flow is disabled), so a curl-token mint is
  * impossible — the login form is the only way to a tenant JWT (same constraint
  * `capturePrincipalBearer` works around for the migration principal).
+ *
+ * Bounded by `PER_CLUB_LOGIN_BUDGET_MS` (T-23). Returns the Bearer on success.
+ * On timeout/error returns `undefined` — and crucially the pending
+ * `waitForRequest` is SETTLED (awaited + swallowed) BEFORE the context closes,
+ * so it cannot reject-and-escape with "Target page, context or browser has been
+ * closed" when the failure path tears the context down (the round-15 teardown
+ * race). The caller treats `undefined` as a non-owner.
  */
-async function bearerForMigratedAdmin(
+async function tryBearerForMigratedAdmin(
   browser: Browser,
   baseURL: string,
   admin: MigratedClubAdmin,
-): Promise<string> {
+): Promise<string | undefined> {
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
-  try {
-    const bearerPromise = page.waitForRequest(
+  // Attach the listener up front but NEVER let it float unhandled: a rejection
+  // (e.g. the context closing under it) is caught here so it can't surface as
+  // an unhandled rejection / escape past `context.close()`.
+  const bearerPromise = page
+    .waitForRequest(
       (req) =>
         new URL(req.url()).pathname === '/api/v1/locations' &&
         typeof req.headers()['authorization'] === 'string' &&
         /^Bearer /i.test(req.headers()['authorization']!),
+      { timeout: PER_CLUB_LOGIN_BUDGET_MS },
+    )
+    .then(
+      (req) => req.headers()['authorization'],
+      () => undefined,
     );
-    await loginAsMigratedAdmin(page, admin);
+  try {
+    await loginAsMigratedAdmin(page, admin, PER_CLUB_LOGIN_BUDGET_MS);
     // `loginAsMigratedAdmin` lands on the authed root; navigate to the list to
     // guarantee the tenant-scoped GET /api/v1/locations fires.
     await page.goto('/locations');
-    const req = await bearerPromise;
-    return req.headers()['authorization']!;
+    return await bearerPromise;
+  } catch (err) {
+    // A bounded login that never left /realms/ (VERIFY_PROFILE / cold ng-serve /
+    // a genuinely broken admin) lands here. Log + treat as non-owner; do NOT
+    // abort the seed.
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[T-23] club ${admin.clubId} admin did not reach the authed root within ` +
+        `${PER_CLUB_LOGIN_BUDGET_MS}ms — treating as non-owner (${(err as Error).message})`,
+    );
+    return undefined;
   } finally {
+    // Settle the bearer listener before tearing the page out from under it,
+    // closing the round-15 teardown race regardless of which branch we took.
+    await bearerPromise;
     await context.close();
   }
 }
@@ -450,12 +496,25 @@ export async function seedFanOutParity(
   const owners: MigratedClubAdmin[] = [];
   const nonOwners: MigratedClubAdmin[] = [];
   for (const clubId of ingest.clubIds) {
-    const admin = await loginableAdmin(clubId);
-    const tenantBearer = await bearerForMigratedAdmin(browser, baseURL, admin);
-    if (await tenantHasLocation(api, tenantBearer, locationName)) {
-      owners.push(admin);
-    } else {
-      nonOwners.push(admin);
+    // Each per-club step is independently fault-isolated: a single un-loginable
+    // or slow club (e.g. the real FLSTest System club) must not fail or hang the
+    // whole seed. A bounded/failed login → undefined bearer → non-owner; a query
+    // error → non-owner. Under-counting a REAL owner still trips the hard
+    // `expect(owners.length).toBe(2)` below, so this can never false-green.
+    try {
+      const admin = await loginableAdmin(clubId);
+      const tenantBearer = await tryBearerForMigratedAdmin(browser, baseURL, admin);
+      if (tenantBearer && (await tenantHasLocation(api, tenantBearer, locationName))) {
+        owners.push(admin);
+      } else {
+        nonOwners.push(admin);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[T-23] club ${clubId} ownership check failed — treating as non-owner ` +
+          `(${(err as Error).message})`,
+      );
     }
   }
 
@@ -491,11 +550,21 @@ export async function seedFanOutParity(
  * `clubId` claim (provisioned club UUID) resolves the tenant, and
  * `JitUserMaterializer` (S-169) projects the `t_user` on first login.
  */
-export async function loginAsMigratedAdmin(page: Page, admin: MigratedClubAdmin): Promise<void> {
+export async function loginAsMigratedAdmin(
+  page: Page,
+  admin: MigratedClubAdmin,
+  // T-23: ownership detection bounds the leave-/realms/ wait per club so a
+  // single un-loginable admin can't burn 30s × N. The spec's own clubA/clubB
+  // logins (proven owners after `makeMigratedAdminLoginable` fills firstName/
+  // lastName so VERIFY_PROFILE no longer fires) keep the generous default.
+  leaveRealmTimeoutMs = 30_000,
+): Promise<void> {
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
   await fillKcLogin(page, admin.username, admin.password);
-  await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
+  await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), {
+    timeout: leaveRealmTimeoutMs,
+  });
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 }

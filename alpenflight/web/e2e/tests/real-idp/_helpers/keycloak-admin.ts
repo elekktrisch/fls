@@ -269,12 +269,29 @@ export async function makeMigratedAdminLoginable(
     );
   }
   // (2) Clear the UPDATE_PASSWORD required action (else KC forces the
-  //     change-password screen mid-login) and mark the email verified so the
-  //     `email_verified` claim is true for any later verified-email gate. PUT
-  //     /users/{id} is a partial merge — only these two keys change.
+  //     change-password screen mid-login), mark the email verified so the
+  //     `email_verified` claim is true for any later verified-email gate, AND
+  //     give the user a firstName/lastName.
+  //
+  //     T-23: the realm's declarative user-profile marks firstName + lastName
+  //     `required: { roles: ["user"] }` (realm-export.json), so KC fires the
+  //     dynamically-triggered VERIFY_PROFILE required action at login for any
+  //     `user`-roled account whose firstName/lastName is blank. T-02's
+  //     `provisionClubAdminIdentity` creates migrated admins with neither name
+  //     set, so login lands on the "Update Account Information" interstitial and
+  //     never leaves /realms/ — the round-15 hang. VERIFY_PROFILE is NOT a
+  //     stored `requiredActions` entry, so clearing `requiredActions: []` cannot
+  //     suppress it; the only fix is to satisfy the profile. Filling both names
+  //     here makes the migrated-admin login complete in one shot for every club.
+  //     PUT /users/{id} is a partial merge — only these four keys change.
   const userRes = await adminRequest(`/users/${encodeURIComponent(userId)}`, {
     method: 'PUT',
-    body: JSON.stringify({ requiredActions: [], emailVerified: true }),
+    body: JSON.stringify({
+      requiredActions: [],
+      emailVerified: true,
+      firstName: 'Migrated',
+      lastName: 'Admin',
+    }),
   });
   if (!userRes.ok) {
     throw new Error(
