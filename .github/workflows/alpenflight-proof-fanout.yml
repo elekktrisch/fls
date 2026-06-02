@@ -523,10 +523,14 @@ jobs:
           if [ -f "$STAGE/legacy-video.json" ]; then
             LEGACY_ARG="--legacy-video $STAGE"
           fi
+          # --no-nav: this is the LEAF (per-run) fan-out gallery, deployed to a
+          # namespaced subpath; the "per-run galleries" nav belongs only on the
+          # canonical index (T-24), not on the gallery the nav points AT.
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
             --order ../../docs/modernization/stories/_ORDER.md \
+            --no-nav \
             $LEGACY_ARG
 
       - name: Collect logs on failure
@@ -558,12 +562,19 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: Deploy proof gallery to gh-pages
+      # Deploy the fan-out gallery to its OWN namespaced subpath, NOT publish_dir:
+      # public (which writes the canonical /alpenflight/proof/index.html — the
+      # fan-out index has J-0c but no J-0 section, so it would replace the rich
+      # multi-journey top index on merge). destination_dir + keep_files:true means
+      # this only ever writes /alpenflight/proof/j-0c-fanout/ — the exact path the
+      # canonical index's "per-run galleries" nav (T-24) links to.
+      - name: Deploy J-0c fan-out gallery to gh-pages (namespaced subpath)
         if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: public
+          publish_dir: public/alpenflight/proof
+          destination_dir: alpenflight/proof/j-0c-fanout
           publish_branch: gh-pages
           keep_files: true
           enable_jekyll: false

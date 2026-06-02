@@ -213,7 +213,41 @@ function tagClass(acTag) {
   return 'success';
 }
 
-function renderHtml({ byJourney, roadmap, generatedAt, branch }) {
+/**
+ * Load the committed per-run-galleries manifest (sibling to this script). These
+ * are heavy-chain galleries deployed to a namespaced subpath under
+ * /alpenflight/proof/ — rendered as a nav block on the canonical index so they
+ * survive regeneration. Returns [] if the manifest is absent/empty/malformed
+ * (nav is a nicety, never a hard failure).
+ */
+export function loadNavGalleries() {
+  const manifestPath = resolve(__dirname, 'per-run-galleries.json');
+  if (!existsSync(manifestPath)) return [];
+  try {
+    const decl = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    return (decl.galleries ?? []).filter((g) => g && g.label && g.href);
+  } catch {
+    return [];
+  }
+}
+
+function renderNavBlock(navGalleries) {
+  if (!navGalleries.length) return '';
+  const links = navGalleries
+    .map(
+      (g) =>
+        `      &rarr; <a href="${esc(g.href)}"><strong>${esc(g.label)}</strong></a>` +
+        (g.note ? ` <em>(${esc(g.note)})</em>` : ''),
+    )
+    .join('<br>\n');
+  return `
+    <p class="meta nav-galleries">
+      <strong>Per-run proof galleries</strong> (heavy chains not in the index below):<br>
+${links}
+    </p>`;
+}
+
+function renderHtml({ byJourney, roadmap, generatedAt, branch, navGalleries = [] }) {
   const sections = roadmap
     .map((jid) => {
       const proofs = byJourney.get(jid);
@@ -230,9 +264,7 @@ function renderHtml({ byJourney, roadmap, generatedAt, branch }) {
             : '';
           // A legacy parity video (e.g. legacy flsweb) is labelled as the
           // legacy side so a reviewer reads legacy-vs-AlpenFlight side by side.
-          const legacyLabel = p.legacy
-            ? '<span class="legacy-label">legacy parity</span>'
-            : '';
+          const legacyLabel = p.legacy ? '<span class="legacy-label">legacy parity</span>' : '';
           const figClass = p.legacy ? 'proof legacy-proof' : 'proof';
           return `        <figure class="${figClass}">
           <video controls preload="metadata" src="${esc(p.videoSrc)}"></video>
@@ -315,6 +347,7 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
   background: var(--pending-bg); color: var(--pending);
 }
+.nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
 </head>
@@ -328,7 +361,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
-    </p>
+    </p>${renderNavBlock(navGalleries)}
   </header>
 
   <section>
@@ -364,6 +397,7 @@ export function generateGallery({
   orderPath,
   branch = process.env.GITHUB_REF_NAME ?? 'local',
   legacyVideoDir,
+  renderNav = true,
 }) {
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
@@ -408,6 +442,7 @@ export function generateGallery({
     roadmap,
     generatedAt: new Date().toISOString(),
     branch,
+    navGalleries: renderNav ? loadNavGalleries() : [],
   });
 
   mkdirSync(outDir, { recursive: true });
@@ -425,6 +460,7 @@ function parseArgs(argv) {
     else if (a === '--order') out.orderPath = argv[++i];
     else if (a === '--branch') out.branch = argv[++i];
     else if (a === '--legacy-video') out.legacyVideoDir = argv[++i];
+    else if (a === '--no-nav') out.renderNav = false;
   }
   return out;
 }
@@ -461,6 +497,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       orderPath,
       branch: args.branch,
       legacyVideoDir,
+      renderNav: args.renderNav !== false,
     });
     const pending = roadmap.filter((j) => !proofs.some((p) => p.journey === j));
     console.log(`proof-gallery: wrote ${outFile}`);

@@ -981,3 +981,35 @@ Error: page.waitForRequest: Target page, context or browser has been closed   (p
   product defect to file.
 
 **Order:** T-23 → re-run the full chain.
+
+### Post-green follow-ups (2026-06-02) → T-24, T-25
+
+The full chain went GREEN at round 16 (`alpenflight-proof-fanout.yml` run 26840707863, 5/5). But the
+fan-out gallery was not reachable on gh-pages: the fanout deploy is **main-gated** and the per-PR
+`ci.yml` preview stubs the legacy video (16-byte `webm-stub-legacy`, no legacy stack in CI). The
+green gallery was hand-published to `/alpenflight/proof/j-0c-fanout/` + a nav link hand-injected into
+the top `/alpenflight/proof/index.html` — but that link is regenerated away on the next `main` deploy.
+These two tasks make it durable (operator: "per-run is fine, as long as I can navigate to it from the
+top index"; no aggregation).
+
+- [x] **T-24 — durable per-run gallery navigation in the generator.** Teach
+  `alpenflight/web/e2e/proof-gallery/generate-gallery.mjs` to emit a **"Per-run proof galleries"** nav
+  block on every generated index, rendered from a small committed manifest
+  (`alpenflight/web/e2e/proof-gallery/per-run-galleries.json` — list of `{label, href, note}`), seeded
+  with the J-0c fan-out entry (`href: "j-0c-fanout/"`). So when ANY `main` deploy regenerates the
+  canonical `/alpenflight/proof/index.html`, the nav to the fan-out gallery persists (survives
+  regeneration). Keep it data-driven so future heavy-chain journeys append an entry, not code.
+  *(seam: generate-gallery.mjs render + per-run-galleries.json)*
+
+- [x] **T-25 — fanout deploy lands in its own subpath (no canonical clobber).** Change the
+  `alpenflight-proof-fanout.yml` gh-pages deploy from `publish_dir: public` (writes the canonical
+  `/alpenflight/proof/index.html`, which has J-0c but NO J-0 section → would replace the rich
+  multi-journey top index on merge) to publish the fan-out gallery under
+  `destination_dir: alpenflight/proof/j-0c-fanout` with `publish_dir: public/alpenflight/proof`,
+  `keep_files: true` — the same path T-24's nav points at and the manual publish used. So merge lands
+  the real pipeline-built fan-out gallery exactly where the nav links, and never overwrites the
+  canonical top index. (Pre-merge clickability is already covered by the manual publish; the temp
+  branch-push trigger was removed, so a fresh pre-merge fanout deploy would need it re-added — not
+  required, the manual copy stands until merge.) *(seam: alpenflight-proof-fanout.yml deploy step)*
+
+**Order:** T-24 → T-25.
