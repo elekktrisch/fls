@@ -225,6 +225,13 @@ the migration proof, the real chain, and folded boyscout riders.
   `verifyModuleStructure()` green + the S-163 `AircraftsAuthorizationIT` still passes.
   *(seam: users exposed API + AircraftAccess rewire + modulith test)* — my targeted local runs
   (aircraft tests only) never ran ApplicationModulesTest; the gate caught it.
+- [ ] **T-11** — Gate-revealed: the real-idp proof job fails with
+  `duplicate key value violates unique constraint "ux_user_username_lower_alive"` on the clean-seed
+  `…club-b-admin@example.com`. The aircraft real-idp spec's club provisioning collides on username
+  (T-07 fixture `provisionTwoClubs`) — likely a per-run uniqueness/idempotency gap when the aircraft
+  spec runs in the same playwright invocation as the J-0 Locations spec, or a beforeAll re-provision
+  on retry. Make the provisioned admin usernames per-spec/per-run unique (or idempotent), so both
+  specs' clean-seed chains coexist. *(seam: aircraft-migration-parity.spec.ts + parity fixture)*
 
 Then **§4 gate** (e2e-driver): full legacy→migrate→Keycloak→Playwright chain, both fidelities,
 video retained. **§5**: prune body, flip done, post video.
