@@ -34,10 +34,6 @@ genuinely new vertical feature scope.
   contract, so gap-hunter/T-07 flagged drift. Reconcile the contract doc (+ ADR note if
   load-bearing) to state the migration path is fail-closed; scope best-effort language to
   non-migration callers. *(seam: KeycloakDeploymentDirectory javadoc/contract + ADR)* — Q2.
-- **Binding-completeness guard.** Cheap unit assertion: every `EntityType` a mapper's
-  `foreignKeys()` returns — and every mapper a journey relies on — has a `MapperLegacyBindings`
-  entry. Catches authored-but-unwired (J-0c T-21 PERSON) without paying for the 9-min real
-  chain. *(seam: MapperLegacyBindings test)* — Q1 cheap guard.
 - **Docker Hub image-pull retry.** The fanout + nightly workflows pull images
   (mailpit/pgAdmin/Keycloak/MSSQL); a transient Docker Hub timeout caused a non-code red
   round. Add bounded pull-retry to the image-pull steps. *(seam: .github/workflows/
