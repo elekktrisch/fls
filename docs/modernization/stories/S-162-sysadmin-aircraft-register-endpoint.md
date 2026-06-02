@@ -1,5 +1,6 @@
 ---
 id: S-162
+rolled_up_into: J-1
 title: Sysadmin variant for Aircraft register (`/api/v1/admin/aircraft` with explicit managingClubId)
 epic: E-03
 status: todo
