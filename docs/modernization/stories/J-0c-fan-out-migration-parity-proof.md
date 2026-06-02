@@ -811,3 +811,19 @@ T-18 worked: Keycloak provisioning fully succeeds. Ingest now runs; last data-fi
   next manager-triggered `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-19 → re-run the full chain.
+
+### Gate-run round 12 (2026-06-02) → T-20
+
+T-19 worked (modified_on coalesced). Last SYSTEM_GLOBAL resolution gap:
+
+- [ ] **T-20 — LANGUAGE SYSTEM_GLOBAL id-map missing.** Ingest 400s `BUNDLE_CROSS_TENANT_FK_LEAK:
+  FK language_id on USER carries legacy guid 00000000-…-001 but legacy_id_map_LANGUAGE has no
+  resolution`. T-15 emitted COUNTRY + CLUB_STATE id-maps (the provisioning FKs) but **not LANGUAGE**,
+  because `USER.language_id` resolves on the NDJSON path, not provisioning. Extend T-15's mechanism:
+  add `t_language` to `SeedReferenceUuids` (keyed by legacy_int_id / code) + emit `legacy_id_map/
+  LANGUAGE.pgcopy` (synthetic `new UUID(0,langInt)` → seed t_language PK) in `BundleWriter`, and
+  extend the seed-parity guard test to LANGUAGE. LANGUAGE is the last of the 3 SYSTEM_GLOBAL entities
+  (COUNTRY/CLUB_STATE/LANGUAGE) — once covered, all FK-to-system-global refs resolve. *(seam:
+  SeedReferenceUuids + BundleWriter LANGUAGE id-map + guard)*
+
+**Order:** T-20 → re-run the full chain.
