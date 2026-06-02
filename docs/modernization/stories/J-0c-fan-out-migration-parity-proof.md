@@ -484,3 +484,18 @@ stack bring-up + handshake mint, then failed at the export:
   COUNTRY's real exception class + stack trace if it still fails at the driver layer.
 
 **Order:** T-12 (done) → re-run the full chain (will now surface COUNTRY's real cause).
+
+### Gate-run round 5 (2026-06-02) → T-13
+
+T-12 diagnostics worked: COUNTRY now reports the REAL error.
+
+- [ ] **T-13 — export `ClosedChannelException` mid-stream (row 115).** `alpenflight-export`
+  streams COUNTRY fine for 114 rows then dies: `java.nio.channels.ClosedChannelException`
+  at `BundleWriter.streamOne(BundleWriter.java:112)` — an I/O/cursor fault, NOT a mapper bug.
+  Suspect the read-side JDBC connection hardening in `LegacyJdbcReader` (`ApplicationIntent`
+  =ReadOnly + `responseBuffering=adaptive` + `TYPE_FORWARD_ONLY` + `setFetchSize(1000)` +
+  `closeOnCompletion()`) closing the socket channel mid-iteration, or a write-side channel
+  close. `e2e-driver`/general — diagnose `BundleWriter.java:112` + the reader config, fix so
+  COUNTRY (196 rows) + all entities stream fully. *(seam: migration-tool JDBC streaming)*
+
+**Order:** T-13 → re-run the full chain.
