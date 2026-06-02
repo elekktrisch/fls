@@ -906,3 +906,35 @@ Expected: 2   Received: 4
   `alpenflight-proof-fanout.yml` run.
 
 **Order:** T-22 → re-run the full chain.
+
+### Gate-run round 15 (2026-06-02) → T-23
+
+**The chain reached the video-recording UI assertions for the first time.** T-22's ownership-by-login
+detection then hung (`fan-out-parity-fixture.ts:370` / `bearerForMigratedAdmin`):
+
+```
+TimeoutError: page.waitForURL: Timeout 30000ms exceeded   (a migrated-admin login never left /realms/)
+Error: page.waitForRequest: Target page, context or browser has been closed   (page torn down after the 30s hang)
+```
+
+- [ ] **T-23 — per-club ownership-login is fragile; one migrated club's admin login hangs.** T-22
+  detects Location ownership by SPA-logging-in EVERY `ingest.clubId` (4 in real FLSTest) to get a
+  tenant bearer (no ROPC on `alpenflight-web`, and `GET /api/v1/locations` is `@TenantId`-scoped so the
+  SYSTEM_ADMINISTRATOR migration principal can't read cross-tenant — confirmed). Iterating UI logins
+  over ALL clubs is fragile: the real FLSTest 4 clubs almost certainly include the legacy **System
+  club**, whose provisioned admin doesn't cleanly reach the authed root, so `loginAsMigratedAdmin`'s
+  `waitForURL(leave /realms/)` burns its full 30s and the throwaway context tears the page out from
+  under the pending `waitForRequest`. **First: pull the round-15 trace/screenshot artifact** (`gh run
+  download 26839597811` or the test-results zip) to confirm WHICH club hung and what the Keycloak page
+  showed at timeout — verify the System-club hypothesis vs. a generic cold-`ng serve` slowness vs. a
+  real provisioning regression. **Then fix detection to be resilient + bounded:** wrap each per-club
+  bearer/login attempt in try/catch with a short, explicit timeout; a club whose admin can't reach the
+  authed root is logged and treated as a **non-owner** (it definitionally isn't displaying the
+  user-created Location), NOT a hard failure of the whole seed. Keep the hard `expect(owners.length)
+  === 2` assertion (under-counting an owner still fails honestly — never false-green). Keep synth mode
+  (2 clubs, both owners) green. Do NOT enrich the server `IngestResponse` to dodge this (over-fits the
+  migration API to a test — ADR 0022). If the trace shows the hang is a REAL admin-login/provisioning
+  bug (not just the System club), file it as a separate finding rather than masking it. e2e-driver
+  owns this. *(seam: fan-out-parity-fixture.ts bearerForMigratedAdmin + seedFanOutParity ownership loop)*
+
+**Order:** T-23 → re-run the full chain.
