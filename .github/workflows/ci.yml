@@ -362,18 +362,36 @@ jobs:
           tail -n 200 alpenflight/server/backend.log >&2 || true
           exit 1
 
-      # Just the J-0 isolation spec (its `real-idp-setup` dependency runs
-      # automatically) — not the full real-idp suite. Keeps the gate scoped
-      # to the proof + inside the PR budget.
-      - name: Run real-idp Locations isolation spec
+      # The real-chain proof specs (their `real-idp-setup` dependency runs
+      # automatically) — NOT the full real-idp suite. Scoped to the gate proofs
+      # to stay inside the PR budget. BOTH specs run in ONE `playwright test`
+      # invocation so the single JSON proof-manifest the gallery reads carries
+      # both journeys' proof videos (a second invocation would overwrite the
+      # manifest, dropping J-0's captions the live link-check below greps for).
+      #
+      #   - J-0: Locations two-club tenant isolation.
+      #   - J-1 T-07: the Aircraft register real chain (clean-seed CRUD + tenant
+      #     edit-isolation + S-163 owner-person + S-164 redaction + the migrated
+      #     aircraft render). SYNTH bundle mode (J1_BUNDLE_SOURCE unset): the
+      #     migrated half ingests a Java-built bundle through the REAL migration
+      #     endpoint (the full legacy→export half is the nightly fan-out
+      #     workflow's job). DATASOURCE_* are exported so the spec's Gradle
+      #     seeder shell-outs (seedAircraftParityBundle build + seedAircraftOwnerLink
+      #     DB write) reach the same Postgres the backend uses.
+      - name: Run real-idp proof specs (J-0 Locations + J-1 Aircraft)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 12
+        timeout-minutes: 15
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
-            e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
+            e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts \
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
 
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;

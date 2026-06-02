@@ -19,7 +19,7 @@ acceptance:
 screen: /aircrafts (feature folder masterdata/aircrafts/) — replacing legacy flsweb/src/masterdata/aircrafts/
 headless_pulled_in: per-entity AIRCRAFT migration mapper (+ AircraftAircraftState history, AircraftOperatingCounter) — pulled in by this screen; AircraftType/AircraftState reference data already have controllers
 migration: Aircraft (+ aircraft_aircraft_state, aircraft_operating_counter)
-parity_test: alpenflight/web/e2e/tests/masterdata/aircrafts.spec.ts
+parity_test: alpenflight/web/e2e/tests/real-idp/aircraft-migration-parity.spec.ts
 adr_refs: [0008, 0022]
 ---
 
@@ -198,9 +198,20 @@ the migration proof, the real chain, and folded boyscout riders.
   to the self-service-signup methods and document the migration path as fail-closed (no ADR governs it —
   contract lives in the port javadoc). *(seam: KeycloakDeploymentDirectoryAdapter + interface + service
   call site + e2e helper + doc)*
-- [ ] **T-07** — Aircraft parity bundle seeder (mirror `FanOutParityBundleSeeder`) + real-idp spec
+- [x] **T-07** — Aircraft parity bundle seeder (mirror `FanOutParityBundleSeeder`) + real-idp spec
   thicken: clean-seed real chain (Keycloak login, CRUD, cross-club edit 403, owner-person edit OK,
   S-164 redaction) + migrated-data render. *(seam: seeder + real-idp spec)* — deps T-02,T-03,T-04,T-05,T-06.
+  **DONE (authored + typechecked + Java seeders compile; CI proof job is the gate — this Alpine/musl
+  box cannot launch Playwright browsers).** Deliverables:
+  `migrations/web/AircraftParityBundleSeeder.java` (synth migrated-aircraft bundle, byte-aligned with
+  `AircraftMigrationRoundTripIT`) + `AircraftOwnerLinkSeeder.java` (S-163 owner-person DB-fixture seam —
+  fixture state, NOT a mocked seam; access decision runs fully real); Gradle tasks `seedAircraftParityBundle`
+  + `seedAircraftOwnerLink`; real-idp spec `aircraft-migration-parity.spec.ts` (clean-seed CRUD + 403 +
+  S-163 + S-164, then synth-migrated render); wired into ci.yml `alpenflight-proof` (one playwright
+  invocation alongside the J-0 Locations spec so the shared proof-manifest carries both journeys' videos).
+  Real-bundle mode (`J1_BUNDLE_SOURCE=real` + `J1_REAL_*`) is honored end-to-end; the full legacy→export
+  aircraft chain is a nightly fan-out-workflow follow-up (synth-migrated render at the PR gate, mirroring
+  J-0c's synth-at-PR / real-at-nightly split).
 - [x] **T-08** — Gallery roadmap `✅ `-prefix ordering fix + generator guard (boyscout:
   `generate-gallery.mjs` parseRoadmap regex + a generator spec). *(seam: generate-gallery.mjs + spec)*
 - [x] **T-09** — Docker Hub image-pull bounded retry in the fanout + nightly workflows (boyscout).
