@@ -4,6 +4,7 @@ import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -151,6 +152,23 @@ public final class AircraftMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB, EntityType.PERSON, EntityType.LOCATION);
+    }
+
+    /**
+     * {@code aircraft_type_id} carries the synthetic {@code new UUID(0,
+     * legacyIntId)} encoding ({@link Coercions#legacyIntIdToUuidString} over
+     * the legacy {@code AircraftTypeId}); the ingest pipeline resolves it to
+     * the real V3 {@code t_aircraft_type} seed PK by joining
+     * {@code legacy_int_id}. The two counter-unit-type FKs are deliberately
+     * NOT listed: {@code t_counter_unit_type} carries no {@code legacy_int_id}
+     * seed yet (V22 backfilled only the elevation/length unit tables), so they
+     * cannot resolve structurally — left for the S-187a/seed-completion seam,
+     * and the producer omits them until then.
+     */
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        return List.of(
+                new ReferenceLookup(AIRCRAFT_TYPE_ID, "t_aircraft_type"));
     }
 
     @Override

@@ -4,6 +4,7 @@ import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -75,6 +76,19 @@ public final class AircraftAircraftStateMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.AIRCRAFT);
+    }
+
+    /**
+     * {@code aircraft_state_id} carries the synthetic {@code new UUID(0,
+     * legacyIntId)} encoding ({@link Coercions#legacyIntIdToUuidString} over
+     * the legacy {@code AircraftStateId}); the ingest pipeline resolves it to
+     * the real V3 {@code t_aircraft_state} seed PK by joining
+     * {@code legacy_int_id}.
+     */
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        return List.of(
+                new ReferenceLookup(AIRCRAFT_STATE_ID, "t_aircraft_state"));
     }
 
     @Override

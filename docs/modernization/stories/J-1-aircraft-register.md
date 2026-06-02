@@ -141,9 +141,23 @@ the migration proof, the real chain, and folded boyscout riders.
   fan-out source); flip `MapperLegacyBindingsTest.unregisteredEntityStillFailsLoudly`; add the
   **binding-completeness guard** (boyscout: every mapper `foreignKeys()` target has a binding).
   *(seam: MapperLegacyBindings + AircraftMapper producer + tests)*
-- [ ] **T-05** — `AircraftMigrationRoundTripIT` + `AircraftRealProducerRoundTripIT` mirroring the
+- [x] **T-05** — `AircraftMigrationRoundTripIT` + `AircraftRealProducerRoundTripIT` mirroring the
   Location IT templates (FK resolve CLUB/PERSON/LOCATION; real `BundleWriter` tar ordering).
   *(seam: 2 migration ITs)* — deps T-04.
+  ESCALATED (structural, S-187a): the round-trip proof did its job — both ITs are empirically
+  red against real Postgres (`sqlstate=23503 fk_aircraft_owner_club_id`). The ingest
+  `ForeignKeyResolver` derives the FK column by convention (`<entity>_id`), so AIRCRAFT's
+  non-canonical FK columns — `managing_club_id`/`owner_club_id` (CLUB),
+  `aircraft_owner_person_id` (PERSON), `homebase_id` (fan-out LOCATION, needs a club
+  disambiguator AIRCRAFT doesn't carry) — never resolve; legacy GUIDs reach the INSERT
+  verbatim. The code already names this future seam (`ForeignKeyResolver` Javadoc: "S-187a
+  will generalise to non-canonical names (e.g. `Aircraft.homebase_id` → LOCATION)"). Wiring
+  it changes the `Mapper` FK contract + the resolver + the AIRCRAFT producer wire — its own
+  seam, not a minimal in-task fix. Both ITs committed `@Disabled("S-187a")` as the executable
+  end-state spec (flip to enabled when S-187a lands). Minimal in-scope binding gap fixed here:
+  `AircraftMapper` + `AircraftAircraftStateMapper` now declare `referenceLookups()`
+  (aircraft_type_id / aircraft_state_id → V3-seeded `legacy_int_id`). **Blocks T-07's
+  real-data render AC + the §4 real chain** until S-187a is carved/built.
 - [ ] **T-06** — Migrated-admin profile completion (boyscout, blocks reaching /aircrafts):
   `KeycloakDeploymentDirectoryAdapter.provisionClubAdminIdentity` sets firstName/lastName from the
   legacy Person; remove the e2e `makeMigratedAdminLoginable` name fixup; reconcile the Keycloak
