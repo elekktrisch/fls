@@ -74,7 +74,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>202/merge</code> &middot; 2026-06-02T22:52:58.940Z
+      assertion it proves. Generated on <code>202/merge</code> &middot; 2026-06-02T23:12:36.401Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -86,6 +86,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
+      <div class="journey">
+        <h3>J-0 <span class="status success">3 proofs</span></h3>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-d160c35016d4e6423817ec883453648c5c9cf53d.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-fc2443a2cfb12e28e1b1626a65ae97009a2cd708.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-d6c54fcc31401fef19d00a0faeb875dbfe09a964.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
+        </figure>
+        </div>
+      </div>
+      <div class="journey pending-journey">
+        <h3>J-0b <span class="status pending">pending</span></h3>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+      </div>
       <div class="journey">
         <h3>J-0c <span class="status success">1 proof</span></h3>
         <div class="proofs">
@@ -183,22 +204,13 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <h3>J-22 <span class="status pending">pending</span></h3>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </div>
-      <div class="journey">
-        <h3>J-0 <span class="status success">3 proofs</span></h3>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-849121cfae862e21d5efbce67d30810dc67df2f6.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-43325d5fae4d1a526b3dd539c9dcabcbaa79ce3c.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9e67c5e1eff7403e8f416b13367a0ab0956e72e7.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
-        </figure>
-        </div>
+      <div class="journey pending-journey">
+        <h3>J-24 <span class="status pending">pending</span></h3>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+      </div>
+      <div class="journey pending-journey">
+        <h3>J-25 <span class="status pending">pending</span></h3>
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </div>
   </section>
 
