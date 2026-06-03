@@ -150,6 +150,10 @@ jobs:
     permissions:
       # gh-pages publish (main only) + read for checkout.
       contents: write
+      # T-25: upsert the sticky `<!-- fanout-proof-preview -->` PR comment that
+      # carries the …/legacy-parity/ branch-preview URL (resolved via `gh pr list`
+      # for the dispatched branch). The comment is a convenience, not a gate.
+      pull-requests: write
     env:
       # Legacy stack
       FLS_LISTEN_URL: "http://*:25567/"
@@ -804,6 +808,65 @@ jobs:
             echo ""
             echo "**${PREVIEW_URL}**"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # ========================================================================
+      # J-1 T-25 — UPSERT the sticky PR comment carrying the …/legacy-parity/ URL.
+      # The step-summary + ::notice:: above only show on the dispatched RUN; the
+      # operator wants the link ON THE PR. The J-25 sticky-comment in ci.yml uses
+      # actions/github-script with `context.issue.number`, but that field is
+      # PR-event-only — the fanout is workflow_dispatch/schedule and has NO
+      # pull_request context. So we RESOLVE the PR number for the dispatched
+      # branch (`gh pr list --head <ref>`) and upsert via `gh` instead.
+      #
+      # Marker `<!-- fanout-proof-preview -->` is byte-identical to the manual
+      # comment already on the PR, so the upsert EDITS that one in place (no
+      # duplicate). Find the existing marker comment via the issues API, then
+      # PATCH it; else `gh pr comment` creates a fresh one.
+      #
+      # Fail-soft: a dispatch with NO open PR for the branch (e.g. a branch
+      # without a PR, or main) resolves an empty PR number → we skip with a log
+      # line and `exit 0`. Same gate as the deploy/emit (workflow_dispatch +
+      # non-main + gallery success); contents-only failures here never gate the
+      # job — the comment is a convenience, not a proof.
+      - name: Upsert legacy-parity URL onto the PR (sticky comment)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MARKER='<!-- fanout-proof-preview -->'
+
+          # Resolve the open PR whose head is the dispatched branch. Empty (no PR)
+          # → skip gracefully (the comment is a convenience, never a gate).
+          PR="$(gh pr list --repo "$REPO" --head "$REF_NAME" --state open \
+                  --json number --jq '.[0].number' 2>/dev/null || true)"
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            echo "no open PR for ${REF_NAME}, skipping comment"
+            exit 0
+          fi
+          echo "resolved PR #${PR} for ${REF_NAME}"
+
+          # Body mirrors the manual sticky comment: marker line + heading + the
+          # full legacy-parity URL + a one-line description of what it proves.
+          BODY="$(printf '%s\n### Legacy↔AlpenFlight proof gallery (fan-out branch preview)\n\n**%s**\n\nLegacy↔AlpenFlight list+form parity screenshots + the real-chain (legacy→migrate+Keycloak→AlpenFlight) pass-videos. Updates in place on each green fan-out run for this branch.\n' "$MARKER" "$PREVIEW_URL")"
+
+          # Find an existing comment carrying the marker → PATCH it in place;
+          # else create a fresh one. `|| echo …` keeps the whole step fail-soft.
+          EXISTING="$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+                        --jq "map(select(.body | contains(\"${MARKER}\"))) | .[0].id" 2>/dev/null || true)"
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            echo "editing existing sticky comment id=${EXISTING}"
+            gh api -X PATCH "repos/${REPO}/issues/comments/${EXISTING}" \
+              -f body="$BODY" >/dev/null \
+              || echo "PATCH failed for comment ${EXISTING} on PR #${PR}, skipping"
+          else
+            echo "no existing marker comment, creating one on PR #${PR}"
+            gh pr comment "$PR" --repo "$REPO" --body "$BODY" \
+              || echo "create failed on PR #${PR}, skipping"
+          fi
 
       - name: Stop backend
         if: always()
