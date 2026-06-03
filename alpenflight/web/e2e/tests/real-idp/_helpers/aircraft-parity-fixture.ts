@@ -32,16 +32,26 @@ const execFileAsync = promisify(execFile);
  *     `.enc` bundle (`J1_REAL_BUNDLE_FILE`), and the legacy-created
  *     immatriculation (`J1_REAL_IMMATRICULATION`).
  *
- * Shared tail (both modes): log in the Flyway-seeded `clubadmin1` migration
- * principal (real KC, verified-email + V8 `t_user`), capture its Bearer, POST
+ * Shared tail (both modes): log in the Flyway-seeded `clubadmin2` migration
+ * principal (real KC, verified-email + V26 `t_user`), capture its Bearer, POST
  * the bundle → the ingest provisions one Keycloak club-admin per migrated club.
  * The aircraft's managing club is the single declared club; its provisioned
  * admin is made loginable so the spec can render `/aircraft` as that admin.
+ *
+ * DISTINCT migration principal (J-1 T-17): this spec uses `clubadmin2`, NOT
+ * J-0c's `clubadmin1`. The migration ingest provisions a non-terminal Deployment
+ * OWNED BY the principal's Keycloak sub (DeploymentProvisioningService#provision
+ * → findActiveByOwner). When the J-0c fan-out spec and this aircraft spec run in
+ * the SAME `playwright test` invocation (alpenflight-proof-fanout.yml), sharing
+ * `clubadmin1` made the second ingest 409 DEPLOYMENT_EXISTS on the first spec's
+ * active Deployment. A per-spec principal gives each a disjoint deployment owner
+ * so `findActiveByOwner` never collides. (Realm-export carries `clubadmin2` as a
+ * second verified-email user; V26 seeds its `t_user` row.)
  */
 
-/** Seeded `clubadmin1` (V8 dev user seed + realm-export). The migration principal. */
-const PRINCIPAL_USER = 'clubadmin1@example.com';
-const PRINCIPAL_PASSWORD = 'clubadmin1-dev-2026!';
+/** Seeded `clubadmin2` (V26 dev user seed + realm-export). The J-1 migration principal (disjoint from J-0c's `clubadmin1` — T-17). */
+const PRINCIPAL_USER = 'clubadmin2@example.com';
+const PRINCIPAL_PASSWORD = 'clubadmin2-dev-2026!';
 
 /**
  * Repo paths: this file is alpenflight/web/e2e/tests/real-idp/_helpers/, so five

@@ -390,14 +390,17 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
 test.describe('Aircraft register — migrated legacy aircraft renders (real-idp)', () => {
   // retries: 0 unconditionally (not just REAL_BUNDLE). The synth seed mints a
   // fresh handshake/uploadId + club key + immatriculation per attempt, but the
-  // bundle ingest provisions a NON-TERMINAL Deployment owned by the SHARED
-  // migration principal (`clubadmin1`). A Playwright retry re-runs the ingest
-  // with a fresh uploadId, so the idempotency-key short-circuit misses and the
-  // owner-active gate (DeploymentProvisioningService#provision: findActiveByOwner)
-  // 409s DEPLOYMENT_EXISTS on the prior attempt's Deployment — masking the real
-  // first-attempt cause. A retry can't clear the principal's active Deployment,
-  // so the only clean isolation is to not retry: the real failure shows clearly.
-  // (REAL_BUNDLE already needed retries: 0 for BUNDLE_PRIOR_RUN_FAILED.)
+  // bundle ingest provisions a NON-TERMINAL Deployment owned by THIS spec's
+  // migration principal (`clubadmin2` — disjoint from J-0c's `clubadmin1` so the
+  // two co-located parity specs don't collide, T-17). A Playwright retry re-runs
+  // the ingest with a fresh uploadId, so the idempotency-key short-circuit misses
+  // and the owner-active gate (DeploymentProvisioningService#provision:
+  // findActiveByOwner(clubadmin2)) 409s DEPLOYMENT_EXISTS on the PRIOR ATTEMPT's
+  // own Deployment — masking the real first-attempt cause. A retry can't clear
+  // the principal's active Deployment, so the only clean isolation is to not
+  // retry: the real failure shows clearly. (REAL_BUNDLE already needed retries: 0
+  // for BUNDLE_PRIOR_RUN_FAILED.) The cross-spec collision is solved separately by
+  // the distinct principal; this retries:0 still guards the within-spec re-run.
   test.describe.configure({ mode: 'serial', retries: 0 });
 
   let fixture: AircraftParityFixture;
