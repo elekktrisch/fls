@@ -190,6 +190,37 @@ INSERT INTO [dbo].[FlightCrew] ([FlightCrewId] ,[FlightId] ,[PersonId] ,[FlightC
            (NEWID() ,@flightId ,(SELECT TOP 1 PersonId FROM Persons where HasGliderPilotLicence = 1) ,@flightCrewType
            ,SYSDATETIME() ,@insertUserId ,NULL ,NULL ,NULL ,NULL ,@recordState ,@ownerId, @OwnershipType)
 
+
+-- J-2 T-08: a MOTOR air-movement (FlightAircraftType=4) so the nightly fan-out
+-- export has all three flight kinds (the glider+tow pairs above + this motor) to
+-- migrate end-to-end and render at /airmovements. Uses a seeded motor aircraft
+-- (HB-WAT, AircraftType=8) + a motor-capable flight type (FlightCode '60',
+-- IsForMotorFlights=1). No tow pairing (TowFlightId NULL — motor flights never tow).
+SET @startDatetime = DATEADD(n,30, @startDatetime)
+SET @TowFlightId = NULL
+SET @flightId = NEWID()
+SET @flightAirState = 20 --landed
+SET @flightCrewType = 1 --Pilot
+SET @aircraftId = (SELECT TOP 1 aircraftId FROM Aircrafts where Immatriculation = 'HB-WAT')
+SET @flightTypeId = (SELECT TOP 1  FlightTypeId FROM FlightTypes WHERE FlightCode = '60' AND ClubId = @insertClubId)
+SET @startTypeId = 4 --MotorStart
+SET @flightAircraftType = 4 --MotorFlight
+
+INSERT INTO [dbo].[Flights] ([FlightId] ,[AircraftId] ,[StartDateTime] ,[LdgDateTime] ,[StartLocationId] ,[LdgLocationId]
+           ,[StartRunway] ,[LdgRunway] ,[FlightTypeId] ,[StartType] ,[TowFlightId] ,[NrOfLdgs] ,[AirStateId] ,[FlightAircraftType] ,[Comment] ,[IncidentComment]
+           ,[CouponNumber]  ,[CreatedOn] ,[CreatedByUserId] ,[ModifiedOn] ,[ModifiedByUserId] ,[DeletedOn] ,[DeletedByUserId]
+           ,[RecordState] ,[OwnerId] ,[OwnershipType], [FlightDate])
+     VALUES
+           (@flightId ,@aircraftId ,@startDatetime ,DATEADD(n,45, @startDatetime) ,@locationId ,@locationId
+           ,NULL ,NULL ,@flightTypeId ,@startTypeId ,@TowFlightId ,1 ,@flightAirState , @flightAircraftType ,'Motor air-movement' ,NULL
+           ,NULL ,SYSDATETIME() ,@insertUserId ,NULL ,NULL ,NULL ,NULL ,@recordState ,@ownerId, @OwnershipType, CAST(@startDatetime AS DATE))
+
+INSERT INTO [dbo].[FlightCrew] ([FlightCrewId] ,[FlightId] ,[PersonId] ,[FlightCrewType]
+           ,[CreatedOn] ,[CreatedByUserId] ,[ModifiedOn] ,[ModifiedByUserId] ,[DeletedOn] ,[DeletedByUserId] ,[RecordState] ,[OwnerId] ,[OwnershipType])
+     VALUES
+           (NEWID() ,@flightId ,(SELECT TOP 1 PersonId FROM Persons where HasMotorPilotLicence = 1) ,@flightCrewType
+           ,SYSDATETIME() ,@insertUserId ,NULL ,NULL ,NULL ,NULL ,@recordState ,@ownerId, @OwnershipType)
+
 GO
 
 UPDATE [dbo].[FlightCrew] SET [BeginFlightDateTime] = [dbo].[Flights].[StartDateTime], 
