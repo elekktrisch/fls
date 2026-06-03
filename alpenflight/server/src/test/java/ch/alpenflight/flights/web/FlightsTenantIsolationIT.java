@@ -82,6 +82,64 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateFlight_acrossTenant_returns_404() {
+        // Oracle #24: legacy FlightService update loads by id with NO ClubId
+        // filter, so a foreign caller could edit another club's flight by
+        // guessing the id. The new stack scopes structurally via @TenantId —
+        // Club B's PUT against Club A's flight id finds no row → 404 (the
+        // write never reaches the aggregate), NOT a silent cross-tenant edit.
+        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
+        String clubAToken = mintToken(CLUB_A);
+        ResponseEntity<String> created = post("/api/v1/flights",
+                body("GLIDER", "ac-" + aircraftA), clubAToken);
+        String flightId = readJson(created).get("id").asText();
+
+        // Club B targets A's flight id with B's own (valid) aircraft in the
+        // body so the 404 can only come from the tenant-scoped row lookup,
+        // not from a body-validation or FK failure.
+        UUID aircraftB = seedAircraftFor(jdbc, CLUB_B);
+        String clubBToken = mintToken(CLUB_B);
+        ResponseEntity<String> res = put("/api/v1/flights/" + flightId,
+                updateBody("ac-" + aircraftB), clubBToken);
+        assertThat(res.getStatusCode())
+                .as("Cross-tenant PUT surfaces as 404, NOT 403 or a silent edit (oracle #24)")
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        // The owning club's flight is untouched (no cross-tenant write landed).
+        Integer count = jdbc.queryForObject(
+                "SELECT count(*) FROM t_flight WHERE id = ?::uuid AND operating_club_id = ?::uuid",
+                Integer.class, rawId(flightId), CLUB_A.toString());
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void deleteFlight_acrossTenant_returns_404() {
+        // Oracle #24: legacy delete loads by id with NO ClubId filter. The new
+        // stack scopes structurally — Club B's DELETE against Club A's flight
+        // id finds no row → 404, and A's row stays alive (not soft-deleted).
+        UUID aircraftA = seedAircraftFor(jdbc, CLUB_A);
+        String clubAToken = mintToken(CLUB_A);
+        ResponseEntity<String> created = post("/api/v1/flights",
+                body("GLIDER", "ac-" + aircraftA), clubAToken);
+        String flightId = readJson(created).get("id").asText();
+
+        String clubBToken = mintToken(CLUB_B);
+        ResponseEntity<String> res = delete("/api/v1/flights/" + flightId, clubBToken);
+        assertThat(res.getStatusCode())
+                .as("Cross-tenant DELETE surfaces as 404, NOT 403 or a silent delete (oracle #24)")
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        // A's flight is still present and NOT soft-deleted.
+        Integer liveCount = jdbc.queryForObject(
+                "SELECT count(*) FROM t_flight WHERE id = ?::uuid"
+                        + " AND operating_club_id = ?::uuid AND deleted_on IS NULL",
+                Integer.class, rawId(flightId), CLUB_A.toString());
+        assertThat(liveCount)
+                .as("the owning club's flight is not soft-deleted by a foreign DELETE")
+                .isEqualTo(1);
+    }
+
+    @Test
     void createFlight_referencing_other_tenants_aircraft_succeeds() {
         // S-058 (reverts S-159): the charter case is first-class. Club B
         // creating a Flight against Club A's aircraft must persist —
@@ -145,6 +203,24 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
         return body;
     }
 
+    private static Map<String, Object> updateBody(String aircraftIdExternal) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("aircraftId", aircraftIdExternal);
+        body.put("flightDate", "2026-05-15");
+        body.put("isSoloFlight", false);
+        body.put("noStartTimeInformation", false);
+        body.put("noLdgTimeInformation", false);
+        body.put("crew", List.of());
+        return body;
+    }
+
+    /** Strips the {@code fl-} external-id prefix for a raw {@code ::uuid} SQL bind. */
+    private static String rawId(String externalFlightId) {
+        return externalFlightId.startsWith("fl-")
+                ? externalFlightId.substring("fl-".length())
+                : externalFlightId;
+    }
+
     private static List<String> extractIds(JsonNode items) {
         List<String> out = new java.util.ArrayList<>();
         items.forEach(n -> out.add(n.get("id").asText()));
@@ -165,6 +241,23 @@ class FlightsTenantIsolationIT extends PostgresIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .body(body),
+                String.class);
+    }
+
+    private ResponseEntity<String> put(String path, Object body, String token) {
+        return rest.exchange(
+                RequestEntity.put(URI.create(path))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .body(body),
+                String.class);
+    }
+
+    private ResponseEntity<String> delete(String path, String token) {
+        return rest.exchange(
+                RequestEntity.delete(URI.create(path))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .build(),
                 String.class);
     }
 
