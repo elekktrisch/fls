@@ -304,7 +304,7 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   Non-blocking parity aid (operator: AlpenFlight green is the gate) — surfaced in the final-status log,
   NOT in the hard-fail condition. Did NOT touch ci.yml's PR-gate proof (T-13 owns it).
   *(seam honored: one — fanout legacy aircraft capture + gallery declaration.)*
-- [ ] **T-15** — Gate-revealed (T-13's gate): the migrated-render test's new list-column assertions
+- [x] **T-15** — Gate-revealed (T-13's gate): the migrated-render test's new list-column assertions
   (`aircraft-migration-parity.spec.ts:428-430`) target the `aircraft-row-${id}` `<a>` link, but
   manufacturer/model/seats render in the list's **`#secondary` template** (sibling, own testids
   `aircraft-model-${id}` / `aircraft-seats-${id}`) — so `row.toContainText('Schleicher')` fails though

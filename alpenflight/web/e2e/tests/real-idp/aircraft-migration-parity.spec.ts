@@ -44,16 +44,6 @@ import { proofVideo } from './_helpers/proof-video';
 const LANG_DE_UUID = '019e2e15-2c00-77d0-8000-0000000007d0';
 
 /**
- * Real-bundle mode (`J1_BUNDLE_SOURCE=real`, the full legacy chain): the bundle
- * is the `alpenflight-export` output sealed to the workflow's handshake. The
- * spec can't re-seal a pre-encrypted bundle, so a Playwright retry would re-POST
- * the same FAILED uploadId (409 BUNDLE_PRIOR_RUN_FAILED) and mask the real
- * cause → run with zero retries in real mode (re-running the export on retry is
- * the workflow's job). Synth keeps the real-idp project's retry for jitter.
- */
-const REAL_BUNDLE = (process.env['J1_BUNDLE_SOURCE'] ?? 'synth').toLowerCase() === 'real';
-
-/**
  * Per-test recorded context — the `real-idp` project's `video: 'on'` only
  * governs Playwright's auto-created `page`; these tests drive their own
  * `browser.newContext()` per club, so pass `recordVideo` explicitly to land the
@@ -169,10 +159,16 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       aircraftId = await createAircraftViaUi(page, aircraftImmat);
       expect(aircraftId).toBeTruthy();
 
-      // The new row shows immatriculation + the GLIDER type code (the list's
-      // secondary line renders competitionSign · aircraftTypeCode).
+      // The new row shows immatriculation on the row LINK; the GLIDER type code
+      // + manufacturer render in the SIBLING `#secondary` template under their
+      // own testids (aircraft-list.page.ts ~112+).
       const row = page.locator(`[data-testid="aircraft-row-${aircraftId}"]`);
       await expect(row).toContainText(aircraftImmat);
+      // Clean-seed list-column parity (T-13): the create flow fills
+      // ManufacturerName=Schleicher (line 89), so the secondary line's
+      // `aircraft-model-<id>` renders it. (Model + seats are not set on create —
+      // those are asserted on the migrated row, which carries all three.)
+      await expect(page.getByTestId(`aircraft-model-${aircraftId}`)).toContainText('Schleicher');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -392,7 +388,17 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
 // MIGRATED-DATA real chain — legacy → migrate → Keycloak → UI.
 // ===========================================================================
 test.describe('Aircraft register — migrated legacy aircraft renders (real-idp)', () => {
-  test.describe.configure({ mode: 'serial', ...(REAL_BUNDLE ? { retries: 0 } : {}) });
+  // retries: 0 unconditionally (not just REAL_BUNDLE). The synth seed mints a
+  // fresh handshake/uploadId + club key + immatriculation per attempt, but the
+  // bundle ingest provisions a NON-TERMINAL Deployment owned by the SHARED
+  // migration principal (`clubadmin1`). A Playwright retry re-runs the ingest
+  // with a fresh uploadId, so the idempotency-key short-circuit misses and the
+  // owner-active gate (DeploymentProvisioningService#provision: findActiveByOwner)
+  // 409s DEPLOYMENT_EXISTS on the prior attempt's Deployment — masking the real
+  // first-attempt cause. A retry can't clear the principal's active Deployment,
+  // so the only clean isolation is to not retry: the real failure shows clearly.
+  // (REAL_BUNDLE already needed retries: 0 for BUNDLE_PRIOR_RUN_FAILED.)
+  test.describe.configure({ mode: 'serial', retries: 0 });
 
   let fixture: AircraftParityFixture;
   let baseURL: string;
@@ -424,10 +430,26 @@ test.describe('Aircraft register — migrated legacy aircraft renders (real-idp)
 
       // Legacy list parity (T-13): the migrated row renders Manufacturer +
       // Model + Seats (the AircraftParityBundleSeeder writes Schleicher / ASK
-      // 21 / 2). Legacy aircrafts-table.html shows these three columns.
-      await expect(row).toContainText('Schleicher');
-      await expect(row).toContainText('ASK 21');
-      await expect(row).toContainText('2 seats');
+      // 21 / 2). Legacy aircrafts-table.html shows these three columns. The
+      // `aircraft-row-<id>` testid is on the immatriculation LINK; manufacturer/
+      // model/seats live in the SIBLING `#secondary` template under their own
+      // `aircraft-model-<id>` / `aircraft-seats-<id>` testids (aircraft-list.page.ts
+      // ~112+) — assert against those, not the row link. Derive the id from the
+      // row testid (same pattern as createAircraftViaUi above).
+      const testId = await row.getAttribute('data-testid');
+      expect(testId, 'migrated aircraft row must carry an aircraft-row-<id> testid').toBeTruthy();
+      const id = testId!.replace(/^aircraft-row-/, '');
+      expect(id, `derived migrated aircraft id must be ac-<uuid> form, got "${id}"`).toMatch(
+        /^ac-[0-9a-f-]{36}$/,
+      );
+      // Manufacturer + model are migrated DATA (locale-independent).
+      const model = page.getByTestId(`aircraft-model-${id}`);
+      await expect(model).toContainText('Schleicher');
+      await expect(model).toContainText('ASK 21');
+      // Seats renders via the `list.columns.seats` i18n; the real-idp run
+      // resolves to `en` (line 164 asserts the English 'Aircraft' title), so the
+      // rendered string is "2 seats" (en), not "2 Sitze" (de).
+      await expect(page.getByTestId(`aircraft-seats-${id}`)).toContainText('2 seats');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
