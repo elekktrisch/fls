@@ -141,7 +141,10 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL);
+    // Spec-scoped admin usernames ('acft') so this fixture's club admins are
+    // disjoint from the J-0 Locations spec's ('loc') when both run in one
+    // `playwright test` invocation — ux_user_username_lower_alive (T-11).
+    fixture = await provisionTwoClubs(browser, baseURL, 'acft');
   });
 
   test.afterAll(async () => {
