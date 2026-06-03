@@ -311,11 +311,40 @@ export const SEEDED_MOTOR_CLUBADMIN = {
  * SPA + Keycloak login form by USERNAME (mirrors `loginAsMigratedAdmin`'s
  * username login of the seeded `clubadmin3`). No provisioning, no JIT — the
  * seeded `t_user` resolves the tenant on first request.
+ *
+ * SESSION ISOLATION (J-2 T-25). `provisionTwoClubs` (run in the spec's
+ * `beforeAll`) drives an SPA login as the seeded tenant-less `sysadmin` to mint
+ * the club-create bearer (`captureSysadminBearer`); that login leaves a LIVE
+ * Keycloak SSO session (the `KEYCLOAK_IDENTITY` cookie on the KC origin) which
+ * the motor test's context then carries. Without clearing it, `goto('/')` +
+ * click sign-in lands on KC, KC auto-resumes the still-valid sysadmin SSO
+ * session (no login form), and the SPA boots holding SYSADMIN's token — so the
+ * subsequent tenant-scoped `GET /api/v1/flights` fires as the tenant-less
+ * sysadmin (backend logged `user-lookup miss sub=f1558768…`) and never 2xx's,
+ * tripping the fail-fast guard. clubadmin4 itself resolves fine (the PRODUCT is
+ * correct) — this is harness-only SSO bleed.
+ *
+ * Fix: clear the context's cookies (the KC SSO cookie among them — same
+ * belt-and-braces as `login.spec.ts`'s logout→cold-re-login) BEFORE starting the
+ * login, so KC cannot auto-resume sysadmin and a full FRESH credential login as
+ * clubadmin4 happens. We assert the KC username field is actually present before
+ * filling so any future SSO-bypass regression fails fast with a clear cause
+ * rather than `fillKcLogin` blind-filling a short-circuited page. Other login
+ * helpers (`loginAsClubAdmin`, `loginAsMigratedAdmin`) are UNCHANGED: each runs
+ * in its OWN fresh `browser.newContext()` and is the FIRST login in that context,
+ * so they never inherit the sysadmin SSO session and need no clear.
  */
 export async function loginAsSeededMotorClubadmin(page: Page): Promise<void> {
+  // Drop any leaked KC SSO cookie so this context cannot silently auto-resume
+  // the sysadmin session minted by `captureSysadminBearer` in `beforeAll`.
+  await page.context().clearCookies();
+
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
+  // KC must present the login form — proves SSO did not bypass it (so we
+  // authenticate as clubadmin4, not the leaked sysadmin session).
+  await expect(page.locator('#username')).toBeVisible();
   await fillKcLogin(page, SEEDED_MOTOR_CLUBADMIN.username, SEEDED_MOTOR_CLUBADMIN.password);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
