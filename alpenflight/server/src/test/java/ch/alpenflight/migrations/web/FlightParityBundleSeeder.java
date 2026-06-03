@@ -16,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,15 +57,24 @@ import java.util.UUID;
  * other-tenant subject in the SAME deployment. Each club has its own FK closure
  * (location replica, flight type, aircraft, pilot Person).
  *
- * <p><strong>Time-gate seed nuance</strong> (S-061, operator divergence; the e2e
- * fixed clock anchors 2026-01-01): the glider/tow pair carries a {@code flight_date}
- * {@value #LOCKABLE_FLIGHT_DATE} (≥2 days before the clock) so the lock gate
- * ({@code flight_date <= today-2d}) ALLOWS a Valid→Locked transition. The
+ * <p><strong>Time-gate seed nuance</strong> (S-061, operator divergence). The
+ * migrated {@code flight_date}s are computed RELATIVE TO {@code LocalDate.now(UTC)}
+ * at seed time — NOT hardcoded calendar dates — because the real-idp proof backend
+ * boots {@code TimeConfig} with {@code Clock.systemUTC()} (no fixed clock in the
+ * {@code dev} profile the CI proof job runs), and {@code FlightsService} applies a
+ * default {@code [today-90d, today]} list window when the client sends no from/to
+ * (the flights store sends none by default). Hardcoded Dec-2025 dates fell OUTSIDE
+ * that 90-day window at any CI run date past ~Mar-2026, so the migrated-render +
+ * DeliveryBooked-read assertions silently fell off the list (J-2 T-16 gate blocker).
+ * Relative offsets keep every migrated flight inside the 90-day window AT ANY RUN
+ * DATE while still satisfying the gate semantics: the glider/tow pair sits
+ * {@value #LOCKABLE_OFFSET_DAYS} days before now (≥2 days before, so the lock gate
+ * {@code flight_date <= today-2d} ALLOWS a Valid→Locked transition); the
  * DeliveryBooked flight ports {@code process_state = DELIVERY_BOOKED(60)} so it is
- * read-only (edit/delete → 4xx). A flight legacy already locked carries
- * {@code locked_at = ModifiedOn} {@value #BILLABLE_LOCKED_AT} (≥3 days before the
- * clock) so the bill gate ({@code locked_at <= today-3d}) would ALLOW billing
- * (mapper rule: {@code ProcessStateId >= LOCKED(40)} → locked_at = ModifiedOn).
+ * read-only (edit/delete → 4xx) and carries {@code locked_at = ModifiedOn}
+ * {@value #BILLABLE_LOCKED_OFFSET_DAYS} days before now (≥3 days before, so the bill
+ * gate {@code locked_at <= today-3d} would ALLOW billing; mapper rule:
+ * {@code ProcessStateId >= LOCKED(40)} → locked_at = ModifiedOn).
  *
  * <p>Tar order (pgcopy id-maps before the NDJSON that references them, per the
  * ingest resolver + the {@link FlightMigrationRoundTripIT} ordering):
@@ -119,12 +130,22 @@ public final class FlightParityBundleSeeder {
     private static final int LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN = 5;
     private static final int LEGACY_AIR_STATE_LANDED = 20;
 
-    // Time-gate seed values relative to the e2e fixed clock (2026-01-01).
-    // Lockable: flight_date >= today-2d so the lock gate ALLOWS Valid->Locked.
-    private static final String LOCKABLE_FLIGHT_DATE = "2025-12-29";
-    // Billable: locked_at (= ModifiedOn for a Locked flight) >= today-3d so the
-    // bill gate ALLOWS billing.
-    private static final String BILLABLE_LOCKED_AT = "2025-12-28";
+    // Time-gate seed offsets are RELATIVE TO LocalDate.now() at seed time, NOT
+    // hardcoded calendar dates: the real-idp proof backend runs Clock.systemUTC()
+    // and FlightsService applies a default [today-90d, today] list window, so any
+    // fixed past date eventually falls out of the window and the migrated rows stop
+    // rendering (J-2 T-16). now-minus-offset keeps every migrated flight in-window
+    // at any run date AND still satisfies the lock/bill day-boundary gates.
+    //
+    // Lockable glider+tow: flight_date = now-5d (>= today-2d so the lock gate ALLOWS
+    // Valid->Locked; comfortably inside the 90-day window).
+    private static final int LOCKABLE_OFFSET_DAYS = 5;
+    // Motor: flight_date = now-3d (Valid; in-window).
+    private static final int MOTOR_OFFSET_DAYS = 3;
+    // DeliveryBooked: flight_date = now-10d, locked_at = now-5d (>= today-3d so the
+    // bill gate ALLOWS billing; both inside the 90-day window).
+    private static final int DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS = 10;
+    private static final int BILLABLE_LOCKED_OFFSET_DAYS = 5;
 
     private FlightParityBundleSeeder() { }
 
@@ -271,6 +292,18 @@ public final class FlightParityBundleSeeder {
                 new MapRow(motorAircraftId, motorAircraftId),
                 new MapRow(crossAircraftId, crossAircraftId)));
 
+        // Resolve the relative time-gate dates against the seed-time wallclock
+        // (= the real-idp proof backend's Clock.systemUTC() "now"), so the migrated
+        // rows always land inside FlightsService's default [today-90d, today] list
+        // window AND on the correct side of the lock/bill day boundaries (J-2 T-16).
+        // UTC to match the backend's Clock.systemUTC() notion of "today" (no TZ skew).
+        LocalDate seedNow = LocalDate.now(ZoneOffset.UTC);
+        String lockableFlightDate = seedNow.minusDays(LOCKABLE_OFFSET_DAYS).toString();
+        String motorFlightDate = seedNow.minusDays(MOTOR_OFFSET_DAYS).toString();
+        String deliveryBookedFlightDate =
+                seedNow.minusDays(DELIVERY_BOOKED_FLIGHT_OFFSET_DAYS).toString();
+        String billableLockedAt = seedNow.minusDays(BILLABLE_LOCKED_OFFSET_DAYS).toString();
+
         // FLIGHT (non-fan-out): legacy_guid -> id. Tow first so its id-map row
         // precedes the glider that references it (mirror the producer's order).
         tarEntries.put("FLIGHT.ndjson", concat(
@@ -279,7 +312,7 @@ public final class FlightParityBundleSeeder {
                 flightNdjson(towFlightId, ownerClubId, towAircraftId, ownerLocationId,
                         ownerFlightTypeId, /* towFlightId */ null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_TOW, LEGACY_AIR_STATE_LANDED,
-                        LEGACY_PROCESS_STATE_VALID, LOCKABLE_FLIGHT_DATE,
+                        LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
                         /* lockedAtDate */ null, "J2 tow " + freshnessToken),
                 // Glider flight: tow_flight_id -> the tow flight; FlightPlanOpen(5)
                 // air-state -> flight_plan_opened_on survives; Valid + a past
@@ -287,28 +320,29 @@ public final class FlightParityBundleSeeder {
                 flightNdjson(gliderFlightId, ownerClubId, gliderAircraftId, ownerLocationId,
                         ownerFlightTypeId, towFlightId.toString(),
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
-                        LEGACY_PROCESS_STATE_VALID, LOCKABLE_FLIGHT_DATE,
+                        LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
                         /* lockedAtDate */ null, "J2 glider " + freshnessToken),
                 // Motor flight: not towed (empty-guid -> null at the producer),
                 // MOTOR(4) discriminator, Valid.
                 flightNdjson(motorFlightId, ownerClubId, motorAircraftId, ownerLocationId,
                         ownerFlightTypeId, /* towFlightId */ null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_MOTOR, LEGACY_AIR_STATE_NEW,
-                        LEGACY_PROCESS_STATE_VALID, "2025-12-30",
+                        LEGACY_PROCESS_STATE_VALID, motorFlightDate,
                         /* lockedAtDate */ null, "J2 motor " + freshnessToken),
                 // DeliveryBooked flight: terminal read-only state (edit/delete ->
                 // 4xx). Locked-or-beyond, so locked_at carries (billable window).
                 flightNdjson(deliveryBookedFlightId, ownerClubId, gliderAircraftId,
                         ownerLocationId, ownerFlightTypeId, /* towFlightId */ null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_LANDED,
-                        LEGACY_PROCESS_STATE_DELIVERY_BOOKED, "2025-12-20",
-                        BILLABLE_LOCKED_AT, "J2 delivery-booked " + freshnessToken),
+                        LEGACY_PROCESS_STATE_DELIVERY_BOOKED, deliveryBookedFlightDate,
+                        billableLockedAt, "J2 delivery-booked " + freshnessToken),
                 // Cross-tenant flight: a DIFFERENT club's flight in the same
-                // deployment (the owning admin's GET of it must 404).
+                // deployment (the owning admin's GET of it must 404). Also relative
+                // (now-5d) so it stays in-window for the cross club's own list.
                 flightNdjson(crossFlightId, crossClubId, crossAircraftId, crossLocationId,
                         crossFlightTypeId, /* towFlightId */ null,
                         LEGACY_FLIGHT_AIRCRAFT_TYPE_GLIDER, LEGACY_AIR_STATE_NEW,
-                        LEGACY_PROCESS_STATE_VALID, "2025-12-29",
+                        LEGACY_PROCESS_STATE_VALID, lockableFlightDate,
                         /* lockedAtDate */ null, "J2 cross-tenant " + freshnessToken)));
         tarEntries.put("legacy_id_map/FLIGHT.pgcopy", pgcopyMap3(
                 new MapRow(towFlightId, towFlightId),
