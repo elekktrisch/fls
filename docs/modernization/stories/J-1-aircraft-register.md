@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: done  # PR-required gate GREEN (HEAD b4b461ef); fanout green incl. parity screenshots + branch-preview gallery
+status: in_progress  # reopened 2026-06-03 (3rd): operator review — AlpenFlight list screenshot was empty ("No Data"); fanout URL still says j-0c (T-22/T-23)
 started_at: 2026-06-02
-done_at: 2026-06-03
+done_at: 2026-06-03  # provisional — core + PR gate green; re-confirm after T-22/T-23
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
@@ -428,6 +428,25 @@ eyeballing, rendered in the proof gallery; and **deliver proof via a gallery lin
 
 Then re-dispatch fanout → gallery (videos + paired screenshots) deploys to the branch preview → **post the
 gallery LINK** (not files). Operator merges `integration/J-1`.
+
+## Reopened 3rd time (2026-06-03) — operator review of the gallery
+
+The shipped gallery had two warts the operator caught:
+- [ ] **T-22** — The AlpenFlight `alpenflight-aircraft-list.png` was captured on a **fresh club with an
+  empty list → "No Data"**, so it shows no rendered row and none of the T-13 columns. The legacy list
+  (FLSTest seed) shows ~15 populated rows. Re-capture the AlpenFlight list screenshot at a **populated**
+  point — after the clean-seed create (the Schleicher aircraft) and/or in the migrated-render flow — so the
+  PNG shows real rows with the full column set (immat + competition sign + type + manufacturer + model +
+  seats), paralleling the legacy list. Ideally seed/create a few rows so it's not a single-row list.
+  *(seam: aircraft-migration-parity.spec.ts list-screenshot capture point)* — e2e-driver.
+- [ ] **T-23** — The fanout proof-gallery deploy path is `alpenflight/proof/j-0c-fanout` (+ the branch
+  preview `…/proof-preview/<ref>/j-0c-fanout`), a **stale J-0c name** — the fanout now serves ALL journeys
+  (J-0c, J-1, …), not just J-0c. Rename the subpath to journey-agnostic **`legacy-parity`** (the gallery is
+  the full legacy→export→migrate parity proof) in `alpenflight-proof-fanout.yml` (main deploy + branch
+  preview + comments) and `proof-preview-reap.yml` if it references the subpath. *(seam: fanout workflow
+  deploy paths + reaper)*
+
+Then re-dispatch fanout → confirm the populated list screenshot + the `…/legacy-parity/` URL → post the link.
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
