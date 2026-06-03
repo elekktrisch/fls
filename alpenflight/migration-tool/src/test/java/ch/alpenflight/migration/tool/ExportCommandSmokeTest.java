@@ -29,14 +29,18 @@ class ExportCommandSmokeTest {
         // LOCATION / INOUTBOUND_POINT added in J-0 T-02c (the Location export half)
         // + PERSON wired in J-0c T-21 (so USER.person_id resolves at ingest)
         // + the AIRCRAFT aggregate (AIRCRAFT + its two aggregate-internal children)
-        // registered in J-1 T-04.
+        // registered in J-1 T-04
+        // + the FLIGHT group (FLIGHT + the aggregate-internal FLIGHT_CREW, plus the
+        // FLIGHT_TYPE and START_TYPE references it resolves against) bound in J-2 T-07.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
                 EntityType.CLUB, EntityType.PERSON, EntityType.USER,
                 EntityType.LOCATION, EntityType.INOUTBOUND_POINT,
                 EntityType.AIRCRAFT, EntityType.AIRCRAFT_AIRCRAFT_STATE,
-                EntityType.AIRCRAFT_OPERATING_COUNTER);
+                EntityType.AIRCRAFT_OPERATING_COUNTER,
+                EntityType.FLIGHT, EntityType.FLIGHT_CREW,
+                EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
     }
 
     @Test
