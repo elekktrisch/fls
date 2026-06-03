@@ -48,6 +48,34 @@ const en: Translations = {
     },
     title: 'Aircraft',
   },
+  flight: {
+    conflict: {
+      cancel: 'Keep editing',
+      empty: '(empty)',
+      field: {
+        aircraftId: 'Aircraft',
+        comment: 'Comment',
+        couponNumber: 'Coupon number',
+        flightDate: 'Flight date',
+        flightTypeId: 'Flight type',
+        ldgDateTime: 'Landing time',
+        ldgLocationId: 'Landing location',
+        nrOfLdgs: 'Landings',
+        startDateTime: 'Start time',
+        startLocationId: 'Start location',
+        startTypeId: 'Start type',
+      },
+      intro: 'This flight was changed elsewhere. Pick which value wins for each field.',
+      keepMine: 'Keep mine',
+      keepTheirs: 'Stored value',
+      resubmit: 'Save again',
+      title: 'Concurrent edit',
+    },
+    reload: {
+      action: 'Reload',
+      message: 'Flight changed elsewhere — reload to get the latest.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Request access',

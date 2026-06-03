@@ -18,6 +18,7 @@ import {
   ReactiveFormsModule,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 import { AircraftStore } from '@features/aircraft/aircraft.store';
 import { FlightTypesStore } from '@features/flight-types/flight-types.store';
@@ -36,6 +37,16 @@ import { AfStickyBarComponent } from '@ui/molecules/af-sticky-bar';
 import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import { FlightStore } from '../flight.store';
+
+import {
+  CONFLICT_FIELD_TO_GLIDER_CONTROL,
+  timeOfConflictValue,
+  type ConflictFieldName,
+} from './conflict-resolver';
+import {
+  FlightConflictPromptComponent,
+  type ConflictResolution,
+} from './flight-conflict-prompt.component';
 
 import {
   buildDefaultsForCopy,
@@ -88,6 +99,8 @@ interface StepDescriptor {
     AfSelectComponent,
     AfStickyBarComponent,
     AfTimeNowButtonComponent,
+    FlightConflictPromptComponent,
+    TranslocoDirective,
   ],
   template: `
     <af-page>
@@ -326,10 +339,22 @@ interface StepDescriptor {
           @if (errorMessage()) {
             <p class="text-red-600" data-testid="flight-error">{{ errorMessage() }}</p>
           }
-          @if (conflict()) {
-            <p class="text-amber-600" data-testid="flight-conflict-toast">
-              Concurrent edit detected — reload to keep working.
-            </p>
+          <!--
+            409 = state/policy conflict (time-gate reject, DeliveryBooked edit,
+            optimistic-lock race). Non-blocking toast with a reload action —
+            NEVER the inline diff (that's the 412 data-conflict path below).
+          -->
+          @if (reloadConflict()) {
+            <div
+              *transloco="let t; read: 'flight.reload'"
+              class="flex items-center justify-between gap-3 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              data-testid="flight-409-toast"
+            >
+              <span>{{ t('message') }}</span>
+              <af-button data-testid="flight-409-reload" (clicked)="onReloadLatest()">{{
+                t('action')
+              }}</af-button>
+            </div>
           }
         </form>
       }
@@ -342,6 +367,13 @@ interface StepDescriptor {
         dismissLabel="Keep editing"
         (confirm)="confirmDiscard()"
         (dismiss)="dirtyConfirmOpen.set(false)"
+      />
+
+      <!-- 412 = data conflict → inline per-field keep-mine/keep-theirs diff. -->
+      <af-flight-conflict-prompt
+        [conflict]="conflict()"
+        (resolved)="onConflictResolved($event)"
+        (dismissed)="onConflictDismissed()"
       />
     </af-page>
   `,
@@ -376,7 +408,10 @@ export class FlightsEditPage {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly dirtyConfirmOpen = signal<boolean>(false);
 
-  protected readonly conflict = computed(() => this.store.hasSaveConflict());
+  // 412 data conflict (drives the inline per-field diff dialog).
+  protected readonly conflict = computed(() => this.store.saveConflict());
+  // 409 state/policy conflict (drives the non-blocking reload toast).
+  protected readonly reloadConflict = computed(() => this.store.hasReloadConflict());
 
   protected readonly title = computed(() => {
     switch (this.mode()) {
@@ -600,6 +635,52 @@ export class FlightsEditPage {
     this.dirtyConfirmOpen.set(false);
     this.form.markAsPristine();
     void this.router.navigateByUrl('/flights');
+  }
+
+  /**
+   * 412 resolved: apply each "keep theirs" choice onto the glider form, then
+   * EXPLICITLY resubmit. The store refreshed `currentVersion` to the server's
+   * version on the 412, so the resubmit If-Matches the current value. There is
+   * NO auto-retry — this only runs because the user clicked resubmit.
+   */
+  protected onConflictResolved(resolution: ConflictResolution): void {
+    const c = this.store.saveConflict();
+    if (!c) {
+      return;
+    }
+    const glider = this.form.controls.glider.controls as Record<
+      string,
+      { setValue: (v: unknown) => void }
+    >;
+    for (const field of c.fields) {
+      if (resolution[field.name as ConflictFieldName] !== 'theirs') {
+        continue; // "keep mine" → leave the user's value in the form.
+      }
+      const control = CONFLICT_FIELD_TO_GLIDER_CONTROL[field.name as ConflictFieldName];
+      if (!control) {
+        continue;
+      }
+      const value =
+        field.name === 'startDateTime' || field.name === 'ldgDateTime'
+          ? timeOfConflictValue(field.theirs)
+          : field.theirs;
+      glider[control]?.setValue(value);
+    }
+    this.store.dismissConflict();
+    void this.finalSubmit();
+  }
+
+  protected onConflictDismissed(): void {
+    this.store.dismissConflict();
+  }
+
+  /** 409 reload action: drop local state + re-hydrate from the server. */
+  protected onReloadLatest(): void {
+    this.store.dismissConflict();
+    const id = this.store.current()?.id ?? this.route.snapshot.paramMap.get('id');
+    if (id) {
+      void this.hydrate('edit', id);
+    }
   }
 
   @HostListener('document:keydown.escape')

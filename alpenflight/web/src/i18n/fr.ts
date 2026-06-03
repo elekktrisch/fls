@@ -50,6 +50,34 @@ const fr: Translations = {
     },
     title: 'Aéronefs',
   },
+  flight: {
+    conflict: {
+      cancel: 'Continuer la modification',
+      empty: '(vide)',
+      field: {
+        aircraftId: 'Aéronef',
+        comment: 'Commentaire',
+        couponNumber: 'Numéro de coupon',
+        flightDate: 'Date du vol',
+        flightTypeId: 'Type de vol',
+        ldgDateTime: "Heure d'atterrissage",
+        ldgLocationId: "Lieu d'atterrissage",
+        nrOfLdgs: 'Atterrissages',
+        startDateTime: 'Heure de départ',
+        startLocationId: 'Lieu de départ',
+        startTypeId: 'Type de départ',
+      },
+      intro: 'Ce vol a été modifié ailleurs. Choisissez la valeur retenue pour chaque champ.',
+      keepMine: 'Ma saisie',
+      keepTheirs: 'Valeur enregistrée',
+      resubmit: 'Enregistrer à nouveau',
+      title: 'Modification concurrente',
+    },
+    reload: {
+      action: 'Recharger',
+      message: 'Vol modifié ailleurs — rechargez pour obtenir la dernière version.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Demander un accès',

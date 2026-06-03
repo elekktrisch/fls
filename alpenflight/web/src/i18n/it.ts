@@ -49,6 +49,34 @@ const it: Translations = {
     },
     title: 'Aeromobili',
   },
+  flight: {
+    conflict: {
+      cancel: 'Continua a modificare',
+      empty: '(vuoto)',
+      field: {
+        aircraftId: 'Aeromobile',
+        comment: 'Commento',
+        couponNumber: 'Numero coupon',
+        flightDate: 'Data del volo',
+        flightTypeId: 'Tipo di volo',
+        ldgDateTime: 'Ora di atterraggio',
+        ldgLocationId: 'Luogo di atterraggio',
+        nrOfLdgs: 'Atterraggi',
+        startDateTime: 'Ora di partenza',
+        startLocationId: 'Luogo di partenza',
+        startTypeId: 'Tipo di partenza',
+      },
+      intro: 'Questo volo è stato modificato altrove. Scegli quale valore vale per ogni campo.',
+      keepMine: 'La mia voce',
+      keepTheirs: 'Valore salvato',
+      resubmit: 'Salva di nuovo',
+      title: 'Modifica concorrente',
+    },
+    reload: {
+      action: 'Ricarica',
+      message: 'Volo modificato altrove — ricarica per ottenere la versione più recente.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Richiedi l’accesso',

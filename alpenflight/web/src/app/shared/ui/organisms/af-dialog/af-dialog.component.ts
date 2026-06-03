@@ -22,7 +22,11 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
         aria-modal="true"
         [attr.aria-labelledby]="title()"
       >
-        <div class="w-full max-w-md rounded-md bg-white p-6 shadow-lg">
+        <div
+          class="w-full rounded-md bg-white p-6 shadow-lg"
+          [class.max-w-md]="!wide()"
+          [class.max-w-2xl]="wide()"
+        >
           <h2 class="mb-3 text-lg font-medium text-slate-900" data-testid="af-dialog-title">
             {{ title() }}
           </h2>
@@ -31,6 +35,14 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
               {{ message() }}
             </p>
           }
+          <!--
+            Optional projected body. Hosts that need richer content than the
+            single message line (S-062h's per-field conflict diff) project it
+            here; the confirm/dismiss footer below is reused as-is.
+          -->
+          <div class="empty:hidden mb-4">
+            <ng-content />
+          </div>
           <div class="flex justify-end gap-2">
             <af-button (clicked)="dismiss.emit()" data-testid="af-dialog-dismiss">
               {{ dismissLabel() }}
@@ -46,6 +58,8 @@ import { AfButtonComponent } from '@ui/atoms/af-button';
 })
 export class AfDialogComponent {
   readonly visible = input<boolean>(false);
+  /** Widen the panel for richer projected bodies (e.g. the conflict diff). */
+  readonly wide = input<boolean>(false);
   readonly title = input<string>('Confirm');
   readonly message = input<string | null>(null);
   readonly confirmLabel = input<string>('Confirm');

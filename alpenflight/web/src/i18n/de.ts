@@ -54,6 +54,35 @@ const de = {
     },
     title: 'Flugzeuge',
   },
+  flight: {
+    conflict: {
+      cancel: 'Weiter bearbeiten',
+      empty: '(leer)',
+      field: {
+        aircraftId: 'Flugzeug',
+        comment: 'Bemerkung',
+        couponNumber: 'Couponnummer',
+        flightDate: 'Flugdatum',
+        flightTypeId: 'Flugart',
+        ldgDateTime: 'Landezeit',
+        ldgLocationId: 'Landeort',
+        nrOfLdgs: 'Landungen',
+        startDateTime: 'Startzeit',
+        startLocationId: 'Startort',
+        startTypeId: 'Startart',
+      },
+      intro:
+        'Dieser Flug wurde inzwischen anderweitig geändert. Wähle pro Feld, welcher Wert gilt.',
+      keepMine: 'Meine Eingabe',
+      keepTheirs: 'Gespeicherter Wert',
+      resubmit: 'Erneut speichern',
+      title: 'Gleichzeitige Änderung',
+    },
+    reload: {
+      action: 'Neu laden',
+      message: 'Flug wurde anderweitig geändert — neu laden für den aktuellen Stand.',
+    },
+  },
   landing: {
     actions: {
       requestAccess: 'Zugang anfragen',
