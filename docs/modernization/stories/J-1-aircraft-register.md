@@ -2,8 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-06-02
+done_at: 2026-06-03
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
@@ -243,8 +244,22 @@ the migration proof, the real chain, and folded boyscout riders.
   `ALPENFLIGHT_OIDC_ISSUER_URI`) to ci.yml's "Start alpenflight backend" step (verify the KC host port
   against docker-compose.yml). *(seam: .github/workflows/ci.yml backend env)*
 
-Then **§4 gate** (e2e-driver): full legacy→migrate→Keycloak→Playwright chain, both fidelities,
-video retained. **§5**: prune body, flip done, post video.
+## §4 gate — GREEN (2026-06-03, PR #202)
+
+`ci.yml` `alpenflight-proof` (real-idp) green on commit `3d8b31a2`: **10 specs pass** —
+clean-seed real chain (Keycloak login → real backend: list sorted, create-via-form, edit-persists,
+delete, cross-club edit/delete **403**, S-163 owner-person edit **200**, S-164 `latestCounter`
+manager-present/non-manager-null) + the **migrated-aircraft render** (synth bundle through the REAL
+migration ingest + Keycloak provisioning + UI render — synth-at-PR / real-legacy-export-at-nightly,
+mirroring J-0c). `alpenflight build` (1026 tests incl. `ApplicationModulesTest` + both Aircraft
+migration round-trip ITs) green. **Mocked seams: none** — happy + key-error fully real; the S-163/S-164
+edge cases use DB-fixture *state*, not mocked decisions. **3 gap-hunters: unanimous SHIP.** Pass-videos
+in the `alpenflight-proof-26855722286` artifact + the proof gallery.
+
+The gate exposed (and J-1 fixed, drive-with-tasks) three latent gaps the targeted local runs missed:
+T-10 (Modulith boundary `aircraft`→`users` internal types), T-11 (real-idp username collision when two
+specs share `provisionTwoClubs` in one invocation), T-12 (the `ci.yml` proof backend never set the
+host-mapped Keycloak admin-base-url — the first migration→Keycloak proof wired into `ci.yml` hit it).
 
 ## Assumptions made
 
