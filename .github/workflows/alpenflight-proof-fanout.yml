@@ -341,6 +341,29 @@ jobs:
             tests/masterdata/aircrafts-parity-J1.spec.ts
 
       # ========================================================================
+      # 2c. J-2 T-10 — legacy FLIGHT parity spec. Read-only walkthrough of the
+      #     T-08-seeded flight list (glider + paired tow) + one flight's edit
+      #     form (glider+tow field set) + the /airmovements motor list, in the
+      #     flsweb UI; records the legacy flight parity video. The SAME legacy
+      #     stack (already up) and the SAME deterministic FLSTest seed the J-0c
+      #     Location + J-1 aircraft specs used — T-08 added the test flights to
+      #     "6 Insert Test Flights.sql", which `e2e/scripts/seed.sh` applies — so
+      #     no extra seeding; runs on this one nightly run alongside T-04 + T-14.
+      #     Paired side-by-side with J-2's AlpenFlight flight videos (proof-
+      #     journey: J-2) in the gallery via the legacy-video sidecar (step 7b).
+      #     Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-2 T-10 legacy flight parity spec (records legacy video)
+        id: legacy-pw-flight
+        if: always()
+        working-directory: e2e
+        timeout-minutes: 10
+        run: |
+          npx playwright test \
+            --project=flights \
+            tests/flights/flights-parity-J2.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -519,11 +542,11 @@ jobs:
           ls -l "$OUT"
 
       # ========================================================================
-      # 6. ALPENFLIGHT PARITY SPECS (J-0c real-bundle + J-1 aircraft) — ONE
-      #    `playwright test` invocation so the single JSON proof-manifest the
-      #    gallery reads carries BOTH journeys' AlpenFlight videos (a second
-      #    invocation would overwrite the manifest, dropping the J-0c captions).
-      #    Mirrors ci.yml's `alpenflight-proof` two-spec shape (T-07).
+      # 6. ALPENFLIGHT PARITY SPECS (J-0c real-bundle + J-1 aircraft + J-2 flight)
+      #    — ONE `playwright test` invocation so the single JSON proof-manifest
+      #    the gallery reads carries ALL journeys' AlpenFlight videos (a second
+      #    invocation would overwrite the manifest, dropping the prior captions).
+      #    Mirrors ci.yml's `alpenflight-proof` multi-spec shape (T-07).
       #
       #    - J-0c (fan-out-migration-parity, REAL-bundle): POST the real exported
       #      bundle → fan-out + Keycloak provision → per-club view + edit-isolation
@@ -537,6 +560,16 @@ jobs:
       #      video (step 2b / 7b) under J-1 in the gallery. The full legacy→export
       #      AIRCRAFT bundle is a deeper follow-up; T-14 captures the legacy
       #      aircraft VIDEO + this synth-migrated render is the J-1 AlpenFlight half.
+      #    - J-2 (flight-migration-parity, SYNTH bundle — J2_BUNDLE_SOURCE unset):
+      #      clean-seed glider+tow+motor CRUD + tenant 404 + read-only state gate +
+      #      412 conflict + the migrated glider (crew + tow link) render (synth
+      #      bundle through the REAL migration ingest + Keycloak provisioning).
+      #      Records the AlpenFlight flight videos (proof-journey: J-2) — paired
+      #      SIDE-BY-SIDE with the legacy flight video (step 2c / 7b) under J-2.
+      #      The full legacy→export FLIGHT bundle is a deeper follow-up; T-10
+      #      captures the legacy flight VIDEO + this synth-migrated render is the
+      #      J-2 AlpenFlight half. The clean-seed list/form screenshots
+      #      (alpenflight-flights-{list,form}.png) are written by this spec.
       #
       #    The webServer SPA from step 4 is reused (reuseExistingServer is false in
       #    CI, but Playwright tears it down per `playwright test` invocation; this
@@ -545,7 +578,7 @@ jobs:
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 20
@@ -562,7 +595,8 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
-            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
+            e2e/tests/real-idp/flight-migration-parity.spec.ts
 
       # ========================================================================
       # 7. GALLERY + VIDEO RETENTION. The AlpenFlight parity videos carry the
@@ -591,6 +625,8 @@ jobs:
           LOC_WEBM="$(find /tmp/fls-e2e-results -path '*locations-fanout-J0c*' -name '*.webm' | head -1 || true)"
           # J-1 — legacy aircraft list+form parity video (T-14).
           AC_WEBM="$(find /tmp/fls-e2e-results -path '*aircrafts-parity-J1*' -name '*.webm' | head -1 || true)"
+          # J-2 — legacy flight list+form+air-movements parity video (T-10).
+          FL_WEBM="$(find /tmp/fls-e2e-results -path '*flights-parity-J2*' -name '*.webm' | head -1 || true)"
 
           VIDEOS=""
           if [ -n "$LOC_WEBM" ]; then
@@ -606,6 +642,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-1\",\"file\":\"aircrafts-parity-J1.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_AC")},"
           else
             echo "No J-1 aircraft .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$FL_WEBM" ]; then
+            cp "$FL_WEBM" "$STAGE/flights-parity-J2.webm"
+            CAP_FL="Legacy flsweb: the seeded flight list (glider + paired tow rows) + one flight's edit form (glider+tow field set) + the /airmovements motor list — the legacy field set to eyeball against AlpenFlight's /flights logbook + /airmovements"
+            VIDEOS="$VIDEOS{\"journey\":\"J-2\",\"file\":\"flights-parity-J2.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_FL")},"
+          else
+            echo "No J-2 flight .webm found under /tmp/fls-e2e-results."
           fi
 
           if [ -n "$VIDEOS" ]; then
@@ -649,6 +692,22 @@ jobs:
             "AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)"
           add_shot "alpenflight/web/test-results" "alpenflight-aircraft-form.png" "J-1" "alpenflight" "form" \
             "AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy"
+
+          # ----- J-2 T-10 — flight parity SCREENSHOTS (legacy + AlpenFlight) ---
+          # Legacy list/form PNGs the flights-parity-J2 spec wrote with fullPage
+          # screenshots under /tmp/fls-e2e-results; the AlpenFlight list/form PNGs
+          # the flight-migration-parity spec wrote under alpenflight/web/test-results
+          # (alpenflight-flights-{list,form}.png, captured on a POPULATED list +
+          # form — J-1 T-22 lesson). Same fixed-name + paired legacy↔AlpenFlight
+          # per-view contract as J-1.
+          add_shot "/tmp/fls-e2e-results" "legacy-flight-list.png" "J-2" "legacy" "list" \
+            "Legacy flsweb: the seeded flight list (Status · Date · Glider plane · Pilot/2nd crew · Start location · Takeoff · Landing · Glider duration · Towing plane · Towing pilot · Tow landing · Tow duration · Comment) — the glider + paired tow column set to eyeball against AlpenFlight's /flights logbook"
+          add_shot "/tmp/fls-e2e-results" "legacy-flight-form.png" "J-2" "legacy" "form" \
+            "Legacy flsweb: one flight's edit form, the full glider + tow field set (date, glider aircraft/pilot/times, towplane registration + tow pilot/times)"
+          add_shot "alpenflight/web/test-results" "alpenflight-flights-list.png" "J-2" "alpenflight" "list" \
+            "AlpenFlight: the /flights logbook with a created glider flight (AEROTOW) + its linked TOW row"
+          add_shot "alpenflight/web/test-results" "alpenflight-flights-form.png" "J-2" "alpenflight" "form" \
+            "AlpenFlight: the flight edit form (3-step glider/tow wizard), the populated field set to compare against legacy"
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
@@ -883,12 +942,12 @@ jobs:
           docker compose -p fls-e2e           -f docker-compose.yml                 down -v --remove-orphans || true
           docker network rm alpenflight_shared || true
 
-      # Surface the J-1 legacy aircraft parity-video outcome for visibility, but
-      # it is a NON-BLOCKING parity aid (operator: AlpenFlight green is the gate),
-      # so it is NOT part of the hard-fail condition — only the J-0c legacy create
-      # spec + the AlpenFlight parity specs gate this job.
+      # Surface the J-1 aircraft + J-2 flight legacy parity-video outcomes for
+      # visibility, but they are NON-BLOCKING parity aids (operator: AlpenFlight
+      # green is the gate), so they are NOT part of the hard-fail condition — only
+      # the J-0c legacy create spec + the AlpenFlight parity specs gate this job.
       - name: Mark job failed if a gating spec was red (post-publish)
         if: ${{ steps.legacy-pw.outcome != 'success' || steps.pw.outcome != 'success' }}
         run: |
-          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs: ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}" >&2
+          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs (J-0c+J-1+J-2): ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}; legacy J-2 flight parity video (non-blocking): ${{ steps.legacy-pw-flight.outcome }}" >&2
           exit 1
