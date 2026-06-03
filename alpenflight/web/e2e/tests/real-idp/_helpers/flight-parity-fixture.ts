@@ -149,11 +149,21 @@ interface AircraftListItem {
   immatriculation: string;
 }
 
-/** `GET /api/v1/flights` list-item projection (the SPA's generated `FlightListItem`). */
+/**
+ * `GET /api/v1/flights` list-item projection (the SPA's generated `FlightListItem`).
+ * NB: the list projection carries NO `towFlightId` — the tow self-FK link is a
+ * DETAIL-only field (`FlightDetail`, `GET /api/v1/flights/{id}`), exactly as the
+ * migrated-render spec reads it. Owner-detection resolves the link via the detail
+ * endpoint, not off the list row (J-2 T-19).
+ */
 interface FlightListItem {
   id: string;
   aircraftId: string;
   flightAircraftType: string;
+}
+
+/** `GET /api/v1/flights/{id}` detail projection — the only place `towFlightId` lands. */
+interface FlightDetail {
   towFlightId?: string | null;
 }
 
@@ -303,10 +313,18 @@ async function loginableAdmin(clubId: string): Promise<MigratedClubAdmin> {
 /**
  * `true` when this tenant (resolved off `bearer`'s `clubId` claim) owns the
  * migrated glider+tow paired flight: a GLIDER-type flight whose `aircraftId`
- * resolves to the migrated glider immatriculation AND which carries a
+ * resolves to the migrated glider immatriculation AND whose DETAIL carries a
  * `towFlightId` to a distinct TOW-type flight (the migrated paired pair). The
  * cross-tenant club carries a lone glider flight with NO tow link, so it is
  * NOT mistaken for the owner. Uses the SAME read APIs the parity spec asserts on.
+ *
+ * The tow self-FK link is a DETAIL-only field — the `/api/v1/flights` LIST
+ * projection (`FlightListItem`) does NOT carry `towFlightId`, so the link is
+ * confirmed by GETting the candidate glider's detail (`GET /flights/{id}` →
+ * `FlightDetail.towFlightId`), exactly as the `:560` migrated-render spec does.
+ * (J-2 T-19: the prior owner-detection read `towFlightId` off the list row — a
+ * field the list API never returns — so it resolved no owner even though the
+ * migrated pair ingested correctly and rendered.)
  */
 async function tenantOwnsMigratedPair(api: APIRequestContext, bearer: string): Promise<boolean> {
   const acRes = await api.get('/api/v1/aircraft', { headers: { authorization: bearer } });
@@ -325,15 +343,30 @@ async function tenantOwnsMigratedPair(api: APIRequestContext, bearer: string): P
   }
   const body = (await flRes.json()) as { items: FlightListItem[] };
   const items = body.items ?? [];
-  // The migrated glider flight: GLIDER type, on the migrated glider aircraft,
-  // linked to a tow flight that is itself a distinct TOW-type row in this club.
-  return items.some(
-    (f) =>
-      f.flightAircraftType === 'GLIDER' &&
-      f.aircraftId === glider.id &&
-      !!f.towFlightId &&
-      items.some((t) => t.id === f.towFlightId && t.flightAircraftType === 'TOW'),
+  // Candidate glider flights: GLIDER type on the migrated glider aircraft.
+  const gliderFlights = items.filter(
+    (f) => f.flightAircraftType === 'GLIDER' && f.aircraftId === glider.id,
   );
+  // Confirm the paired-tow link via the DETAIL endpoint (the only place the tow
+  // self-FK surfaces) and that the linked flight is a distinct TOW-type row.
+  for (const candidate of gliderFlights) {
+    const detRes = await api.get(`/api/v1/flights/${candidate.id}`, {
+      headers: { authorization: bearer },
+    });
+    if (!detRes.ok()) {
+      continue;
+    }
+    const detail = (await detRes.json()) as FlightDetail;
+    const towFlightId = detail.towFlightId;
+    if (!towFlightId) {
+      continue;
+    }
+    const tow = items.find((t) => t.id === towFlightId);
+    if (tow && tow.flightAircraftType === 'TOW') {
+      return true;
+    }
+  }
+  return false;
 }
 
 const PER_CLUB_LOGIN_BUDGET_MS = 12_000;
@@ -513,7 +546,12 @@ export async function seedFlightMasterdata(
 
   const gliderFlightType = await postJson(api, bearer, '/api/v1/flight-types', {
     flightTypeName: `J2 Local ${tag}`,
-    flightCode: 'J2L',
+    // The flight-code is unique per (operating_club_id, flight_code) — V3
+    // ux_flight_type_club_code. Tag it with the run-scoped suffix (as the name
+    // already is) so a Playwright retry's beforeAll re-seed, or a prior attempt
+    // that already inserted, never collides on a hardcoded literal (J-2 T-19:
+    // a hardcoded `J2L` 500'd the 2nd seed → the pilot option never rendered).
+    flightCode: `J2L${tag}`.slice(0, 30),
     isInstructorRequired: false,
     isObserverPilotOrInstructorRequired: false,
     isCheckFlight: false,
