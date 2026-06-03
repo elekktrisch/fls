@@ -1,6 +1,8 @@
 ---
 id: S-162
-rolled_up_into: J-1
+# Descoped from J-1 at ship time (operator, 2026-06-03): no legacy parity exists for a
+# sysadmin aircraft variant — stays todo for its own admin journey. See J-1 Parity decisions.
+descoped_from: J-1
 title: Sysadmin variant for Aircraft register (`/api/v1/admin/aircraft` with explicit managingClubId)
 epic: E-03
 status: todo
