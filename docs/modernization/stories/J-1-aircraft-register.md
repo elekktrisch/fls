@@ -414,10 +414,17 @@ eyeballing, rendered in the proof gallery; and **deliver proof via a gallery lin
   screenshot fails it. Committed `fixtures/screenshots/` (sidecar + 4 dummy 1×1 PNGs) so `pnpm proof:gallery`
   default-dir works. README "Parity screenshots (J-1+)" section added. *(seam honored: one — generator
   rendering + fanout staging.)*
-- [ ] **T-21** — Make the fanout gallery reachable via a **link pre-merge**: deploy it to a branch-namespaced
+- [x] **T-21** — Make the fanout gallery reachable via a **link pre-merge**: deploy it to a branch-namespaced
   preview on `workflow_dispatch` (mirror J-25's per-branch proof-preview), since today the fanout gh-pages
   deploy is `github.ref == main`-gated (artifact-only on a branch). So a clickable proof-gallery URL exists
   before merge. *(seam: alpenflight-proof-fanout.yml deploy step → branch preview)*
+  Done: added `Compute fan-out branch-preview destination` (id: preview, sanitizes `github.ref_name` —
+  workflow_dispatch has no head_ref — with the sed byte-identical to ci.yml/reaper) + `Deploy fan-out gallery
+  to gh-pages (branch preview)` (`peaceiris/actions-gh-pages@v4`, `keep_files: true`, disjoint
+  `destination_dir: alpenflight/proof-preview/<ref>/j-0c-fanout`) + `Emit fan-out preview URL` (`::notice::` +
+  `$GITHUB_STEP_SUMMARY`). All three gated `workflow_dispatch && ref != main && gallery success`. Main deploy
+  (step 42) left intact; job's `contents: write` covers the push. Nested under the same `proof-preview/<ref>/`
+  parent the reaper reaps. Preview URL: `https://elekktrisch.github.io/fls/alpenflight/proof-preview/<sanitized-ref>/j-0c-fanout/`.
 
 Then re-dispatch fanout → gallery (videos + paired screenshots) deploys to the branch preview → **post the
 gallery LINK** (not files). Operator merges `integration/J-1`.

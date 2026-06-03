@@ -732,6 +732,77 @@ jobs:
           enable_jekyll: false
           commit_message: "J-0c fan-out proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
 
+      # ========================================================================
+      # J-1 T-21 — BRANCH-PREVIEW deploy. The main deploy above is
+      # `github.ref == main`-gated, so a `workflow_dispatch` from a feature
+      # branch produces an artifact only (no clickable URL). Mirror ci.yml's
+      # proven J-25 per-branch proof-preview pattern so the fan-out gallery
+      # (legacy↔AlpenFlight videos + the T-19/T-20 paired parity screenshots) is
+      # reachable via a LINK before merge.
+      #
+      # workflow_dispatch has NO github.head_ref (that's a PR-only field); the
+      # fanout runs ON the dispatched branch, so sanitize github.ref_name (the
+      # short branch name, e.g. `integration/J-1` → `integration-J-1`). The sed
+      # is byte-identical to ci.yml's J-25 preview step + proof-preview-reap.yml
+      # so the reaper deletes the right subpath on PR close (the fanout subpath
+      # nests UNDER the same `alpenflight/proof-preview/<ref>/` parent the reaper
+      # recursively removes).
+      #
+      # Disjoint destination: `alpenflight/proof-preview/<ref>/j-0c-fanout`.
+      # keep_files:true + this per-branch+nested path mean the preview deploy can
+      # NEVER clobber the canonical /alpenflight/proof/j-0c-fanout/ (main), the
+      # top index, or another branch's preview.
+      - name: Compute fan-out branch-preview destination
+        id: preview
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # SANITIZE RULE — keep byte-for-byte identical to
+          # .github/workflows/ci.yml's `Compute proof-preview destination` step
+          # AND .github/workflows/proof-preview-reap.yml. The reaper derives the
+          # `alpenflight/proof-preview/<sanitized>` parent from the branch ref and
+          # recursively removes it on PR close; our fan-out preview nests under
+          # that SAME parent (.../j-0c-fanout), so a drift here orphans the subdir.
+          sanitized="$(printf '%s' "$REF_NAME" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}/j-0c-fanout"
+          url="https://elekktrisch.github.io/fls/${subdir}/"
+          {
+            echo "subdir=${subdir}"
+            echo "url=${url}"
+          } >> "$GITHUB_OUTPUT"
+          echo "fan-out proof preview → ${url}"
+
+      - name: Deploy fan-out gallery to gh-pages (branch preview)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/alpenflight/proof
+          destination_dir: ${{ steps.preview.outputs.subdir }}
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "fan-out proof preview: ${{ steps.pw.outcome }} for ${{ github.ref_name }} (${{ github.sha }})"
+
+      # Emit the clickable preview URL to BOTH the job summary and a ::notice::
+      # log line so it's grep-able from the dispatched run (the operator gets the
+      # link, not a chat dump of files). Runs only when the branch-preview deploy
+      # actually published (same gate as the deploy).
+      - name: Emit fan-out preview URL
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          echo "::notice title=Fan-out proof preview::${PREVIEW_URL}"
+          {
+            echo "## Fan-out proof gallery (branch preview)"
+            echo ""
+            echo "Legacy↔AlpenFlight parity videos + T-19/T-20 paired screenshots:"
+            echo ""
+            echo "**${PREVIEW_URL}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Stop backend
         if: always()
         run: |
