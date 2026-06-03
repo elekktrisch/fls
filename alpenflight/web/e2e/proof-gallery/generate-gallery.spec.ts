@@ -261,7 +261,13 @@ describe('generateGallery — parity screenshots (T-20)', () => {
     const { generateGallery } = await loadGenerator();
     const dir = mkdtempSync(resolve(tmpdir(), 'gallery-shots-'));
     const screenshotsDir = makeShotDir(dir, [
-      { journey: 'J-1', side: 'legacy', view: 'list', file: 'legacy-aircraft-list.png', caption: '' },
+      {
+        journey: 'J-1',
+        side: 'legacy',
+        view: 'list',
+        file: 'legacy-aircraft-list.png',
+        caption: '',
+      },
     ]);
 
     expect(() =>
