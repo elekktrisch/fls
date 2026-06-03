@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: in_progress  # reopened 2026-06-03 (2nd): operator wants legacy↔new list+form parity SCREENSHOTS in the gallery + a link (T-19/T-20/T-21)
+status: done  # PR-required gate GREEN (HEAD b4b461ef); fanout green incl. parity screenshots + branch-preview gallery
 started_at: 2026-06-02
-done_at: 2026-06-03  # provisional — core done + PR-gate green; re-confirm after the screenshot tasks
+done_at: 2026-06-03
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
