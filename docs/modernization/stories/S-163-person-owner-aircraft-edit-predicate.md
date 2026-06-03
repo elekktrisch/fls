@@ -1,5 +1,6 @@
 ---
 id: S-163
+rolled_up_into: J-1
 title: Extend `AircraftAccess.canEdit` to admit the person matching `aircraft_owner_person_id`
 epic: E-07
 status: todo

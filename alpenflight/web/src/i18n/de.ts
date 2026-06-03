@@ -5,6 +5,55 @@
  * compile errors until they add the same key.
  */
 const de = {
+  aircraft: {
+    blastRadiusBanner: 'Vereinsstammdaten — Änderungen wirken nur für deinen Verein.',
+    deleteConfirm:
+      'Flugzeug «{{immatriculation}}» löschen? Dies kann nicht rückgängig gemacht werden.',
+    edit: {
+      title: 'Flugzeug bearbeiten',
+      titleNew: 'Neues Flugzeug',
+    },
+    errors: {
+      immatriculationDuplicate: 'Immatrikulation wird bereits verwendet.',
+    },
+    fields: {
+      comment: 'Bemerkung',
+      competitionSign: 'Wettbewerbszeichen',
+      daecIndex: 'DAEC-Index',
+      flarmId: 'FLARM-ID',
+      homebase: 'Heimatflugplatz',
+      immatriculation: 'Immatrikulation',
+      manufacturer: 'Hersteller',
+      model: 'Modell',
+      mtom: 'MTOM (kg)',
+      noiseClass: 'Lärmklasse',
+      noiseLevel: 'Lärmpegel (dB)',
+      seats: 'Sitze',
+      serialNumber: 'Seriennummer',
+      spotLink: 'SPOT-Tracker-Link',
+      type: 'Typ',
+      yearOfManufacture: 'Baujahr',
+    },
+    list: {
+      columns: {
+        manufacturer: 'Hersteller',
+        model: 'Modell',
+        seats: '{{count}} Sitze',
+      },
+      readonlyBanner:
+        'Schreibgeschützt. Die Flugzeuge deines Vereins werden von deinem Vereinsadministrator verwaltet.',
+      typeFilter: {
+        label: 'Nach Typ filtern',
+      },
+    },
+    new: 'Neues Flugzeug',
+    sections: {
+      masterdata: 'Stammdaten',
+      operational: 'Betriebliche Daten',
+      technical: 'Technische Daten',
+    },
+    title: 'Flugzeuge',
+  },
   landing: {
     actions: {
       requestAccess: 'Zugang anfragen',

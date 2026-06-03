@@ -29,25 +29,27 @@ invent a parallel convention.
 
 ## Gate: parity videos, parallel CI, helper tags
 
-- **Paired videos.** When the journey has a legacy counterpart, capture two
-  videos at the gate so the operator can eyeball UI parity: the legacy `flsweb`
-  drive on the **seeded** data + the AlpenFlight real-chain run on the
-  **migrated** data. Same data lineage → comparable. Reuse the top-level `e2e/`
-  legacy specs where they exist; author a minimal drive only if none does. A
-  **review aid, not a pass/fail** — the AlpenFlight green is the gate. Greenfield
-  → AlpenFlight video alone, note "no legacy counterpart."
+- **Paired videos + screenshots.** For a legacy-replacing screen, capture for UI-parity:
+  legacy `flsweb` + AlpenFlight real-chain **videos**, AND paired legacy↔AlpenFlight
+  **list+form screenshots** (declare via a sidecar the gallery pairs by `side`×`view`).
+  Capture the AlpenFlight list **populated** — create ≥3 rows showing every column (J-1
+  T-22: an empty "No Data" shot proves nothing). Reuse `e2e/` legacy specs; drive only if
+  none. Review aid, not pass/fail; greenfield → AlpenFlight-only.
 - **Two parallel jobs.** Own the journey-gate workflow under `.github/workflows/`:
   `alpenflight-proof` (required check; brings up legacy→seed→migrate→real,
   uploads the pass video) and `parity-legacy-video` (non-blocking; legacy
   FLS+`flsweb` drive on the same fixture, uploads the legacy video). Both seed
   independently from the **deterministic** fixture, so they run in parallel with
   no shared state.
-- **Helper tags.** An e2e case that exercises *logic / an error case* rather than
-  UI↔backend↔DB wiring is a **helper**: tag it `@helper` with a `covered-by:
-  <IntegrationTest>` pointer to the cheaper test that should own it. NEVER tag the
-  journey's wiring / happy-path spec as a helper — that one is irreplaceable.
-  `/do-retro` files a pruning story for verified helpers (cheaper test exists +
-  passes); `/do-ship` does the actual deletion.
+- **A proof the operator can't click isn't done.** Deploy the heavy-chain gallery to a
+  **journey-agnostic namespaced subpath** (`destination_dir`+`keep_files`, never
+  `publish_dir: public`; not a per-journey name — J-1 T-23 `j-0c` stale), branch-preview it
+  pre-merge, and **auto-post the gallery link as a sticky PR comment** (resolve the PR from
+  `github.ref_name` on dispatch; fail-soft). J-0c/J-1 hit reactive T-24/T-25/T-23/T-25.
+- **Helper tags.** An e2e case exercising *logic / an error case* (not
+  UI↔backend↔DB wiring) is a **helper**: tag `@helper` + `covered-by:
+  <IntegrationTest>`. NEVER tag the wiring/happy-path spec — it's irreplaceable.
+  `/do-retro` files the pruning story for verified helpers; `/do-ship` deletes.
 
 ## Proof-chain rules
 
@@ -55,36 +57,32 @@ invent a parallel convention.
   no mocking. Any mocked seam (edge/error only) carries an inline
   `@mocked: <seam> — <reason>` tag AND goes in the PR "Mocked seams" list.
   Undeclared mocks make the chain red.
-- **Journey-0 builds the thinnest whole chain.** If no chain exists yet, your
-  job is to stand up the orchestration (legacy-up + migrate + Keycloak realm
-  import + real Playwright config, e.g. `playwright.config.next.ts`) for ONE
-  already-built screen — the minimum that proves the architecture, not a
-  general framework.
-- **Each later journey extends it.** Add this entity's legacy seed (enough data
-  to exercise the [happy] + [key-error] cases) and the per-entity migration
-  mapper, then the real-stack spec. Reuse the Journey-0 Keycloak test users;
-  extend the realm seed only when the journey touches identity.
-- **Clean-seed and migrated runs are the same spec at two fidelities**, not two
-  specs. The gate runs both; both must be green.
+- **Journey-0 built the thinnest whole chain** (done). Each later journey extends it:
+  add the entity's legacy seed ([happy] + [key-error] data) + the per-entity mapper, then
+  the real-stack spec. Reuse the J-0 Keycloak users; extend the realm seed only on identity.
+- **Migration journeys need a real-export run, not just synth.** Synth bundles use aliased
+  columns and never hit the producer SELECT against the real legacy schema — dispatch the
+  real-export `fanout` before "done" (J-1 T-16: producer-column bugs hid behind synth green).
+  [[project_synth_bundle_doesnt_validate_producer_select]].
+- **Co-located migration-ingest specs need distinct principals.** Two specs POSTing a bundle
+  in one Playwright invocation must ingest as DIFFERENT migration admins (own Keycloak user +
+  `t_user`) — same principal → `DEPLOYMENT_EXISTS 409` (J-1 T-17).
+- **Clean-seed and migrated runs are the same spec at two fidelities**; the gate runs both.
 
 ## How you work
 
-- **Search posture.** Default to the IntelliJ MCP (`search_in_files_by_regex`,
-  `find_files_by_glob`, `search_symbol`) to find existing fixtures/specs/selectors
-  and the codebase-memory-mcp for past flake fixes, over raw grep. Fall back to
-  `Grep`/`Glob` only when no MCP is connected.
-- Reuse fixtures (`e2e/fixtures.ts`, `*TestFixtures.java`, `LegacyExtractFixtureSeeder`)
-  before writing new ones. The legacy-extract module already reads legacy data —
-  build on it, don't reinvent.
-- Flake-proof: explicit waits on app state, never `waitForTimeout`; respect the
-  zoneless rules (no setTimeout-driven view updates). Use `trace: retain-on-failure`
-  for debugging; switch gate specs to retain **video on pass**.
-- Honor the wallclock budget: keep the inner loop fast (mock/Testcontainers);
-  push the heavy full chain to the gate only. If the gate run exceeds ~5 min,
-  surface sharding / snapshot-reuse options rather than silently re-running.
-- When a run is red, diagnose to a file:line cause and either fix the spec (if
-  the spec is wrong) or report the app-side gap precisely (if the app is wrong)
-  — don't paper over a real gap by loosening an assertion.
+- **Search posture.** Prefer the IntelliJ MCP + codebase-memory-mcp (fixtures, specs,
+  selectors, past flake fixes) over raw grep; `Grep`/`Glob` only with no MCP. Reuse fixtures
+  (`e2e/fixtures.ts`, `*TestFixtures.java`, `LegacyExtractFixtureSeeder`) before writing new.
+- **Format before commit.** You commit specs directly — run `prettier --write` on touched TS
+  over the full `e2e/**/*.{ts,json}` glob (not `--check`), or a format-only red burns a whole
+  gate round (J-1 T-20/T-22 each did).
+- Flake-proof: explicit waits on app state, never `waitForTimeout`; respect zoneless rules.
+  `trace: retain-on-failure` for debugging; gate specs retain **video on pass**.
+- Honor the wallclock budget: inner loop fast (mock/Testcontainers), heavy chain at the gate
+  only; over ~5 min, surface sharding / snapshot-reuse rather than silently re-running.
+- When red, diagnose to a file:line cause — fix the spec if it's wrong, or report the app-side
+  gap precisely; never paper over a real gap by loosening an assertion.
 
 ## Output
 

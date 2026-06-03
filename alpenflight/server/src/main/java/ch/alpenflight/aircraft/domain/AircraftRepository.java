@@ -34,7 +34,10 @@ public interface AircraftRepository {
                    @Nullable Boolean aircraftTypeHasEngine,
                    boolean towingAircraft,
                    @Nullable String currentStateCode,
-                   @Nullable Boolean currentStateFlyable) {}
+                   @Nullable Boolean currentStateFlyable,
+                   @Nullable String manufacturerName,
+                   @Nullable String aircraftModel,
+                   @Nullable Integer nrOfSeats) {}
 
     /**
      * Projection row for the slim {@code GET /api/v1/aircraft/picker}

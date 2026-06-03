@@ -1,6 +1,54 @@
 import type { Translations } from './de';
 
 const it: Translations = {
+  aircraft: {
+    blastRadiusBanner: 'Dati anagrafici del club — le modifiche valgono solo per il tuo club.',
+    deleteConfirm: 'Eliminare l’aeromobile «{{immatriculation}}»? L’operazione è irreversibile.',
+    edit: {
+      title: 'Modifica aeromobile',
+      titleNew: 'Nuovo aeromobile',
+    },
+    errors: {
+      immatriculationDuplicate: 'L’immatricolazione è già in uso.',
+    },
+    fields: {
+      comment: 'Commento',
+      competitionSign: 'Sigla di gara',
+      daecIndex: 'Indice DAEC',
+      flarmId: 'ID FLARM',
+      homebase: 'Base di partenza',
+      immatriculation: 'Immatricolazione',
+      manufacturer: 'Costruttore',
+      model: 'Modello',
+      mtom: 'MTOM (kg)',
+      noiseClass: 'Classe di rumore',
+      noiseLevel: 'Livello di rumore (dB)',
+      seats: 'Posti',
+      serialNumber: 'Numero di serie',
+      spotLink: 'Link tracker SPOT',
+      type: 'Tipo',
+      yearOfManufacture: 'Anno di costruzione',
+    },
+    list: {
+      columns: {
+        manufacturer: 'Costruttore',
+        model: 'Modello',
+        seats: '{{count}} posti',
+      },
+      readonlyBanner:
+        'Sola lettura. Gli aeromobili del tuo club sono gestiti dall’amministratore del club.',
+      typeFilter: {
+        label: 'Filtra per tipo',
+      },
+    },
+    new: 'Nuovo aeromobile',
+    sections: {
+      masterdata: 'Dati anagrafici',
+      operational: 'Dati operativi',
+      technical: 'Dati tecnici',
+    },
+    title: 'Aeromobili',
+  },
   landing: {
     actions: {
       requestAccess: 'Richiedi l’accesso',

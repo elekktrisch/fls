@@ -2,8 +2,10 @@ package ch.alpenflight.migration.bundle.flight;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -32,8 +34,8 @@ import java.util.UUID;
  * {@code TENANT_BYPASS_ALLOW_LIST}), {@link EntityType#LOCATION}
  * ({@code homebase_id} — cross-tenant ride-through into the tenant-scoped
  * Location replica matching the Aircraft's managing club).
- * {@code aircraft_type_id} + the two counter-unit-type FKs resolve through
- * V3's seeded {@code legacy_int_id} map — those entities live outside
+ * {@code aircraft_type_id} resolves through V3's seeded {@code legacy_int_id}
+ * map and the two counter-unit-type FKs through V25's — those entities live outside
  * {@link EntityType} and are not per-bundle dependencies.
  *
  * <p>Mapper-side {@code spot_link} {@code ^https://} reject at
@@ -151,6 +153,64 @@ public final class AircraftMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB, EntityType.PERSON, EntityType.LOCATION);
+    }
+
+    /**
+     * AIRCRAFT's FK columns are off the {@code <target>_id} convention, so each
+     * {@code (column, target)} pair is declared explicitly (S-187a / T-05b):
+     *
+     * <ul>
+     *   <li>{@code managing_club_id} + {@code owner_club_id} → CLUB — one target
+     *       reached through TWO columns, which the convention cannot express;</li>
+     *   <li>{@code aircraft_owner_person_id} → PERSON — off-convention name;</li>
+     *   <li>{@code homebase_id} → LOCATION ({@link EntityType#fansOut()}) — the
+     *       per-club replica is disambiguated by the aircraft's OWN
+     *       {@code managing_club_id}, NOT the resolver's default {@code club_id}
+     *       referencer field (which this row never carries). By declaration order
+     *       {@code managing_club_id} is rewritten to its new-stack id before
+     *       {@code homebase_id} resolves, so the composite
+     *       {@code (legacy_guid, club_id)} lookup lands on the managing club's
+     *       Location replica.</li>
+     * </ul>
+     *
+     * <p>The {@code aircraft_type_id} + counter-unit-type FKs are NOT here: they
+     * resolve through the V3 {@code legacy_int_id} reference-lookup path
+     * ({@link #referenceLookups()}), not the GUID id-map this declares.
+     */
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        return List.of(
+                new ForeignKeyColumn(MANAGING_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(OWNER_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(AIRCRAFT_OWNER_PERSON_ID, EntityType.PERSON),
+                new ForeignKeyColumn(HOMEBASE_ID, EntityType.LOCATION, MANAGING_CLUB_ID));
+    }
+
+    /**
+     * Each column carries the synthetic {@code new UUID(0, legacyIntId)}
+     * encoding ({@link Coercions#legacyIntIdToUuidString}); the ingest pipeline
+     * resolves it to the real Flyway-seed PK by joining {@code legacy_int_id}:
+     *
+     * <ul>
+     *   <li>{@code aircraft_type_id} → {@code t_aircraft_type} (legacy
+     *       {@code AircraftTypeId}, V3 seed).</li>
+     *   <li>{@code flight_operating_counter_unit_type_id} +
+     *       {@code engine_operating_counter_unit_type_id} →
+     *       {@code t_counter_unit_type} (legacy
+     *       {@code Flight/EngineOperatingCounterUnitTypeId}). V25 backfilled
+     *       {@code t_counter_unit_type.legacy_int_id} (legacy {@code 1}=Minutes,
+     *       {@code 2}=2-decimals-per-hour); before that the producer's emitted
+     *       synthetic UUIDs had nothing to resolve against.</li>
+     * </ul>
+     */
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        return List.of(
+                new ReferenceLookup(AIRCRAFT_TYPE_ID, "t_aircraft_type"),
+                new ReferenceLookup(
+                        FLIGHT_OPERATING_COUNTER_UNIT_TYPE_ID, "t_counter_unit_type"),
+                new ReferenceLookup(
+                        ENGINE_OPERATING_COUNTER_UNIT_TYPE_ID, "t_counter_unit_type"));
     }
 
     @Override

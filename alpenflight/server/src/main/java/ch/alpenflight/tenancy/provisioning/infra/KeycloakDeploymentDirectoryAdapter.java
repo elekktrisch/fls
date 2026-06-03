@@ -198,12 +198,16 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
     }
 
     @Override
-    public UUID provisionClubAdminIdentity(UUID clubId, String username, String email) {
+    public UUID provisionClubAdminIdentity(UUID clubId, String username, String email,
+                                           String firstName, String lastName) {
         Objects.requireNonNull(clubId, "clubId");
         Objects.requireNonNull(username, "username");
         Objects.requireNonNull(email, "email");
+        Objects.requireNonNull(firstName, "firstName");
+        Objects.requireNonNull(lastName, "lastName");
 
-        UUID sub = createClubAdminUserOrResolveExisting(clubId, username, email);
+        UUID sub = createClubAdminUserOrResolveExisting(
+                clubId, username, email, firstName, lastName);
 
         // Static realm role (realm-export fixture), not a per-Deployment
         // dynamic role — so it's resolved by its fixed name, not minted.
@@ -218,16 +222,9 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
         return sub;
     }
 
-    private UUID createClubAdminUserOrResolveExisting(UUID clubId, String username, String email) {
-        Map<String, Object> body = Map.of(
-                "username", username,
-                "email", email,
-                "enabled", true,
-                "emailVerified", false,
-                "requiredActions", List.of("UPDATE_PASSWORD"),
-                "attributes", Map.of(
-                        KeycloakDeploymentNames.CLUB_ID_USER_ATTRIBUTE,
-                        List.of(clubId.toString())));
+    private UUID createClubAdminUserOrResolveExisting(UUID clubId, String username, String email,
+                                                      String firstName, String lastName) {
+        Map<String, Object> body = clubAdminUserBody(clubId, username, email, firstName, lastName);
         try {
             ResponseEntity<Void> response = http.post()
                     .uri(props.adminBase() + "/users")
@@ -253,6 +250,34 @@ public class KeycloakDeploymentDirectoryAdapter implements KeycloakDeploymentDir
                             + username);
         }
         return existing;
+    }
+
+    /**
+     * Builds the {@code POST /admin/realms/{realm}/users} representation for
+     * a migrated club admin. Extracted + package-private so the
+     * adapter-boundary unit test can assert the wire shape carries
+     * firstName/lastName (no real realm in the local test path).
+     *
+     * <p>firstName/lastName are load-bearing: the realm's declarative
+     * user-profile marks both {@code required} for {@code user}-roled
+     * accounts, so a blank name triggers {@code VERIFY_PROFILE} on first
+     * login. Setting them at mint time keeps the migrated admin loginable in
+     * one shot (J-1 T-06 — replaces the e2e {@code makeMigratedAdminLoginable}
+     * name fixup).
+     */
+    static Map<String, Object> clubAdminUserBody(UUID clubId, String username, String email,
+                                                 String firstName, String lastName) {
+        return Map.of(
+                "username", username,
+                "email", email,
+                "firstName", firstName,
+                "lastName", lastName,
+                "enabled", true,
+                "emailVerified", false,
+                "requiredActions", List.of("UPDATE_PASSWORD"),
+                "attributes", Map.of(
+                        KeycloakDeploymentNames.CLUB_ID_USER_ATTRIBUTE,
+                        List.of(clubId.toString())));
     }
 
     private @Nullable UUID findUserIdByUsername(String username) {

@@ -57,16 +57,29 @@ Deep-carve a single journey JIT, just before `/do-ship` needs it. `next` =
 the first roadmap journey whose `depends_on` are all done.
 
 1. Pull the journey's roll-up stories + their refinement; read the legacy
-   screen(s) it replaces.
+   screen(s) it replaces. Also scan `docs/modernization/stories/_BOYSCOUT.md` for
+   pending riders that touch this journey's surface — note them in the journey file
+   so `/do-ship` folds them into the task list (they ride forward, not as own stories).
 2. For the load-bearing behavior the implementer can't derive from code alone,
    you MAY dispatch `legacy-oracle` now — but it's cheap to defer to ship time.
    Carve captures *shape + contract*; the oracle captures *exact behavior*.
-3. Write the journey file (format below) with `status: todo`, `carved: true`.
+3. Write the journey file (format below) with `status: todo`, `carved: true`;
+   stamp `rolled_up_into: J-NNN` on each story it absorbs.
+4. **Land the carve on `integration/J-NNN` and push** — so `/do-ship` resumes it,
+   not re-creates it. Pick the base deliberately:
+   - `git fetch origin` first. **Never carve off a stale/merged local branch** (the
+     branch you're sitting on may have merged + been deleted on the remote).
+   - Base on the **current integration line**: latest `origin/main` — *unless* an
+     unmerged `/do-retro` just produced `_BOYSCOUT.md` + suite edits, in which case base
+     on **that retro branch** so the riders + tuned skills ride this same journey (they
+     merge with it — the fix-forward path). `git checkout -b integration/J-NNN <base>`.
+   - Commit the journey file + `rolled_up_into` stamps (carrying the retro commit if it's
+     the base), then `git push -u origin integration/J-NNN`. Print the branch name.
 
 Do **not** decompose into tasks here — that's `/do-ship`'s job at ship time
 (with fresh full context on the current code), and each task runs in its own
-clean-context `/do-task` worker on the journey's `integration/J-NNN` branch.
-`/do-plan` stops at the journey + its spec contract.
+clean-context `/do-task` worker on `integration/J-NNN` (now already created + pushed).
+`/do-plan` stops at the journey file + its spec contract on that branch.
 
 ## Journey definition
 
@@ -134,10 +147,12 @@ later). Leave `implemented/` alone.
 - **Mode A:** print the sequenced roadmap, Journey-0 pick, escalations,
   superseded-story list, `## Assumptions made`. Tell operator: review, then
   `/do-ship J-NNN`.
-- **Mode B:** print the carved journey's ACs + spec contract + migration shape.
-  Tell operator: `/do-ship J-NNN`.
+- **Mode B:** print the carved journey's ACs + spec contract + migration shape +
+  the **pushed `integration/J-NNN` branch** (and its base — main, or a ridden retro).
+  Tell operator: `/do-ship J-NNN` (it resumes that branch).
 
 ## Not in scope
 
 Building anything (that's `/do-ship`), refining `implemented/` stories, touching
-the 47 done. Suite/ADR/backlog *learning* changes are `/do-retro`'s.
+the 47 done. Suite/ADR/backlog *learning* changes are `/do-retro`'s. (Creating +
+pushing the empty `integration/J-NNN` with just the carve is placement, not building.)

@@ -23,4 +23,7 @@ export type AircraftListItem = {
   isTowingAircraft: boolean;
   currentStateCode?: string;
   currentStateFlyable?: boolean;
+  manufacturerName?: string;
+  aircraftModel?: string;
+  nrOfSeats?: number;
 };

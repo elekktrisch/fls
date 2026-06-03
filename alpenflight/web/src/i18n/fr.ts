@@ -1,6 +1,55 @@
 import type { Translations } from './de';
 
 const fr: Translations = {
+  aircraft: {
+    blastRadiusBanner:
+      'Données de référence du club — les modifications n’affectent que votre club.',
+    deleteConfirm: 'Supprimer l’aéronef « {{immatriculation}} » ? Cette action est irréversible.',
+    edit: {
+      title: 'Modifier l’aéronef',
+      titleNew: 'Nouvel aéronef',
+    },
+    errors: {
+      immatriculationDuplicate: 'L’immatriculation est déjà utilisée.',
+    },
+    fields: {
+      comment: 'Commentaire',
+      competitionSign: 'Indicatif de compétition',
+      daecIndex: 'Indice DAEC',
+      flarmId: 'Identifiant FLARM',
+      homebase: 'Base d’attache',
+      immatriculation: 'Immatriculation',
+      manufacturer: 'Constructeur',
+      model: 'Modèle',
+      mtom: 'MTOM (kg)',
+      noiseClass: 'Classe de bruit',
+      noiseLevel: 'Niveau de bruit (dB)',
+      seats: 'Sièges',
+      serialNumber: 'Numéro de série',
+      spotLink: 'Lien du traceur SPOT',
+      type: 'Type',
+      yearOfManufacture: 'Année de construction',
+    },
+    list: {
+      columns: {
+        manufacturer: 'Constructeur',
+        model: 'Modèle',
+        seats: '{{count}} places',
+      },
+      readonlyBanner:
+        'Lecture seule. Les aéronefs de votre club sont gérés par votre administrateur de club.',
+      typeFilter: {
+        label: 'Filtrer par type',
+      },
+    },
+    new: 'Nouvel aéronef',
+    sections: {
+      masterdata: 'Données de base',
+      operational: 'Données opérationnelles',
+      technical: 'Données techniques',
+    },
+    title: 'Aéronefs',
+  },
   landing: {
     actions: {
       requestAccess: 'Demander un accès',

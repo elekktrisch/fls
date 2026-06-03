@@ -555,8 +555,9 @@ export async function loginAsMigratedAdmin(
   admin: MigratedClubAdmin,
   // T-23: ownership detection bounds the leave-/realms/ wait per club so a
   // single un-loginable admin can't burn 30s × N. The spec's own clubA/clubB
-  // logins (proven owners after `makeMigratedAdminLoginable` fills firstName/
-  // lastName so VERIFY_PROFILE no longer fires) keep the generous default.
+  // logins (proven owners — production `provisionClubAdminIdentity` stamps
+  // firstName/lastName at mint time so VERIFY_PROFILE never fires) keep the
+  // generous default.
   leaveRealmTimeoutMs = 30_000,
 ): Promise<void> {
   await page.goto('/');

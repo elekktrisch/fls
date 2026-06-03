@@ -211,10 +211,27 @@ public class DeploymentProvisioningService {
         List<UUID> subs = new ArrayList<>(clubIds.size());
         for (UUID clubId : clubIds) {
             String username = migratedClubAdminUsername(clubId);
-            subs.add(directory.provisionClubAdminIdentity(clubId, username, username));
+            subs.add(directory.provisionClubAdminIdentity(clubId, username, username,
+                    MIGRATED_ADMIN_FIRST_NAME, MIGRATED_ADMIN_LAST_NAME));
         }
         return subs;
     }
+
+    /**
+     * Synthetic given/family name stamped on a migrated club admin's
+     * Keycloak user. The migrated admin is a per-Club <em>service identity</em>
+     * (synthetic username {@link #migratedClubAdminUsername}, non-routable
+     * email, {@code UPDATE_PASSWORD} on first login), NOT a projection of a
+     * legacy Person row — and the Person streams don't drain until after
+     * this provisioning runs ({@code MigrationBundleIngestService}), so no
+     * real name is available here. These names exist only to satisfy the
+     * realm's declarative user-profile so Keycloak's {@code VERIFY_PROFILE}
+     * required action does not fire on first login (J-1 T-06). The operator
+     * edits the display name once a real human owns the identity.
+     */
+    static final String MIGRATED_ADMIN_FIRST_NAME = "Migrated";
+
+    static final String MIGRATED_ADMIN_LAST_NAME = "Admin";
 
     /**
      * Deterministic synthetic identity for a migrated Club admin. The

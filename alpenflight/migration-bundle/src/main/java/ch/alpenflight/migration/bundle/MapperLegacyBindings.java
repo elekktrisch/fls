@@ -1,5 +1,7 @@
 package ch.alpenflight.migration.bundle;
 
+import static java.util.Map.entry;
+
 import java.util.Map;
 
 /**
@@ -40,18 +42,18 @@ public final class MapperLegacyBindings {
             String newSchemaInsert) {
     }
 
-    private static final Map<EntityType, Binding> BINDINGS = Map.of(
-            EntityType.COUNTRY, new Binding(
+    private static final Map<EntityType, Binding> BINDINGS = Map.ofEntries(
+            entry(EntityType.COUNTRY, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
                     "SELECT CountryId, CountryCodeIso2 FROM Countries",
                     "t_country",
-                    ""),
-            EntityType.LANGUAGE, new Binding(
+                    "")),
+            entry(EntityType.LANGUAGE, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
                     "SELECT LanguageId, LanguageKey FROM Languages",
                     "t_language",
-                    ""),
-            EntityType.CLUB_STATE, new Binding(
+                    "")),
+            entry(EntityType.CLUB_STATE, new Binding(
                     PortPolicy.SYSTEM_GLOBAL,
                     // ALL legacy ClubStates (System=0/Active=1/Passive=2/Inactive=3)
                     // map to a V2 code (ClubStateMapper.v2CodeForLegacyId, J-0c T-16),
@@ -61,8 +63,8 @@ public final class MapperLegacyBindings {
                     // Dropping id=0 here would leave a System club's FK unresolved.
                     "SELECT ClubStateId FROM ClubStates",
                     "t_club_state",
-                    ""),
-            EntityType.CLUB, new Binding(
+                    "")),
+            entry(EntityType.CLUB, new Binding(
                     PortPolicy.FULL_PORT,
                     """
                     SELECT ClubId, Clubname, ClubKey, Address, Zip, City, CountryId,
@@ -102,8 +104,8 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?, ?,
                             ?, ?, ?, ?, ?, ?)
-                    """),
-            EntityType.PERSON, new Binding(
+                    """)),
+            entry(EntityType.PERSON, new Binding(
                     PortPolicy.FULL_PORT,
                     // Cross-tenant aggregate root (ADR 0008): legacy `Persons` has
                     // no own ClubId and t_person has NO club_id column, so there is
@@ -183,8 +185,8 @@ public final class MapperLegacyBindings {
                             ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
-                    """),
-            EntityType.USER, new Binding(
+                    """)),
+            entry(EntityType.USER, new Binding(
                     PortPolicy.FULL_PORT,
                     // UserMapper class Javadoc pins the system-actor filter as
                     // an ADR 0007 invariant — the bundle MUST NOT carry the
@@ -210,8 +212,8 @@ public final class MapperLegacyBindings {
                             ?, ?, ?, ?,
                             ?,
                             ?, ?, ?, ?, ?, ?)
-                    """),
-            EntityType.LOCATION, new Binding(
+                    """)),
+            entry(EntityType.LOCATION, new Binding(
                     PortPolicy.FULL_PORT,
                     // Legacy `Locations` is shared (no own ClubId); the new
                     // schema is tenant-scoped (club_id IS the @TenantId per V7).
@@ -292,8 +294,8 @@ public final class MapperLegacyBindings {
                             ?,
                             ?, ?, ?,
                             ?, ?, ?)
-                    """),
-            EntityType.INOUTBOUND_POINT, new Binding(
+                    """)),
+            entry(EntityType.INOUTBOUND_POINT, new Binding(
                     PortPolicy.FULL_PORT,
                     // Aggregate-internal child of Location; tenancy inherited via
                     // location_id (no own club_id column). But the parent Location
@@ -345,7 +347,188 @@ public final class MapperLegacyBindings {
                             ?,
                             ?, ?, ?,
                             ?, ?, ?)
-                    """));
+                    """)),
+            entry(EntityType.AIRCRAFT, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // Cross-tenant aggregate root (ADR 0008 2026-05-24 amendment):
+                    // Aircraft are globally readable (legacy has no ClubId read
+                    // filter, S-161 parity) but structurally tenant-scoped via
+                    // managing_club_id (V10). Unlike LOCATION this is NOT a fan-out
+                    // — one legacy Aircraft → exactly one t_aircraft row; legacy_guid
+                    // resolves straight to id (like PERSON/CLUB), no per-club replica.
+                    //
+                    // managing_club_id (V10, NOT NULL) is producer-computed and
+                    // aliased AS ManagingClubId on the cursor; AircraftMapper reads it
+                    // verbatim. J-1 parity decision: the source is legacy
+                    // AircraftOwnerClubId (the authored AircraftMapper cascade). The
+                    // OwnerId-vs-AircraftOwnerClubId fidelity question is a recorded
+                    // J-21/J-2 parity exclusion — not resolved here. A NULL
+                    // AircraftOwnerClubId (private-person ownership) leaves
+                    // managing_club_id NULL on the wire; the producer's drop+warn
+                    // (AIRCRAFT_NO_MANAGING_CLUB) + the homebase-club fallback are
+                    // S-139 producer logic, out of this SELECT's scope.
+                    //
+                    // aircraft_type_id source: AircraftMapper reads getInt("AircraftType")
+                    // + legacyIntIdToUuidString — the int resolves to the V3-seeded
+                    // t_aircraft_type.legacy_int_id. The real legacy column is
+                    // AircraftType (Aircrafts DDL line 114; EF Aircraft.cs maps the C#
+                    // property AircraftTypeId via [Column("AircraftType")]) — projected
+                    // verbatim, no alias needed since the mapper key IS AircraftType.
+                    // (T-16: the live export died on the prior AircraftTypeId alias —
+                    // that column does not exist in the legacy schema.)
+                    //
+                    // homebase_id (HomebaseId → t_location) is the cross-tenant
+                    // ride-through into the Location replica matching the Aircraft's
+                    // managing club (the fan-out source the LOCATION binding flagged
+                    // NOT-YET-bound; now wired here). Passed through as the legacy GUID,
+                    // resolved by the FK rewriter against the managing-club replica.
+                    //
+                    // Legacy ASP.NET artifacts dropped (not projected): OwnerId,
+                    // OwnershipType, RecordState, IsDeleted.
+                    """
+                    SELECT AircraftId, AircraftOwnerClubId AS ManagingClubId,
+                           AircraftOwnerClubId,
+                           AircraftType,
+                           ManufacturerName, AircraftModel, Immatriculation,
+                           CompetitionSign, FLARMId, AircraftSerialNumber,
+                           YearOfManufacture, NoiseClass, NoiseLevel, MTOM, NrOfSeats,
+                           AircraftOwnerPersonId,
+                           FlightOperatingCounterUnitTypeId,
+                           EngineOperatingCounterUnitTypeId,
+                           HomebaseId, SpotLink,
+                           IsTowingOrWinchRequired, IsTowingstartAllowed,
+                           IsWinchstartAllowed, IsTowingAircraft, IsFastEntryRecord,
+                           Comment, DaecIndex,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM Aircrafts
+                    """,
+                    "t_aircraft",
+                    // Non-fan-out FULL_PORT: legacy_guid resolves to id (no separate
+                    // legacy_guid column, unlike LOCATION). Column order matches
+                    // AircraftMapper.columns(): id(legacy_guid), managing_club_id,
+                    // owner_club_id, then the 30 attribute/audit columns. 33 params.
+                    """
+                    INSERT INTO t_aircraft (
+                      id, managing_club_id, owner_club_id,
+                      aircraft_type_id,
+                      manufacturer_name, aircraft_model, immatriculation, competition_sign,
+                      flarm_id, aircraft_serial_number, year_of_manufacture,
+                      noise_class, noise_level, mtom, nr_of_seats,
+                      aircraft_owner_person_id,
+                      flight_operating_counter_unit_type_id,
+                      engine_operating_counter_unit_type_id,
+                      homebase_id, spot_link,
+                      is_towing_or_winch_required, is_towing_start_allowed,
+                      is_winch_start_allowed, is_towing_aircraft, is_fast_entry_record,
+                      comment, daec_index,
+                      created_on, created_by_user_id,
+                      modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?,
+                            ?,
+                            ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.AIRCRAFT_AIRCRAFT_STATE, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // Aircraft↔state history, aggregate-internal under Aircraft
+                    // (cross-tenant). Legacy composite PK
+                    // (AircraftId, AircraftStateId, ValidFrom) collapses to a
+                    // surrogate UUID id minted at INSERT (V3 reshape) — so id is NOT
+                    // a wire column and NOT projected; the SELECT projects only the
+                    // 12 columns AircraftAircraftStateMapper reads. aircraft_state_id
+                    // resolves through the V3-seeded t_aircraft_state.legacy_int_id:
+                    // the mapper reads getInt("AircraftState"). The real legacy column
+                    // is AircraftState (AircraftAircraftStates DDL line 77; EF
+                    // AircraftAircraftState.cs maps the C# property AircraftStateId via
+                    // [Column("AircraftState")]) — projected verbatim, no alias.
+                    // (T-16: the prior AircraftStateId alias names a column that does
+                    // not exist in the legacy schema — the same class of bug that
+                    // aborted the live AIRCRAFT export on AircraftType.)
+                    // noticed_by_person_id is a cross-tenant Person (Manifest
+                    // TENANT_BYPASS_ALLOW_LIST). Legacy table has no IsDeleted column;
+                    // deleted_on ports as NULL.
+                    """
+                    SELECT AircraftId, AircraftState,
+                           ValidFrom, ValidTo, NoticedByPersonId, Remarks,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM AircraftAircraftStates
+                    """,
+                    "t_aircraft_aircraft_state",
+                    // Surrogate id minted in-statement (gen_random_uuid()) — the
+                    // legacy composite PK has no single-GUID to carry, and V3 forbids
+                    // a DEFAULT on the column (app-owns-generation contract). The 12
+                    // ? params follow AircraftAircraftStateMapper.columns() order,
+                    // starting at aircraft_id (position 1).
+                    """
+                    INSERT INTO t_aircraft_aircraft_state (
+                      id,
+                      aircraft_id, aircraft_state_id, valid_from, valid_to,
+                      noticed_by_person_id, remarks,
+                      created_on, created_by_user_id,
+                      modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (gen_random_uuid(),
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.AIRCRAFT_OPERATING_COUNTER, new Binding(
+                    PortPolicy.FULL_PORT,
+                    // Per-aircraft counter readings, aggregate-internal under
+                    // Aircraft (cross-tenant): legacy AircraftOperatingCounterId →
+                    // t_aircraft_operating_counter.id (its own legacy GUID, so
+                    // legacy_guid resolves to id — non-fan-out, like AOC's parent).
+                    // Only outgoing FK is the intra-aggregate aircraft_id. Legacy
+                    // ASP.NET artifacts dropped: OwnerId, OwnershipType, RecordState,
+                    // IsDeleted.
+                    """
+                    SELECT AircraftOperatingCounterId, AircraftId, AtDateTime,
+                           TotalTowedGliderStarts, TotalWinchLaunchStarts, TotalSelfStarts,
+                           FlightOperatingCounterInSeconds, EngineOperatingCounterInSeconds,
+                           NextMaintenanceAtFlightOperatingCounterInSeconds,
+                           NextMaintenanceAtEngineOperatingCounterInSeconds,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM AircraftOperatingCounters
+                    """,
+                    "t_aircraft_operating_counter",
+                    // Non-fan-out: legacy_guid (AircraftOperatingCounterId) resolves
+                    // to id. The 16 ? params follow
+                    // AircraftOperatingCounterMapper.columns() order:
+                    // id(legacy_guid), aircraft_id, then the readings + audit columns.
+                    """
+                    INSERT INTO t_aircraft_operating_counter (
+                      id, aircraft_id, at_date_time,
+                      total_towed_glider_starts, total_winch_launch_starts, total_self_starts,
+                      flight_operating_counter_in_seconds, engine_operating_counter_in_seconds,
+                      next_maintenance_at_flight_operating_counter_in_seconds,
+                      next_maintenance_at_engine_operating_counter_in_seconds,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?,
+                            ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)));
 
     private MapperLegacyBindings() { }
 

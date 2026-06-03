@@ -14,12 +14,14 @@
  * caption, or a caption references a .webm not present in the proof output.
  *
  * Dual use:
- *   - CLI:    node generate-gallery.mjs --report <json> --out <dir> [--order <_ORDER.md>] [--legacy-video <dir>]
+ *   - CLI:    node generate-gallery.mjs --report <json> --out <dir> [--order <_ORDER.md>] [--legacy-video <dir>] [--screenshots <dir>]
  *             (also: `pnpm proof:gallery`). `--legacy-video <dir>` adds declared
  *             legacy (non-AlpenFlight) parity videos from a `legacy-video.json`
- *             sidecar — see README.md "Legacy parity videos".
+ *             sidecar — see README.md "Legacy parity videos". `--screenshots <dir>`
+ *             adds declared legacy↔AlpenFlight parity PNGs (list + form) from a
+ *             `screenshots.json` sidecar, rendered paired per journey/view.
  *   - import: `import { generateGallery } from './generate-gallery.mjs'`
- *             generateGallery({ reportPath, outDir, orderPath?, videosDir? }) — T-02 drives this.
+ *             generateGallery({ reportPath, outDir, orderPath?, legacyVideoDir?, screenshotsDir? }) — T-02 drives this.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, copyFileSync } from 'node:fs';
 import { dirname, resolve, basename } from 'node:path';
@@ -62,15 +64,25 @@ export const ROADMAP_FALLBACK = [
   'J-24',
 ];
 
-/** Parse the `| **J-N** | …` roadmap table rows out of _ORDER.md, in order. */
-function parseRoadmap(orderPath) {
-  if (!orderPath || !existsSync(orderPath)) return ROADMAP_FALLBACK;
-  const text = readFileSync(orderPath, 'utf8');
+/**
+ * Parse the journey ids out of the `| … | J-N | …` roadmap table rows of an
+ * _ORDER.md body, in table order. Exported (text-in, pure) so the ordering
+ * contract is unit-testable without a temp file.
+ *
+ * The leading table cell may carry decoration before the id — a shipped journey
+ * is marked with a `✅ ` prefix in _ORDER.md (`| ✅ **J-0** |`, `| ✅ J-24 |`),
+ * and ids are optionally bold (`**J-0**`). We must skip that leading emoji /
+ * whitespace / bold so a shipped journey parses in its roadmap-table position —
+ * not dropped (which would let the `generateGallery` append-loop tack it onto
+ * the BOTTOM, the operator's "J-0 not back" complaint).
+ */
+export function parseRoadmapText(text) {
   const ids = [];
   const seen = new Set();
-  // Match a leading table cell whose content is a journey id, bold or plain:
-  //   | **J-0** | …   or   | J-1 | …
-  const re = /^\|\s*\*{0,2}(J-\d+[a-z]?)\*{0,2}\s*\|/gm;
+  // First table cell of a row, then any leading decoration (✅ / whitespace /
+  // bold `**`) before the `J-NN` id, then the id, bold-close optional.
+  //   | ✅ **J-0** | …   | ✅ J-24 | …   | **J-0c** | …   | J-1 | …
+  const re = /^\|\s*(?:[^\sA-Za-z|]+\s*)*\*{0,2}(J-\d+[a-z]?)\*{0,2}\s*\|/gm;
   let m;
   while ((m = re.exec(text)) !== null) {
     const id = m[1];
@@ -79,6 +91,13 @@ function parseRoadmap(orderPath) {
       ids.push(id);
     }
   }
+  return ids;
+}
+
+/** Parse the `| **J-N** | …` roadmap table rows out of _ORDER.md, in order. */
+function parseRoadmap(orderPath) {
+  if (!orderPath || !existsSync(orderPath)) return ROADMAP_FALLBACK;
+  const ids = parseRoadmapText(readFileSync(orderPath, 'utf8'));
   return ids.length ? ids : ROADMAP_FALLBACK;
 }
 
@@ -199,6 +218,60 @@ export function extractLegacyVideos(legacyVideoDir) {
   return { proofs, errors };
 }
 
+/**
+ * Extract declared PARITY SCREENSHOTS (J-1+) from a `screenshots.json` sidecar
+ * in `screenshotsDir`. Mirrors `extractLegacyVideos`: still PNGs (legacy +
+ * AlpenFlight, list + form) have no Playwright-manifest path — the legacy ones
+ * are captured against the legacy flsweb stack, the AlpenFlight ones against the
+ * real chain, both in the fan-out — so they are DECLARED in a sidecar keyed to a
+ * journey + side + view so the generator can PAIR them:
+ *
+ *   { "screenshots": [
+ *       { "journey": "J-1", "side": "legacy",      "view": "list",
+ *         "file": "legacy-aircraft-list.png",      "caption": "Legacy flsweb: …" },
+ *       { "journey": "J-1", "side": "alpenflight", "view": "form",
+ *         "file": "alpenflight-aircraft-form.png", "caption": "AlpenFlight: …" }
+ *     ] }
+ *
+ * `file` resolves relative to the sidecar dir. `side` ∈ {legacy, alpenflight};
+ * `view` is the pairing key (e.g. list | form). Returns flat shots plus the AC5
+ * link-check `errors` (caption required; PNG must exist on disk) — identical bar
+ * to videos. A missing dir / sidecar is a no-op (no screenshots this run).
+ */
+export function extractScreenshots(screenshotsDir) {
+  const shots = [];
+  const errors = [];
+  if (!screenshotsDir) return { shots, errors };
+  const sidecar = resolve(screenshotsDir, 'screenshots.json');
+  if (!existsSync(sidecar)) return { shots, errors };
+
+  const decl = JSON.parse(readFileSync(sidecar, 'utf8'));
+  for (const s of decl.screenshots ?? []) {
+    const title = s.file ?? '(parity screenshot)';
+    const caption = s.caption;
+    const imgPath = s.file ? resolve(screenshotsDir, s.file) : undefined;
+
+    if (!caption || !String(caption).trim()) {
+      errors.push(`published parity screenshot has no caption: "${title}"`);
+    }
+    if (!imgPath || !existsSync(imgPath)) {
+      errors.push(
+        `screenshot caption references a .png not present in the proof output: "${title}" → ${s.file ?? '(no file)'}`,
+      );
+    }
+
+    shots.push({
+      journey: s.journey ?? 'unknown',
+      side: s.side ?? 'alpenflight',
+      view: s.view ?? 'view',
+      caption: caption ?? '',
+      imgPath,
+      title,
+    });
+  }
+  return { shots, errors };
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -247,14 +320,66 @@ ${links}
     </p>`;
 }
 
-function renderHtml({ byJourney, roadmap, generatedAt, branch, navGalleries = [] }) {
+/**
+ * Render the per-journey PARITY-SCREENSHOTS block: one row per `view` (e.g.
+ * list, form), legacy `<img>` LEFT + AlpenFlight `<img>` RIGHT, so the operator
+ * eyeballs the field set side by side. Views render in first-seen declaration
+ * order; within a view, legacy is forced left. A view with only one side still
+ * renders that side (the other slot is simply absent). Empty `shots` → no block.
+ */
+function renderScreenshots(shots) {
+  if (!shots || shots.length === 0) return '';
+  // Group by view, preserving declaration order of views.
+  const byView = new Map();
+  for (const s of shots) {
+    if (!byView.has(s.view)) byView.set(s.view, []);
+    byView.get(s.view).push(s);
+  }
+  const rows = [];
+  for (const [view, list] of byView) {
+    // Legacy first, AlpenFlight second.
+    const ordered = [...list].sort((a, b) =>
+      a.side === b.side ? 0 : a.side === 'legacy' ? -1 : 1,
+    );
+    const figs = ordered
+      .map(
+        (s) => `          <figure class="shot shot-${esc(s.side)}">
+            <span class="shot-side">${esc(s.side)}</span>
+            <a href="${esc(s.imgSrc)}" target="_blank" rel="noopener"><img src="${esc(s.imgSrc)}" alt="${esc(s.side)} ${esc(view)}" loading="lazy"></a>
+            <figcaption>${esc(s.caption)}</figcaption>
+          </figure>`,
+      )
+      .join('\n');
+    rows.push(`        <div class="shot-pair">
+          <div class="shot-view-label">${esc(view)}</div>
+          <div class="shot-grid">
+${figs}
+          </div>
+        </div>`);
+  }
+  return `        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+${rows.join('\n')}
+        </div>`;
+}
+
+function renderHtml({ byJourney, shotsByJourney, roadmap, generatedAt, branch, navGalleries = [] }) {
   const sections = roadmap
     .map((jid) => {
       const proofs = byJourney.get(jid);
-      if (!proofs || proofs.length === 0) {
+      const shots = shotsByJourney?.get(jid);
+      if ((!proofs || proofs.length === 0) && (!shots || shots.length === 0)) {
         return `      <div class="journey pending-journey">
         <h3>${esc(jid)} <span class="status pending">pending</span></h3>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+      </div>`;
+      }
+      // A journey with parity screenshots but no green video still renders its
+      // screenshot block (the videos section is just empty).
+      if (!proofs || proofs.length === 0) {
+        return `      <div class="journey">
+        <h3>${esc(jid)} <span class="status success">parity screenshots</span></h3>
+${renderScreenshots(shots)}
       </div>`;
       }
       const videos = proofs
@@ -272,11 +397,13 @@ function renderHtml({ byJourney, roadmap, generatedAt, branch, navGalleries = []
         </figure>`;
         })
         .join('\n');
+      const screenshotsBlock = renderScreenshots(shots);
       return `      <div class="journey">
         <h3>${esc(jid)} <span class="status success">${proofs.length} proof${proofs.length === 1 ? '' : 's'}</span></h3>
         <div class="proofs">
 ${videos}
         </div>
+${screenshotsBlock}
       </div>`;
     })
     .join('\n');
@@ -347,6 +474,17 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
   background: var(--pending-bg); color: var(--pending);
 }
+.parity-screenshots { margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+.parity-screenshots h4 { margin: 0 0 .75rem; font-size: .95rem; font-weight: 500; }
+.shot-pair { margin-bottom: 1.25rem; }
+.shot-view-label { font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin-bottom: .4rem; }
+.shot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+.shot { margin: 0; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.shot.shot-legacy { border-color: var(--pending); }
+.shot img { display: block; width: 100%; height: auto; background: #fff; }
+.shot-side { display: inline-block; padding: .2em .65em; margin: .5rem .5rem 0; border-radius: 4px; font-size: .75rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; background: var(--success-bg); color: var(--success); }
+.shot.shot-legacy .shot-side { background: var(--pending-bg); color: var(--pending); }
+.shot figcaption { padding: .65rem .75rem; font-size: .85rem; color: var(--text); }
 .nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
@@ -388,8 +526,11 @@ ${sections}
  * @param {string} [o.legacyVideoDir] Dir holding a `legacy-video.json` sidecar +
  *   its `.webm`(s) — declared LEGACY parity videos (J-0c+), rendered side-by-side
  *   with the AlpenFlight proof under the same journey. Absent dir/sidecar = no-op.
- * @returns {{ html: string, outFile: string, proofs: Array, roadmap: string[] }}
- * @throws on any AC5 link-check violation (no caption / missing .webm).
+ * @param {string} [o.screenshotsDir] Dir holding a `screenshots.json` sidecar +
+ *   its `.png`(s) — declared legacy↔AlpenFlight parity screenshots (J-1+, list +
+ *   form), rendered paired under the same journey. Absent dir/sidecar = no-op.
+ * @returns {{ html: string, outFile: string, proofs: Array, shots: Array, roadmap: string[] }}
+ * @throws on any AC5 link-check violation (no caption / missing .webm / missing .png).
  */
 export function generateGallery({
   reportPath,
@@ -397,14 +538,16 @@ export function generateGallery({
   orderPath,
   branch = process.env.GITHUB_REF_NAME ?? 'local',
   legacyVideoDir,
+  screenshotsDir,
   renderNav = true,
 }) {
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
   const { proofs: manifestProofs, errors: manifestErrors } = extractProofs(report, { reportDir });
   const { proofs: legacyProofs, errors: legacyErrors } = extractLegacyVideos(legacyVideoDir);
+  const { shots, errors: shotErrors } = extractScreenshots(screenshotsDir);
   const proofs = [...manifestProofs, ...legacyProofs];
-  const errors = [...manifestErrors, ...legacyErrors];
+  const errors = [...manifestErrors, ...legacyErrors, ...shotErrors];
 
   if (errors.length) {
     throw new Error(`proof-gallery link-check failed (AC5):\n  - ${errors.join('\n  - ')}`);
@@ -421,6 +564,17 @@ export function generateGallery({
     p.videoSrc = `videos/${name}`;
   }
 
+  // Copy each declared screenshot into outDir/screenshots/ and rewrite src so the
+  // published page is self-contained (same self-containment contract as videos).
+  if (shots.length) {
+    mkdirSync(resolve(outDir, 'screenshots'), { recursive: true });
+    for (const s of shots) {
+      const name = basename(s.imgPath);
+      copyFileSync(s.imgPath, resolve(outDir, 'screenshots', name));
+      s.imgSrc = `screenshots/${name}`;
+    }
+  }
+
   const roadmap = parseRoadmap(orderPath);
   const byJourney = new Map();
   for (const p of proofs) {
@@ -432,13 +586,20 @@ export function generateGallery({
   for (const list of byJourney.values()) {
     list.sort((a, b) => (a.legacy === b.legacy ? 0 : a.legacy ? -1 : 1));
   }
-  // A green proof for a journey not in the roadmap still gets shown (appended).
-  for (const jid of byJourney.keys()) {
+  const shotsByJourney = new Map();
+  for (const s of shots) {
+    if (!shotsByJourney.has(s.journey)) shotsByJourney.set(s.journey, []);
+    shotsByJourney.get(s.journey).push(s);
+  }
+  // A green proof OR a declared screenshot for a journey not in the roadmap still
+  // gets shown (appended).
+  for (const jid of [...byJourney.keys(), ...shotsByJourney.keys()]) {
     if (!roadmap.includes(jid)) roadmap.push(jid);
   }
 
   const html = renderHtml({
     byJourney,
+    shotsByJourney,
     roadmap,
     generatedAt: new Date().toISOString(),
     branch,
@@ -448,7 +609,7 @@ export function generateGallery({
   mkdirSync(outDir, { recursive: true });
   const outFile = resolve(outDir, 'index.html');
   writeFileSync(outFile, html, 'utf8');
-  return { html, outFile, proofs, roadmap };
+  return { html, outFile, proofs, shots, roadmap };
 }
 
 function parseArgs(argv) {
@@ -460,6 +621,7 @@ function parseArgs(argv) {
     else if (a === '--order') out.orderPath = argv[++i];
     else if (a === '--branch') out.branch = argv[++i];
     else if (a === '--legacy-video') out.legacyVideoDir = argv[++i];
+    else if (a === '--screenshots') out.screenshotsDir = argv[++i];
     else if (a === '--no-nav') out.renderNav = false;
   }
   return out;
@@ -475,6 +637,9 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   // Default legacy-video dir for `pnpm proof:gallery` (fixtures); CI passes
   // --legacy-video <staged dir>. Only picked up if a legacy-video.json exists.
   const legacyVideoDir = args.legacyVideoDir ?? resolve(__dirname, 'fixtures', 'legacy-video');
+  // Default screenshots dir for `pnpm proof:gallery` (fixtures); CI passes
+  // --screenshots <staged dir>. Only picked up if a screenshots.json exists.
+  const screenshotsDir = args.screenshotsDir ?? resolve(__dirname, 'fixtures', 'screenshots');
   let orderPath = args.orderPath;
   if (!orderPath) {
     const guess = resolve(
@@ -491,17 +656,20 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     orderPath = existsSync(guess) ? guess : undefined;
   }
   try {
-    const { outFile, proofs, roadmap } = generateGallery({
+    const { outFile, proofs, shots, roadmap } = generateGallery({
       reportPath,
       outDir,
       orderPath,
       branch: args.branch,
       legacyVideoDir,
+      screenshotsDir,
       renderNav: args.renderNav !== false,
     });
     const pending = roadmap.filter((j) => !proofs.some((p) => p.journey === j));
     console.log(`proof-gallery: wrote ${outFile}`);
-    console.log(`  ${proofs.length} green proof video(s); ${pending.length} pending journey(s).`);
+    console.log(
+      `  ${proofs.length} green proof video(s); ${shots.length} parity screenshot(s); ${pending.length} pending journey(s).`,
+    );
   } catch (err) {
     console.error(`proof-gallery: ${err.message}`);
     process.exit(1);

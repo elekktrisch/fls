@@ -340,6 +340,21 @@ jobs:
           # Pin log level so payload logging can't leak the canned dev
           # password into the uploaded backend.log artifact.
           LOGGING_LEVEL_ROOT: INFO
+          # Matches alpenflight-proof-fanout.yml's T-17 (host bootJar ↔
+          # host-mapped Keycloak). The backend runs as a HOST bootJar but
+          # Keycloak is a container host-published at localhost:8090 (compose
+          # `127.0.0.1:8090:8080`), so the compose-internal `http://keycloak:8080`
+          # is unresolvable from the host. The `dev` profile already redirects
+          # JWKS + issuer to localhost:8090, but `keycloak.admin.base-url`
+          # (application.yml) still defaults to `http://keycloak:8080` — latent
+          # until J-1's migration provisioning first exercises the admin client
+          # at ingest. Point the admin-base at the host port so the
+          # migration-provisioning admin client can reach Keycloak.
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
         run: |
           # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
           # not "server" — and the plain `jar` task also emits a non-executable
@@ -362,18 +377,36 @@ jobs:
           tail -n 200 alpenflight/server/backend.log >&2 || true
           exit 1
 
-      # Just the J-0 isolation spec (its `real-idp-setup` dependency runs
-      # automatically) — not the full real-idp suite. Keeps the gate scoped
-      # to the proof + inside the PR budget.
-      - name: Run real-idp Locations isolation spec
+      # The real-chain proof specs (their `real-idp-setup` dependency runs
+      # automatically) — NOT the full real-idp suite. Scoped to the gate proofs
+      # to stay inside the PR budget. BOTH specs run in ONE `playwright test`
+      # invocation so the single JSON proof-manifest the gallery reads carries
+      # both journeys' proof videos (a second invocation would overwrite the
+      # manifest, dropping J-0's captions the live link-check below greps for).
+      #
+      #   - J-0: Locations two-club tenant isolation.
+      #   - J-1 T-07: the Aircraft register real chain (clean-seed CRUD + tenant
+      #     edit-isolation + S-163 owner-person + S-164 redaction + the migrated
+      #     aircraft render). SYNTH bundle mode (J1_BUNDLE_SOURCE unset): the
+      #     migrated half ingests a Java-built bundle through the REAL migration
+      #     endpoint (the full legacy→export half is the nightly fan-out
+      #     workflow's job). DATASOURCE_* are exported so the spec's Gradle
+      #     seeder shell-outs (seedAircraftParityBundle build + seedAircraftOwnerLink
+      #     DB write) reach the same Postgres the backend uses.
+      - name: Run real-idp proof specs (J-0 Locations + J-1 Aircraft)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 12
+        timeout-minutes: 15
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
-            e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
+            e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts \
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
 
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;

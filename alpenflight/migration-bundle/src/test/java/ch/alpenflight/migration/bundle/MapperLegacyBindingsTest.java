@@ -240,9 +240,206 @@ class MapperLegacyBindingsTest {
 
     @Test
     void unregisteredEntityStillFailsLoudly() {
-        // Guard the fail-closed contract survives the registry growth.
-        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.AIRCRAFT))
+        // Guard the fail-closed contract survives the registry growth. AIRCRAFT
+        // is now bound (J-1 T-04), so the negative case points at a genuinely
+        // still-unbound EntityType — FLIGHT has an authored mapper + KnownMappers
+        // entry but no MapperLegacyBindings entry yet (its binding lands at J-2).
+        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.FLIGHT))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No legacy binding registered");
+    }
+
+    // -------------------------------------------------------------------------
+    // AIRCRAFT + its two aggregate-internal children (J-1 T-04). The AIRCRAFT
+    // mappers + KnownMappers entries already exist; T-04 wires the legacy binding
+    // (producer SELECT + consumer INSERT) so the export jar / ProducerHarness stop
+    // throwing "No legacy binding registered" for the Aircraft register.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Every legacy {@code Aircrafts} ResultSet column {@code AircraftMapper.writeNdjson}
+     * reads. {@code ManagingClubId} is the producer-computed tenant identity aliased
+     * on the cursor (cascade from {@code AircraftOwnerClubId} per the J-1 parity
+     * decision); {@code AircraftType} is the real legacy int FK column the mapper's
+     * {@code getInt} reads — the EF entity exposes it as the C# property
+     * {@code AircraftTypeId} via {@code [Column("AircraftType")]}, but the MSSQL
+     * column is {@code AircraftType} (T-16: the live export aborted on the prior
+     * {@code AircraftTypeId} alias, which names a non-existent column).
+     */
+    private static final List<String> AIRCRAFT_LEGACY_COLUMNS = List.of(
+            "AircraftId", "ManagingClubId", "AircraftOwnerClubId", "AircraftType",
+            "ManufacturerName", "AircraftModel", "Immatriculation", "CompetitionSign",
+            "FLARMId", "AircraftSerialNumber", "YearOfManufacture", "NoiseClass",
+            "NoiseLevel", "MTOM", "NrOfSeats", "AircraftOwnerPersonId",
+            "FlightOperatingCounterUnitTypeId", "EngineOperatingCounterUnitTypeId",
+            "HomebaseId", "SpotLink", "IsTowingOrWinchRequired", "IsTowingstartAllowed",
+            "IsWinchstartAllowed", "IsTowingAircraft", "IsFastEntryRecord", "Comment",
+            "DaecIndex", "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    /** Every legacy column {@code AircraftAircraftStateMapper.writeNdjson} reads. */
+    private static final List<String> AIRCRAFT_AIRCRAFT_STATE_LEGACY_COLUMNS = List.of(
+            "AircraftId", "AircraftState", "ValidFrom", "ValidTo", "NoticedByPersonId",
+            "Remarks", "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    /** Every legacy column {@code AircraftOperatingCounterMapper.writeNdjson} reads. */
+    private static final List<String> AIRCRAFT_OPERATING_COUNTER_LEGACY_COLUMNS = List.of(
+            "AircraftOperatingCounterId", "AircraftId", "AtDateTime",
+            "TotalTowedGliderStarts", "TotalWinchLaunchStarts", "TotalSelfStarts",
+            "FlightOperatingCounterInSeconds", "EngineOperatingCounterInSeconds",
+            "NextMaintenanceAtFlightOperatingCounterInSeconds",
+            "NextMaintenanceAtEngineOperatingCounterInSeconds",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    @Test
+    void aircraftAndChildrenAreRegistered() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.AIRCRAFT))
+                .as("AIRCRAFT must be bound (J-1 T-04) so the Aircraft register migrates")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.AIRCRAFT_AIRCRAFT_STATE))
+                .as("AIRCRAFT_AIRCRAFT_STATE (aggregate-internal) must be bound")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.AIRCRAFT_OPERATING_COUNTER))
+                .as("AIRCRAFT_OPERATING_COUNTER (aggregate-internal) must be bound")
+                .isTrue();
+    }
+
+    @Test
+    void aircraftAndChildrenAreFullPort() {
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.AIRCRAFT))
+                .as("Aircraft is the cross-tenant FULL_PORT aggregate root (ADR 0008)")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.AIRCRAFT_AIRCRAFT_STATE))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.AIRCRAFT_OPERATING_COUNTER))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void aircraftSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT);
+        for (String legacyColumn : AIRCRAFT_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("AircraftMapper.writeNdjson reads %s — the bound SELECT must "
+                            + "project it (else: silent NULL)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+    }
+
+    @Test
+    void aircraftSelectDerivesManagingClubIdFromOwnerClubId() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT).toUpperCase();
+        // J-1 parity decision: managing_club_id is derived from legacy
+        // AircraftOwnerClubId (the authored AircraftMapper cascade) and aliased
+        // AS ManagingClubId on the cursor; the mapper reads it verbatim.
+        assertThat(select)
+                .as("managing_club_id source must be AircraftOwnerClubId, aliased AS ManagingClubId")
+                .contains("AIRCRAFTOWNERCLUBID AS MANAGINGCLUBID");
+    }
+
+    @Test
+    void aircraftSelectProjectsTheRealAircraftTypeColumn() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT).toUpperCase();
+        // AircraftMapper reads getInt("AircraftType") — the int code resolved via
+        // legacyIntIdToUuidString. The real legacy column is AircraftType (Aircrafts
+        // DDL; EF Aircraft.cs [Column("AircraftType")]), NOT AircraftTypeId — the
+        // export aborts on a non-existent column (T-16). The SELECT must project the
+        // real column and must NOT reference the C#-property name AircraftTypeId.
+        assertThat(select)
+                .as("SELECT projects the real legacy AircraftType column")
+                .contains("AIRCRAFTTYPE");
+        assertThat(select)
+                .as("SELECT must NOT reference the non-existent AircraftTypeId column")
+                .doesNotContain("AIRCRAFTTYPEID");
+    }
+
+    @Test
+    void aircraftSelectTargetsTheLegacyAircraftsTable() {
+        assertThat(MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT))
+                .as("base table is the legacy Aircrafts table")
+                .contains("Aircrafts");
+    }
+
+    @Test
+    void aircraftConsumerInsertTargetsTAircraftWithManagingClubId() {
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.AIRCRAFT);
+        assertThat(insert)
+                .as("AIRCRAFT FULL_PORT consumer INSERT targets t_aircraft")
+                .contains("INSERT INTO t_aircraft");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_aircraft is tenant-scoped via managing_club_id (V10) — the INSERT binds it")
+                .contains("managing_club_id");
+    }
+
+    @Test
+    void aircraftAircraftStateSelectProjectsEveryColumnTheMapperReads() {
+        String select =
+                MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT_AIRCRAFT_STATE);
+        for (String legacyColumn : AIRCRAFT_AIRCRAFT_STATE_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("AircraftAircraftStateMapper.writeNdjson reads %s — the bound "
+                            + "SELECT must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy AircraftAircraftStates table")
+                .contains("AircraftAircraftStates");
+        // Real legacy column is AircraftState (AircraftAircraftStates DDL; EF
+        // AircraftAircraftState.cs [Column("AircraftState")]), NOT AircraftStateId.
+        // Same class of bug as AIRCRAFT's AircraftType (T-16).
+        assertThat(select.toUpperCase())
+                .as("SELECT projects the real legacy AircraftState column")
+                .contains("AIRCRAFTSTATE");
+        assertThat(select.toUpperCase())
+                .as("SELECT must NOT reference the non-existent AircraftStateId column")
+                .doesNotContain("AIRCRAFTSTATEID");
+    }
+
+    @Test
+    void aircraftOperatingCounterSelectProjectsEveryColumnTheMapperReads() {
+        String select =
+                MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT_OPERATING_COUNTER);
+        for (String legacyColumn : AIRCRAFT_OPERATING_COUNTER_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("AircraftOperatingCounterMapper.writeNdjson reads %s — the bound "
+                            + "SELECT must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy AircraftOperatingCounters table")
+                .contains("AircraftOperatingCounters");
+    }
+
+    /**
+     * Binding-completeness closure guard (J-1 T-04 boyscout, the J-0c T-21
+     * "authored-but-unwired FK target" class). For every entity that HAS a
+     * {@link MapperLegacyBindings} entry, its mapper's {@link Mapper#foreignKeys()}
+     * targets must ALSO have a binding — otherwise the producer/consumer resolves
+     * an FK against an id-map that the bundle never produces, surfacing as a
+     * ProducerHarness "No legacy binding registered" mid-run instead of here.
+     *
+     * <p>Scoped to the bound set's closure (not every KnownMapper): the registry
+     * grows journey-by-journey, so an authored-but-not-yet-bound mapper (e.g.
+     * FLIGHT) legitimately points at targets that land later — what must never
+     * happen is a BOUND mapper pointing at an UNBOUND target.
+     */
+    @Test
+    void everyBoundMappersForeignKeyTargetsAreAlsoBound() {
+        for (Mapper mapper : KnownMappers.all()) {
+            EntityType entity = mapper.entityType();
+            if (!MapperLegacyBindings.isRegistered(entity)) {
+                continue;
+            }
+            for (EntityType fkTarget : mapper.foreignKeys()) {
+                assertThat(MapperLegacyBindings.isRegistered(fkTarget))
+                        .as("%s is bound but its FK target %s is NOT — authored-but-unwired "
+                                + "(J-0c T-21 class): bind %s or the bundle resolves an FK "
+                                + "against an id-map it never produces",
+                                entity, fkTarget, fkTarget)
+                        .isTrue();
+            }
+        }
     }
 }

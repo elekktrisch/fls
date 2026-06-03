@@ -40,6 +40,7 @@ interface MockAircraftDetail {
   immatriculation: string;
   manufacturerName?: string;
   aircraftModel?: string;
+  nrOfSeats?: number;
   competitionSign?: string;
   flarmId?: string;
   isTowingOrWinchRequired: boolean;
@@ -60,6 +61,9 @@ interface MockAircraftListItem {
   isTowingAircraft: boolean;
   currentStateCode?: string;
   currentStateFlyable?: boolean;
+  manufacturerName?: string;
+  aircraftModel?: string;
+  nrOfSeats?: number;
 }
 
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
@@ -127,6 +131,7 @@ const gliderSeed: MockAircraftDetail = {
   immatriculation: 'HB-GLI',
   manufacturerName: 'Schleicher',
   aircraftModel: 'ASK-21',
+  nrOfSeats: 2,
   isTowingOrWinchRequired: true,
   isTowingStartAllowed: true,
   isWinchStartAllowed: true,
@@ -189,6 +194,9 @@ function toListItem(a: MockAircraftDetail): MockAircraftListItem {
   };
   if (a.ownerClubId !== undefined) item.ownerClubId = a.ownerClubId;
   if (a.competitionSign !== undefined) item.competitionSign = a.competitionSign;
+  if (a.manufacturerName !== undefined) item.manufacturerName = a.manufacturerName;
+  if (a.aircraftModel !== undefined) item.aircraftModel = a.aircraftModel;
+  if (a.nrOfSeats !== undefined) item.nrOfSeats = a.nrOfSeats;
   return item;
 }
 
@@ -425,6 +433,12 @@ test('aircraft: lists the seeded row at /aircraft', async ({ page }) => {
   await expect(page.getByTestId('aircraft-table')).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toBeVisible();
   await expect(page.getByTestId(`aircraft-row-${gliderSeed.id}`)).toContainText('HB-GLI');
+
+  // Legacy list parity (T-13): the row carries Manufacturer + Model + Seats,
+  // mirroring legacy aircrafts-table.html.
+  await expect(page.getByTestId(`aircraft-model-${gliderSeed.id}`)).toContainText('Schleicher');
+  await expect(page.getByTestId(`aircraft-model-${gliderSeed.id}`)).toContainText('ASK-21');
+  await expect(page.getByTestId(`aircraft-seats-${gliderSeed.id}`)).toContainText('2 seats');
 });
 
 test('aircraft: type-filter slices GLIDER / TOWING / MOTOR preserving legacy membership', async ({

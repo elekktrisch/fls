@@ -9,6 +9,7 @@ import ch.alpenflight.tenancy.provisioning.application.ProvisioningResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.f4b6a3.uuid.UuidCreator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -193,6 +194,12 @@ final class EntityStreamIngestor {
                             ReferenceLookupResolver referenceLookupResolver)
             throws SQLException, IOException {
         String insert = insertStatementFor(mapper.entityType());
+        // Aggregate-internal leaf (no legacy_guid): the INSERT appends a trailing
+        // surrogate `id` slot the orchestrator binds with a minted UUID v7 after
+        // the mapper's positional readEntity binding.
+        boolean mintsSurrogateId =
+                mintsSurrogateId(mapper.entityType(), mapper.columns());
+        int surrogateIdPosition = mapper.columns().length + 1;
         try (PreparedStatement ps = connection.prepareStatement(insert);
                 BundleStreamReader.NonClosingBufferedReader lines =
                         BundleStreamReader.NonClosingBufferedReader.of(tarStream)) {
@@ -237,6 +244,9 @@ final class EntityStreamIngestor {
                 // fails closed rather than FK-violating verbatim on INSERT.
                 referenceLookupResolver.rewriteReferenceLookups(mapper, row);
                 mapper.readEntity(row, ps);
+                if (mintsSurrogateId) {
+                    ps.setObject(surrogateIdPosition, UuidCreator.getTimeOrderedEpoch());
+                }
                 ps.addBatch();
                 batched++;
                 if (batched >= NDJSON_BATCH_SIZE) {
@@ -310,6 +320,19 @@ final class EntityStreamIngestor {
         if (entityType.fansOut()) {
             return wireColumns.clone();
         }
+        if (mintsSurrogateId(entityType, wireColumns)) {
+            // Aggregate-internal LEAF child (AIRCRAFT_AIRCRAFT_STATE): legacy
+            // composite PK reshaped to a surrogate `id` (V3) carries no own
+            // legacy_guid, so the wire has no id carrier. The orchestrator mints
+            // the surrogate at INSERT time per the V3 "application owns identity"
+            // rule (no DEFAULT gen_random_uuid). `id` is appended LAST so the
+            // mapper's readEntity positional binding (1..n) is untouched and the
+            // minted UUID binds at position n+1.
+            String[] destinationColumns = new String[wireColumns.length + 1];
+            System.arraycopy(wireColumns, 0, destinationColumns, 0, wireColumns.length);
+            destinationColumns[wireColumns.length] = DESTINATION_ID_COLUMN;
+            return destinationColumns;
+        }
         String[] destinationColumns = new String[wireColumns.length];
         for (int i = 0; i < wireColumns.length; i++) {
             destinationColumns[i] = WIRE_LEGACY_GUID_COLUMN.equals(wireColumns[i])
@@ -321,6 +344,28 @@ final class EntityStreamIngestor {
 
     private static final String WIRE_LEGACY_GUID_COLUMN = "legacy_guid";
     private static final String DESTINATION_ID_COLUMN = "id";
+
+    /**
+     * Whether the orchestrator mints the surrogate {@code id} for this entity at
+     * INSERT time. True for a non-fan-out mapper whose wire columns carry NO
+     * {@code legacy_guid} — an aggregate-internal LEAF child (e.g.
+     * {@code AIRCRAFT_AIRCRAFT_STATE}) whose legacy composite PK was reshaped to a
+     * surrogate {@code id} (V3), so there is no legacy id to alias to {@code id}
+     * and the schema has no {@code DEFAULT gen_random_uuid()} (V3 "application
+     * owns identity"). The minted value is a UUID v7, matching the JPA
+     * {@code @UuidV7} generator the runtime aggregates use.
+     */
+    private static boolean mintsSurrogateId(EntityType entityType, String[] wireColumns) {
+        if (entityType.fansOut()) {
+            return false;
+        }
+        for (String column : wireColumns) {
+            if (WIRE_LEGACY_GUID_COLUMN.equals(column)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private static void validateColumnAllowlist(Mapper mapper) {
         for (String column : mapper.columns()) {

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { type Browser, type BrowserContext, type Page, expect } from '@playwright/test';
 
 import { assignRealmRole, createUserWithAttributes, deleteUser } from './keycloak-admin';
@@ -74,9 +76,27 @@ function runId(): string {
   return id;
 }
 
-function adminUser(label: string): TestUser {
+/**
+ * Mint a CLUB_ADMINISTRATOR identity for one of the two clubs.
+ *
+ * The username MUST be disjoint per provisioning call across the whole
+ * `playwright test` invocation, because `ux_user_username_lower_alive` is a
+ * partial-unique over alive (non-soft-deleted) usernames in the backend: a
+ * second live provisioning of the same username (a sibling spec calling
+ * `provisionTwoClubs`, or a Playwright retry while the prior attempt's user is
+ * still alive) collides. `runId()` is stable for the whole invocation and the
+ * fixed `club-a-admin`/`club-b-admin` labels are identical across specs, so the
+ * run-id + label alone are NOT enough. We fold in:
+ *   - `scope` — a caller-supplied spec token (e.g. `loc`, `acft`) so the two
+ *     specs that both drive this fixture read disjointly in the realm and in
+ *     teardown logs; and
+ *   - `nonce` — a fresh per-call random tail (mirrors `freshTestUser`'s uuid8
+ *     scheme) so a retry re-randomises rather than re-inserting a still-alive
+ *     username. Both halves stay under the `e2e-…@example.com` cleanup predicate.
+ */
+function adminUser(label: string, scope: string, nonce: string): TestUser {
   return {
-    email: `${E2E_EMAIL_PREFIX}${runId()}-${label}${E2E_EMAIL_SUFFIX}`,
+    email: `${E2E_EMAIL_PREFIX}${runId()}-${scope}-${label}-${nonce}${E2E_EMAIL_SUFFIX}`,
     password: E2E_CANNED_PASSWORD,
     firstName: 'E2e',
     lastName: `Admin${label}`,
@@ -194,8 +214,13 @@ async function findClubIdBySlug(
   return match ? rawClubId(match.id) : undefined;
 }
 
-async function provisionClubAdmin(clubId: string, label: string): Promise<ClubAdmin> {
-  const user = adminUser(label);
+async function provisionClubAdmin(
+  clubId: string,
+  label: string,
+  scope: string,
+  nonce: string,
+): Promise<ClubAdmin> {
+  const user = adminUser(label, scope, nonce);
   const kcUserId = await createUserWithAttributes(user, { clubId: [clubId] });
   await assignRealmRole(kcUserId, CLUB_ADMINISTRATOR_ROLE);
   return { clubId, user, kcUserId };
@@ -205,15 +230,29 @@ async function provisionClubAdmin(clubId: string, label: string): Promise<ClubAd
  * Provision the two-club fixture. Club A reuses the Flyway seed; club B is
  * created live. Returns each club's CLUB_ADMINISTRATOR login handle plus a
  * `dispose()` that removes the KC admin users.
+ *
+ * `scope` is a short spec token (default `tc`) that disambiguates the admin
+ * usernames so two specs both driving this fixture in the SAME `playwright
+ * test` invocation (J-0 Locations + J-1 Aircraft) provision DISJOINT admins —
+ * `ux_user_username_lower_alive` rejects a second alive copy of a username.
+ * A per-call random nonce (folded into the username by `adminUser`) additionally
+ * keeps a Playwright retry from re-inserting a still-alive username.
+ *
+ * Note club B itself is shared across callers (its slug is run-stable and
+ * `createClubB` recovers the existing row on the 409) — that is fine: the two
+ * specs only need a DISTINCT-from-A club B, not a private one, and each gets its
+ * OWN admin identity bound to it.
  */
 export async function provisionTwoClubs(
   browser: Browser,
   baseURL: string,
+  scope = 'tc',
 ): Promise<TwoClubFixture> {
   const clubBId = await createClubB(browser, baseURL);
 
-  const clubA = await provisionClubAdmin(SEED_CLUB_A_ID, 'club-a-admin');
-  const clubB = await provisionClubAdmin(clubBId, 'club-b-admin');
+  const nonce = randomUUID().replace(/-/g, '').slice(0, 8);
+  const clubA = await provisionClubAdmin(SEED_CLUB_A_ID, 'club-a-admin', scope, nonce);
+  const clubB = await provisionClubAdmin(clubBId, 'club-b-admin', scope, nonce);
 
   return {
     clubA,

@@ -113,6 +113,21 @@ public enum EntityType {
         return this == CLUB;
     }
 
+    /**
+     * Whether this entity emits its own {@code legacy_id_map/<E>.pgcopy} identity
+     * map. An aggregate-internal LEAF child with no own {@code legacy_guid}
+     * (composite-PK history reshaped to a surrogate {@code id} minted at INSERT)
+     * is referenced by NOBODY — it resolves its parent FK ({@code aircraft_id}) but
+     * carries no identity of its own — so the producer must NOT build an identity
+     * pgcopy for it ({@code writeIdentityPgcopy} would fail on the absent
+     * {@code legacy_guid}). {@code AIRCRAFT_AIRCRAFT_STATE} is the first such leaf;
+     * {@code AIRCRAFT_OPERATING_COUNTER} keeps its {@code legacy_guid} so it DOES
+     * emit one. Everything else with an identity emits its map.
+     */
+    public boolean emitsIdentityMap() {
+        return this != AIRCRAFT_AIRCRAFT_STATE;
+    }
+
     public String temporaryTableSuffix() {
         return name().toLowerCase(Locale.ROOT);
     }

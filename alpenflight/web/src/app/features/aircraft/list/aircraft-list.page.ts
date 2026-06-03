@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { TranslocoDirective, TranslocoService } from '@jsverse/transloco';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 
 import { AfButtonComponent } from '@ui/atoms/af-button';
@@ -15,6 +16,9 @@ import { SessionStore } from '../../../core/session/session.store';
 import type { AircraftItem, AircraftTypeFilter } from '../aircraft.store';
 import { AircraftStore } from '../aircraft.store';
 
+// Select-option labels are kept as a static list (project precedent —
+// flights-list.page.ts AIRCRAFT_TYPE_OPTIONS). The visible filter *label* +
+// page chrome are translated via the transloco template scope.
 const TYPE_FILTER_OPTIONS: readonly AfSelectOption<AircraftTypeFilter>[] = [
   { value: 'ALL', label: 'All types' },
   { value: 'GLIDER', label: 'Gliders' },
@@ -38,33 +42,52 @@ const TYPE_FILTER_OPTIONS: readonly AfSelectOption<AircraftTypeFilter>[] = [
     AfSelectComponent,
     NzDropDownModule,
     RouterLink,
+    TranslocoDirective,
   ],
   template: `
     <af-page>
-      <af-page-header title="Aircraft">
-        @if (canMutate()) {
-          <af-button
-            type="primary"
-            htmlType="button"
-            (clicked)="router.navigateByUrl('/aircraft/new')"
-            data-testid="aircraft-new-button"
-          >
-            New aircraft
-          </af-button>
-        }
-      </af-page-header>
+      <ng-container *transloco="let t; read: 'aircraft'">
+        <af-page-header [title]="t('title')">
+          @if (canMutate()) {
+            <af-button
+              type="primary"
+              htmlType="button"
+              (clicked)="router.navigateByUrl('/aircraft/new')"
+              data-testid="aircraft-new-button"
+            >
+              {{ t('new') }}
+            </af-button>
+          }
+        </af-page-header>
 
-      <div class="mb-4 max-w-xs">
-        <af-form-field label="Filter by type" for="AircraftTypeFilter">
-          <af-select
-            inputId="AircraftTypeFilter"
-            [value]="store.typeFilter()"
-            (valueChange)="onTypeFilterChange($event)"
-            [options]="typeFilterOptions"
-            data-testid="aircraft-type-filter"
-          />
-        </af-form-field>
-      </div>
+        @if (canMutate()) {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border-y border-r border-slate-200 border-l-2 border-l-amber-500 bg-slate-50"
+            data-testid="aircraft-blast-radius-banner"
+          >
+            {{ t('blastRadiusBanner') }}
+          </div>
+        } @else {
+          <div
+            class="mb-4 px-3 py-2 text-sm text-slate-600 border border-slate-200 bg-slate-50"
+            data-testid="aircraft-readonly-banner"
+          >
+            {{ t('list.readonlyBanner') }}
+          </div>
+        }
+
+        <div class="mb-4 max-w-xs">
+          <af-form-field [label]="t('list.typeFilter.label')" for="AircraftTypeFilter">
+            <af-select
+              inputId="AircraftTypeFilter"
+              [value]="store.typeFilter()"
+              (valueChange)="onTypeFilterChange($event)"
+              [options]="typeFilterOptions"
+              data-testid="aircraft-type-filter"
+            />
+          </af-form-field>
+        </div>
+      </ng-container>
 
       <af-page-error
         [message]="store.loadError()"
@@ -87,11 +110,30 @@ const TYPE_FILTER_OPTIONS: readonly AfSelectOption<AircraftTypeFilter>[] = [
           </a>
         </ng-template>
         <ng-template #secondary let-ac>
-          @if (ac.competitionSign) {
-            <span>{{ ac.competitionSign }}</span>
-            <span> · </span>
-          }
-          <span>{{ ac.aircraftTypeCode }}</span>
+          <ng-container *transloco="let t; read: 'aircraft'">
+            @if (ac.competitionSign) {
+              <span>{{ ac.competitionSign }}</span>
+              <span> · </span>
+            }
+            <span>{{ ac.aircraftTypeCode }}</span>
+            @if (ac.aircraftModel || ac.manufacturerName) {
+              <span> · </span>
+              <span [attr.data-testid]="'aircraft-model-' + ac.id">
+                @if (ac.manufacturerName) {
+                  {{ ac.manufacturerName }}
+                }
+                @if (ac.aircraftModel) {
+                  {{ ac.aircraftModel }}
+                }
+              </span>
+            }
+            @if (ac.nrOfSeats !== null && ac.nrOfSeats !== undefined) {
+              <span> · </span>
+              <span [attr.data-testid]="'aircraft-seats-' + ac.id">
+                {{ t('list.columns.seats', { count: ac.nrOfSeats }) }}
+              </span>
+            }
+          </ng-container>
           @if (ac.currentStateCode) {
             <span> · </span>
             <span
@@ -171,6 +213,7 @@ export class AircraftListPage {
   protected readonly store = inject(AircraftStore);
   protected readonly session = inject(SessionStore);
   protected readonly router = inject(Router);
+  private readonly transloco = inject(TranslocoService);
   protected readonly canMutate = this.session.isClubAdmin;
   protected readonly typeFilterOptions = TYPE_FILTER_OPTIONS;
 
@@ -180,7 +223,10 @@ export class AircraftListPage {
 
   protected confirmDelete(ac: AircraftItem): void {
     if (typeof window === 'undefined' || !ac.id) return;
-    if (window.confirm(`Delete aircraft "${ac.immatriculation}"? This cannot be undone.`)) {
+    const message = this.transloco.translate('aircraft.deleteConfirm', {
+      immatriculation: ac.immatriculation,
+    });
+    if (window.confirm(message)) {
       this.store.delete(ac.id);
     }
   }

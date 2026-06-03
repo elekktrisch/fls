@@ -150,6 +150,10 @@ jobs:
     permissions:
       # gh-pages publish (main only) + read for checkout.
       contents: write
+      # T-25: upsert the sticky `<!-- fanout-proof-preview -->` PR comment that
+      # carries the …/legacy-parity/ branch-preview URL (resolved via `gh pr list`
+      # for the dispatched branch). The comment is a convenience, not a gate.
+      pull-requests: write
     env:
       # Legacy stack
       FLS_LISTEN_URL: "http://*:25567/"
@@ -189,9 +193,20 @@ jobs:
       - name: Create alpenflight_shared network
         run: docker network inspect alpenflight_shared >/dev/null 2>&1 || docker network create alpenflight_shared --driver bridge
 
+      # Backgrounded MSSQL bring-up pulls mcr.microsoft.com/mssql/server. The
+      # bounded 3-attempt/15s-backoff retry lives INSIDE the subshell so
+      # /tmp/.done-stack is touched only on a successful `up` (J-1 T-09); on a
+      # persistent failure the marker is never written and the later "Wait for
+      # MSSQL healthcheck" step times out red, which is correct.
       - name: Start MSSQL (fls-e2e compose, default profile)
         run: |
-          (docker compose -p fls-e2e up -d mssql && touch /tmp/.done-stack) > /tmp/stack.log 2>&1 &
+          (
+            for i in 1 2 3; do
+              docker compose -p fls-e2e up -d mssql && touch /tmp/.done-stack && break
+              echo "MSSQL up attempt $i failed (registry blip?) — retrying in 15s" >&2
+              sleep 15
+            done
+          ) > /tmp/stack.log 2>&1 &
           echo "compose up PID=$!"
 
       - name: Download FLS.Server.Console bin
@@ -306,21 +321,69 @@ jobs:
             tests/masterdata/locations-fanout-J0c.spec.ts
 
       # ========================================================================
+      # 2b. J-1 T-14 — legacy AIRCRAFT parity spec. Read-only walkthrough of the
+      #     seeded aircraft list + one aircraft's form in the flsweb UI; records
+      #     the legacy aircraft parity video. The SAME legacy stack (already up)
+      #     and the SAME deterministic FLSTest seed (~15 aircraft) the Location
+      #     spec used — no extra seeding, runs on this one nightly run alongside
+      #     T-04. Paired side-by-side with J-1's AlpenFlight aircraft videos
+      #     (proof-journey: J-1) in the gallery via the legacy-video sidecar
+      #     (step 7b). Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-1 T-14 legacy aircraft parity spec (records legacy video)
+        id: legacy-pw-aircraft
+        if: always()
+        working-directory: e2e
+        timeout-minutes: 10
+        run: |
+          npx playwright test \
+            --project=masterdata \
+            tests/masterdata/aircrafts-parity-J1.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
       #    MSSQL"), so it already exists by the time these services come up.
       # ========================================================================
+      # Registry-pull retry (J-1 T-09, mirrors ci.yml J-25 T-05): the docker
+      # steps below touch external registries (quay.io for Keycloak,
+      # registry-1.docker.io for mailpit/postgres/pgadmin) and fail red on
+      # transient 5xx/timeout blips. Each is wrapped in a bounded 3-attempt
+      # retry with 15s backoff; a persistent failure still exits non-zero after
+      # the 3rd attempt, so real breakage stays red. Scoped to image-pull/
+      # build/up ONLY — the test/gallery/deploy steps are deliberately NOT
+      # retried (a flaky spec must not be silently retried into green).
       - name: Bring up alpenflight-infra (mailpit)
-        run: bash alpenflight/ops/dev-up-infra.sh
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
 
       - name: Build pgAdmin + Keycloak images
-        run: docker compose -f docker-compose.yml --profile next build pgadmin keycloak
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
 
       - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
         run: |
-          docker compose -p alpenflight-dev -f docker-compose.yml \
-            up -d --wait --wait-timeout 240 postgres pgadmin keycloak
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
 
       - name: Set up Java 25
         uses: actions/setup-java@v4
@@ -456,27 +519,50 @@ jobs:
           ls -l "$OUT"
 
       # ========================================================================
-      # 6. T-03 PARITY SPEC in REAL-bundle mode — POST the real exported bundle
-      #    → fan-out + Keycloak provision → per-club view + edit-isolation +
-      #    cross-tenant 404. Records per-club AlpenFlight videos. The webServer
-      #    SPA from step 4 is reused (reuseExistingServer is false in CI, but
-      #    Playwright tears it down per `playwright test` invocation; this run
-      #    re-boots it — acceptable on the dedicated workflow).
+      # 6. ALPENFLIGHT PARITY SPECS (J-0c real-bundle + J-1 aircraft) — ONE
+      #    `playwright test` invocation so the single JSON proof-manifest the
+      #    gallery reads carries BOTH journeys' AlpenFlight videos (a second
+      #    invocation would overwrite the manifest, dropping the J-0c captions).
+      #    Mirrors ci.yml's `alpenflight-proof` two-spec shape (T-07).
+      #
+      #    - J-0c (fan-out-migration-parity, REAL-bundle): POST the real exported
+      #      bundle → fan-out + Keycloak provision → per-club view + edit-isolation
+      #      + cross-tenant 404. Records per-club AlpenFlight videos (proof-journey:
+      #      J-0c) — paired with the legacy Location video (step 2 / 7b).
+      #    - J-1 (aircraft-migration-parity, SYNTH bundle — J1_BUNDLE_SOURCE unset):
+      #      clean-seed CRUD + tenant edit-isolation + S-163 + S-164 + the migrated
+      #      aircraft render (synth bundle through the REAL migration ingest +
+      #      Keycloak provisioning). Records the AlpenFlight aircraft videos
+      #      (proof-journey: J-1) — paired SIDE-BY-SIDE with the legacy aircraft
+      #      video (step 2b / 7b) under J-1 in the gallery. The full legacy→export
+      #      AIRCRAFT bundle is a deeper follow-up; T-14 captures the legacy
+      #      aircraft VIDEO + this synth-migrated render is the J-1 AlpenFlight half.
+      #
+      #    The webServer SPA from step 4 is reused (reuseExistingServer is false in
+      #    CI, but Playwright tears it down per `playwright test` invocation; this
+      #    run re-boots it — acceptable on the dedicated workflow). DATASOURCE_*
+      #    are exported so the aircraft spec's Gradle seeder shell-outs
+      #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
+      #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run T-03 parity spec against REAL migrated data (records videos)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 15
+        timeout-minutes: 20
         env:
           J0C_BUNDLE_SOURCE: real
           J0C_REAL_HANDSHAKE_FILE: ${{ github.workspace }}/j0c-handshake.json
           J0C_REAL_BUNDLE_FILE: ${{ github.workspace }}/j0c-bundle.enc
           J0C_REAL_LOCATION_NAME: ${{ env.J0C_LOCATION_NAME }}
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
-            e2e/tests/real-idp/fan-out-migration-parity.spec.ts
+            e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
 
       # ========================================================================
       # 7. GALLERY + VIDEO RETENTION. The AlpenFlight parity videos carry the
@@ -488,29 +574,90 @@ jobs:
       # sidecar BEFORE the generator runs — generate-gallery.mjs reads the
       # sidecar (--legacy-video) and renders the legacy create video in the SAME
       # J-0c section as the AlpenFlight per-club videos (T-06).
-      - name: Stage legacy parity video + caption sidecar (J-0c)
+      - name: Stage legacy parity videos + caption sidecar (J-0c + J-1)
         if: always()
         run: |
-          # The legacy create video lands under /tmp/fls-e2e-results/<test>/video/.
+          # Legacy videos land under /tmp/fls-e2e-results/<spec>-<title>-<...>/video/.
+          # Playwright names each per-test output dir after the spec file, so we
+          # pick EACH legacy video deterministically by its spec-name fragment —
+          # NOT "the first .webm" (two specs now record: J-0c Location + J-1
+          # aircraft). Each gets a stable, named filename so the sidecar's `file`
+          # reference is deterministic, and is declared under its OWN journey so
+          # the gallery groups it with the matching AlpenFlight videos.
           STAGE="${{ github.workspace }}/j0c-legacy-video"
           mkdir -p "$STAGE"
-          # Pick the first legacy .webm and give it a stable, named filename so
-          # the sidecar's `file` reference is deterministic.
-          LEGACY_WEBM="$(find /tmp/fls-e2e-results -name '*.webm' | head -1 || true)"
-          if [ -n "$LEGACY_WEBM" ]; then
-            cp "$LEGACY_WEBM" "$STAGE/locations-fanout-J0c.webm"
-            CAP="Legacy flsweb: Location '${J0C_LOCATION_NAME}' created + set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows"
-            node -e '
-              const fs = require("fs");
-              const out = process.argv[1], caption = process.argv[2];
-              fs.writeFileSync(out, JSON.stringify({
-                videos: [{ journey: "J-0c", file: "locations-fanout-J0c.webm", acTag: "happy", caption }],
-              }, null, 2));
-            ' "$STAGE/legacy-video.json" "$CAP"
-            echo "Staged legacy video + sidecar:"
+
+          # J-0c — legacy Location fan-out create video.
+          LOC_WEBM="$(find /tmp/fls-e2e-results -path '*locations-fanout-J0c*' -name '*.webm' | head -1 || true)"
+          # J-1 — legacy aircraft list+form parity video (T-14).
+          AC_WEBM="$(find /tmp/fls-e2e-results -path '*aircrafts-parity-J1*' -name '*.webm' | head -1 || true)"
+
+          VIDEOS=""
+          if [ -n "$LOC_WEBM" ]; then
+            cp "$LOC_WEBM" "$STAGE/locations-fanout-J0c.webm"
+            CAP_LOC="Legacy flsweb: Location '${J0C_LOCATION_NAME}' created + set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows"
+            VIDEOS="$VIDEOS{\"journey\":\"J-0c\",\"file\":\"locations-fanout-J0c.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_LOC")},"
+          else
+            echo "No J-0c Location .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$AC_WEBM" ]; then
+            cp "$AC_WEBM" "$STAGE/aircrafts-parity-J1.webm"
+            CAP_AC="Legacy flsweb: the seeded aircraft list + one aircraft's edit form (immatriculation, competition sign, type, manufacturer, model, seats, owner, homebase, …) — the legacy field set to eyeball against AlpenFlight's /aircrafts register"
+            VIDEOS="$VIDEOS{\"journey\":\"J-1\",\"file\":\"aircrafts-parity-J1.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_AC")},"
+          else
+            echo "No J-1 aircraft .webm found under /tmp/fls-e2e-results."
+          fi
+
+          if [ -n "$VIDEOS" ]; then
+            printf '{ "videos": [ %s ] }' "${VIDEOS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$STAGE/legacy-video.json"
+            echo "Staged legacy videos + sidecar:"
             ls -l "$STAGE/"
+            cat "$STAGE/legacy-video.json"
           else
             echo "No legacy .webm found under /tmp/fls-e2e-results — gallery renders AlpenFlight side only."
+          fi
+
+          # ----- J-1 T-19/T-20 — parity SCREENSHOTS (legacy + AlpenFlight) -----
+          # Four fixed-name PNGs the two specs wrote with fullPage screenshots:
+          #   legacy   list/form → testInfo.outputPath under /tmp/fls-e2e-results
+          #   AlpenFlight list/form → testInfo.outputDir under
+          #                           alpenflight/web/test-results
+          # Stage them into SHOT (the --screenshots dir) under their stable names
+          # + write screenshots.json declaring journey/side/view/caption so the
+          # generator pairs legacy↔AlpenFlight per view (T-20). A missing PNG is a
+          # no-op for THAT entry (we only declare the ones we found) — but a
+          # DECLARED-yet-missing PNG fails the generator's AC5 link-check, so we
+          # declare strictly what we copied.
+          SHOT="${{ github.workspace }}/j1-screenshots"
+          mkdir -p "$SHOT"
+          SHOTS=""
+          add_shot() { # $1 src-glob  $2 stable-name  $3 journey  $4 side  $5 view  $6 caption
+            local src; src="$(find $1 -name "$2" 2>/dev/null | head -1 || true)"
+            if [ -n "$src" ]; then
+              cp "$src" "$SHOT/$2"
+              SHOTS="$SHOTS{\"journey\":\"$3\",\"side\":\"$4\",\"view\":\"$5\",\"file\":\"$2\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$6")},"
+            else
+              echo "screenshot $2 not found (glob $1) — skipping that entry."
+            fi
+          }
+          add_shot "/tmp/fls-e2e-results" "legacy-aircraft-list.png" "J-1" "legacy" "list" \
+            "Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) — the legacy list columns to eyeball against AlpenFlight's /aircraft list"
+          add_shot "/tmp/fls-e2e-results" "legacy-aircraft-form.png" "J-1" "legacy" "form" \
+            "Legacy flsweb: one aircraft's edit form, the full field set (immatriculation, competition sign, type, manufacturer, model, seats, homebase, …)"
+          add_shot "alpenflight/web/test-results" "alpenflight-aircraft-list.png" "J-1" "alpenflight" "list" \
+            "AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)"
+          add_shot "alpenflight/web/test-results" "alpenflight-aircraft-form.png" "J-1" "alpenflight" "form" \
+            "AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy"
+
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged parity screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No parity PNGs found — gallery renders videos only."
           fi
 
       - name: Build + link-check proof gallery (legacy + AlpenFlight, J-0c)
@@ -523,6 +670,14 @@ jobs:
           if [ -f "$STAGE/legacy-video.json" ]; then
             LEGACY_ARG="--legacy-video $STAGE"
           fi
+          # J-1 T-20 — parity screenshots: feed the staged screenshots.json dir so
+          # the generator renders the legacy↔AlpenFlight paired <img> block (+ its
+          # AC5 link-check: a declared PNG missing from $SHOT fails this step).
+          SHOT="${{ github.workspace }}/j1-screenshots"
+          SHOT_ARG=""
+          if [ -f "$SHOT/screenshots.json" ]; then
+            SHOT_ARG="--screenshots $SHOT"
+          fi
           # --no-nav: this is the LEAF (per-run) fan-out gallery, deployed to a
           # namespaced subpath; the "per-run galleries" nav belongs only on the
           # canonical index (T-24), not on the gallery the nav points AT.
@@ -531,7 +686,8 @@ jobs:
             --out ../../public/alpenflight/proof \
             --order ../../docs/modernization/stories/_ORDER.md \
             --no-nav \
-            $LEGACY_ARG
+            $LEGACY_ARG \
+            $SHOT_ARG
 
       - name: Collect logs on failure
         if: failure()
@@ -564,21 +720,153 @@ jobs:
 
       # Deploy the fan-out gallery to its OWN namespaced subpath, NOT publish_dir:
       # public (which writes the canonical /alpenflight/proof/index.html — the
-      # fan-out index has J-0c but no J-0 section, so it would replace the rich
-      # multi-journey top index on merge). destination_dir + keep_files:true means
-      # this only ever writes /alpenflight/proof/j-0c-fanout/ — the exact path the
-      # canonical index's "per-run galleries" nav (T-24) links to.
-      - name: Deploy J-0c fan-out gallery to gh-pages (namespaced subpath)
+      # fan-out index has J-0c/J-1/… but no J-0 section, so it would replace the
+      # rich multi-journey top index on merge). destination_dir + keep_files:true
+      # means this only ever writes /alpenflight/proof/legacy-parity/ — the exact
+      # path the canonical index's "per-run galleries" nav (T-24) links to. The
+      # subpath is journey-agnostic (`legacy-parity`): the fanout now serves the
+      # full legacy→export→migrate parity proof for ALL journeys, not just J-0c.
+      - name: Deploy legacy-parity fan-out gallery to gh-pages (namespaced subpath)
         if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: public/alpenflight/proof
-          destination_dir: alpenflight/proof/j-0c-fanout
+          destination_dir: alpenflight/proof/legacy-parity
           publish_branch: gh-pages
           keep_files: true
           enable_jekyll: false
-          commit_message: "J-0c fan-out proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+          commit_message: "legacy-parity fan-out proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+
+      # ========================================================================
+      # J-1 T-21 — BRANCH-PREVIEW deploy. The main deploy above is
+      # `github.ref == main`-gated, so a `workflow_dispatch` from a feature
+      # branch produces an artifact only (no clickable URL). Mirror ci.yml's
+      # proven J-25 per-branch proof-preview pattern so the fan-out gallery
+      # (legacy↔AlpenFlight videos + the T-19/T-20 paired parity screenshots) is
+      # reachable via a LINK before merge.
+      #
+      # workflow_dispatch has NO github.head_ref (that's a PR-only field); the
+      # fanout runs ON the dispatched branch, so sanitize github.ref_name (the
+      # short branch name, e.g. `integration/J-1` → `integration-J-1`). The sed
+      # is byte-identical to ci.yml's J-25 preview step + proof-preview-reap.yml
+      # so the reaper deletes the right subpath on PR close (the fanout subpath
+      # nests UNDER the same `alpenflight/proof-preview/<ref>/` parent the reaper
+      # recursively removes).
+      #
+      # Disjoint destination: `alpenflight/proof-preview/<ref>/legacy-parity`.
+      # keep_files:true + this per-branch+nested path mean the preview deploy can
+      # NEVER clobber the canonical /alpenflight/proof/legacy-parity/ (main), the
+      # top index, or another branch's preview.
+      - name: Compute fan-out branch-preview destination
+        id: preview
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          # SANITIZE RULE — keep byte-for-byte identical to
+          # .github/workflows/ci.yml's `Compute proof-preview destination` step
+          # AND .github/workflows/proof-preview-reap.yml. The reaper derives the
+          # `alpenflight/proof-preview/<sanitized>` parent from the branch ref and
+          # recursively removes it on PR close; our fan-out preview nests under
+          # that SAME parent (.../legacy-parity), so a drift here orphans the subdir.
+          sanitized="$(printf '%s' "$REF_NAME" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}/legacy-parity"
+          url="https://elekktrisch.github.io/fls/${subdir}/"
+          {
+            echo "subdir=${subdir}"
+            echo "url=${url}"
+          } >> "$GITHUB_OUTPUT"
+          echo "fan-out proof preview → ${url}"
+
+      - name: Deploy fan-out gallery to gh-pages (branch preview)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/alpenflight/proof
+          destination_dir: ${{ steps.preview.outputs.subdir }}
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "fan-out proof preview: ${{ steps.pw.outcome }} for ${{ github.ref_name }} (${{ github.sha }})"
+
+      # Emit the clickable preview URL to BOTH the job summary and a ::notice::
+      # log line so it's grep-able from the dispatched run (the operator gets the
+      # link, not a chat dump of files). Runs only when the branch-preview deploy
+      # actually published (same gate as the deploy).
+      - name: Emit fan-out preview URL
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          echo "::notice title=Fan-out proof preview::${PREVIEW_URL}"
+          {
+            echo "## Fan-out proof gallery (branch preview)"
+            echo ""
+            echo "Legacy↔AlpenFlight parity videos + T-19/T-20 paired screenshots:"
+            echo ""
+            echo "**${PREVIEW_URL}**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ========================================================================
+      # J-1 T-25 — UPSERT the sticky PR comment carrying the …/legacy-parity/ URL.
+      # The step-summary + ::notice:: above only show on the dispatched RUN; the
+      # operator wants the link ON THE PR. The J-25 sticky-comment in ci.yml uses
+      # actions/github-script with `context.issue.number`, but that field is
+      # PR-event-only — the fanout is workflow_dispatch/schedule and has NO
+      # pull_request context. So we RESOLVE the PR number for the dispatched
+      # branch (`gh pr list --head <ref>`) and upsert via `gh` instead.
+      #
+      # Marker `<!-- fanout-proof-preview -->` is byte-identical to the manual
+      # comment already on the PR, so the upsert EDITS that one in place (no
+      # duplicate). Find the existing marker comment via the issues API, then
+      # PATCH it; else `gh pr comment` creates a fresh one.
+      #
+      # Fail-soft: a dispatch with NO open PR for the branch (e.g. a branch
+      # without a PR, or main) resolves an empty PR number → we skip with a log
+      # line and `exit 0`. Same gate as the deploy/emit (workflow_dispatch +
+      # non-main + gallery success); contents-only failures here never gate the
+      # job — the comment is a convenience, not a proof.
+      - name: Upsert legacy-parity URL onto the PR (sticky comment)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MARKER='<!-- fanout-proof-preview -->'
+
+          # Resolve the open PR whose head is the dispatched branch. Empty (no PR)
+          # → skip gracefully (the comment is a convenience, never a gate).
+          PR="$(gh pr list --repo "$REPO" --head "$REF_NAME" --state open \
+                  --json number --jq '.[0].number' 2>/dev/null || true)"
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            echo "no open PR for ${REF_NAME}, skipping comment"
+            exit 0
+          fi
+          echo "resolved PR #${PR} for ${REF_NAME}"
+
+          # Body mirrors the manual sticky comment: marker line + heading + the
+          # full legacy-parity URL + a one-line description of what it proves.
+          BODY="$(printf '%s\n### Legacy↔AlpenFlight proof gallery (fan-out branch preview)\n\n**%s**\n\nLegacy↔AlpenFlight list+form parity screenshots + the real-chain (legacy→migrate+Keycloak→AlpenFlight) pass-videos. Updates in place on each green fan-out run for this branch.\n' "$MARKER" "$PREVIEW_URL")"
+
+          # Find an existing comment carrying the marker → PATCH it in place;
+          # else create a fresh one. `|| echo …` keeps the whole step fail-soft.
+          EXISTING="$(gh api "repos/${REPO}/issues/${PR}/comments" --paginate \
+                        --jq "map(select(.body | contains(\"${MARKER}\"))) | .[0].id" 2>/dev/null || true)"
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            echo "editing existing sticky comment id=${EXISTING}"
+            gh api -X PATCH "repos/${REPO}/issues/comments/${EXISTING}" \
+              -f body="$BODY" >/dev/null \
+              || echo "PATCH failed for comment ${EXISTING} on PR #${PR}, skipping"
+          else
+            echo "no existing marker comment, creating one on PR #${PR}"
+            gh pr comment "$PR" --repo "$REPO" --body "$BODY" \
+              || echo "create failed on PR #${PR}, skipping"
+          fi
 
       - name: Stop backend
         if: always()
@@ -595,8 +883,12 @@ jobs:
           docker compose -p fls-e2e           -f docker-compose.yml                 down -v --remove-orphans || true
           docker network rm alpenflight_shared || true
 
-      - name: Mark job failed if either spec was red (post-publish)
+      # Surface the J-1 legacy aircraft parity-video outcome for visibility, but
+      # it is a NON-BLOCKING parity aid (operator: AlpenFlight green is the gate),
+      # so it is NOT part of the hard-fail condition — only the J-0c legacy create
+      # spec + the AlpenFlight parity specs gate this job.
+      - name: Mark job failed if a gating spec was red (post-publish)
         if: ${{ steps.legacy-pw.outcome != 'success' || steps.pw.outcome != 'success' }}
         run: |
-          echo "legacy spec: ${{ steps.legacy-pw.outcome }}; parity spec: ${{ steps.pw.outcome }}" >&2
+          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs: ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}" >&2
           exit 1

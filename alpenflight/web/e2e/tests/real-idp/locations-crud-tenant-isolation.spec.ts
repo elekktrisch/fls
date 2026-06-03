@@ -128,7 +128,10 @@ test.describe('Locations — two-club tenant isolation (real-idp)', () => {
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
-    fixture = await provisionTwoClubs(browser, baseURL);
+    // Spec-scoped admin usernames ('loc') so this fixture's club admins are
+    // disjoint from the J-1 Aircraft spec's ('acft') when both run in one
+    // `playwright test` invocation — ux_user_username_lower_alive (T-11).
+    fixture = await provisionTwoClubs(browser, baseURL, 'loc');
   });
 
   test.afterAll(async () => {

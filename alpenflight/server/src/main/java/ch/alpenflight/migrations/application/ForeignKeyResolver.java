@@ -2,6 +2,7 @@ package ch.alpenflight.migrations.application;
 
 import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.LegacyIdMapTables;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
@@ -12,7 +13,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -48,11 +53,14 @@ import org.jspecify.annotations.Nullable;
  * referencer out with), landing on that club's replica. A composite miss is
  * <em>fail-closed</em> (mirrors the SYSTEM_GLOBAL path) — never a verbatim FK.
  *
- * <p>Column-name convention (vertical-slice mappers, S-187): the FK
- * column is {@code <target.name().toLowerCase()>_id} — e.g.
- * {@code club_id}, {@code country_id}, {@code language_id}. S-187a will
- * generalise to non-canonical names (e.g. {@code Aircraft.homebase_id}
- * → LOCATION).
+ * <p>Column-name convention (vertical-slice mappers, S-187): by default the
+ * FK column is {@code <target.name().toLowerCase()>_id} — e.g.
+ * {@code club_id}, {@code country_id}, {@code language_id}. A mapper that names
+ * its FK columns off-convention, or references one target through several
+ * columns (e.g. {@code Aircraft.managing_club_id} + {@code owner_club_id} →
+ * CLUB, {@code Aircraft.homebase_id} → LOCATION), declares each
+ * {@code (column, target)} pair via {@link Mapper#foreignKeyColumns()} (S-187a);
+ * undeclared targets keep the convention.
  *
  * <p>Stateful — caches one prepared statement per target entity, scoped
  * to the ingest connection. Closed by {@link #close} when the per-entity
@@ -79,12 +87,29 @@ final class ForeignKeyResolver implements AutoCloseable {
     }
 
     /**
-     * Walk the mapper's FK targets and rewrite each present legacy GUID
-     * to the resolved new-stack UUID. Mutates {@code row} in place.
+     * Walk the mapper's FK columns and rewrite each present legacy GUID to the
+     * resolved new-stack UUID. Mutates {@code row} in place.
+     *
+     * <p>Each {@code (column, target)} pair is resolved independently: a target
+     * declared via {@link Mapper#foreignKeyColumns()} uses its explicit column
+     * name(s) — so the SAME target referenced through MULTIPLE columns (e.g.
+     * AIRCRAFT's {@code managing_club_id} + {@code owner_club_id} → CLUB) resolves
+     * each column — while any {@link Mapper#foreignKeys()} target NOT declared
+     * falls back to the {@code <target>_id} convention. This generalises S-187's
+     * one-column-per-target convention without changing it (S-187a).
      */
     void rewriteForeignKeys(Mapper mapper, ObjectNode row) throws SQLException {
-        for (EntityType target : mapper.foreignKeys()) {
-            String field = conventionalForeignKeyField(target);
+        // Snapshot every fan-out disambiguator column's LEGACY value before the
+        // loop rewrites any FK in place. A disambiguator can itself be a FK column
+        // (AIRCRAFT's homebase_id disambiguates on managing_club_id, which is ALSO
+        // a CLUB FK rewritten earlier in this same loop). The fan-out composite
+        // map legacy_id_map_<target> is keyed by the LEGACY club guid, so the
+        // lookup must use the pre-rewrite value — not the new-stack UUID the CLUB
+        // resolution already substituted.
+        Map<String, UUID> legacyDisambiguators = snapshotDisambiguators(mapper, row);
+        for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
+            EntityType target = binding.target();
+            String field = binding.column();
             JsonNode currentValue = row.get(field);
             if (currentValue == null || currentValue.isNull()) {
                 continue;
@@ -100,7 +125,8 @@ final class ForeignKeyResolver implements AutoCloseable {
                         badUuid);
             }
             if (target.fansOut()) {
-                resolveFanOutForeignKey(mapper, row, target, field, legacyGuid);
+                resolveFanOutForeignKey(mapper, row, target, field,
+                        binding.disambiguatorColumn(), legacyDisambiguators, legacyGuid);
                 continue;
             }
             UUID resolved = lookupOrNull(target, legacyGuid);
@@ -135,25 +161,26 @@ final class ForeignKeyResolver implements AutoCloseable {
      * violates a constraint opaquely.
      */
     private void resolveFanOutForeignKey(
-            Mapper mapper, ObjectNode row, EntityType target, String field, UUID legacyGuid)
+            Mapper mapper,
+            ObjectNode row,
+            EntityType target,
+            String field,
+            @Nullable String disambiguatorColumn,
+            Map<String, UUID> legacyDisambiguators,
+            UUID legacyGuid)
             throws SQLException {
-        JsonNode clubValue = row.get(REFERENCER_CLUB_FIELD);
-        if (clubValue == null || clubValue.isNull()) {
+        String clubField =
+                disambiguatorColumn != null ? disambiguatorColumn : REFERENCER_CLUB_FIELD;
+        // Use the pre-rewrite LEGACY value captured before the loop: clubField may
+        // itself be a FK column the loop already rewrote to a new-stack UUID, but
+        // the composite map is keyed by the LEGACY club guid.
+        UUID referencerClubId = legacyDisambiguators.get(clubField);
+        if (referencerClubId == null) {
             throw new BundleIngestException(
                     BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK,
                     "FK " + field + " on " + mapper.entityType() + " targets fan-out "
                             + target + " but the referencer row carries no own "
-                            + REFERENCER_CLUB_FIELD + " to disambiguate which replica it means");
-        }
-        UUID referencerClubId;
-        try {
-            referencerClubId = UUID.fromString(clubValue.asText());
-        } catch (IllegalArgumentException badUuid) {
-            throw new BundleIngestException(
-                    BundleIngestErrorCode.NDJSON_PARSE_FAILED,
-                    REFERENCER_CLUB_FIELD + " on " + mapper.entityType()
-                            + " is not a valid UUID: " + clubValue.asText(),
-                    badUuid);
+                            + clubField + " to disambiguate which replica it means");
         }
         UUID resolved = lookupCompositeOrNull(target, legacyGuid, referencerClubId);
         if (resolved == null) {
@@ -241,9 +268,70 @@ final class ForeignKeyResolver implements AutoCloseable {
                 && policy.portPolicy() == EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE;
     }
 
+    /**
+     * The effective ordered list of FK column bindings for a mapper: every
+     * {@link Mapper#foreignKeyColumns()} declaration verbatim, plus a
+     * convention-derived {@code <target>_id} binding for each
+     * {@link Mapper#foreignKeys()} target NOT already covered by a declaration.
+     * A target covered by one or more declared columns is resolved ONLY through
+     * those columns (never additionally by convention).
+     */
+    private static List<ForeignKeyBinding> foreignKeyBindings(Mapper mapper) {
+        List<ForeignKeyColumn> declared = mapper.foreignKeyColumns();
+        List<ForeignKeyBinding> bindings = new ArrayList<>(declared.size());
+        EnumSet<EntityType> declaredTargets = EnumSet.noneOf(EntityType.class);
+        for (ForeignKeyColumn fk : declared) {
+            bindings.add(new ForeignKeyBinding(fk.column(), fk.target(), fk.disambiguatorColumn()));
+            declaredTargets.add(fk.target());
+        }
+        for (EntityType target : mapper.foreignKeys()) {
+            if (!declaredTargets.contains(target)) {
+                bindings.add(new ForeignKeyBinding(conventionalForeignKeyField(target), target, null));
+            }
+        }
+        return bindings;
+    }
+
     private static String conventionalForeignKeyField(EntityType target) {
         return target.name().toLowerCase(Locale.ROOT) + "_id";
     }
+
+    /**
+     * Capture the LEGACY (pre-rewrite) value of every fan-out binding's
+     * disambiguator column, keyed by column name. Run before
+     * {@link #rewriteForeignKeys} mutates the row so a disambiguator that is
+     * itself a FK column (AIRCRAFT's {@code managing_club_id}) is read at its
+     * legacy value, matching the legacy-keyed composite fan-out map. A
+     * malformed value is left out and surfaces as a missing-disambiguator error
+     * at resolve time (same fail-closed message as a genuinely absent column).
+     */
+    private static Map<String, UUID> snapshotDisambiguators(Mapper mapper, ObjectNode row) {
+        Map<String, UUID> snapshot = new HashMap<>();
+        for (ForeignKeyBinding binding : foreignKeyBindings(mapper)) {
+            if (!binding.target().fansOut()) {
+                continue;
+            }
+            String clubField = binding.disambiguatorColumn() != null
+                    ? binding.disambiguatorColumn() : REFERENCER_CLUB_FIELD;
+            if (snapshot.containsKey(clubField)) {
+                continue;
+            }
+            JsonNode value = row.get(clubField);
+            if (value == null || value.isNull()) {
+                continue;
+            }
+            try {
+                snapshot.put(clubField, UUID.fromString(value.asText()));
+            } catch (IllegalArgumentException ignored) {
+                // Leave unmapped: resolveFanOutForeignKey reports the miss.
+            }
+        }
+        return snapshot;
+    }
+
+    /** One resolved FK column → target pair (with optional fan-out disambiguator). */
+    private record ForeignKeyBinding(
+            String column, EntityType target, @Nullable String disambiguatorColumn) {}
 
     @Override
     public void close() {

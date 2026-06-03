@@ -85,7 +85,11 @@ Build only this task. Typical task shapes:
 
 Iterate to local green against the fast inner loop (mock-auth + Testcontainers,
 or `page.route` mocks for FE-only). Honor the ≥5-min wallclock budget — surface
-a slow loop rather than re-running it five times.
+a slow loop rather than re-running it five times. **A backend slice that adds a
+cross-module dependency (new import across packages) must also run the cheap
+pure-JVM arch/boundary tests** (`ApplicationModulesTest` — Spring Modulith) —
+*not just the touched test class* — or a boundary violation surfaces a whole gate
+round later (J-1 T-10: `aircraft`→`users` internal-type dep, caught at the gate).
 
 ### 4 — Commit + tick
 
@@ -94,6 +98,13 @@ summary>` / `J-NNN T-NN: …`). Don't push past red; don't `--no-verify` /
 force-push. Tick `T-NN` in the journey's `## Tasks` checklist (one commit may
 include the tick). If you opened nothing, `/do-ship` handles the draft PR; if a
 PR exists, push and let CI run.
+
+**Format + lint the touched files before you commit** — run the project formatter in
+**write** mode then verify, over the **full glob** you changed (e.g. `prettier --write`
+then `--check "src/**/*.{ts,html,css,json}" "e2e/**/*.{ts,json}"`, the module's `lint`),
+not just the one or two files you eyeballed. `--check` alone reports but doesn't fix. A
+format-only miss fails CI a whole round later — the most wasteful red there is (J-0c T-09 +
+J-1 T-20/T-22 each burned a round on exactly this). Cheap locally, expensive at the gate.
 
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it

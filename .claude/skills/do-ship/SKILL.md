@@ -35,12 +35,22 @@ green at the gate).
 
 ## The done bar — a real, honest green
 
-A journey is done only when its Playwright spec drives the **real UI** end to
-end and passes — first on a clean seed, then on real legacy data migrated into
-AlpenFlight (Postgres + Keycloak). The pass-video is the acceptance artifact.
+A journey is done only when its Playwright spec drives the **real UI** end to end and
+passes — clean seed first, then real legacy data migrated into AlpenFlight (Postgres +
+Keycloak). Two extra done-bar requirements (J-1):
 
-**Red is the work-list, not a wall.** Never done while red; the green bar is
-self-imposed and absolute. **A journey never merges red.**
+- **Migration journeys** (any carrying a mapper) need a **green real-legacy-export
+  (fanout) run**, not just the synth chain — synth bundles use aliased column names and
+  never exercise the producer SELECT against the real legacy schema (J-1: two producer-
+  column bugs hid behind a green synth proof; only the real export caught them).
+  [[project_synth_bundle_doesnt_validate_producer_select]].
+- **Legacy-replacing screens** produce paired legacy↔AlpenFlight **list+form screenshots
+  + the legacy video** in the gallery, with the link auto-posted on the PR — part of done,
+  not a post-hoc add (J-1: 3 reopens for exactly this). `e2e-driver` owns the capture.
+
+**Red is the work-list, not a wall.** Never done while red; the bar is self-imposed and
+absolute. **A journey never merges red.** Synthetic / mocked-seam green is an inner-loop
+aid, **never** progress toward done — only the real-chain green counts.
 
 ## Procedure
 
@@ -49,9 +59,10 @@ self-imposed and absolute. **A journey never merges red.**
 Resolve `J-NNN` from arg or a `integration/J-NNN` branch. Bail if the journey
 file isn't `carved: true` ("run /do-plan J-NNN first") or not `status: todo`
 (in_progress → resume; done → refuse). Every `depends_on` journey must be `done`
-+ its PR `MERGED`. Create/checkout `integration/J-NNN` off the current
-integration line. Flip `status: in_progress` + `started_at`; create a GitHub
-issue (`J-NNN: <title>`) if `gh`+remote; initial commit `#N: start`.
++ its PR `MERGED`. `/do-plan` already created + pushed `integration/J-NNN` (carve
++ any `/do-retro` riders) — **`git fetch` + checkout + pull it**, don't re-create
+(only create off the integration line if absent). Flip `status: in_progress` +
+`started_at`; create a GitHub issue (`J-NNN: <title>`) if `gh`+remote.
 
 ### 2 — Decide the task list (stay lean)
 
@@ -71,6 +82,11 @@ detail). Then write an ordered `## Tasks` checklist into the journey file —
 3. **Proof-chain contribution.** This entity's legacy seed + per-entity mapper.
 4. **Final task — thicken spec** to full real assertions from the oracle.
 
+**Pull boyscout riders.** Before finalizing, fold pending `_BOYSCOUT.md` riders that
+touch this journey's surface (or stale infra/cleanup riders) into `T-NN`s sized per the
+gate, and clear them from the file as they ship — that's how `/do-retro` fixes reach the
+proof loop.
+
 **Sizing gate (a pre-dispatch heuristic — apply to every task before writing it).**
 Each `T-NN` should pass all of:
 - **One seam** — exactly one of: one aggregate (+repo), one resource's endpoint
@@ -81,10 +97,8 @@ Each `T-NN` should pass all of:
 - **Self-naming** — the scope line names the files (or ≤2 globs find them). If
   finding them needs exploration, carve finer.
 
-A layer with N aggregates/components becomes **N tasks**, not one. This gate is a
-heuristic the manager checks from the scope line; the `/do-task` overflow tripwire
-is the authoritative backstop. When unsure, split — a worker that finishes early is
-free; a worker that overflows costs a full re-plan. Err toward more, smaller tasks.
+A layer with N aggregates/components becomes **N tasks**, not one. The `/do-task` overflow
+tripwire is the backstop; when unsure split — early-finish is free, overflow costs a re-plan.
 
 This list is your only durable state — workers and re-runs read it.
 
@@ -111,46 +125,41 @@ Push at task boundaries; after the first locally-green backend task, open a
 integration/J-NNN`, body `Closes #N` + AC checklist). Watch CI in background;
 a red CI run becomes the next task, not a blocked wait.
 
+**Drive to the goal with tasks — never follow-ups.** A gap between the journey and its
+ACs (worker- or gate-revealed) becomes **another `T-NN`** until the done bar — never a
+follow-up story / new journey / "we should later…". Exception: work with **significant
+overlap with an already-roadmapped journey** stays that journey's (note it for
+`/do-plan`; don't build or spin a story here).
+
 ### 3a — Autonomous re-plan on overflow
 
-A worker returns `status: overflow` with an `OVERFLOW:` note (naming the distinct
-seams it found) when its task was too big — fired *before its first commit*, so no
-partial work is on the branch. When it does — or when you spot a task that fails the
-sizing gate — **re-plan without the operator** (once):
+A worker returns `status: overflow` + an `OVERFLOW:` note naming the distinct seams —
+fired *before its first commit*, so no partial work is on the branch. When it does (or you
+spot a task failing the sizing gate), **re-plan without the operator** (once): mark the task
+`~~T-NN~~ (split)`, insert lettered sub-tasks `T-NNa, T-NNb, …` (one seam each, dependency
+order; **re-run the sizing gate on each**, carve finer if still too big), re-dispatch `T-NNa`.
 
-1. Read the worker's `OVERFLOW:` note (it names the seams).
-2. In the journey file, mark the task `~~T-NN~~ (split)` and insert lettered
-   sub-tasks `T-NNa, T-NNb, …` right after it, one seam each, in dependency order.
-   **Re-run the sizing gate on each proposed sub-task** before accepting it — the
-   worker that mis-sized once may propose slices that are themselves too big; carve
-   finer if so.
-3. Re-dispatch a fresh worker for `T-NNa`; continue the loop.
-
-**Loop guard (generation-based).** Only an un-lettered `T-NN` may be auto-split.
-If a *lettered* sub-task (`T-NNa`) itself returns overflow, do **not** split again
-— stop and escalate (the journey shape is wrong; a `/do-plan` re-carve is likely).
-Never re-dispatch the same id unchanged.
+**Loop guard.** Only an un-lettered `T-NN` auto-splits; if a *lettered* `T-NNa`
+overflows, **stop and escalate** (shape is wrong → likely `/do-plan` re-carve). Never
+re-dispatch the same id unchanged.
 
 ### 4 — Proof-chain gate
 
-When every task is ticked, run the gate (delegate to `e2e-driver`): the full
-chain — legacy seed → migrate → Keycloak → real Playwright — both fidelities
-green, **video retained on pass**. When the journey has a legacy counterpart,
-`e2e-driver` also captures a **legacy `flsweb` video** of the same journey on the
-seeded data — a **parity-review aid for the operator, not a pass/fail** (the
-AlpenFlight green stays the gate). Greenfield journeys ship the AlpenFlight video
-alone. On the PR these run as **two parallel CI jobs** — `alpenflight-proof`
-(required) + `parity-legacy-video` (non-blocking artifact), `e2e-driver` owns the
-workflow. For **Journey-0** (`journey0: true`) the gate work is itself the tasks:
-stand up the thinnest whole chain for this one screen.
+When every task is ticked, `e2e-driver` runs the gate: the full chain — legacy seed →
+migrate → Keycloak → real Playwright — both fidelities green, **video retained on pass**.
+It also produces the done-bar demonstrability (above): the legacy `flsweb` video + paired
+legacy↔AlpenFlight list/form screenshots in the gallery + the **auto-posted PR gallery
+link** (legacy-replacing screens; greenfield is AlpenFlight-only), and — for a **migration
+journey** — a **green real-export `fanout` run** (not just synth). CI: `alpenflight-proof`
+(required, synth/clean-seed) + the `fanout` real-export run. For **Journey-0** the gate
+work *is* the tasks: stand up the thinnest whole chain.
 
-**Mock governance.** Happy + key-error cases run fully real — no mocking. Any
-mocked seam (edge/error only) carries an inline `@mocked: <seam> — <reason>` tag
-+ a PR **"Mocked seams"** list; ask the operator for **one signoff** at the
-gate. Spawn `gap-hunter` ×2-3 against `git diff <base>...HEAD` + the spec + the
-Mocked-seams list. Undeclared mocks, stubs, un-wired layers, tenancy leaks →
-**chain is red**. Red gate cases become **new tasks** (append to the checklist);
-return to step 3. Honor the ≥5-min wallclock budget — surface sharding /
+**Mock governance.** Happy + key-error run fully real — no mocking. Any mocked seam
+(edge/error only) carries an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked
+seams"** list; **one operator signoff** at the gate. Spawn `gap-hunter` ×2-3 against `git
+diff <base>...HEAD` + the spec + the Mocked-seams list. Undeclared mocks, stubs, un-wired
+layers, tenancy leaks → **chain is red**. Red gate cases become **new tasks** (append to
+the checklist); return to step 3. Honor the wallclock budget — surface sharding /
 snapshot-reuse rather than silently re-running.
 
 ### 5 — Document + green PR
@@ -178,8 +187,7 @@ was wrong.
 
 - One journey per invocation. `carved: false` is a hard bail.
 - Every task runs in a fresh worker context — you never do task work inline.
-- The green bar is the real full-chain run — never a mocked-only pass.
-- Default real; declared+signed mocks only; undeclared mock = red.
+- Green bar = the real full-chain run; default real, declared+signed mocks only, undeclared mock = red.
 - Schema structural; business rules on aggregates (ADR 0022 directive 2).
 - Tasks commit directly to `integration/J-NNN`; never merge red; one PR per journey.
 - Prune before done. Cite by file:line / PR# / J-ID, never SHAs.

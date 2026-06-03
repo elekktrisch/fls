@@ -27,12 +27,16 @@ class ExportCommandSmokeTest {
         // The export tool exports exactly the entities with a legacy producer
         // binding (MapperLegacyBindings): the original 5 IDENTITY slice +
         // LOCATION / INOUTBOUND_POINT added in J-0 T-02c (the Location export half)
-        // + PERSON wired in J-0c T-21 (so USER.person_id resolves at ingest).
+        // + PERSON wired in J-0c T-21 (so USER.person_id resolves at ingest)
+        // + the AIRCRAFT aggregate (AIRCRAFT + its two aggregate-internal children)
+        // registered in J-1 T-04.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
                 EntityType.CLUB, EntityType.PERSON, EntityType.USER,
-                EntityType.LOCATION, EntityType.INOUTBOUND_POINT);
+                EntityType.LOCATION, EntityType.INOUTBOUND_POINT,
+                EntityType.AIRCRAFT, EntityType.AIRCRAFT_AIRCRAFT_STATE,
+                EntityType.AIRCRAFT_OPERATING_COUNTER);
     }
 
     @Test

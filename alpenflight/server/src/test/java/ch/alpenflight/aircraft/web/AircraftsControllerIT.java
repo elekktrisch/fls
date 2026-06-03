@@ -74,6 +74,30 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void listAircraft_includesModelManufacturerAndSeats_forLegacyListParity() {
+        // T-13: legacy aircrafts-table.html shows Aircraft Model + Manufacturer
+        // Name + Nr of Seats; the list projection must carry them too.
+        String imm = uniqueImmatriculation();
+        post("/api/v1/aircraft", createPayload(imm)); // Schleicher / ASK-21 / 2 seats
+
+        ResponseEntity<String> res = get("/api/v1/aircraft");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode arr = readJson(res);
+
+        JsonNode row = null;
+        for (JsonNode item : arr) {
+            if (imm.equals(item.get("immatriculation").asText())) {
+                row = item;
+                break;
+            }
+        }
+        assertThat(row).as("the registered aircraft is in the list").isNotNull();
+        assertThat(row.get("manufacturerName").asText()).isEqualTo("Schleicher");
+        assertThat(row.get("aircraftModel").asText()).isEqualTo("ASK-21");
+        assertThat(row.get("nrOfSeats").asInt()).isEqualTo(2);
+    }
+
+    @Test
     void registerAircraft_valid_returns_201_with_location_header() {
         String imm = uniqueImmatriculation();
         ResponseEntity<String> res = post("/api/v1/aircraft", createPayload(imm));

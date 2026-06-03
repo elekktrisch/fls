@@ -54,6 +54,29 @@ public interface Mapper {
     }
 
     /**
+     * Non-canonical FK column declarations: each {@link ForeignKeyColumn} names a
+     * destination column and the {@link EntityType} target it resolves through,
+     * overriding the resolver's {@code <target>_id} naming convention for that
+     * column.
+     *
+     * <p>Needed when a mapper names its FK columns off-convention (e.g.
+     * {@code Aircraft.homebase_id} → LOCATION) or references the SAME target
+     * through MULTIPLE columns (e.g. {@code managing_club_id} AND
+     * {@code owner_club_id} both → CLUB) — neither expressible by the one-column-
+     * per-target convention. The resolver iterates these declarations, then falls
+     * back to the convention for any {@link #foreignKeys()} target NOT declared
+     * here.
+     *
+     * <p>Orthogonal to {@link #foreignKeys()}: that list still enumerates the FK
+     * targets (driving the ArchUnit ingest-order rule + the parity oracle); this
+     * only overrides the column name(s) per target. Default empty so existing
+     * mappers are unaffected — a mapper opts in by overriding.
+     */
+    default List<ForeignKeyColumn> foreignKeyColumns() {
+        return List.of();
+    }
+
+    /**
      * Export-side: stream one NDJSON line from the cursor's current row.
      * Caller has positioned the {@link ResultSet} on the row; this method
      * writes one {@code start-object} … {@code end-object} sequence to the
