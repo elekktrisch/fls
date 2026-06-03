@@ -2,7 +2,8 @@
 id: J-2
 title: Flight list + edit forms (airfield hot path)
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-06-03
 journey0: false
 carved: true
 depends_on: [J-1]   # J-1 = aircraft register (flights FK aircraft); inherits J-0/J-0b migration-fan-out infra
@@ -143,6 +144,59 @@ computed `airState()`, `transition()` over `FlightTransitionMatrix`):
   reliability (S-062f) · Flight + FlightCrew migration bindings + producer SELECT + round-trip IT ·
   real-idp `flight-migration-parity.spec.ts` + flight parity bundle seeder · each boyscout rider.
 
+## Parity decisions (ship-time — legacy-oracle 2026-06-03 + operator)
+
+Resolved against legacy (`flsserver` `FlightService.cs`, `Accounting/DeliveryService.cs`,
+`MappingExtensions.cs`) + operator adjudication:
+
+- **Time-gate KEY — DELIBERATE DIVERGENCE from legacy (operator).** Legacy keys **both** gates on
+  `CreatedOn` (record-entry date, `TruncateTime`'d, `DateTime.Today` local) — `FlightService.cs:1157,1164`
+  (lock ≥2d) + `DeliveryService.cs:65,97` (bill ≥3d); there is **no `locked_at` column** in legacy.
+  Operator chose S-061's wording instead: **lock on `flight_date ≤ today-2d`, bill on `locked_at ≤
+  today-3d`** (lock 2 days after the flight flew, bill 3 days after locking). This **changes which
+  flights become billable and when** → needs a **`locked_at` column (net-new, set on Valid→Locked)**
+  + an **ADR amendment recording the divergence** (flag for `/do-retro`; do-ship does not auto-edit ADRs).
+  `created_at` stays migratable for audit but no longer drives the gates.
+- **412 / optimistic concurrency — NET-NEW, not parity.** Legacy `Flight` has no row-version/concurrency
+  token (last-write-wins, oracle #25). The `@Version`/If-Match/412 + conflict-diff (S-062h) is an
+  intended improvement; assert the *new* behavior.
+- **Read-only rule — only `DeliveryBooked(60)`, NOT `Locked`** (`FlightService.cs:1276`, oracle #12).
+  A Locked flight is still editable (the manual state-transition path relies on it). The
+  `docs/legacy/server.md` "no edits when locked" prose is wrong — code wins. **Correct the J-2 AC:**
+  the read-only assertion targets a `DeliveryBooked` flight (edit/delete → 4xx), not a Locked one.
+- **Single-flight tenant scope — close the legacy leak (oracle #24).** Legacy `GetFlight(id)` /
+  update / delete load by id with **no ClubId filter** (same hole J-1 found for Aircraft) → cross-tenant
+  edit/delete possible. New stack scopes structurally (`@TenantId`, ADR 0008); assert cross-tenant 404.
+- **Legacy bugs to NOT reproduce (assert corrected):** glider↔tow start-time/location mismatch →
+  legacy `ValidationException`→HTTP **500** (oracle #15) should be a 4xx field error; tow-orphan on
+  edit-away-from-towing (`UpdateFlightDetails` nulls the nav but skips the cascade `DeleteFlight` does,
+  oracle #17) → new stack must delete/clean the orphan (assert no dangling tow row); empty-guid FKs
+  (`00000000-…`) → null/absent (oracle #18).
+- **Validate flow (reference, J-15 owns the bulk action):** `ValidateFlights` is club-wide,
+  best-effort, always returns 200 (oracle #6,#9). J-2 proves the gate per-flight via the existing
+  `FlightStateTransitionService` (PATCH `/{id}/process-state`); the bulk validate/lock **jobs** ride
+  J-15. Manual transition matrix (oracle #11): only the legal source→target pairs transition; others 400.
+
+## Tasks
+
+Verify-wire-prove journey — backend CRUD/concurrency/tow-link/transition (S-062a/b/c, S-063, S-067,
+S-059) + the 3-step wizard + the Flight/FlightCrew mappers all **exist**; net work is the time-gate
+(net-new `locked_at` + policy), the 412 conflict UI, `/airmovements`, the migration **proof** (expect a
+producer-SELECT catch like J-1 T-16), the real chain + gallery, and folded riders. Ordered:
+
+- [ ] **T-01** — Real-idp Playwright spec **stub**: author `alpenflight/web/e2e/tests/real-idp/flight-migration-parity.spec.ts` structure + selectors + flow steps with **thin** assertions (clean-seed: glider create via 3-step wizard, paired tow, motor at `/airmovements`, edit, delete, cross-tenant 404, time-gate lock + `DeliveryBooked` read-only, 412 diff; then migrated-flight render). Commits the screen shape. *(seam: one spec file)*
+- [ ] **T-02** — S-061 **time-gate backend** (operator divergence): `FlightGatePolicy` bean (`canLock`: `flight_date ≤ clock.today()-2d`; `canBill`: `locked_at ≤ clock.today()-3d`) + injected `java.time.Clock` bean; net-new **`locked_at` column** (Flyway V-migration + `Flight` field set on the Valid→Locked transition); wire the gate into the existing `FlightStateTransitionService` (reject too-recent lock/bill); boundary unit/IT (1d before reject, on/after allow, `Clock.fixed`). Record the divergence in this file's Parity decisions (done) + leave the ADR-amendment flag for `/do-retro`. *(seam: FlightGatePolicy + Clock + locked_at migration + transition wiring + boundary IT)*
+- [ ] **T-03** — **Single-flight tenant scoping**: verify/confirm GET/PUT/DELETE `/{id}` scope by `@TenantId` (close the oracle #24 legacy leak); add a cross-tenant **404** IT (`FlightsAuthorizationIT` or equivalent). If the repo already filters via `@TenantId`, this is verify + test only. *(seam: single-id read/write path + tenant IT)*
+- [ ] **T-04** — S-062h **412 conflict-diff dialog + 409 toast** (frontend, gate slice only — NO drafts/SW/3G breadth): `flight-conflict-prompt.component.ts` (`<af-dialog>` per-field keep-mine/keep-theirs, first conflict focused, Enter activates, **no auto-retry**) + wire `FlightStore.save` 412 → dialog (replace the placeholder toast), 409 → "reload latest" toast; Vitest for the conflict resolver. *(seam: conflict-prompt component + FlightStore.save wiring)*
+- [ ] **T-05** — S-064 **`/airmovements`** route + motor-filtered **shared** list/form (no legacy-style duplication): one parameterized list/form, the `/airmovements` route binds the MOTOR filter + hides the tow step; nav entry + i18n (de/en/fr/it). *(seam: airmovements route + motor-filter param on the shared components)*
+- [ ] **T-06** — S-062e **af-date-picker `mode="range"` zoneless fix**: verify whether the deadlock persists; if the list still uses the two-single-picker workaround, fix the primitive + revert to a single range picker; `/dev/primitives` range showcase loads < 2s. *(seam: af-date-picker primitive + flights-list filter revert)*
+- [ ] **T-07** — **Flight + FlightCrew migration** bindings + producer SELECT: register/confirm FLIGHT (+ FLIGHT_CREW) in `MapperLegacyBindings` with the producer SELECT **reconciled against the real legacy `Flight`/`FlightCrew` MSSQL schema** (expect ≥1 column mismatch like J-1 T-16) + `FlightMigrationRoundTripIT` + `FlightRealProducerRoundTripIT` (tow self-FK two-pass, empty-guid→null, crew nesting, `flight_date`/`locked_at`/`created_at`, lossy air-state→`flight_plan_opened_on`). *(seam: MapperLegacyBindings FLIGHT producer + 2 round-trip ITs)*
+- [ ] **T-08** — **Flight parity bundle seeder + legacy MSSQL flight seed** (mirror `AircraftParityBundleSeeder`): synth migrated-flight bundle byte-aligned with T-07's IT (glider+tow paired, motor, a too-recent + a lockable flight, a `DeliveryBooked` read-only flight, a cross-tenant flight) + Gradle task; the legacy seed driving the real export/video. *(seam: parity bundle seeder + legacy seed)* — deps T-07.
+- [ ] **T-09** — **Thicken** the real-idp spec to full oracle assertions (glider+tow+motor CRUD, cross-tenant 404, time-gate `flight_date` lock + `locked_at` bill + `DeliveryBooked` read-only, 412 diff, migrated-flight render) + fold **S-062f** (`flights-list.spec.ts` air-state dropdown reliability — green without retries). *(seam: the real-idp spec + flights-list spec)* — deps T-02..T-08.
+- [ ] **T-10** — **Legacy flsweb flight video + paired screenshots** (done-bar, e2e-driver): legacy flight list+form video + paired legacy↔AlpenFlight list/form screenshots in the gallery, auto-posted PR link (mirror J-1 T-14/T-19/T-20); wired into `alpenflight-proof-fanout.yml`. *(seam: fanout legacy flight capture + gallery declaration)* — e2e-driver.
+- [ ] **T-11** — **Boyscout: ci.yml docs-only path-filter** — skip `alpenflight build` + `alpenflight-proof` on docs/skill/story-only pushes (`docs/**`, `.claude/**`, root `*.md`), required aggregator green via skipped-to-success. *(seam: ci.yml path filter + required aggregator)* — clears the `_BOYSCOUT.md` bullet.
+- [ ] **T-12** — **Boyscout: modernize-\* sunset** — delete the 9 `modernize-*` skills + ~12 modernize agents + prune the `rolled_up_into:` horizontal stories (keep 47 `implemented/`). Mechanical; fold only if it doesn't bloat the gate PR, else defer (note for the next feature journey). *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)* — clears the `_BOYSCOUT.md` bullet.
+
 ## Assumptions made
 
 1. `/airmovements` is the **same** SPA screen parameterized by the MOTOR filter (S-064's whole
@@ -151,7 +205,8 @@ computed `airState()`, `transition()` over `FlightTransitionMatrix`):
 2. The Flight + FlightCrew migration mappers exist from J-0b authoring but are **unproven
    end-to-end** ([[verify_infra_is_run_not_just_authored]]) — sized build/verify, expecting a
    real-export producer-SELECT catch like J-1 T-16.
-3. S-061's `flight_date`/`locked_at` gate wording is provisional; the `CreatedOn` legacy behavior
-   is the ship-time oracle question, not a carve-time guess.
+3. ~~S-061's `flight_date`/`locked_at` gate wording is provisional~~ **RESOLVED (operator 2026-06-03):**
+   gate on `flight_date`/`locked_at` (S-061 wording) — a deliberate divergence from legacy `CreatedOn`;
+   adds a net-new `locked_at` column + an ADR amendment. See Parity decisions.
 4. The 412/optimistic-concurrency path is a **new-stack affordance** (legacy is last-write-wins),
    so its spec assertions prove new behavior, not legacy parity.
