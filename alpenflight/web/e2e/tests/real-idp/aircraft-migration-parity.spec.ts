@@ -77,7 +77,7 @@ async function selectGliderType(page: Page): Promise<void> {
 async function createAircraftViaUi(
   page: Page,
   immatriculation: string,
-  details: { manufacturer: string; model?: string; seats?: number } = {
+  details: { manufacturer: string; model?: string; seats?: number; competitionSign?: string } = {
     manufacturer: 'Schleicher',
   },
 ): Promise<string> {
@@ -88,6 +88,9 @@ async function createAircraftViaUi(
   await page.locator('#Immatriculation').fill(immatriculation);
   await selectGliderType(page);
   await page.locator('#ManufacturerName').fill(details.manufacturer);
+  if (details.competitionSign !== undefined) {
+    await page.locator('#CompetitionSign').fill(details.competitionSign);
+  }
   if (details.model !== undefined) {
     await page.locator('#AircraftModel').fill(details.model);
   }
@@ -178,6 +181,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
         manufacturer: 'Schleicher',
         model: 'ASK 21',
         seats: 2,
+        competitionSign: 'FG',
       });
       expect(aircraftId).toBeTruthy();
 
@@ -198,8 +202,8 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       // fixtures only; the suite's CRUD/403/S-163/S-164 cases all operate on the
       // first aircraft above.
       const extras = [
-        { manufacturer: 'Schempp-Hirth', model: 'Discus b', seats: 1 },
-        { manufacturer: 'DG Flugzeugbau', model: 'DG-1000', seats: 2 },
+        { manufacturer: 'Schempp-Hirth', model: 'Discus b', seats: 1, competitionSign: 'GZ' },
+        { manufacturer: 'DG Flugzeugbau', model: 'DG-1000', seats: 2, competitionSign: 'ZO' },
       ];
       for (const extra of extras) {
         const immat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;

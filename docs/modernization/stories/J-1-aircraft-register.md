@@ -451,6 +451,12 @@ The shipped gallery had two warts the operator caught:
   *(seam: fanout workflow deploy paths + reaper)*
 
 Then re-dispatch fanout → confirm the populated list screenshot + the `…/legacy-parity/` URL → post the link.
+- [x] **T-24** — Operator review of the populated screenshot: rows showed immat+type+manufacturer+model+seats
+  but **no competition sign** (the 3 fixtures had none) — though the column IS wired (`aircraft-list.page.ts:114`
+  `@if (ac.competitionSign)`). Gave the 3 screenshot aircraft competition signs (FG/GZ/ZO, legacy-style) in
+  `createAircraftViaUi`, so the list screenshot demonstrates all 6 legacy columns. *(seam: aircraft-migration-parity.spec.ts
+  createAircraftViaUi competitionSign)*. Also folded: e2e-driver kept committing unformatted TS → **/do-retro:
+  add a prettier-on-touched-files step to do-task/e2e-driver** (2 gate cycles burned on format-only reds).
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
