@@ -64,6 +64,17 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
   font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em;
   background: var(--pending-bg); color: var(--pending);
 }
+.parity-screenshots { margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+.parity-screenshots h4 { margin: 0 0 .75rem; font-size: .95rem; font-weight: 500; }
+.shot-pair { margin-bottom: 1.25rem; }
+.shot-view-label { font-size: .8rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin-bottom: .4rem; }
+.shot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem; }
+.shot { margin: 0; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.shot.shot-legacy { border-color: var(--pending); }
+.shot img { display: block; width: 100%; height: auto; background: #fff; }
+.shot-side { display: inline-block; padding: .2em .65em; margin: .5rem .5rem 0; border-radius: 4px; font-size: .75rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; background: var(--success-bg); color: var(--success); }
+.shot.shot-legacy .shot-side { background: var(--pending-bg); color: var(--pending); }
+.shot figcaption { padding: .65rem .75rem; font-size: .85rem; color: var(--text); }
 .nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
@@ -74,7 +85,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>202/merge</code> &middot; 2026-06-03T07:02:42.700Z
+      assertion it proves. Generated on <code>202/merge</code> &middot; 2026-06-03T07:36:04.792Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -90,18 +101,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <h3>J-0 <span class="status success">3 proofs</span></h3>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9db0e52520897474d87d3d9192fb4bcd0c25016b.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-68fc589764b3741d5adf6a714575702b0fd35205.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1a1c9968e51efb630ef9dadd0dd7bb2d0930a098.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-539cf874585f025a93d4dc3995d63ea3a854e5c7.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f742314fc2251c4068820e29f5594a0c0fc3bfcd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-7b881dca2a84ec939a355c5d8da581afa140279a.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
         </figure>
         </div>
+
       </div>
       <div class="journey pending-journey">
         <h3>J-0b <span class="status pending">pending</span></h3>
@@ -115,34 +127,68 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: a random-named Location is created and set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows</span></figcaption>
         </figure>
         </div>
+
       </div>
       <div class="journey">
         <h3>J-1 <span class="status success">6 proofs</span></h3>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5151141fcbd45aeebde601bab9a9315fbc8b636c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-945180750c8260f6a38ab31f1e022c768ce52c02.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f634072a049d24e2f59ff3b4b8490fdfe4e496e9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-d098fc56a88172dc0f7a28cb82ba965f86488cb5.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-77a266541e00beb9a15b70a5576bba7bac77540f.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-b99835b7e2cdfd3f48ed8c70930a415f49eba3e8.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-8665db2a17434f6222cbb5f9a65c5382bd89c84f.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-5598f6c861ab7269b71e11ac8461f9658d3191d8.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4eb21cd8763e30b74bc5dcf14cb55ea243b2a94e.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-66408e310f2e18332348a93b35beab6ab803523f.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-734f4d6b75bd04f206a110842b0fabaafdec8260.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-d21a1e4e2b3fb8990cd4ad00e24cbf1eff54fca7.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
+        </div>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">list</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-list.png" alt="legacy list" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) — the legacy list columns to eyeball against AlpenFlight's /aircraft list</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-aircraft-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">form</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-aircraft-form.png" alt="legacy form" loading="lazy"></a>
+            <figcaption>Legacy flsweb: one aircraft's edit form, the full field set (immatriculation, competition sign, type, manufacturer, model, seats, homebase, …)</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-aircraft-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-aircraft-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy</figcaption>
+          </figure>
+          </div>
+        </div>
         </div>
       </div>
       <div class="journey pending-journey">
