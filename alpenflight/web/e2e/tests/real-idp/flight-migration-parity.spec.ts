@@ -291,26 +291,26 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // cycle; the trace showed the list's `GET /api/v1/flights?limit=50` then
       // stuck at `send=-1` (queued in the browser, never flushed) behind that
       // renew while the router-outlet sat blank — the request never reached the
-      // backend (no clubadmin4 hit for it in backend.log) and the 15s guard
-      // tripped. A client-side router navigation reuses the warm, just-minted
-      // token with no reboot and no renew gate — and mirrors how an operator
-      // actually reaches the screen. The tenant-scoped list load must SUCCEED
-      // for this principal: gate on the 2xx so a real tenant-resolution
-      // regression still fails FAST with a clear cause.
-      const listed = page.waitForResponse(
-        (r) =>
-          new URL(r.url()).pathname === '/api/v1/flights' &&
-          r.request().method() === 'GET' &&
-          r.status() >= 200 &&
-          r.status() < 300,
-        { timeout: 15_000 },
-      );
-
+      // backend (no clubadmin4 hit for it in backend.log). A client-side router
+      // navigation reuses the warm, just-minted token with no reboot and no renew
+      // gate — and mirrors how an operator actually reaches the screen.
+      //
+      // The in-app nav to /airmovements reuses the WARM flights store and applies
+      // the MOTOR variant as a CLIENT-SIDE filter (S-064 / T-05) — it does NOT
+      // re-fetch `GET /api/v1/flights`. The earlier `waitForResponse` guard on a
+      // second GET (T-22) therefore timed out on a working page: that GET fires
+      // exactly once, during login/landing, BEFORE this point (J-2 T-27, run
+      // 26903461521 trace). It was a brittle precondition asserting an
+      // implementation detail (a fresh fetch) that does not hold for warm-store
+      // client-side-filtered nav. The real behavioral assertions below fail FAST
+      // on a genuine tenant-resolution regression with NO loss of coverage: if
+      // clubadmin4 didn't resolve, the list GET would 403/empty, `flights-table`
+      // would not render, and the create would fail.
+      //
       // /airmovements is the SAME shared list/form parameterized by the MOTOR
       // variant (S-064 — no legacy-style duplication); the tow step is suppressed
       // regardless of start-type, and the create stamps the MOTOR discriminator.
       await page.getByTestId('af-nav-section-/airmovements').click();
-      await listed;
       await expect(page).toHaveURL(/\/airmovements$/);
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
