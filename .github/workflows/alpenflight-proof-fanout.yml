@@ -317,6 +317,26 @@ jobs:
             tests/masterdata/locations-fanout-J0c.spec.ts
 
       # ========================================================================
+      # 2b. J-1 T-14 — legacy AIRCRAFT parity spec. Read-only walkthrough of the
+      #     seeded aircraft list + one aircraft's form in the flsweb UI; records
+      #     the legacy aircraft parity video. The SAME legacy stack (already up)
+      #     and the SAME deterministic FLSTest seed (~15 aircraft) the Location
+      #     spec used — no extra seeding, runs on this one nightly run alongside
+      #     T-04. Paired side-by-side with J-1's AlpenFlight aircraft videos
+      #     (proof-journey: J-1) in the gallery via the legacy-video sidecar
+      #     (step 7b). Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-1 T-14 legacy aircraft parity spec (records legacy video)
+        id: legacy-pw-aircraft
+        if: always()
+        working-directory: e2e
+        timeout-minutes: 10
+        run: |
+          npx playwright test \
+            --project=masterdata \
+            tests/masterdata/aircrafts-parity-J1.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -495,27 +515,50 @@ jobs:
           ls -l "$OUT"
 
       # ========================================================================
-      # 6. T-03 PARITY SPEC in REAL-bundle mode — POST the real exported bundle
-      #    → fan-out + Keycloak provision → per-club view + edit-isolation +
-      #    cross-tenant 404. Records per-club AlpenFlight videos. The webServer
-      #    SPA from step 4 is reused (reuseExistingServer is false in CI, but
-      #    Playwright tears it down per `playwright test` invocation; this run
-      #    re-boots it — acceptable on the dedicated workflow).
+      # 6. ALPENFLIGHT PARITY SPECS (J-0c real-bundle + J-1 aircraft) — ONE
+      #    `playwright test` invocation so the single JSON proof-manifest the
+      #    gallery reads carries BOTH journeys' AlpenFlight videos (a second
+      #    invocation would overwrite the manifest, dropping the J-0c captions).
+      #    Mirrors ci.yml's `alpenflight-proof` two-spec shape (T-07).
+      #
+      #    - J-0c (fan-out-migration-parity, REAL-bundle): POST the real exported
+      #      bundle → fan-out + Keycloak provision → per-club view + edit-isolation
+      #      + cross-tenant 404. Records per-club AlpenFlight videos (proof-journey:
+      #      J-0c) — paired with the legacy Location video (step 2 / 7b).
+      #    - J-1 (aircraft-migration-parity, SYNTH bundle — J1_BUNDLE_SOURCE unset):
+      #      clean-seed CRUD + tenant edit-isolation + S-163 + S-164 + the migrated
+      #      aircraft render (synth bundle through the REAL migration ingest +
+      #      Keycloak provisioning). Records the AlpenFlight aircraft videos
+      #      (proof-journey: J-1) — paired SIDE-BY-SIDE with the legacy aircraft
+      #      video (step 2b / 7b) under J-1 in the gallery. The full legacy→export
+      #      AIRCRAFT bundle is a deeper follow-up; T-14 captures the legacy
+      #      aircraft VIDEO + this synth-migrated render is the J-1 AlpenFlight half.
+      #
+      #    The webServer SPA from step 4 is reused (reuseExistingServer is false in
+      #    CI, but Playwright tears it down per `playwright test` invocation; this
+      #    run re-boots it — acceptable on the dedicated workflow). DATASOURCE_*
+      #    are exported so the aircraft spec's Gradle seeder shell-outs
+      #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
+      #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run T-03 parity spec against REAL migrated data (records videos)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 15
+        timeout-minutes: 20
         env:
           J0C_BUNDLE_SOURCE: real
           J0C_REAL_HANDSHAKE_FILE: ${{ github.workspace }}/j0c-handshake.json
           J0C_REAL_BUNDLE_FILE: ${{ github.workspace }}/j0c-bundle.enc
           J0C_REAL_LOCATION_NAME: ${{ env.J0C_LOCATION_NAME }}
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
         run: |
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
-            e2e/tests/real-idp/fan-out-migration-parity.spec.ts
+            e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
 
       # ========================================================================
       # 7. GALLERY + VIDEO RETENTION. The AlpenFlight parity videos carry the
@@ -527,27 +570,46 @@ jobs:
       # sidecar BEFORE the generator runs — generate-gallery.mjs reads the
       # sidecar (--legacy-video) and renders the legacy create video in the SAME
       # J-0c section as the AlpenFlight per-club videos (T-06).
-      - name: Stage legacy parity video + caption sidecar (J-0c)
+      - name: Stage legacy parity videos + caption sidecar (J-0c + J-1)
         if: always()
         run: |
-          # The legacy create video lands under /tmp/fls-e2e-results/<test>/video/.
+          # Legacy videos land under /tmp/fls-e2e-results/<spec>-<title>-<...>/video/.
+          # Playwright names each per-test output dir after the spec file, so we
+          # pick EACH legacy video deterministically by its spec-name fragment —
+          # NOT "the first .webm" (two specs now record: J-0c Location + J-1
+          # aircraft). Each gets a stable, named filename so the sidecar's `file`
+          # reference is deterministic, and is declared under its OWN journey so
+          # the gallery groups it with the matching AlpenFlight videos.
           STAGE="${{ github.workspace }}/j0c-legacy-video"
           mkdir -p "$STAGE"
-          # Pick the first legacy .webm and give it a stable, named filename so
-          # the sidecar's `file` reference is deterministic.
-          LEGACY_WEBM="$(find /tmp/fls-e2e-results -name '*.webm' | head -1 || true)"
-          if [ -n "$LEGACY_WEBM" ]; then
-            cp "$LEGACY_WEBM" "$STAGE/locations-fanout-J0c.webm"
-            CAP="Legacy flsweb: Location '${J0C_LOCATION_NAME}' created + set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows"
-            node -e '
-              const fs = require("fs");
-              const out = process.argv[1], caption = process.argv[2];
-              fs.writeFileSync(out, JSON.stringify({
-                videos: [{ journey: "J-0c", file: "locations-fanout-J0c.webm", acTag: "happy", caption }],
-              }, null, 2));
-            ' "$STAGE/legacy-video.json" "$CAP"
-            echo "Staged legacy video + sidecar:"
+
+          # J-0c — legacy Location fan-out create video.
+          LOC_WEBM="$(find /tmp/fls-e2e-results -path '*locations-fanout-J0c*' -name '*.webm' | head -1 || true)"
+          # J-1 — legacy aircraft list+form parity video (T-14).
+          AC_WEBM="$(find /tmp/fls-e2e-results -path '*aircrafts-parity-J1*' -name '*.webm' | head -1 || true)"
+
+          VIDEOS=""
+          if [ -n "$LOC_WEBM" ]; then
+            cp "$LOC_WEBM" "$STAGE/locations-fanout-J0c.webm"
+            CAP_LOC="Legacy flsweb: Location '${J0C_LOCATION_NAME}' created + set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows"
+            VIDEOS="$VIDEOS{\"journey\":\"J-0c\",\"file\":\"locations-fanout-J0c.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_LOC")},"
+          else
+            echo "No J-0c Location .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$AC_WEBM" ]; then
+            cp "$AC_WEBM" "$STAGE/aircrafts-parity-J1.webm"
+            CAP_AC="Legacy flsweb: the seeded aircraft list + one aircraft's edit form (immatriculation, competition sign, type, manufacturer, model, seats, owner, homebase, …) — the legacy field set to eyeball against AlpenFlight's /aircrafts register"
+            VIDEOS="$VIDEOS{\"journey\":\"J-1\",\"file\":\"aircrafts-parity-J1.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_AC")},"
+          else
+            echo "No J-1 aircraft .webm found under /tmp/fls-e2e-results."
+          fi
+
+          if [ -n "$VIDEOS" ]; then
+            printf '{ "videos": [ %s ] }' "${VIDEOS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$STAGE/legacy-video.json"
+            echo "Staged legacy videos + sidecar:"
             ls -l "$STAGE/"
+            cat "$STAGE/legacy-video.json"
           else
             echo "No legacy .webm found under /tmp/fls-e2e-results — gallery renders AlpenFlight side only."
           fi
@@ -634,8 +696,12 @@ jobs:
           docker compose -p fls-e2e           -f docker-compose.yml                 down -v --remove-orphans || true
           docker network rm alpenflight_shared || true
 
-      - name: Mark job failed if either spec was red (post-publish)
+      # Surface the J-1 legacy aircraft parity-video outcome for visibility, but
+      # it is a NON-BLOCKING parity aid (operator: AlpenFlight green is the gate),
+      # so it is NOT part of the hard-fail condition — only the J-0c legacy create
+      # spec + the AlpenFlight parity specs gate this job.
+      - name: Mark job failed if a gating spec was red (post-publish)
         if: ${{ steps.legacy-pw.outcome != 'success' || steps.pw.outcome != 'success' }}
         run: |
-          echo "legacy spec: ${{ steps.legacy-pw.outcome }}; parity spec: ${{ steps.pw.outcome }}" >&2
+          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs: ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}" >&2
           exit 1

@@ -275,13 +275,35 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   extend `AircraftListItem` DTO + the `ListRow` repository projection/JPA query + `AircraftMapper.toListItem`
   + the `aircraft-list.page.ts` columns + i18n labels (de/en/fr/it). Update the real-idp/mock spec list
   assertions to cover the new columns. *(seam: list read path + list component)* — re-runs the gate.
-- [ ] **T-14** — Capture the **legacy flsweb aircraft video** for parity and pair it with the AlpenFlight
+- [x] **T-14** — Capture the **legacy flsweb aircraft video** for parity and pair it with the AlpenFlight
   video in the gallery. Wire the existing legacy aircraft CRUD spec (`e2e/tests/masterdata/aircrafts-crud.spec.ts`)
   — or a video-recording variant — into the **nightly fanout workflow** (`alpenflight-proof-fanout.yml`,
   mirroring J-0c's legacy-Location video capture: seed legacy aircraft in MSSQL → drive the legacy flsweb
   aircraft UI → record video → render side-by-side with the AlpenFlight aircraft video in the gallery).
   Legacy stack is nightly-budget, so this proof lands on the nightly/dispatch run, not the PR gate.
   *(seam: fanout workflow + legacy aircraft spec + gallery pairing)* — e2e-driver owns it.
+  **DONE (authored + structurally validated; Alpine/musl box cannot launch the legacy stack or
+  browsers — FIRST LIVE GREEN is the nightly/dispatch fan-out run, same first-green caveat the
+  workflow documents).** Authored a focused **read-only** legacy recording spec
+  `e2e/tests/masterdata/aircrafts-parity-J1.spec.ts` (mirrors J-0c's `locations-fanout-J0c.spec.ts`:
+  UI login as `testclubadmin`, own recordVideo context). Did NOT reuse `aircrafts-crud.spec.ts` — its
+  create→delete mutation collides on the `(Immatriculation, DeletedOn)` unique constraint on a Playwright
+  retry (the exact trap that spec pre-cleans via raw SQL); a read-only walkthrough of the seeded fleet
+  list (legacy `aircrafts-table.html` columns) + one aircraft's edit form scrolled through its field set
+  IS the "eyeball legacy vs AlpenFlight fields" ask, with zero mutation / zero retry surface (the
+  mutating path stays covered by spec #26). Wired into `alpenflight-proof-fanout.yml`: new step "Run J-1
+  T-14 legacy aircraft parity spec" records the legacy video on the same nightly run as the J-0c Location
+  video (same already-up legacy stack + FLSTest seed); the staging step now selects EACH legacy `.webm`
+  deterministically by its spec-name path fragment and declares it in `legacy-video.json` under its OWN
+  journey (J-0c + **J-1**); step 6 now also runs `aircraft-migration-parity.spec.ts` (synth mode) in the
+  SAME playwright invocation so the shared proof-manifest carries the J-1 AlpenFlight half — the generator
+  groups the legacy J-1 video with the AlpenFlight aircraft videos (proof-journey: J-1). Validated: YAML
+  parses (42 steps, ordered), the legacy spec typechecks + `playwright test --list` discovers it, the
+  sidecar JSON generation produces valid two-journey output, and the generator renders the legacy
+  aircraft video **left-of** the AlpenFlight aircraft video in the J-1 section (legacy-first side-by-side).
+  Non-blocking parity aid (operator: AlpenFlight green is the gate) — surfaced in the final-status log,
+  NOT in the hard-fail condition. Did NOT touch ci.yml's PR-gate proof (T-13 owns it).
+  *(seam honored: one — fanout legacy aircraft capture + gallery declaration.)*
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
