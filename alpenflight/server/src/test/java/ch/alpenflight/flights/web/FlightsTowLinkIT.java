@@ -1,8 +1,12 @@
 package ch.alpenflight.flights.web;
 
+import static ch.alpenflight.flights.web.FlightsTestFixtures.SEED_FLIGHT_CREW_TYPE_PIC;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.cleanFlightRowsFor;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.createPayload;
+import static ch.alpenflight.flights.web.FlightsTestFixtures.crewItem;
 import static ch.alpenflight.flights.web.FlightsTestFixtures.seedAircraftFor;
+import static ch.alpenflight.flights.web.FlightsTestFixtures.seedPersonInClub;
+import static ch.alpenflight.flights.web.FlightsTestFixtures.singletonCrew;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.security.JwtTestFixture;
@@ -80,6 +84,39 @@ class FlightsTowLinkIT extends PostgresIntegrationTest {
         assertThat(detail.get("towFlightId").asText())
                 .as("Omitting towFlightId on partial PUT must NOT unlink the tow")
                 .isEqualTo(towId);
+    }
+
+    @Test
+    void link_put_reasserting_existing_crew_does_not_collide_on_unique_index() {
+        // J-2 T-21 regression: the paired glider↔tow save POSTs the glider WITH
+        // crew, POSTs the tow, then PUTs the glider to set towFlightId — and that
+        // link PUT carries the SAME crew (snapshotToUpdateRequest re-echoes it).
+        // The old replaceCrew did crew.clear() + re-add, so Hibernate ordered the
+        // re-INSERT of the identical (flight_id, person_id, flight_crew_type_id)
+        // before the orphan DELETE in one flush, tripping the partial-unique
+        // ux_flight_crew_unique (SQLState 23505 → 400 "Invalid reference"). The
+        // in-place reconcile keeps the unchanged row, so the link must 200.
+        String personId = "pn-" + seedPersonInClub(jdbc, CLUB_A);
+        Map<String, Object> gliderPayload = payload("GLIDER", aircraftA, "2026-05-01");
+        gliderPayload.put("crew", singletonCrew(crewItem(personId, SEED_FLIGHT_CREW_TYPE_PIC)));
+        String gliderId = readJson(post("/api/v1/flights", gliderPayload, tokenA))
+                .get("id").asText();
+        String towId = createFlight("TOW");
+
+        // Link PUT re-asserting the same PILOT crew row — must succeed.
+        Map<String, Object> body = updateBody();
+        body.put("crew", singletonCrew(crewItem(personId, SEED_FLIGHT_CREW_TYPE_PIC)));
+        body.put("towFlightId", towId);
+        ResponseEntity<String> put = put("/api/v1/flights/" + gliderId, body, tokenA);
+        assertThat(put.getStatusCode())
+                .as("Re-asserting an unchanged crew row on the link PUT must not "
+                        + "collide on ux_flight_crew_unique")
+                .isEqualTo(HttpStatus.OK);
+
+        JsonNode detail = readJson(get("/api/v1/flights/" + gliderId, tokenA));
+        assertThat(detail.get("towFlightId").asText()).isEqualTo(towId);
+        assertThat(detail.get("crew")).hasSize(1);
+        assertThat(detail.get("crew").get(0).get("personId").asText()).isEqualTo(personId);
     }
 
     @Test
