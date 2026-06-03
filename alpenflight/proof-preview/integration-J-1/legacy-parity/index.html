@@ -85,7 +85,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>integration/J-1</code> &middot; 2026-06-03T08:22:26.018Z
+      assertion it proves. Generated on <code>integration/J-1</code> &middot; 2026-06-03T08:44:02.246Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -105,15 +105,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <h3>J-0c <span class="status success">3 proofs</span></h3>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a9a569b17e5a8ccd777d443bdc84b59a648f5c0c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-53a7b423f7add9f702cba9d44d3633d8c1dd5a16.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-182c2dabc725f9c46c51c0c542cdb04cb894cc46.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-686dd8f9a9a73af5ce73bec04488407c526f354e.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e4a5885429b537a49ed5670746ddcae193343dd9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1138b492e8d1aca826f604de4279ab8096a05179.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
         </figure>
         </div>
@@ -127,27 +127,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the seeded aircraft list + one aircraft's edit form (immatriculation, competition sign, type, manufacturer, model, seats, owner, homebase, …) — the legacy field set to eyeball against AlpenFlight's /aircrafts register</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-593e6d5eaa237ec101a26a5eecdf0e28db62046c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-b904ffefddff82a877eca46bc85a2c8a24ef383a.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7c33afcfd198dc2efa7e58faa05a2dede2be3d70.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-00e6bce5997f05c5b238a2d4b50c93cd7bc347ba.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7dc3ba8a2ad08b63de220d488c6a3912e5702d0e.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-eca9a888a3536f46b85186fb17fa8b3e4e415083.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ce83c02869ba8722d98536201a0cc45db861433a.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-4f9f73b73f0d4bf060563dcaf5e82df0eb9a524b.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-290ede091fae30b9bacbf8f92611c2c3af136ad0.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-857034a8bd919437af843bfb9dfededa147a46b8.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4cc7ff06ea3b2856b20ae59e12ea1260d5c9fa7e.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-88bd23c7e7b6b42e8f829641eb418d57ee767a7d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
