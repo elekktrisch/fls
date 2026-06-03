@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { selectAfOption } from '../_helpers/af-select';
+
 /**
  * Logbook (flight list) smoke. Booted under the `mock-auth` Angular
  * configuration; the principal is a mocked SYSTEM_ADMINISTRATOR so the
@@ -288,9 +290,12 @@ test.describe('flights list page', () => {
     // Apply a client-side air-state filter (Started). Both Landed rows hide;
     // the Started row stays. The server is NOT re-queried for this — the
     // client narrows the loaded page.
-    const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
-    await airStateFilter.click();
-    await page.getByTestId('af-select-option-STARTED').click();
+    //
+    // S-062f: drive the nz-select through `selectAfOption`, which waits for the
+    // freshly-opened option to be VISIBLE before clicking and for the overlay to
+    // detach after. This is the flake fix — a bare click here raced the prior
+    // edit-route portal that the `page.goBack()` above left detaching.
+    await selectAfOption(page, 'flights-air-state-filter', 'STARTED');
 
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await expect(page.getByTestId(`flights-row-${allFlights[2].id}`)).toBeVisible();
@@ -328,9 +333,7 @@ test.describe('flights list page', () => {
     await page.screenshot({ path: 'screenshots/flights/01-populated.png', fullPage: true });
 
     // 02 — same list, with the Started air-state filter applied.
-    const airStateFilter = page.getByTestId('flights-air-state-filter').locator('nz-select');
-    await airStateFilter.click();
-    await page.getByTestId('af-select-option-STARTED').click();
+    await selectAfOption(page, 'flights-air-state-filter', 'STARTED');
     await expect(page.getByTestId('flights-summary')).toContainText('1 of 3 flights');
     await page.screenshot({ path: 'screenshots/flights/02-filtered.png', fullPage: true });
 

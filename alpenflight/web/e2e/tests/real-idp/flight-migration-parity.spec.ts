@@ -7,41 +7,51 @@ import {
   type TestInfo,
 } from '@playwright/test';
 
+import { selectAfOption } from '../_helpers/af-select';
 import {
   loginAsClubAdmin,
   provisionTwoClubs,
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
+import {
+  AEROTOW_START_TYPE_ID,
+  loginAsMigratedAdmin,
+  seedFlightMasterdata,
+  seedFlightParity,
+  type FlightMasterdata,
+  type FlightParityFixture,
+} from './_helpers/flight-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
 /**
- * J-2 T-01 — the Flight list+edit real chain STUB (live Keycloak auth + real
- * Spring backend + real Postgres). This commits the SCREEN SHAPE: structure,
- * selectors, and flow steps with THIN assertions only (presence / navigation,
- * not deep value checks). The build tasks fill in behavior (T-02 time-gate,
- * T-04 412 conflict-diff, T-05 /airmovements, T-07/T-08 migration); T-09
- * thickens these assertions to the full oracle set. It is fine if this stub
- * does not fully pass yet.
+ * J-2 T-09 — the Flight list+edit real chain (live Keycloak auth + real Spring
+ * backend + real Postgres). NO mocking on the happy + key-error paths: a
+ * `page.route` interception would defeat the seam (the @TenantId filter, the
+ * paired glider↔tow save, the time-gate policy, the 412 conflict path, and the
+ * migration ingest + Keycloak provisioning must all run live).
  *
- * Mirrors the J-1 `aircraft-migration-parity.spec.ts` harness shape:
- *   - CLEAN-SEED real chain (`provisionTwoClubs`): a club admin logs in, lists
- *     /flights, creates a GLIDER flight via the 3-step wizard (Launch → Glider
- *     → Tow when start-type = aerotow, with the tow created + linked in the SAME
- *     save), creates a MOTOR flight at /airmovements, edits, deletes; a
- *     cross-tenant flight GET 404s; the time-gate rejects a too-recent
- *     Valid→Locked transition and allows a past-threshold one; a DeliveryBooked
- *     flight is read-only (edit/delete → 4xx); a stale PUT (412) opens the
- *     inline per-field conflict diff.
- *   - MIGRATED-DATA real chain: a migrated legacy flight (crew + tow link)
- *     renders in the owning club's /flights list. Gated on the T-08 flight
- *     parity fixture (not yet authored) — see the `test.fixme` block below.
+ * Two fidelities, both green at the gate:
+ *   - CLEAN-SEED real chain (`provisionTwoClubs` + `seedFlightMasterdata`): a
+ *     club admin logs in, lists /flights, creates a GLIDER flight via the 3-step
+ *     wizard driving start-type = AEROTOW EXPLICITLY (so the paired-tow branch is
+ *     taken deterministically); the glider row + a distinct linked TOW row both
+ *     appear (glider.towFlightId). A MOTOR flight is created/edited/listed at
+ *     /airmovements (MOTOR filter, tow step suppressed). Edit persists. Delete
+ *     leaves the list. A cross-tenant flight GET 404s. A DeliveryBooked flight is
+ *     read-only (edit/delete → 4xx). A stale If-Match PUT (412) opens the inline
+ *     per-field conflict diff (keep-mine/keep-theirs, first field focused, no
+ *     auto-retry).
+ *   - MIGRATED-DATA real chain (`seedFlightParity`): a real (synth/real) legacy
+ *     Flight + FlightCrew bundle is migrated through the REAL migration endpoint
+ *     and the migrated glider (crew + tow link) renders in the owning club's
+ *     /flights list under the migrated immatriculation.
  *
- * Tenancy/gate parity is resolved in J-2-flight-list-edit.md § Parity decisions
- * (legacy-oracle 2026-06-03 + operator): single-flight GET/PUT/DELETE scope by
- * @TenantId → cross-tenant 404 (NOT the aircraft 403 managing-club shape, which
- * is a catalog read); read-only targets DeliveryBooked(60), NOT Locked; the
- * time-gate keys on flight_date (≥2d lock) / locked_at (≥3d bill), a deliberate
- * divergence from legacy CreatedOn; 412 is a net-new affordance, not parity.
+ * Tenancy/gate parity (J-2-flight-list-edit.md § Parity decisions, legacy-oracle
+ * 2026-06-03 + operator): single-flight GET/PUT/DELETE scope by @TenantId →
+ * cross-tenant 404 (NOT the aircraft 403 managing-club shape, which is a catalog
+ * read); read-only targets DeliveryBooked(60), NOT Locked; the time-gate keys on
+ * flight_date (≥2d lock) / locked_at (≥3d bill), a deliberate divergence from
+ * legacy CreatedOn; 412 is a net-new affordance, not parity.
  */
 
 /**
@@ -75,52 +85,63 @@ async function bearerFromFlightsList(page: Page): Promise<string> {
 }
 
 /**
- * Create a flight via the 3-step wizard and return to the list. Walks
- * Launch → Glider → (Tow when start-type = aerotow). When the wizard's
- * new-template defaults the start type to aerotow (`needsTowplane`), the Tow
- * step renders and the tow flight is created + linked in the SAME save (the
- * paired glider↔tow save, S-063 parity — asserted thinly here via list
- * presence; the request-order + If-Match assertions land in T-09).
+ * Drive the 3-step wizard to create a GLIDER flight with start-type = AEROTOW
+ * EXPLICITLY (Launch → Glider → Tow). Because AEROTOW makes `needsTow` true, the
+ * Tow step renders and the tow flight is created + linked in the SAME save (the
+ * paired glider↔tow save, S-063 parity). Returns the created GLIDER flight's id
+ * (read from the rendered list row matched by its resolved immatriculation).
  *
- * THIN: returns the created flight's id from the rendered row testid; the deep
- * column-parity + towFlightId-link checks come in T-09.
- *
- * TODO(T-02/T-09): the wizard's start-type select drives whether the Tow step
- * renders. This stub takes whatever new-template defaults to; T-09 must drive
- * the start type to AEROTOW explicitly to exercise the paired-tow branch
- * deterministically (the clean realm's new-template default is not yet pinned).
+ * Selects EVERY field off the seeded masterdata so the create is deterministic
+ * (the clean realm has no defaults to fall back on).
  */
-async function createFlightViaWizard(page: Page, comment: string): Promise<string> {
+async function createGliderFlightAerotow(
+  page: Page,
+  md: FlightMasterdata,
+  comment: string,
+): Promise<string> {
   await page.goto('/flights/new');
   await expect(page.getByTestId('flight-form')).toBeVisible();
   await expect(page.getByTestId('flight-step-launch')).toBeVisible();
 
-  // Step 1 → 2 (Glider). Aircraft / pilot / flight-type default from the
-  // new-template; stamp a comment so the edit/persistence case has a value.
+  // Step 0 (Launch): drive start-type = AEROTOW explicitly so the paired-tow
+  // branch is taken (the T-01 stub took whatever the new-template defaulted to;
+  // the oracle requires the AEROTOW branch be exercised deterministically).
+  await selectAfOption(page, 'flight-edit-startType', AEROTOW_START_TYPE_ID);
+  await selectAfOption(page, 'flight-edit-startLocation', md.locationId);
+
+  // Step 1 (Glider): aircraft / flight type / pilot / comment.
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.gliderAircraftId);
+  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId);
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId);
+  await page.getByTestId('flight-edit-glider-startTime').locator('input').fill('09:00');
+  await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('10:30');
   await page.getByTestId('flight-edit-glider-comment').locator('input').fill(comment);
 
-  // When start-type = aerotow the Tow step renders (flight-step-2); the paired
-  // tow is created + linked in the same save. THIN: just advance through it if
-  // present; T-09 fills the tow aircraft/pilot + asserts the linked TOW row.
-  if (
-    await page
-      .getByTestId('flight-step-tow')
-      .isVisible()
-      .catch(() => false)
-  ) {
-    await page.getByTestId('flight-step-next').click();
-    await expect(page.getByTestId('flight-step-tow')).toBeVisible();
-  }
+  // Step 2 (Tow): AEROTOW → the Tow step renders; pick the tow aircraft + pilot.
+  await page.getByTestId('flight-step-next').click();
+  await expect(page.getByTestId('flight-step-tow')).toBeVisible();
+  await selectAfOption(page, 'flight-edit-tow-aircraft', md.towAircraftId);
+  await selectAfOption(page, 'flight-edit-tow-pilot', md.towPilotPersonId);
 
+  const created = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      new URL(r.url()).pathname === '/api/v1/flights' &&
+      r.status() >= 200 &&
+      r.status() < 300,
+  );
   await page.getByTestId('flight-submit-header').click();
+  await created;
   await expect(page).toHaveURL(/\/flights$/);
 
-  // The new flight appears in the list. THIN: derive the id from the first
-  // row's testid (T-09 matches the specific created flight by its attributes).
-  const row = page.locator('[data-testid^="flights-row-"]').first();
-  await expect(row, 'created flight must appear in the list').toBeVisible();
+  // The new glider flight renders with the glider aircraft's immatriculation.
+  const row = page
+    .locator('[data-testid^="flights-row-"]')
+    .filter({ has: page.locator(`text="${md.gliderImmat}"`) })
+    .first();
+  await expect(row, 'created glider flight must appear in the list').toBeVisible();
   const testId = await row.getAttribute('data-testid');
   expect(testId, 'flight row must carry a flights-row-<id> testid').toBeTruthy();
   return testId!.replace(/^flights-row-/, '');
@@ -130,29 +151,43 @@ async function createFlightViaWizard(page: Page, comment: string): Promise<strin
 // CLEAN-SEED real chain — glider+tow+motor CRUD + tenant 404 + time-gate + 412.
 // ===========================================================================
 test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
-  // One realm + one backend; provision once, run the asserts in order. Serial
-  // keeps the two sessions from racing the create→edit→delete ordering (mirrors
-  // the J-1 aircraft spec).
+  // One realm + one backend; provision + seed once, run the asserts in order.
+  // Serial keeps the sessions from racing the create→edit→delete ordering
+  // (mirrors the J-1 aircraft spec).
   test.describe.configure({ mode: 'serial' });
 
   let fixture: TwoClubFixture;
   let baseURL: string;
+  let masterdata: FlightMasterdata;
   /** The glider flight club A creates + manages; reused across CRUD + tenant cases. */
   let flightId: string;
 
-  test.beforeAll(async ({ browser }, testInfo) => {
+  test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // Spec-scoped admin usernames ('flt') so this fixture's club admins are
     // disjoint from the J-0 ('loc') / J-1 ('acft') specs when several run in one
     // `playwright test` invocation — ux_user_username_lower_alive.
     fixture = await provisionTwoClubs(browser, baseURL, 'flt');
+
+    // The clean realm's club A has no aircraft / persons / locations /
+    // flight-types — the wizard's dropdowns need real rows. Seed them through
+    // the REAL create APIs (no mocking) as club A's admin.
+    const ctx = await browser.newContext({ baseURL });
+    const page = await ctx.newPage();
+    try {
+      await loginAsClubAdmin(page, fixture.clubA);
+      const bearer = await bearerFromFlightsList(page);
+      masterdata = await seedFlightMasterdata(request, bearer);
+    } finally {
+      await ctx.close();
+    }
   });
 
   test.afterAll(async () => {
     await fixture?.dispose();
   });
 
-  test('club admin lists /flights and creates a glider flight via the 3-step wizard', async ({
+  test('club admin lists /flights and creates a glider flight (AEROTOW) with a linked tow', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -165,12 +200,46 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await expect(page.locator('h1')).toHaveText('Flights');
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
-      // Create a glider flight via the wizard → it appears in the list. The
-      // paired-tow save (when start-type = aerotow) is exercised inside the
-      // wizard helper; T-09 asserts the distinct linked TOW row + towFlightId.
-      flightId = await createFlightViaWizard(page, 'created by J-2 e2e');
-      expect(flightId).toBeTruthy();
+      // Create a glider flight via the wizard driving AEROTOW → the paired tow is
+      // created + linked in the same save.
+      flightId = await createGliderFlightAerotow(page, masterdata, 'created by J-2 e2e');
+      expect(flightId).toMatch(/^fl-[0-9a-f-]{36}$/);
 
+      // The glider row resolves its glider immatriculation.
+      await expect(page.getByTestId(`flights-immat-${flightId}`)).toHaveText(
+        masterdata.gliderImmat,
+      );
+
+      // Paired-tow assertion (S-063): the create made a DISTINCT TOW-type row and
+      // the glider's towFlightId points at it. Read both off the API (the link is
+      // not a list column) using the same principal's Bearer.
+      const bearer = await bearerFromFlightsList(page);
+      const detail = await ctx.request.get(`/api/v1/flights/${flightId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(detail.status(), 'the created glider flight is readable').toBe(200);
+      const gliderBody = (await detail.json()) as { towFlightId?: string };
+      expect(
+        gliderBody.towFlightId,
+        'the AEROTOW glider must carry a towFlightId (paired save, S-063)',
+      ).toBeTruthy();
+      const towDetail = await ctx.request.get(`/api/v1/flights/${gliderBody.towFlightId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(towDetail.status(), 'the linked tow flight is readable').toBe(200);
+      const towBody = (await towDetail.json()) as {
+        flightAircraftType: string;
+        aircraftId: string;
+      };
+      expect(towBody.flightAircraftType, 'the linked flight is a distinct TOW row').toBe('TOW');
+      expect(towBody.aircraftId, 'the tow row flies the tow aircraft').toBe(
+        masterdata.towAircraftId,
+      );
+
+      // A populated list screenshot for the gallery (diagnostic; the testid
+      // asserts above are the real check — CLAUDE.md §8).
+      await page.goto('/flights');
+      await expect(page.getByTestId('flights-table')).toBeVisible();
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-flights-list.png`,
         fullPage: true,
@@ -180,8 +249,9 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await proofVideo(page, testInfo, {
         journey: 'J-2',
         caption:
-          'J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and ' +
-          'creates a glider flight via the 3-step wizard that appears in the list',
+          'J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates ' +
+          'a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created ' +
+          'and linked in the same save (glider.towFlightId → a distinct TOW row)',
         acTag: 'happy',
       });
     }
@@ -196,21 +266,49 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await loginAsClubAdmin(page, fixture.clubA);
 
       // /airmovements is the SAME shared list/form parameterized by the MOTOR
-      // filter (S-064 — no legacy-style duplication). The route + the motor
-      // create flow are built in T-05; this stub asserts the screen mounts and
-      // a created motor flight lands in the motor list.
-      // TODO(T-05): the /airmovements route does not exist yet (flights.routes.ts
-      // has no `airmovements` entry) — T-05 adds the route + nav entry + the
-      // motor-filter param on the shared list/form. Until then this navigation
-      // 404s in the SPA; the assertions below pin the intended shape.
+      // variant (S-064 — no legacy-style duplication); the tow step is suppressed
+      // regardless of start-type, and the create stamps the MOTOR discriminator.
       await page.goto('/airmovements');
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
-      // Motor create reuses the wizard with the Tow step suppressed (no tow
-      // pairing for MOTOR). THIN: create + assert list presence.
-      await createFlightViaWizard(page, 'motor by J-2 e2e');
-      await expect(page.locator('[data-testid^="flights-row-"]').first()).toBeVisible();
+      await page.goto('/airmovements/new');
+      await expect(page.getByTestId('flight-form')).toBeVisible();
+      // No tow step on a motor air movement (variant suppresses it).
+      await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
+
+      // Launch + glider steps off the motor aircraft (the wizard's "Glider" step
+      // is the single-aircraft step for the motor variant).
+      await selectAfOption(page, 'flight-edit-startLocation', masterdata.locationId);
+      await page.getByTestId('flight-step-next').click();
+      await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+      await selectAfOption(page, 'flight-edit-glider-aircraft', masterdata.motorAircraftId);
+      await selectAfOption(page, 'flight-edit-glider-flightType', masterdata.gliderFlightTypeId);
+      await selectAfOption(page, 'flight-edit-glider-pilot', masterdata.pilotPersonId);
+      await page
+        .getByTestId('flight-edit-glider-comment')
+        .locator('input')
+        .fill('motor by J-2 e2e');
+
+      const created = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === '/api/v1/flights' &&
+          r.status() >= 200 &&
+          r.status() < 300,
+      );
+      await page.getByTestId('flight-submit-header').click();
+      await created;
+      await expect(page).toHaveURL(/\/airmovements$/);
+
+      // The motor flight renders in the motor-filtered list under its immat.
+      const row = page
+        .locator('[data-testid^="flights-row-"]')
+        .filter({ has: page.locator(`text="${masterdata.motorImmat}"`) })
+        .first();
+      await expect(row, 'the created motor flight appears in /airmovements').toBeVisible();
+      const motorId = (await row.getAttribute('data-testid'))!.replace(/^flights-row-/, '');
+      await expect(page.getByTestId(`flights-aircraft-type-${motorId}`)).toContainText('Motor');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -240,15 +338,29 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
         fullPage: true,
       });
 
-      // Edit the glider-step comment + save. THIN: assert we return to the list;
-      // T-09 reopens the edit form and asserts the persisted value round-trips.
+      // Edit the glider-step comment + save.
+      const updated = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'PUT' &&
+          new URL(r.url()).pathname === `/api/v1/flights/${flightId}` &&
+          r.status() === 200,
+      );
       await page.getByTestId('flight-step-next').click();
+      await expect(page.getByTestId('flight-step-glider')).toBeVisible();
       await page
         .getByTestId('flight-edit-glider-comment')
         .locator('input')
         .fill('edited by J-2 e2e');
       await page.getByTestId('flight-submit-header').click();
+      await updated;
       await expect(page).toHaveURL(/\/flights$/);
+
+      // Persistence round-trip — reopen the edit form, the comment persisted.
+      await page.goto(`/flights/${flightId}/edit`);
+      await page.getByTestId('flight-step-next').click();
+      await expect(page.getByTestId('flight-edit-glider-comment').locator('input')).toHaveValue(
+        'edited by J-2 e2e',
+      );
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -266,14 +378,12 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     const page = await ctx.newPage();
     try {
       await loginAsClubAdmin(page, fixture.clubA);
-      await page.goto('/flights');
 
-      // Create a throwaway flight to delete (keeps the suite's primary flightId
-      // intact for the tenant/gate cases below).
-      const victimId = await createFlightViaWizard(page, 'to-delete by J-2 e2e');
+      // Create a throwaway glider flight to delete (keeps the suite's primary
+      // flightId intact for the tenant / 412 cases below).
+      const victimId = await createGliderFlightAerotow(page, masterdata, 'to-delete by J-2 e2e');
 
-      // Kebab → Delete → confirm dialog → confirm. THIN: assert the row leaves
-      // the list (T-09 asserts the If-Match version on the DELETE).
+      // Kebab → Delete → confirm dialog → confirm. The row leaves the list.
       await page.goto('/flights');
       await page.getByTestId(`flights-kebab-${victimId}`).click();
       await page.getByTestId(`flights-delete-${victimId}`).click();
@@ -300,10 +410,10 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      // Club B's admin: a different tenant. Flights are NOT a cross-tenant
-      // catalog (unlike aircraft, which 200s the read + 403s the write) — a
-      // single-flight GET from another tenant must 404 (structural @TenantId
-      // scope, ADR 0008), closing the legacy GetFlight(id) no-ClubId-filter leak.
+      // Club B's admin: a different tenant. Flights are NOT a cross-tenant catalog
+      // (unlike aircraft, which 200s the read + 403s the write) — a single-flight
+      // GET from another tenant must 404 (structural @TenantId scope, ADR 0008),
+      // closing the legacy GetFlight(id) no-ClubId-filter leak (oracle #24).
       await loginAsClubAdmin(page, fixture.clubB);
       const bearer = await bearerFromFlightsList(page);
 
@@ -323,82 +433,6 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test('time-gate: a too-recent flight cannot lock; a past-threshold flight can (S-061)', async ({
-    browser,
-  }, testInfo) => {
-    expect(flightId, 'create must have run first').toBeTruthy();
-    const ctx = await newRecordedContext(browser, baseURL, testInfo);
-    const page = await ctx.newPage();
-    try {
-      await loginAsClubAdmin(page, fixture.clubA);
-      const bearer = await bearerFromFlightsList(page);
-
-      // Operator divergence (J-2 Parity decisions): the lock gate keys on
-      // `flight_date ≤ clock.today()-2d` (NOT legacy CreatedOn). The freshly
-      // created flight's flight_date defaults to "today" (clock-anchored in the
-      // e2e fixture), so a Valid→Locked PATCH must be REJECTED as too-recent.
-      // TODO(T-02): the PATCH `/{id}/process-state` gate + the injected Clock +
-      // the `locked_at` column do not exist yet — T-02 builds FlightGatePolicy
-      // and wires it into FlightStateTransitionService. THIN here: assert the
-      // too-recent lock is rejected (4xx). T-09 adds the past-threshold ALLOW
-      // (a flight whose flight_date the seed sets ≥2d in the past) + the exact
-      // day-boundary (1d-before reject / on-or-after allow) once T-08 seeds it.
-      const lockTooRecent = await ctx.request.patch(`/api/v1/flights/${flightId}/process-state`, {
-        headers: { authorization: bearer, 'content-type': 'application/json' },
-        data: { processState: 'LOCKED' },
-      });
-      expect(
-        lockTooRecent.status(),
-        'a too-recent flight (flight_date within the 2d gate) cannot transition Valid→Locked',
-      ).toBeGreaterThanOrEqual(400);
-      expect(lockTooRecent.status()).toBeLessThan(500);
-    } finally {
-      await ctx.close();
-      await proofVideo(page, testInfo, {
-        journey: 'J-2',
-        caption:
-          'J-2 · time-gate · a flight whose flight_date is within the 2-day lock window cannot ' +
-          'transition Valid→Locked (S-061, operator divergence keying on flight_date)',
-        acTag: 'key-error',
-      });
-    }
-  });
-
-  test('a DeliveryBooked flight is read-only: edit + delete return 4xx', async ({
-    browser,
-  }, testInfo) => {
-    const ctx = await newRecordedContext(browser, baseURL, testInfo);
-    const page = await ctx.newPage();
-    try {
-      await loginAsClubAdmin(page, fixture.clubA);
-      const bearer = await bearerFromFlightsList(page);
-
-      // The read-only rule targets DeliveryBooked(60), NOT Locked (oracle #12 —
-      // a Locked flight is still editable). A DeliveryBooked flight rejects
-      // edit + delete with a 4xx state-gate error.
-      // TODO(T-08): no DeliveryBooked flight exists in a clean realm — the
-      // T-08 flight parity bundle / legacy seed must produce one (the seeder
-      // declares "a DeliveryBooked read-only flight"). Until then this case has
-      // no subject; it is `fixme`'d so the stub compiles + documents the shape.
-      // T-09 resolves the seeded DeliveryBooked flight id and asserts PUT→4xx +
-      // DELETE→4xx (and that the edit form renders read-only in the SPA).
-      void bearer;
-      test.fixme(
-        true,
-        'needs the T-08 flight parity seed (a DeliveryBooked flight); thicken in T-09',
-      );
-    } finally {
-      await ctx.close();
-      await proofVideo(page, testInfo, {
-        journey: 'J-2',
-        caption:
-          'J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state-gate; ' +
-          'Locked stays editable per oracle #12)',
-        acTag: 'key-error',
-      });
-    }
-  });
-
   test('412 optimistic concurrency: a stale PUT opens the inline per-field conflict diff', async ({
     browser,
   }, testInfo) => {
@@ -409,25 +443,78 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await loginAsClubAdmin(page, fixture.clubA);
 
       // Net-new affordance (NOT legacy parity — legacy Flight is last-write-wins,
-      // oracle #25). Open the edit form, then race a second writer so the form's
-      // in-hand version goes stale; saving issues a PUT with the old If-Match →
-      // 412 → the inline per-field conflict diff opens (keep-mine / keep-theirs,
-      // no auto-retry). A 409 state-gate reject instead shows a "reload latest"
-      // toast (S-062h) — asserted in T-09.
-      // TODO(T-04): the conflict-diff dialog does not exist yet. T-04 builds
-      // `flight-conflict-prompt.component.ts` and wires FlightStore.save's 412
-      // branch to open it (the store currently only *tracks* saveConflict). The
-      // testids below (`flight-conflict-prompt`, the per-field keep-mine/
-      // keep-theirs controls) MUST be added by T-04 — they do not exist in the
-      // edit page today. T-09 drives the stale-write race deterministically
-      // (e.g. a direct PUT bumps the version between load and save) and asserts
-      // the per-field diff + the no-auto-retry behavior.
+      // oracle #25). Open the edit form, then race a SECOND writer (a direct PUT
+      // with the same principal's Bearer) so the form's in-hand version goes
+      // stale. Saving issues a PUT with the old If-Match → 412 → the inline
+      // per-field conflict diff opens.
+      const bearer = await bearerFromFlightsList(page);
+
+      // Read the current detail to learn its version + a value to mutate.
+      const before = await ctx.request.get(`/api/v1/flights/${flightId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(before.status()).toBe(200);
+      const detail = (await before.json()) as Record<string, unknown> & { version: number };
+
+      // Open the edit form (the store now holds version N).
       await page.goto(`/flights/${flightId}/edit`);
       await expect(page.getByTestId('flight-form')).toBeVisible();
-      test.fixme(
-        true,
-        'needs the T-04 412 conflict-diff dialog (flight-conflict-prompt) + FlightStore.save wiring; thicken in T-09',
-      );
+
+      // Out-of-band writer bumps the server version to N+1, changing the comment.
+      const conflictingComment = 'changed-by-other-writer';
+      const oob = await ctx.request.put(`/api/v1/flights/${flightId}`, {
+        headers: {
+          authorization: bearer,
+          'content-type': 'application/json',
+          'If-Match': String(detail.version),
+        },
+        data: { ...detail, comment: conflictingComment },
+      });
+      expect(oob.status(), 'the out-of-band write succeeds, bumping the server version').toBe(200);
+
+      // Now the form's save issues a PUT with the STALE If-Match (version N) →
+      // 412. Count PUTs to assert there is exactly ONE before the dialog (no
+      // auto-retry — the user must resubmit).
+      let putCount = 0;
+      await page.route(`**/api/v1/flights/${flightId}`, async (route) => {
+        if (route.request().method() === 'PUT') {
+          putCount += 1;
+        }
+        await route.continue();
+      });
+
+      await page.getByTestId('flight-step-next').click();
+      await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+      await page.getByTestId('flight-edit-glider-comment').locator('input').fill('my-local-edit');
+      await page.getByTestId('flight-submit-header').click();
+
+      // The inline per-field conflict diff opens (412 → keep-mine/keep-theirs).
+      await expect(page.getByTestId('flight-conflict-dialog')).toBeVisible();
+      // The `comment` field conflicts (mine vs theirs); both choices render.
+      await expect(page.getByTestId('flight-conflict-field-comment')).toBeVisible();
+      await expect(page.getByTestId('flight-conflict-keep-mine-comment')).toBeVisible();
+      const keepTheirs = page.getByTestId('flight-conflict-keep-theirs-comment');
+      await expect(keepTheirs).toContainText(conflictingComment);
+      // The FIRST conflicting field's keep-mine control is focused on open (the
+      // component focuses `#firstChoice`, the first rendered keep-mine button).
+      // Assert generically on the first keep-mine control rather than on the
+      // comment field specifically — the diff order is CONFLICT_FIELDS order, and
+      // comment is not necessarily the first differing field.
+      await expect(
+        page.locator('[data-testid^="flight-conflict-keep-mine-"]').first(),
+      ).toBeFocused();
+
+      // No auto-retry: exactly one PUT fired before the dialog opened.
+      expect(putCount, 'a 412 must NOT auto-retry — exactly one PUT before the dialog').toBe(1);
+
+      // The 409 reload toast is NOT shown (a 412 is a data conflict, not a state
+      // conflict — they are distinct paths, S-062h).
+      await expect(page.getByTestId('flight-409-toast')).toHaveCount(0);
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-flights-conflict.png`,
+        fullPage: true,
+      });
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -444,25 +531,178 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
 // ===========================================================================
 // MIGRATED-DATA real chain — legacy → migrate → Keycloak → UI.
 // ===========================================================================
-// The migrated-flight render is the J-2 done-bar (full real chain). It depends
-// on the T-08 flight parity fixture (`seedFlightParity` + the legacy MSSQL
-// flight seed), which mirrors the J-1 `seedAircraftParity` shape but does not
-// exist yet. This describe pins the intended structure; T-09 wires it to the
-// real fixture once T-07/T-08 land.
-//
-// TODO(T-08/T-09): author `_helpers/flight-parity-fixture.ts` (mirror
-// `aircraft-parity-fixture.ts`): ingest a migrated Flight + FlightCrew bundle
-// through the REAL `POST /api/v1/migrations/{id}/bundle`, resolve the owning
-// club's loginable migrated admin, then assert the migrated flight (crew + tow
-// link) renders in that club's /flights list. Import it here in T-09 and
-// replace this `fixme` with the live render assertion.
+// The migrated-flight render is the J-2 done-bar (full real chain). It ingests
+// the T-08 flight parity bundle (glider+tow paired + motor + DeliveryBooked + a
+// cross-tenant flight) through the REAL migration endpoint, provisions the
+// migrated club admins (Keycloak), then asserts BOTH the migrated render AND the
+// read-only consequence on the seeded DeliveryBooked flight.
 test.describe('Flight list+edit — migrated legacy flight renders (real-idp)', () => {
+  // retries: 0 unconditionally — the synth seed mints a fresh handshake/uploadId
+  // per attempt, but the ingest provisions a NON-TERMINAL Deployment owned by
+  // this spec's migration principal (`clubadmin2`). A Playwright retry re-runs
+  // the ingest with a fresh uploadId, so the owner-active gate
+  // (DeploymentProvisioningService#provision: findActiveByOwner) would 409
+  // DEPLOYMENT_EXISTS on the PRIOR attempt's own Deployment — masking the real
+  // first-attempt cause. retries:0 surfaces the real failure (J-1 T-17 rationale).
   test.describe.configure({ mode: 'serial', retries: 0 });
 
-  test('the migrated flight (crew + tow link) renders in the owning club /flights list', () => {
-    test.fixme(
-      true,
-      'needs the T-07/T-08 Flight+FlightCrew migration bindings + flight parity fixture; wire + thicken in T-09',
-    );
+  let fixture: FlightParityFixture;
+  let baseURL: string;
+
+  test.beforeAll(async ({ browser, request }, testInfo) => {
+    baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    // Seeds through the REAL migration endpoint — ingest + Keycloak provision
+    // both run live. The retry index mints a FRESH handshake/uploadId (synth) so
+    // a retry after a failed ingest re-handshakes cleanly.
+    fixture = await seedFlightParity(browser, request, baseURL, testInfo.retry);
+  });
+
+  test('the migrated glider flight (crew + tow link) renders in the owning club /flights list', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsMigratedAdmin(page, fixture.owner);
+      await page.goto('/flights');
+      await expect(page.getByTestId('flights-table')).toBeVisible();
+
+      // The migrated glider flight renders under the migrated immatriculation
+      // (HB-3000), resolved off the migrated aircraft. Identify the row by its
+      // immat, then assert the tow link + crew via the API (the link is not a
+      // list column).
+      const row = page
+        .locator('[data-testid^="flights-row-"]')
+        .filter({ has: page.locator(`text="${fixture.gliderImmatriculation}"`) })
+        .first();
+      await expect(
+        row,
+        `migrated glider "${fixture.gliderImmatriculation}" must appear in the owning club's list`,
+      ).toBeVisible();
+      const rowId = (await row.getAttribute('data-testid'))!.replace(/^flights-row-/, '');
+      expect(rowId, 'migrated flight row must carry a flights-row-<id> testid').toMatch(
+        /^fl-[0-9a-f-]{36}$/,
+      );
+
+      // The migrated glider carries the tow link + crew (FlightCrewMapper).
+      const bearer = await bearerFromFlightsList(page);
+      const detail = await ctx.request.get(`/api/v1/flights/${rowId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(detail.status(), 'the migrated glider flight is readable in its own club').toBe(200);
+      const body = (await detail.json()) as {
+        flightAircraftType: string;
+        towFlightId?: string;
+        crew?: unknown[];
+      };
+      expect(body.flightAircraftType).toBe('GLIDER');
+      expect(
+        body.towFlightId,
+        'the migrated glider carries the two-pass tow self-FK link',
+      ).toBeTruthy();
+      expect(
+        (body.crew ?? []).length,
+        'the migrated glider carries its migrated FlightCrew (pilot + co-pilot)',
+      ).toBeGreaterThanOrEqual(2);
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-flights-migrated-list.png`,
+        fullPage: true,
+      });
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-2',
+        caption:
+          'J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live ' +
+          "migration endpoint, renders in the owning club's /flights list under its immatriculation " +
+          '(crew + tow link; full legacy→migrate→Keycloak→UI chain)',
+        acTag: 'happy',
+      });
+    }
+  });
+
+  test('a migrated DeliveryBooked flight is read-only: edit + delete return 4xx (oracle #12)', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsMigratedAdmin(page, fixture.owner);
+      const bearer = await bearerFromFlightsList(page);
+
+      // ----------------------------------------------------------------------
+      // Time-gate (CRITICAL): the lock transition (Valid→Locked) is driven by
+      // the LOCK_JOB trigger, NOT an OPERATOR HTTP endpoint (T-02 finding), so
+      // this e2e does NOT try to drive a Valid→Locked lock through the UI/API —
+      // the day-boundary gate is already proven at the IT layer
+      // (FlightTimeGateIT). Here we assert the UI READ-ONLY CONSEQUENCE on the
+      // seeded DeliveryBooked flight: per the corrected parity decision, the
+      // read-only target is DeliveryBooked(60), NOT Locked (oracle #12 — a Locked
+      // flight stays editable). This is the e2e half of the gate's effect.
+      // ----------------------------------------------------------------------
+
+      // Find the seeded DeliveryBooked flight (process state DELIVERY_BOOKED).
+      const list = await ctx.request.get('/api/v1/flights', { headers: { authorization: bearer } });
+      expect(list.status()).toBe(200);
+      const items = ((await list.json()) as { items: { id: string; processState: string }[] })
+        .items;
+      const booked = items.find((f) => f.processState === 'DELIVERY_BOOKED');
+      expect(
+        booked,
+        'the T-08 parity bundle seeds a DeliveryBooked(60) read-only flight',
+      ).toBeTruthy();
+      const bookedId = booked!.id;
+
+      // Read it (still readable), then capture its version for the gated writes.
+      const read = await ctx.request.get(`/api/v1/flights/${bookedId}`, {
+        headers: { authorization: bearer },
+      });
+      expect(read.status(), 'a DeliveryBooked flight is still readable').toBe(200);
+      const detail = (await read.json()) as Record<string, unknown> & { version: number };
+
+      // PUT (edit) on a DeliveryBooked flight → 4xx state-gate reject.
+      const put = await ctx.request.put(`/api/v1/flights/${bookedId}`, {
+        headers: {
+          authorization: bearer,
+          'content-type': 'application/json',
+          'If-Match': String(detail.version),
+        },
+        data: { ...detail, comment: 'attempt-edit-booked' },
+      });
+      expect(
+        put.status(),
+        'editing a DeliveryBooked flight must be rejected (4xx state gate)',
+      ).toBeGreaterThanOrEqual(400);
+      expect(put.status()).toBeLessThan(500);
+
+      // DELETE on a DeliveryBooked flight → 4xx state-gate reject.
+      const del = await ctx.request.delete(`/api/v1/flights/${bookedId}`, {
+        headers: { authorization: bearer, 'If-Match': String(detail.version) },
+      });
+      expect(
+        del.status(),
+        'deleting a DeliveryBooked flight must be rejected (4xx state gate)',
+      ).toBeGreaterThanOrEqual(400);
+      expect(del.status()).toBeLessThan(500);
+
+      // The SPA mirrors the gate: the DeliveryBooked row offers NO delete action
+      // (the disabled affordance shows instead).
+      await page.goto('/flights');
+      await expect(page.getByTestId('flights-table')).toBeVisible();
+      await page.getByTestId(`flights-kebab-${bookedId}`).click();
+      await expect(page.getByTestId(`flights-delete-disabled-${bookedId}`)).toBeVisible();
+      await expect(page.getByTestId(`flights-delete-${bookedId}`)).toHaveCount(0);
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-2',
+        caption:
+          'J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; ' +
+          'Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven ' +
+          'at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.',
+        acTag: 'key-error',
+      });
+    }
   });
 });
