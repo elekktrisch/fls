@@ -393,7 +393,19 @@ jobs:
       #     workflow's job). DATASOURCE_* are exported so the spec's Gradle
       #     seeder shell-outs (seedAircraftParityBundle build + seedAircraftOwnerLink
       #     DB write) reach the same Postgres the backend uses.
-      - name: Run real-idp proof specs (J-0 Locations + J-1 Aircraft)
+      #   - J-2 T-15: the Flight list+edit real chain (clean-seed glider+tow+motor
+      #     CRUD + tenant 404 + read-only DeliveryBooked + 412 conflict diff + the
+      #     migrated glider+tow paired render). SYNTH bundle mode (J2_BUNDLE_SOURCE
+      #     unset → fixture defaults to synth): the migrated half ingests a
+      #     Java-built Flight + FlightCrew bundle through the REAL migration
+      #     endpoint (the full legacy→export half is the nightly fan-out's job —
+      #     J2_REAL_* are set ONLY on that nightly real path, never here). The
+      #     fixture self-seeds in its beforeAll via the Gradle seedFlightParityBundle
+      #     task + seedFlightMasterdata create-API calls — no job-level seed step;
+      #     the DATASOURCE_* below carry the seeder shell-out to the backend's
+      #     Postgres. All THREE specs run in ONE invocation so the single proof
+      #     manifest carries J-0/J-1/J-2 videos.
+      - name: Run real-idp proof specs (J-0 Locations + J-1 Aircraft + J-2 Flights)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 15
@@ -406,7 +418,8 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts \
-            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
+            e2e/tests/real-idp/flight-migration-parity.spec.ts
 
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;
