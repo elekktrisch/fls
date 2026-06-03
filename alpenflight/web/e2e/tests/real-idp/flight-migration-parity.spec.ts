@@ -285,42 +285,46 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await loginAsSeededMotorClubadmin(page);
       await expect(page.getByTestId('af-nav-section-/airmovements')).toBeVisible();
 
-      // ROOT FIX (J-2 T-26): navigate to /airmovements via the IN-APP nav link,
-      // NOT `page.goto('/airmovements')`. A hard `goto` reboots the SPA and
-      // re-runs the OIDC `withAppInitializerAuthCheck` → checkAuth/silent-renew
-      // cycle; the trace showed the list's `GET /api/v1/flights?limit=50` then
-      // stuck at `send=-1` (queued in the browser, never flushed) behind that
-      // renew while the router-outlet sat blank — the request never reached the
-      // backend (no clubadmin4 hit for it in backend.log). A client-side router
-      // navigation reuses the warm, just-minted token with no reboot and no renew
-      // gate — and mirrors how an operator actually reaches the screen.
+      // Navigate to /airmovements via the IN-APP nav link (S-064: the SAME shared
+      // list/form parameterized by the MOTOR variant — the tow step is suppressed
+      // regardless of start-type, and the create stamps the MOTOR discriminator).
       //
-      // The in-app nav to /airmovements reuses the WARM flights store and applies
-      // the MOTOR variant as a CLIENT-SIDE filter (S-064 / T-05) — it does NOT
-      // re-fetch `GET /api/v1/flights`. The earlier `waitForResponse` guard on a
-      // second GET (T-22) therefore timed out on a working page: that GET fires
-      // exactly once, during login/landing, BEFORE this point (J-2 T-27, run
-      // 26903461521 trace). It was a brittle precondition asserting an
-      // implementation detail (a fresh fetch) that does not hold for warm-store
-      // client-side-filtered nav. The real behavioral assertions below fail FAST
-      // on a genuine tenant-resolution regression with NO loss of coverage: if
-      // clubadmin4 didn't resolve, the list GET would 403/empty, `flights-table`
-      // would not render, and the create would fail.
+      // ROOT FIX (J-2 T-28): retry the nav through a transient guard bounce
+      // instead of clicking once. The run-26904261451 trace proved the SINGLE
+      // click never stuck: the click resolved but the URL stayed `/start` and the
+      // `toHaveURL(/airmovements$/)` timed out at 10s — so the form never loaded,
+      // the create POST never fired, and the test hit its 60s timeout. Cause:
+      // `clubadmin4`'s tenant is resolved SERVER-side (`PreTenantUserLookup` → the
+      // V29 `t_user`) and surfaces client-side only once `loadMe()` patches
+      // `currentClubId` from `GET /api/v1/me`. The login helper now blocks on that
+      // `/me` round-trip, so the common case passes first try. But a concurrent
+      // OIDC silent-renew (the trace's stuck `GET /api/v1/flights?limit=50` at
+      // `send=-1` is its tell) can momentarily flip `sessionStatus` to loading, in
+      // which case `authGuard` returns `false` and CANCELS the navigation with no
+      // router-level retry (or `tenantRequiredGuard` bounces to `/start` if the
+      // patch hasn't propagated). `toPass` re-clicks until the guards admit the
+      // route — self-healing against the renew window without weakening any
+      // assertion (the body below still proves the real chain end to end).
       //
-      // /airmovements is the SAME shared list/form parameterized by the MOTOR
-      // variant (S-064 — no legacy-style duplication); the tow step is suppressed
-      // regardless of start-type, and the create stamps the MOTOR discriminator.
-      await page.getByTestId('af-nav-section-/airmovements').click();
-      await expect(page).toHaveURL(/\/airmovements$/);
+      // The in-app nav reuses the WARM flights store and applies the MOTOR variant
+      // as a CLIENT-SIDE filter (S-064 / T-05) — it does NOT re-fetch
+      // `GET /api/v1/flights`, so there is no second-GET to wait on (J-2 T-27).
+      await expect(async () => {
+        await page.getByTestId('af-nav-section-/airmovements').click();
+        await expect(page).toHaveURL(/\/airmovements$/, { timeout: 5_000 });
+      }).toPass({ timeout: 30_000 });
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
       // In-app navigation to the create form (the list's "new" button does a
       // client-side `router.navigateByUrl(basePath + '/new')`) — again NO hard
       // `goto`, to keep the warm session and avoid the reboot/renew stall the
-      // T-26 trace exposed.
-      await page.getByTestId('flights-new-button').click();
-      await expect(page).toHaveURL(/\/airmovements\/new$/);
+      // T-26 trace exposed. `/airmovements/new` carries the same `tenantRequiredGuard`
+      // as the list, so retry through a transient renew-window bounce (J-2 T-28).
+      await expect(async () => {
+        await page.getByTestId('flights-new-button').click();
+        await expect(page).toHaveURL(/\/airmovements\/new$/, { timeout: 5_000 });
+      }).toPass({ timeout: 30_000 });
       await expect(page.getByTestId('flight-form')).toBeVisible();
       // No tow step on a motor air movement (variant suppresses it).
       await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);

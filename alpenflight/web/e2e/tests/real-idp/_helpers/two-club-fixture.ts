@@ -345,7 +345,30 @@ export async function loginAsSeededMotorClubadmin(page: Page): Promise<void> {
   // KC must present the login form — proves SSO did not bypass it (so we
   // authenticate as clubadmin4, not the leaked sysadmin session).
   await expect(page.locator('#username')).toBeVisible();
+
+  // WAIT FOR TENANT RESOLUTION TO SETTLE before the caller navigates to a
+  // tenant-guarded page (J-2 T-28). `clubadmin4` is a realm-export user whose
+  // tenant is resolved by the SERVER (`PreTenantUserLookup` → the V29 seeded
+  // `t_user`); the authoritative `currentClubId` is patched onto SessionStore
+  // by `loadMe()` from the `GET /api/v1/me` response, NOT synchronously off the
+  // login claim. The OIDC `applyClaimsToSession` fires `login()` + `loadMe()` on
+  // the landing redirect; the run-26904261451 trace proved `/api/v1/me` returns
+  // 200 here. Until that response lands, `tenantRequiredGuard` sees
+  // `currentClubId() === null` and bounces a `/airmovements` navigation back to
+  // `/start` (and a concurrent silent-renew can leave `authGuard` in its
+  // `isLoadingSession() → return false` defer branch, cancelling the nav
+  // outright) — so the prior in-app click to `/airmovements` never stuck and the
+  // motor create never reached the form (POST never fired, 60s timeout). Arm the
+  // `/me` waiter BEFORE submitting the login form (the landing redirect fires
+  // `/me` immediately on auth — registering after the redirect would race the
+  // response), then block on the round-trip so the session is tenant-resolved
+  // and settled before the caller drives the nav.
+  const meResolved = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/v1/me' && r.status() === 200,
+    { timeout: 30_000 },
+  );
   await fillKcLogin(page, SEEDED_MOTOR_CLUBADMIN.username, SEEDED_MOTOR_CLUBADMIN.password);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
+  await meResolved;
 }
