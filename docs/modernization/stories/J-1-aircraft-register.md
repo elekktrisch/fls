@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: in_progress  # reopened 2026-06-03 (3rd): operator review — T-22/T-23 authored + structurally validated; awaiting fanout dispatch to confirm the populated screenshot + …/legacy-parity/ URL
+status: done  # PR gate GREEN (HEAD 23e2e536); fanout green incl. 6-column populated screenshot + legacy-parity gallery + PR sticky-comment auto-upsert (all verified live)
 started_at: 2026-06-02
-done_at: 2026-06-03  # provisional — core + PR gate green; re-confirm after T-22/T-23 fanout dispatch
+done_at: 2026-06-03
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
