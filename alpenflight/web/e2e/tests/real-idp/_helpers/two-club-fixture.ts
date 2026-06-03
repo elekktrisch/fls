@@ -226,35 +226,14 @@ async function provisionClubAdmin(
   return { clubId, user, kcUserId };
 }
 
-/**
- * Provision an ADDITIONAL, freshly-named CLUB_ADMINISTRATOR for a club a caller
- * already holds (typically the seeded club A). Use when two co-located tests in
- * one serial describe must NOT share a single principal — the JIT-on-first-login
- * materializer binds a `t_user` row per Keycloak sub keyed on `preferred_username`,
- * and `ux_user_username_lower_alive` is a partial-unique over alive usernames: if
- * a second principal would land on a username already taken by a live row (a
- * sibling test's admin, or a retry's stale row), its JIT row can't insert and the
- * race-recovery — which re-reads by SUB, not username — returns empty, leaving
- * that principal permanently tenant-less. Every `@TenantId`-scoped read then
- * misses its `club_id` and the page never loads (J-2 T-22: a motor-flight test
- * sharing club A's admin hung 60s on a blank `/airmovements`). A per-test admin
- * with its OWN nonce-tailed username sidesteps the contention.
- *
- * The returned admin's `kcUserId` is the caller's to dispose.
- */
-export async function provisionExtraClubAdmin(
-  clubId: string,
-  label: string,
-  scope: string,
-): Promise<ClubAdmin> {
-  const nonce = randomUUID().replace(/-/g, '').slice(0, 8);
-  return provisionClubAdmin(clubId, label, scope, nonce);
-}
-
-/** Delete a Keycloak admin user minted by {@link provisionExtraClubAdmin}. */
-export async function disposeClubAdmin(admin: ClubAdmin): Promise<void> {
-  await deleteUser(admin.kcUserId, admin.user.email);
-}
+// NOTE: the dynamic `provisionExtraClubAdmin` / `disposeClubAdmin` second-admin
+// path (added in J-2 T-22 for the motor /airmovements test) was REMOVED in T-24.
+// A second interactive club-A admin that relies on JIT-on-first-login to
+// materialise its `t_user` loses the `ux_user_username_lower_alive` race (the
+// race-recovery re-reads by SUB, not username, and returns empty), so it stayed
+// tenant-less. The motor test now logs in the PRE-SEEDED STABLE `clubadmin4`
+// (realm-export.json + V29 `t_user`) via `loginAsSeededMotorClubadmin` below,
+// resolving its tenant deterministically with zero JIT race.
 
 /**
  * Provision the two-club fixture. Club A reuses the Flyway seed; club B is
@@ -303,6 +282,41 @@ export async function loginAsClubAdmin(page: Page, admin: ClubAdmin): Promise<vo
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
   await fillKcLogin(page, admin.user.email, admin.user.password);
+  await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
+  await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
+}
+
+/**
+ * The PRE-SEEDED STABLE motor principal (`clubadmin4`) — a verified-email realm
+ * user (realm-export.json) bound to seed-club-1 (clubId=club-1) with a seeded
+ * `t_user` row (V29__dev_user_seed_clubadmin4.sql, keycloak_sub
+ * c1ab4d40-0000-4000-8000-000000000004).
+ *
+ * Used by the clean-seed MOTOR `/airmovements` e2e as a SECOND club-A principal
+ * that resolves its tenant DETERMINISTICALLY (PreTenantUserLookup hits the
+ * seeded `t_user`) with ZERO JIT race — sidestepping the
+ * `ux_user_username_lower_alive` contention that left the prior dynamic
+ * `provisionExtraClubAdmin` motor admin tenant-less (J-2 T-22/T-24). It is bound
+ * to the SAME club as `provisionTwoClubs(...).clubA` (both seed-club-1), so the
+ * masterdata seeded once in the spec's `beforeAll` is visible to it. Mirrors the
+ * proven-green migration principal `clubadmin3` (V28).
+ */
+export const SEEDED_MOTOR_CLUBADMIN = {
+  username: 'clubadmin4',
+  password: 'clubadmin4-dev-2026!',
+} as const;
+
+/**
+ * Log the pre-seeded {@link SEEDED_MOTOR_CLUBADMIN} (`clubadmin4`) in through the
+ * SPA + Keycloak login form by USERNAME (mirrors `loginAsMigratedAdmin`'s
+ * username login of the seeded `clubadmin3`). No provisioning, no JIT — the
+ * seeded `t_user` resolves the tenant on first request.
+ */
+export async function loginAsSeededMotorClubadmin(page: Page): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('landing-topbar-sign-in').click();
+  await page.waitForURL(/\/realms\/alpenflight\//);
+  await fillKcLogin(page, SEEDED_MOTOR_CLUBADMIN.username, SEEDED_MOTOR_CLUBADMIN.password);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 }

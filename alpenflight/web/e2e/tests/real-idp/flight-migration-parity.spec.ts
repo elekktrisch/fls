@@ -9,11 +9,9 @@ import {
 
 import { selectAfOption } from '../_helpers/af-select';
 import {
-  disposeClubAdmin,
   loginAsClubAdmin,
-  provisionExtraClubAdmin,
+  loginAsSeededMotorClubadmin,
   provisionTwoClubs,
-  type ClubAdmin,
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 import {
@@ -164,18 +162,6 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
   let masterdata: FlightMasterdata;
   /** The glider flight club A creates + manages; reused across CRUD + tenant cases. */
   let flightId: string;
-  /**
-   * A SECOND club-A admin dedicated to the motor /airmovements test. The
-   * motor test must NOT share `fixture.clubA` with the glider test: both JIT-
-   * materialize a `t_user` row keyed on their Keycloak sub, and a second
-   * principal landing on the same `preferred_username` collides on
-   * `ux_user_username_lower_alive` — the JIT race-recovery re-reads by sub (not
-   * username), returns empty, and the loser is left tenant-less so every
-   * @TenantId read misses its club_id (J-2 T-22: 60s hang on a blank
-   * /airmovements). A distinct nonce-tailed username for the motor admin keeps
-   * the two principals from contending for one username row.
-   */
-  let motorAdmin: ClubAdmin;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
@@ -183,10 +169,6 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     // disjoint from the J-0 ('loc') / J-1 ('acft') specs when several run in one
     // `playwright test` invocation — ux_user_username_lower_alive.
     fixture = await provisionTwoClubs(browser, baseURL, 'flt');
-    // Dedicated motor-test principal, bound to the SAME seeded club A (so it
-    // sees the masterdata seeded below) but with its own username — see the
-    // `motorAdmin` field doc.
-    motorAdmin = await provisionExtraClubAdmin(fixture.clubA.clubId, 'club-a-motor', 'flt');
 
     // The clean realm's club A has no aircraft / persons / locations /
     // flight-types — the wizard's dropdowns need real rows. Seed them through
@@ -203,9 +185,6 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
   });
 
   test.afterAll(async () => {
-    if (motorAdmin) {
-      await disposeClubAdmin(motorAdmin);
-    }
     await fixture?.dispose();
   });
 
@@ -285,11 +264,18 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      // Use the DEDICATED motor admin (not fixture.clubA) — see `motorAdmin`.
-      // Sharing the glider test's principal made this principal lose the JIT
-      // username race and stay tenant-less, so /airmovements never loaded
-      // (J-2 T-22).
-      await loginAsClubAdmin(page, motorAdmin);
+      // PRE-SEEDED STABLE motor principal (`clubadmin4`), NOT a second dynamic
+      // club-A admin. A second interactive club-A login that relies on JIT to
+      // materialise its `t_user` loses the `ux_user_username_lower_alive` race
+      // and stays tenant-less, so /airmovements never loaded (J-2 T-22); the
+      // page was in fact authenticating as the seeded `sysadmin` (no clubId, no
+      // t_user) via SSO bleed from the club-B-create login (J-2 T-23/T-24). A
+      // verified-email realm user with a SEEDED `t_user` (V29) resolves its
+      // tenant deterministically via PreTenantUserLookup with zero JIT race —
+      // mirroring the green migration principal `clubadmin3`. It is bound to the
+      // same club as `fixture.clubA` (seed-club-1), so the masterdata seeded in
+      // `beforeAll` is visible to it.
+      await loginAsSeededMotorClubadmin(page);
 
       // The tenant-scoped list load (`GET /api/v1/flights`) must SUCCEED for
       // this principal — if its JIT `t_user` row never materialised it would
