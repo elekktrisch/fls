@@ -225,28 +225,19 @@ function toneDotClass(tone: Tone): string {
       </p>
 
       <div class="mb-5 border border-slate-200 bg-white p-4">
-        <!-- Two single-mode pickers instead of mode=range: the range
-          variant of nz-range-picker deadlocks under zoneless Angular
-          (reproducible at /dev/primitives). Switch back to a single
-          range picker once S-008 fixes the primitive. -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <af-form-field label="From" for="FlightDateFrom">
+        <!-- Single range picker (S-062e fix). The earlier two-single-picker
+          workaround existed only because nz-range-picker deadlocked the main
+          thread under zoneless Angular; af-date-picker now bridges the value
+          with a reference-stable array (date-value-bridge.ts), so the range
+          mode no longer busy-loops. -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <af-form-field label="Date range" for="FlightDateRange">
             <af-date-picker
-              mode="single"
-              placeholder="From"
-              [value]="dateFromValue()"
-              (valueChange)="onDateFromChange($event)"
-              data-testid="flights-date-from"
-            />
-          </af-form-field>
-
-          <af-form-field label="To" for="FlightDateTo">
-            <af-date-picker
-              mode="single"
-              placeholder="To"
-              [value]="dateToValue()"
-              (valueChange)="onDateToChange($event)"
-              data-testid="flights-date-to"
+              mode="range"
+              [rangePlaceholders]="['From', 'To']"
+              [value]="dateRangeValue()"
+              (valueChange)="onDateRangeChange($event)"
+              data-testid="flights-date-range"
             />
           </af-form-field>
 
@@ -556,14 +547,10 @@ export class FlightsListPage {
     return `${visible} of ${total} flights`;
   });
 
-  protected readonly dateFromValue = computed<DateValue>(() => {
+  protected readonly dateRangeValue = computed<DateValue>(() => {
     const from = this.store.dateFrom();
-    return from ? new Date(from) : null;
-  });
-
-  protected readonly dateToValue = computed<DateValue>(() => {
     const to = this.store.dateTo();
-    return to ? new Date(to) : null;
+    return from && to ? [new Date(from), new Date(to)] : null;
   });
 
   protected readonly selectedAirState = computed<AirState | null>(() => {
@@ -624,14 +611,13 @@ export class FlightsListPage {
     return formatLegacyDate(iso);
   }
 
-  protected onDateFromChange(value: DateValue): void {
-    const from = value instanceof Date ? toIsoDate(value) : null;
-    this.store.setDateRange({ from, to: this.store.dateTo() });
-  }
-
-  protected onDateToChange(value: DateValue): void {
-    const to = value instanceof Date ? toIsoDate(value) : null;
-    this.store.setDateRange({ from: this.store.dateFrom(), to });
+  protected onDateRangeChange(value: DateValue): void {
+    // The range picker emits a [from,to] tuple or null on clear.
+    if (Array.isArray(value)) {
+      this.store.setDateRange({ from: toIsoDate(value[0]), to: toIsoDate(value[1]) });
+    } else {
+      this.store.setDateRange({ from: null, to: null });
+    }
   }
 
   protected onAirStateChange(value: AirState | null): void {

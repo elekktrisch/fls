@@ -655,7 +655,10 @@ export class FlightsEditPage {
     if (!c) {
       return;
     }
-    const glider = this.form.controls.glider.controls as Record<
+    // Cast via `unknown`: the typed `CrewSubForm` control map has no string
+    // index signature, so a direct assertion trips TS2352 under the AOT build
+    // (the looser test tsconfig let it through — boyscout: T-04 leftover).
+    const glider = this.form.controls.glider.controls as unknown as Record<
       string,
       { setValue: (v: unknown) => void }
     >;

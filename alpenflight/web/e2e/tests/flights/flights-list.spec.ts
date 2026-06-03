@@ -309,11 +309,9 @@ test.describe('flights list page', () => {
     ).toBeVisible();
     await page.goBack();
 
-    // From/To pickers exist on the list page (split into two single-mode
-    // pickers — the range variant of nz-range-picker deadlocks under
-    // zoneless).
-    await expect(page.getByTestId('flights-date-from').locator('input')).toBeVisible();
-    await expect(page.getByTestId('flights-date-to').locator('input')).toBeVisible();
+    // The date range filter is a single nz-range-picker (S-062e fixed the
+    // zoneless deadlock that had forced the two-single-picker workaround).
+    await expect(page.getByTestId('flights-date-range').locator('input').first()).toBeVisible();
     // No date params on initial load.
     expect(lastParams.from).toBeUndefined();
     expect(lastParams.to).toBeUndefined();
