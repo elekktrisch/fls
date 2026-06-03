@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: done  # PR-required gate green on T-17 (commit 96d82811, build-flake re-run clean); legacy video delivered
+status: in_progress  # reopened 2026-06-03 (2nd): operator wants legacy↔new list+form parity SCREENSHOTS in the gallery + a link (T-19/T-20/T-21)
 started_at: 2026-06-02
-done_at: 2026-06-03
+done_at: 2026-06-03  # provisional — core done + PR-gate green; re-confirm after the screenshot tasks
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
@@ -367,10 +367,34 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   Documented skip, fanout-only (this spec isn't in the PR gate). Re-enable when the fanout gets its own
   runner / sharding (fanout-perf rider for /do-retro). *(seam: one test.skip + reason)*
 
-**Done bar met:** PR-required gate (`ci.yml` `alpenflight-proof` + build) GREEN on T-17. Legacy ↔ AlpenFlight
-side-by-side aircraft videos captured (real legacy export) + delivered. The real legacy→export→migrate chain
-(fanout) caught + fixed two producer-SELECT column bugs (T-16) the synth proofs missed —
-[[project_synth_bundle_doesnt_validate_producer_select]]. Operator merges `integration/J-1`.
+**Core done bar met (T-01–T-18):** PR-required gate (`ci.yml` `alpenflight-proof` + build) GREEN on T-17;
+fanout fully green run-5 (real legacy→export→migrate→render). Legacy ↔ AlpenFlight aircraft videos paired
+in the built gallery. The real export caught + fixed two producer-SELECT column bugs (T-16) the synth proofs
+missed — [[project_synth_bundle_doesnt_validate_producer_select]].
+
+## Reopened 2nd time (2026-06-03) — parity SCREENSHOTS in the gallery + a link
+
+Operator: add **still screenshots** (legacy + AlpenFlight, **list + form**) for field-by-field parity
+eyeballing, rendered in the proof gallery; and **deliver proof via a gallery link, not chat dumps**
+([[feedback_proof_in_gallery_not_chat]]).
+
+- [ ] **T-19** — Capture parity screenshots: in the legacy `e2e/tests/masterdata/aircrafts-parity-J1.spec.ts`
+  (fanout, legacy flsweb) snap **list** + **form** PNGs; in the AlpenFlight aircraft spec that runs in the
+  fanout snap **list** + **form** PNGs. Stable names (e.g. `legacy-aircraft-list.png`,
+  `legacy-aircraft-form.png`, `alpenflight-aircraft-list.png`, `alpenflight-aircraft-form.png`). Declare
+  them to the gallery via a sidecar mirroring the `legacy-video.json` mechanism. *(seam: the two specs'
+  screenshot capture + sidecar)* — e2e-driver.
+- [ ] **T-20** — Gallery generator (`generate-gallery.mjs`) renders a **paired screenshot** block per
+  journey (legacy ↔ AlpenFlight, list + form, as `<img>`), alongside the videos; fanout staging step copies
+  the PNGs into `public/alpenflight/proof/` + feeds the generator. Guard test for the screenshot pairing.
+  *(seam: generate-gallery.mjs screenshot rendering + fanout staging)* — e2e-driver.
+- [ ] **T-21** — Make the fanout gallery reachable via a **link pre-merge**: deploy it to a branch-namespaced
+  preview on `workflow_dispatch` (mirror J-25's per-branch proof-preview), since today the fanout gh-pages
+  deploy is `github.ref == main`-gated (artifact-only on a branch). So a clickable proof-gallery URL exists
+  before merge. *(seam: alpenflight-proof-fanout.yml deploy step → branch preview)*
+
+Then re-dispatch fanout → gallery (videos + paired screenshots) deploys to the branch preview → **post the
+gallery LINK** (not files). Operator merges `integration/J-1`.
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
