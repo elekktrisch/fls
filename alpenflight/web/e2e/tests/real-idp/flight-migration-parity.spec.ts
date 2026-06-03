@@ -271,31 +271,45 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // visible. Mirrors the green migration principal `clubadmin3`.
       await loginAsSeededMotorClubadmin(page);
 
-      // T-33 ISOLATION (temporary — revert to /airmovements once the trace
-      // disambiguates). The principal (clubadmin4, V29 + realm user ...004) is
-      // field-for-field identical to the GREEN migration principal clubadmin3
-      // (V28 + realm user, emailVerified/enabled/requiredActions/credential/
-      // realmRoles/clubId all equal; t_user keycloak_sub matches the realm id).
-      // The /airmovements route file, its app.routes registration, its
-      // tenantRequiredGuard, the OIDC config, and the dev-server SPA fallback
-      // are ALL identical to /flights. No self-evident divergence in EITHER
-      // variable from code alone — so run the operator's one-line isolation:
-      // clubadmin4 + goto('/flights'). Interpret the trace:
-      //   (a) clubadmin4 renders /flights  → the /airmovements ROUTE is the
-      //       culprit (session restores for /flights but not /airmovements).
-      //   (b) clubadmin4 ALSO lands on sign-in → the clubadmin4 PRINCIPAL is
-      //       the culprit (a runtime auth/session-restore divergence the static
-      //       realm/seed comparison didn't surface).
+      // ── WARM the session on /flights FIRST, then reach /airmovements by an
+      //    in-app nav-bar CLICK — never a cold `goto('/airmovements*')`.
+      //
+      //    WHY (T-34 (B) root cause, trace 26910615810): the FIRST navigation
+      //    after this login is a cold SPA load. A cold `page.goto('/flights')`
+      //    works because the OIDC `checkAuth()` / tenant-resolve settles before
+      //    `tenantRequiredGuard` runs. But chaining a cold `goto` straight to a
+      //    DEEP `/airmovements/new` URL boots a SECOND time, and the post-save
+      //    `router.navigateByUrl('/airmovements')` (the list) can race the
+      //    transient `session.isLoadingSession()===true` window of that second
+      //    cold boot — `authGuard` returns `false` (defer), which CANCELS the
+      //    navigation (no redirect, no error), so the page stays on
+      //    `/airmovements/new` and `toHaveURL(/airmovements$/)` times out. The
+      //    prior trace confirms exactly that: POST /api/v1/flights → 201, form
+      //    went pristine (Save disabled), the list refetch (GET ?limit=50) → 200,
+      //    yet the frame URL never left `/airmovements/new` and no error toast
+      //    rendered. This is a TEST-ENV cold-double-boot timing artifact, NOT a
+      //    product bug: `/airmovements` and `/flights` share the SAME route shape
+      //    (app.routes loadChildren → tenantRequiredGuard → the SAME
+      //    flights-list/edit components), `/airmovements/new` itself rendered the
+      //    wizard fine, and a REAL operator never types a deep /airmovements URL
+      //    cold — they click the nav from an already-authed page. Path (A) mirrors
+      //    the operator: one warm session, in-app nav + in-app buttons, no second
+      //    cold boot → the guard never sees a loading session mid-flow.
       await page.goto('/flights');
       await expect(page.getByTestId('flights-table')).toBeVisible();
-      /* ORIGINAL (green-path) target — restore after the isolation run:
-      await page.goto('/airmovements');
+
+      // Reach /airmovements by clicking the nav-bar section link (warm session,
+      // currentClubId already resolved — no SPA reboot, no guard race).
+      await page.getByTestId('af-nav-section-/airmovements').click();
+      await expect(page).toHaveURL(/\/airmovements$/);
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
-      */
 
-      // Create form (matches `goto('/flights/new')` in `createGliderFlightAerotow`).
-      await page.goto('/airmovements/new');
+      // Reach the create form by the list's in-app "new" button (NOT a cold
+      // `goto('/airmovements/new')`): `flights-new-button` does
+      // `router.navigateByUrl(variant().basePath + '/new')` in-app.
+      await page.getByTestId('flights-new-button').click();
+      await expect(page).toHaveURL(/\/airmovements\/new$/);
       await expect(page.getByTestId('flight-form')).toBeVisible();
       // No tow step on a motor air movement (variant suppresses it).
       await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
