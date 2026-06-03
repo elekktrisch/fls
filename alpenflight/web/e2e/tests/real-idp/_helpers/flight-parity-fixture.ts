@@ -565,12 +565,36 @@ export async function seedFlightMasterdata(
     isForAircraftReservationType: false,
   });
 
+  // The crew person picker (`personOptions()` ← PersonsStore.entities()) reads
+  // `GET /api/v1/persons`, whose projection is one row per (Person, caller-tenant
+  // PersonClub) pair — `JpaPersonRepository.findActiveListRowsInCurrentTenant`
+  // pivots `FROM PersonClub pc JOIN pc.person p` so Hibernate's @TenantId filter
+  // applies. A Person created with NO `initialClubMembership` has no PersonClub
+  // row in club A, so it never appears in the picker (the dropdown opened but
+  // rendered "No Data" — J-2 T-20). A real pickable pilot is made by giving it a
+  // membership in the caller's tenant in the same create transaction, so seed one
+  // (minimal flags; memberStateId optional). This is how a real pilot becomes
+  // selectable — not a test shortcut.
   const pilot = await postJson(api, bearer, '/api/v1/persons', {
     firstname: 'J2',
     lastname: `Pilot ${tag}`,
     preferMailToBusinessMail: false,
     receiveOwnedAircraftStatisticReports: false,
     enableAddress: false,
+    initialClubMembership: {
+      isMotorPilot: false,
+      isTowPilot: false,
+      isGliderInstructor: false,
+      isGliderPilot: true,
+      isGliderTrainee: false,
+      isPassenger: false,
+      isWinchOperator: false,
+      isMotorInstructor: false,
+      receiveFlightReports: false,
+      receiveAircraftReservationNotifications: false,
+      receivePlanningDayRoleReminder: false,
+      isActive: true,
+    },
   });
   const towPilot = await postJson(api, bearer, '/api/v1/persons', {
     firstname: 'J2',
@@ -578,6 +602,20 @@ export async function seedFlightMasterdata(
     preferMailToBusinessMail: false,
     receiveOwnedAircraftStatisticReports: false,
     enableAddress: false,
+    initialClubMembership: {
+      isMotorPilot: true,
+      isTowPilot: true,
+      isGliderInstructor: false,
+      isGliderPilot: false,
+      isGliderTrainee: false,
+      isPassenger: false,
+      isWinchOperator: false,
+      isMotorInstructor: false,
+      receiveFlightReports: false,
+      receiveAircraftReservationNotifications: false,
+      receivePlanningDayRoleReminder: false,
+      isActive: true,
+    },
   });
 
   const gliderImmat = `HB-2${tag.slice(-3)}`;
