@@ -457,6 +457,13 @@ Then re-dispatch fanout → confirm the populated list screenshot + the `…/leg
   `createAircraftViaUi`, so the list screenshot demonstrates all 6 legacy columns. *(seam: aircraft-migration-parity.spec.ts
   createAircraftViaUi competitionSign)*. Also folded: e2e-driver kept committing unformatted TS → **/do-retro:
   add a prettier-on-touched-files step to do-task/e2e-driver** (2 gate cycles burned on format-only reds).
+- [ ] **T-25** — Operator: the PR must show the **correct** proof URL. The J-25 sticky comment links the
+  AlpenFlight-only ci.yml gallery (`…/proof-preview/<ref>/`), not the legacy↔new `legacy-parity` one. Posted
+  an immediate sticky comment (marker `<!-- fanout-proof-preview -->`) with the `…/legacy-parity/` URL.
+  **Durable:** add a step to `alpenflight-proof-fanout.yml` that, after the branch-preview deploy, resolves the
+  PR for `github.ref_name` (`gh pr list --head`) and **upserts** that sticky comment with the legacy-parity URL
+  (needs `pull-requests: write`). So the fanout self-maintains the PR proof link for every journey. *(seam:
+  fanout workflow PR-comment upsert step)* — e2e-driver.
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
