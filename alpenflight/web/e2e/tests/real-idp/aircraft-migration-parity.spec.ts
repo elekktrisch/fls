@@ -68,15 +68,30 @@ async function selectGliderType(page: Page): Promise<void> {
  * as a completion signal only (the SPA navigates away the instant it resolves,
  * and Chrome evicts the body across navigation), then reads the id from the
  * rendered row's testid.
+ *
+ * `manufacturer` / `model` / `seats` populate the T-13 list columns (the
+ * `#secondary` template's `aircraft-model-<id>` / `aircraft-seats-<id>` spans),
+ * so a row created here renders the FULL legacy column set in the list — the
+ * populated-list screenshot (T-22) depends on these being filled.
  */
-async function createAircraftViaUi(page: Page, immatriculation: string): Promise<string> {
+async function createAircraftViaUi(
+  page: Page,
+  immatriculation: string,
+  details: { manufacturer: string; model?: string; seats?: number } = { manufacturer: 'Schleicher' },
+): Promise<string> {
   await page.goto('/aircraft');
   await page.getByTestId('aircraft-new-button').locator('button').click();
   await expect(page).toHaveURL('/aircraft/new');
 
   await page.locator('#Immatriculation').fill(immatriculation);
   await selectGliderType(page);
-  await page.locator('#ManufacturerName').fill('Schleicher');
+  await page.locator('#ManufacturerName').fill(details.manufacturer);
+  if (details.model !== undefined) {
+    await page.locator('#AircraftModel').fill(details.model);
+  }
+  if (details.seats !== undefined) {
+    await page.locator('#NrOfSeats').fill(String(details.seats));
+  }
 
   const created = page.waitForResponse(
     (r) =>
@@ -154,21 +169,14 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await expect(page.locator('h1')).toHaveText('Aircraft');
       await expect(page.getByTestId('aircraft-table')).toBeVisible();
 
-      // J-1 T-19 — STABLE parity screenshot (side=alpenflight view=list),
-      // declared in screenshots.json + staged into the gallery by the fanout.
-      // fullPage diagnostic PNG (CLAUDE.md §8: no toHaveScreenshot — the
-      // data-testid asserts above stay the real check). Fixed basename in this
-      // test's outputDir, alongside the recorded .webm, so the fanout's staging
-      // `find` picks it by name. NOT the per-state screenshots/ PNGs §8 also
-      // writes — those are diagnostic, these are gallery-declared.
-      await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-aircraft-list.png`,
-        fullPage: true,
-      });
-
-      // Create via the form → appears in the list.
+      // Create via the form → appears in the list. The FIRST aircraft is the
+      // one the rest of the suite edits/deletes/owns (aircraftId/aircraftImmat).
       aircraftImmat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
-      aircraftId = await createAircraftViaUi(page, aircraftImmat);
+      aircraftId = await createAircraftViaUi(page, aircraftImmat, {
+        manufacturer: 'Schleicher',
+        model: 'ASK 21',
+        seats: 2,
+      });
       expect(aircraftId).toBeTruthy();
 
       // The new row shows immatriculation on the row LINK; the GLIDER type code
@@ -177,10 +185,45 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       const row = page.locator(`[data-testid="aircraft-row-${aircraftId}"]`);
       await expect(row).toContainText(aircraftImmat);
       // Clean-seed list-column parity (T-13): the create flow fills
-      // ManufacturerName=Schleicher (line 89), so the secondary line's
-      // `aircraft-model-<id>` renders it. (Model + seats are not set on create —
-      // those are asserted on the migrated row, which carries all three.)
+      // manufacturer + model + seats, so the secondary line renders all three.
       await expect(page.getByTestId(`aircraft-model-${aircraftId}`)).toContainText('Schleicher');
+      await expect(page.getByTestId(`aircraft-model-${aircraftId}`)).toContainText('ASK 21');
+      await expect(page.getByTestId(`aircraft-seats-${aircraftId}`)).toContainText('2 seats');
+
+      // T-22 — create TWO more populated aircraft so the parity screenshot is a
+      // multi-row list (not a single row), each carrying the full T-13 column
+      // set, closer to the legacy ~15-row FLSTest list. These are screenshot
+      // fixtures only; the suite's CRUD/403/S-163/S-164 cases all operate on the
+      // first aircraft above.
+      const extras = [
+        { manufacturer: 'Schempp-Hirth', model: 'Discus b', seats: 1 },
+        { manufacturer: 'DG Flugzeugbau', model: 'DG-1000', seats: 2 },
+      ];
+      for (const extra of extras) {
+        const immat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
+        const extraId = await createAircraftViaUi(page, immat, extra);
+        await expect(
+          page.locator(`[data-testid="aircraft-row-${extraId}"]`),
+          `extra aircraft "${immat}" must appear in the list`,
+        ).toBeVisible();
+      }
+
+      // J-1 T-19/T-22 — STABLE parity screenshot (side=alpenflight view=list),
+      // declared in screenshots.json + staged into the gallery by the fanout.
+      // Captured HERE, at a POPULATED point (3 created rows visible), so the PNG
+      // shows real rows with the full T-13 column set (immatriculation +
+      // competition sign + type + manufacturer + model + seats) — NOT the empty
+      // "No Data" state (T-22). fullPage diagnostic PNG (CLAUDE.md §8: no
+      // toHaveScreenshot — the data-testid asserts above stay the real check).
+      // Fixed basename in this test's outputDir, alongside the recorded .webm, so
+      // the fanout's staging `find` picks it by name.
+      await expect(page).toHaveURL('/aircraft');
+      await expect(page.getByTestId('aircraft-table')).toBeVisible();
+      await expect(page.locator('[data-testid^="aircraft-row-"]')).toHaveCount(3);
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-aircraft-list.png`,
+        fullPage: true,
+      });
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
