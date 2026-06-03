@@ -275,13 +275,28 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // mirroring the green migration principal `clubadmin3`. It is bound to the
       // same club as `fixture.clubA` (seed-club-1), so the masterdata seeded in
       // `beforeAll` is visible to it.
+      // Land on the authed home (`/start`, nav-bar visible) as the pre-seeded
+      // stable motor principal `clubadmin4`. The trace proved (J-2 T-26, run
+      // 26901884450) that clubadmin4 authenticates correctly here — the page's
+      // `/api/v1/*` calls carry sub=c1ab4d40…004 / clubId=club-1 and the backend
+      // resolves the tenant (`user-lookup hit … column=club_id`). The earlier
+      // SSO-bleed (sysadmin sub) was already closed by `clearCookies()` in
+      // `loginAsSeededMotorClubadmin`.
       await loginAsSeededMotorClubadmin(page);
+      await expect(page.getByTestId('af-nav-section-/airmovements')).toBeVisible();
 
-      // The tenant-scoped list load (`GET /api/v1/flights`) must SUCCEED for
-      // this principal — if its JIT `t_user` row never materialised it would
-      // miss club_id and the list would hang blank. Gate on the 2xx so a
-      // tenant-resolution regression fails FAST here with a clear cause rather
-      // than a 60s timeout on the h1 below.
+      // ROOT FIX (J-2 T-26): navigate to /airmovements via the IN-APP nav link,
+      // NOT `page.goto('/airmovements')`. A hard `goto` reboots the SPA and
+      // re-runs the OIDC `withAppInitializerAuthCheck` → checkAuth/silent-renew
+      // cycle; the trace showed the list's `GET /api/v1/flights?limit=50` then
+      // stuck at `send=-1` (queued in the browser, never flushed) behind that
+      // renew while the router-outlet sat blank — the request never reached the
+      // backend (no clubadmin4 hit for it in backend.log) and the 15s guard
+      // tripped. A client-side router navigation reuses the warm, just-minted
+      // token with no reboot and no renew gate — and mirrors how an operator
+      // actually reaches the screen. The tenant-scoped list load must SUCCEED
+      // for this principal: gate on the 2xx so a real tenant-resolution
+      // regression still fails FAST with a clear cause.
       const listed = page.waitForResponse(
         (r) =>
           new URL(r.url()).pathname === '/api/v1/flights' &&
@@ -294,12 +309,18 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // /airmovements is the SAME shared list/form parameterized by the MOTOR
       // variant (S-064 — no legacy-style duplication); the tow step is suppressed
       // regardless of start-type, and the create stamps the MOTOR discriminator.
-      await page.goto('/airmovements');
+      await page.getByTestId('af-nav-section-/airmovements').click();
       await listed;
+      await expect(page).toHaveURL(/\/airmovements$/);
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
-      await page.goto('/airmovements/new');
+      // In-app navigation to the create form (the list's "new" button does a
+      // client-side `router.navigateByUrl(basePath + '/new')`) — again NO hard
+      // `goto`, to keep the warm session and avoid the reboot/renew stall the
+      // T-26 trace exposed.
+      await page.getByTestId('flights-new-button').click();
+      await expect(page).toHaveURL(/\/airmovements\/new$/);
       await expect(page.getByTestId('flight-form')).toBeVisible();
       // No tow step on a motor air movement (variant suppresses it).
       await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
