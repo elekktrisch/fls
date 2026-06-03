@@ -34,26 +34,33 @@ const execFileAsync = promisify(execFile);
  *     (`J2_REAL_FRESHNESS_TOKEN`). The real export is the only run that validates
  *     the Flight producer SELECT against the real MSSQL schema (J-1 T-16 class).
  *
- * Shared tail (both modes): log in the Flyway-seeded `clubadmin2` migration
- * principal (real KC, verified-email + V26 `t_user`), capture its Bearer, POST
+ * Shared tail (both modes): log in the Flyway-seeded `clubadmin3` migration
+ * principal (real KC, verified-email + V28 `t_user`), capture its Bearer, POST
  * the bundle → the ingest provisions one Keycloak club-admin per migrated club.
  * The owning club is identified by OWNERSHIP: each provisioned admin queries its
  * own `/api/v1/flights`; exactly the one carrying a GLIDER flight that links to a
  * distinct TOW flight (the migrated paired pair) is the owner.
  *
- * DISTINCT migration principal (J-1 T-17): this spec uses `clubadmin2`, the SAME
- * principal the J-1 aircraft parity fixture uses. The flight + aircraft parity
- * specs do NOT run in the same `playwright test` invocation as a co-located
- * fan-out spec on `clubadmin1`; within the real-idp project the migration specs
- * run serially (`workers: 1`, real-idp single-instance invariant) and each mints
- * a fresh uploadId per attempt, so the owner-active Deployment gate clears
- * between specs. `retries: 0` on the migrated describe still guards a within-spec
- * re-run (a Playwright retry can't clear the principal's active Deployment).
+ * DISTINCT migration principal (J-2 T-18, mirroring J-1 T-17): this spec uses
+ * its OWN `clubadmin3`, disjoint from J-0c's `clubadmin1` and J-1's `clubadmin2`.
+ * The migration ingest provisions a non-terminal Deployment OWNED BY the
+ * principal's Keycloak sub (DeploymentProvisioningService#provision →
+ * findActiveByOwner, the `ux_deployment_owner_active` gate). All THREE real-idp
+ * proof specs (J-0c Locations, J-1 Aircraft, J-2 Flights) now run in ONE
+ * `playwright test` invocation (ci.yml — one proof video covers the journey
+ * set). The earlier assumption that reusing `clubadmin2` was safe (serial
+ * within-project execution + fresh uploadId per attempt) was WRONG: the active
+ * Deployment is keyed on the principal's sub, NOT the upload, so the second
+ * spec sharing `clubadmin2` 409'd DEPLOYMENT_EXISTS on the first's still-active
+ * Deployment (plus an `ux_user_username_lower_alive` dup on the provisioned-admin
+ * path). A per-spec principal gives each a disjoint deployment owner so
+ * `findActiveByOwner` never collides. (Realm-export carries `clubadmin3` as a
+ * third verified-email user; V28 seeds its `t_user` row.)
  */
 
-/** Seeded `clubadmin2` (V26 dev user seed + realm-export). The migration principal (T-17). */
-const PRINCIPAL_USER = 'clubadmin2@example.com';
-const PRINCIPAL_PASSWORD = 'clubadmin2-dev-2026!';
+/** Seeded `clubadmin3` (V28 dev user seed + realm-export). The J-2 migration principal — disjoint from J-0c's `clubadmin1` and J-1's `clubadmin2` (T-18). */
+const PRINCIPAL_USER = 'clubadmin3@example.com';
+const PRINCIPAL_PASSWORD = 'clubadmin3-dev-2026!';
 
 /**
  * Repo paths: this file is alpenflight/web/e2e/tests/real-idp/_helpers/, so five
