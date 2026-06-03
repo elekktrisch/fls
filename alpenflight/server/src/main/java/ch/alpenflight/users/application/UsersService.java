@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -343,6 +344,50 @@ public class UsersService {
                     auditTrail.record(AuditAction.CREATE,
                             AuditedTarget.created(AUDIT_USER, rowId, snapshot));
                     return rowId;
+                });
+    }
+
+    /**
+     * JIT race / re-login recovery by USERNAME. Called by the materializer
+     * only after a {@code DataIntegrityViolationException} (the
+     * {@code ux_user_username_lower_alive} partial-unique) AND a by-sub
+     * re-read that still missed — i.e. the username is already held by an
+     * active row whose {@code keycloak_sub} differs from the presenting
+     * JWT's sub.
+     *
+     * <p>If that active row's {@code club_id} matches the JWT's {@code clubId}
+     * claim, it is the SAME person re-appearing under a fresh sub: re-bind
+     * the row's {@code keycloak_sub} to {@code keycloakSub} (in this method's
+     * own {@code REQUIRES_NEW} tx, after the winner's insert has committed)
+     * and return its id. JIT is now idempotent on username instead of
+     * leaving the loser permanently tenant-less.
+     *
+     * <p>Tenant guard: a username row in a DIFFERENT club is NOT re-bound —
+     * that would silently relocate the identity across tenants. Returns
+     * empty so the principal stays tenant-less (fail-closed) and the
+     * mismatch is logged for investigation rather than papered over.
+     *
+     * @return the reconciled row id, or empty if no active username row
+     *     exists or it belongs to another club.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<UUID> reconcileSubByUsername(String username, UUID keycloakSub, UUID clubId) {
+        return users.findActiveByUsernameLower(username)
+                .flatMap(existing -> {
+                    if (!Objects.equals(existing.getClubId(), clubId)) {
+                        LOG.warn("JIT username-reconcile refused — username row club_id={} "
+                                + "differs from JWT clubId={} (sub={}); leaving principal "
+                                + "tenant-less (fail-closed)",
+                                existing.getClubId(), clubId, keycloakSub);
+                        return Optional.<UUID>empty();
+                    }
+                    existing.rebindKeycloakSub(keycloakSub);
+                    users.save(existing);
+                    users.flush();
+                    UUID rowId = requireId(existing);
+                    LOG.info("JIT reconciled keycloak_sub by username — userId={} clubId={} "
+                            + "newSub={} (re-login under a fresh sub)", rowId, clubId, keycloakSub);
+                    return Optional.of(rowId);
                 });
     }
 
