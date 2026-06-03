@@ -22,15 +22,20 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-retro 2026-06-03, J-1 window)
 
-- **ci.yml path-filter for docs/story-only pushes.** Docs/skill/story-only commits
-  (`docs/**`, `.claude/**`, root `*.md`) re-trigger the full `alpenflight build` +
-  `alpenflight-proof` real-idp (~7 min) — J-1 burned many cycles re-running the heavy proof
-  on doc-only pushes. Add a `paths-ignore` / `detect-changes`-gated skip so doc-only pushes
-  don't run build+proof, keeping the `required` aggregator green via the standard
-  skipped-to-success pattern. *(seam: .github/workflows/ci.yml path filter + required aggregator)*
-  — /do-retro Q3 efficiency.
+_(no pending riders — see Shipped below)_
 
 _Deferred (operator, Q3): fanout-perf (own runner / sharding / no spec co-location) + re-enable
 the T-18 J-0c rename test — recorded in the J-1 journey file, not filed as an active rider yet._
 
 _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pruning rider this round._
+
+## Shipped
+
+- **ci.yml path-filter for docs/story-only pushes** — shipped J-2 T-11. Root cause: on
+  `integration/**` branches the `pull_request` trigger made `dorny/paths-filter` diff the
+  WHOLE PR vs `main`, so `changes.next` was always true (the branch already carries
+  alpenflight/ commits) → every doc-only push re-ran build+proof. Fix: a new
+  `changes.docs_only` output computed from the INCREMENTAL push diff
+  (`github.event.before..after`); the three heavy jobs now gate on
+  `next == 'true' && docs_only != 'true'`. Fail-safe toward running (undeterminable range
+  → run). `required` aggregator stays green via the existing skipped-to-success case.
