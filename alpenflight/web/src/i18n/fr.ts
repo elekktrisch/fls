@@ -31,6 +31,11 @@ const fr: Translations = {
       yearOfManufacture: 'Année de construction',
     },
     list: {
+      columns: {
+        manufacturer: 'Constructeur',
+        model: 'Modèle',
+        seats: '{{count}} places',
+      },
       readonlyBanner:
         'Lecture seule. Les aéronefs de votre club sont gérés par votre administrateur de club.',
       typeFilter: {

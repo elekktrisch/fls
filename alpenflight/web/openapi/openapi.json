@@ -5790,6 +5790,16 @@
           },
           "currentStateFlyable" : {
             "type" : "boolean"
+          },
+          "manufacturerName" : {
+            "type" : "string"
+          },
+          "aircraftModel" : {
+            "type" : "string"
+          },
+          "nrOfSeats" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         },
         "required" : [ "aircraftTypeCode", "aircraftTypeId", "hasEngine", "id", "immatriculation", "isTowingAircraft" ]

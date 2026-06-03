@@ -421,6 +421,13 @@ test.describe('Aircraft register — migrated legacy aircraft renders (real-idp)
         row,
         `migrated aircraft "${fixture.immatriculation}" must appear in the owning club's list`,
       ).toBeVisible();
+
+      // Legacy list parity (T-13): the migrated row renders Manufacturer +
+      // Model + Seats (the AircraftParityBundleSeeder writes Schleicher / ASK
+      // 21 / 2). Legacy aircrafts-table.html shows these three columns.
+      await expect(row).toContainText('Schleicher');
+      await expect(row).toContainText('ASK 21');
+      await expect(row).toContainText('2 seats');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

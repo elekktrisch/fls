@@ -35,7 +35,10 @@ final class AircraftMapper {
                 Boolean.TRUE.equals(row.aircraftTypeHasEngine()),
                 row.towingAircraft(),
                 row.currentStateCode(),
-                row.currentStateFlyable());
+                row.currentStateFlyable(),
+                row.manufacturerName(),
+                row.aircraftModel(),
+                row.nrOfSeats());
     }
 
     static AircraftPickerItem toPickerItem(AircraftRepository.PickerRow row) {

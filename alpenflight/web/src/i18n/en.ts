@@ -30,6 +30,11 @@ const en: Translations = {
       yearOfManufacture: 'Year of manufacture',
     },
     list: {
+      columns: {
+        manufacturer: 'Manufacturer',
+        model: 'Model',
+        seats: '{{count}} seats',
+      },
       readonlyBanner: 'Read-only. Your club’s aircraft are managed by your club administrator.',
       typeFilter: {
         label: 'Filter by type',

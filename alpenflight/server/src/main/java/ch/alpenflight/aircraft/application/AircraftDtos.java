@@ -61,7 +61,10 @@ public final class AircraftDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean hasEngine,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isTowingAircraft,
             @Nullable String currentStateCode,
-            @Nullable Boolean currentStateFlyable) {}
+            @Nullable Boolean currentStateFlyable,
+            @Nullable String manufacturerName,
+            @Nullable String aircraftModel,
+            @Nullable Integer nrOfSeats) {}
 
     @Schema(description = "Aircraft picker projection — slim shape for FE pickers on Flight / Reservation forms.")
     public record AircraftPickerItem(

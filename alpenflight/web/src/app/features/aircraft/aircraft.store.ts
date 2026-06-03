@@ -97,6 +97,9 @@ function listItemFromDetail(d: AircraftDetailLoaded): AircraftItem {
   };
   if (d.ownerClubId !== undefined) item.ownerClubId = d.ownerClubId;
   if (d.competitionSign !== undefined) item.competitionSign = d.competitionSign;
+  if (d.manufacturerName !== undefined) item.manufacturerName = d.manufacturerName;
+  if (d.aircraftModel !== undefined) item.aircraftModel = d.aircraftModel;
+  if (d.nrOfSeats !== undefined) item.nrOfSeats = d.nrOfSeats;
   return item;
 }
 

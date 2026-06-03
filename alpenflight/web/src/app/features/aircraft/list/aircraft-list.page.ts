@@ -110,11 +110,30 @@ const TYPE_FILTER_OPTIONS: readonly AfSelectOption<AircraftTypeFilter>[] = [
           </a>
         </ng-template>
         <ng-template #secondary let-ac>
-          @if (ac.competitionSign) {
-            <span>{{ ac.competitionSign }}</span>
-            <span> · </span>
-          }
-          <span>{{ ac.aircraftTypeCode }}</span>
+          <ng-container *transloco="let t; read: 'aircraft'">
+            @if (ac.competitionSign) {
+              <span>{{ ac.competitionSign }}</span>
+              <span> · </span>
+            }
+            <span>{{ ac.aircraftTypeCode }}</span>
+            @if (ac.aircraftModel || ac.manufacturerName) {
+              <span> · </span>
+              <span [attr.data-testid]="'aircraft-model-' + ac.id">
+                @if (ac.manufacturerName) {
+                  {{ ac.manufacturerName }}
+                }
+                @if (ac.aircraftModel) {
+                  {{ ac.aircraftModel }}
+                }
+              </span>
+            }
+            @if (ac.nrOfSeats !== null && ac.nrOfSeats !== undefined) {
+              <span> · </span>
+              <span [attr.data-testid]="'aircraft-seats-' + ac.id">
+                {{ t('list.columns.seats', { count: ac.nrOfSeats }) }}
+              </span>
+            }
+          </ng-container>
           @if (ac.currentStateCode) {
             <span> · </span>
             <span

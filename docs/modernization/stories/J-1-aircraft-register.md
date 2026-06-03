@@ -10,7 +10,7 @@ carved: true
 depends_on: [J-0, J-0b]
 rolls_up: [S-161, S-163, S-164]  # S-162 descoped at ship time (no legacy parity — own admin journey; see Parity decisions)
 acceptance:
-  - Club admin opens /aircrafts and sees their club's aircraft, sorted by immatriculation, showing immatriculation + competition sign + aircraft type. [happy]
+  - Club admin opens /aircrafts and sees their club's aircraft, sorted by immatriculation, showing immatriculation + competition sign + aircraft type + manufacturer + model + number of seats (full legacy aircrafts-table.html column parity, T-13). [happy]
   - Add a new aircraft via the form (immatriculation, type, manufacturer/model, seats, club-vs-private owner, owner club/person, homebase, spot link); it appears in the list. [happy]
   - Edit an existing aircraft; changes persist and re-render. [happy]
   - Delete an aircraft; it leaves the list. [happy]
@@ -271,7 +271,7 @@ Manufacturer + Nr of Seats, AlpenFlight's list omits them. J-1's list AC (immat+
 the operator wants full legacy list parity. Also: J-1 ran synth-at-PR so **no legacy flsweb video** was
 captured (the parity-aid half of the done bar). Two operator-chosen tasks:
 
-- [ ] **T-13** — Add **Aircraft Model, Manufacturer Name, Nr of Seats** to the AlpenFlight aircraft list:
+- [x] **T-13** — Add **Aircraft Model, Manufacturer Name, Nr of Seats** to the AlpenFlight aircraft list:
   extend `AircraftListItem` DTO + the `ListRow` repository projection/JPA query + `AircraftMapper.toListItem`
   + the `aircraft-list.page.ts` columns + i18n labels (de/en/fr/it). Update the real-idp/mock spec list
   assertions to cover the new columns. *(seam: list read path + list component)* — re-runs the gate.

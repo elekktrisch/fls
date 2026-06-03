@@ -35,6 +35,11 @@ const de = {
       yearOfManufacture: 'Baujahr',
     },
     list: {
+      columns: {
+        manufacturer: 'Hersteller',
+        model: 'Modell',
+        seats: '{{count}} Sitze',
+      },
       readonlyBanner:
         'Schreibgeschützt. Die Flugzeuge deines Vereins werden von deinem Vereinsadministrator verwaltet.',
       typeFilter: {

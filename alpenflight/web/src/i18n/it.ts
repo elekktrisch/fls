@@ -30,6 +30,11 @@ const it: Translations = {
       yearOfManufacture: 'Anno di costruzione',
     },
     list: {
+      columns: {
+        manufacturer: 'Costruttore',
+        model: 'Modello',
+        seats: '{{count}} posti',
+      },
       readonlyBanner:
         'Sola lettura. Gli aeromobili del tuo club sono gestiti dall’amministratore del club.',
       typeFilter: {
