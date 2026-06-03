@@ -304,15 +304,34 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // the create stamps the MOTOR discriminator.
       await page.goto('/airmovements');
       await expect(page).toHaveURL(/\/airmovements$/);
+      // COLD-MOUNT WAIT (J-2 T-31): the hard `goto` reboots the SPA, so the
+      // FlightsListPage is a fresh LAZY load behind `tenantRequiredGuard` +
+      // auth-init re-bootstrap (a second `/me` round-trip) + on-demand dev-server
+      // chunk compilation. Run 26907518852's MOTOR trace proved the URL was
+      // admitted (`toHaveURL(/airmovements$/)` passed at t=277.4s) but the
+      // component chunk (`…/features/flights/list`) was only fetched at t=277.6s
+      // and the list GET fired after — so the NEXT assertion, `h1 toHaveText`,
+      // ran against an empty body (`element(s) not found`, ariaSnapshot: "") and
+      // burned its 5s. The mount legitimately exceeds the 5s per-assertion
+      // fail-fast budget on the loaded real-idp dev server, so gate on the
+      // always-rendered component-mounted marker (`flights-table`, painted on
+      // mount regardless of loading/empty state) with the per-TEST cold-mount
+      // budget — same justification as the auth-redirect `waitForURL(…, 30_000)`
+      // in `loginAsSeededMotorClubadmin`. Every DATA assertion below stays at the
+      // 5s fail-fast default; this is a one-time mount settle, not a loosened check.
+      await expect(page.getByTestId('flights-table')).toBeVisible({ timeout: 30_000 });
+      // Now the component is mounted: assert the variant-pinned title at the
+      // 5s fail-fast budget.
       await expect(page.locator('h1')).toHaveText('Air movements');
-      await expect(page.getByTestId('flights-table')).toBeVisible();
 
       // Navigate to the create form via `page.goto('/airmovements/new')` (matches
       // `goto('/flights/new')` in `createGliderFlightAerotow`). Auth-init already
       // ran on the list goto above, so `tenantRequiredGuard` admits the form route.
+      // Same cold-mount budget on the FORM's lazy mount marker (`flight-form`),
+      // then the strict data assertions at 5s.
       await page.goto('/airmovements/new');
       await expect(page).toHaveURL(/\/airmovements\/new$/);
-      await expect(page.getByTestId('flight-form')).toBeVisible();
+      await expect(page.getByTestId('flight-form')).toBeVisible({ timeout: 30_000 });
       // No tow step on a motor air movement (variant suppresses it).
       await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
 
