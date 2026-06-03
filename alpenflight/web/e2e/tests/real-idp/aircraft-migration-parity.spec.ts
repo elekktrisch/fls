@@ -77,7 +77,9 @@ async function selectGliderType(page: Page): Promise<void> {
 async function createAircraftViaUi(
   page: Page,
   immatriculation: string,
-  details: { manufacturer: string; model?: string; seats?: number } = { manufacturer: 'Schleicher' },
+  details: { manufacturer: string; model?: string; seats?: number } = {
+    manufacturer: 'Schleicher',
+  },
 ): Promise<string> {
   await page.goto('/aircraft');
   await page.getByTestId('aircraft-new-button').locator('button').click();
