@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: done
+status: in_progress  # reopened 2026-06-03: operator added list-parity (T-13) + legacy-video (T-14) scope at PR review
 started_at: 2026-06-02
-done_at: 2026-06-03
+done_at: 2026-06-03  # provisional — gate was green on T-12; re-confirm after T-13/T-14
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
@@ -260,6 +260,32 @@ The gate exposed (and J-1 fixed, drive-with-tasks) three latent gaps the targete
 T-10 (Modulith boundary `aircraft`→`users` internal types), T-11 (real-idp username collision when two
 specs share `provisionTwoClubs` in one invocation), T-12 (the `ci.yml` proof backend never set the
 host-mapped Keycloak admin-base-url — the first migration→Keycloak proof wired into `ci.yml` hit it).
+
+## Reopened at PR review (2026-06-03) — list parity + legacy video
+
+Operator review of PR #202 + a field-parity audit (legacy `aircraft-form-fields.html`/`aircrafts-table.html`
+vs AlpenFlight `features/aircraft/`): **the form is at parity** — the only legacy form fields absent
+(owner-type radio / owner-club / owner-person) are the **intended** S-058/S-159 reversion + A04 omission
+(ownership via the transfer-ownership endpoint). **The list is NOT** — legacy shows Aircraft Model +
+Manufacturer + Nr of Seats, AlpenFlight's list omits them. J-1's list AC (immat+sign+type) was met, but
+the operator wants full legacy list parity. Also: J-1 ran synth-at-PR so **no legacy flsweb video** was
+captured (the parity-aid half of the done bar). Two operator-chosen tasks:
+
+- [ ] **T-13** — Add **Aircraft Model, Manufacturer Name, Nr of Seats** to the AlpenFlight aircraft list:
+  extend `AircraftListItem` DTO + the `ListRow` repository projection/JPA query + `AircraftMapper.toListItem`
+  + the `aircraft-list.page.ts` columns + i18n labels (de/en/fr/it). Update the real-idp/mock spec list
+  assertions to cover the new columns. *(seam: list read path + list component)* — re-runs the gate.
+- [ ] **T-14** — Capture the **legacy flsweb aircraft video** for parity and pair it with the AlpenFlight
+  video in the gallery. Wire the existing legacy aircraft CRUD spec (`e2e/tests/masterdata/aircrafts-crud.spec.ts`)
+  — or a video-recording variant — into the **nightly fanout workflow** (`alpenflight-proof-fanout.yml`,
+  mirroring J-0c's legacy-Location video capture: seed legacy aircraft in MSSQL → drive the legacy flsweb
+  aircraft UI → record video → render side-by-side with the AlpenFlight aircraft video in the gallery).
+  Legacy stack is nightly-budget, so this proof lands on the nightly/dispatch run, not the PR gate.
+  *(seam: fanout workflow + legacy aircraft spec + gallery pairing)* — e2e-driver owns it.
+
+Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
+wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
+"club-vs-private owner, owner club/person" is superseded by the S-058/S-159 transfer-ownership design).
 
 ## Assumptions made
 
