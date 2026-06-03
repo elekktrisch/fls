@@ -716,21 +716,23 @@ jobs:
 
       # Deploy the fan-out gallery to its OWN namespaced subpath, NOT publish_dir:
       # public (which writes the canonical /alpenflight/proof/index.html — the
-      # fan-out index has J-0c but no J-0 section, so it would replace the rich
-      # multi-journey top index on merge). destination_dir + keep_files:true means
-      # this only ever writes /alpenflight/proof/j-0c-fanout/ — the exact path the
-      # canonical index's "per-run galleries" nav (T-24) links to.
-      - name: Deploy J-0c fan-out gallery to gh-pages (namespaced subpath)
+      # fan-out index has J-0c/J-1/… but no J-0 section, so it would replace the
+      # rich multi-journey top index on merge). destination_dir + keep_files:true
+      # means this only ever writes /alpenflight/proof/legacy-parity/ — the exact
+      # path the canonical index's "per-run galleries" nav (T-24) links to. The
+      # subpath is journey-agnostic (`legacy-parity`): the fanout now serves the
+      # full legacy→export→migrate parity proof for ALL journeys, not just J-0c.
+      - name: Deploy legacy-parity fan-out gallery to gh-pages (namespaced subpath)
         if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: public/alpenflight/proof
-          destination_dir: alpenflight/proof/j-0c-fanout
+          destination_dir: alpenflight/proof/legacy-parity
           publish_branch: gh-pages
           keep_files: true
           enable_jekyll: false
-          commit_message: "J-0c fan-out proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
+          commit_message: "legacy-parity fan-out proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
 
       # ========================================================================
       # J-1 T-21 — BRANCH-PREVIEW deploy. The main deploy above is
@@ -748,9 +750,9 @@ jobs:
       # nests UNDER the same `alpenflight/proof-preview/<ref>/` parent the reaper
       # recursively removes).
       #
-      # Disjoint destination: `alpenflight/proof-preview/<ref>/j-0c-fanout`.
+      # Disjoint destination: `alpenflight/proof-preview/<ref>/legacy-parity`.
       # keep_files:true + this per-branch+nested path mean the preview deploy can
-      # NEVER clobber the canonical /alpenflight/proof/j-0c-fanout/ (main), the
+      # NEVER clobber the canonical /alpenflight/proof/legacy-parity/ (main), the
       # top index, or another branch's preview.
       - name: Compute fan-out branch-preview destination
         id: preview
@@ -763,9 +765,9 @@ jobs:
           # AND .github/workflows/proof-preview-reap.yml. The reaper derives the
           # `alpenflight/proof-preview/<sanitized>` parent from the branch ref and
           # recursively removes it on PR close; our fan-out preview nests under
-          # that SAME parent (.../j-0c-fanout), so a drift here orphans the subdir.
+          # that SAME parent (.../legacy-parity), so a drift here orphans the subdir.
           sanitized="$(printf '%s' "$REF_NAME" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
-          subdir="alpenflight/proof-preview/${sanitized}/j-0c-fanout"
+          subdir="alpenflight/proof-preview/${sanitized}/legacy-parity"
           url="https://elekktrisch.github.io/fls/${subdir}/"
           {
             echo "subdir=${subdir}"

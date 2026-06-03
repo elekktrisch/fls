@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: in_progress  # reopened 2026-06-03 (3rd): operator review — AlpenFlight list screenshot was empty ("No Data"); fanout URL still says j-0c (T-22/T-23)
+status: in_progress  # reopened 2026-06-03 (3rd): operator review — T-22/T-23 authored + structurally validated; awaiting fanout dispatch to confirm the populated screenshot + …/legacy-parity/ URL
 started_at: 2026-06-02
-done_at: 2026-06-03  # provisional — core + PR gate green; re-confirm after T-22/T-23
+done_at: 2026-06-03  # provisional — core + PR gate green; re-confirm after T-22/T-23 fanout dispatch
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
@@ -432,19 +432,23 @@ gallery LINK** (not files). Operator merges `integration/J-1`.
 ## Reopened 3rd time (2026-06-03) — operator review of the gallery
 
 The shipped gallery had two warts the operator caught:
-- [ ] **T-22** — The AlpenFlight `alpenflight-aircraft-list.png` was captured on a **fresh club with an
-  empty list → "No Data"**, so it shows no rendered row and none of the T-13 columns. The legacy list
-  (FLSTest seed) shows ~15 populated rows. Re-capture the AlpenFlight list screenshot at a **populated**
-  point — after the clean-seed create (the Schleicher aircraft) and/or in the migrated-render flow — so the
-  PNG shows real rows with the full column set (immat + competition sign + type + manufacturer + model +
-  seats), paralleling the legacy list. Ideally seed/create a few rows so it's not a single-row list.
-  *(seam: aircraft-migration-parity.spec.ts list-screenshot capture point)* — e2e-driver.
-- [ ] **T-23** — The fanout proof-gallery deploy path is `alpenflight/proof/j-0c-fanout` (+ the branch
+- [x] **T-22** — The AlpenFlight `alpenflight-aircraft-list.png` was captured on a **fresh club with an
+  empty list → "No Data"**, so it showed no rendered row and none of the T-13 columns. Fixed: the
+  clean-seed create test now creates **3 populated aircraft** (Schleicher/ASK 21/2, Schempp-Hirth/Discus b/1,
+  DG Flugzeugbau/DG-1000/2 — `createAircraftViaUi` extended to fill `#AircraftModel` + `#NrOfSeats`) and the
+  list screenshot is captured AFTER the creates, gated on `aircraft-row-* count == 3` + `aircraft-table`
+  visible, so the PNG shows a multi-row list with the full T-13 column set (immat + competition sign + type +
+  manufacturer + model + seats). The first aircraft stays the one the CRUD/403/S-163/S-164 cases operate on.
+  *(seam: aircraft-migration-parity.spec.ts list-screenshot capture point + create-flow model/seats fill)* — e2e-driver.
+- [x] **T-23** — The fanout proof-gallery deploy path was `alpenflight/proof/j-0c-fanout` (+ the branch
   preview `…/proof-preview/<ref>/j-0c-fanout`), a **stale J-0c name** — the fanout now serves ALL journeys
-  (J-0c, J-1, …), not just J-0c. Rename the subpath to journey-agnostic **`legacy-parity`** (the gallery is
-  the full legacy→export→migrate parity proof) in `alpenflight-proof-fanout.yml` (main deploy + branch
-  preview + comments) and `proof-preview-reap.yml` if it references the subpath. *(seam: fanout workflow
-  deploy paths + reaper)*
+  (J-0c, J-1, …), not just J-0c. Renamed the subpath to journey-agnostic **`legacy-parity`** in
+  `alpenflight-proof-fanout.yml` (main `destination_dir`, branch-preview `subdir` + emitted URL, all
+  comments + step names + commit messages). `proof-preview-reap.yml` needs NO change: it removes the whole
+  `alpenflight/proof-preview/<ref>/` parent recursively, so the nested `legacy-parity/` is swept with it; the
+  sanitize sed stays byte-identical to ci.yml + the reaper. New preview URL:
+  `https://elekktrisch.github.io/fls/alpenflight/proof-preview/<sanitized-ref>/legacy-parity/`.
+  *(seam: fanout workflow deploy paths + reaper)*
 
 Then re-dispatch fanout → confirm the populated list screenshot + the `…/legacy-parity/` URL → post the link.
 
