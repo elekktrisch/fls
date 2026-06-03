@@ -260,8 +260,11 @@ class MapperLegacyBindingsTest {
      * Every legacy {@code Aircrafts} ResultSet column {@code AircraftMapper.writeNdjson}
      * reads. {@code ManagingClubId} is the producer-computed tenant identity aliased
      * on the cursor (cascade from {@code AircraftOwnerClubId} per the J-1 parity
-     * decision); {@code AircraftType} is the int {@code AircraftTypeId} aliased so the
-     * mapper's {@code getInt} reads the int code, not the column under its C# name.
+     * decision); {@code AircraftType} is the real legacy int FK column the mapper's
+     * {@code getInt} reads — the EF entity exposes it as the C# property
+     * {@code AircraftTypeId} via {@code [Column("AircraftType")]}, but the MSSQL
+     * column is {@code AircraftType} (T-16: the live export aborted on the prior
+     * {@code AircraftTypeId} alias, which names a non-existent column).
      */
     private static final List<String> AIRCRAFT_LEGACY_COLUMNS = List.of(
             "AircraftId", "ManagingClubId", "AircraftOwnerClubId", "AircraftType",
@@ -337,14 +340,19 @@ class MapperLegacyBindingsTest {
     }
 
     @Test
-    void aircraftSelectAliasesTheAircraftTypeIntId() {
+    void aircraftSelectProjectsTheRealAircraftTypeColumn() {
         String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT).toUpperCase();
         // AircraftMapper reads getInt("AircraftType") — the int code resolved via
-        // legacyIntIdToUuidString — but the legacy column is AircraftTypeId. Alias
-        // it so getInt reads the int, not a column under its C# name.
+        // legacyIntIdToUuidString. The real legacy column is AircraftType (Aircrafts
+        // DDL; EF Aircraft.cs [Column("AircraftType")]), NOT AircraftTypeId — the
+        // export aborts on a non-existent column (T-16). The SELECT must project the
+        // real column and must NOT reference the C#-property name AircraftTypeId.
         assertThat(select)
-                .as("SELECT must alias AircraftTypeId AS AircraftType for the int getInt read")
-                .contains("AIRCRAFTTYPEID AS AIRCRAFTTYPE");
+                .as("SELECT projects the real legacy AircraftType column")
+                .contains("AIRCRAFTTYPE");
+        assertThat(select)
+                .as("SELECT must NOT reference the non-existent AircraftTypeId column")
+                .doesNotContain("AIRCRAFTTYPEID");
     }
 
     @Test
@@ -378,9 +386,15 @@ class MapperLegacyBindingsTest {
         assertThat(select)
                 .as("base table is the legacy AircraftAircraftStates table")
                 .contains("AircraftAircraftStates");
+        // Real legacy column is AircraftState (AircraftAircraftStates DDL; EF
+        // AircraftAircraftState.cs [Column("AircraftState")]), NOT AircraftStateId.
+        // Same class of bug as AIRCRAFT's AircraftType (T-16).
         assertThat(select.toUpperCase())
-                .as("AircraftStateId aliased AS AircraftState for the int getInt read")
-                .contains("AIRCRAFTSTATEID AS AIRCRAFTSTATE");
+                .as("SELECT projects the real legacy AircraftState column")
+                .contains("AIRCRAFTSTATE");
+        assertThat(select.toUpperCase())
+                .as("SELECT must NOT reference the non-existent AircraftStateId column")
+                .doesNotContain("AIRCRAFTSTATEID");
     }
 
     @Test

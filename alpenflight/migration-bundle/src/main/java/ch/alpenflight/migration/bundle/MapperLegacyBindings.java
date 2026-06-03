@@ -369,9 +369,13 @@ public final class MapperLegacyBindings {
                     // S-139 producer logic, out of this SELECT's scope.
                     //
                     // aircraft_type_id source: AircraftMapper reads getInt("AircraftType")
-                    // + legacyIntIdToUuidString — the int AircraftTypeId resolves to the
-                    // V3-seeded t_aircraft_type.legacy_int_id. Legacy column is
-                    // AircraftTypeId; alias it AS AircraftType so getInt reads the int.
+                    // + legacyIntIdToUuidString — the int resolves to the V3-seeded
+                    // t_aircraft_type.legacy_int_id. The real legacy column is
+                    // AircraftType (Aircrafts DDL line 114; EF Aircraft.cs maps the C#
+                    // property AircraftTypeId via [Column("AircraftType")]) — projected
+                    // verbatim, no alias needed since the mapper key IS AircraftType.
+                    // (T-16: the live export died on the prior AircraftTypeId alias —
+                    // that column does not exist in the legacy schema.)
                     //
                     // homebase_id (HomebaseId → t_location) is the cross-tenant
                     // ride-through into the Location replica matching the Aircraft's
@@ -384,7 +388,7 @@ public final class MapperLegacyBindings {
                     """
                     SELECT AircraftId, AircraftOwnerClubId AS ManagingClubId,
                            AircraftOwnerClubId,
-                           AircraftTypeId AS AircraftType,
+                           AircraftType,
                            ManufacturerName, AircraftModel, Immatriculation,
                            CompetitionSign, FLARMId, AircraftSerialNumber,
                            YearOfManufacture, NoiseClass, NoiseLevel, MTOM, NrOfSeats,
@@ -446,12 +450,18 @@ public final class MapperLegacyBindings {
                     // a wire column and NOT projected; the SELECT projects only the
                     // 12 columns AircraftAircraftStateMapper reads. aircraft_state_id
                     // resolves through the V3-seeded t_aircraft_state.legacy_int_id:
-                    // the mapper reads getInt("AircraftState"), so alias the legacy
-                    // int AircraftStateId AS AircraftState. noticed_by_person_id is a
-                    // cross-tenant Person (Manifest TENANT_BYPASS_ALLOW_LIST).
-                    // Legacy table has no IsDeleted column; deleted_on ports as NULL.
+                    // the mapper reads getInt("AircraftState"). The real legacy column
+                    // is AircraftState (AircraftAircraftStates DDL line 77; EF
+                    // AircraftAircraftState.cs maps the C# property AircraftStateId via
+                    // [Column("AircraftState")]) — projected verbatim, no alias.
+                    // (T-16: the prior AircraftStateId alias names a column that does
+                    // not exist in the legacy schema — the same class of bug that
+                    // aborted the live AIRCRAFT export on AircraftType.)
+                    // noticed_by_person_id is a cross-tenant Person (Manifest
+                    // TENANT_BYPASS_ALLOW_LIST). Legacy table has no IsDeleted column;
+                    // deleted_on ports as NULL.
                     """
-                    SELECT AircraftId, AircraftStateId AS AircraftState,
+                    SELECT AircraftId, AircraftState,
                            ValidFrom, ValidTo, NoticedByPersonId, Remarks,
                            CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
                            DeletedOn, DeletedByUserId

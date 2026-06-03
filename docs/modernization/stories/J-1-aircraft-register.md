@@ -313,7 +313,7 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   assertion triggered a Playwright retry whose re-ingest hit `DEPLOYMENT_EXISTS 409` — clean the
   deployment between attempts / make ingest idempotent so a flake doesn't cascade). *(seam:
   aircraft-migration-parity.spec.ts assertion + retry isolation)* — e2e-driver.
-- [ ] **T-16** — **Real-export-revealed (T-14 fanout dispatch, the high-value catch): the AIRCRAFT
+- [x] **T-16** — **Real-export-revealed (T-14 fanout dispatch, the high-value catch): the AIRCRAFT
   producer SELECT references a column the real legacy MSSQL `Aircrafts` table doesn't have.** Live
   `alpenflight-export` died: `Invalid column name 'AircraftTypeId'` (`LegacyJdbcReader.openEntityCursor`)
   — T-04 wrote `AircraftTypeId AS AircraftType` but the real legacy column is `AircraftType` (oracle
@@ -326,6 +326,19 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   AIRCRAFT producer SELECT)* — then re-dispatch the fanout to validate export + capture the legacy video.
   **Retro lesson:** only the real legacy export validates producer column names; synth bundles can't
   ([[verify-infra-is-run-not-just-authored]]).
+  **DONE.** Reconciled all three AIRCRAFT-group producer SELECTs against the authoritative legacy
+  schema (FLSTest DDL `2 alter/2 Alter Database.sql` + DBUpdate chain, cross-checked with EF
+  `[Column]` maps). **Two schema-mismatch bugs (both `<C#property>Id AS <realcol>` aliases naming a
+  non-existent column):** `AircraftTypeId AS AircraftType` → `AircraftType` (Aircrafts DDL:114; EF
+  `Aircraft.cs:48 [Column("AircraftType")]`) — the one the live export hit; and the hidden sibling
+  `AircraftStateId AS AircraftState` → `AircraftState` (AircraftAircraftStates DDL:77; EF
+  `AircraftAircraftState.cs:24 [Column("AircraftState")]`) — would have aborted the next stream. Every
+  other column verified present with its exact name (incl. `HomebaseId` v1.9.18, the two
+  `*OperatingCounterUnitTypeId` v1.9.0, the counter `*InSeconds` v1.9.3, `DaecIndex`, ownership +
+  technical + audit columns). AIRCRAFT_OPERATING_COUNTER had **no** mismatches. Updated the two stale
+  binding assertions in `MapperLegacyBindingsTest` that had encoded the wrong aliases (now assert the
+  real column present + the bad `…Id` name absent). `./gradlew test` green (417, incl. synth round-trip
+  ITs guarding the consumer/alias contract). No escalations — no real schema gap.
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
