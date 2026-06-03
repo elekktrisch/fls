@@ -22,7 +22,10 @@ import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.IllegalFlightTransitionException;
 import ch.alpenflight.flights.domain.TransitionTrigger;
 import ch.alpenflight.platform.id.FlightId;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +49,14 @@ class FlightStateTransitionServiceTest {
         repo = Mockito.mock(FlightRepository.class);
         audit = Mockito.mock(AuditTrail.class);
         FlightInitialStateProvider initial = () -> FlightProcessState.NOT_PROCESSED.id();
-        service = new FlightStateTransitionService(repo, audit, initial);
+        // Fixed clock well after every fixture flight_date so the time-gate
+        // never spuriously blocks the matrix-focused cases here; the gate
+        // boundary itself is covered by FlightGatePolicyTest + the IT.
+        Clock clock = Clock.fixed(
+                LocalDate.of(2026, 6, 1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+                ZoneOffset.UTC);
+        service = new FlightStateTransitionService(repo, audit,
+                new FlightGatePolicy(), clock, initial);
     }
 
     @Test
@@ -103,6 +113,11 @@ class FlightStateTransitionServiceTest {
         setField(tow, "id", towId.value());
         // Wire the tow link.
         setField(glider, "towFlightId", towId.value());
+        // Locked long ago so the bill time-gate (locked_at <= today-3d) is
+        // satisfied — the gate boundary is covered elsewhere.
+        Instant longAgo = LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        setField(glider, "lockedAt", longAgo);
+        setField(tow, "lockedAt", longAgo);
 
         when(repo.findByIdWithCrew(gliderId)).thenReturn(Optional.of(glider));
         when(repo.findByIdWithCrew(FlightId.of(towId.value()))).thenReturn(Optional.of(tow));
@@ -122,6 +137,8 @@ class FlightStateTransitionServiceTest {
         FlightId gliderId = FlightId.of(UUID.randomUUID());
         Flight glider = gliderInState(FlightProcessState.LOCKED);
         setField(glider, "id", gliderId.value());
+        setField(glider, "lockedAt",
+                LocalDate.of(2026, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant());
         when(repo.findByIdWithCrew(gliderId)).thenReturn(Optional.of(glider));
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

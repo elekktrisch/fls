@@ -2,6 +2,7 @@ package ch.alpenflight.flights.web;
 
 import ch.alpenflight.flights.application.InvalidCursorException;
 import ch.alpenflight.flights.domain.DuplicateCrewMemberException;
+import ch.alpenflight.flights.domain.FlightGateNotReachedException;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.FlightVersionMismatchException;
@@ -46,6 +47,8 @@ class FlightsExceptionHandler {
             URI.create("urn:alpenflight:problem:flight-state-admin-required");
     private static final URI VERSION_MISMATCH =
             URI.create("urn:alpenflight:problem:flight-version-mismatch");
+    private static final URI GATE_NOT_REACHED =
+            URI.create("urn:alpenflight:problem:flight-gate-not-reached");
 
     @ExceptionHandler(FlightNotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(FlightNotFoundException e) {
@@ -108,6 +111,19 @@ class FlightsExceptionHandler {
         if (!e.allowed().isEmpty()) {
             pd.setProperty("allowed", e.allowed().stream().map(Enum::name).toList());
         }
+        return problem(pd);
+    }
+
+    @ExceptionHandler(FlightGateNotReachedException.class)
+    ResponseEntity<ProblemDetail> handleGateNotReached(FlightGateNotReachedException e) {
+        // The transition is legal by the matrix but the S-061 calendar
+        // time-gate has not yet elapsed (too-recent flight / lock). 409,
+        // mirroring IllegalFlightTransition — "not yet", not "never".
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        pd.setType(GATE_NOT_REACHED);
+        pd.setTitle("Flight time-gate not yet reached");
+        pd.setDetail(e.getMessage());
+        pd.setProperty("gate", e.gate().name());
         return problem(pd);
     }
 

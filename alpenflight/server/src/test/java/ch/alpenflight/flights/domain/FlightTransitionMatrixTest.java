@@ -165,8 +165,11 @@ class FlightTransitionMatrixTest {
     @Test
     void flight_transition_applies_legal_change() {
         Flight f = newGliderInState(FlightProcessState.VALID);
-        f.transition(FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB);
+        // Valid -> Locked stamps locked_at from the supplied instant (S-061).
+        java.time.Instant at = java.time.Instant.parse("2026-01-01T12:00:00Z");
+        f.transition(FlightProcessState.LOCKED, TransitionTrigger.LOCK_JOB, at);
         assertThat(f.getProcessState()).isEqualTo(FlightProcessState.LOCKED);
+        assertThat(f.getLockedAt()).isEqualTo(at);
     }
 
     @Test

@@ -150,6 +150,17 @@ public class Flight {
     @Column(name = "flight_plan_opened_on")
     private @Nullable Instant flightPlanOpenedOn;
 
+    /**
+     * When this flight transitioned into {@link FlightProcessState#LOCKED}.
+     * Net-new in S-061 (legacy has no such column) — drives the billing
+     * gate ({@code locked_at <= today - 3d}, J-2 parity decision). Stamped
+     * by {@link #transition(FlightProcessState, TransitionTrigger, Instant)}
+     * on the Valid → Locked edge; {@code created_on} stays for audit but no
+     * longer drives any gate.
+     */
+    @Column(name = "locked_at")
+    private @Nullable Instant lockedAt;
+
     @Column(name = "engine_start_operating_counter_in_seconds")
     private @Nullable Long engineStartOperatingCounterInSeconds;
 
@@ -405,6 +416,19 @@ public class Flight {
      * contract documented in the S-059 design notes.
      */
     public void transition(FlightProcessState target, TransitionTrigger trigger) {
+        transition(target, trigger, null);
+    }
+
+    /**
+     * Apply a process-state transition, stamping {@link #lockedAt} from
+     * {@code at} when this is the Valid → Locked edge (S-061's billing gate
+     * keys on it). {@code at} may be null for transitions that don't touch
+     * the lock edge — the two-arg overload uses that. The caller derives
+     * {@code at} from the injected {@link java.time.Clock} so tests pin it.
+     */
+    public void transition(FlightProcessState target,
+                           TransitionTrigger trigger,
+                           @Nullable Instant at) {
         if (target == null) {
             throw new IllegalArgumentException("target must not be null");
         }
@@ -414,6 +438,13 @@ public class Flight {
         FlightProcessState current = FlightProcessState.fromId(this.processStateId);
         if (!FlightTransitionMatrix.isLegal(trigger, current, target)) {
             throw new IllegalFlightTransitionException(current, target, trigger);
+        }
+        if (target == FlightProcessState.LOCKED) {
+            if (at == null) {
+                throw new IllegalArgumentException(
+                        "a Valid -> Locked transition requires a non-null timestamp to stamp locked_at");
+            }
+            this.lockedAt = at;
         }
         this.processStateId = target.id();
     }
@@ -601,6 +632,10 @@ public class Flight {
 
     public @Nullable Instant getFlightPlanOpenedOn() {
         return flightPlanOpenedOn;
+    }
+
+    public @Nullable Instant getLockedAt() {
+        return lockedAt;
     }
 
     /**
