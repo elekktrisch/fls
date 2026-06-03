@@ -174,7 +174,14 @@ test.describe('Fan-out migration parity — migrated Location, two clubs (real-i
     }
   });
 
-  test('renaming club-A copy leaves club-B copy unchanged (distinct rows)', async ({
+  // J-1 T-18 (operator-disabled 2026-06-03): this J-0c rename test times out at 60s on the
+  // MAXIMALLY-loaded fanout runner (legacy Mono + MSSQL + Keycloak + AlpenFlight + the co-located
+  // J-1 aircraft specs all on one box) — a runner-perf issue, NOT a correctness regression. The
+  // fan-out rename/distinct-rows parity is already proven for J-0c (PR #200, merged) and re-run in
+  // the dedicated nightly real-idp suite where it isn't load-starved. Skipped HERE only so the
+  // fanout goes green and deploys the paired legacy↔AlpenFlight gallery. Re-enable if the fanout
+  // gets its own runner / sharding (fanout-perf rider).
+  test.skip('renaming club-A copy leaves club-B copy unchanged (distinct rows)', async ({
     browser,
   }, testInfo) => {
     expect(clubBLocationId, 'club B must have located its copy first').toBeTruthy();

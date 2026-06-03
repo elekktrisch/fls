@@ -2,9 +2,9 @@
 id: J-1
 title: Aircraft register
 epic: E-06
-status: in_progress  # reopened 2026-06-03: operator added list-parity (T-13) + legacy-video (T-14) scope at PR review
+status: done  # PR-required gate green on T-17 (commit 96d82811, build-flake re-run clean); legacy video delivered
 started_at: 2026-06-02
-done_at: 2026-06-03  # provisional — gate was green on T-12; re-confirm after T-13/T-14
+done_at: 2026-06-03
 journey0: false
 carved: true
 depends_on: [J-0, J-0b]
@@ -357,6 +357,20 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   ci.yml proof (aircraft ingests alone among migration-ingest specs there, now as clubadmin2; flyway applies
   V26 + same realm-export) unaffected. *(seam: the two parity specs' migration-principal isolation +
   fixtures)* — re-dispatch fanout for the live green + gallery deploy (step 42).
+  **DONE (fanout run 26867833294):** clubadmin2 isolation worked — DEPLOYMENT_EXISTS gone, the J-1 aircraft
+  specs + legacy video spec all green. Lone remaining red was J-0c's Location-rename test (NOT J-1) timing
+  out at 60s on the overloaded runner → T-18.
+- [x] **T-18** — Operator-adjudicated (2026-06-03): `test.skip` the J-0c `fan-out-migration-parity.spec.ts`
+  *renaming-club-A* test in the fanout — a 60s timeout on the maximally-loaded single runner (legacy +
+  AlpenFlight + Keycloak + co-located J-1 specs), a runner-perf issue not a correctness regression; J-0c's
+  rename/distinct-rows parity is already proven (PR #200) + re-run in the dedicated nightly real-idp suite.
+  Documented skip, fanout-only (this spec isn't in the PR gate). Re-enable when the fanout gets its own
+  runner / sharding (fanout-perf rider for /do-retro). *(seam: one test.skip + reason)*
+
+**Done bar met:** PR-required gate (`ci.yml` `alpenflight-proof` + build) GREEN on T-17. Legacy ↔ AlpenFlight
+side-by-side aircraft videos captured (real legacy export) + delivered. The real legacy→export→migrate chain
+(fanout) caught + fixed two producer-SELECT column bugs (T-16) the synth proofs missed —
+[[project_synth_bundle_doesnt_validate_producer_select]]. Operator merges `integration/J-1`.
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
