@@ -74,7 +74,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>202/merge</code> &middot; 2026-06-03T00:21:07.804Z
+      assertion it proves. Generated on <code>202/merge</code> &middot; 2026-06-03T00:32:12.488Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -90,15 +90,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <h3>J-0 <span class="status success">3 proofs</span></h3>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-850674dc7dbe2370569f6fd7d38ba4d5cb5357ba.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-e9154014b761bcd40c164df6c9c898776d807047.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-52a81fa83261518a1297402793aef0d7f7c52cdd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-d88270e60a6c34165650787946568697e31b3456.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-aea79a50215de5e76691c110686c1102a09fff81.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-75d13d2b2542a5899058d3b6aa8333a9b0eb765f.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
         </figure>
         </div>
@@ -120,27 +120,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <h3>J-1 <span class="status success">6 proofs</span></h3>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a9396fe52e4ade3c3079a9808253247d97c25410.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9fab43a7097dd46d43cd66281a419d0a85cb9550.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-aa9e25402257079ef8866f4dd7804837d5896b77.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9f9d5b6efab2e90f590b819e9212ab0132a1600b.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6b4fa70b40acc6a32f597b59e590892abd940927.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-c6bd27465fb9a11a47d1746abfa5f4c42b7d348d.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3e89af6e06ec307d750d84535ad2a34f6fecb737.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-2618d753adb88ee7d1c1028765f03c5483d74c0a.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1c0ff26a58c320c4696d1d0ea8c2279d83245d48.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-60773864aa71d3b250465df7e4b084ccaa957660.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6f5f98db86a505e13f9783ddc73408e86169d272.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a56c589e07107dd296dccf5a7a5b7438e771494a.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
