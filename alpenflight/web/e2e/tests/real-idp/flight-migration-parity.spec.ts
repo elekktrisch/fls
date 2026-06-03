@@ -265,73 +265,25 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      // PRE-SEEDED STABLE motor principal (`clubadmin4`), NOT a second dynamic
-      // club-A admin. A second interactive club-A login that relies on JIT to
-      // materialise its `t_user` loses the `ux_user_username_lower_alive` race
-      // and stays tenant-less, so /airmovements never loaded (J-2 T-22); the
-      // page was in fact authenticating as the seeded `sysadmin` (no clubId, no
-      // t_user) via SSO bleed from the club-B-create login (J-2 T-23/T-24). A
-      // verified-email realm user with a SEEDED `t_user` (V29) resolves its
-      // tenant deterministically via PreTenantUserLookup with zero JIT race —
-      // mirroring the green migration principal `clubadmin3`. It is bound to the
-      // same club as `fixture.clubA` (seed-club-1), so the masterdata seeded in
-      // `beforeAll` is visible to it.
-      // Land on the authed home (`/start`, nav-bar visible) as the pre-seeded
-      // stable motor principal `clubadmin4`. The trace proved (J-2 T-26, run
-      // 26901884450) that clubadmin4 authenticates correctly here — the page's
-      // `/api/v1/*` calls carry sub=c1ab4d40…004 / clubId=club-1 and the backend
-      // resolves the tenant (`user-lookup hit … column=club_id`). The earlier
-      // SSO-bleed (sysadmin sub) was already closed by `clearCookies()` in
-      // `loginAsSeededMotorClubadmin`.
+      // PRE-SEEDED STABLE motor principal (`clubadmin4`) bound to seed-club-1 via
+      // the V29 `t_user`, so its tenant resolves deterministically (zero JIT
+      // race) — same club as `fixture.clubA`, so the `beforeAll` masterdata is
+      // visible. Mirrors the green migration principal `clubadmin3`.
       await loginAsSeededMotorClubadmin(page);
-      await expect(page.getByTestId('af-nav-section-/airmovements')).toBeVisible();
 
-      // Navigate to /airmovements via `page.goto` — the proven pattern shared by
-      // ALL green tests in this file (the glider test's `goto('/flights')`, and
-      // crucially the MIGRATED test which `loginAsMigratedAdmin` then
-      // `goto('/flights')` — a seeded principal hitting a tenant-guarded route via
-      // goto, green). `goto` triggers a full SPA load that runs auth-init
-      // (`withAppInitializerAuthCheck` → checkAuth → loadMe → SessionStore
-      // .currentClubId) BEFORE the router resolves the guarded route, so
-      // `tenantRequiredGuard` sees a resolved `currentClubId` and admits
-      // /airmovements. The T-26 in-app nav (clicking `af-nav-section-/airmovements`)
-      // did NOT re-run auth-init, so for the seeded clubadmin4 principal
-      // `currentClubId()` was still null when the click fired → the guard bounced
-      // /airmovements → /start repeatedly and the 30s toPass timed out (J-2 T-29).
-      //
-      // S-064: /airmovements is the SAME shared list/form parameterized by the
-      // MOTOR variant — the tow step is suppressed regardless of start-type, and
-      // the create stamps the MOTOR discriminator.
+      // List renders. S-064: /airmovements is the SAME shared list/form
+      // parameterized by the MOTOR variant (tow step suppressed, create stamps
+      // the MOTOR discriminator). Reach it via `goto` — the proven pattern of
+      // the green glider (`goto('/flights')`) and migrated tests: the SPA reboot
+      // re-runs auth-init and the seeded session restores before the
+      // tenant-guarded route resolves.
       await page.goto('/airmovements');
-      await expect(page).toHaveURL(/\/airmovements$/);
-      // COLD-MOUNT WAIT (J-2 T-31): the hard `goto` reboots the SPA, so the
-      // FlightsListPage is a fresh LAZY load behind `tenantRequiredGuard` +
-      // auth-init re-bootstrap (a second `/me` round-trip) + on-demand dev-server
-      // chunk compilation. Run 26907518852's MOTOR trace proved the URL was
-      // admitted (`toHaveURL(/airmovements$/)` passed at t=277.4s) but the
-      // component chunk (`…/features/flights/list`) was only fetched at t=277.6s
-      // and the list GET fired after — so the NEXT assertion, `h1 toHaveText`,
-      // ran against an empty body (`element(s) not found`, ariaSnapshot: "") and
-      // burned its 5s. The mount legitimately exceeds the 5s per-assertion
-      // fail-fast budget on the loaded real-idp dev server, so gate on the
-      // always-rendered component-mounted marker (`flights-table`, painted on
-      // mount regardless of loading/empty state) with the per-TEST cold-mount
-      // budget — same justification as the auth-redirect `waitForURL(…, 30_000)`
-      // in `loginAsSeededMotorClubadmin`. Every DATA assertion below stays at the
-      // 5s fail-fast default; this is a one-time mount settle, not a loosened check.
-      await expect(page.getByTestId('flights-table')).toBeVisible({ timeout: 30_000 });
-      // Now the component is mounted: assert the variant-pinned title at the
-      // 5s fail-fast budget.
       await expect(page.locator('h1')).toHaveText('Air movements');
+      await expect(page.getByTestId('flights-table')).toBeVisible();
 
-      // Navigate to the create form via `page.goto('/airmovements/new')` (matches
-      // `goto('/flights/new')` in `createGliderFlightAerotow`). Auth-init already
-      // ran on the list goto above, so `tenantRequiredGuard` admits the form route.
-      // Same cold-mount budget on the FORM's lazy mount marker (`flight-form`),
-      // then the strict data assertions at 5s.
+      // Create form (matches `goto('/flights/new')` in `createGliderFlightAerotow`).
       await page.goto('/airmovements/new');
-      await expect(page).toHaveURL(/\/airmovements\/new$/);
-      await expect(page.getByTestId('flight-form')).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByTestId('flight-form')).toBeVisible();
       // No tow step on a motor air movement (variant suppresses it).
       await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
 

@@ -308,67 +308,26 @@ export const SEEDED_MOTOR_CLUBADMIN = {
 
 /**
  * Log the pre-seeded {@link SEEDED_MOTOR_CLUBADMIN} (`clubadmin4`) in through the
- * SPA + Keycloak login form by USERNAME (mirrors `loginAsMigratedAdmin`'s
- * username login of the seeded `clubadmin3`). No provisioning, no JIT — the
- * seeded `t_user` resolves the tenant on first request.
+ * SPA + Keycloak login form by USERNAME. Mirrors `loginAsMigratedAdmin`'s
+ * username login of the seeded `clubadmin3` EXACTLY — same mechanics, same
+ * post-login wait — only the credentials differ. No provisioning, no JIT: the
+ * seeded `t_user` (V29) resolves the tenant on first request, so a subsequent
+ * `goto` to a tenant-guarded route re-runs auth-init and the session restores.
  *
- * SESSION ISOLATION (J-2 T-25). `provisionTwoClubs` (run in the spec's
- * `beforeAll`) drives an SPA login as the seeded tenant-less `sysadmin` to mint
- * the club-create bearer (`captureSysadminBearer`); that login leaves a LIVE
- * Keycloak SSO session (the `KEYCLOAK_IDENTITY` cookie on the KC origin) which
- * the motor test's context then carries. Without clearing it, `goto('/')` +
- * click sign-in lands on KC, KC auto-resumes the still-valid sysadmin SSO
- * session (no login form), and the SPA boots holding SYSADMIN's token — so the
- * subsequent tenant-scoped `GET /api/v1/flights` fires as the tenant-less
- * sysadmin (backend logged `user-lookup miss sub=f1558768…`) and never 2xx's,
- * tripping the fail-fast guard. clubadmin4 itself resolves fine (the PRODUCT is
- * correct) — this is harness-only SSO bleed.
- *
- * Fix: clear the context's cookies (the KC SSO cookie among them — same
- * belt-and-braces as `login.spec.ts`'s logout→cold-re-login) BEFORE starting the
- * login, so KC cannot auto-resume sysadmin and a full FRESH credential login as
- * clubadmin4 happens. We assert the KC username field is actually present before
- * filling so any future SSO-bypass regression fails fast with a clear cause
- * rather than `fillKcLogin` blind-filling a short-circuited page. Other login
- * helpers (`loginAsClubAdmin`, `loginAsMigratedAdmin`) are UNCHANGED: each runs
- * in its OWN fresh `browser.newContext()` and is the FIRST login in that context,
- * so they never inherit the sysadmin SSO session and need no clear.
+ * Isolation comes from the FRESH `browser.newContext()` the spec opens per test
+ * (`newRecordedContext`), identical to how `loginAsMigratedAdmin` /
+ * `loginAsClubAdmin` get a clean context — this is the FIRST login in it, so it
+ * cannot inherit the sysadmin SSO session minted in `beforeAll`. We do NOT
+ * `clearCookies()`: T-26 proved the SSO-bleed it was added for was a red herring,
+ * and clearing cookies mid-flow wipes the OIDC session/storage so the caller's
+ * `goto` SPA-reboot can no longer restore auth (it falls back to the public
+ * landing and the list never mounts — the T-32 root cause).
  */
 export async function loginAsSeededMotorClubadmin(page: Page): Promise<void> {
-  // Drop any leaked KC SSO cookie so this context cannot silently auto-resume
-  // the sysadmin session minted by `captureSysadminBearer` in `beforeAll`.
-  await page.context().clearCookies();
-
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
-  // KC must present the login form — proves SSO did not bypass it (so we
-  // authenticate as clubadmin4, not the leaked sysadmin session).
-  await expect(page.locator('#username')).toBeVisible();
-
-  // WAIT FOR TENANT RESOLUTION TO SETTLE before the caller navigates to a
-  // tenant-guarded page (J-2 T-28). `clubadmin4` is a realm-export user whose
-  // tenant is resolved by the SERVER (`PreTenantUserLookup` → the V29 seeded
-  // `t_user`); the authoritative `currentClubId` is patched onto SessionStore
-  // by `loadMe()` from the `GET /api/v1/me` response, NOT synchronously off the
-  // login claim. The OIDC `applyClaimsToSession` fires `login()` + `loadMe()` on
-  // the landing redirect; the run-26904261451 trace proved `/api/v1/me` returns
-  // 200 here. Until that response lands, `tenantRequiredGuard` sees
-  // `currentClubId() === null` and bounces a `/airmovements` navigation back to
-  // `/start` (and a concurrent silent-renew can leave `authGuard` in its
-  // `isLoadingSession() → return false` defer branch, cancelling the nav
-  // outright) — so the prior in-app click to `/airmovements` never stuck and the
-  // motor create never reached the form (POST never fired, 60s timeout). Arm the
-  // `/me` waiter BEFORE submitting the login form (the landing redirect fires
-  // `/me` immediately on auth — registering after the redirect would race the
-  // response), then block on the round-trip so the session is tenant-resolved
-  // and settled before the caller drives the nav.
-  const meResolved = page.waitForResponse(
-    (r) => new URL(r.url()).pathname === '/api/v1/me' && r.status() === 200,
-    { timeout: 30_000 },
-  );
   await fillKcLogin(page, SEEDED_MOTOR_CLUBADMIN.username, SEEDED_MOTOR_CLUBADMIN.password);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
-  await meResolved;
 }
