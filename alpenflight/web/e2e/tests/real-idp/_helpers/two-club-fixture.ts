@@ -227,6 +227,36 @@ async function provisionClubAdmin(
 }
 
 /**
+ * Provision an ADDITIONAL, freshly-named CLUB_ADMINISTRATOR for a club a caller
+ * already holds (typically the seeded club A). Use when two co-located tests in
+ * one serial describe must NOT share a single principal — the JIT-on-first-login
+ * materializer binds a `t_user` row per Keycloak sub keyed on `preferred_username`,
+ * and `ux_user_username_lower_alive` is a partial-unique over alive usernames: if
+ * a second principal would land on a username already taken by a live row (a
+ * sibling test's admin, or a retry's stale row), its JIT row can't insert and the
+ * race-recovery — which re-reads by SUB, not username — returns empty, leaving
+ * that principal permanently tenant-less. Every `@TenantId`-scoped read then
+ * misses its `club_id` and the page never loads (J-2 T-22: a motor-flight test
+ * sharing club A's admin hung 60s on a blank `/airmovements`). A per-test admin
+ * with its OWN nonce-tailed username sidesteps the contention.
+ *
+ * The returned admin's `kcUserId` is the caller's to dispose.
+ */
+export async function provisionExtraClubAdmin(
+  clubId: string,
+  label: string,
+  scope: string,
+): Promise<ClubAdmin> {
+  const nonce = randomUUID().replace(/-/g, '').slice(0, 8);
+  return provisionClubAdmin(clubId, label, scope, nonce);
+}
+
+/** Delete a Keycloak admin user minted by {@link provisionExtraClubAdmin}. */
+export async function disposeClubAdmin(admin: ClubAdmin): Promise<void> {
+  await deleteUser(admin.kcUserId, admin.user.email);
+}
+
+/**
  * Provision the two-club fixture. Club A reuses the Flyway seed; club B is
  * created live. Returns each club's CLUB_ADMINISTRATOR login handle plus a
  * `dispose()` that removes the KC admin users.

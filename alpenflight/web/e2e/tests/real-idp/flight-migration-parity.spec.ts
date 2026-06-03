@@ -9,8 +9,11 @@ import {
 
 import { selectAfOption } from '../_helpers/af-select';
 import {
+  disposeClubAdmin,
   loginAsClubAdmin,
+  provisionExtraClubAdmin,
   provisionTwoClubs,
+  type ClubAdmin,
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 import {
@@ -161,6 +164,18 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
   let masterdata: FlightMasterdata;
   /** The glider flight club A creates + manages; reused across CRUD + tenant cases. */
   let flightId: string;
+  /**
+   * A SECOND club-A admin dedicated to the motor /airmovements test. The
+   * motor test must NOT share `fixture.clubA` with the glider test: both JIT-
+   * materialize a `t_user` row keyed on their Keycloak sub, and a second
+   * principal landing on the same `preferred_username` collides on
+   * `ux_user_username_lower_alive` — the JIT race-recovery re-reads by sub (not
+   * username), returns empty, and the loser is left tenant-less so every
+   * @TenantId read misses its club_id (J-2 T-22: 60s hang on a blank
+   * /airmovements). A distinct nonce-tailed username for the motor admin keeps
+   * the two principals from contending for one username row.
+   */
+  let motorAdmin: ClubAdmin;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
@@ -168,6 +183,10 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     // disjoint from the J-0 ('loc') / J-1 ('acft') specs when several run in one
     // `playwright test` invocation — ux_user_username_lower_alive.
     fixture = await provisionTwoClubs(browser, baseURL, 'flt');
+    // Dedicated motor-test principal, bound to the SAME seeded club A (so it
+    // sees the masterdata seeded below) but with its own username — see the
+    // `motorAdmin` field doc.
+    motorAdmin = await provisionExtraClubAdmin(fixture.clubA.clubId, 'club-a-motor', 'flt');
 
     // The clean realm's club A has no aircraft / persons / locations /
     // flight-types — the wizard's dropdowns need real rows. Seed them through
@@ -184,6 +203,9 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
   });
 
   test.afterAll(async () => {
+    if (motorAdmin) {
+      await disposeClubAdmin(motorAdmin);
+    }
     await fixture?.dispose();
   });
 
@@ -263,12 +285,31 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      await loginAsClubAdmin(page, fixture.clubA);
+      // Use the DEDICATED motor admin (not fixture.clubA) — see `motorAdmin`.
+      // Sharing the glider test's principal made this principal lose the JIT
+      // username race and stay tenant-less, so /airmovements never loaded
+      // (J-2 T-22).
+      await loginAsClubAdmin(page, motorAdmin);
+
+      // The tenant-scoped list load (`GET /api/v1/flights`) must SUCCEED for
+      // this principal — if its JIT `t_user` row never materialised it would
+      // miss club_id and the list would hang blank. Gate on the 2xx so a
+      // tenant-resolution regression fails FAST here with a clear cause rather
+      // than a 60s timeout on the h1 below.
+      const listed = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === '/api/v1/flights' &&
+          r.request().method() === 'GET' &&
+          r.status() >= 200 &&
+          r.status() < 300,
+        { timeout: 15_000 },
+      );
 
       // /airmovements is the SAME shared list/form parameterized by the MOTOR
       // variant (S-064 — no legacy-style duplication); the tow step is suppressed
       // regardless of start-type, and the create stamps the MOTOR discriminator.
       await page.goto('/airmovements');
+      await listed;
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
