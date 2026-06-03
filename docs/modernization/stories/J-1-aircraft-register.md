@@ -339,6 +339,18 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   binding assertions in `MapperLegacyBindingsTest` that had encoded the wrong aliases (now assert the
   real column present + the bad `…Id` name absent). `./gradlew test` green (417, incl. synth round-trip
   ITs guarding the consumer/alias contract). No escalations — no real schema gap.
+- [x] **T-14 outcome (fanout dispatch 26867043363):** export now passes (T-16); **legacy aircraft video
+  CAPTURED** (step 20 success → `legacy-aircrafts-parity-J1.webm`, staged into the gallery step 38-39 +
+  artifact step 41; side-by-side delivered to operator). Job red only at step 37 — see T-17.
+- [ ] **T-17** — Fanout-revealed: T-14 co-located `aircraft-migration-parity.spec.ts` with J-0c's
+  `fan-out-migration-parity.spec.ts` in ONE playwright invocation so the gallery manifest pairs them —
+  but both ingest as the SAME migration principal `clubadmin1`, so the second ingest 409s
+  `DEPLOYMENT_EXISTS` (the exact latent collision T-15's e2e-driver flagged). Failed: J-0c's Location
+  real-bundle ingest. Fix the deployment isolation so co-located parity specs don't collide — **distinct
+  migration principal per parity spec** (or terminate the principal's active Deployment in teardown
+  between specs); keep both specs in one invocation (the manifest pairing needs it). Benefits J-0c + J-1
+  + every future real-bundle journey. *(seam: the two parity specs' principal/teardown + fixture)* —
+  e2e-driver; then re-dispatch fanout → fully green + gallery deploys (step 42).
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
