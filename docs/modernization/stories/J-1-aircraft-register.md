@@ -313,6 +313,19 @@ captured (the parity-aid half of the done bar). Two operator-chosen tasks:
   assertion triggered a Playwright retry whose re-ingest hit `DEPLOYMENT_EXISTS 409` — clean the
   deployment between attempts / make ingest idempotent so a flake doesn't cascade). *(seam:
   aircraft-migration-parity.spec.ts assertion + retry isolation)* — e2e-driver.
+- [ ] **T-16** — **Real-export-revealed (T-14 fanout dispatch, the high-value catch): the AIRCRAFT
+  producer SELECT references a column the real legacy MSSQL `Aircrafts` table doesn't have.** Live
+  `alpenflight-export` died: `Invalid column name 'AircraftTypeId'` (`LegacyJdbcReader.openEntityCursor`)
+  — T-04 wrote `AircraftTypeId AS AircraftType` but the real legacy column is `AircraftType` (oracle
+  migration-shape). The synth round-trip ITs (T-05) + synth real-idp bundle (T-07) build NDJSON in Java
+  with the aliased names, so they NEVER exercised the producer SELECT against the real schema — this is
+  the first real legacy read. Reconcile the **entire** AIRCRAFT (+ AIRCRAFT_AIRCRAFT_STATE,
+  AIRCRAFT_OPERATING_COUNTER) producer SELECT in `MapperLegacyBindings` against the authoritative legacy
+  schema (`flsserver` `Aircraft.cs` `[Column]` maps / `flsserver/database/FLSTest` DDL) — fix every
+  mismatched column, not just `AircraftTypeId` (the export aborts at the first). *(seam: MapperLegacyBindings
+  AIRCRAFT producer SELECT)* — then re-dispatch the fanout to validate export + capture the legacy video.
+  **Retro lesson:** only the real legacy export validates producer column names; synth bundles can't
+  ([[verify-infra-is-run-not-just-authored]]).
 
 Field-parity note: the **form is at parity** (0 real gaps; owner fields intentionally omitted). Stale AC
 wording reconciled at T-13 close (list AC will name the full legacy column set; the create-form AC's
