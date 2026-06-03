@@ -12,7 +12,7 @@ import {
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { patchState } from '@ngrx/signals';
 import { unprotected } from '@ngrx/signals/testing';
-import { Subject } from 'rxjs';
+import { Subject, isObservable } from 'rxjs';
 
 import { MUTATION_BUS, type MutationEvent } from '../mutation-bus/mutation-bus';
 import { authGuard } from './session.guard';
@@ -33,6 +33,24 @@ function runGuard(data: Record<string, unknown> = {}, url = '/protected') {
   const route = { data } as unknown as ActivatedRouteSnapshot;
   const state = { url } as RouterStateSnapshot;
   return runInInjectionContext(TestBed.inject(EnvironmentInjector), () => authGuard(route, state));
+}
+
+/**
+ * Subscribes to the guard's wait-for-settle observable, capturing every
+ * emission. `toObservable` bridges the signal via a root effect, so the
+ * emission only fires after `TestBed.tick()` flushes effects + CD — exactly
+ * the zoneless behavior the guard relies on (no zone timers).
+ */
+function collect(result: ReturnType<typeof authGuard>): { emissions: boolean[] } {
+  const emissions: boolean[] = [];
+  if (typeof result === 'boolean') {
+    emissions.push(result);
+    return { emissions };
+  }
+  if (isObservable(result)) {
+    result.subscribe((v) => emissions.push(v as boolean));
+  }
+  return { emissions };
 }
 
 describe('authGuard', () => {
@@ -66,25 +84,64 @@ describe('authGuard', () => {
     expect(runGuard({ publicAccess: true })).toBe(true);
   });
 
-  it('returns false (defer) when sessionStatus is idle', () => {
-    expect(runGuard({})).toBe(false);
+  it('returns a waiting observable (not a synchronous false) when sessionStatus is idle', () => {
+    const result = runGuard({});
+
+    // The pre-fix behavior returned `false` here, which CANCELS the
+    // navigation. Now it must defer via an observable until settle.
+    expect(isObservable(result)).toBe(true);
   });
 
-  it('returns false (defer) when sessionStatus is loading', () => {
+  it('returns a waiting observable when sessionStatus is loading', () => {
     const store = TestBed.inject(SessionStore);
     patchState(unprotected(store), { sessionStatus: 'loading' });
 
-    expect(runGuard({})).toBe(false);
+    expect(isObservable(runGuard({}))).toBe(true);
   });
 
-  it('returns true when authenticated and route is private', () => {
+  it('waits while loading then PASSES once the session settles authenticated', () => {
+    const store = TestBed.inject(SessionStore);
+    patchState(unprotected(store), { sessionStatus: 'loading' });
+
+    const { emissions } = collect(runGuard({}));
+
+    // Nothing emitted yet — the guard is parked on `isLoadingSession`.
+    TestBed.tick();
+    expect(emissions).toEqual([]);
+
+    // Session settles authenticated mid-flight (the token-renew window
+    // resolving). The guard must now resolve true, not have cancelled.
+    store.login(sampleUser, 'club-1');
+    TestBed.tick();
+
+    expect(emissions).toEqual([true]);
+    expect(authorizeCalls).toBe(0);
+  });
+
+  it('waits while loading then REDIRECTS once the session settles unauthenticated', () => {
+    const store = TestBed.inject(SessionStore);
+    patchState(unprotected(store), { sessionStatus: 'loading' });
+
+    const { emissions } = collect(runGuard({}));
+    TestBed.tick();
+    expect(emissions).toEqual([]);
+
+    // Settles with no principal → ADR 0007 hard-401: authorize() + emit false.
+    store.markUnauthenticated();
+    TestBed.tick();
+
+    expect(emissions).toEqual([false]);
+    expect(authorizeCalls).toBe(1);
+  });
+
+  it('returns true synchronously when already authenticated and route is private', () => {
     const store = TestBed.inject(SessionStore);
     store.login(sampleUser, 'club-1');
 
     expect(runGuard({})).toBe(true);
   });
 
-  it('triggers oidc.authorize() and returns false when unauthenticated on a private route', () => {
+  it('triggers oidc.authorize() and returns false synchronously when settled unauthenticated', () => {
     const store = TestBed.inject(SessionStore);
     patchState(unprotected(store), { sessionStatus: 'unauthenticated' });
 
