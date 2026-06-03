@@ -50,13 +50,16 @@ class MutationAuditEventListener {
     private final MutationAuditEventRepository repository;
     private final PiiRedactor redactor;
     private final JdbcTemplate jdbc;
+    private final ClubTenantIdentifierResolver tenantResolver;
 
     MutationAuditEventListener(MutationAuditEventRepository repository,
                                PiiRedactor redactor,
-                               JdbcTemplate jdbc) {
+                               JdbcTemplate jdbc,
+                               ClubTenantIdentifierResolver tenantResolver) {
         this.repository = repository;
         this.redactor = redactor;
         this.jdbc = jdbc;
+        this.tenantResolver = tenantResolver;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -84,13 +87,24 @@ class MutationAuditEventListener {
                 // and lets the FK's "NULL ⇒ no parent" rule apply naturally.
                 writeUnscopedRow(request);
             } else if (tenant == null || ClubTenantIdentifierResolver.NO_TENANT.equals(tenant)) {
-                // Authenticated principal but tenant context isn't populated
-                // (e.g. the synthetic-failure path running after the response
-                // is committed). Let Hibernate's resolver re-read the
-                // SecurityContext to fill the tenant — that captured the
-                // user's clubId at request time and is still on the thread.
-                MutationAuditEvent row = build(request);
-                repository.append(row);
+                // Authenticated principal but the captured operating tenant is
+                // empty (the synthetic-failure path runs after the response is
+                // committed; the success path's AFTER_COMMIT carries no carrier
+                // override). Re-resolve off the still-live SecurityContext to
+                // recover the user's clubId. A tenant-less authenticated
+                // principal — a SYSTEM_ADMINISTRATOR has NO clubId claim — yields
+                // NO_TENANT; that is the cross-tenant system event (e.g. club
+                // creation) V9 reserves the NULL tenant_club_id column for. Write
+                // the unscoped row directly: letting JPA persist the NO_TENANT
+                // nil-UUID would violate fk_mutation_audit_event_tenant_club_id
+                // (no nil-UUID t_club) and roll the row write back.
+                UUID resolved = tenantResolver.resolveCurrentTenantIdentifier();
+                if (resolved == null || ClubTenantIdentifierResolver.NO_TENANT.equals(resolved)) {
+                    writeUnscopedRow(request);
+                } else {
+                    MutationAuditEvent row = build(request);
+                    Tenants.runAs(resolved, () -> repository.append(row));
+                }
             } else {
                 // Force the resolver to see this exact tenant — guarantees
                 // the @TenantId column matches the captured operating

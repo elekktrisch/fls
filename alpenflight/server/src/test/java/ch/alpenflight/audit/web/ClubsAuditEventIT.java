@@ -86,6 +86,44 @@ class ClubsAuditEventIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void tenantless_sysadmin_post_emits_event_with_null_tenant_club_id() {
+        // A real SYSTEM_ADMINISTRATOR carries NO clubId claim (sysadmins lack a
+        // tenant context). Club creation is itself the cross-tenant system event
+        // V9 reserves the nullable tenant_club_id column for. The AFTER_COMMIT
+        // audit listener must store NULL — not the NO_TENANT nil-UUID, which has
+        // no t_club parent and would violate fk_mutation_audit_event_tenant_club_id
+        // (turning the 201 into a 500 in TransactionSynchronization.afterCompletion).
+        // Regression guard for J-2 T-17 (first-live real-idp gate).
+        String tenantlessSysadminToken = jwts.mint(c -> c
+                .claim("realm_access", Map.of("roles", List.of("SYSTEM_ADMINISTRATOR"))));
+
+        String slug = "audit-noclub-" + suffix();
+        ResponseEntity<String> res = rest.exchange(
+                RequestEntity.post(URI.create("/api/v1/clubs"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tenantlessSysadminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(createPayload("NoClubSysadminClub", slug, "NCS" + shortSuffix())),
+                String.class);
+        assertThat(res.getStatusCode())
+                .as("a tenant-less sysadmin club-create must not 500 on the audit FK")
+                .isEqualTo(HttpStatus.CREATED);
+        UUID createdId = ClubId.parse(readJson(res).get("id").asText()).value();
+
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT * FROM t_mutation_audit_event "
+                        + "WHERE target_entity_id = ?::uuid AND tenant_club_id IS NULL",
+                createdId.toString());
+        assertThat(rows)
+                .as("the cross-tenant club-create audit row lands with NULL tenant_club_id")
+                .hasSize(1);
+        Map<String, Object> row = rows.get(0);
+        assertThat(row.get("action")).isEqualTo("CREATE");
+        assertThat(row.get("target_entity_type")).isEqualTo("Club");
+        assertThat(row.get("failed")).as("row=%s", row).isEqualTo(false);
+        assertThat(row.get("tenant_club_id")).as("system-event tenant is NULL").isNull();
+    }
+
+    @Test
     void successful_put_emits_event_with_before_and_after_state() {
         String slug = "audit-put-" + suffix();
         ResponseEntity<String> created = post("/api/v1/clubs",
