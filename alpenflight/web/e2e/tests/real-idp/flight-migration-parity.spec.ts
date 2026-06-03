@@ -271,15 +271,28 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // visible. Mirrors the green migration principal `clubadmin3`.
       await loginAsSeededMotorClubadmin(page);
 
-      // List renders. S-064: /airmovements is the SAME shared list/form
-      // parameterized by the MOTOR variant (tow step suppressed, create stamps
-      // the MOTOR discriminator). Reach it via `goto` — the proven pattern of
-      // the green glider (`goto('/flights')`) and migrated tests: the SPA reboot
-      // re-runs auth-init and the seeded session restores before the
-      // tenant-guarded route resolves.
+      // T-33 ISOLATION (temporary — revert to /airmovements once the trace
+      // disambiguates). The principal (clubadmin4, V29 + realm user ...004) is
+      // field-for-field identical to the GREEN migration principal clubadmin3
+      // (V28 + realm user, emailVerified/enabled/requiredActions/credential/
+      // realmRoles/clubId all equal; t_user keycloak_sub matches the realm id).
+      // The /airmovements route file, its app.routes registration, its
+      // tenantRequiredGuard, the OIDC config, and the dev-server SPA fallback
+      // are ALL identical to /flights. No self-evident divergence in EITHER
+      // variable from code alone — so run the operator's one-line isolation:
+      // clubadmin4 + goto('/flights'). Interpret the trace:
+      //   (a) clubadmin4 renders /flights  → the /airmovements ROUTE is the
+      //       culprit (session restores for /flights but not /airmovements).
+      //   (b) clubadmin4 ALSO lands on sign-in → the clubadmin4 PRINCIPAL is
+      //       the culprit (a runtime auth/session-restore divergence the static
+      //       realm/seed comparison didn't surface).
+      await page.goto('/flights');
+      await expect(page.getByTestId('flights-table')).toBeVisible();
+      /* ORIGINAL (green-path) target — restore after the isolation run:
       await page.goto('/airmovements');
       await expect(page.locator('h1')).toHaveText('Air movements');
       await expect(page.getByTestId('flights-table')).toBeVisible();
+      */
 
       // Create form (matches `goto('/flights/new')` in `createGliderFlightAerotow`).
       await page.goto('/airmovements/new');
