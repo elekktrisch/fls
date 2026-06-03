@@ -35,14 +35,22 @@ green at the gate).
 
 ## The done bar — a real, honest green
 
-A journey is done only when its Playwright spec drives the **real UI** end to
-end and passes — first on a clean seed, then on real legacy data migrated into
-AlpenFlight (Postgres + Keycloak). The pass-video is the acceptance artifact.
+A journey is done only when its Playwright spec drives the **real UI** end to end and
+passes — clean seed first, then real legacy data migrated into AlpenFlight (Postgres +
+Keycloak). Two extra done-bar requirements (J-1):
 
-**Red is the work-list, not a wall.** Never done while red; the green bar is
-self-imposed and absolute. **A journey never merges red.** Synthetic / mocked-seam
-green is an inner-loop aid, **never** progress toward done — only the real-chain green
-counts (J-0c: synthetic ITs were green while three real-data fidelity bugs hid).
+- **Migration journeys** (any carrying a mapper) need a **green real-legacy-export
+  (fanout) run**, not just the synth chain — synth bundles use aliased column names and
+  never exercise the producer SELECT against the real legacy schema (J-1: two producer-
+  column bugs hid behind a green synth proof; only the real export caught them).
+  [[project_synth_bundle_doesnt_validate_producer_select]].
+- **Legacy-replacing screens** produce paired legacy↔AlpenFlight **list+form screenshots
+  + the legacy video** in the gallery, with the link auto-posted on the PR — part of done,
+  not a post-hoc add (J-1: 3 reopens for exactly this). `e2e-driver` owns the capture.
+
+**Red is the work-list, not a wall.** Never done while red; the bar is self-imposed and
+absolute. **A journey never merges red.** Synthetic / mocked-seam green is an inner-loop
+aid, **never** progress toward done — only the real-chain green counts.
 
 ## Procedure
 
@@ -89,10 +97,8 @@ Each `T-NN` should pass all of:
 - **Self-naming** — the scope line names the files (or ≤2 globs find them). If
   finding them needs exploration, carve finer.
 
-A layer with N aggregates/components becomes **N tasks**, not one. This gate is a
-heuristic the manager checks from the scope line; the `/do-task` overflow tripwire
-is the authoritative backstop. When unsure, split — a worker that finishes early is
-free; a worker that overflows costs a full re-plan. Err toward more, smaller tasks.
+A layer with N aggregates/components becomes **N tasks**, not one. The `/do-task` overflow
+tripwire is the backstop; when unsure split — early-finish is free, overflow costs a re-plan.
 
 This list is your only durable state — workers and re-runs read it.
 
@@ -127,16 +133,11 @@ overlap with an already-roadmapped journey** stays that journey's (note it for
 
 ### 3a — Autonomous re-plan on overflow
 
-A worker returns `status: overflow` with an `OVERFLOW:` note (naming the distinct
-seams it found) when its task was too big — fired *before its first commit*, so no
-partial work is on the branch. When it does — or when you spot a task that fails the
-sizing gate — **re-plan without the operator** (once):
-
-1. Read the worker's `OVERFLOW:` note (it names the seams).
-2. Mark the task `~~T-NN~~ (split)`, insert lettered sub-tasks `T-NNa, T-NNb, …` after
-   it (one seam each, dependency order); **re-run the sizing gate on each** before
-   accepting — carve finer if a proposed slice is itself too big.
-3. Re-dispatch a fresh worker for `T-NNa`; continue the loop.
+A worker returns `status: overflow` + an `OVERFLOW:` note naming the distinct seams —
+fired *before its first commit*, so no partial work is on the branch. When it does (or you
+spot a task failing the sizing gate), **re-plan without the operator** (once): mark the task
+`~~T-NN~~ (split)`, insert lettered sub-tasks `T-NNa, T-NNb, …` (one seam each, dependency
+order; **re-run the sizing gate on each**, carve finer if still too big), re-dispatch `T-NNa`.
 
 **Loop guard.** Only an un-lettered `T-NN` auto-splits; if a *lettered* `T-NNa`
 overflows, **stop and escalate** (shape is wrong → likely `/do-plan` re-carve). Never
@@ -144,22 +145,21 @@ re-dispatch the same id unchanged.
 
 ### 4 — Proof-chain gate
 
-When every task is ticked, run the gate (delegate to `e2e-driver`): the full
-chain — legacy seed → migrate → Keycloak → real Playwright — both fidelities
-green, **video retained on pass**. With a legacy counterpart, `e2e-driver` also
-captures a **legacy `flsweb` video** on the seeded data — a parity-review aid, not
-pass/fail (AlpenFlight green is the gate); greenfield ships the AlpenFlight video
-alone. On the PR: **two parallel CI jobs** — `alpenflight-proof` (required) +
-`parity-legacy-video` (non-blocking); `e2e-driver` owns the workflow. For
-**Journey-0** the gate work *is* the tasks: stand up the thinnest whole chain.
+When every task is ticked, `e2e-driver` runs the gate: the full chain — legacy seed →
+migrate → Keycloak → real Playwright — both fidelities green, **video retained on pass**.
+It also produces the done-bar demonstrability (above): the legacy `flsweb` video + paired
+legacy↔AlpenFlight list/form screenshots in the gallery + the **auto-posted PR gallery
+link** (legacy-replacing screens; greenfield is AlpenFlight-only), and — for a **migration
+journey** — a **green real-export `fanout` run** (not just synth). CI: `alpenflight-proof`
+(required, synth/clean-seed) + the `fanout` real-export run. For **Journey-0** the gate
+work *is* the tasks: stand up the thinnest whole chain.
 
-**Mock governance.** Happy + key-error cases run fully real — no mocking. Any
-mocked seam (edge/error only) carries an inline `@mocked: <seam> — <reason>` tag
-+ a PR **"Mocked seams"** list; ask the operator for **one signoff** at the
-gate. Spawn `gap-hunter` ×2-3 against `git diff <base>...HEAD` + the spec + the
-Mocked-seams list. Undeclared mocks, stubs, un-wired layers, tenancy leaks →
-**chain is red**. Red gate cases become **new tasks** (append to the checklist);
-return to step 3. Honor the ≥5-min wallclock budget — surface sharding /
+**Mock governance.** Happy + key-error run fully real — no mocking. Any mocked seam
+(edge/error only) carries an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked
+seams"** list; **one operator signoff** at the gate. Spawn `gap-hunter` ×2-3 against `git
+diff <base>...HEAD` + the spec + the Mocked-seams list. Undeclared mocks, stubs, un-wired
+layers, tenancy leaks → **chain is red**. Red gate cases become **new tasks** (append to
+the checklist); return to step 3. Honor the wallclock budget — surface sharding /
 snapshot-reuse rather than silently re-running.
 
 ### 5 — Document + green PR
