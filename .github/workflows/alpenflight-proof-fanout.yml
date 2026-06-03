@@ -614,6 +614,48 @@ jobs:
             echo "No legacy .webm found under /tmp/fls-e2e-results — gallery renders AlpenFlight side only."
           fi
 
+          # ----- J-1 T-19/T-20 — parity SCREENSHOTS (legacy + AlpenFlight) -----
+          # Four fixed-name PNGs the two specs wrote with fullPage screenshots:
+          #   legacy   list/form → testInfo.outputPath under /tmp/fls-e2e-results
+          #   AlpenFlight list/form → testInfo.outputDir under
+          #                           alpenflight/web/test-results
+          # Stage them into SHOT (the --screenshots dir) under their stable names
+          # + write screenshots.json declaring journey/side/view/caption so the
+          # generator pairs legacy↔AlpenFlight per view (T-20). A missing PNG is a
+          # no-op for THAT entry (we only declare the ones we found) — but a
+          # DECLARED-yet-missing PNG fails the generator's AC5 link-check, so we
+          # declare strictly what we copied.
+          SHOT="${{ github.workspace }}/j1-screenshots"
+          mkdir -p "$SHOT"
+          SHOTS=""
+          add_shot() { # $1 src-glob  $2 stable-name  $3 journey  $4 side  $5 view  $6 caption
+            local src; src="$(find $1 -name "$2" 2>/dev/null | head -1 || true)"
+            if [ -n "$src" ]; then
+              cp "$src" "$SHOT/$2"
+              SHOTS="$SHOTS{\"journey\":\"$3\",\"side\":\"$4\",\"view\":\"$5\",\"file\":\"$2\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$6")},"
+            else
+              echo "screenshot $2 not found (glob $1) — skipping that entry."
+            fi
+          }
+          add_shot "/tmp/fls-e2e-results" "legacy-aircraft-list.png" "J-1" "legacy" "list" \
+            "Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) — the legacy list columns to eyeball against AlpenFlight's /aircraft list"
+          add_shot "/tmp/fls-e2e-results" "legacy-aircraft-form.png" "J-1" "legacy" "form" \
+            "Legacy flsweb: one aircraft's edit form, the full field set (immatriculation, competition sign, type, manufacturer, model, seats, homebase, …)"
+          add_shot "alpenflight/web/test-results" "alpenflight-aircraft-list.png" "J-1" "alpenflight" "list" \
+            "AlpenFlight: the /aircraft list (immatriculation + competition sign + type + manufacturer + model + seats — full legacy column parity, T-13)"
+          add_shot "alpenflight/web/test-results" "alpenflight-aircraft-form.png" "J-1" "alpenflight" "form" \
+            "AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy"
+
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged parity screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No parity PNGs found — gallery renders videos only."
+          fi
+
       - name: Build + link-check proof gallery (legacy + AlpenFlight, J-0c)
         id: gallery
         if: always()
@@ -624,6 +666,14 @@ jobs:
           if [ -f "$STAGE/legacy-video.json" ]; then
             LEGACY_ARG="--legacy-video $STAGE"
           fi
+          # J-1 T-20 — parity screenshots: feed the staged screenshots.json dir so
+          # the generator renders the legacy↔AlpenFlight paired <img> block (+ its
+          # AC5 link-check: a declared PNG missing from $SHOT fails this step).
+          SHOT="${{ github.workspace }}/j1-screenshots"
+          SHOT_ARG=""
+          if [ -f "$SHOT/screenshots.json" ]; then
+            SHOT_ARG="--screenshots $SHOT"
+          fi
           # --no-nav: this is the LEAF (per-run) fan-out gallery, deployed to a
           # namespaced subpath; the "per-run galleries" nav belongs only on the
           # canonical index (T-24), not on the gallery the nav points AT.
@@ -632,7 +682,8 @@ jobs:
             --out ../../public/alpenflight/proof \
             --order ../../docs/modernization/stories/_ORDER.md \
             --no-nav \
-            $LEGACY_ARG
+            $LEGACY_ARG \
+            $SHOT_ARG
 
       - name: Collect logs on failure
         if: failure()

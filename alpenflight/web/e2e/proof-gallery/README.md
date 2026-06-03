@@ -107,6 +107,41 @@ legacy video that run). `pnpm proof:gallery` defaults `--legacy-video` to
 `.webm` + writes the sidecar (with the run's random Location name) before invoking
 the generator.
 
+## Parity screenshots (J-1+) — the declared sidecar source
+
+Field-by-field parity is easier to eyeball as **still images** than scrubbing two
+videos. So the generator takes a third, optional source: a `screenshots.json`
+**sidecar** in a `--screenshots <dir>` directory, declaring legacy + AlpenFlight
+PNGs keyed to a journey + `side` + `view` so the generator can PAIR them:
+
+```jsonc
+{
+  "screenshots": [
+    {
+      "journey": "J-1",                          // groups under the journey section
+      "side": "legacy",                          // legacy | alpenflight
+      "view": "list",                            // the pairing key (list | form | …)
+      "file": "legacy-aircraft-list.png",        // relative to the sidecar dir; must exist (AC5)
+      "caption": "Legacy flsweb: the aircraft list"  // REQUIRED (AC5)
+    },
+    { "journey": "J-1", "side": "alpenflight", "view": "list",
+      "file": "alpenflight-aircraft-list.png", "caption": "AlpenFlight: the /aircraft list" }
+    // … legacy/alpenflight × list/form = 4 entries for J-1
+  ]
+}
+```
+
+Per journey, a **parity-screenshots block** renders one row per `view`; within a
+row the `legacy` `<img>` is forced LEFT, the `alpenflight` `<img>` RIGHT (the same
+left-to-right framing as the videos). Each `<img>` links to the full-size PNG.
+Same AC5 link-check: a missing caption or a `.png` not on disk fails the generator
+non-zero. A missing dir / sidecar is a silent no-op. `pnpm proof:gallery` defaults
+`--screenshots` to `fixtures/screenshots/`; the fan-out workflow stages the four
+fullPage PNGs the parity specs capture (legacy `aircrafts-parity-J1.spec.ts` +
+AlpenFlight `aircraft-migration-parity.spec.ts`) and writes the sidecar before
+invoking the generator. The PNGs are diagnostic captures, NOT visual-regression —
+the specs' data-testid assertions stay the real check (CLAUDE.md §8).
+
 ## Roadmap / pending rows
 
 The set of journeys the gallery iterates = the roadmap IDs in

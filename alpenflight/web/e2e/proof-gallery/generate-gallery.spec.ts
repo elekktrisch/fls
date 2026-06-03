@@ -26,8 +26,10 @@ async function loadGenerator(): Promise<{
     reportPath: string;
     outDir: string;
     orderPath?: string;
+    legacyVideoDir?: string;
+    screenshotsDir?: string;
     renderNav?: boolean;
-  }) => { roadmap: string[]; proofs: { journey: string }[] };
+  }) => { html: string; roadmap: string[]; proofs: { journey: string }[]; shots: unknown[] };
 }> {
   return import(pathToFileURL(GENERATOR).href);
 }
@@ -115,5 +117,160 @@ describe('generateGallery — shipped journeys render in roadmap order', () => {
 
     expect(roadmap[0]).toBe('J-0');
     expect(roadmap).toEqual(['J-0', 'J-0b', 'J-0c', 'J-1', 'J-2', 'J-24', 'J-25']);
+  });
+});
+
+/**
+ * T-20 guard — the legacy↔AlpenFlight parity SCREENSHOT block. Locks:
+ *   (a) a declared screenshot renders an <img>;
+ *   (b) legacy + alpenflight pair under the same journey/view;
+ *   (c) a declared PNG missing on disk fails the AC5 link-check (same bar as
+ *       a missing video).
+ *
+ * Pure JS tooling: a synthetic screenshots.json sidecar + 1×1 PNG bytes on disk.
+ * No browser, no report proofs needed (an empty `{ suites: [] }` report is a
+ * valid no-proof manifest).
+ */
+// Smallest valid PNG (1×1 transparent) — enough for existsSync + copyFileSync.
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64',
+);
+
+/** Stand up a sidecar dir with a screenshots.json + the named PNGs on disk. */
+function makeShotDir(
+  base: string,
+  decls: { journey: string; side: string; view: string; file: string; caption: string }[],
+  opts: { writeFiles?: string[] } = {},
+): string {
+  const dir = mkdtempSync(resolve(base, 'shots-'));
+  const toWrite = opts.writeFiles ?? decls.map((d) => d.file);
+  for (const f of toWrite) writeFileSync(resolve(dir, f), PNG_1X1);
+  writeFileSync(resolve(dir, 'screenshots.json'), JSON.stringify({ screenshots: decls }), 'utf8');
+  return dir;
+}
+
+function emptyReport(dir: string): string {
+  const p = resolve(dir, 'report.json');
+  writeFileSync(p, JSON.stringify({ suites: [] }), 'utf8');
+  return p;
+}
+
+describe('generateGallery — parity screenshots (T-20)', () => {
+  const J1_SHOTS = [
+    {
+      journey: 'J-1',
+      side: 'legacy',
+      view: 'list',
+      file: 'legacy-aircraft-list.png',
+      caption: 'Legacy flsweb: aircraft list',
+    },
+    {
+      journey: 'J-1',
+      side: 'alpenflight',
+      view: 'list',
+      file: 'alpenflight-aircraft-list.png',
+      caption: 'AlpenFlight: aircraft list',
+    },
+    {
+      journey: 'J-1',
+      side: 'legacy',
+      view: 'form',
+      file: 'legacy-aircraft-form.png',
+      caption: 'Legacy flsweb: aircraft form',
+    },
+    {
+      journey: 'J-1',
+      side: 'alpenflight',
+      view: 'form',
+      file: 'alpenflight-aircraft-form.png',
+      caption: 'AlpenFlight: aircraft form',
+    },
+  ];
+
+  it('(a) renders an <img> per declared screenshot', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-shots-'));
+    const screenshotsDir = makeShotDir(dir, J1_SHOTS);
+
+    const { html, shots } = generateGallery({
+      reportPath: emptyReport(dir),
+      outDir: resolve(dir, 'out'),
+      screenshotsDir,
+      renderNav: false,
+    });
+
+    expect(shots).toHaveLength(4);
+    // One <img> per declared screenshot, src rewritten under screenshots/.
+    for (const s of J1_SHOTS) {
+      expect(html).toContain(`screenshots/${s.file}`);
+    }
+    expect((html.match(/<img /g) ?? []).length).toBe(4);
+    expect(html).toContain('parity-screenshots');
+  });
+
+  it('(b) pairs legacy + alpenflight under the same journey/view (legacy left)', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-shots-'));
+    const screenshotsDir = makeShotDir(dir, J1_SHOTS);
+
+    const { html } = generateGallery({
+      reportPath: emptyReport(dir),
+      outDir: resolve(dir, 'out'),
+      screenshotsDir,
+      renderNav: false,
+    });
+
+    // Each view groups both sides into one shot-grid; within a grid legacy's
+    // <img> precedes alpenflight's (legacy-left parity framing).
+    for (const view of ['list', 'form']) {
+      const legacyIdx = html.indexOf(`screenshots/legacy-aircraft-${view}.png`);
+      const alpfIdx = html.indexOf(`screenshots/alpenflight-aircraft-${view}.png`);
+      expect(legacyIdx, `legacy ${view} present`).toBeGreaterThan(-1);
+      expect(alpfIdx, `alpenflight ${view} present`).toBeGreaterThan(-1);
+      expect(legacyIdx, `legacy ${view} renders left of alpenflight`).toBeLessThan(alpfIdx);
+    }
+    // The view label renders for each pairing key.
+    expect(html).toContain('>list</div>');
+    expect(html).toContain('>form</div>');
+  });
+
+  it('(c) a declared PNG missing on disk fails the AC5 link-check', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-shots-'));
+    // Declare all 4 but only write 3 — the legacy form PNG is absent.
+    const screenshotsDir = makeShotDir(dir, J1_SHOTS, {
+      writeFiles: [
+        'legacy-aircraft-list.png',
+        'alpenflight-aircraft-list.png',
+        'alpenflight-aircraft-form.png',
+      ],
+    });
+
+    expect(() =>
+      generateGallery({
+        reportPath: emptyReport(dir),
+        outDir: resolve(dir, 'out'),
+        screenshotsDir,
+        renderNav: false,
+      }),
+    ).toThrow(/legacy-aircraft-form\.png/);
+  });
+
+  it('(c2) a declared screenshot with no caption fails the AC5 link-check', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-shots-'));
+    const screenshotsDir = makeShotDir(dir, [
+      { journey: 'J-1', side: 'legacy', view: 'list', file: 'legacy-aircraft-list.png', caption: '' },
+    ]);
+
+    expect(() =>
+      generateGallery({
+        reportPath: emptyReport(dir),
+        outDir: resolve(dir, 'out'),
+        screenshotsDir,
+        renderNav: false,
+      }),
+    ).toThrow(/no caption/);
   });
 });

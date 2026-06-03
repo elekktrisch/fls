@@ -378,16 +378,42 @@ Operator: add **still screenshots** (legacy + AlpenFlight, **list + form**) for 
 eyeballing, rendered in the proof gallery; and **deliver proof via a gallery link, not chat dumps**
 ([[feedback_proof_in_gallery_not_chat]]).
 
-- [ ] **T-19** — Capture parity screenshots: in the legacy `e2e/tests/masterdata/aircrafts-parity-J1.spec.ts`
+- [x] **T-19** — Capture parity screenshots: in the legacy `e2e/tests/masterdata/aircrafts-parity-J1.spec.ts`
   (fanout, legacy flsweb) snap **list** + **form** PNGs; in the AlpenFlight aircraft spec that runs in the
   fanout snap **list** + **form** PNGs. Stable names (e.g. `legacy-aircraft-list.png`,
   `legacy-aircraft-form.png`, `alpenflight-aircraft-list.png`, `alpenflight-aircraft-form.png`). Declare
   them to the gallery via a sidecar mirroring the `legacy-video.json` mechanism. *(seam: the two specs'
   screenshot capture + sidecar)* — e2e-driver.
-- [ ] **T-20** — Gallery generator (`generate-gallery.mjs`) renders a **paired screenshot** block per
+  **DONE (authored + structurally validated; Alpine/musl box can't launch the legacy stack or browsers —
+  FIRST LIVE CAPTURE is the fanout dispatch).** Four `page.screenshot({fullPage:true})` capture points:
+  legacy spec writes `legacy-aircraft-list.png` (after the seeded list renders) + `legacy-aircraft-form.png`
+  (after the edit form's field set is scrolled into view) via `testInfo.outputPath(...)` so they land under
+  the legacy `outputDir` `/tmp/fls-e2e-results/<spec…>/` next to the `.webm`; AlpenFlight spec writes
+  `alpenflight-aircraft-list.png` (clean-seed list visible) + `alpenflight-aircraft-form.png` (populated edit
+  form, pre-mutation) to `testInfo.outputDir` under `alpenflight/web/test-results/`. All four are FIXED-name,
+  distinct from §8's diagnostic `screenshot()`/`screenshots/` PNGs; data-testid asserts stay the real check
+  (no `toHaveScreenshot`). Sidecar `screenshots.json` mirrors `legacy-video.json`: each entry carries
+  `journey` (J-1) · `side` (legacy|alpenflight) · `view` (list|form) · `file` · `caption` — `side`+`view`
+  are the pairing keys. *(seam honored: one — the two specs' capture + the sidecar.)*
+- [x] **T-20** — Gallery generator (`generate-gallery.mjs`) renders a **paired screenshot** block per
   journey (legacy ↔ AlpenFlight, list + form, as `<img>`), alongside the videos; fanout staging step copies
   the PNGs into `public/alpenflight/proof/` + feeds the generator. Guard test for the screenshot pairing.
   *(seam: generate-gallery.mjs screenshot rendering + fanout staging)* — e2e-driver.
+  **DONE.** Generator: new `extractScreenshots(dir)` (mirrors `extractLegacyVideos`) reads `screenshots.json`
+  via a `--screenshots <dir>` flag; `renderScreenshots(shots)` groups by `view` and renders legacy-LEFT /
+  AlpenFlight-RIGHT `<img>` figures (each linking the full-size PNG) in a `.parity-screenshots` block under
+  the journey, ALONGSIDE the existing video section (additive — video rendering + ✅-ordering + AC4 unchanged);
+  PNGs are copied into `out/screenshots/` for self-containment; the AC4/AC5 link-check now also fails non-zero
+  on a declared-but-missing PNG or a captionless screenshot (same bar as videos). Fanout: the "Stage legacy
+  parity videos + caption sidecar" step now also `find`s the 4 fixed-name PNGs (legacy under
+  `/tmp/fls-e2e-results`, AlpenFlight under `alpenflight/web/test-results`), copies them into the `--screenshots`
+  stage dir, and writes `screenshots.json` declaring ONLY the PNGs it copied (strict, so AC5 can't false-red);
+  the generator step feeds `--screenshots $SHOT`. Guard (`generate-gallery.spec.ts`, +4 cases, 10 total green):
+  (a) a declared screenshot renders an `<img>` (4 imgs, src under `screenshots/`); (b) legacy+alpenflight pair
+  under the same journey/view with legacy left; (c) a missing PNG fails the link-check; (c2) a captionless
+  screenshot fails it. Committed `fixtures/screenshots/` (sidecar + 4 dummy 1×1 PNGs) so `pnpm proof:gallery`
+  default-dir works. README "Parity screenshots (J-1+)" section added. *(seam honored: one — generator
+  rendering + fanout staging.)*
 - [ ] **T-21** — Make the fanout gallery reachable via a **link pre-merge**: deploy it to a branch-namespaced
   preview on `workflow_dispatch` (mirror J-25's per-branch proof-preview), since today the fanout gh-pages
   deploy is `github.ref == main`-gated (artifact-only on a branch). So a clickable proof-gallery URL exists

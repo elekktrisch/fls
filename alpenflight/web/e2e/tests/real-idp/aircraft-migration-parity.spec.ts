@@ -154,6 +154,18 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await expect(page.locator('h1')).toHaveText('Aircraft');
       await expect(page.getByTestId('aircraft-table')).toBeVisible();
 
+      // J-1 T-19 — STABLE parity screenshot (side=alpenflight view=list),
+      // declared in screenshots.json + staged into the gallery by the fanout.
+      // fullPage diagnostic PNG (CLAUDE.md §8: no toHaveScreenshot — the
+      // data-testid asserts above stay the real check). Fixed basename in this
+      // test's outputDir, alongside the recorded .webm, so the fanout's staging
+      // `find` picks it by name. NOT the per-state screenshots/ PNGs §8 also
+      // writes — those are diagnostic, these are gallery-declared.
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-aircraft-list.png`,
+        fullPage: true,
+      });
+
       // Create via the form → appears in the list.
       aircraftImmat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
       aircraftId = await createAircraftViaUi(page, aircraftImmat);
@@ -199,6 +211,16 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await page.goto(`/aircraft/${aircraftId}/edit`);
       await expect(page.getByTestId('aircraft-edit-form')).toBeVisible();
       await expect(page.locator('#Immatriculation')).toHaveValue(aircraftImmat);
+
+      // J-1 T-19 — STABLE parity screenshot (side=alpenflight view=form),
+      // snapped while the populated edit form is on screen (before the edit
+      // mutation) so it pairs against legacy-aircraft-form.png field-by-field.
+      // fullPage diagnostic PNG; same fixed-name + outputDir contract as list.
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-aircraft-form.png`,
+        fullPage: true,
+      });
+
       await page.locator('#Comment').fill('edited by J-1 e2e');
       await page.getByTestId('aircraft-save-button').locator('button').click();
       await updated;

@@ -111,6 +111,14 @@ test('J-1 parity: legacy aircraft list + form field set (parity video)', async (
     await expect(firstImmat).not.toBeEmpty();
     await screenshot(page, 'aircrafts-parity-J1-01-legacy-list');
 
+    // J-1 T-19 — STABLE parity screenshot the fanout stages into the gallery
+    // (declared in screenshots.json, side=legacy view=list). Written to this
+    // test's output dir (under outputDir /tmp/fls-e2e-results/<spec-…>/) with a
+    // FIXED basename so the staging step finds it by name the same way it finds
+    // the .webm — distinct from the diagnostic `screenshot()` PNGs above (those
+    // land under e2e/screenshots/<category>/ and are NOT gallery-declared).
+    await page.screenshot({ path: testInfo.outputPath('legacy-aircraft-list.png'), fullPage: true });
+
     // Pick a REAL seeded AircraftId to open (read-only; the cheaper listitems
     // endpoint that aircrafts-crud.spec.ts uses, no paged-search 500 under
     // load). This drives WHICH form to open — it never mutates.
@@ -139,6 +147,12 @@ test('J-1 parity: legacy aircraft list + form field set (parity video)', async (
     await comment.scrollIntoViewIfNeeded();
     await comment.waitFor({ state: 'visible', timeout: 15_000 });
     await screenshot(page, 'aircrafts-parity-J1-03-legacy-form-fields');
+
+    // J-1 T-19 — STABLE parity screenshot (side=legacy view=form). fullPage so
+    // the WHOLE legacy aircraft field set (immatriculation → comment) is one
+    // image the operator eyeballs against AlpenFlight's form. Same fixed-name +
+    // output-dir contract as the list screenshot above.
+    await page.screenshot({ path: testInfo.outputPath('legacy-aircraft-form.png'), fullPage: true });
   } finally {
     await ctx.close();
   }
