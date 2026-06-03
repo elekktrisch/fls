@@ -51,6 +51,11 @@ const fr: Translations = {
     title: 'Aéronefs',
   },
   flight: {
+    airmovements: {
+      nav: 'Mouvements moteur',
+      newFlight: 'Nouveau mouvement moteur',
+      title: 'Mouvements moteur',
+    },
     conflict: {
       cancel: 'Continuer la modification',
       empty: '(vide)',

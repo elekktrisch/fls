@@ -54,6 +54,13 @@ export const routes: Routes = [
     loadChildren: () => import('@features/flights/flights.routes').then((m) => m.FLIGHTS_ROUTES),
   },
   {
+    // Motor "air movements" — same flights feature, MOTOR-filtered variant
+    // (S-064). One parameterized list/form, two routes.
+    path: 'airmovements',
+    loadChildren: () =>
+      import('@features/flights/airmovements.routes').then((m) => m.AIRMOVEMENTS_ROUTES),
+  },
+  {
     path: 'flight-types',
     loadChildren: () =>
       import('@features/flight-types/flight-types.routes').then((m) => m.FLIGHT_TYPES_ROUTES),

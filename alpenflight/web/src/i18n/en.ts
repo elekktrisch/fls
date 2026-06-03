@@ -49,6 +49,11 @@ const en: Translations = {
     title: 'Aircraft',
   },
   flight: {
+    airmovements: {
+      nav: 'Air movements',
+      newFlight: 'New air movement',
+      title: 'Air movements',
+    },
     conflict: {
       cancel: 'Keep editing',
       empty: '(empty)',

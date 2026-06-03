@@ -37,6 +37,7 @@ import { AfStickyBarComponent } from '@ui/molecules/af-sticky-bar';
 import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import { FlightStore } from '../flight.store';
+import { resolveFlightVariant, variantNeedsTow, type FlightVariantData } from '../flight-variant';
 
 import {
   CONFLICT_FIELD_TO_GLIDER_CONTROL,
@@ -54,12 +55,7 @@ import {
   buildDefaultsForNew,
 } from './flight-form.defaults';
 import { FlightFormCoordinator, type CoordinatorMetadata } from './flight-form.coordinator';
-import {
-  buildFlightForm,
-  needsTowplane,
-  type FlightForm,
-  type FlightFormSnapshot,
-} from './flight-form.model';
+import { buildFlightForm, type FlightForm, type FlightFormSnapshot } from './flight-form.model';
 import { FlightPrefsService } from './flight-prefs.service';
 import { START_TYPE_OPTIONS } from './flight-start-types';
 
@@ -414,20 +410,31 @@ export class FlightsEditPage {
   protected readonly reloadConflict = computed(() => this.store.hasReloadConflict());
 
   protected readonly title = computed(() => {
+    const noun = this.variant().id === 'motor' ? 'air movement' : 'flight';
     switch (this.mode()) {
       case 'new':
-        return 'New flight';
+        return `New ${noun}`;
       case 'copy':
-        return 'Copy flight';
+        return `Copy ${noun}`;
       case 'edit':
       default:
-        return 'Edit flight';
+        return `Edit ${noun}`;
     }
   });
 
+  // `/flights` (default) vs `/airmovements` (motor) — same wizard, the route
+  // `data.flightVariant` carries the difference (S-064).
+  protected readonly variant = computed(() =>
+    resolveFlightVariant(this.route.snapshot.data as FlightVariantData),
+  );
+
   // Live signal of startTypeId so needsTow() responds to form changes.
   private readonly startTypeSignal = signal<string | null>(null);
-  protected readonly needsTow = computed(() => needsTowplane(this.startTypeSignal()));
+  // Motor air movements never tow (variant suppresses the step regardless of
+  // start-type); the default logbook defers to the aerotow start-type.
+  protected readonly needsTow = computed(() =>
+    variantNeedsTow(this.variant(), this.startTypeSignal()),
+  );
 
   // Live solo flag so the co-pilot selector hides reactively and any
   // already-picked co-pilot is cleared the moment the flag flips on —
@@ -614,7 +621,7 @@ export class FlightsEditPage {
       }
 
       this.form.markAsPristine();
-      await this.router.navigateByUrl('/flights');
+      await this.router.navigateByUrl(this.variant().basePath);
     } catch (e) {
       const err = e as { message?: string };
       this.errorMessage.set(err.message ?? 'Could not save flight');
@@ -628,13 +635,13 @@ export class FlightsEditPage {
       this.dirtyConfirmOpen.set(true);
       return;
     }
-    void this.router.navigateByUrl('/flights');
+    void this.router.navigateByUrl(this.variant().basePath);
   }
 
   protected confirmDiscard(): void {
     this.dirtyConfirmOpen.set(false);
     this.form.markAsPristine();
-    void this.router.navigateByUrl('/flights');
+    void this.router.navigateByUrl(this.variant().basePath);
   }
 
   /**
@@ -696,6 +703,7 @@ export class FlightsEditPage {
 
   private snapshot(): FlightFormSnapshot {
     const raw = this.form.getRawValue();
+    const variant = this.variant();
     return {
       flightId: raw.flightId,
       flightDate: raw.flightDate,
@@ -704,6 +712,10 @@ export class FlightsEditPage {
       canDeleteRecord: raw.canDeleteRecord,
       glider: { ...raw.glider, duration: null },
       tow: { ...raw.tow, duration: null },
+      // /airmovements creates a MOTOR primary; the default logbook leaves this
+      // unset (→ GLIDER). Edit reuses the existing row's type server-side, so
+      // the override only bites on create.
+      ...(variant.createAircraftType ? { primaryAircraftType: variant.createAircraftType } : {}),
     } as FlightFormSnapshot;
   }
 

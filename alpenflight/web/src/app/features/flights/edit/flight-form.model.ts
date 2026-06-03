@@ -196,6 +196,12 @@ export interface FlightFormSnapshot {
   canDeleteRecord: boolean;
   glider: CrewSnapshot;
   tow: CrewSnapshot;
+  /**
+   * Variant override for the primary flight's create discriminator (S-064). On
+   * `/airmovements` the wizard creates a MOTOR flight from the same glider-slot
+   * form; absent → GLIDER (the default logbook). Never produces a tow.
+   */
+  primaryAircraftType?: FlightCreateRequestFlightAircraftType;
 }
 
 function detailToCrewSnapshot(d: FlightDetail): CrewSnapshot {
@@ -350,8 +356,12 @@ export function snapshotToCreateRequests(s: FlightFormSnapshot): {
   glider: FlightCreateRequest;
   tow: FlightCreateRequest | undefined;
 } {
-  const glider = subFormToCreate(s.glider, s.flightDate, s.startTypeId, 'glider');
-  const needsTow = needsTowplane(s.startTypeId) && !!s.tow.aircraftId;
+  const primaryType = s.primaryAircraftType ?? FlightCreateRequestFlightAircraftType.GLIDER;
+  const glider = subFormToCreate(s.glider, s.flightDate, s.startTypeId, 'glider', primaryType);
+  // A motor primary (air movement) never carries a tow — it's a single MOTOR
+  // flight on the same backend (S-064, legacy `air-movements.html`).
+  const isMotor = primaryType === FlightCreateRequestFlightAircraftType.MOTOR;
+  const needsTow = !isMotor && needsTowplane(s.startTypeId) && !!s.tow.aircraftId;
   if (!needsTow) {
     return { glider, tow: undefined };
   }
@@ -395,15 +405,16 @@ function subFormToCreate(
   flightDate: string | null,
   startTypeId: string | null,
   side: 'glider' | 'tow',
+  primaryAircraftType: FlightCreateRequestFlightAircraftType = FlightCreateRequestFlightAircraftType.GLIDER,
 ): FlightCreateRequest {
   if (!c.aircraftId) {
     throw new Error(`subFormToCreate: ${side} aircraft is required to submit`);
   }
   const req: FlightCreateRequest = {
+    // The primary slot's discriminator is variant-driven (GLIDER default, MOTOR
+    // on /airmovements). The tow slot is always TOW.
     flightAircraftType:
-      side === 'glider'
-        ? FlightCreateRequestFlightAircraftType.GLIDER
-        : FlightCreateRequestFlightAircraftType.TOW,
+      side === 'glider' ? primaryAircraftType : FlightCreateRequestFlightAircraftType.TOW,
     aircraftId: c.aircraftId,
     crew: packCrew(c),
   };
