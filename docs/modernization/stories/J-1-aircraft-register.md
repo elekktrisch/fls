@@ -232,6 +232,16 @@ the migration proof, the real chain, and folded boyscout riders.
   spec runs in the same playwright invocation as the J-0 Locations spec, or a beforeAll re-provision
   on retry. Make the provisioned admin usernames per-spec/per-run unique (or idempotent), so both
   specs' clean-seed chains coexist. *(seam: aircraft-migration-parity.spec.ts + parity fixture)*
+- [x] **T-12** — Gate-revealed: the real-idp proof's migrated-render fails — backend can't reach
+  Keycloak for migrated-admin provisioning (`I/O error POST http://keycloak:8080/.../token`, ingest
+  500, fail-closed rollback → cascade `t_mutation_audit_event` FK error). Clean-seed (9 tests) pass
+  because the `dev` profile redirects JWKS/issuer to `localhost:8090`, but `ci.yml`'s `alpenflight-proof`
+  backend step never overrides `keycloak.admin.base-url` (defaults to docker-internal `keycloak:8080`,
+  unreachable from the host bootJar). J-1 is the first migration→Keycloak proof wired into `ci.yml`.
+  Fix: add the same admin-client env overrides the fanout workflow's T-17 already uses
+  (`ALPENFLIGHT_KC_ADMIN_BASE_URL=http://localhost:8090` + `_REALM`/`_CLIENT_ID`/`_CLIENT_SECRET`,
+  `ALPENFLIGHT_OIDC_ISSUER_URI`) to ci.yml's "Start alpenflight backend" step (verify the KC host port
+  against docker-compose.yml). *(seam: .github/workflows/ci.yml backend env)*
 
 Then **§4 gate** (e2e-driver): full legacy→migrate→Keycloak→Playwright chain, both fidelities,
 video retained. **§5**: prune body, flip done, post video.

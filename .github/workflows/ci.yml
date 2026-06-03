@@ -340,6 +340,21 @@ jobs:
           # Pin log level so payload logging can't leak the canned dev
           # password into the uploaded backend.log artifact.
           LOGGING_LEVEL_ROOT: INFO
+          # Matches alpenflight-proof-fanout.yml's T-17 (host bootJar ↔
+          # host-mapped Keycloak). The backend runs as a HOST bootJar but
+          # Keycloak is a container host-published at localhost:8090 (compose
+          # `127.0.0.1:8090:8080`), so the compose-internal `http://keycloak:8080`
+          # is unresolvable from the host. The `dev` profile already redirects
+          # JWKS + issuer to localhost:8090, but `keycloak.admin.base-url`
+          # (application.yml) still defaults to `http://keycloak:8080` — latent
+          # until J-1's migration provisioning first exercises the admin client
+          # at ingest. Point the admin-base at the host port so the
+          # migration-provisioning admin client can reach Keycloak.
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
         run: |
           # bootJar archiveBaseName = rootProject.name ("alpenflight-server"),
           # not "server" — and the plain `jar` task also emits a non-executable
