@@ -3,6 +3,7 @@ id: S-062f
 title: Polish flights-list Playwright spec — air-state dropdown click reliability
 epic: E-07
 status: todo
+rolled_up_into: J-2
 depends_on: [S-062b]
 acceptance:
   - `alpenflight/web/e2e/tests/flights/flights-list.spec.ts` passes end-to-end without retries on a freshly-installed Playwright runner — including the air-state dropdown narrowing block (`Apply Started → assert 1 of 3 flights → clear`).

@@ -20,7 +20,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | ✅ **J-0b** | **Migration fan-out foundation** | E-02 | J-0 | S-016 (S-189 deferred→still todo) | the `(legacy_id, club_id)→new_id` fan-out subsystem (shared infra) | none (headless migration) |
 | **J-0c** | **Fan-out migration parity proof (UI + video)** | E-02 | **J-0b** | S-028 (Location-scope slice), CLUB-pgcopy fix | full chain for **Location only**: legacy `flsweb` create→export→migrate+Keycloak→AlpenFlight per-club video | `Location` (real legacy→AlpenFlight) |
 | J-1 | Aircraft register | E-06 | J-0, **J-0b** (for migrate-fidelity) | S-161, S-162†, S-163†, S-164† | `Aircraft` | `masterdata/aircrafts/` → `/aircrafts` |
-| J-2 | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064, S-067-poly | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
+| 🔨 **J-2** | Flight list + edit forms (hot path) | E-07 | J-1 | S-061, S-062d/e/f/h/i, S-064 (+reuses impl S-062a/b/c, S-063, S-067) | `Flight`, `FlightCrew` | `flights/` + `airmovements/` → `/flights` |
 | J-3 | Pilot dashboard / home | E-07 | J-2 | S-176 (+impl S-165); S-166/167 as assertions | N/A | `main/dashboard/` → `/dashboard` |
 | J-4 | Profile self-edit | E-06 | J-2 | S-182 | `Person` (self) | `profile/` → `/profile` |
 | J-5 | Aircraft reservations | E-08 | J-1 | S-068, S-069 | `AircraftReservation` | `reservations/` + `reservation-scheduler/` → `/reservations` |
@@ -44,10 +44,10 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | ✅ J-24 | Proof-video gallery (infra) | E-13 | J-0 | — | N/A (CI tooling) | gh-pages proof gallery |
 | ✅ J-25 | Proof-gallery PR previews (infra) | E-13 | J-24 | — | N/A (CI tooling) | per-branch gh-pages preview |
 
-**✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-24 (#192),
-J-25 (#196). Done, PR open awaiting merge: **J-0b (#198)**. Next once J-0b merges:
-**J-0c** (the fan-out UI/video proof — operator priority, runs before J-1). All
-unmarked rows are `todo`.
+**✅ = done** (journey file `status: done`). Merged to `main`: J-0 (#190), J-0b (#198),
+J-0c (#200), J-1 (#202), J-24 (#192), J-25 (#196). **Carved + in flight:** **J-2**
+(Flight list + edit forms — the airfield hot path, the first transactional-entity migration;
+carved 2026-06-03 onto `integration/J-2` off `main`). All other unmarked rows are `todo`.
 
 †S-162/163/164: backend already `implemented/`; journey re-asserts parity only.
 

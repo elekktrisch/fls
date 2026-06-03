@@ -3,6 +3,7 @@ id: S-064
 title: Air movements (motor aircraft) UI + endpoint parity
 epic: E-07
 status: todo
+rolled_up_into: J-2
 depends_on: [S-062a, S-062c]
 acceptance:
   - Motor-aircraft flight UI lives at `/airmovements` (parity with legacy `flsweb/src/flights/airmovements/`).

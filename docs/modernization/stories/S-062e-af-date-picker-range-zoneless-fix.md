@@ -3,6 +3,7 @@ id: S-062e
 title: Fix af-date-picker mode=range zoneless deadlock
 epic: E-04
 status: todo
+rolled_up_into: J-2
 depends_on: [S-008]
 acceptance:
   - `<af-date-picker mode="range" />` renders and accepts a date range without freezing the browser main thread under zoneless Angular.

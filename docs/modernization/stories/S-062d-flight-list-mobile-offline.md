@@ -3,6 +3,7 @@ id: S-062d
 title: Flight list mobile-first, sticky filter, offline, saved-recents
 epic: E-07
 status: todo
+rolled_up_into: J-2
 depends_on: [S-062b, S-067]
 acceptance:
   - **AC-DIR-1 (mobile-first card layout).** At `<md` (< 768 px) the list renders as a stack of cards (one card per flight) showing the legacy-equivalent of "immat + pilot + start/landing times + state badge + actions menu". The `<af-data-table>` primitive (S-008) supports a "card mode" at `<md` and reverts to a row-table at `≥md`. Same data, breakpoint-driven layout.

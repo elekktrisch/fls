@@ -3,6 +3,7 @@ id: S-061
 title: Time-gate enforcement (≥2d lock, ≥3d bill)
 epic: E-07
 status: todo
+rolled_up_into: J-2
 depends_on: [S-059]
 acceptance:
   - `LockFlights()` (the bulk transition Valid → Locked) requires `flight.flight_date <= today - 2 days`.

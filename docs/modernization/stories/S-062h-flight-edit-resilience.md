@@ -3,6 +3,7 @@ id: S-062h
 title: Flight-edit resilience — IndexedDB drafts + 412 inline diff + marginal-3G
 epic: E-07
 status: todo
+rolled_up_into: J-2
 depends_on: [S-062c, S-067]
 acceptance:
   - `flight-draft.service.ts` debounce-saves (500 ms) the in-progress wizard draft to the existing `af-user-preferences-service` Dexie store (provisioned by S-062c). Keys: `new:<sub>`, `edit:<flightId>:<sub>`, `copy:<sourceId>:<sub>`. Different keys never cross-restore.
