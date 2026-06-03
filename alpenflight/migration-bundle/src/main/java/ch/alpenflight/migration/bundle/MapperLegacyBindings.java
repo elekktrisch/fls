@@ -528,6 +528,207 @@ public final class MapperLegacyBindings {
                             ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.START_TYPE, new Binding(
+                    // SYSTEM_GLOBAL reference (StartTypeMapper): V2 seeds
+                    // t_start_type by code; the legacy int StartTypes.StartTypeId
+                    // resolves to a V2 code via StartTypeMapper's id→code table,
+                    // and the bundle's legacy_id_map_START_TYPE (synthetic
+                    // UUID(0, legacyId) → real t_start_type.id) lets a FLIGHT's
+                    // start_type_id FK resolve. Only the int PK is projected — the
+                    // legacy IsFor*Flights boolean trio is dropped (V2 owns the
+                    // applicable_categories shape, ADR 0020).
+                    PortPolicy.SYSTEM_GLOBAL,
+                    "SELECT StartTypeId FROM StartTypes",
+                    "t_start_type",
+                    "")),
+            entry(EntityType.FLIGHT_TYPE, new Binding(
+                    // Tenant-scoped per-club reference (FlightTypeMapper): legacy
+                    // FlightTypes.FlightTypeId → t_flight_type.id, ClubId →
+                    // operating_club_id (the @TenantId per V3). NOT fan-out — one
+                    // legacy row → one t_flight_type row, legacy_guid → id (like
+                    // AIRCRAFT). Every projected column is a name the mapper's
+                    // writeNdjson reads; IsCouponNumberRequired (v1.6),
+                    // MinNrOfAircraftSeatsRequired (v1.8.10) and
+                    // IsForAircraftReservationType (v1.9.23) are added by the
+                    // DBUpdate chain and exist in the final FLSTest schema.
+                    // IsSummarizedSystemFlight is intentionally NOT projected (no
+                    // destination — the system-flight concept did not survive).
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT FlightTypeId, ClubId, FlightTypeName, FlightCode,
+                           InstructorRequired, ObserverPilotOrInstructorRequired,
+                           IsCheckFlight, IsPassengerFlight, IsSoloFlight,
+                           IsForGliderFlights, IsForTowFlights, IsForMotorFlights,
+                           IsFlightCostBalanceSelectable, IsCouponNumberRequired,
+                           IsForAircraftReservationType, MinNrOfAircraftSeatsRequired,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM FlightTypes
+                    """,
+                    "t_flight_type",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 22 params match
+                    // FlightTypeMapper.columns() order.
+                    """
+                    INSERT INTO t_flight_type (
+                      id, operating_club_id, flight_type_name, flight_code,
+                      instructor_required, observer_pilot_or_instructor_required,
+                      is_check_flight, is_passenger_flight, is_solo_flight,
+                      is_for_glider_flights, is_for_tow_flights, is_for_motor_flights,
+                      is_flight_cost_balance_selectable, is_coupon_number_required,
+                      is_for_aircraft_reservation_type, min_nr_of_aircraft_seats_required,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.FLIGHT, new Binding(
+                    // Tenant-scoped aggregate root (FlightMapper): legacy
+                    // Flights.FlightId → t_flight.id; operating_club_id is the
+                    // @TenantId per V3, set per-flight from the real legacy OwnerId
+                    // column (Flight.cs:130 — the ASP.NET ownership club, = the
+                    // operating club per FlightReportService.cs:123 and the LOCATION
+                    // fan-out key Flights.OwnerId AS ClubId). NOT OwnerClubId — no
+                    // such column exists on Flights; the prior mapper read aborted
+                    // the live export (J-1 T-16 class,
+                    // project_synth_bundle_doesnt_validate_producer_select).
+                    //
+                    // Real legacy column reconciliation (V1.0 base + DBUpdate chain):
+                    //  * StartType / FlightCostBalanceType — EF maps the C# props
+                    //    StartTypeId / FlightCostBalanceTypeId via [Column(...)]; the
+                    //    MSSQL columns are StartType / FlightCostBalanceType (read by
+                    //    the mapper's getInt). Projected verbatim.
+                    //  * FlightDate (v1.9.9), AirStateId / ProcessStateId /
+                    //    ValidationErrors (v1.9.1), NrOfLdgsOnStartLocation /
+                    //    NoStart/NoLdg TimeInformation (v1.9.0), CouponNumber
+                    //    (renamed from PaxGiftCouponNumber, v1.6), NrOfPassengers
+                    //    (v1.8.10), DeliveryCreatedOn (renamed from InvoicedOn,
+                    //    v1.9.7), ValidatedOn (v1.4), FlightReportSentOn (v1.9.15),
+                    //    Engine{Start,End}OperatingCounterInSeconds (v1.9.3) — all
+                    //    exist in the final schema.
+                    //  * AirStateId is projected only to drive the V13 lossy
+                    //    translation (FlightPlanOpen(5) → ModifiedOn timestamp →
+                    //    flight_plan_opened_on); it is NOT a destination column.
+                    //  * ProcessStateId is projected twice-over: as the resolved
+                    //    process_state_id reference FK AND to derive the net-new
+                    //    locked_at (>= LOCKED(40) → ModifiedOn proxy).
+                    //
+                    // Tow self-FK (TowFlightId) is NOT in FlightMapper.foreignKeys()
+                    // (declaring FLIGHT would break the ArchUnit ingest-order rule).
+                    // FLIGHT is non-fan-out FULL_PORT, so legacy_guid is preserved as
+                    // id and a real tow GUID == the migrated tow row's id (resolves
+                    // for free); empty-guid (00000000-…) ports as null (oracle #18).
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT FlightId, OwnerId, AircraftId,
+                           FlightDate, StartDateTime, LdgDateTime,
+                           BlockStartDateTime, BlockEndDateTime,
+                           StartLocationId, LdgLocationId,
+                           StartRunway, LdgRunway, OutboundRoute, InboundRoute,
+                           FlightTypeId, IsSoloFlight,
+                           StartType, TowFlightId,
+                           NrOfLdgs, NrOfLdgsOnStartLocation,
+                           NoStartTimeInformation, NoLdgTimeInformation,
+                           AirStateId, ProcessStateId, FlightAircraftType,
+                           EngineStartOperatingCounterInSeconds,
+                           EngineEndOperatingCounterInSeconds,
+                           Comment, IncidentComment, ValidationErrors,
+                           CouponNumber, FlightCostBalanceType,
+                           DeliveryCreatedOn, ValidatedOn,
+                           NrOfPassengers, StartPosition, FlightReportSentOn,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM Flights
+                    """,
+                    "t_flight",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 44 params match
+                    // FlightMapper.columns() order (V13 dropped air_state_id; V27
+                    // appended locked_at last). The two-pass tow UPDATE the mapper
+                    // Javadoc forward-references (S-141) is unnecessary while
+                    // legacy_guid is preserved as id — tow_flight_id resolves to the
+                    // tow row directly.
+                    """
+                    INSERT INTO t_flight (
+                      id, operating_club_id, aircraft_id,
+                      flight_date, start_date_time, ldg_date_time,
+                      block_start_date_time, block_end_date_time,
+                      start_location_id, ldg_location_id,
+                      start_runway, ldg_runway, outbound_route, inbound_route,
+                      flight_type_id, is_solo_flight,
+                      start_type_id, tow_flight_id,
+                      nr_of_ldgs, nr_of_ldgs_on_start_location,
+                      no_start_time_information, no_ldg_time_information,
+                      flight_plan_opened_on, process_state_id, flight_aircraft_type_id,
+                      engine_start_operating_counter_in_seconds,
+                      engine_end_operating_counter_in_seconds,
+                      comment, incident_comment, validation_errors,
+                      coupon_number, flight_cost_balance_type_id,
+                      delivery_created_on, validated_on,
+                      nr_of_passengers, start_position, flight_report_sent_on,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id,
+                      locked_at)
+                    VALUES (?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?,
+                            ?,
+                            ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?,
+                            ?)
+                    """)),
+            entry(EntityType.FLIGHT_CREW, new Binding(
+                    // Aggregate-internal crew row under FLIGHT (FlightCrewMapper):
+                    // legacy FlightCrew.FlightCrewId → t_flight_crew.id, FlightId →
+                    // flight_id (resolves to the migrated flight), PersonId →
+                    // person_id (cross-tenant Person, TENANT_BYPASS). FlightCrewType
+                    // is the real int column (EF [Column("FlightCrewType")] over the
+                    // C# FlightCrewTypeId) resolved to t_flight_crew_type via the
+                    // legacy_int_id reference lookup. Non-fan-out: legacy_guid → id.
+                    // V3 destination keeps only deleted_on/deleted_by_user_id (no
+                    // created/modified audit pair on this child).
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT FlightCrewId, FlightId, PersonId, FlightCrewType,
+                           BeginFlightDateTime, EndFlightDateTime,
+                           BeginInstructionDateTime, EndInstructionDateTime,
+                           NrOfLdgs, NrOfStarts,
+                           DeletedOn, DeletedByUserId
+                    FROM FlightCrew
+                    """,
+                    "t_flight_crew",
+                    // 12 params match FlightCrewMapper.columns() order: id(legacy_guid),
+                    // flight_id, person_id, flight_crew_type_id, the 4 datetimes,
+                    // nr_of_ldgs/nr_of_starts, deleted_on/deleted_by_user_id.
+                    """
+                    INSERT INTO t_flight_crew (
+                      id, flight_id, person_id, flight_crew_type_id,
+                      begin_flight_datetime, end_flight_datetime,
+                      begin_instruction_datetime, end_instruction_datetime,
+                      nr_of_ldgs, nr_of_starts,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

@@ -4,6 +4,7 @@ import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -73,7 +74,19 @@ public final class FlightCrewMapper implements Mapper {
 
     @Override
     public List<EntityType> foreignKeys() {
+        // flight_id → FLIGHT, person_id → PERSON both match the <target>_id
+        // convention, so no foreignKeyColumns() override is needed.
         return List.of(EntityType.FLIGHT, EntityType.PERSON);
+    }
+
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        // flight_crew_type_id carries the synthetic new UUID(0, legacyIntId)
+        // (writeNdjson uses legacyIntIdToUuidString over FlightCrewType) for a
+        // V3-seeded t_flight_crew_type row OUTSIDE EntityType — resolved
+        // structurally against t_flight_crew_type.legacy_int_id, not via a
+        // per-bundle legacy_id_map.
+        return List.of(new ReferenceLookup(FLIGHT_CREW_TYPE_ID, "t_flight_crew_type"));
     }
 
     @Override

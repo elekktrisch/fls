@@ -2,9 +2,11 @@ package ch.alpenflight.migration.bundle.flight;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import ch.alpenflight.migration.bundle.ParitySentinel;
+import ch.alpenflight.migration.bundle.ReferenceLookup;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -126,6 +128,22 @@ public final class FlightMapper implements Mapper {
     static final String DELETED_ON = "deleted_on";
     static final String DELETED_BY_USER_ID = "deleted_by_user_id";
 
+    /**
+     * Net-new T-02 column (V27, S-061 — no legacy counterpart). Migration rule
+     * (J-2 T-07): a flight that legacy already locked or billed
+     * ({@code ProcessStateId >= LOCKED(40)}) carries {@code locked_at =
+     * ModifiedOn} (the closest legacy proxy for when the lock happened — legacy
+     * has no lock timestamp). A still-editable flight ({@code < 40}) ports
+     * {@code locked_at = null}: it has not been locked, so the bill-gate
+     * ({@code locked_at <= today-3d}) correctly never fires until the new stack
+     * locks it. {@code @ParityIgnore} — no legacy column to diff against.
+     */
+    @ParityIgnore
+    static final String LOCKED_AT = "locked_at";
+
+    /** Legacy {@code FlightProcessState.Locked} (FlightProcessState.cs). */
+    static final int LEGACY_PROCESS_STATE_LOCKED = 40;
+
     private static final String[] COLUMNS = {
             LEGACY_GUID, OPERATING_CLUB_ID, AIRCRAFT_ID,
             FLIGHT_DATE, START_DATE_TIME, LDG_DATE_TIME,
@@ -146,7 +164,8 @@ public final class FlightMapper implements Mapper {
             NR_OF_PASSENGERS, START_POSITION, FLIGHT_REPORT_SENT_ON,
             CREATED_ON, CREATED_BY_USER_ID,
             MODIFIED_ON, MODIFIED_BY_USER_ID,
-            DELETED_ON, DELETED_BY_USER_ID
+            DELETED_ON, DELETED_BY_USER_ID,
+            LOCKED_AT
     };
 
     @Override
@@ -170,11 +189,48 @@ public final class FlightMapper implements Mapper {
     }
 
     @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // Off-convention FK columns the <target>_id default cannot derive:
+        //  * operating_club_id → CLUB (the @TenantId; convention would be club_id)
+        //  * start_location_id + ldg_location_id → LOCATION (TWO columns to one
+        //    fan-out target; each disambiguated by the flight's OWN
+        //    operating_club_id so it lands on that club's per-club replica —
+        //    Location is tenant-scoped fan-out per V7)
+        // aircraft_id → AIRCRAFT, flight_type_id → FLIGHT_TYPE, start_type_id →
+        // START_TYPE all match the <target>_id convention, so they are NOT
+        // declared here (the resolver falls back to convention for them).
+        return List.of(
+                new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(START_LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID),
+                new ForeignKeyColumn(LDG_LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID));
+    }
+
+    @Override
+    public List<ReferenceLookup> referenceLookups() {
+        // process_state_id + flight_cost_balance_type_id carry the synthetic
+        // new UUID(0, legacyIntId) (writeNdjson uses legacyIntIdToUuidString /
+        // optionalLegacyIntIdAsUuidString) for a V3-seeded FLIGHT-group lookup
+        // row OUTSIDE EntityType — resolved structurally against the seed table's
+        // legacy_int_id, not via a per-bundle legacy_id_map. (start_type_id is
+        // NOT here: START_TYPE is a bundle EntityType resolved via
+        // legacy_id_map_START_TYPE, declared in foreignKeys().)
+        return List.of(
+                new ReferenceLookup(PROCESS_STATE_ID, "t_flight_process_state"),
+                new ReferenceLookup(FLIGHT_COST_BALANCE_TYPE_ID, "t_flight_cost_balance_type"));
+    }
+
+    @Override
     public void writeNdjson(ResultSet source, JsonGenerator target)
             throws SQLException, IOException {
         target.writeStartObject();
         target.writeStringField(LEGACY_GUID, source.getString("FlightId"));
-        target.writeStringField(OPERATING_CLUB_ID, source.getString("OwnerClubId"));
+        // Operating-club source is the real legacy Flights.OwnerId column
+        // (Flight.cs:130 — the ASP.NET ownership club, = operating club per
+        // FlightReportService.cs:123 and the LOCATION fan-out key
+        // Flights.OwnerId AS ClubId). NOT OwnerClubId — no such column exists on
+        // the legacy Flights table; the prior read aborted the live export
+        // (J-1 T-16 class, project_synth_bundle_doesnt_validate_producer_select).
+        target.writeStringField(OPERATING_CLUB_ID, source.getString("OwnerId"));
         target.writeStringField(AIRCRAFT_ID, source.getString("AircraftId"));
         Coercions.writeOptionalDate(target, FLIGHT_DATE, source.getDate("FlightDate"));
         Coercions.writeOptionalTimestamp(target, START_DATE_TIME,
@@ -185,19 +241,25 @@ public final class FlightMapper implements Mapper {
                 source.getTimestamp("BlockStartDateTime"));
         Coercions.writeOptionalTimestamp(target, BLOCK_END_DATE_TIME,
                 source.getTimestamp("BlockEndDateTime"));
-        Coercions.writeOptionalString(target, START_LOCATION_ID,
+        Coercions.writeOptionalGuidString(target, START_LOCATION_ID,
                 source.getString("StartLocationId"));
-        Coercions.writeOptionalString(target, LDG_LOCATION_ID,
+        Coercions.writeOptionalGuidString(target, LDG_LOCATION_ID,
                 source.getString("LdgLocationId"));
         Coercions.writeOptionalString(target, START_RUNWAY, source.getString("StartRunway"));
         Coercions.writeOptionalString(target, LDG_RUNWAY, source.getString("LdgRunway"));
         Coercions.writeOptionalString(target, OUTBOUND_ROUTE, source.getString("OutboundRoute"));
         Coercions.writeOptionalString(target, INBOUND_ROUTE, source.getString("InboundRoute"));
-        Coercions.writeOptionalString(target, FLIGHT_TYPE_ID, source.getString("FlightTypeId"));
+        Coercions.writeOptionalGuidString(target, FLIGHT_TYPE_ID,
+                source.getString("FlightTypeId"));
         target.writeBooleanField(IS_SOLO_FLIGHT, source.getBoolean("IsSoloFlight"));
         Coercions.writeOptionalString(target, START_TYPE_ID,
                 Coercions.optionalLegacyIntIdAsUuidString(source, "StartType"));
-        Coercions.writeOptionalString(target, TOW_FLIGHT_ID, source.getString("TowFlightId"));
+        // Self-FK: empty-guid (00000000-…) on a non-towed flight → null
+        // (oracle #18); a real tow GUID resolves to the migrated tow row (FLIGHT
+        // is non-fan-out FULL_PORT, so legacy_guid is preserved as id and the
+        // tow GUID == the tow row's id — no separate UPDATE pass needed).
+        Coercions.writeOptionalGuidString(target, TOW_FLIGHT_ID,
+                source.getString("TowFlightId"));
         Coercions.writeOptionalShort(target, NR_OF_LDGS,
                 source.getObject("NrOfLdgs", Short.class));
         Coercions.writeOptionalShort(target, NR_OF_LDGS_ON_START_LOCATION,
@@ -251,6 +313,13 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalTimestamp(target, DELETED_ON, source.getTimestamp("DeletedOn"));
         Coercions.writeOptionalString(target, DELETED_BY_USER_ID,
                 source.getString("DeletedByUserId"));
+        // Net-new locked_at (V27): legacy has no lock timestamp. A flight legacy
+        // already locked/billed (ProcessStateId >= LOCKED(40)) carries ModifiedOn
+        // as the lock-time proxy; a still-editable flight ports null.
+        Timestamp lockedAt = source.getInt("ProcessStateId") >= LEGACY_PROCESS_STATE_LOCKED
+                ? source.getTimestamp("ModifiedOn")
+                : null;
+        Coercions.writeOptionalTimestamp(target, LOCKED_AT, lockedAt);
         target.writeEndObject();
     }
 
@@ -308,6 +377,7 @@ public final class FlightMapper implements Mapper {
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, MODIFIED_ON));
         target.setObject(position++, Coercions.readUuidOrNull(source, MODIFIED_BY_USER_ID));
         target.setTimestamp(position++, Coercions.readTimestampOrNull(source, DELETED_ON));
-        target.setObject(position, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
+        target.setObject(position++, Coercions.readUuidOrNull(source, DELETED_BY_USER_ID));
+        target.setTimestamp(position, Coercions.readTimestampOrNull(source, LOCKED_AT));
     }
 }

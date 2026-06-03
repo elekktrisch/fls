@@ -165,6 +165,34 @@ public final class Coercions {
     }
 
     /**
+     * The all-zero legacy {@code uniqueidentifier}
+     * ({@code 00000000-0000-0000-0000-000000000000}). Legacy ASP.NET writes this
+     * sentinel into NOT-NULL GUID FK columns to mean "no relation" rather than
+     * carrying SQL NULL (oracle #18). The rewrite has nullable FKs, so an
+     * empty-guid FK must port as absent/null — never as a verbatim id that the
+     * destination FK constraint would reject.
+     */
+    private static final String EMPTY_GUID = "00000000-0000-0000-0000-000000000000";
+
+    /**
+     * Emit an optional GUID-valued FK string, collapsing the legacy empty-guid
+     * sentinel (and SQL NULL) to JSON {@code null}. Use for nullable FK columns
+     * a legacy NOT-NULL GUID source fills with {@link #EMPTY_GUID} to mean
+     * "no relation" (e.g. {@code Flights.TowFlightId} on a non-towed flight,
+     * {@code FlightCrew.PersonId} on a fast-entry crew row). The downstream FK
+     * resolver then leaves the null untouched and the row INSERTs cleanly.
+     */
+    public static void writeOptionalGuidString(
+            JsonGenerator target, String fieldName, @Nullable String value)
+            throws IOException {
+        if (value == null || EMPTY_GUID.equalsIgnoreCase(value)) {
+            target.writeNullField(fieldName);
+        } else {
+            target.writeStringField(fieldName, value);
+        }
+    }
+
+    /**
      * Emit ISO-8601 instant; the destination column is {@code NOT NULL}, so a
      * NULL legacy value cannot round-trip. Fail with a diagnostic message that
      * names the column rather than letting {@code value.toInstant()} surface as
