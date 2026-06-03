@@ -132,6 +132,7 @@ async function createGliderFlightAerotow(
       new URL(r.url()).pathname === '/api/v1/flights' &&
       r.status() >= 200 &&
       r.status() < 300,
+    { timeout: 5_000 },
   );
   await page.getByTestId('flight-submit-header').click();
   await created;
@@ -334,10 +335,31 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
           new URL(r.url()).pathname === '/api/v1/flights' &&
           r.status() >= 200 &&
           r.status() < 300,
+        { timeout: 5_000 },
       );
       await page.getByTestId('flight-submit-header').click();
-      await created;
+      const createdResp = await created;
       await expect(page).toHaveURL(/\/airmovements$/);
+
+      // DECISIVE FACT (S-064 correctness): the flight created at /airmovements/new
+      // MUST carry flightAircraftType=MOTOR — that is the variant discriminator
+      // the /airmovements list client-filters on. If it is stamped GLIDER, the
+      // MOTOR filter excludes it and the row below never appears. Read the created
+      // id off the POST response body, then GET its detail and assert the type
+      // BEFORE the list assertion so a mis-stamp fails here with the actual type
+      // in the message — not as an opaque list timeout.
+      const createdBody = (await createdResp.json()) as {
+        id: string;
+        flightAircraftType: string;
+      };
+      expect(createdBody.id, 'the motor create POST returns the created flight id').toMatch(
+        /^fl-[0-9a-f-]{36}$/,
+      );
+      expect(
+        createdBody.flightAircraftType,
+        'a flight created at /airmovements/new must be stamped MOTOR (the variant discriminator the ' +
+          'MOTOR list filter keys on) — not GLIDER',
+      ).toBe('MOTOR');
 
       // The motor flight renders in the motor-filtered list under its immat.
       const row = page
@@ -382,6 +404,7 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
           r.request().method() === 'PUT' &&
           new URL(r.url()).pathname === `/api/v1/flights/${flightId}` &&
           r.status() === 200,
+        { timeout: 5_000 },
       );
       await page.getByTestId('flight-step-next').click();
       await expect(page.getByTestId('flight-step-glider')).toBeVisible();
