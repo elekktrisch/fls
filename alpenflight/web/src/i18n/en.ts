@@ -104,6 +104,8 @@ const en: Translations = {
     admin: {
       heading: 'Club overview',
       tiles: {
+        error: 'Count could not be loaded.',
+        loading: 'Loading…',
         pendingValidation: 'Flights to validate',
         todayFlights: 'Flights today',
       },

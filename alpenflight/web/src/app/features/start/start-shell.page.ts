@@ -5,6 +5,7 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 
 import { SessionStore } from '../../core/session/session.store';
 
+import { StartClubadminPage } from './start-clubadmin.page';
 import { StartPage } from './start.page';
 import { effectiveVariant, isAdminVariant } from './start-variant';
 
@@ -32,7 +33,7 @@ import { effectiveVariant, isAdminVariant } from './start-variant';
   selector: 'af-start-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoDirective, AfPageComponent, StartPage],
+  imports: [TranslocoDirective, AfPageComponent, StartPage, StartClubadminPage],
   template: `
     <ng-container *transloco="let t; read: 'home'">
       @switch (variant()) {
@@ -90,18 +91,9 @@ import { effectiveVariant, isAdminVariant } from './start-variant';
                   </button>
                 }
               </header>
-              <!-- Placeholder tiles (T-08 endpoints → T-09 fills the counts). -->
-              <div class="grid grid-cols-1 gap-6 min-[900px]:grid-cols-2 mb-8">
-                <div class="border border-slate-200 p-5" data-testid="start-tile-today-flights">
-                  <p class="text-slate-500">{{ t('admin.tiles.todayFlights') }}</p>
-                </div>
-                <div
-                  class="border border-slate-200 p-5"
-                  data-testid="start-tile-pending-validation"
-                >
-                  <p class="text-slate-500">{{ t('admin.tiles.pendingValidation') }}</p>
-                </div>
-              </div>
+              <!-- Tiles fed by GET /api/v1/me/club-dashboard, live-updated on a
+                   flight.created SSE push (T-09). -->
+              <af-start-clubadmin />
             </div>
           </af-page>
         }

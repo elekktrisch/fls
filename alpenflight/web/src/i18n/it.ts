@@ -105,6 +105,8 @@ const it: Translations = {
     admin: {
       heading: 'Panoramica del club',
       tiles: {
+        error: 'Impossibile caricare il numero.',
+        loading: 'Caricamento…',
         pendingValidation: 'Voli da validare',
         todayFlights: 'Voli oggi',
       },

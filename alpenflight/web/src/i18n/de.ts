@@ -111,6 +111,8 @@ const de = {
     admin: {
       heading: 'Vereinsübersicht',
       tiles: {
+        error: 'Zahl konnte nicht geladen werden.',
+        loading: 'Wird geladen…',
         pendingValidation: 'Flüge zur Prüfung',
         todayFlights: 'Flüge heute',
       },
