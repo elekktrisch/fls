@@ -376,3 +376,154 @@ describe('generateGallery — parity screenshots (T-20)', () => {
     ).toThrow(/no caption/);
   });
 });
+
+/**
+ * T-44 — the journey accordion. Each journey renders as one native
+ * `<details>`/`<summary>` (no JS, keyboard-reachable), the NEWEST journey with
+ * content is `<details open>` and older ones collapse, and the videos +
+ * screenshots still render INSIDE the `<details>`. The accordion is a
+ * presentation wrapper only — the parsing + AC4/AC5 link-checks are unchanged
+ * (the missing-PNG / missing-caption guards above remain green).
+ *
+ * Order: a roadmap with J-0 (1 video) … J-2 (screenshots, last) so the newest
+ * journey with content is J-2 — that one must be open, J-0 collapsed.
+ */
+const ACCORDION_ORDER = `# Journey roadmap
+
+| J | Title | Epic |
+|---|---|---|
+| J-0 | Locations CRUD | E-06 |
+| J-0c | Fan-out parity | E-02 |
+| J-1 | Aircraft register | E-06 |
+| J-2 | Flight list | E-07 |
+`;
+
+/** A report with exactly one green proof for journey J-0 (1 video). */
+function singleProofReport(dir: string): { reportPath: string; videoDir: string } {
+  const videoDir = mkdtempSync(resolve(dir, 'vids-'));
+  const videoFile = resolve(videoDir, 'j0-tenant.webm');
+  writeFileSync(videoFile, 'WEBM');
+  const report = {
+    suites: [
+      {
+        file: 'tests/locations/j0.spec.ts',
+        specs: [
+          {
+            title: 'J-0 tenant isolation',
+            file: 'tests/locations/j0.spec.ts',
+            annotations: [
+              { type: 'proof-journey', description: 'J-0' },
+              { type: 'proof-caption', description: 'J-0 tenant isolation holds' },
+              { type: 'proof-ac-tag', description: 'happy' },
+            ],
+            tests: [
+              {
+                annotations: [],
+                results: [
+                  {
+                    status: 'passed',
+                    attachments: [{ name: 'proof-video', path: videoFile }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const reportPath = resolve(dir, 'report.json');
+  writeFileSync(reportPath, JSON.stringify(report), 'utf8');
+  return { reportPath, videoDir };
+}
+
+describe('generateGallery — journey accordion (T-44)', () => {
+  const J2_SHOTS = [
+    {
+      journey: 'J-2',
+      side: 'legacy',
+      view: 'list',
+      file: 'legacy-flight-list.png',
+      caption: 'Legacy flsweb: flight list',
+    },
+    {
+      journey: 'J-2',
+      side: 'alpenflight',
+      view: 'list',
+      file: 'alpenflight-flights-list.png',
+      caption: 'AlpenFlight: unified /flights list',
+    },
+  ];
+
+  /** Stand up a report (J-0 video) + J-2 screenshots against ACCORDION_ORDER. */
+  function buildGallery(generateGallery: any) {
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-accordion-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const screenshotsDir = makeShotDir(dir, J2_SHOTS);
+    return generateGallery({
+      reportPath,
+      outDir: resolve(dir, 'out'),
+      orderPath,
+      screenshotsDir,
+      renderNav: false,
+    });
+  }
+
+  it('renders one <details> per journey, each with a <summary> carrying the journey id', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { html, roadmap } = buildGallery(generateGallery);
+
+    // One <details class="journey…"> per roadmap journey (4: J-0, J-0c, J-1, J-2).
+    expect((html.match(/<details class="journey/g) ?? []).length).toBe(roadmap.length);
+    expect((html.match(/<summary>/g) ?? []).length).toBe(roadmap.length);
+    // Each journey id surfaces in its summary.
+    for (const jid of ['J-0', 'J-0c', 'J-1', 'J-2']) {
+      expect(html, `${jid} id in a summary`).toContain(`class="summary-jid">${jid}</span>`);
+    }
+    // No JS toggle — the accordion is the native element only.
+    expect(html).not.toContain('<script');
+  });
+
+  it('opens the NEWEST journey with content and collapses an older one', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { html } = buildGallery(generateGallery);
+
+    // J-2 is the last roadmap journey with content → <details open>.
+    const j2 = html.indexOf('<span class="summary-jid">J-2</span>');
+    const openBeforeJ2 = html.lastIndexOf('<details class="journey" open>', j2);
+    const anyDetailsBeforeJ2 = html.lastIndexOf('<details class="journey', j2);
+    expect(openBeforeJ2, 'J-2 sits inside an <details open>').toBe(anyDetailsBeforeJ2);
+
+    // J-0 has content too but is older → collapsed (no `open` on its <details>).
+    const j0 = html.indexOf('<span class="summary-jid">J-0</span>');
+    const detailsBeforeJ0 = html.slice(html.lastIndexOf('<details', j0), j0);
+    expect(detailsBeforeJ0, 'J-0 collapsed').not.toContain(' open>');
+
+    // Exactly one journey is open in the whole gallery.
+    expect((html.match(/<details class="journey" open>/g) ?? []).length).toBe(1);
+  });
+
+  it('keeps videos and screenshots rendering INSIDE the <details>', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { html } = buildGallery(generateGallery);
+
+    // The J-0 video figure sits between J-0's <summary> and its </details>.
+    const j0Summary = html.indexOf('<span class="summary-jid">J-0</span>');
+    const j0Close = html.indexOf('</details>', j0Summary);
+    const j0Block = html.slice(j0Summary, j0Close);
+    expect(j0Block).toContain('<video controls');
+    expect(j0Block).toContain('videos/j0-tenant.webm');
+
+    // The J-2 screenshots sit inside J-2's <details>.
+    const j2Summary = html.indexOf('<span class="summary-jid">J-2</span>');
+    const j2Close = html.indexOf('</details>', j2Summary);
+    const j2Block = html.slice(j2Summary, j2Close);
+    expect(j2Block).toContain('parity-screenshots');
+    expect(j2Block).toContain('screenshots/legacy-flight-list.png');
+    expect(j2Block).toContain('screenshots/alpenflight-flights-list.png');
+    // Summary count reflects the content.
+    expect(j2Block).toContain('2 screenshots');
+  });
+});

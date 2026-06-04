@@ -363,48 +363,110 @@ ${rows.join('\n')}
         </div>`;
 }
 
-function renderHtml({ byJourney, shotsByJourney, roadmap, generatedAt, branch, navGalleries = [] }) {
-  const sections = roadmap
-    .map((jid) => {
-      const proofs = byJourney.get(jid);
-      const shots = shotsByJourney?.get(jid);
-      if ((!proofs || proofs.length === 0) && (!shots || shots.length === 0)) {
-        return `      <div class="journey pending-journey">
-        <h3>${esc(jid)} <span class="status pending">pending</span></h3>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>`;
-      }
-      // A journey with parity screenshots but no green video still renders its
-      // screenshot block (the videos section is just empty).
-      if (!proofs || proofs.length === 0) {
-        return `      <div class="journey">
-        <h3>${esc(jid)} <span class="status success">parity screenshots</span></h3>
-${renderScreenshots(shots)}
-      </div>`;
-      }
-      const videos = proofs
-        .map((p) => {
-          const tag = p.acTag
-            ? `<span class="status ${tagClass(p.acTag)}">${esc(p.acTag)}</span>`
-            : '';
-          // A legacy parity video (e.g. legacy flsweb) is labelled as the
-          // legacy side so a reviewer reads legacy-vs-AlpenFlight side by side.
-          const legacyLabel = p.legacy ? '<span class="legacy-label">legacy parity</span>' : '';
-          const figClass = p.legacy ? 'proof legacy-proof' : 'proof';
-          return `        <figure class="${figClass}">
+/**
+ * One-line summary caption for a journey's `<summary>`. Prefers the journey's
+ * first proof caption (trimmed to one line), else the first screenshot caption,
+ * else a pending note. Kept short so the collapsed accordion stays scannable.
+ */
+function summaryCaption(proofs, shots) {
+  const first = (proofs && proofs[0]?.caption) || (shots && shots[0]?.caption) || '';
+  const oneLine = String(first).replace(/\s+/g, ' ').trim();
+  if (!oneLine) return 'No green proof yet — not shipped a captioned pass-video.';
+  return oneLine.length > 110 ? `${oneLine.slice(0, 109)}…` : oneLine;
+}
+
+/** "2 videos · 7 screenshots" style count for the `<summary>` line. */
+function summaryCounts(nVideos, nShots) {
+  const parts = [];
+  parts.push(`${nVideos} video${nVideos === 1 ? '' : 's'}`);
+  parts.push(`${nShots} screenshot${nShots === 1 ? '' : 's'}`);
+  return parts.join(' · ');
+}
+
+/**
+ * Render the inner content (videos + screenshots) of a journey — everything
+ * that lives INSIDE its accordion `<details>`. The `<details>`/`<summary>`
+ * wrapper is added by `renderHtml`; this stays a presentation-only split so the
+ * video/screenshot rendering + the AC4/AC5 link-checks are untouched.
+ */
+function renderJourneyBody(jid, proofs, shots) {
+  // Pending — no green video and no declared screenshot.
+  if ((!proofs || proofs.length === 0) && (!shots || shots.length === 0)) {
+    return `        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>`;
+  }
+  // Screenshots but no green video — render the screenshot block only.
+  if (!proofs || proofs.length === 0) {
+    return renderScreenshots(shots);
+  }
+  const videos = proofs
+    .map((p) => {
+      const tag = p.acTag ? `<span class="status ${tagClass(p.acTag)}">${esc(p.acTag)}</span>` : '';
+      // A legacy parity video (e.g. legacy flsweb) is labelled as the
+      // legacy side so a reviewer reads legacy-vs-AlpenFlight side by side.
+      const legacyLabel = p.legacy ? '<span class="legacy-label">legacy parity</span>' : '';
+      const figClass = p.legacy ? 'proof legacy-proof' : 'proof';
+      return `        <figure class="${figClass}">
           <video controls preload="metadata" src="${esc(p.videoSrc)}"></video>
           <figcaption>${legacyLabel}${tag}<span class="caption">${esc(p.caption)}</span></figcaption>
         </figure>`;
-        })
-        .join('\n');
-      const screenshotsBlock = renderScreenshots(shots);
-      return `      <div class="journey">
-        <h3>${esc(jid)} <span class="status success">${proofs.length} proof${proofs.length === 1 ? '' : 's'}</span></h3>
-        <div class="proofs">
+    })
+    .join('\n');
+  const screenshotsBlock = renderScreenshots(shots);
+  return `        <div class="proofs">
 ${videos}
         </div>
-${screenshotsBlock}
-      </div>`;
+${screenshotsBlock}`;
+}
+
+function renderHtml({
+  byJourney,
+  shotsByJourney,
+  roadmap,
+  generatedAt,
+  branch,
+  navGalleries = [],
+}) {
+  // Default-open policy: open the NEWEST journey that has content (the last
+  // roadmap-ordered journey with a green video or a declared screenshot), and
+  // collapse every older one. A CI-run gallery opens straight onto the journey
+  // just shipped; pending journeys are never auto-opened.
+  let newestWithContentIdx = -1;
+  roadmap.forEach((jid, i) => {
+    const proofs = byJourney.get(jid);
+    const shots = shotsByJourney?.get(jid);
+    if ((proofs && proofs.length) || (shots && shots.length)) newestWithContentIdx = i;
+  });
+
+  const sections = roadmap
+    .map((jid, i) => {
+      const proofs = byJourney.get(jid);
+      const shots = shotsByJourney?.get(jid);
+      const nVideos = proofs ? proofs.length : 0;
+      const nShots = shots ? shots.length : 0;
+      const hasContent = nVideos > 0 || nShots > 0;
+
+      // Status pill mirrors the pre-accordion labels.
+      let statusPill;
+      if (!hasContent) statusPill = '<span class="status pending">pending</span>';
+      else if (nVideos === 0) statusPill = '<span class="status success">parity screenshots</span>';
+      else
+        statusPill = `<span class="status success">${nVideos} proof${nVideos === 1 ? '' : 's'}</span>`;
+
+      const journeyClass = hasContent ? 'journey' : 'journey pending-journey';
+      const open = i === newestWithContentIdx ? ' open' : '';
+      const counts = hasContent
+        ? `<span class="summary-counts">${esc(summaryCounts(nVideos, nShots))}</span>`
+        : '';
+      const caption = `<span class="summary-caption">${esc(summaryCaption(proofs, shots))}</span>`;
+      const body = renderJourneyBody(jid, proofs, shots);
+
+      return `      <details class="${journeyClass}"${open}>
+        <summary>
+          <span class="summary-head"><span class="summary-jid">${esc(jid)}</span> ${statusPill}${counts}</span>
+          ${caption}
+        </summary>
+${body}
+      </details>`;
     })
     .join('\n');
 
@@ -455,11 +517,46 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .status.success { background: var(--success-bg); color: var(--success); }
 .status.failure { background: var(--failure-bg); color: var(--failure); }
 .status.pending { background: var(--pending-bg); color: var(--pending); }
+/* Accordion — one native <details> per journey. ADR 0024: flat (1px slate
+   border, NO shadow), sharp corners (radius 0), restrained motion (the native
+   toggle only — no slide). The brand color lands only on the open-state accent
+   bar, never on chrome backgrounds. */
 .journey {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 6px; box-shadow: var(--shadow); padding: 1.25rem; margin: 1rem 0;
+  border-radius: 0; padding: 0; margin: 0 0 -1px;
 }
+.journey + .journey { margin-top: 0; }
+.journey > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; gap: .25rem;
+  padding: .9rem 1.1rem .9rem 2.1rem; position: relative;
+  background: var(--surface);
+  border-left: 2px solid transparent; transition: opacity 120ms ease-out;
+}
+.journey > summary::-webkit-details-marker { display: none; }
+/* CSS triangle marker — rotates on open (native toggle, no JS, no slide). */
+.journey > summary::before {
+  content: ''; position: absolute; left: 1rem; top: 1.25rem;
+  width: 0; height: 0;
+  border-left: 5px solid var(--muted);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transform: rotate(0deg); transform-origin: 25% 50%;
+}
+.journey[open] > summary::before { transform: rotate(90deg); }
+.journey[open] > summary { border-left-color: var(--primary); }
+.journey > summary:hover { background: var(--surface-2); }
+.journey > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.summary-head { display: flex; align-items: center; gap: .6rem; font-size: 1.05rem; }
+.summary-jid { font-weight: 500; }
+.summary-counts { color: var(--muted); font-size: .8rem; font-weight: 400; }
+.summary-caption { color: var(--muted); font-size: .85rem; }
+/* The body (videos / screenshots / pending note) sits inside the <details>. */
+.journey > .proofs,
+.journey > .parity-screenshots,
+.journey > p { margin-left: 1.1rem; margin-right: 1.1rem; }
+.journey[open] { padding-bottom: 1.1rem; }
 .pending-journey { opacity: .85; }
+.pending-journey > summary { cursor: default; }
 .proofs { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem; }
 .proof {
   margin: 0; background: var(--surface-2); border: 1px solid var(--border);
