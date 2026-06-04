@@ -31,6 +31,21 @@
  * delivery / invoice flow, {@code is_solo_flight} server-derive,
  * FlightType × FlightAircraftType compatibility, validated_on /
  * delivery_created_on derivation. All deferred to S-059.
+ *
+ * <p>Declared an {@link org.springframework.modulith.ApplicationModule#type()
+ * OPEN} Spring Modulith module (matching {@code aircraft} / {@code locations} /
+ * {@code clubs} / {@code referencedata} / {@code audit}) so the cross-cutting
+ * {@code tenancy.showcase} seed loader (J-3 T-03b) may build {@link
+ * ch.alpenflight.flights.domain.Flight} aggregates through their factories,
+ * link a paired aerotow ({@link ch.alpenflight.flights.domain.Flight#linkTow}),
+ * and drive the seeded flights through the real process-state edges via
+ * {@link ch.alpenflight.flights.application.FlightStateTransitionService} — so
+ * every showcase flight reaches its target state through the domain rather than
+ * a raw illegal-state INSERT. The seed is the only external importer of the
+ * flights packages; the normal read/write path stays the {@code
+ * flights.application} service + REST controller.
  */
+@org.springframework.modulith.ApplicationModule(
+        type = org.springframework.modulith.ApplicationModule.Type.OPEN)
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.flights;

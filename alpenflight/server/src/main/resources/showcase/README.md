@@ -59,10 +59,10 @@ Two clubs and the three-role principal matrix across both, including a pilot wit
 | Username | role | club | `t_user` id | Keycloak sub | flights |
 | --- | --- | --- | --- | --- | --- |
 | `clubadmin1` (reused, V8)   | CLUB_ADMINISTRATOR  | club-1 | `…7100-…001` | `9d08ed9c-699a-4c26-9036-9f0bd378009d` | n/a |
-| `pilot1` (reused, V8)       | PILOT               | club-1 | `…7100-…002` | `376317c0-fc0a-439d-a5f7-9af17e5f4178` | HAS (T-03) |
+| `pilot1` (reused, V8)       | PILOT               | club-1 | `…7100-…002` | `376317c0-fc0a-439d-a5f7-9af17e5f4178` | HAS — PIC on 8 (T-03b) |
 | `pilot-empty1` (new)        | PILOT               | club-1 | `…7100-…020` | `019e30c3-2c00-7200-8000-000000000020` | **NONE** |
 | `clubadmin-c2` (new)        | CLUB_ADMINISTRATOR  | club-2 | `…7100-…021` | `019e30c3-2c00-7200-8000-000000000021` | n/a |
-| `pilot-c2` (new)            | PILOT               | club-2 | `…7100-…022` | `019e30c3-2c00-7200-8000-000000000022` | HAS (T-03) |
+| `pilot-c2` (new)            | PILOT               | club-2 | `…7100-…022` | `019e30c3-2c00-7200-8000-000000000022` | HAS — PIC on 6 (T-03b) |
 | `sysadmin` (reused)         | SYSTEM_ADMINISTRATOR | (global, no tenant) | — (no `t_user`) | `f1558768-6573-4420-983b-20848972d303` | n/a |
 
 The realm `clubId` attribute is a human label (`club-1` / `club-2`); tenant
@@ -118,6 +118,70 @@ writes; reads are open so club-1 sees the club-2 charter; each gets an opening
 referenced read-only by club-1. Each aircraft's opening state row id is the
 aircraft id with the `-7401-` band bumped to `-7501-`.
 
+## What exists today (J-3 T-03b — the flight matrix)
+
+The dashboard variants + the J-2 flights list only render populated against real
+flights. T-03b seeds a **deterministic flight matrix** for `pilot1`/club-1 and
+`pilot-c2`/club-2 — and keeps **`pilot-empty1` with ZERO flights** (the
+empty-state principal). Each flight is built through the `Flight.create{Glider,
+Tow,Motor}` factories (+ `replaceCrew`, + `linkTow` for the aerotow pairs),
+INSERTed JDBC-direct under a deterministic id (mirroring T-03a — `@GeneratedValue`
+would otherwise mint a random id), then driven to its target process-state
+through the **real `FlightStateTransitionService` edges** — not a raw
+illegal-state INSERT.
+
+**How each process-state is reached through the domain** (matrix in
+`FlightTransitionMatrix`; gates in `FlightGatePolicy`, S-061):
+
+| Target | Edges (trigger) | Gate |
+| --- | --- | --- |
+| NotProcessed | (initial state — no transition) | — |
+| Valid | NotProcessed →`VALIDATOR`→ Valid | — |
+| Invalid | NotProcessed →`VALIDATOR`→ Invalid | — |
+| Locked | … →`VALIDATOR`→ Valid →`LOCK_JOB`→ Locked | `flight_date ≤ today-2d` (dates picked to clear it) |
+| DeliveryBooked | … →`LOCK_JOB`→ Locked →`DELIVERY_PREP`→ DeliveryPrepared →`BOOKING`→ DeliveryBooked | `locked_at ≤ today-3d` |
+
+The `LOCK_JOB` edge stamps `locked_at = now`, so the seeder backdates `locked_at`
+~5 days once between the LOCK and DELIVERY_PREP edges for the DeliveryBooked
+flights (the only elapsed-time simulation — every *transition* still runs through
+the domain matrix + gate). Paired aerotow gliders use
+`transitionWithTowCascade`, so the linked tow moves with the glider.
+
+Transitions run in **phase B**, after the masterdata + base-row phase A commits,
+each under `Tenants.runAs(clubId, …)` so Hibernate resolves the flight's
+`@TenantId` against the committed rows.
+
+**Deterministic ids** (id band `019e30c3-…-7801-…08NN`; crew band `…-7901-…09NN`):
+two PIC `t_person` rows are seeded and linked onto `pilot1` / `pilot-c2`'s
+`t_user.person_id` (person band `…-7601-…06NN`) so the S-165 last-flight card —
+which filters `GET /api/v1/flights?personId=<person>` — resolves a real flight.
+
+### Documented counts (asserted by `ShowcaseSeederIT`; T-08/T-09/T-16 assert the admin numbers)
+
+| | club-1 | club-2 |
+| --- | --- | --- |
+| **total flights** | **8** | **6** |
+| NotProcessed | 3 | 1 |
+| Valid | 1 | 1 |
+| Invalid | 1 | 1 |
+| Locked | 2 | 2 |
+| DeliveryBooked | 1 | 1 |
+| **today's flights** (`flight_date = today`) | **3** | **1** |
+| **pending validation** (NotProcessed + Invalid) | **4** | **2** |
+
+- **Variants covered:** paired aerotow (glider↔tow linked, S-063) appears today
+  in club-1 + locked in both clubs; pure winch glider; motor (and a club-2
+  charter-aircraft motor flight, the cross-tenant aircraft case).
+- **Crew:** `pilot1` is PIC (`PILOT_OR_STUDENT`) on all 8 club-1 flights;
+  `pilot-c2` on all 6 club-2 flights. `pilot-empty1` has **zero** crew rows.
+
+**Cross-tenant totals (sysadmin aggregate — T-10/T-11).** The showcase
+*contributes* **2 clubs**, **3 net-new principals** (+ the reused realm users),
+and **14 flights** (8 + 6) spanning both clubs. The sysadmin endpoint counts the
+whole DB (showcase rows + whatever dev seeds / migrated data are present), so the
+sysadmin assertion is "aggregate spans ≥2 clubs and is non-zero", not an exact
+absolute — the showcase guarantees the ≥2-club, ≥14-flight floor.
+
 ## Per-journey-extension convention (the precedent J-3 sets)
 
 **Each future journey EXTENDS the showcase seed with its entity's realistic
@@ -145,7 +209,7 @@ Planned extensions (non-binding, from the J-3 plan):
 | Journey | adds |
 | --- | --- |
 | J-3 T-03a | locations (3/club) + aircraft (glider / tow / TMG / charter) — done |
-| J-3 T-03b | flights across every variation × state × date (references the T-03a ids) |
+| J-3 T-03b | flights across every variation × state × date (references the T-03a ids) — done |
 | J-5 | reservations |
 | J-6 | planning days |
 | J-10 | deliveries |
