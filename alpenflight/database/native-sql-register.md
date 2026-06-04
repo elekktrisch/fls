@@ -88,6 +88,41 @@ This register is the gate.
   check moves to a dedicated service explicitly wrapped in
   `Tenants.runAs(null)` so the JPA path becomes idiomatic.
 
+### `tenancy-showcase-seed-deterministic-ids` — `On-demand showcase demo seed with deterministic ids`
+
+- **Caller:** `src/main/java/ch/alpenflight/tenancy/showcase/ShowcaseSeeder.java`
+- **Tenant-scoped tables touched:** t_location, t_flight
+- **Justification:** the showcase seed (J-3) needs *fixed* row ids so the e2e
+  display spec + admin-dashboard tiles can assert against known rows
+  (`LOCATION_C1_HOME`, the per-state flight matrix, …). The Location + Flight
+  aggregates own id generation (`@GeneratedValue(strategy = UUID)` mints a
+  fresh random id on every persist), so the JPA save path cannot honour a
+  chosen id. The seeder therefore mirrors the migration ingestor's
+  validate-via-aggregate-then-JDBC-INSERT pattern for these very entities:
+  construct the aggregate (so every ADR 0022 directive-2 invariant runs —
+  ICAO shape, blank-name, flight operational data, the legal state matrix via
+  the real `FlightStateTransitionService`), read the normalised values off the
+  getters, then carry the deterministic id in an idempotent
+  `ON CONFLICT (id) DO NOTHING` INSERT. The seeder is showcase-only
+  (`@Profile("showcase")`), never on the IT bootstrap path, and never serves a
+  request — it is a curated demo loader.
+- **Tenancy gate:** every INSERT/UPDATE sets the tenant column explicitly —
+  `t_location.club_id` and `t_flight.operating_club_id` are parameter-bound
+  literals (never caller-controlled string interpolation), and the whole
+  location + flight seed runs inside `Tenants.runAs(clubId, ...)` so the
+  effective-tenant write-context matches the inserted rows (defence in depth).
+  This does NOT bypass tenant scoping — it sets the tenant column rather than
+  relying on the `@TenantId` discriminator, which the chosen-id INSERT path
+  can't engage.
+- **Reviewer:** auto-registered with J-3 T-03c; security-reviewer panel
+  (ship-time gate) re-confirms.
+- **Approved:** 2026-06-04.
+- **Expires:** 2027-06-04
+- **Remove when:** the showcase seed is retired, OR Location/Flight expose a
+  persist-with-supplied-id path (e.g. an explicit assigned-id factory the
+  ingestor + seeder share) that routes through JPA so the `@TenantId`
+  discriminator engages without a chosen-id JDBC INSERT.
+
 When you need to add one:
 
 1. Open a PR that updates this file with the entry below filled in.

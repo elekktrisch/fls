@@ -336,8 +336,14 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     }
 
     private int countLocations(UUID clubId) {
+        // Count only the SHOWCASE-owned locations for the club (deterministic id
+        // band 019e30c3-…-7301-…). ADR 0021: CLUB_1 is the shared dev club other
+        // ITs also populate, so a bare club_id count over the shared container is
+        // non-deterministic; keying on the seeder's own id band still catches a
+        // missing/duplicated showcase row while ignoring foreign rows.
         Integer n = jdbc.queryForObject(
-                "SELECT count(*) FROM t_location WHERE club_id = ?::uuid AND deleted_on IS NULL",
+                "SELECT count(*) FROM t_location WHERE club_id = ?::uuid "
+                        + "AND id::text LIKE '019e30c3-2c00-7301-%' AND deleted_on IS NULL",
                 Integer.class, clubId.toString());
         return n == null ? 0 : n;
     }
@@ -367,8 +373,15 @@ class ShowcaseSeederIT extends PostgresIntegrationTest {
     }
 
     private long countAircraftManagedBy(UUID clubId) {
+        // Count only the SHOWCASE-owned fleet for the club (the seeder's fixed
+        // immats). CLUB_1 is the shared dev club other ITs also populate, so a
+        // bare managing_club_id count over the shared container is
+        // non-deterministic; keying on the seeded immats still catches a
+        // missing/misassigned showcase aircraft while ignoring foreign rows.
         Long n = jdbc.queryForObject(
-                "SELECT count(*) FROM t_aircraft WHERE managing_club_id = ?::uuid AND deleted_on IS NULL",
+                "SELECT count(*) FROM t_aircraft WHERE managing_club_id = ?::uuid "
+                        + "AND immatriculation IN ('HB-3001','HB-TOW1','HB-MOT1','HB-3002','HB-CHTR') "
+                        + "AND deleted_on IS NULL",
                 Long.class, clubId.toString());
         return n == null ? 0 : n;
     }
