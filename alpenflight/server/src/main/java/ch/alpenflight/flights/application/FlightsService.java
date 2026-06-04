@@ -186,6 +186,25 @@ public class FlightsService {
         return after;
     }
 
+    /**
+     * Club-admin dashboard counts (J-3 T-08): today's club flights +
+     * flights-pending-validation, both tenant-scoped to the caller's club by
+     * the {@code @TenantId} discriminator (ADR 0008 — the counts cannot cross
+     * clubs). "Today" is derived from the injected {@link Clock} (same source
+     * as {@link #newTemplate} / {@link #listFlights}) so the boundary is
+     * testable with {@link Clock#fixed}; pending = {@code NotProcessed} +
+     * {@code Invalid}. Counts ride {@code @TenantId} via JPQL {@code count}
+     * queries — no native SQL, nothing to register.
+     */
+    @Transactional(readOnly = true)
+    public ClubFlightCounts clubFlightCounts() {
+        long today = repository.countByFlightDate(LocalDate.now(clock));
+        long pending = repository.countByProcessStateIdIn(List.of(
+                FlightProcessState.NOT_PROCESSED.id(),
+                FlightProcessState.INVALID.id()));
+        return new ClubFlightCounts(today, pending);
+    }
+
     /** Per-club defaults remain a future story; this stamps today's date + the discriminator. */
     @Transactional(readOnly = true)
     public FlightTemplateResponse newTemplate(FlightAircraftType type) {

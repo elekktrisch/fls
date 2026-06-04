@@ -2241,6 +2241,25 @@
         }
       }
     },
+    "/api/v1/me/club-dashboard" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Club-admin dashboard tile counts — today's club flights + flights-pending-validation (NotProcessed + Invalid), tenant-scoped to the caller's club. CLUB_ADMINISTRATOR only.",
+        "operationId" : "get_2",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubDashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/location-types" : {
       "get" : {
         "tags" : [ "LocationTypes" ],
@@ -5332,6 +5351,22 @@
           "timeout" : {
             "type" : "integer",
             "format" : "int64"
+          }
+        }
+      },
+      "ClubDashboardResponse" : {
+        "type" : "object",
+        "description" : "Club-admin dashboard tile counts (caller's club only).",
+        "properties" : {
+          "todaysFlights" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Count of the caller club's flights flown today (flight_date = today)."
+          },
+          "pendingValidation" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Count of the caller club's flights pending validation (process state NotProcessed or Invalid)."
           }
         }
       },
