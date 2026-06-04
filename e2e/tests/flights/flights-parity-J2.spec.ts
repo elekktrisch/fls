@@ -69,6 +69,7 @@
  * legacy specs + that workflow document.
  */
 
+import { existsSync } from "node:fs";
 import {
   test,
   expect,
@@ -158,6 +159,29 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     await flightDate.waitFor({ state: "visible", timeout: 30_000 });
     await screenshot(page, "flights-parity-J2-02-legacy-form-top");
 
+    // J-2 T-42 — STABLE parity screenshot (side=legacy view=form), written
+    // RIGHT AFTER the edit form is visible and BEFORE the tow drill-down
+    // assertions below. This screenshot is the deliverable (the gallery's J-2
+    // form-parity half); it must NOT be gated on a finicky tow-field visibility
+    // check. The seeded glider flight is the paired-tow flight, and the legacy
+    // edit form renders the WHOLE field set (date → glider → tow) in one DOM
+    // pass once `#FlightDate` is visible (trace run 26926684710 error-context
+    // confirms the full Schleppflugzeug HB-KCB / Schleppilot / tow-times block
+    // is present in the snapshot). A fullPage capture here gets the complete
+    // glider+tow field set with zero dependence on the selectize host's box.
+    //
+    // ROOT-CAUSE FIX (run 26926684710, flights-parity-J2.spec.ts:189): the form
+    // PNG previously landed only AFTER an `expect(...TowAircraftId...).toBeVisible()`
+    // that resolved `hidden` — the `<selectize>` host is a layout-less widget
+    // host (Selectize renders a visible `.selectize-input` SIBLING and leaves the
+    // original `<selectize>`/`<select>` host zero-box), so its visibility check
+    // aborts the spec before the screenshot ever runs. Capturing first makes the
+    // form PNG robust; the tow check below is now a non-fatal SECONDARY signal.
+    await page.screenshot({
+      path: testInfo.outputPath("legacy-flight-form.png"),
+      fullPage: true,
+    });
+
     // Scroll the glider + tow field set into view so the WHOLE legacy flight
     // form (date → glider field set → tow field set) is visible across the
     // recording — this is the parity surface the operator wants to eyeball vs
@@ -173,31 +197,29 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     // (flight-edit-tow-form.html:1-2), a Bootstrap grid column that HAS a box and
     // renders only for a tow/aerotow start type. The seeded glider flight opened
     // here is the paired-tow flight (trace confirms HB-3407 → tow HB-KCB), so the
-    // ng-if is true and the column renders. Anchor on that inner column — and the
-    // `[name="TowAircraftId"]` towplane selectize inside it — exactly as the
-    // GREEN J-1 aircraft spec anchors on real form controls (#Immatriculation /
-    // #Comment), never on a directive host.
+    // ng-if is true and the column renders. Anchor on that inner column for the
+    // scroll-into-view diagnostic.
     const towFieldSet = page.locator(
       'fls-flight-edit-tow-form div[ng-if="needsTowplane(flightDetails.StartType)"]',
     );
     await towFieldSet.scrollIntoViewIfNeeded();
     await towFieldSet.waitFor({ state: "visible", timeout: 15_000 });
-    // The towplane selectize is the load-bearing tow field; assert it rendered so
-    // the screenshot below captures a populated tow field set, not a bare column.
+    // SECONDARY (non-fatal) tow-field signal. The towplane control is rendered by
+    // Selectize: the original `[name="TowAircraftId"]` <selectize> host is
+    // zero-box (`toBeVisible()` resolves `hidden` — run 26926684710:189), so we
+    // assert on the VISIBLE Selectize widget it renders instead (`.selectize-control`
+    // / `.selectize-input` sibling inside the same field set). This proves the tow
+    // field set populated for the diagnostic screenshot below WITHOUT re-introducing
+    // the directive/widget-host visibility trap. The form PNG above is already
+    // written, so even a tow-side surprise can no longer suppress the deliverable.
     await expect(
-      page.locator('fls-flight-edit-tow-form [name="TowAircraftId"]'),
+      page
+        .locator(
+          'fls-flight-edit-tow-form div[ng-if="needsTowplane(flightDetails.StartType)"] .selectize-input',
+        )
+        .first(),
     ).toBeVisible();
     await screenshot(page, "flights-parity-J2-03-legacy-form-fields");
-
-    // J-2 T-10 — STABLE parity screenshot (side=legacy view=form). fullPage so
-    // the WHOLE legacy flight field set (date → glider → tow) is one image the
-    // operator eyeballs against AlpenFlight's flight form. Same fixed-name +
-    // output-dir contract as the list screenshot above (mirrors J-1's
-    // `legacy-aircraft-form.png`).
-    await page.screenshot({
-      path: testInfo.outputPath("legacy-flight-form.png"),
-      fullPage: true,
-    });
 
     // ----- 3. MOTOR: the air-movements list (the motor variant) --------------
     // The same shared flight table parameterized to the motor variant
@@ -219,5 +241,21 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     await screenshot(page, "flights-parity-J2-04-legacy-airmovements");
   } finally {
     await ctx.close();
+  }
+
+  // J-2 T-42 — SELF-GUARD: both gallery-declared parity PNGs MUST have landed.
+  // The fanout staging only DECLARES screenshots it can `find`, so a
+  // skipped-but-expected capture (the run-26926684710 bug, where the form PNG
+  // was gated behind a brittle selectize assertion) was silently absent from
+  // the gallery instead of red. Asserting both files here turns a missed
+  // capture into a loud failure of THIS spec step (non-blocking parity aid —
+  // it does not gate the AlpenFlight chain, but it IS surfaced in the fanout's
+  // final-status step), so the gap can never again hide behind continue-on-error.
+  for (const png of ["legacy-flight-list.png", "legacy-flight-form.png"]) {
+    expect(
+      existsSync(testInfo.outputPath(png)),
+      `expected parity screenshot ${png} to have been written to the test output dir — ` +
+        `the fanout gallery's J-2 ${png.includes("list") ? "list" : "form"} parity half depends on it`,
+    ).toBeTruthy();
   }
 });
