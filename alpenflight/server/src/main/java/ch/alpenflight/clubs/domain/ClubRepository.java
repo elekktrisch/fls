@@ -20,6 +20,12 @@ public interface ClubRepository {
     /** Returns active (non-soft-deleted) clubs, ordered by name. */
     List<Club> findAllActive();
 
+    /** Count of active (non-soft-deleted) clubs — sysadmin dashboard total (J-3 T-10). */
+    long countActive();
+
+    /** Ids of every active (non-soft-deleted) club — drives the sysadmin cross-tenant flight tally (J-3 T-10). */
+    List<UUID> activeIds();
+
     /** Returns the active club with the given id, or empty if absent / soft-deleted. */
     Optional<Club> findActiveById(UUID id);
 

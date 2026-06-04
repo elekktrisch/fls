@@ -92,6 +92,18 @@ public class UsersService {
         this.clock = clock;
     }
 
+    /**
+     * Count of active users across ALL clubs — feeds the sysadmin dashboard's
+     * {@code totalUsers} tile (J-3 T-10). Deliberately cross-tenant (User has
+     * no {@code @TenantId}); the {@code me} module composes it via this
+     * published API rather than reaching into {@code users} internals. A
+     * pure DB count — no Keycloak round-trip.
+     */
+    @Transactional(readOnly = true)
+    public long countAllActiveUsers() {
+        return users.countAllActive();
+    }
+
     @Transactional(readOnly = true)
     public List<UserListItem> listInCurrentTenant() {
         UUID tenant = currentTenantOrThrow();

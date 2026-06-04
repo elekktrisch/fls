@@ -205,6 +205,19 @@ public class FlightsService {
         return new ClubFlightCounts(today, pending);
     }
 
+    /**
+     * Count of all non-deleted flights within the current effective tenant
+     * (J-3 T-10). Tenant-scoped per call by the {@code @TenantId} discriminator
+     * — it counts exactly the active tenant's flights. The sysadmin dashboard's
+     * cross-tenant {@code totalFlights} is built by the {@code me} module
+     * calling this once per club under {@code Tenants.runAs(clubId)} and summing
+     * — the sanctioned cross-tenant read path (no native SQL).
+     */
+    @Transactional(readOnly = true)
+    public long countAllFlights() {
+        return repository.countAll();
+    }
+
     /** Per-club defaults remain a future story; this stamps today's date + the discriminator. */
     @Transactional(readOnly = true)
     public FlightTemplateResponse newTemplate(FlightAircraftType type) {

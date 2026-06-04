@@ -60,6 +60,10 @@ public interface JpaFlightRepository
     long countByFlightDate(@Param("date") LocalDate flightDate);
 
     @Override
+    @Query("select count(f) from Flight f where f.deletedOn is null")
+    long countAll();
+
+    @Override
     default long countByProcessStateIdIn(Collection<UUID> processStateIds) {
         if (processStateIds.isEmpty()) {
             return 0L;

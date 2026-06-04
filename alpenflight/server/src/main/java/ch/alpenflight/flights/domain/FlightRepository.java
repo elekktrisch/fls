@@ -109,6 +109,16 @@ public interface FlightRepository {
     long countByFlightDate(LocalDate flightDate);
 
     /**
+     * Count of all non-deleted flights within the caller's tenant — feeds the
+     * sysadmin dashboard's {@code totalFlights} tile (J-3 T-10). Tenant filter
+     * structural via {@code @TenantId}: per call this counts exactly one
+     * club's flights, so the sysadmin total is built by the {@code me} module
+     * summing this across every club under {@code Tenants.runAs(clubId)} — the
+     * sanctioned cross-tenant read path (no native SQL, nothing to register).
+     */
+    long countAll();
+
+    /**
      * Count of non-deleted flights in any of the given process states within
      * the caller's tenant — feeds the club-admin "pending validation" tile
      * (NotProcessed + Invalid, J-3 T-08). Tenant filter structural. An empty

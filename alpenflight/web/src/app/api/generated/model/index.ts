@@ -98,6 +98,7 @@ export * from './personLookupResult';
 export * from './personResponse';
 export * from './personUpdateRequest';
 export * from './sseEmitter';
+export * from './systemDashboardResponse';
 export * from './towContext';
 export * from './userInviteRequest';
 export * from './userInviteRequestRolesItem';

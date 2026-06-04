@@ -28,6 +28,14 @@ public interface JpaClubRepository extends JpaRepository<Club, UUID>, ClubReposi
     List<Club> findAllActive();
 
     @Override
+    @Query("select count(c) from Club c where c.deletedOn is null")
+    long countActive();
+
+    @Override
+    @Query("select c.id from Club c where c.deletedOn is null order by c.id")
+    List<UUID> activeIds();
+
+    @Override
     @Query("select c from Club c where c.id = :id and c.deletedOn is null")
     Optional<Club> findActiveById(UUID id);
 

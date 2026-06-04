@@ -57,6 +57,14 @@ public interface UserRepository {
      */
     long countActiveInClub(UUID clubId);
 
+    /**
+     * Count of active users across ALL clubs (no tenant predicate). Feeds the
+     * sysadmin dashboard's {@code totalUsers} tile (J-3 T-10). User has no
+     * {@code @TenantId}, so this is a plain unscoped count — the opposite of
+     * the per-club {@link #countActiveInClub(UUID)}.
+     */
+    long countAllActive();
+
     User save(User user);
 
     void flush();

@@ -28,7 +28,8 @@ import {
 import type {
   ClubDashboardResponse,
   MeResponse,
-  SseEmitter
+  SseEmitter,
+  SystemDashboardResponse
 } from '../model';
 
 
@@ -113,6 +114,39 @@ export class MeService {
     );
   }
 /**
+ * @summary Sysadmin dashboard cross-tenant totals — total clubs / users / flights across ALL tenants (deliberately tenant-unscoped). SYSTEM_ADMINISTRATOR only.
+ */
+ get2<TData = SystemDashboardResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ get2<TData = SystemDashboardResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ get2<TData = SystemDashboardResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  get2<TData = SystemDashboardResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/system-dashboard`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/system-dashboard`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/system-dashboard`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
  * @summary Live event stream for the authenticated principal (Server-Sent Events). Keyed by the JWT subject; in-memory, no replay across restart. Heartbeat comment line every ~25s keeps idle connections alive through proxies.
  */
  stream<TData = SseEmitter>( options?: HttpClientBodyOptions): Observable<TData>;
@@ -148,10 +182,10 @@ export class MeService {
 /**
  * @summary Club-admin dashboard tile counts — today's club flights + flights-pending-validation (NotProcessed + Invalid), tenant-scoped to the caller's club. CLUB_ADMINISTRATOR only.
  */
- get2<TData = ClubDashboardResponse>( options?: HttpClientBodyOptions): Observable<TData>;
- get2<TData = ClubDashboardResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
- get2<TData = ClubDashboardResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
-  get2<TData = ClubDashboardResponse>(
+ get3<TData = ClubDashboardResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ get3<TData = ClubDashboardResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ get3<TData = ClubDashboardResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  get3<TData = ClubDashboardResponse>(
      options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
     if (options?.observe === 'events') {
       return this.http.get<TData>(
