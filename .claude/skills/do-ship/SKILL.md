@@ -15,11 +15,9 @@ the journey PR. The operator merges.
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md)
 first — both directives govern. Schema is structural; business rules on aggregates.
 
-**Search posture.** Default to MCP servers over raw grep: the IntelliJ MCP
-(`search_in_files_by_regex`, `search_in_files_by_text`, `find_files_by_glob`,
-`search_symbol`, `get_symbol_info`) for code search/navigation and the
-**codebase-memory-mcp** for prior-art recall. Fall back to `Grep`/`Glob` only
-when no MCP server is connected.
+**Search posture.** Default to MCP over raw grep: the IntelliJ MCP for code
+search/navigation, **codebase-memory-mcp** for prior-art recall; fall back to
+`Grep`/`Glob` only when no MCP server is connected.
 
 ## Shape
 
@@ -125,6 +123,16 @@ Push at task boundaries; after the first locally-green backend task, open a
 integration/J-NNN`, body `Closes #N` + AC checklist). Watch CI in background;
 a red CI run becomes the next task, not a blocked wait.
 
+**Surface the gallery EARLY, not at the gate.** The proof gallery is the operator's only
+glanceable window — the cheapest place they catch a wrong screen shape or empty form
+*before* it costs a dozen reopens (J-2: ~14 reopens chasing a test red whose real cause was
+a wrong screen design the operator spotted in one glance). As soon as the spec produces its
+**first** screenshots/video (≈ after T-01 + the first capture), deploy the preview gallery
+and **give the operator the link**; refresh it as capture-bearing tasks land — don't wait
+for § 4. On a repeatedly-red proof, re-deploy + surface the current gallery *before* the
+next attempt ([[feedback_surface_proof_early_on_repeated_failure]]) and suspect the screen
+shape, not just the test.
+
 **Drive to the goal with tasks — never follow-ups.** A gap between the journey and its
 ACs (worker- or gate-revealed) becomes **another `T-NN`** until the done bar — never a
 follow-up story / new journey / "we should later…". Exception: work with **significant
@@ -167,11 +175,10 @@ snapshot-reuse rather than silently re-running.
 Prune the journey body to load-bearing decisions only (code is now the source of
 truth — delete file trees, signatures, resolved threat rows; keep contracts,
 parity exclusions, the task checklist as the record). Flip `status: done` +
-`done_at`; mark `rolls_up` stories `rolled_up_into: J-NNN`. `gh pr ready`. Post
-the **video(s)** to the operator via `SendUserFile` — the AlpenFlight pass video
-plus the legacy `flsweb` video when applicable, captioned for side-by-side
-parity-checking — with the PR link + Mocked-seams list. **Stop — the operator
-merges** `integration/J-NNN` up the line.
+`done_at`; mark `rolls_up` stories `rolled_up_into: J-NNN`. `gh pr ready`. Give the
+operator the **proof-gallery link** (videos + paired screenshots live there, not
+SendUserFile'd into chat — [[feedback_proof_in_gallery_not_chat]]) + the PR link +
+Mocked-seams list. **Stop — the operator merges** `integration/J-NNN` up the line.
 
 ## Escalation triggers
 

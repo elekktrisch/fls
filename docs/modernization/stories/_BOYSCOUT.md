@@ -12,13 +12,16 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
-## Pending (filed by /do-retro 2026-06-02, J-0b+J-0c window)
+## Pending (filed by /do-retro 2026-06-04, J-2 window)
 
-- **modernize-* sunset.** do-* is proven on J-0/J-0b/J-0c (the 2-3 bar is met). Delete the 9
-  `modernize-*` skills + ~12 modernize agents and prune the `rolled_up_into:` horizontal
-  stories. Mechanical (however many files) → rides forward; ideally after do-* ships one
-  *non-migration* journey (early proofs are all fan-out flavored). 47 `implemented/` stories
-  stay as history. *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)*
+- **Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).** The mock-auth
+  e2e workflow ("Run Playwright") is NOT in the required `ci` aggregator, so a red mock-auth e2e
+  slipped past do-ship's gate to a "done" claim (J-2 T-47: the T-44 accordion broke
+  `proof-gallery.spec.ts` and nobody watched that workflow). Operator's chosen fix is **structural,
+  not procedural**: add "Run Playwright" to the required aggregator (or fold its job into `ci`) so a
+  red mock-auth e2e blocks merge the same way `alpenflight-proof` does — then do-ship's existing
+  "watch the required gate" already catches it, no skill rule needed. *(seam: .github/workflows/ci.yml
+  required aggregator + the "Run Playwright" workflow's required-status wiring)*
 
 ## Pending (filed by /do-ship 2026-06-04, J-2 window)
 
@@ -31,11 +34,12 @@ genuinely new vertical feature scope.
   comment (or have ci point at the last fanout gallery). Needs a fanout run to validate → ride the next
   journey's gate. *(seam: ci.yml gallery-deploy job + alpenflight-proof-fanout.yml deploy + the two
   `<!-- proof-preview -->` / `<!-- fanout-proof-preview -->` comment upserts)*
-- **modernize-\* sunset (carried forward, deferred from J-2).** J-2 was the first non-migration-
-  flavored feature journey (the rider's trigger), but the J-2 PR was already large (time-gate +
-  412 + unified-motor + Flight migration + the real-export catches), so the ~21-file deletion +
-  story-prune was deferred to keep the gate PR reviewable. Ride the next feature journey. *(seam:
-  .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)* — see the top "Pending" entry.
+- **modernize-\* sunset (TRIGGER NOW MET — ride the next journey).** do-* is proven on
+  J-0/J-0b/J-0c + J-1 + **J-2 (the first non-migration feature journey — the trigger condition)**, so
+  the 2-3-journey bar is unambiguously met. Delete the 9 `modernize-*` skills + ~12 modernize agents
+  and prune the `rolled_up_into:` horizontal stories (~21 files; mechanical → rides forward). Deferred
+  from J-2 only to keep that already-large gate PR reviewable. 47 `implemented/` stories stay as
+  history. *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)*
 - **e2e tsc-strictness** — `tsc -p alpenflight/web/e2e/tsconfig.json` reports ~23 pre-existing
   `exactOptionalPropertyTypes`/`maxFailures` errors (`playwright.config.ts`, `flights-list.spec.ts`,
   `aircraft-crud.spec.ts`, `persons-add-modal.spec.ts`, `proof-gallery.spec.ts`, `migration/handshake.spec.ts`).
