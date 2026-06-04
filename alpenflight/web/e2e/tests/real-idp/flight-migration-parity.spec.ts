@@ -168,7 +168,18 @@ async function createGliderFlightAerotow(
     { timeout: 5_000 },
   );
   await page.getByTestId('flight-submit-header').click();
-  await created;
+  const createdResp = await created;
+
+  // CRITICAL (J-2 T-45): read the POST body IMMEDIATELY after the response and
+  // BEFORE any navigation. The submit navigates back to /flights and Playwright
+  // evicts the response buffer on navigation; reading `.json()` after the
+  // `toHaveURL` navigation throws "No data found for resource with given
+  // identifier". The glider id is the AUTHORITATIVE flightId the 412 test reads
+  // back via GET — deriving it from a rendered list row (the pre-T-45 shape) is
+  // fragile and was returning the wrong/undefined id once T-43 disrupted the
+  // flow. Capture it off the POST body. The wizard-step shots stay BEFORE submit
+  // (on the populated glider/tow steps — the right content anyway).
+  const body = (await createdResp.json()) as { id: string; flightAircraftType: string };
   await expect(page).toHaveURL(/\/flights$/);
 
   // The new glider flight renders with the glider aircraft's immatriculation.
@@ -177,9 +188,7 @@ async function createGliderFlightAerotow(
     .filter({ has: page.locator(`text="${md.gliderImmat}"`) })
     .first();
   await expect(row, 'created glider flight must appear in the list').toBeVisible();
-  const testId = await row.getAttribute('data-testid');
-  expect(testId, 'flight row must carry a flights-row-<id> testid').toBeTruthy();
-  return testId!.replace(/^flights-row-/, '');
+  return body.id;
 }
 
 /**
@@ -249,9 +258,17 @@ async function createMotorFlight(
   );
   await page.getByTestId('flight-submit-header').click();
   const createdResp = await created;
-  await expect(page).toHaveURL(/\/flights$/);
 
+  // CRITICAL (J-2 T-45): read the POST body IMMEDIATELY after the response and
+  // BEFORE any navigation. The submit triggers a client-side navigation back to
+  // /flights, and Playwright evicts the response body buffer once the page
+  // navigates — so `createdResp.json()` AFTER `toHaveURL(/\/flights$/)` throws
+  // "No data found for resource with given identifier". Nothing that navigates
+  // (or otherwise evicts the network buffer) may sit between `await created` and
+  // this `.json()`. The `alpenflight-motor-form.png` capture stays BEFORE submit
+  // (on the populated motor form — the right content anyway).
   const body = (await createdResp.json()) as { id: string; flightAircraftType: string };
+  await expect(page).toHaveURL(/\/flights$/);
   return body;
 }
 
