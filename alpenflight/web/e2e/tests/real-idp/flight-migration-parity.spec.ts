@@ -90,11 +90,32 @@ async function bearerFromFlightsList(page: Page): Promise<string> {
 }
 
 /**
+ * Parse the created flight id out of a 201 `Location` header. The backend
+ * (`FlightsController.create`) returns `ResponseEntity.created(URI "/api/v1/
+ * flights/{id}")`, so the id is the last path segment. Used INSTEAD of reading
+ * the POST response body, which Playwright evicts when the SPA navigates to
+ * /flights on POST-success (J-2 T-46). Asserts the header is present + the id
+ * matches the external `fl-<uuid>` shape so a missing/garbled Location fails
+ * loudly here (with the raw header) rather than returning a bad flightId that
+ * the 412 + tenant-404 cases would silently misuse.
+ */
+function flightIdFromLocation(location: string | undefined): string {
+  expect(
+    location,
+    'POST /api/v1/flights must return a 201 Location header (FlightsController.create)',
+  ).toBeTruthy();
+  const id = new URL(location!, 'http://localhost').pathname.split('/').pop() ?? '';
+  expect(id, `Location "${location}" must end in a flight id`).toMatch(/^fl-[0-9a-f-]{36}$/);
+  return id;
+}
+
+/**
  * Drive the 3-step wizard to create a GLIDER flight with start-type = AEROTOW
  * EXPLICITLY (Launch → Glider → Tow). Because AEROTOW makes `needsTow` true, the
  * Tow step renders and the tow flight is created + linked in the SAME save (the
  * paired glider↔tow save, S-063 parity). Returns the created GLIDER flight's id
- * (read from the rendered list row matched by its resolved immatriculation).
+ * (parsed from the 201 `Location` header — see `flightIdFromLocation`; NOT the
+ * POST body, which the on-success navigation to /flights evicts, J-2 T-46).
  *
  * Selects EVERY field off the seeded masterdata so the create is deterministic
  * (the clean realm has no defaults to fall back on).
@@ -170,16 +191,18 @@ async function createGliderFlightAerotow(
   await page.getByTestId('flight-submit-header').click();
   const createdResp = await created;
 
-  // CRITICAL (J-2 T-45): read the POST body IMMEDIATELY after the response and
-  // BEFORE any navigation. The submit navigates back to /flights and Playwright
-  // evicts the response buffer on navigation; reading `.json()` after the
-  // `toHaveURL` navigation throws "No data found for resource with given
-  // identifier". The glider id is the AUTHORITATIVE flightId the 412 test reads
-  // back via GET — deriving it from a rendered list row (the pre-T-45 shape) is
-  // fragile and was returning the wrong/undefined id once T-43 disrupted the
-  // flow. Capture it off the POST body. The wizard-step shots stay BEFORE submit
-  // (on the populated glider/tow steps — the right content anyway).
-  const body = (await createdResp.json()) as { id: string; flightAircraftType: string };
+  // CRITICAL (J-2 T-46): do NOT read the POST response BODY here. The submit
+  // fires a client-side `router.navigateByUrl('/flights')` on POST-success, and
+  // Playwright EVICTS captured response bodies the moment the page navigates —
+  // so `createdResp.json()/.body()/.text()` throws "No data found for resource
+  // with given identifier" no matter how soon it runs (T-45 moved it before
+  // `toHaveURL` and it STILL failed both ci attempts on run 26932702970). The id
+  // we need is in the 201 `Location` header (`FlightsController.create` returns
+  // `ResponseEntity.created(/api/v1/flights/{id})`): HEADERS are available
+  // without the body buffer and SURVIVE the navigation. Parse the id off the
+  // Location header — never the body. The `created` wait still serves as the
+  // "POST completed" signal (and the 412 test's no-auto-retry PUT-count signal).
+  const flightId = flightIdFromLocation(createdResp.headers()['location']);
   await expect(page).toHaveURL(/\/flights$/);
 
   // The new glider flight renders with the glider aircraft's immatriculation.
@@ -188,7 +211,7 @@ async function createGliderFlightAerotow(
     .filter({ has: page.locator(`text="${md.gliderImmat}"`) })
     .first();
   await expect(row, 'created glider flight must appear in the list').toBeVisible();
-  return body.id;
+  return flightId;
 }
 
 /**
@@ -198,7 +221,9 @@ async function createGliderFlightAerotow(
  * the selected motor aircraft and suppresses the tow step (a motor flight never
  * tows). NO /airmovements navigation — motor flights are unified into /flights
  * (legacy's separate /airmovements screen is NOT carried forward). Returns the
- * created flight's id + its POST-body flightAircraftType.
+ * created flight's id (from the 201 `Location` header) + its `flightAircraftType`
+ * (from a separate post-navigation re-GET — NOT the POST body, which the
+ * on-success navigation to /flights evicts, J-2 T-46).
  */
 async function createMotorFlight(
   page: Page,
@@ -259,17 +284,33 @@ async function createMotorFlight(
   await page.getByTestId('flight-submit-header').click();
   const createdResp = await created;
 
-  // CRITICAL (J-2 T-45): read the POST body IMMEDIATELY after the response and
-  // BEFORE any navigation. The submit triggers a client-side navigation back to
-  // /flights, and Playwright evicts the response body buffer once the page
-  // navigates — so `createdResp.json()` AFTER `toHaveURL(/\/flights$/)` throws
-  // "No data found for resource with given identifier". Nothing that navigates
-  // (or otherwise evicts the network buffer) may sit between `await created` and
-  // this `.json()`. The `alpenflight-motor-form.png` capture stays BEFORE submit
-  // (on the populated motor form — the right content anyway).
-  const body = (await createdResp.json()) as { id: string; flightAircraftType: string };
+  // CRITICAL (J-2 T-46): do NOT read the POST response BODY here. The submit
+  // fires `router.navigateByUrl('/flights')` on POST-success and Playwright
+  // evicts captured response bodies on navigation — `createdResp.json()/.body()
+  // /.text()` throws "No data found for resource with given identifier" no
+  // matter how soon (T-45 moved it before `toHaveURL` and it still failed both
+  // ci attempts on run 26932702970). The id comes from the 201 `Location`
+  // header (`FlightsController.create`), which survives the navigation; the
+  // MOTOR discriminator comes from a SEPARATE `page.request.get` re-GET AFTER
+  // navigation (its own buffer, never page-navigation-evicted). The
+  // `alpenflight-motor-form.png` capture stays BEFORE submit (populated form).
+  const id = flightIdFromLocation(createdResp.headers()['location']);
+
+  // Capture the principal's Bearer off the POST REQUEST headers (available
+  // without the response body buffer) so the re-GET below runs as the same
+  // identity. `request().headers()` is request-side metadata — never evicted.
+  const bearer = createdResp.request().headers()['authorization'];
+
   await expect(page).toHaveURL(/\/flights$/);
-  return body;
+
+  // Re-GET the created flight via a fresh APIRequestContext call to read the
+  // MOTOR discriminator off a response whose body buffer is NOT page-tied.
+  const detail = await page.request.get(`/api/v1/flights/${id}`, {
+    headers: { authorization: bearer! },
+  });
+  expect(detail.status(), 'the just-created motor flight is readable').toBe(200);
+  const { flightAircraftType } = (await detail.json()) as { flightAircraftType: string };
+  return { id, flightAircraftType };
 }
 
 /**
