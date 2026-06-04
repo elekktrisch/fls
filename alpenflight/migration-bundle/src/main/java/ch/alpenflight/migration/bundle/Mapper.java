@@ -90,4 +90,33 @@ public interface Mapper {
      * {@link #columns()} order. Caller batches {@code addBatch()} / executes.
      */
     void readEntity(JsonNode source, PreparedStatement target) throws SQLException;
+
+    /**
+     * Self-referencing FK columns the ingest must apply in a SECOND pass —
+     * INSERT the row with these columns NULL, then {@code UPDATE} them once
+     * EVERY row of this entity exists (S-141 two-pass). A self-FK cannot be
+     * declared in {@link #foreignKeys()} (that would violate the ArchUnit
+     * ingest-order invariant {@code source ordinal < target ordinal} — a
+     * self-edge fails {@code <}), and the producer SELECTs all rows for the
+     * club but emits them in an arbitrary intra-batch order, so a referencing
+     * row (a glider) can stream BEFORE the row it points at (its tow). Binding
+     * the column on the INSERT therefore FK-violates whenever the batch order
+     * is unfavorable. Deferring it to an UPDATE after the full INSERT pass is
+     * robust to ANY order.
+     *
+     * <p>The value carried in such a column is already the resolved
+     * destination id (FLIGHT is non-fan-out FULL_PORT, so the legacy GUID is
+     * preserved verbatim as the {@code id} — the self-FK target id == the
+     * value the producer emitted), so the second pass needs no further
+     * resolution; it just writes the value once the target row exists. A
+     * null value (empty-guid sentinel / no tow) carries nothing forward — no
+     * UPDATE is emitted, the column stays NULL.
+     *
+     * <p>Default empty so non-self-referencing mappers are unaffected — a
+     * mapper opts in by overriding (only {@link EntityType#FLIGHT} does today,
+     * for {@code tow_flight_id}).
+     */
+    default List<String> deferredSelfFkColumns() {
+        return List.of();
+    }
 }

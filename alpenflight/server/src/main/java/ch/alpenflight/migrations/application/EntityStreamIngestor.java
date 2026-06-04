@@ -200,6 +200,15 @@ final class EntityStreamIngestor {
         boolean mintsSurrogateId =
                 mintsSurrogateId(mapper.entityType(), mapper.columns());
         int surrogateIdPosition = mapper.columns().length + 1;
+        // S-141 two-pass for self-FK columns (tow_flight_id on FLIGHT): the
+        // producer emits rows in an arbitrary intra-batch order, so a glider can
+        // stream before its tow. INSERT every row with the self-FK NULL, capture
+        // the (id, value) deferred edges, then UPDATE them once the whole entity
+        // is inserted — robust to any batch order (J-2 T-41).
+        List<String> deferredSelfFkColumns = mapper.deferredSelfFkColumns();
+        DeferredSelfFkUpdates deferredUpdates = deferredSelfFkColumns.isEmpty()
+                ? null
+                : new DeferredSelfFkUpdates(mapper.entityType(), deferredSelfFkColumns);
         try (PreparedStatement ps = connection.prepareStatement(insert);
                 BundleStreamReader.NonClosingBufferedReader lines =
                         BundleStreamReader.NonClosingBufferedReader.of(tarStream)) {
@@ -243,6 +252,13 @@ final class EntityStreamIngestor {
                 // the real seed PK by joining <seedTable>.legacy_int_id; a miss
                 // fails closed rather than FK-violating verbatim on INSERT.
                 referenceLookupResolver.rewriteReferenceLookups(mapper, row);
+                // S-141 two-pass: lift each self-FK value into the deferred set
+                // and NULL it on the row so the INSERT writes NULL (the target
+                // row may not be inserted yet). The UPDATE pass below applies it
+                // after every row of this entity exists.
+                if (deferredUpdates != null) {
+                    deferredUpdates.captureAndNull(row);
+                }
                 mapper.readEntity(row, ps);
                 if (mintsSurrogateId) {
                     ps.setObject(surrogateIdPosition, UuidCreator.getTimeOrderedEpoch());
@@ -256,6 +272,97 @@ final class EntityStreamIngestor {
             }
             if (batched > 0) {
                 ps.executeBatch();
+            }
+        }
+        // Second pass: now that every row of this entity is inserted, resolve the
+        // self-FK edges. Runs in the SAME transaction, so a partial first pass
+        // never leaves orphan edges (S-141 two-pass).
+        if (deferredUpdates != null) {
+            deferredUpdates.apply(connection);
+        }
+    }
+
+    /**
+     * Collects the self-FK edges lifted off the INSERT pass and replays them as
+     * an {@code UPDATE t_<entity> SET <col> = ? WHERE id = ?} batch after the
+     * full INSERT pass (S-141 two-pass). One instance per
+     * {@link #ingestEntityNdjson} call — discarded when the stream ends.
+     *
+     * <p>The {@code id} is read off the row's {@code legacy_guid} wire field:
+     * a self-referencing entity (FLIGHT) is non-fan-out FULL_PORT, so the legacy
+     * GUID is preserved verbatim as the destination {@code id} (the orchestrator
+     * aliases {@code legacy_guid → id} at INSERT time, see
+     * {@link #destinationColumnNames}). The captured self-FK value is likewise
+     * the already-resolved target id — the UPDATE writes it as-is once the
+     * target row exists.
+     */
+    private static final class DeferredSelfFkUpdates {
+
+        private final EntityType entityType;
+        private final List<String> columns;
+        private final List<Object[]> edges = new java.util.ArrayList<>();
+
+        DeferredSelfFkUpdates(EntityType entityType, List<String> columns) {
+            this.entityType = entityType;
+            this.columns = List.copyOf(columns);
+        }
+
+        /**
+         * Capture each non-null self-FK value as a deferred edge, then NULL the
+         * column on the row so the INSERT binds NULL. A null/absent value (the
+         * empty-guid no-tow sentinel already collapsed by the producer) carries
+         * nothing forward — no edge, the column simply stays NULL.
+         */
+        void captureAndNull(ObjectNode row) {
+            JsonNode idNode = row.get(WIRE_LEGACY_GUID_COLUMN);
+            for (String column : columns) {
+                JsonNode value = row.get(column);
+                if (value == null || value.isNull()) {
+                    continue;
+                }
+                if (idNode == null || idNode.isNull()) {
+                    throw new BundleIngestException(
+                            BundleIngestErrorCode.NDJSON_PARSE_FAILED,
+                            "Deferred self-FK row on " + entityType + " has a "
+                                    + column + " but no " + WIRE_LEGACY_GUID_COLUMN + " id");
+                }
+                edges.add(new Object[] {
+                        column, UUID.fromString(idNode.asText()), UUID.fromString(value.asText())});
+                row.putNull(column);
+            }
+        }
+
+        /**
+         * Replay the captured edges as batched per-column UPDATEs. Every target
+         * row now exists, so {@code fk_flight_tow_flight_id} resolves regardless
+         * of the original batch order. A target genuinely absent from the export
+         * (dangling reference) surfaces as the same FK violation it always would
+         * — the second pass does NOT mask it, but the producer SELECTs the whole
+         * club so this is an ordering fix, not a row-presence one.
+         */
+        void apply(Connection connection) throws SQLException {
+            if (edges.isEmpty()) {
+                return;
+            }
+            String table = destinationTableFor(entityType);
+            for (String column : columns) {
+                String update = "UPDATE " + table + " SET " + column
+                        + " = ? WHERE " + DESTINATION_ID_COLUMN + " = ?";
+                try (PreparedStatement ps = connection.prepareStatement(update)) {
+                    int batched = 0;
+                    for (Object[] edge : edges) {
+                        if (!column.equals(edge[0])) {
+                            continue;
+                        }
+                        ps.setObject(1, edge[2]);
+                        ps.setObject(2, edge[1]);
+                        ps.addBatch();
+                        batched++;
+                    }
+                    if (batched > 0) {
+                        ps.executeBatch();
+                    }
+                }
             }
         }
     }
@@ -369,12 +476,21 @@ final class EntityStreamIngestor {
 
     private static void validateColumnAllowlist(Mapper mapper) {
         for (String column : mapper.columns()) {
-            if (column == null || !COLUMN_ALLOWLIST.matcher(column).matches()) {
-                throw new IllegalStateException(
-                        "Mapper " + mapper.entityType() + " column "
-                                + column + " violates [A-Za-z0-9_]+ allowlist — "
-                                + "INSERT-string interpolation requires a safe identifier");
-            }
+            assertSafeIdentifier(mapper, column);
+        }
+        // Deferred self-FK column names are interpolated into the second-pass
+        // UPDATE, so they pass the same identifier gate as the INSERT columns.
+        for (String column : mapper.deferredSelfFkColumns()) {
+            assertSafeIdentifier(mapper, column);
+        }
+    }
+
+    private static void assertSafeIdentifier(Mapper mapper, String column) {
+        if (column == null || !COLUMN_ALLOWLIST.matcher(column).matches()) {
+            throw new IllegalStateException(
+                    "Mapper " + mapper.entityType() + " column "
+                            + column + " violates [A-Za-z0-9_]+ allowlist — "
+                            + "INSERT-string interpolation requires a safe identifier");
         }
     }
 }

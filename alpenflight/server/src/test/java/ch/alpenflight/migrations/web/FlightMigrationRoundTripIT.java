@@ -288,22 +288,24 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 new MapRow(legacyGliderAircraftId, legacyGliderAircraftId),
                 new MapRow(legacyTowAircraftId, legacyTowAircraftId),
                 new MapRow(legacyMotorAircraftId, legacyMotorAircraftId)));
-        // FLIGHT (non-fan-out): legacy_guid -> id. The tow flight FIRST so its
-        // id-map row precedes the glider that references it (defensive; the
-        // resolver reads legacy_id_map_FLIGHT, which carries both regardless of
-        // NDJSON order, but mirror the producer's natural order).
+        // FLIGHT (non-fan-out): legacy_guid -> id. The GLIDER is emitted BEFORE
+        // its tow — the real-bundle order that 500'd on fk_flight_tow_flight_id
+        // before the S-141 two-pass (J-2 T-41). A single INSERT pass would bind
+        // tow_flight_id while the tow row does not yet exist → FK violation; the
+        // two-pass INSERTs both with NULL, then UPDATEs the link.
         tarEntries.put("FLIGHT.ndjson", concat(
+                // Glider flight: tow_flight_id -> the tow flight (which streams
+                // AFTER it); FlightPlanOpen(5) air-state -> flight_plan_opened_on
+                // survives; Locked(40) -> locked_at.
+                flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
+                        legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(),
+                        /* flightAircraftType */ 1, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
+                        LEGACY_PROCESS_STATE_LOCKED, "2024-06-01"),
                 // Tow flight (TOW type, no tow_flight_id, NEW air-state, Valid).
                 flightNdjson(legacyTowFlightId, legacyClubId, legacyTowAircraftId,
                         legacyLocationId, legacyFlightTypeId, /* towFlightId */ null,
                         /* flightAircraftType */ 2, LEGACY_AIR_STATE_LANDED,
                         LEGACY_PROCESS_STATE_VALID, "2024-06-01"),
-                // Glider flight: tow_flight_id -> the tow flight; FlightPlanOpen(5)
-                // air-state -> flight_plan_opened_on survives; Locked(40) -> locked_at.
-                flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
-                        legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(),
-                        /* flightAircraftType */ 1, LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN,
-                        LEGACY_PROCESS_STATE_LOCKED, "2024-06-01"),
                 // Motor flight: not towed. The producer mapper already collapsed
                 // the legacy empty-guid (00000000-…) TowFlightId to null
                 // (Coercions.writeOptionalGuidString, asserted at the producer
@@ -368,8 +370,17 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
                 .as("start_type_id resolved to the real V2 t_start_type AEROTOW seed PK")
                 .isEqualTo(SEED_START_TYPE_AEROTOW);
         assertThat(UUID.fromString(glider.get("tow_flight_id").toString()))
-                .as("tow self-FK resolved to the migrated tow flight row")
+                .as("tow self-FK resolved to the migrated tow flight row via the "
+                        + "S-141 two-pass UPDATE (glider INSERTed before its tow)")
                 .isEqualTo(legacyTowFlightId);
+        // The LINK is real, not id-equality by luck: the tow_flight_id points at
+        // an actual migrated TOW-type row (flight_aircraft_type_id=2).
+        Map<String, Object> linkedTow = jdbc.queryForMap(
+                "SELECT id, flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
+                glider.get("tow_flight_id").toString());
+        assertThat(((Number) linkedTow.get("flight_aircraft_type_id")).shortValue())
+                .as("the glider's tow_flight_id resolves to a real migrated TOW flight")
+                .isEqualTo((short) 2);
         assertThat(UUID.fromString(glider.get("process_state_id").toString()))
                 .as("process_state_id resolved to the real V3 LOCKED seed PK")
                 .isEqualTo(SEED_PROCESS_STATE_LOCKED);

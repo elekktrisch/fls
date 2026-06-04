@@ -206,6 +206,17 @@ public final class FlightMapper implements Mapper {
     }
 
     @Override
+    public List<String> deferredSelfFkColumns() {
+        // tow_flight_id is a self-FK on t_flight (fk_flight_tow_flight_id). It
+        // cannot ride foreignKeys() (self-edge breaks the ingest-order rule), and
+        // the producer emits flights in arbitrary intra-batch order, so a glider
+        // can be INSERTed before its tow. S-141 two-pass: INSERT with NULL, then
+        // UPDATE once every flight row exists (the value is already the preserved
+        // tow id — non-fan-out FULL_PORT). Robust to any batch order.
+        return List.of(TOW_FLIGHT_ID);
+    }
+
+    @Override
     public List<ReferenceLookup> referenceLookups() {
         // process_state_id + flight_cost_balance_type_id carry the synthetic
         // new UUID(0, legacyIntId) (writeNdjson uses legacyIntIdToUuidString /
@@ -255,9 +266,12 @@ public final class FlightMapper implements Mapper {
         Coercions.writeOptionalString(target, START_TYPE_ID,
                 Coercions.optionalLegacyIntIdAsUuidString(source, "StartType"));
         // Self-FK: empty-guid (00000000-…) on a non-towed flight → null
-        // (oracle #18); a real tow GUID resolves to the migrated tow row (FLIGHT
-        // is non-fan-out FULL_PORT, so legacy_guid is preserved as id and the
-        // tow GUID == the tow row's id — no separate UPDATE pass needed).
+        // (oracle #18); a real tow GUID is carried verbatim (FLIGHT is non-fan-
+        // out FULL_PORT, so legacy_guid is preserved as id → the tow GUID == the
+        // tow row's id). The ingest applies it in a SECOND pass (S-141 two-pass,
+        // see deferredSelfFkColumns) — a glider can stream BEFORE its tow, so
+        // binding it on the INSERT FK-violates (fk_flight_tow_flight_id) when
+        // the batch order is unfavorable (J-2 T-41 real-export catch).
         Coercions.writeOptionalGuidString(target, TOW_FLIGHT_ID,
                 source.getString("TowFlightId"));
         Coercions.writeOptionalShort(target, NR_OF_LDGS,

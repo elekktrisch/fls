@@ -223,13 +223,18 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 concat(
                         aircraftNdjson(legacyGliderAircraftId, legacyClubId, "HB-3000", false),
                         aircraftNdjson(legacyTowAircraftId, legacyClubId, "HB-TOW1", true)), 2);
+        // J-2 T-41: the GLIDER is emitted BEFORE its tow — the real-bundle order
+        // that 500'd on fk_flight_tow_flight_id (sqlstate=23503) before the
+        // S-141 two-pass. A single-pass INSERT binds tow_flight_id while the tow
+        // row does not yet exist → FK violation. The two-pass INSERTs both with
+        // NULL, then UPDATEs the link once every flight exists.
         EntityStreamResult flightStream = ndjsonStream(EntityType.FLIGHT, concat(
-                flightNdjson(legacyTowFlightId, legacyClubId, legacyTowAircraftId,
-                        legacyLocationId, legacyFlightTypeId, null, 2,
-                        LEGACY_PROCESS_STATE_VALID, "2024-06-01"),
                 flightNdjson(legacyGliderFlightId, legacyClubId, legacyGliderAircraftId,
                         legacyLocationId, legacyFlightTypeId, legacyTowFlightId.toString(), 1,
-                        LEGACY_PROCESS_STATE_LOCKED, "2024-06-01")), 2);
+                        LEGACY_PROCESS_STATE_LOCKED, "2024-06-01"),
+                flightNdjson(legacyTowFlightId, legacyClubId, legacyTowAircraftId,
+                        legacyLocationId, legacyFlightTypeId, null, 2,
+                        LEGACY_PROCESS_STATE_VALID, "2024-06-01")), 2);
         EntityStreamResult crewStream = ndjsonStream(EntityType.FLIGHT_CREW,
                 flightCrewNdjson(legacyCrewId, legacyGliderFlightId, legacyPilotPersonId,
                         LEGACY_CREW_TYPE_PILOT), 1);
@@ -291,8 +296,21 @@ class FlightRealProducerRoundTripIT extends PostgresIntegrationTest {
                 .isEqualTo(locationReplicaId);
         assertThat(UUID.fromString(glider.get("tow_flight_id").toString()))
                 .as("tow self-FK resolved through the real producer ordering "
-                        + "(needs legacy_id_map_FLIGHT drained before FLIGHT.ndjson)")
+                        + "(glider emitted BEFORE its tow — the S-141 two-pass UPDATE "
+                        + "links them after both rows exist)")
                 .isEqualTo(legacyTowFlightId);
+        // The LINK is real, not just id-equality by luck: the migrated tow row
+        // exists and is a TOW-type flight (flight_aircraft_type_id=2), so the
+        // glider's tow_flight_id points at an actual migrated tow.
+        Map<String, Object> linkedTow = jdbc.queryForMap(
+                "SELECT id, flight_aircraft_type_id FROM t_flight WHERE id = ?::uuid",
+                glider.get("tow_flight_id").toString());
+        assertThat(UUID.fromString(linkedTow.get("id").toString()))
+                .as("the glider's tow_flight_id resolves to a real migrated tow row")
+                .isEqualTo(legacyTowFlightId);
+        assertThat(((Number) linkedTow.get("flight_aircraft_type_id")).shortValue())
+                .as("the linked row is a TOW flight (flight_aircraft_type_id=2)")
+                .isEqualTo((short) 2);
         assertThat(UUID.fromString(glider.get("process_state_id").toString()))
                 .isEqualTo(SEED_PROCESS_STATE_LOCKED);
         assertThat(glider.get("locked_at"))
