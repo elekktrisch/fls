@@ -37,7 +37,11 @@ import { AfStickyBarComponent } from '@ui/molecules/af-sticky-bar';
 import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import { FlightStore } from '../flight.store';
-import { resolveFlightVariant, variantNeedsTow, type FlightVariantData } from '../flight-variant';
+import {
+  flightNeedsTow,
+  primaryAircraftCreateType,
+  type PrimaryAircraftKind,
+} from '../motor-aircraft';
 
 import {
   CONFLICT_FIELD_TO_GLIDER_CONTROL,
@@ -410,30 +414,39 @@ export class FlightsEditPage {
   protected readonly reloadConflict = computed(() => this.store.hasReloadConflict());
 
   protected readonly title = computed(() => {
-    const noun = this.variant().id === 'motor' ? 'air movement' : 'flight';
     switch (this.mode()) {
       case 'new':
-        return `New ${noun}`;
+        return 'New flight';
       case 'copy':
-        return `Copy ${noun}`;
+        return 'Copy flight';
       case 'edit':
       default:
-        return `Edit ${noun}`;
+        return 'Edit flight';
     }
   });
 
-  // `/flights` (default) vs `/airmovements` (motor) — same wizard, the route
-  // `data.flightVariant` carries the difference (S-064).
-  protected readonly variant = computed(() =>
-    resolveFlightVariant(this.route.snapshot.data as FlightVariantData),
-  );
-
   // Live signal of startTypeId so needsTow() responds to form changes.
   private readonly startTypeSignal = signal<string | null>(null);
-  // Motor air movements never tow (variant suppresses the step regardless of
-  // start-type); the default logbook defers to the aerotow start-type.
+  // Live signal of the selected primary (glider-step) aircraftId so the MOTOR
+  // discriminator + tow-step suppression respond to the aircraft selection.
+  private readonly primaryAircraftIdSignal = signal<string | null>(null);
+
+  /**
+   * The selected primary aircraft, resolved off the AircraftStore — the source
+   * of the MOTOR-vs-GLIDER discriminator (J-2 T-36: a motor flight is just a
+   * Flight with a motor aircraft, created in the unified /flights wizard; there
+   * is no separate /airmovements screen).
+   */
+  private readonly primaryAircraft = computed<PrimaryAircraftKind | null>(() => {
+    const id = this.primaryAircraftIdSignal();
+    if (!id) return null;
+    const a = this.aircraftStore.entities().find((x) => x.id === id);
+    return a ? { hasEngine: a.hasEngine, isTowingAircraft: a.isTowingAircraft } : null;
+  });
+
+  // A motor flight never tows; a glider defers to the aerotow start-type.
   protected readonly needsTow = computed(() =>
-    variantNeedsTow(this.variant(), this.startTypeSignal()),
+    flightNeedsTow(this.primaryAircraft(), this.startTypeSignal()),
   );
 
   // Live solo flag so the co-pilot selector hides reactively and any
@@ -529,6 +542,12 @@ export class FlightsEditPage {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.startTypeSignal.set(v));
 
+    // Track the selected primary aircraft so the MOTOR discriminator +
+    // tow-step suppression respond when the user picks a motor aircraft.
+    this.form.controls.glider.controls.aircraftId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((v) => this.primaryAircraftIdSignal.set(v));
+
     // Track isSoloFlight: when it flips on, hide + clear the co-pilot
     // slot so the submitted snapshot can never contain a contradictory
     // (isSoloFlight=true, coPilotPersonId=non-null) state.
@@ -621,7 +640,7 @@ export class FlightsEditPage {
       }
 
       this.form.markAsPristine();
-      await this.router.navigateByUrl(this.variant().basePath);
+      await this.router.navigateByUrl('/flights');
     } catch (e) {
       const err = e as { message?: string };
       this.errorMessage.set(err.message ?? 'Could not save flight');
@@ -635,13 +654,13 @@ export class FlightsEditPage {
       this.dirtyConfirmOpen.set(true);
       return;
     }
-    void this.router.navigateByUrl(this.variant().basePath);
+    void this.router.navigateByUrl('/flights');
   }
 
   protected confirmDiscard(): void {
     this.dirtyConfirmOpen.set(false);
     this.form.markAsPristine();
-    void this.router.navigateByUrl(this.variant().basePath);
+    void this.router.navigateByUrl('/flights');
   }
 
   /**
@@ -706,7 +725,10 @@ export class FlightsEditPage {
 
   private snapshot(): FlightFormSnapshot {
     const raw = this.form.getRawValue();
-    const variant = this.variant();
+    // Infer the primary discriminator from the selected aircraft: a motor
+    // aircraft → MOTOR (no tow), otherwise GLIDER. Edit reuses the existing
+    // row's type server-side, so this override only bites on create.
+    const primaryAircraftType = primaryAircraftCreateType(this.primaryAircraft());
     return {
       flightId: raw.flightId,
       flightDate: raw.flightDate,
@@ -715,10 +737,7 @@ export class FlightsEditPage {
       canDeleteRecord: raw.canDeleteRecord,
       glider: { ...raw.glider, duration: null },
       tow: { ...raw.tow, duration: null },
-      // /airmovements creates a MOTOR primary; the default logbook leaves this
-      // unset (→ GLIDER). Edit reuses the existing row's type server-side, so
-      // the override only bites on create.
-      ...(variant.createAircraftType ? { primaryAircraftType: variant.createAircraftType } : {}),
+      primaryAircraftType,
     } as FlightFormSnapshot;
   }
 
@@ -770,6 +789,7 @@ export class FlightsEditPage {
     this.patchSub(this.form.controls.glider, snapshot.glider);
     this.patchSub(this.form.controls.tow, snapshot.tow);
     this.startTypeSignal.set(snapshot.startTypeId);
+    this.primaryAircraftIdSignal.set(snapshot.glider.aircraftId);
     this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
   }

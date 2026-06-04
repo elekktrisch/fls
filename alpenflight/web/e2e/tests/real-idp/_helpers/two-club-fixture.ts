@@ -226,15 +226,6 @@ async function provisionClubAdmin(
   return { clubId, user, kcUserId };
 }
 
-// NOTE: the dynamic `provisionExtraClubAdmin` / `disposeClubAdmin` second-admin
-// path (added in J-2 T-22 for the motor /airmovements test) was REMOVED in T-24.
-// A second interactive club-A admin that relies on JIT-on-first-login to
-// materialise its `t_user` loses the `ux_user_username_lower_alive` race (the
-// race-recovery re-reads by SUB, not username, and returns empty), so it stayed
-// tenant-less. The motor test now logs in the PRE-SEEDED STABLE `clubadmin4`
-// (realm-export.json + V29 `t_user`) via `loginAsSeededMotorClubadmin` below,
-// resolving its tenant deterministically with zero JIT race.
-
 /**
  * Provision the two-club fixture. Club A reuses the Flyway seed; club B is
  * created live. Returns each club's CLUB_ADMINISTRATOR login handle plus a
@@ -282,52 +273,6 @@ export async function loginAsClubAdmin(page: Page, admin: ClubAdmin): Promise<vo
   await page.getByTestId('landing-topbar-sign-in').click();
   await page.waitForURL(/\/realms\/alpenflight\//);
   await fillKcLogin(page, admin.user.email, admin.user.password);
-  await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
-  await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
-}
-
-/**
- * The PRE-SEEDED STABLE motor principal (`clubadmin4`) — a verified-email realm
- * user (realm-export.json) bound to seed-club-1 (clubId=club-1) with a seeded
- * `t_user` row (V29__dev_user_seed_clubadmin4.sql, keycloak_sub
- * c1ab4d40-0000-4000-8000-000000000004).
- *
- * Used by the clean-seed MOTOR `/airmovements` e2e as a SECOND club-A principal
- * that resolves its tenant DETERMINISTICALLY (PreTenantUserLookup hits the
- * seeded `t_user`) with ZERO JIT race — sidestepping the
- * `ux_user_username_lower_alive` contention that left the prior dynamic
- * `provisionExtraClubAdmin` motor admin tenant-less (J-2 T-22/T-24). It is bound
- * to the SAME club as `provisionTwoClubs(...).clubA` (both seed-club-1), so the
- * masterdata seeded once in the spec's `beforeAll` is visible to it. Mirrors the
- * proven-green migration principal `clubadmin3` (V28).
- */
-export const SEEDED_MOTOR_CLUBADMIN = {
-  username: 'clubadmin4',
-  password: 'clubadmin4-dev-2026!',
-} as const;
-
-/**
- * Log the pre-seeded {@link SEEDED_MOTOR_CLUBADMIN} (`clubadmin4`) in through the
- * SPA + Keycloak login form by USERNAME. Mirrors `loginAsMigratedAdmin`'s
- * username login of the seeded `clubadmin3` EXACTLY — same mechanics, same
- * post-login wait — only the credentials differ. No provisioning, no JIT: the
- * seeded `t_user` (V29) resolves the tenant on first request, so a subsequent
- * `goto` to a tenant-guarded route re-runs auth-init and the session restores.
- *
- * Isolation comes from the FRESH `browser.newContext()` the spec opens per test
- * (`newRecordedContext`), identical to how `loginAsMigratedAdmin` /
- * `loginAsClubAdmin` get a clean context — this is the FIRST login in it, so it
- * cannot inherit the sysadmin SSO session minted in `beforeAll`. We do NOT
- * `clearCookies()`: T-26 proved the SSO-bleed it was added for was a red herring,
- * and clearing cookies mid-flow wipes the OIDC session/storage so the caller's
- * `goto` SPA-reboot can no longer restore auth (it falls back to the public
- * landing and the list never mounts — the T-32 root cause).
- */
-export async function loginAsSeededMotorClubadmin(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.getByTestId('landing-topbar-sign-in').click();
-  await page.waitForURL(/\/realms\/alpenflight\//);
-  await fillKcLogin(page, SEEDED_MOTOR_CLUBADMIN.username, SEEDED_MOTOR_CLUBADMIN.password);
   await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
   await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 }

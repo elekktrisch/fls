@@ -197,9 +197,10 @@ export interface FlightFormSnapshot {
   glider: CrewSnapshot;
   tow: CrewSnapshot;
   /**
-   * Variant override for the primary flight's create discriminator (S-064). On
-   * `/airmovements` the wizard creates a MOTOR flight from the same glider-slot
-   * form; absent → GLIDER (the default logbook). Never produces a tow.
+   * The primary flight's create discriminator, inferred from the selected
+   * primary aircraft: MOTOR when a motor aircraft is selected (a unified
+   * "air movement" — no separate /airmovements screen, J-2 T-36 / S-064),
+   * GLIDER otherwise. A MOTOR primary never produces a tow.
    */
   primaryAircraftType?: FlightCreateRequestFlightAircraftType;
 }
@@ -411,8 +412,8 @@ function subFormToCreate(
     throw new Error(`subFormToCreate: ${side} aircraft is required to submit`);
   }
   const req: FlightCreateRequest = {
-    // The primary slot's discriminator is variant-driven (GLIDER default, MOTOR
-    // on /airmovements). The tow slot is always TOW.
+    // The primary slot's discriminator is inferred from the selected aircraft
+    // (GLIDER default, MOTOR for a motor aircraft). The tow slot is always TOW.
     flightAircraftType:
       side === 'glider' ? primaryAircraftType : FlightCreateRequestFlightAircraftType.TOW,
     aircraftId: c.aircraftId,

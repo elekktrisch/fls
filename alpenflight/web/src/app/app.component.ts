@@ -9,7 +9,6 @@ import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms
 // Tenant-scoped nav (require a managing club; hidden for sysadmin).
 const TENANT_SECTIONS: readonly NavItem[] = [
   { path: '/flights', label: 'Flights', icon: 'plane' },
-  { path: '/airmovements', label: 'Air movements', icon: 'plane-takeoff' },
   { path: '/aircraft', label: 'Aircraft', icon: 'plane' },
   { path: '/locations', label: 'Locations', icon: 'map-pin' },
   { path: '/persons', label: 'Persons', icon: 'users' },

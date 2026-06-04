@@ -1,12 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  effect,
-  inject,
-  signal,
-} from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
@@ -35,7 +28,6 @@ import type {
 } from '@api/generated/model';
 
 import { FlightStore } from '../flight.store';
-import { resolveFlightVariant, type FlightVariantData } from '../flight-variant';
 
 const AIR_STATE_OPTIONS: readonly AfSelectOption<AirState>[] = [
   { value: FlightListItemAirState.NEW, label: 'New' },
@@ -209,14 +201,14 @@ function toneDotClass(tone: Tone): string {
   ],
   template: `
     <af-page>
-      <af-page-header [title]="variant().title">
+      <af-page-header title="Flights">
         <af-button
           type="primary"
           htmlType="button"
-          (clicked)="router.navigateByUrl(variant().basePath + '/new')"
+          (clicked)="router.navigateByUrl('/flights/new')"
           data-testid="flights-new-button"
         >
-          {{ variant().newLabel }}
+          New flight
         </af-button>
       </af-page-header>
 
@@ -253,22 +245,20 @@ function toneDotClass(tone: Tone): string {
             />
           </af-form-field>
 
-          <!-- The aircraft-type filter is user-driven on /flights. On
-            /airmovements the variant pins it to MOTOR, so the dropdown is
-            hidden (the list is already motor-only). -->
-          @if (variant().aircraftTypeFilter === null) {
-            <af-form-field label="Aircraft type" for="FlightAircraftTypeFilter">
-              <af-select
-                inputId="FlightAircraftTypeFilter"
-                placeholder="All aircraft types"
-                [value]="selectedAircraftType()"
-                (valueChange)="onAircraftTypeChange($event)"
-                [allowClear]="true"
-                [options]="aircraftTypeOptions"
-                data-testid="flights-aircraft-type-filter"
-              />
-            </af-form-field>
-          }
+          <!-- Unified logbook: the aircraft-type filter (Glider / Tow / Motor)
+            is user-driven — motor flights live in this same list, so "Motor"
+            is just one of the selectable filter values. -->
+          <af-form-field label="Aircraft type" for="FlightAircraftTypeFilter">
+            <af-select
+              inputId="FlightAircraftTypeFilter"
+              placeholder="All aircraft types"
+              [value]="selectedAircraftType()"
+              (valueChange)="onAircraftTypeChange($event)"
+              [allowClear]="true"
+              [options]="aircraftTypeOptions"
+              data-testid="flights-aircraft-type-filter"
+            />
+          </af-form-field>
         </div>
 
         @if (hasActiveFilter()) {
@@ -328,7 +318,7 @@ function toneDotClass(tone: Tone): string {
                 <div class="flex items-center gap-3 flex-wrap text-sm">
                   <a
                     class="tabular font-medium text-slate-900 no-underline hover:text-brand-700"
-                    [routerLink]="[variant().basePath, fl.id, 'edit']"
+                    [routerLink]="['/flights', fl.id, 'edit']"
                     [attr.data-testid]="'flights-row-link-' + fl.id"
                   >
                     {{ formatDate(fl.flightDate) || '-' }}
@@ -390,7 +380,7 @@ function toneDotClass(tone: Tone): string {
                         <a
                           role="menuitem"
                           class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
-                          [routerLink]="[variant().basePath, fl.id, 'edit']"
+                          [routerLink]="['/flights', fl.id, 'edit']"
                           [attr.data-testid]="'flights-edit-' + fl.id"
                         >
                           <af-icon name="pencil" [size]="14" />
@@ -401,7 +391,7 @@ function toneDotClass(tone: Tone): string {
                         <a
                           role="menuitem"
                           class="flex items-center gap-2 w-full py-1.5 px-2.5 text-[15px] text-slate-900 no-underline cursor-pointer text-left hover:bg-slate-50"
-                          [routerLink]="[variant().basePath, 'copy', fl.id]"
+                          [routerLink]="['/flights', 'copy', fl.id]"
                           [attr.data-testid]="'flights-copy-' + fl.id"
                         >
                           <af-icon name="copy" [size]="14" />
@@ -510,30 +500,9 @@ export class FlightsListPage {
   protected readonly store = inject(FlightStore);
   private readonly aircraft = inject(AircraftStore);
   protected readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
 
   protected readonly airStateOptions = AIR_STATE_OPTIONS;
   protected readonly aircraftTypeOptions = AIRCRAFT_TYPE_OPTIONS;
-
-  // `/flights` (default) vs `/airmovements` (motor) — same component, the
-  // route `data.flightVariant` carries the difference (S-064).
-  protected readonly variant = computed(() =>
-    resolveFlightVariant(this.route.snapshot.data as FlightVariantData),
-  );
-
-  constructor() {
-    // Pin the list to the variant's aircraft-type (motor → MOTOR) so
-    // /airmovements only ever shows motor flights. The default variant pins
-    // nothing — the user drives the aircraft-type dropdown. Idempotent: only
-    // writes the store filter, the store's existing client-filter machinery
-    // narrows the loaded page.
-    effect(() => {
-      const pinned = this.variant().aircraftTypeFilter;
-      if (pinned !== null) {
-        this.store.setClientFilter({ aircraftTypes: [pinned] });
-      }
-    });
-  }
 
   protected readonly summary = computed(() => {
     const total = this.store.entities().length;
@@ -631,16 +600,10 @@ export class FlightsListPage {
   protected onClearFilters(): void {
     this.store.clearClientFilter();
     this.store.setDateRange({ from: null, to: null });
-    // Re-pin the variant's aircraft-type so "Clear filters" never escapes the
-    // /airmovements motor scope (it clears the user-driven narrowing only).
-    const pinned = this.variant().aircraftTypeFilter;
-    if (pinned !== null) {
-      this.store.setClientFilter({ aircraftTypes: [pinned] });
-    }
   }
 
   protected openEdit(flightId: string): void {
-    this.router.navigate([this.variant().basePath, flightId, 'edit']);
+    this.router.navigate(['/flights', flightId, 'edit']);
   }
 
   protected readonly deleteTarget = signal<FlightListItem | null>(null);
@@ -723,19 +686,12 @@ export class FlightsListPage {
 
   protected hasActiveFilter(): boolean {
     const f = this.store.clientFilter();
-    const pinned = this.variant().aircraftTypeFilter;
-    // The variant's MOTOR pin is not a user-clearable filter — it's the route
-    // identity. Only count an aircraft-type filter that goes BEYOND the pin.
-    const aircraftTypeActive =
-      pinned === null
-        ? f.aircraftTypes.length > 0
-        : f.aircraftTypes.some((t) => t !== pinned) || f.aircraftTypes.length > 1;
     return (
       this.store.dateFrom() !== null ||
       this.store.dateTo() !== null ||
       f.airStates.length > 0 ||
       f.processStateIds.length > 0 ||
-      aircraftTypeActive
+      f.aircraftTypes.length > 0
     );
   }
 }

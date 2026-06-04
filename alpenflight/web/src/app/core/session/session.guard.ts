@@ -25,8 +25,8 @@ import { SessionStore } from './session.store';
  * settle before evaluating, returning an `Observable<boolean>` that emits
  * once `isLoadingSession()` flips to `false`. A `CanActivateFn` that
  * returns `false` CANCELS the navigation — so returning `false` during the
- * loading window silently killed any navigation that raced a renew (the
- * J-2 motor `/airmovements` bug). Waiting lets the real user's click /
+ * loading window silently killed any navigation that raced a renew (a
+ * navigation-during-renew bug surfaced in J-2). Waiting lets the real user's click /
  * deep-link refresh during a renew complete once auth settles instead of
  * dying. Under the normal boot path `withAppInitializerAuthCheck()` blocks
  * bootstrap until the status settles, so the wait branch is usually a

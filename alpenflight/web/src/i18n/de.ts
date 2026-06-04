@@ -55,11 +55,6 @@ const de = {
     title: 'Flugzeuge',
   },
   flight: {
-    airmovements: {
-      nav: 'Motorflüge',
-      newFlight: 'Neuer Motorflug',
-      title: 'Motorflüge',
-    },
     conflict: {
       cancel: 'Weiter bearbeiten',
       empty: '(leer)',

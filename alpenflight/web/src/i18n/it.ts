@@ -50,11 +50,6 @@ const it: Translations = {
     title: 'Aeromobili',
   },
   flight: {
-    airmovements: {
-      nav: 'Movimenti a motore',
-      newFlight: 'Nuovo movimento a motore',
-      title: 'Movimenti a motore',
-    },
     conflict: {
       cancel: 'Continua a modificare',
       empty: '(vuoto)',

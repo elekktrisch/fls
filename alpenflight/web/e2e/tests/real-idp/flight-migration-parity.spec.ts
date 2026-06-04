@@ -10,7 +10,6 @@ import {
 import { selectAfOption } from '../_helpers/af-select';
 import {
   loginAsClubAdmin,
-  loginAsSeededMotorClubadmin,
   provisionTwoClubs,
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
@@ -36,8 +35,9 @@ import { proofVideo } from './_helpers/proof-video';
  *     club admin logs in, lists /flights, creates a GLIDER flight via the 3-step
  *     wizard driving start-type = AEROTOW EXPLICITLY (so the paired-tow branch is
  *     taken deterministically); the glider row + a distinct linked TOW row both
- *     appear (glider.towFlightId). A MOTOR flight is created/edited/listed at
- *     /airmovements (MOTOR filter, tow step suppressed). Edit persists. Delete
+ *     appear (glider.towFlightId). A MOTOR flight is created/listed in the SAME
+ *     unified /flights list (a flight with a motor aircraft + no tow) — legacy's
+ *     separate /airmovements screen is NOT carried forward. Edit persists. Delete
  *     leaves the list. A cross-tenant flight GET 404s. A DeliveryBooked flight is
  *     read-only (edit/delete → 4xx). A stale If-Match PUT (412) opens the inline
  *     per-field conflict diff (keep-mine/keep-theirs, first field focused, no
@@ -147,6 +147,60 @@ async function createGliderFlightAerotow(
   const testId = await row.getAttribute('data-testid');
   expect(testId, 'flight row must carry a flights-row-<id> testid').toBeTruthy();
   return testId!.replace(/^flights-row-/, '');
+}
+
+/**
+ * Drive the SAME /flights wizard to create a MOTOR flight ("air movement"):
+ * select the seeded MOTOR aircraft in the primary-aircraft step and DON'T pick
+ * an aerotow start type → the wizard infers `flightAircraftType = MOTOR` from
+ * the selected motor aircraft and suppresses the tow step (a motor flight never
+ * tows). NO /airmovements navigation — motor flights are unified into /flights
+ * (legacy's separate /airmovements screen is NOT carried forward). Returns the
+ * created flight's id + its POST-body flightAircraftType.
+ */
+async function createMotorFlight(
+  page: Page,
+  md: FlightMasterdata,
+  comment: string,
+): Promise<{ id: string; flightAircraftType: string }> {
+  await page.goto('/flights/new');
+  await expect(page.getByTestId('flight-form')).toBeVisible();
+  await expect(page.getByTestId('flight-step-launch')).toBeVisible();
+
+  // Step 0 (Launch): start location only — leave the start type at the
+  // non-aerotow default so no tow step is ever introduced.
+  await selectAfOption(page, 'flight-edit-startLocation', md.locationId);
+
+  // Step 1 (primary aircraft): pick the MOTOR aircraft. Selecting a motor
+  // aircraft is what stamps the flight MOTOR (and keeps it tow-less) — no
+  // separate route / variant.
+  await page.getByTestId('flight-step-next').click();
+  await expect(page.getByTestId('flight-step-glider')).toBeVisible();
+  await selectAfOption(page, 'flight-edit-glider-aircraft', md.motorAircraftId);
+  await selectAfOption(page, 'flight-edit-glider-flightType', md.gliderFlightTypeId);
+  await selectAfOption(page, 'flight-edit-glider-pilot', md.pilotPersonId);
+  await page.getByTestId('flight-edit-glider-startTime').locator('input').fill('11:00');
+  await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('12:00');
+  await page.getByTestId('flight-edit-glider-comment').locator('input').fill(comment);
+
+  // A motor flight never tows: the tow step must NOT render for the
+  // motor-aircraft selection.
+  await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
+
+  const created = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      new URL(r.url()).pathname === '/api/v1/flights' &&
+      r.status() >= 200 &&
+      r.status() < 300,
+    { timeout: 5_000 },
+  );
+  await page.getByTestId('flight-submit-header').click();
+  const createdResp = await created;
+  await expect(page).toHaveURL(/\/flights$/);
+
+  const body = (await createdResp.json()) as { id: string; flightAircraftType: string };
+  return body;
 }
 
 // ===========================================================================
@@ -259,112 +313,51 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test('club admin creates a motor flight at /airmovements (MOTOR filter, no tow)', async ({
+  test('club admin creates a motor flight (MOTOR aircraft, no tow) that lists in /flights', async ({
     browser,
   }, testInfo) => {
+    // DESIGN TRUTH (J-2 T-36): AlpenFlight unifies motor flights into the SAME
+    // /flights list — there is NO separate /airmovements screen (only the legacy
+    // flsweb app split them out). A motor flight is just a Flight with a motor
+    // aircraft + no tow, created via the same /flights wizard. This test mirrors
+    // the green glider create exactly, but selects the MOTOR aircraft.
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      // PRE-SEEDED STABLE motor principal (`clubadmin4`) bound to seed-club-1 via
-      // the V29 `t_user`, so its tenant resolves deterministically (zero JIT
-      // race) — same club as `fixture.clubA`, so the `beforeAll` masterdata is
-      // visible. Mirrors the green migration principal `clubadmin3`.
-      await loginAsSeededMotorClubadmin(page);
+      await loginAsClubAdmin(page, fixture.clubA);
 
-      // ── WARM the session on /flights FIRST, then reach /airmovements by an
-      //    in-app nav-bar CLICK — never a cold `goto('/airmovements*')`.
-      //
-      //    WHY (T-34 (B) root cause, trace 26910615810): the FIRST navigation
-      //    after this login is a cold SPA load. A cold `page.goto('/flights')`
-      //    works because the OIDC `checkAuth()` / tenant-resolve settles before
-      //    `tenantRequiredGuard` runs. But chaining a cold `goto` straight to a
-      //    DEEP `/airmovements/new` URL boots a SECOND time, and the post-save
-      //    `router.navigateByUrl('/airmovements')` (the list) can race the
-      //    transient `session.isLoadingSession()===true` window of that second
-      //    cold boot — `authGuard` returns `false` (defer), which CANCELS the
-      //    navigation (no redirect, no error), so the page stays on
-      //    `/airmovements/new` and `toHaveURL(/airmovements$/)` times out. The
-      //    prior trace confirms exactly that: POST /api/v1/flights → 201, form
-      //    went pristine (Save disabled), the list refetch (GET ?limit=50) → 200,
-      //    yet the frame URL never left `/airmovements/new` and no error toast
-      //    rendered. This is a TEST-ENV cold-double-boot timing artifact, NOT a
-      //    product bug: `/airmovements` and `/flights` share the SAME route shape
-      //    (app.routes loadChildren → tenantRequiredGuard → the SAME
-      //    flights-list/edit components), `/airmovements/new` itself rendered the
-      //    wizard fine, and a REAL operator never types a deep /airmovements URL
-      //    cold — they click the nav from an already-authed page. Path (A) mirrors
-      //    the operator: one warm session, in-app nav + in-app buttons, no second
-      //    cold boot → the guard never sees a loading session mid-flow.
+      // The same logbook the glider create lists into.
       await page.goto('/flights');
+      await expect(page.locator('h1')).toHaveText('Flights');
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
-      // Reach /airmovements by clicking the nav-bar section link (warm session,
-      // currentClubId already resolved — no SPA reboot, no guard race).
-      await page.getByTestId('af-nav-section-/airmovements').click();
-      await expect(page).toHaveURL(/\/airmovements$/);
-      await expect(page.locator('h1')).toHaveText('Air movements');
-      await expect(page.getByTestId('flights-table')).toBeVisible();
+      // Create a motor flight via the unified wizard: select the motor aircraft,
+      // no aerotow → no tow step. The wizard infers flightAircraftType = MOTOR
+      // from the selected motor aircraft.
+      const createdBody = await createMotorFlight(page, masterdata, 'motor by J-2 e2e');
 
-      // Reach the create form by the list's in-app "new" button (NOT a cold
-      // `goto('/airmovements/new')`): `flights-new-button` does
-      // `router.navigateByUrl(variant().basePath + '/new')` in-app.
-      await page.getByTestId('flights-new-button').click();
-      await expect(page).toHaveURL(/\/airmovements\/new$/);
-      await expect(page.getByTestId('flight-form')).toBeVisible();
-      // No tow step on a motor air movement (variant suppresses it).
-      await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
-
-      // Launch + glider steps off the motor aircraft (the wizard's "Glider" step
-      // is the single-aircraft step for the motor variant).
-      await selectAfOption(page, 'flight-edit-startLocation', masterdata.locationId);
-      await page.getByTestId('flight-step-next').click();
-      await expect(page.getByTestId('flight-step-glider')).toBeVisible();
-      await selectAfOption(page, 'flight-edit-glider-aircraft', masterdata.motorAircraftId);
-      await selectAfOption(page, 'flight-edit-glider-flightType', masterdata.gliderFlightTypeId);
-      await selectAfOption(page, 'flight-edit-glider-pilot', masterdata.pilotPersonId);
-      await page
-        .getByTestId('flight-edit-glider-comment')
-        .locator('input')
-        .fill('motor by J-2 e2e');
-
-      const created = page.waitForResponse(
-        (r) =>
-          r.request().method() === 'POST' &&
-          new URL(r.url()).pathname === '/api/v1/flights' &&
-          r.status() >= 200 &&
-          r.status() < 300,
-        { timeout: 5_000 },
-      );
-      await page.getByTestId('flight-submit-header').click();
-      const createdResp = await created;
-      await expect(page).toHaveURL(/\/airmovements$/);
-
-      // DECISIVE FACT (S-064 correctness): the flight created at /airmovements/new
-      // MUST carry flightAircraftType=MOTOR — that is the variant discriminator
-      // the /airmovements list client-filters on. If it is stamped GLIDER, the
-      // MOTOR filter excludes it and the row below never appears. Read the created
-      // id off the POST response body, then GET its detail and assert the type
-      // BEFORE the list assertion so a mis-stamp fails here with the actual type
-      // in the message — not as an opaque list timeout.
-      const createdBody = (await createdResp.json()) as {
-        id: string;
-        flightAircraftType: string;
-      };
+      // DECISIVE FACT (unified-design correctness): the flight created from the
+      // /flights wizard with a motor aircraft selected MUST be stamped
+      // flightAircraftType=MOTOR. Assert it off the POST body before the list
+      // assertion so a mis-stamp fails here with the actual type in the message.
       expect(createdBody.id, 'the motor create POST returns the created flight id').toMatch(
         /^fl-[0-9a-f-]{36}$/,
       );
       expect(
         createdBody.flightAircraftType,
-        'a flight created at /airmovements/new must be stamped MOTOR (the variant discriminator the ' +
-          'MOTOR list filter keys on) — not GLIDER',
+        'a flight created with a motor aircraft selected must be stamped MOTOR — not GLIDER',
       ).toBe('MOTOR');
 
-      // The motor flight renders in the motor-filtered list under its immat.
+      // The motor flight renders in the unified /flights list under its immat,
+      // with the aircraft-type cell showing "Motor".
       const row = page
         .locator('[data-testid^="flights-row-"]')
         .filter({ has: page.locator(`text="${masterdata.motorImmat}"`) })
         .first();
-      await expect(row, 'the created motor flight appears in /airmovements').toBeVisible();
+      await expect(
+        row,
+        'the created motor flight appears in the unified /flights list',
+      ).toBeVisible();
       const motorId = (await row.getAttribute('data-testid'))!.replace(/^flights-row-/, '');
       await expect(page.getByTestId(`flights-aircraft-type-${motorId}`)).toContainText('Motor');
     } finally {
@@ -372,8 +365,9 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await proofVideo(page, testInfo, {
         journey: 'J-2',
         caption:
-          'J-2 · air movements · a motor flight is created at /airmovements (same Flight backend, ' +
-          'MOTOR filter, no tow pairing) and renders in the motor list',
+          'J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified ' +
+          '/flights wizard and renders in the SAME /flights list with aircraft type "Motor" — ' +
+          "legacy's separate /airmovements screen is NOT carried forward",
         acTag: 'happy',
       });
     }

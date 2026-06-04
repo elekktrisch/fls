@@ -495,7 +495,7 @@ export interface FlightMasterdata {
   /** `ac-<uuid>` tow aircraft + its immatriculation. */
   towAircraftId: string;
   towImmat: string;
-  /** `ac-<uuid>` motor aircraft (for the /airmovements create) + immatriculation. */
+  /** `ac-<uuid>` motor aircraft (for the unified /flights motor create) + immatriculation. */
   motorAircraftId: string;
   motorImmat: string;
 }
