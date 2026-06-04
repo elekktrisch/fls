@@ -20,6 +20,7 @@ import { Subject } from 'rxjs';
 import { routes } from './app.routes';
 import { alpenflightOidcConfig } from './core/auth/auth.config';
 import { OidcSessionBridge } from './core/auth/oidc-session-bridge';
+import { MeEventsService } from './core/events';
 import { provideAlpenflightIcons } from './core/icons/icon-registry';
 import { provideAlpenflightI18n } from './core/i18n';
 import { MUTATION_BUS, type MutationEvent } from './core/mutation-bus/mutation-bus';
@@ -54,6 +55,11 @@ export const appConfig: ApplicationConfig = {
       // Constructing the bridge registers the userData → SessionStore
       // effect + the SilentRenewFailed subscription before checkAuth fires.
       inject(OidcSessionBridge);
+      // Constructing the SSE client registers its session-gated effect (open
+      // on authenticated, close on logout) once per app — NOT per component
+      // (S-176 / J-3 T-06). Its `GET /api/v1/me/events` stream stays dormant
+      // until the session authenticates.
+      inject(MeEventsService);
     }),
   ],
 };
