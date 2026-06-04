@@ -332,7 +332,14 @@ jobs:
       # ========================================================================
       - name: Run J-1 T-14 legacy aircraft parity spec (records legacy video)
         id: legacy-pw-aircraft
+        # NON-BLOCKING parity aid (same contract as the J-2 step below): `if:
+        # always()` to run after a prior failure AND `continue-on-error: true` so
+        # its own failure neither fails the job nor skips the unguarded downstream
+        # gate steps. Without continue-on-error, a red here would cascade-skip the
+        # real export + AlpenFlight parity specs exactly as the J-2 step did in
+        # run 26923775939.
         if: always()
+        continue-on-error: true
         working-directory: e2e
         timeout-minutes: 10
         run: |
@@ -355,7 +362,19 @@ jobs:
       # ========================================================================
       - name: Run J-2 T-10 legacy flight parity spec (records legacy video)
         id: legacy-pw-flight
+        # NON-BLOCKING parity aid (operator: AlpenFlight green is the gate). Both
+        # `if: always()` (so it runs even if a prior step failed) AND
+        # `continue-on-error: true` (so its OWN failure does NOT fail the job and
+        # does NOT skip the unguarded downstream gate steps — the real
+        # alpenflight-export producer-SELECT validation + the AlpenFlight parity
+        # specs + the gallery deploy). Run 26923775939: this step's selector
+        # failure, with only `if: always()` and no continue-on-error, marked the
+        # job failed and SKIPPED every unguarded downstream step, including the
+        # whole point of the fanout for a migration journey (the real export).
+        # The legacy video outcome is surfaced (non-blocking) in the final-status
+        # step; only the J-0c legacy spec + the AlpenFlight parity specs gate.
         if: always()
+        continue-on-error: true
         working-directory: e2e
         timeout-minutes: 10
         run: |

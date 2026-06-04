@@ -114,10 +114,18 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
 
     // ----- 1. LIST: the seeded flight list (glider + paired tow) -------------
     await gotoRoute(page, "/flights");
-    // The ng-table renders one <tr data-testid="row"> per flight; wait for the
-    // first data row's glider-immatriculation cell so the recording captures a
-    // populated list, not the empty/loading shell. (The default FlightDate
-    // filter is today..today and the seed stamps the flights on @Today.)
+    // The ng-table renders one <tr data-testid="row"> per flight (trace-verified
+    // against run 26923775939: the row carries data-testid="row" and the glider
+    // cell is `td.immatriculation[ng-bind="flight.Immatriculation"]` with value
+    // HB-3407). The default FlightDate filter is today..today and the seed stamps
+    // the flights on @Today, so the list is populated. Wait for the data ROW
+    // first (ng-table can re-render the cell node after the row appears — that
+    // re-render was the run's transient retry cell-visible timeout), THEN the
+    // glider immatriculation cell, so the recording captures a settled list.
+    await page
+      .locator('tr[data-testid="row"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 });
     const firstImmat = page
       .locator(
         'tr[data-testid="row"] td.immatriculation[ng-bind="flight.Immatriculation"]',
@@ -150,14 +158,35 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     await flightDate.waitFor({ state: "visible", timeout: 30_000 });
     await screenshot(page, "flights-parity-J2-02-legacy-form-top");
 
-    // Scroll the glider + tow directives into view so the WHOLE legacy flight
+    // Scroll the glider + tow field set into view so the WHOLE legacy flight
     // form (date → glider field set → tow field set) is visible across the
     // recording — this is the parity surface the operator wants to eyeball vs
-    // AlpenFlight's 3-step glider/tow wizard. The tow form's towplane
-    // registration label is the lower anchor (flight-edit-tow-form.html:4).
-    const towForm = page.locator("fls-flight-edit-tow-form");
-    await towForm.scrollIntoViewIfNeeded();
-    await towForm.waitFor({ state: "visible", timeout: 15_000 });
+    // AlpenFlight's 3-step glider/tow wizard.
+    //
+    // IMPORTANT (first-live-run fix, run 26923775939): do NOT wait on the
+    // `<fls-flight-edit-tow-form>` DIRECTIVE HOST element. That custom element is
+    // a layout-less directive host (no width/height/display box of its own) —
+    // Playwright's visibility check sees a zero-size box and resolves it
+    // `hidden` even when its content is fully rendered (the run's "34 × resolved
+    // to hidden <fls-flight-edit-tow-form>"). The actual tow field set lives in
+    // the host's child `<div class="col-md-6" ng-if="needsTowplane(StartType)">`
+    // (flight-edit-tow-form.html:1-2), a Bootstrap grid column that HAS a box and
+    // renders only for a tow/aerotow start type. The seeded glider flight opened
+    // here is the paired-tow flight (trace confirms HB-3407 → tow HB-KCB), so the
+    // ng-if is true and the column renders. Anchor on that inner column — and the
+    // `[name="TowAircraftId"]` towplane selectize inside it — exactly as the
+    // GREEN J-1 aircraft spec anchors on real form controls (#Immatriculation /
+    // #Comment), never on a directive host.
+    const towFieldSet = page.locator(
+      'fls-flight-edit-tow-form div[ng-if="needsTowplane(flightDetails.StartType)"]',
+    );
+    await towFieldSet.scrollIntoViewIfNeeded();
+    await towFieldSet.waitFor({ state: "visible", timeout: 15_000 });
+    // The towplane selectize is the load-bearing tow field; assert it rendered so
+    // the screenshot below captures a populated tow field set, not a bare column.
+    await expect(
+      page.locator('fls-flight-edit-tow-form [name="TowAircraftId"]'),
+    ).toBeVisible();
     await screenshot(page, "flights-parity-J2-03-legacy-form-fields");
 
     // J-2 T-10 — STABLE parity screenshot (side=legacy view=form). fullPage so
@@ -176,6 +205,10 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     // `Motor air-movement` flight; the default range is today and the seed
     // stamps it on @Today, so the motor list is populated. Read-only.
     await gotoRoute(page, "/airmovements");
+    await page
+      .locator('tr[data-testid="row"]')
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 });
     const firstMotor = page
       .locator(
         'tr[data-testid="row"] td.immatriculation[ng-bind="flight.Immatriculation"]',
