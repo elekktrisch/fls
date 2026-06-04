@@ -2,7 +2,8 @@
 id: J-3
 title: Dashboard / home — role variants + live updates (/start)
 epic: E-07
-status: todo
+status: in_progress
+started_at: 2026-06-04
 journey0: false
 carved: true
 depends_on: [J-2]
@@ -145,3 +146,30 @@ flights-across-states (carve finer at ship time if a single seed task is too big
   principals (reuse the J-0c/J-2 realm-export + JIT path) so the e2e can actually log in
   as the showcase pilot / club-admin / sysadmin. Pin the exact mechanism at refine/ship;
   if it implies a standing dev-data convention worth an ADR, ship-time escalates.
+
+## Tasks
+
+Ordered; each runs in a fresh `/do-task` worker on `integration/J-3`. Existing surfaces
+(Explore map): `/start` = `features/start/start.page.ts` + `start.store.ts` + `start.routes.ts`
+(single pilot component, variant seam net-new); `/me` = `me/web/MeController` + `me/application/MeService`,
+roles via JWT `realm_access` filtered by `KNOWN_REALM_ROLES`; FE `SessionStore` already has
+`isClubAdmin`/`isSystemAdmin` computed. Flight create = `flights/application/FlightsService.createFlight`
+(already publishes via Spring `ApplicationEventPublisher` for audit — the `flight.created` seam).
+Servlet MVC (no WebFlux) → `SseEmitter`. Seed today = `seed-club-1` only, **no flights**.
+
+- [ ] **T-01** — Spec stub (real-idp): structure + selectors for the 3 variants (`start-variant-{pilot|clubadmin|sysadmin}` testids), the SSE live-tile testid, login-as-role flow, thin assertions. Extends `alpenflight/web/e2e/tests/start/start.spec.ts`. *(seam: one spec file)*
+- [ ] **T-02** — Showcase-seed scaffold + tenancy: the on-demand loader mechanism (Gradle `seedShowcase` task / `@Profile("showcase")` runner, idempotent, deterministic UUIDs, **not** Flyway `V__`) + a **2nd showcase club** + realm/`t_user` users for all 3 roles in both clubs (incl. one pilot with NO flights). Seed-module README records the per-journey-extension convention. *(seam: showcase-seed loader + clubs/users/roles + realm-export additions)*
+- [ ] **T-03** — Showcase-seed data: aircraft (glider/tow/motor/charter) + locations for both clubs + **flights across every variation × process state × date** (glider+tow paired, motor; NotProcessed/Valid/Invalid/Locked/DeliveryBooked; today / within-2d / past-threshold), deterministic so counts are predictable. Backfills J-0/J-1/J-2 lists. *(seam: showcase-seed data contribution — split per entity-area if it overflows)*
+- [ ] **T-04** — SSE transport (backend): `MePrincipalEventBus` (in-memory `ConcurrentMap<sub, Set<SseEmitter>>`) + `MeEventsController` `GET /api/v1/me/events` (`SseEmitter`, 25s heartbeat, per-sub cap 8) under the existing Bearer filter chain. IT: open stream, publish via bus, assert receipt + heartbeat; assert no-token → 401. *(seam: me-events controller + bus + IT)*
+- [ ] **T-05** — SSE publish-point: publish `flight.created` from `FlightsService.createFlight` via the existing `ApplicationEventPublisher` + an `@TransactionalEventListener(AFTER_COMMIT)` that fans the event to the principal's bus connections. *(seam: flight-create publish + SSE fanout listener)*
+- [ ] **T-06** — `MeEventsService` (FE): Angular service opening the stream after the OIDC session authenticates, via `@microsoft/fetch-event-source` (carries the Bearer header), RxJS subject per event-kind, transparent reconnect. *(seam: one Angular service)*
+- [ ] **T-07** — `/start` role-switch shell: route renders pilot variant by default and swaps to clubadmin/sysadmin variant off `SessionStore` roles; a "Pilot view" toggle for admins falls back to the pilot variant. Pilot variant stays S-165 as-is. *(seam: start route/shell component)*
+- [ ] **T-08** — Club-admin count endpoints (backend): today's club flight count + flights-pending-validation count (`NotProcessed`+`Invalid`), tenant-scoped (`@TenantId`). *(seam: one endpoint cluster + IT)*
+- [ ] **T-09** — Club-admin variant component + tiles: renders the two counts from T-08, live-updates the today-count on a `flight.created` event via `MeEventsService` (T-06). *(seam: one component)*
+- [ ] **T-10** — Sysadmin cross-tenant aggregate endpoint (backend): total clubs / users / flights across tenants (SYSTEM_ADMINISTRATOR-gated, deliberately tenant-unscoped). *(seam: one endpoint + IT)*
+- [ ] **T-11** — Sysadmin variant component + tiles + a control that enters a tenant context. *(seam: one component)*
+- [ ] **T-12** — Rider: add "Run Playwright" to the required `ci` gate (operator, J-2 retro — structural). *(seam: .github/workflows/ci.yml required aggregator)* — clears the `_BOYSCOUT` bullet.
+- [ ] **T-13** — Rider: collapse the two proof galleries into one — drop the ci.yml AlpenFlight-only deploy + its sticky comment, keep the full `legacy-parity` gallery as THE gallery. *(seam: ci.yml gallery job + fanout deploy + the two comment upserts)* — clears the `_BOYSCOUT` bullet.
+- [ ] **T-14** — Rider: role-vocab single-source CI cross-check — assert `Role.java` ↔ FE `AppRole` ↔ `realm-export.json` agree (ArchUnit/CI test), since J-3's variant routing reads this vocabulary. *(seam: one cross-check test)* — clears the S-165 open-q.
+- [ ] **T-15** — Rider: modernize-* sunset (trigger met) — delete the 9 `modernize-*` skills + ~12 modernize agents + prune `rolled_up_into:` horizontal stories. Mechanical (one logical change: deletion). *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)* — clears the `_BOYSCOUT` bullet.
+- [ ] **T-16** — Thicken spec to full real-idp assertions: all 3 variants render **populated** from the showcase seed (counts non-zero, ≥2 clubs in the sysadmin aggregate, pilot last-flight filled) + SSE live tile update without reload + Bearer reject + role/tenant gating; capture the AlpenFlight gallery (surface early per do-ship §3). Fold the bounded e2e prettier/tsc normalization on touched specs. *(seam: spec thicken + gallery capture)*
