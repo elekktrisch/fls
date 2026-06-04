@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.flight;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -85,6 +86,15 @@ public final class FlightTypeMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // operating_club_id (the @TenantId) is off-convention for the CLUB FK —
+        // the resolver's default would derive club_id and never rewrite the
+        // legacy GUID, leaving fk_flight_type_operating_club_id unresolved at
+        // INSERT (caught by FlightMigrationRoundTripIT, J-2 T-07).
+        return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
     }
 
     @Override

@@ -3,7 +3,10 @@ package ch.alpenflight.migration.bundle;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.migration.bundle.flight.StartTypeMapper;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -240,11 +243,12 @@ class MapperLegacyBindingsTest {
 
     @Test
     void unregisteredEntityStillFailsLoudly() {
-        // Guard the fail-closed contract survives the registry growth. AIRCRAFT
-        // is now bound (J-1 T-04), so the negative case points at a genuinely
-        // still-unbound EntityType — FLIGHT has an authored mapper + KnownMappers
-        // entry but no MapperLegacyBindings entry yet (its binding lands at J-2).
-        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.FLIGHT))
+        // Guard the fail-closed contract survives the registry growth. FLIGHT +
+        // its reference closure (START_TYPE / FLIGHT_TYPE / FLIGHT_CREW) are now
+        // bound (J-2 T-07), so the negative case points at a genuinely still-
+        // unbound EntityType — DELIVERY has an authored mapper + KnownMappers
+        // entry but no MapperLegacyBindings entry yet (its binding lands at J-9/J-10).
+        assertThatThrownBy(() -> MapperLegacyBindings.require(EntityType.DELIVERY))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("No legacy binding registered");
     }
@@ -425,6 +429,228 @@ class MapperLegacyBindingsTest {
      * FLIGHT) legitimately points at targets that land later — what must never
      * happen is a BOUND mapper pointing at an UNBOUND target.
      */
+    // -------------------------------------------------------------------------
+    // FLIGHT + FLIGHT_CREW + their reference closure START_TYPE / FLIGHT_TYPE
+    // (J-2 T-07). The mappers + KnownMappers entries already exist (J-0b
+    // authoring) but were UNBOUND; T-07 wires the producer SELECT (reconciled
+    // against the real legacy Flights/FlightCrew MSSQL schema) + the consumer
+    // INSERT so the Flight register migrates end-to-end. The closure guard
+    // (everyBoundMappersForeignKeyTargetsAreAlsoBound) forces START_TYPE +
+    // FLIGHT_TYPE to be bound the moment FLIGHT is: FlightMapper.foreignKeys()
+    // lists them, and FlightCrewMapper lists FLIGHT + PERSON.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Every legacy {@code Flights} ResultSet column {@code FlightMapper.writeNdjson}
+     * reads. The producer-SELECT catch (J-1 T-16 class,
+     * {@code project_synth_bundle_doesnt_validate_producer_select}): the
+     * operating-club source is the real legacy {@code OwnerId} column
+     * ({@code Flight.cs:130}; same column the LOCATION fan-out keys
+     * {@code Flights.OwnerId AS ClubId}), NOT {@code OwnerClubId} — that column
+     * does not exist on the legacy {@code Flights} table and would abort the live
+     * export. {@code StartType} / {@code FlightCostBalanceType} are the real int
+     * columns (EF {@code [Column("StartType")]} / {@code [Column("FlightCostBalanceType")]}
+     * over the C# {@code StartTypeId} / {@code FlightCostBalanceTypeId} properties).
+     * {@code FlightAircraftType} / {@code AirStateId} / {@code ProcessStateId} /
+     * {@code FlightDate} / {@code NrOfLdgsOnStartLocation} / the
+     * {@code EngineStartOperatingCounterInSeconds} pair are all added by the
+     * DBUpdate chain (v1.9.x) and exist in the final FLSTest schema.
+     */
+    private static final List<String> FLIGHT_LEGACY_COLUMNS = List.of(
+            "FlightId", "OwnerId", "AircraftId", "FlightDate", "StartDateTime",
+            "LdgDateTime", "BlockStartDateTime", "BlockEndDateTime",
+            "StartLocationId", "LdgLocationId", "StartRunway", "LdgRunway",
+            "OutboundRoute", "InboundRoute", "FlightTypeId", "IsSoloFlight",
+            "StartType", "TowFlightId", "NrOfLdgs", "NrOfLdgsOnStartLocation",
+            "NoStartTimeInformation", "NoLdgTimeInformation", "AirStateId",
+            "ProcessStateId", "FlightAircraftType",
+            "EngineStartOperatingCounterInSeconds",
+            "EngineEndOperatingCounterInSeconds", "Comment", "IncidentComment",
+            "ValidationErrors", "CouponNumber", "FlightCostBalanceType",
+            "DeliveryCreatedOn", "ValidatedOn", "NrOfPassengers", "StartPosition",
+            "FlightReportSentOn", "CreatedOn", "CreatedByUserId", "ModifiedOn",
+            "ModifiedByUserId", "DeletedOn", "DeletedByUserId");
+
+    /** Every legacy {@code FlightCrew} ResultSet column the mapper reads. */
+    private static final List<String> FLIGHT_CREW_LEGACY_COLUMNS = List.of(
+            "FlightCrewId", "FlightId", "PersonId", "FlightCrewType",
+            "BeginFlightDateTime", "EndFlightDateTime", "BeginInstructionDateTime",
+            "EndInstructionDateTime", "NrOfLdgs", "NrOfStarts",
+            "DeletedOn", "DeletedByUserId");
+
+    @Test
+    void flightAndClosureAreRegistered() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.FLIGHT))
+                .as("FLIGHT must be bound (J-2 T-07) so the Flight register migrates")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.FLIGHT_CREW))
+                .as("FLIGHT_CREW (aggregate-internal) must be bound")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.START_TYPE))
+                .as("START_TYPE must be bound — it is a FlightMapper.foreignKeys() target")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.FLIGHT_TYPE))
+                .as("FLIGHT_TYPE must be bound — it is a FlightMapper.foreignKeys() target")
+                .isTrue();
+    }
+
+    @Test
+    void flightIsTenantScopedFullPort() {
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.FLIGHT))
+                .as("Flight is FULL_PORT, tenant-scoped via operating_club_id (V3)")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.FLIGHT_CREW))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.FLIGHT_TYPE))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void startTypeIsSystemGlobal() {
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.START_TYPE))
+                .as("StartType is a SYSTEM_GLOBAL reference (V2 seed by code, no "
+                        + "legacy_int_id), like Language / ClubState")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL);
+    }
+
+    @Test
+    void flightSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.FLIGHT);
+        for (String legacyColumn : FLIGHT_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("FlightMapper.writeNdjson reads %s — the bound SELECT must "
+                            + "project it (else: silent NULL / export abort)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+    }
+
+    @Test
+    void flightSelectSourcesOperatingClubFromOwnerIdNotOwnerClubId() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.FLIGHT).toUpperCase();
+        // The producer-SELECT catch (J-1 T-16 class): legacy Flights has an OwnerId
+        // column (the ASP.NET ownership club, = the operating club per
+        // FlightReportService.cs:123 / the LOCATION fan-out key), and NO OwnerClubId
+        // column. FlightMapper.writeNdjson originally read getString("OwnerClubId"),
+        // which would abort the live export on a non-existent column.
+        assertThat(select)
+                .as("SELECT projects the real legacy OwnerId column")
+                .contains("OWNERID");
+        assertThat(select)
+                .as("SELECT must NOT reference the non-existent OwnerClubId column")
+                .doesNotContain("OWNERCLUBID");
+    }
+
+    @Test
+    void flightSelectTargetsTheLegacyFlightsTable() {
+        assertThat(MapperLegacyBindings.selectForProducer(EntityType.FLIGHT))
+                .as("base table is the legacy Flights table")
+                .contains("Flights");
+    }
+
+    @Test
+    void flightConsumerInsertTargetsTFlightWithOperatingClubId() {
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.FLIGHT);
+        assertThat(insert)
+                .as("FLIGHT FULL_PORT consumer INSERT targets t_flight")
+                .contains("INSERT INTO t_flight");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_flight is tenant-scoped via operating_club_id (V3) — the INSERT binds it")
+                .contains("operating_club_id");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("V13 dropped air_state_id — the INSERT must not bind it")
+                .doesNotContain("air_state_id");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("V13 added flight_plan_opened_on (the only surviving air-state info)")
+                .contains("flight_plan_opened_on");
+    }
+
+    @Test
+    void flightCrewSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.FLIGHT_CREW);
+        for (String legacyColumn : FLIGHT_CREW_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("FlightCrewMapper.writeNdjson reads %s — the bound SELECT "
+                            + "must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy FlightCrew table")
+                .contains("FlightCrew");
+    }
+
+    @Test
+    void flightTypeSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.FLIGHT_TYPE);
+        for (String legacyColumn : List.of(
+                "FlightTypeId", "ClubId", "FlightTypeName", "FlightCode",
+                "InstructorRequired", "ObserverPilotOrInstructorRequired",
+                "IsCheckFlight", "IsPassengerFlight", "IsSoloFlight",
+                "IsForGliderFlights", "IsForTowFlights", "IsForMotorFlights",
+                "IsFlightCostBalanceSelectable", "IsCouponNumberRequired",
+                "IsForAircraftReservationType", "MinNrOfAircraftSeatsRequired",
+                "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+                "DeletedOn", "DeletedByUserId")) {
+            assertThat(select)
+                    .as("FlightTypeMapper.writeNdjson reads %s", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select).contains("FlightTypes");
+    }
+
+    @Test
+    void startTypeSelectProjectsTheStartTypeId() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.START_TYPE);
+        assertThat(select)
+                .as("StartTypeMapper.writeNdjson reads StartTypeId")
+                .contains("StartTypeId");
+        assertThat(select).contains("StartTypes");
+    }
+
+    /**
+     * START_TYPE SYSTEM_GLOBAL completeness guard (J-2 T-39, the J-1 T-16 class).
+     * A FLIGHT's {@code start_type_id} carries the synthetic
+     * {@code UUID(0, legacyAircraftStartType)} for ANY legacy enum value — the
+     * legacy {@code AircraftStartType} enum is 1=TowingByAircraft, 2=WinchLaunch,
+     * 3=SelfStart, 4=ExternalStart, 5=MotorFlightStart, and the column can hold
+     * any of them regardless of which rows the legacy {@code StartTypes} table
+     * seeds. So the bundle's {@code legacy_id_map_START_TYPE} closure must
+     * enumerate ALL FIVE — a missing value (the real FLSTest SelfStart(3) catch)
+     * fail-closes the ingest with {@code BUNDLE_CROSS_TENANT_FK_LEAK}. This guard
+     * fails loudly at build, not at the nightly real-bundle ingest.
+     */
+    @Test
+    void startTypeClosureEnumeratesTheFullLegacyAircraftStartTypeEnum() {
+        Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
+
+        // The legacy AircraftStartType enum is exactly 1..5 (no gaps, no extras):
+        // flsserver/src/FLS.Server.Data/Enums/AircraftStartType.cs.
+        assertThat(StartTypeMapper.LEGACY_ENUM_IDS)
+                .as("the START_TYPE closure must cover the full legacy "
+                        + "AircraftStartType enum (1..5) — add a missing value here, "
+                        + "do NOT weaken the ingest FK-leak guard")
+                .containsExactly(1, 2, 3, 4, 5);
+
+        for (int legacyId : List.of(1, 2, 3, 4, 5)) {
+            UUID synthetic = new UUID(0L, legacyId);
+            assertThat(closure)
+                    .as("legacy AircraftStartType %d (UUID(0,%d)) must resolve to a "
+                            + "t_start_type seed PK in the bundle closure — the real "
+                            + "FLSTest SelfStart(3) flight 400'd the ingest because it "
+                            + "did not (J-2 T-39)", legacyId, legacyId)
+                    .containsKey(synthetic);
+        }
+
+        // SelfStart(3) is the value the real export caught — pin it explicitly.
+        assertThat(closure)
+                .as("SelfStart(3) must map to the V2 SELF_START seed PK")
+                .containsEntry(new UUID(0L, 3L), SeedReferenceUuids.startTypeByCode("SELF_START"));
+
+        // The 5 enum values map to 5 DISTINCT seed PKs (no accidental collapse).
+        assertThat(closure.values().stream().distinct().count())
+                .as("the 5 legacy start types map to 5 distinct t_start_type seed PKs")
+                .isEqualTo(5L);
+    }
+
     @Test
     void everyBoundMappersForeignKeyTargetsAreAlsoBound() {
         for (Mapper mapper : KnownMappers.all()) {

@@ -27,9 +27,13 @@ jobs:
   # `nightly.yml` workflow on a schedule — see CLAUDE.md "Legacy is
   # reference-only". PR CI only gates the rewrite.
   #
-  # Markdown-only diffs match neither lane: the only job that runs is the
-  # `required` aggregator (always green), which keeps branch protection
-  # satisfied without spending compute.
+  # Two ways the heavy lane is skipped (both leave only the `required`
+  # aggregator running — always green — so branch protection stays satisfied
+  # without spending compute):
+  #   1. The WHOLE PR vs main touches no alpenflight/ or ci.yml file (markdown-
+  #      only PR): `filter.next` is false.
+  #   2. THIS push / PR-sync's incremental diff is docs-only even though the PR
+  #      cumulatively contains code: `incremental.docs_only` is true (J-2 T-11).
   # ---------------------------------------------------------------------------
   changes:
     name: detect changes
@@ -37,8 +41,14 @@ jobs:
     timeout-minutes: 3
     outputs:
       next: ${{ steps.filter.outputs.next }}
+      docs_only: ${{ steps.incremental.outputs.docs_only }}
     steps:
+      # fetch-depth: 0 so the `incremental` step below can diff against the
+      # PR/push "before" SHA (the parent of the pushed commits), which a
+      # shallow depth-1 checkout would not have locally.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -47,6 +57,61 @@ jobs:
             next:
               - '{.github/workflows/ci.yml,alpenflight/**}'
               - '!**/*.md'
+
+      # ---------------------------------------------------------------------
+      # Incremental docs-only gate (J-2 T-11).
+      #
+      # `filter.next` above diffs the WHOLE PR against its base (`main`) — so on
+      # an `integration/**` branch that already carries earlier alpenflight/
+      # commits, `next` is ALWAYS true, even for a push that only edited docs.
+      # That re-ran the ~8-min build+proof on every doc-only push during J-1.
+      #
+      # This step instead looks at ONLY the commits introduced by THIS push /
+      # PR-sync (github.event.before..after) and sets `docs_only=true` iff that
+      # incremental diff touched zero heavy-lane files (alpenflight/** or this
+      # workflow, ignoring *.md). The heavy jobs gate on
+      # `next == 'true' && docs_only != 'true'`, so a doc-only push skips them
+      # while a code push still runs. FAIL-SAFE toward running: any case where
+      # the incremental range is undeterminable (new branch / force-push with a
+      # zero or missing `before`, freshly opened PR, workflow_dispatch) leaves
+      # docs_only=false so the heavy lane runs — we never risk false-skipping a
+      # real code push.
+      - name: Detect docs-only push (incremental)
+        id: incremental
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -euo pipefail
+          zero='0000000000000000000000000000000000000000'
+          # No usable incremental range → run the heavy lane (fail-safe).
+          if [ -z "${BEFORE:-}" ] || [ "${BEFORE}" = "${zero}" ] \
+             || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "no usable 'before' SHA (${BEFORE:-unset}) — not docs-only (run heavy lane)"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          head="${AFTER:-HEAD}"
+          if [ "${head}" != "HEAD" ] && ! git cat-file -e "${head}^{commit}" 2>/dev/null; then
+            head=HEAD
+          fi
+          echo "incremental diff range: ${BEFORE}..${head}"
+          changed="$(git diff --name-only "${BEFORE}" "${head}")"
+          echo "── files changed in this push ──"
+          echo "${changed}"
+          # A "heavy-lane" file is alpenflight/** or this workflow, EXCLUDING *.md.
+          # If the incremental diff contains any such file, it is NOT docs-only.
+          heavy="$(printf '%s\n' "${changed}" \
+            | grep -E '^(alpenflight/|\.github/workflows/ci\.yml$)' \
+            | grep -vE '\.md$' || true)"
+          if [ -n "${heavy}" ]; then
+            echo "── heavy-lane files touched → not docs-only ──"
+            echo "${heavy}"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "── no heavy-lane files in this push → docs-only (skip build+proof) ──"
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
 
 
   # ---------------------------------------------------------------------------
@@ -58,7 +123,7 @@ jobs:
   next-build:
     name: alpenflight build
     needs: changes
-    if: needs.changes.outputs.next == 'true'
+    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -171,7 +236,7 @@ jobs:
   next-auth-realm-shape:
     name: alpenflight auth realm shape
     needs: changes
-    if: needs.changes.outputs.next == 'true'
+    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:
@@ -202,7 +267,7 @@ jobs:
   alpenflight-proof:
     name: alpenflight proof (real-idp, clean-seed)
     needs: changes
-    if: needs.changes.outputs.next == 'true'
+    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     # `contents: write` lets the gh-pages deploy steps push the proof gallery
@@ -393,7 +458,19 @@ jobs:
       #     workflow's job). DATASOURCE_* are exported so the spec's Gradle
       #     seeder shell-outs (seedAircraftParityBundle build + seedAircraftOwnerLink
       #     DB write) reach the same Postgres the backend uses.
-      - name: Run real-idp proof specs (J-0 Locations + J-1 Aircraft)
+      #   - J-2 T-15: the Flight list+edit real chain (clean-seed glider+tow+motor
+      #     CRUD + tenant 404 + read-only DeliveryBooked + 412 conflict diff + the
+      #     migrated glider+tow paired render). SYNTH bundle mode (J2_BUNDLE_SOURCE
+      #     unset → fixture defaults to synth): the migrated half ingests a
+      #     Java-built Flight + FlightCrew bundle through the REAL migration
+      #     endpoint (the full legacy→export half is the nightly fan-out's job —
+      #     J2_REAL_* are set ONLY on that nightly real path, never here). The
+      #     fixture self-seeds in its beforeAll via the Gradle seedFlightParityBundle
+      #     task + seedFlightMasterdata create-API calls — no job-level seed step;
+      #     the DATASOURCE_* below carry the seeder shell-out to the backend's
+      #     Postgres. All THREE specs run in ONE invocation so the single proof
+      #     manifest carries J-0/J-1/J-2 videos.
+      - name: Run real-idp proof specs (J-0 Locations + J-1 Aircraft + J-2 Flights)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 15
@@ -406,7 +483,8 @@ jobs:
             --config=e2e/playwright.config.ts \
             --project=real-idp \
             e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts \
-            e2e/tests/real-idp/aircraft-migration-parity.spec.ts
+            e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
+            e2e/tests/real-idp/flight-migration-parity.spec.ts
 
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;

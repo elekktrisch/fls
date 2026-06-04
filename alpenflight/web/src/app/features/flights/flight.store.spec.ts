@@ -4,12 +4,21 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { FlightsService } from '@api/generated/flights/flights.service';
-import type { FlightListItem, FlightListResponse, ListParams } from '@api/generated/model';
+import type {
+  FlightDetail,
+  FlightListItem,
+  FlightListResponse,
+  ListParams,
+} from '@api/generated/model';
 import {
+  FlightDetailAirState,
+  FlightDetailFlightAircraftType,
   FlightListItemAirState,
   FlightListItemFlightAircraftType,
   FlightListItemProcessState,
 } from '@api/generated/model';
+
+import type { FlightFormSnapshot } from './edit/flight-form.model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { FlightStore } from './flight.store';
@@ -40,20 +49,107 @@ const FLIGHT_B: FlightListItem = {
   version: 1,
 };
 
-type StubbedApi = Pick<FlightsService, 'list'>;
-
 interface ApiStubs {
   list: (params?: ListParams) => Observable<FlightListResponse>;
+  update: (id: string) => Observable<FlightDetail>;
+  get: (id: string) => Observable<FlightDetail>;
 }
 
 function flightsServiceStub(stubs: Partial<ApiStubs> = {}): FlightsService {
-  const api: StubbedApi = {
+  const api: Pick<FlightsService, 'list' | 'update' | 'get'> = {
     list: ((params?: ListParams, options?: unknown) => {
       void options;
       return (stubs.list ?? (() => of<FlightListResponse>({ items: [] })))(params);
     }) as FlightsService['list'],
+    update: ((id: string) =>
+      (stubs.update ?? (() => throwError(() => new Error('update not stubbed'))))(
+        id,
+      )) as unknown as FlightsService['update'],
+    get: ((id: string) =>
+      (stubs.get ?? (() => throwError(() => new Error('get not stubbed'))))(
+        id,
+      )) as unknown as FlightsService['get'],
   };
   return api as unknown as FlightsService;
+}
+
+const SERVER_DETAIL: FlightDetail = {
+  id: 'fl-019e30c3-2c00-7001-8000-000000000001',
+  flightAircraftType: FlightDetailFlightAircraftType.GLIDER,
+  aircraftId: 'ac-019e30c3-2c00-7001-8000-0000000000a9',
+  flightDate: '2026-05-20',
+  nrOfLdgs: 5,
+  isSoloFlight: false,
+  noStartTimeInformation: false,
+  noLdgTimeInformation: false,
+  airState: FlightDetailAirState.LANDED,
+  processStateId: '019e2e15-2c00-7100-8000-000000007002',
+  version: 9,
+  crew: [],
+};
+
+function editSnapshot(): FlightFormSnapshot {
+  return {
+    flightId: SERVER_DETAIL.id,
+    flightDate: '2026-05-20',
+    startTypeId: null,
+    canUpdateRecord: true,
+    canDeleteRecord: true,
+    glider: {
+      aircraftId: 'ac-019e30c3-2c00-7001-8000-0000000000b1',
+      flightTypeId: null,
+      pilotPersonId: null,
+      coPilotPersonId: null,
+      instructorPersonId: null,
+      observerPersonId: null,
+      passengerPersonId: null,
+      winchOperatorPersonId: null,
+      startLocationId: null,
+      ldgLocationId: null,
+      outboundRoute: null,
+      inboundRoute: null,
+      startTime: null,
+      ldgTime: null,
+      duration: null,
+      noStartTimeInformation: false,
+      noLdgTimeInformation: false,
+      nrOfLdgs: 2,
+      engineStartOperatingCounterInSeconds: null,
+      engineEndOperatingCounterInSeconds: null,
+      flightCostBalanceTypeId: null,
+      invoiceRecipientPersonId: null,
+      couponNumber: null,
+      flightComment: null,
+      isSoloFlight: false,
+    },
+    tow: {
+      aircraftId: null,
+      flightTypeId: null,
+      pilotPersonId: null,
+      coPilotPersonId: null,
+      instructorPersonId: null,
+      observerPersonId: null,
+      passengerPersonId: null,
+      winchOperatorPersonId: null,
+      startLocationId: null,
+      ldgLocationId: null,
+      outboundRoute: null,
+      inboundRoute: null,
+      startTime: null,
+      ldgTime: null,
+      duration: null,
+      noStartTimeInformation: false,
+      noLdgTimeInformation: false,
+      nrOfLdgs: null,
+      engineStartOperatingCounterInSeconds: null,
+      engineEndOperatingCounterInSeconds: null,
+      flightCostBalanceTypeId: null,
+      invoiceRecipientPersonId: null,
+      couponNumber: null,
+      flightComment: null,
+      isSoloFlight: false,
+    },
+  };
 }
 
 function configure(api: FlightsService): Subject<MutationEvent> {
@@ -214,5 +310,80 @@ describe('FlightStore', () => {
 
     expect(store.entities()).toEqual([]);
     expect(calls).toBe(1);
+  });
+
+  it('412 stale If-Match opens the inline conflict diff (re-GET, no auto-retry)', async () => {
+    let updateCalls = 0;
+    const err = new HttpErrorResponse({
+      status: 412,
+      statusText: 'Precondition Failed',
+      error: { serverVersion: 9 },
+    });
+    configure(
+      flightsServiceStub({
+        list: () => of({ items: [] }),
+        update: () => {
+          updateCalls++;
+          return throwError(() => err);
+        },
+        // 412 body has no field values → the store re-GETs the server detail.
+        get: () => of(SERVER_DETAIL),
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+
+    await expect(store.updatePair(editSnapshot(), { glider: 1, tow: null })).rejects.toBeTruthy();
+
+    // DATA conflict → inline diff state set, reload toast NOT set.
+    expect(store.hasSaveConflict()).toBe(true);
+    expect(store.hasReloadConflict()).toBe(false);
+    const conflict = store.saveConflict();
+    expect(conflict?.serverVersion).toBe(9);
+    // aircraftId differs (mine b1 vs theirs a9) → a per-field diff row.
+    expect(conflict?.fields.some((f) => f.name === 'aircraftId')).toBe(true);
+    // NO auto-retry: exactly one PUT was attempted.
+    expect(updateCalls).toBe(1);
+  });
+
+  it('409 state-gate reject shows the reload toast, never the inline diff', async () => {
+    const err = new HttpErrorResponse({ status: 409, statusText: 'Conflict' });
+    configure(
+      flightsServiceStub({
+        list: () => of({ items: [] }),
+        update: () => throwError(() => err),
+        get: () => of(SERVER_DETAIL),
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+
+    await expect(store.updatePair(editSnapshot(), { glider: 1, tow: null })).rejects.toBeTruthy();
+
+    // POLICY/STATE conflict → reload toast, NOT the inline diff dialog.
+    expect(store.hasReloadConflict()).toBe(true);
+    expect(store.hasSaveConflict()).toBe(false);
+    expect(store.saveConflict()).toBeNull();
+  });
+
+  it('dismissConflict clears both the diff and the reload toast', async () => {
+    const err = new HttpErrorResponse({
+      status: 412,
+      statusText: 'Precondition Failed',
+      error: { serverVersion: 9 },
+    });
+    configure(
+      flightsServiceStub({
+        list: () => of({ items: [] }),
+        update: () => throwError(() => err),
+        get: () => of(SERVER_DETAIL),
+      }),
+    );
+    const store = TestBed.inject(FlightStore);
+    await expect(store.updatePair(editSnapshot(), { glider: 1, tow: null })).rejects.toBeTruthy();
+    expect(store.hasSaveConflict()).toBe(true);
+
+    store.dismissConflict();
+
+    expect(store.hasSaveConflict()).toBe(false);
+    expect(store.hasReloadConflict()).toBe(false);
   });
 });

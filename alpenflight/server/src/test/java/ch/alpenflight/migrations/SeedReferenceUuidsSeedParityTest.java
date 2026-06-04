@@ -47,6 +47,9 @@ class SeedReferenceUuidsSeedParityTest {
     // codes are BCP-47: lower-case base + optional region tag (e.g. de-CH).
     private static final Pattern LANGUAGE_ROW = Pattern.compile(
             "\\('([0-9a-fA-F-]{36})',\\s*'([a-zA-Z-]+)'");
+    // ('019e2e15-2c00-7fa0-8000-000000000fa0', 'WINCH_LAUNCH', 'Winch Launch', ARRAY[...]),
+    private static final Pattern START_TYPE_ROW = Pattern.compile(
+            "\\('([0-9a-fA-F-]{36})',\\s*'([A-Z_]+)'");
 
     @Test
     void recomputed_country_seed_pks_equal_the_flyway_seed() throws Exception {
@@ -99,6 +102,28 @@ class SeedReferenceUuidsSeedParityTest {
             assertThat(recomputed.get(e.getKey()))
                     .as("recomputed t_club_state.id for code %s must equal the Flyway seed PK",
                             e.getKey())
+                    .isEqualTo(e.getValue());
+        }
+    }
+
+    @Test
+    void recomputed_start_type_seed_pks_equal_the_flyway_seed() throws Exception {
+        // J-2 T-39: the migration producer's enum-complete START_TYPE closure
+        // (BundleWriter.writeStartTypeEnumSeedPgcopy via
+        // StartTypeMapper.legacyEnumIdToSeedPk → SeedReferenceUuids.startTypeByCode)
+        // couples to the V2 t_start_type seed exactly like COUNTRY/CLUB_STATE.
+        Map<String, UUID> seeded = parseSeed("t_start_type", START_TYPE_ROW);
+        Map<String, UUID> recomputed = SeedReferenceUuids.startTypesByCode();
+
+        assertThat(recomputed.keySet())
+                .as("SeedReferenceUuids must cover EXACTLY the seeded t_start_type "
+                        + "code set (a seed reorder/regeneration must fail this guard)")
+                .containsExactlyInAnyOrderElementsOf(seeded.keySet());
+        for (Map.Entry<String, UUID> e : seeded.entrySet()) {
+            assertThat(recomputed.get(e.getKey()))
+                    .as("recomputed t_start_type.id for code %s must equal the Flyway "
+                            + "seed PK (else the producer maps a FLIGHT.start_type_id to a "
+                            + "wrong/nonexistent PK)", e.getKey())
                     .isEqualTo(e.getValue());
         }
     }

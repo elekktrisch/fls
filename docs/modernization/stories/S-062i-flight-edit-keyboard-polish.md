@@ -3,6 +3,7 @@ id: S-062i
 title: Flight-edit keyboard polish — Ctrl+D save+copy, 1–5 quick-select, slide-in focus jump
 epic: E-07
 status: todo
+rolled_up_into: J-2
 depends_on: [S-062c]
 acceptance:
   - **Ctrl+D = save+copy** (AC-DIR-3b): saves the current flight via the paired-create chain from S-062c, then navigates to `/flights/copy/<savedId>` so the user lands on a pre-filled copy ready for the next flight. Linux Firefox bookmark collision handled via `preventDefault` + a browser-target Playwright test asserting no bookmark dialog opens.

@@ -137,10 +137,15 @@ const COUNTRIES: readonly AfSelectOption<string>[] = [
         </af-data-table>
       </section>
 
-      <section>
+      <section data-testid="showcase-date-picker-range">
         <h2>Organisms — af-date-picker (range)</h2>
-        <af-date-picker mode="range" [rangePlaceholders]="['From', 'To']" [(value)]="range" />
-        <pre>{{ range() | json }}</pre>
+        <af-date-picker
+          mode="range"
+          [rangePlaceholders]="['From', 'To']"
+          [(value)]="range"
+          data-testid="showcase-range-picker"
+        />
+        <pre data-testid="showcase-range-value">{{ range() | json }}</pre>
       </section>
 
       <section>

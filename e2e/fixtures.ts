@@ -298,7 +298,7 @@ export async function gotoRoute(page: Page, hashPath: string): Promise<void> {
   await page.waitForTimeout(300);
 }
 
-async function waitForBusyIndicatorsToClear(page: Page): Promise<void> {
+export async function waitForBusyIndicatorsToClear(page: Page): Promise<void> {
   // ng-show toggles display on the [data-testid="busy-indicator"] wrapper around the spinner.
   // 30s ceiling (was 15s) matches the burst-tolerant timeout used elsewhere in the suite for
   // calls that can stall under workers:6 contention on the Mono/MSSQL legacy stack.

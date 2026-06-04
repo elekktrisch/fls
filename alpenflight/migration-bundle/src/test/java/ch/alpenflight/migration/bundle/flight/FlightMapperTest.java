@@ -124,6 +124,52 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     }
 
     @Test
+    void emptyGuidTowAndLocationFksPortAsNull() throws Exception {
+        // Legacy ASP.NET writes the all-zero uniqueidentifier into NOT-NULL GUID
+        // FK columns to mean "no relation" (oracle #18). The nullable rewrite FKs
+        // must port that as null — a verbatim empty-guid would violate
+        // fk_flight_tow_flight_id / fk_flight_*_location_id at INSERT.
+        Map<String, Object> row = rowWithAirState(
+                seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
+        String emptyGuid = "00000000-0000-0000-0000-000000000000";
+        row.put("TowFlightId", emptyGuid);
+        row.put("StartLocationId", emptyGuid);
+        row.put("LdgLocationId", emptyGuid);
+        row.put("FlightTypeId", emptyGuid);
+        JsonNode emitted = invokeWriteNdjson(row);
+        assertThat(emitted.get(FlightMapper.TOW_FLIGHT_ID).isNull())
+                .as("empty-guid TowFlightId → null").isTrue();
+        assertThat(emitted.get(FlightMapper.START_LOCATION_ID).isNull())
+                .as("empty-guid StartLocationId → null").isTrue();
+        assertThat(emitted.get(FlightMapper.LDG_LOCATION_ID).isNull())
+                .as("empty-guid LdgLocationId → null").isTrue();
+        assertThat(emitted.get(FlightMapper.FLIGHT_TYPE_ID).isNull())
+                .as("empty-guid FlightTypeId → null").isTrue();
+    }
+
+    @Test
+    void lockedAtSetFromModifiedOnOnlyForLockedOrBeyond() throws Exception {
+        Instant modifiedOn = Instant.parse("2024-06-10T09:00:00Z");
+        // Still-Valid (30): locked_at null — the bill gate must never fire on import.
+        Map<String, Object> valid = rowWithAirState(
+                seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
+        valid.put("ProcessStateId", 30);
+        valid.put("ModifiedOn", Timestamp.from(modifiedOn));
+        assertThat(invokeWriteNdjson(valid).get(FlightMapper.LOCKED_AT).isNull())
+                .as("Valid(30) flight ports locked_at = null").isTrue();
+        // Locked(40) and beyond: locked_at = ModifiedOn (the legacy lock-time proxy).
+        for (int lockedState : new int[] {40, 50, 60, 99}) {
+            Map<String, Object> locked = rowWithAirState(
+                    seededFaker(), FlightMapper.LEGACY_AIR_STATE_FLIGHT_PLAN_OPEN);
+            locked.put("ProcessStateId", lockedState);
+            locked.put("ModifiedOn", Timestamp.from(modifiedOn));
+            assertThat(invokeWriteNdjson(locked).get(FlightMapper.LOCKED_AT).asText())
+                    .as("ProcessStateId %d (>= LOCKED) ports locked_at = ModifiedOn", lockedState)
+                    .isEqualTo(modifiedOn.toString());
+        }
+    }
+
+    @Test
     void sparseEnumValuePassesThroughVerbatimWithoutMapperSideValueSetGuard() throws Exception {
         for (int rawValue : new int[] {1, 2, 4, 3, 99}) {
             Map<String, Object> row = rowWithAirState(
@@ -176,7 +222,9 @@ class FlightMapperTest extends AbstractMapperContractTest<FlightMapper> {
     private Map<String, Object> rowWithAirState(Faker faker, int legacyAirStateId) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("FlightId", randomUuidString(faker));
-        row.put("OwnerClubId", randomUuidString(faker));
+        // Real legacy column is OwnerId (the operating-club source), NOT
+        // OwnerClubId — the J-2 T-07 producer-SELECT reconciliation fix.
+        row.put("OwnerId", randomUuidString(faker));
         row.put("AircraftId", randomUuidString(faker));
         row.put("FlightDate", java.sql.Date.valueOf("2024-06-01"));
         row.put("StartDateTime", Timestamp.from(Instant.parse("2024-06-01T08:00:00Z")));

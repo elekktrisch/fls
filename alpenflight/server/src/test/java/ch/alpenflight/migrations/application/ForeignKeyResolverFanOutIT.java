@@ -3,10 +3,13 @@ package ch.alpenflight.migrations.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.migration.bundle.EntityPolicy;
 import ch.alpenflight.migration.bundle.EntityType;
 import ch.alpenflight.migration.bundle.LegacyIdMapTables;
+import ch.alpenflight.migration.bundle.flight.FlightMapper;
 import ch.alpenflight.migration.bundle.flight.InOutboundPointMapper;
 import ch.alpenflight.migration.bundle.flight.LocationMapper;
+import ch.alpenflight.migration.bundle.flight.StartTypeMapper;
 import ch.alpenflight.migrations.domain.BundleIngestErrorCode;
 import ch.alpenflight.migrations.domain.BundleIngestException;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
@@ -122,6 +125,98 @@ class ForeignKeyResolverFanOutIT extends PostgresIntegrationTest {
             assertThat(UUID.fromString(row.get("country_id").asText())).isEqualTo(newCountry);
             connection.commit();
         }
+    }
+
+    /**
+     * J-2 T-39 — the real-export catch. A FLIGHT's {@code start_type_id} carries
+     * the synthetic {@code UUID(0, legacyAircraftStartType)}; the SYSTEM_GLOBAL
+     * START_TYPE closure {@link StartTypeMapper#legacyEnumIdToSeedPk()} — the
+     * exact map {@code BundleWriter.writeStartTypeEnumSeedPgcopy} ships — must
+     * enumerate the FULL legacy enum (1..5). The real FLSTest had a SelfStart(3)
+     * flight but the prior closure omitted value 3, so the resolver fail-closed
+     * with {@code BUNDLE_CROSS_TENANT_FK_LEAK} at ingest. This drives the resolver
+     * against real Postgres seeded from the enum-complete closure and asserts
+     * EVERY enum value resolves, with SelfStart(3) the load-bearing case.
+     */
+    @Test
+    void start_type_self_start_resolves_against_the_enum_complete_closure() throws Exception {
+        Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
+
+        try (Connection connection = txConnection()) {
+            createSingleKeyIdMap(connection, EntityType.START_TYPE);
+            for (Map.Entry<UUID, UUID> e : closure.entrySet()) {
+                seedSingleKey(connection, EntityType.START_TYPE, e.getKey(), e.getValue());
+            }
+
+            try (ForeignKeyResolver resolver =
+                    new ForeignKeyResolver(connection, startTypeManifest())) {
+                // Every legacy AircraftStartType value (1..5) must resolve — not
+                // just the ones the legacy StartTypes table happened to seed.
+                for (int legacyId : List.of(1, 2, 3, 4, 5)) {
+                    UUID synthetic = new UUID(0L, legacyId);
+                    ObjectNode flight = JSON.createObjectNode();
+                    flight.put("start_type_id", synthetic.toString());
+
+                    resolver.rewriteForeignKeys(new FlightMapper(), flight);
+
+                    assertThat(UUID.fromString(flight.get("start_type_id").asText()))
+                            .as("legacy start type %d (UUID(0,%d)) resolves to its V2 "
+                                    + "t_start_type seed PK", legacyId, legacyId)
+                            .isEqualTo(closure.get(synthetic));
+                }
+
+                // SelfStart(3) — the exact value the real export 400'd on.
+                ObjectNode selfStart = JSON.createObjectNode();
+                selfStart.put("start_type_id", new UUID(0L, 3L).toString());
+                resolver.rewriteForeignKeys(new FlightMapper(), selfStart);
+                assertThat(UUID.fromString(selfStart.get("start_type_id").asText()))
+                        .as("SelfStart(3) resolves (no BUNDLE_CROSS_TENANT_FK_LEAK)")
+                        .isEqualTo(closure.get(new UUID(0L, 3L)));
+            }
+            connection.commit();
+        }
+    }
+
+    @Test
+    void start_type_missing_from_the_closure_fails_closed() throws Exception {
+        // Regression direction: an INCOMPLETE START_TYPE map (the pre-fix bug —
+        // SelfStart(3) absent) must still fail closed, NOT resolve to a wrong PK.
+        // This pins that the BUNDLE_CROSS_TENANT_FK_LEAK guard is intact; the fix
+        // makes the DATA complete, it does not weaken the guard.
+        try (Connection connection = txConnection()) {
+            createSingleKeyIdMap(connection, EntityType.START_TYPE);
+            // Seed only 1/2/4/5 — deliberately omit SelfStart(3).
+            Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
+            for (int legacyId : List.of(1, 2, 4, 5)) {
+                UUID synthetic = new UUID(0L, legacyId);
+                seedSingleKey(connection, EntityType.START_TYPE, synthetic, closure.get(synthetic));
+            }
+
+            try (ForeignKeyResolver resolver =
+                    new ForeignKeyResolver(connection, startTypeManifest())) {
+                ObjectNode flight = JSON.createObjectNode();
+                flight.put("start_type_id", new UUID(0L, 3L).toString());
+                assertThatThrownBy(() ->
+                        resolver.rewriteForeignKeys(new FlightMapper(), flight))
+                        .isInstanceOf(BundleIngestException.class)
+                        .extracting(e -> ((BundleIngestException) e).getErrorCode())
+                        .isEqualTo(BundleIngestErrorCode.BUNDLE_CROSS_TENANT_FK_LEAK);
+            }
+            connection.commit();
+        }
+    }
+
+    /** Manifest marking START_TYPE SYSTEM_GLOBAL_RESOLVE so the resolver
+     * fail-closes on a missing map entry (the FK-leak guard). */
+    private static BundleManifest startTypeManifest() {
+        EntityPolicy systemGlobal = new EntityPolicy(
+                EntityPolicy.PortPolicy.SYSTEM_GLOBAL_RESOLVE,
+                EntityPolicy.TombstonePolicy.SKIP_DELETED,
+                java.util.Set.of(),
+                java.util.List.of());
+        return new BundleManifest(
+                1, "test-deployment", List.of(), null,
+                Map.of(EntityType.START_TYPE, systemGlobal), Map.of());
     }
 
     /** Connection in a manual transaction so {@code ON COMMIT DROP} temp tables

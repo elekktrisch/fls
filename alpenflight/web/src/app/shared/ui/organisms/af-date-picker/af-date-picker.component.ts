@@ -11,6 +11,7 @@ import { FormsModule, NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angu
 import { NzDatePickerModule } from 'ng-zorro-antd/date-picker';
 
 import { DensityService } from '../../density';
+import { rangeArray, toRangeValue } from './date-value-bridge';
 
 export type DateValue = Date | [Date, Date] | null;
 
@@ -76,14 +77,22 @@ export class AfDatePickerComponent implements ControlValueAccessor {
     this.#density.density() === 'dense' ? ('small' as const) : ('default' as const),
   );
 
-  protected singleValue(): Date | null {
+  protected readonly singleValue = computed<Date | null>(() => {
     const v = this.value();
     return v instanceof Date ? v : null;
-  }
-  protected rangeValue(): readonly Date[] {
-    const v = this.value();
-    return Array.isArray(v) ? v : [];
-  }
+  });
+
+  // Reference-stable array projection for nz-range-picker's [ngModel]. Under
+  // zoneless Angular a fresh-array-each-pass input made the picker re-normalise
+  // and re-schedule CD forever, freezing the main thread (S-062e). `rangeArray`
+  // returns the SAME array across passes whenever the epochs are unchanged, so
+  // the picker input identity is stable and the loop can never form. The
+  // `computed` memoises within a pass; the `prev` carry memoises across them.
+  #prevRange: readonly Date[] = [];
+  protected readonly rangeValue = computed<readonly Date[]>(() => {
+    this.#prevRange = rangeArray(this.value(), this.#prevRange);
+    return this.#prevRange;
+  });
 
   private onChange: (value: DateValue) => void = () => undefined;
   private onTouched: () => void = () => undefined;
@@ -106,8 +115,8 @@ export class AfDatePickerComponent implements ControlValueAccessor {
     this.onChange(next);
     this.onTouched();
   }
-  protected onRangeChange(next: Date[]): void {
-    const tuple: DateValue = next.length === 2 ? [next[0]!, next[1]!] : null;
+  protected onRangeChange(next: readonly (Date | null)[]): void {
+    const tuple = toRangeValue(next);
     this.value.set(tuple);
     this.onChange(tuple);
     this.onTouched();

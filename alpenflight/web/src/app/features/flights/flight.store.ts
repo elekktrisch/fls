@@ -26,6 +26,7 @@ import type {
 } from '@api/generated/model';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
+import { buildConflict, type FlightConflict } from './edit/conflict-resolver';
 import {
   snapshotToCreateRequests,
   snapshotToUpdateRequest,
@@ -67,7 +68,18 @@ interface FlightDetailSlice {
   detailLoading: boolean;
   detailError: string | null;
   saveError: string | null;
-  saveConflict: boolean;
+  /**
+   * 412 (stale If-Match) → a resolved per-field conflict the inline diff
+   * dialog renders. Distinct from `reloadConflict` (409): a 412 is a DATA
+   * conflict the user adjudicates field-by-field; a 409 is a POLICY/STATE
+   * conflict with no field-level merge (S-062h).
+   */
+  saveConflict: FlightConflict | null;
+  /**
+   * 409 (state-gate reject / optimistic-lock race) → a non-blocking
+   * "reload latest" toast. NEVER the inline diff.
+   */
+  reloadConflict: boolean;
 }
 
 interface FlightListSlice {
@@ -97,7 +109,8 @@ const initial: FlightExtraState = {
   detailLoading: false,
   detailError: null,
   saveError: null,
-  saveConflict: false,
+  saveConflict: null,
+  reloadConflict: false,
 };
 
 function matchesClientFilter(row: FlightListItem, f: FlightClientFilter): boolean {
@@ -129,7 +142,7 @@ export const FlightStore = signalStore(
   { providedIn: 'root' },
   withEntities<FlightRow>(),
   withState<FlightExtraState>(initial),
-  withComputed(({ entities, clientFilter, loadError, saveConflict }) => ({
+  withComputed(({ entities, clientFilter, loadError, saveConflict, reloadConflict }) => ({
     isEmpty: computed(() => entities().length === 0),
     visibleEntities: computed(() => {
       const f = clientFilter();
@@ -140,7 +153,10 @@ export const FlightStore = signalStore(
       return rows.filter((r) => matchesClientFilter(r, f));
     }),
     hasError: computed(() => loadError() !== null),
-    hasSaveConflict: computed(() => saveConflict()),
+    // 412: a resolved data conflict drives the inline diff dialog.
+    hasSaveConflict: computed(() => saveConflict() !== null),
+    // 409: a policy/state conflict drives the non-blocking reload toast.
+    hasReloadConflict: computed(() => reloadConflict()),
   })),
   withMethods((store, flightsApi = inject(FlightsService), bus = inject(MUTATION_BUS)) => {
     const loadPage = rxMethod<void>(
@@ -171,7 +187,8 @@ export const FlightStore = signalStore(
         currentTowVersion: null,
         detailError: null,
         saveError: null,
-        saveConflict: false,
+        saveConflict: null,
+        reloadConflict: false,
       });
     }
 
@@ -226,7 +243,7 @@ export const FlightStore = signalStore(
       gliderId: string;
       towId?: string;
     }> {
-      patchState(store, { saveError: null, saveConflict: false });
+      patchState(store, { saveError: null, saveConflict: null, reloadConflict: false });
       const requests = snapshotToCreateRequests(snapshot);
       const glider = await firstValueFrom(flightsApi.create(requests.glider));
       if (!requests.tow) {
@@ -264,14 +281,15 @@ export const FlightStore = signalStore(
       snapshot: FlightFormSnapshot,
       versions: UpdatePairVersions,
     ): Promise<void> {
-      if (!snapshot.flightId) {
+      const flightId = snapshot.flightId;
+      if (!flightId) {
         throw new Error('updatePair: snapshot.flightId is required');
       }
-      patchState(store, { saveError: null, saveConflict: false });
+      patchState(store, { saveError: null, saveConflict: null, reloadConflict: false });
+      const gliderBody = snapshotToUpdateRequest(snapshot, 'glider');
       try {
-        const gliderBody = snapshotToUpdateRequest(snapshot, 'glider');
         await firstValueFrom(
-          flightsApi.update(snapshot.flightId, gliderBody, {
+          flightsApi.update(flightId, gliderBody, {
             headers: { 'If-Match': String(versions.glider) },
           }),
         );
@@ -285,18 +303,59 @@ export const FlightStore = signalStore(
           );
           bus.next({ kind: 'flight.updated', flightId: currentTow.id });
         }
-        bus.next({ kind: 'flight.updated', flightId: snapshot.flightId });
+        bus.next({ kind: 'flight.updated', flightId });
         loadPage();
       } catch (e) {
         const err = e as HttpErrorResponse;
         if (err.status === 412) {
-          // S-062h owns the inline diff dialog. Placeholder: surface the
-          // conflict state so the wizard can render a toast.
-          patchState(store, { saveConflict: true });
+          // DATA conflict (stale If-Match). The 412 body carries only the new
+          // `serverVersion` (no field values), so re-GET the current detail and
+          // diff the user's submitted glider update against it. NO auto-retry —
+          // the resolved conflict opens the inline keep-mine/keep-theirs dialog;
+          // the user explicitly resubmits the merged choices.
+          await openConflict(flightId, gliderBody, err);
+        } else if (err.status === 409) {
+          // POLICY/STATE conflict (time-gate reject, DeliveryBooked edit,
+          // optimistic-lock race). No field-level merge — surface a
+          // non-blocking "reload latest" toast, never the inline diff.
+          patchState(store, { reloadConflict: true, saveError: err.message });
+        } else {
+          patchState(store, { saveError: err.message });
         }
-        patchState(store, { saveError: err.message });
         throw e;
       }
+    }
+
+    async function openConflict(
+      flightId: string,
+      mine: ReturnType<typeof snapshotToUpdateRequest>,
+      err: HttpErrorResponse,
+    ): Promise<void> {
+      const body = (err.error ?? {}) as { serverVersion?: number };
+      let theirs: FlightDetail;
+      try {
+        theirs = await firstValueFrom(flightsApi.get(flightId));
+      } catch {
+        // Re-GET failed (e.g. the row was deleted out from under us). Degrade
+        // to the reload toast — there's nothing to diff against.
+        patchState(store, { reloadConflict: true, saveError: err.message });
+        return;
+      }
+      const serverVersion =
+        typeof body.serverVersion === 'number' ? body.serverVersion : theirs.version;
+      patchState(store, {
+        saveConflict: buildConflict(flightId, serverVersion, mine, theirs),
+        saveError: err.message,
+        // Refresh the held detail + version so an explicit resubmit (user
+        // resolved the diff) If-Matches the CURRENT server version — never
+        // an auto-retry, the user drives it.
+        current: theirs,
+        currentVersion: theirs.version,
+      });
+    }
+
+    function dismissConflict(): void {
+      patchState(store, { saveConflict: null, reloadConflict: false });
     }
 
     async function deleteOne(id: string, ifMatch = '*'): Promise<void> {
@@ -337,6 +396,7 @@ export const FlightStore = signalStore(
         patchState(store, setAllEntities<FlightRow>([]), { nextCursor: null });
       },
       clearDetail,
+      dismissConflict,
       loadDetail,
       loadNewTemplate,
       loadCopyTemplate,

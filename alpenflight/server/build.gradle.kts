@@ -432,6 +432,25 @@ val seedAircraftParityBundle by tasks.registering(JavaExec::class) {
     }
 }
 
+// J-2 T-08: launchable seam for the flight migration parity Playwright spec
+// (alpenflight/web/e2e/tests/real-idp/flight-migration-parity.spec.ts). Mirrors
+// seedAircraftParityBundle — the ALPF bundle envelope is built in Java (reusing the
+// server-IT bundle factory + the FLIGHT + FLIGHT_CREW round-trip bundle shape), so
+// the TS spec shells out here to materialize the encrypted flight bundle bytes; it
+// then POSTs them through the REAL /api/v1/migrations endpoint. Pure byte-factory.
+val seedFlightParityBundle by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Build the J-2 synthesized flight migration parity bundle (base64) for the e2e spec."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "ch.alpenflight.migrations.web.FlightParityBundleSeeder"
+    // Args supplied by the spec at invocation:
+    //   <publicKeyPemPath> <uploadId> <freshnessToken> <clubKey> <outputPath>
+    val seederArgs = providers.gradleProperty("seederArgs")
+    if (seederArgs.isPresent) {
+        args = seederArgs.get().split(" ")
+    }
+}
+
 // J-1 T-07: DB-fixture seam for the S-163 owner-person edit [edge] case. Sets the
 // owner Person + the JWT-sub→Person t_user link + the aircraft's
 // aircraft_owner_person_id directly against the live dev Postgres (no UI/REST

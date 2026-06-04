@@ -151,4 +151,32 @@ public class FlightCrew {
             this.deletedOn = at;
         }
     }
+
+    /**
+     * In-place update of the operational fields, keeping identity
+     * ({@code personId} + {@code flightCrewTypeId}) fixed. Used by
+     * {@link Flight#replaceCrew} to reconcile an existing crew row rather than
+     * delete-and-reinsert it — the latter trips the partial-unique
+     * {@code ux_flight_crew_unique} during a flush because Hibernate orders the
+     * re-INSERT before the orphan DELETE of the identical key.
+     */
+    void updateOperationalFields(@Nullable Instant beginFlightDatetime,
+                                 @Nullable Instant endFlightDatetime,
+                                 @Nullable Instant beginInstructionDatetime,
+                                 @Nullable Instant endInstructionDatetime,
+                                 @Nullable Short nrOfLdgs,
+                                 @Nullable Short nrOfStarts) {
+        if (nrOfLdgs != null && nrOfLdgs < 0) {
+            throw new IllegalArgumentException("FlightCrew.nrOfLdgs must be >= 0");
+        }
+        if (nrOfStarts != null && nrOfStarts < 0) {
+            throw new IllegalArgumentException("FlightCrew.nrOfStarts must be >= 0");
+        }
+        this.beginFlightDatetime = beginFlightDatetime;
+        this.endFlightDatetime = endFlightDatetime;
+        this.beginInstructionDatetime = beginInstructionDatetime;
+        this.endInstructionDatetime = endInstructionDatetime;
+        this.nrOfLdgs = nrOfLdgs;
+        this.nrOfStarts = nrOfStarts;
+    }
 }

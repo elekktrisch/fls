@@ -20,17 +20,60 @@ genuinely new vertical feature scope.
   *non-migration* journey (early proofs are all fan-out flavored). 47 `implemented/` stories
   stay as history. *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)*
 
+## Pending (filed by /do-ship 2026-06-04, J-2 window)
+
+- **Collapse the two proof galleries into one (operator-requested, J-2 window).** Each PR carries
+  TWO gallery sticky comments: the ci.yml AlpenFlight-only preview (`…/proof-preview/integration-J-N/`,
+  built every push, **no legacy pairing**) and the fanout `legacy-parity` gallery
+  (`…/legacy-parity/`, the complete paired legacy↔AlpenFlight proof). The operator only consumes the
+  full one — the AlpenFlight-only gallery + its second comment is noise. Make the fanout `legacy-parity`
+  gallery THE gallery at the canonical path and drop ci.yml's AlpenFlight-only deploy + its sticky
+  comment (or have ci point at the last fanout gallery). Needs a fanout run to validate → ride the next
+  journey's gate. *(seam: ci.yml gallery-deploy job + alpenflight-proof-fanout.yml deploy + the two
+  `<!-- proof-preview -->` / `<!-- fanout-proof-preview -->` comment upserts)*
+- **modernize-\* sunset (carried forward, deferred from J-2).** J-2 was the first non-migration-
+  flavored feature journey (the rider's trigger), but the J-2 PR was already large (time-gate +
+  412 + unified-motor + Flight migration + the real-export catches), so the ~21-file deletion +
+  story-prune was deferred to keep the gate PR reviewable. Ride the next feature journey. *(seam:
+  .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)* — see the top "Pending" entry.
+- **e2e tsc-strictness** — `tsc -p alpenflight/web/e2e/tsconfig.json` reports ~23 pre-existing
+  `exactOptionalPropertyTypes`/`maxFailures` errors (`playwright.config.ts`, `flights-list.spec.ts`,
+  `aircraft-crud.spec.ts`, `persons-add-modal.spec.ts`, `proof-gallery.spec.ts`, `migration/handshake.spec.ts`).
+  Playwright's esbuild transpile tolerates them; harmless until/unless an e2e `tsc` gate is wired.
+  *(seam: e2e/tsconfig strict-mode cleanup)*
+- **e2e prettier-glob not clean** — `prettier --check 'alpenflight/web/e2e/**/*.{ts,json}'` flags ~42
+  pre-existing unformatted specs (repo-wide, predates J-2). A format-normalization pass; don't fold
+  into a feature PR. *(seam: e2e prettier normalization)*
+- **op-field-mutate test coverage (gap-hunter nit, T-21)** — `FlightCrew.updateOperationalFields` (the
+  kept-row in-place reconcile) is only exercised by a re-assert with *identical* values; a changed
+  `nrOfLdgs`/time on an unchanged-identity crew row isn't asserted. Code is correct; add the assertion
+  on the next flights touch. *(seam: FlightDomainTest / FlightsControllerIT crew-op-field case)*
+- **orphaned clubadmin4 realm-user + V29 seed** — T-24 added `clubadmin4` (realm-export user +
+  `V29__dev_user_seed_clubadmin4.sql`) as a motor-test principal; T-36 unified motor into /flights and
+  the motor test reverted to `fixture.clubA`, leaving clubadmin4 + V29 self-referenced only. Inert
+  (realm user + a `t_user` row); a clean removal needs care (removing a landed Flyway migration mid-line
+  risks a checksum surprise). Remove on a later journey. *(seam: realm-export.json clubadmin4 + V29)*
+- **JIT-username robustness (observation, T-22/T-23)** — `JitUserMaterializerImpl` reconcile-by-username
+  (T-23) handles the concurrent-sub-race; the residual is that a genuinely distinct sub reusing a live
+  username is rebound rather than rejected — defensible (username = person identity) but worth a
+  `legacy-oracle`/security look if multi-IdP lands. *(seam: JitUserMaterializerImpl)*
+
 ## Pending (filed by /do-retro 2026-06-03, J-1 window)
 
-- **ci.yml path-filter for docs/story-only pushes.** Docs/skill/story-only commits
-  (`docs/**`, `.claude/**`, root `*.md`) re-trigger the full `alpenflight build` +
-  `alpenflight-proof` real-idp (~7 min) — J-1 burned many cycles re-running the heavy proof
-  on doc-only pushes. Add a `paths-ignore` / `detect-changes`-gated skip so doc-only pushes
-  don't run build+proof, keeping the `required` aggregator green via the standard
-  skipped-to-success pattern. *(seam: .github/workflows/ci.yml path filter + required aggregator)*
-  — /do-retro Q3 efficiency.
+_(no pending riders — see Shipped below)_
 
 _Deferred (operator, Q3): fanout-perf (own runner / sharding / no spec co-location) + re-enable
 the T-18 J-0c rename test — recorded in the J-1 journey file, not filed as an active rider yet._
 
 _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pruning rider this round._
+
+## Shipped
+
+- **ci.yml path-filter for docs/story-only pushes** — shipped J-2 T-11. Root cause: on
+  `integration/**` branches the `pull_request` trigger made `dorny/paths-filter` diff the
+  WHOLE PR vs `main`, so `changes.next` was always true (the branch already carries
+  alpenflight/ commits) → every doc-only push re-ran build+proof. Fix: a new
+  `changes.docs_only` output computed from the INCREMENTAL push diff
+  (`github.event.before..after`); the three heavy jobs now gate on
+  `next == 'true' && docs_only != 'true'`. Fail-safe toward running (undeterminable range
+  → run). `required` aggregator stays green via the existing skipped-to-success case.

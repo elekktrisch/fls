@@ -89,10 +89,16 @@ test.describe('J-24 proof-video gallery', () => {
     await expect(page.locator('h1')).toHaveText('AlpenFlight proof gallery');
 
     // (a) [happy] — every rendered proof video carries a sentence caption.
+    // The figures now live inside per-journey accordion <details> (T-44); all
+    // but the newest journey are collapsed, so the figures EXIST in the DOM
+    // (toHaveCount works) but are not VISIBLE. Read captions via
+    // `allTextContents()` (DOM text, visibility-agnostic) — not
+    // `allInnerTexts()` which only returns rendered/visible text and would
+    // read '' for a collapsed journey's figures.
     const figures = page.locator('figure.proof');
     await expect(figures).toHaveCount(proofs.length);
 
-    const captions = await figures.locator('figcaption .caption').allInnerTexts();
+    const captions = await figures.locator('figcaption .caption').allTextContents();
     expect(captions).toHaveLength(proofs.length);
     for (const caption of captions) {
       const text = caption.trim();
@@ -122,9 +128,10 @@ test.describe('J-24 proof-video gallery', () => {
     // (c) [edge] — a pending roadmap journey renders a "pending" marker and is
     // NOT an anchor / broken link.
     const pendingJourney = pending[0];
+    expect(pendingJourney, 'a pending journey id must exist').toBeTruthy();
     const pendingCard = page
       .locator('.journey.pending-journey')
-      .filter({ hasText: pendingJourney });
+      .filter({ hasText: pendingJourney as string });
     await expect(pendingCard).toHaveCount(1);
     await expect(pendingCard.locator('.status.pending')).toHaveText('pending');
     // The pending card carries no link to click (no 404 / broken href).
@@ -248,11 +255,23 @@ test.describe('J-24 proof-video gallery', () => {
     await page.goto(pathToFileURL(outFile).href);
 
     // The J-0c section holds BOTH videos (legacy + AlpenFlight), side by side.
+    // T-44 made each journey a <details class="journey"> accordion; the journey
+    // id now lives in `summary .summary-jid` (there is no <h3>). Find the J-0c
+    // card by that id span.
     const j0cCard = page
-      .locator('.journey:not(.pending-journey)')
-      .filter({ has: page.locator('h3', { hasText: 'J-0c' }) });
+      .locator('details.journey:not(.pending-journey)')
+      .filter({ has: page.locator('.summary-jid', { hasText: 'J-0c' }) });
     await expect(j0cCard).toHaveCount(1);
     await expect(j0cCard.locator('figure.proof')).toHaveCount(2);
+
+    // The figures live inside the accordion <details>. J-0c is the newest
+    // journey with content here so it renders `open`, but make the visibility
+    // assertions below robust to collapse policy: open it explicitly before
+    // asserting on visible text.
+    if (!(await j0cCard.evaluate((el: Element) => (el as HTMLDetailsElement).open))) {
+      await j0cCard.locator('summary').click();
+    }
+    await expect(j0cCard.locator('summary')).toBeVisible();
 
     // The legacy figure is clearly labelled as the legacy parity side and
     // carries its own caption + a resolving video src.

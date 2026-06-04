@@ -18,6 +18,7 @@ import {
   ReactiveFormsModule,
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { TranslocoDirective } from '@jsverse/transloco';
 
 import { AircraftStore } from '@features/aircraft/aircraft.store';
 import { FlightTypesStore } from '@features/flight-types/flight-types.store';
@@ -36,6 +37,21 @@ import { AfStickyBarComponent } from '@ui/molecules/af-sticky-bar';
 import { AfDialogComponent } from '@ui/organisms/af-dialog';
 
 import { FlightStore } from '../flight.store';
+import {
+  flightNeedsTow,
+  primaryAircraftCreateType,
+  type PrimaryAircraftKind,
+} from '../motor-aircraft';
+
+import {
+  CONFLICT_FIELD_TO_GLIDER_CONTROL,
+  timeOfConflictValue,
+  type ConflictFieldName,
+} from './conflict-resolver';
+import {
+  FlightConflictPromptComponent,
+  type ConflictResolution,
+} from './flight-conflict-prompt.component';
 
 import {
   buildDefaultsForCopy,
@@ -43,12 +59,7 @@ import {
   buildDefaultsForNew,
 } from './flight-form.defaults';
 import { FlightFormCoordinator, type CoordinatorMetadata } from './flight-form.coordinator';
-import {
-  buildFlightForm,
-  needsTowplane,
-  type FlightForm,
-  type FlightFormSnapshot,
-} from './flight-form.model';
+import { buildFlightForm, type FlightForm, type FlightFormSnapshot } from './flight-form.model';
 import { FlightPrefsService } from './flight-prefs.service';
 import { START_TYPE_OPTIONS } from './flight-start-types';
 
@@ -88,6 +99,8 @@ interface StepDescriptor {
     AfSelectComponent,
     AfStickyBarComponent,
     AfTimeNowButtonComponent,
+    FlightConflictPromptComponent,
+    TranslocoDirective,
   ],
   template: `
     <af-page>
@@ -326,10 +339,22 @@ interface StepDescriptor {
           @if (errorMessage()) {
             <p class="text-red-600" data-testid="flight-error">{{ errorMessage() }}</p>
           }
-          @if (conflict()) {
-            <p class="text-amber-600" data-testid="flight-conflict-toast">
-              Concurrent edit detected — reload to keep working.
-            </p>
+          <!--
+            409 = state/policy conflict (time-gate reject, DeliveryBooked edit,
+            optimistic-lock race). Non-blocking toast with a reload action —
+            NEVER the inline diff (that's the 412 data-conflict path below).
+          -->
+          @if (reloadConflict()) {
+            <div
+              *transloco="let t; read: 'flight.reload'"
+              class="flex items-center justify-between gap-3 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              data-testid="flight-409-toast"
+            >
+              <span>{{ t('message') }}</span>
+              <af-button data-testid="flight-409-reload" (clicked)="onReloadLatest()">{{
+                t('action')
+              }}</af-button>
+            </div>
           }
         </form>
       }
@@ -342,6 +367,13 @@ interface StepDescriptor {
         dismissLabel="Keep editing"
         (confirm)="confirmDiscard()"
         (dismiss)="dirtyConfirmOpen.set(false)"
+      />
+
+      <!-- 412 = data conflict → inline per-field keep-mine/keep-theirs diff. -->
+      <af-flight-conflict-prompt
+        [conflict]="conflict()"
+        (resolved)="onConflictResolved($event)"
+        (dismissed)="onConflictDismissed()"
       />
     </af-page>
   `,
@@ -376,7 +408,10 @@ export class FlightsEditPage {
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly dirtyConfirmOpen = signal<boolean>(false);
 
-  protected readonly conflict = computed(() => this.store.hasSaveConflict());
+  // 412 data conflict (drives the inline per-field diff dialog).
+  protected readonly conflict = computed(() => this.store.saveConflict());
+  // 409 state/policy conflict (drives the non-blocking reload toast).
+  protected readonly reloadConflict = computed(() => this.store.hasReloadConflict());
 
   protected readonly title = computed(() => {
     switch (this.mode()) {
@@ -392,7 +427,27 @@ export class FlightsEditPage {
 
   // Live signal of startTypeId so needsTow() responds to form changes.
   private readonly startTypeSignal = signal<string | null>(null);
-  protected readonly needsTow = computed(() => needsTowplane(this.startTypeSignal()));
+  // Live signal of the selected primary (glider-step) aircraftId so the MOTOR
+  // discriminator + tow-step suppression respond to the aircraft selection.
+  private readonly primaryAircraftIdSignal = signal<string | null>(null);
+
+  /**
+   * The selected primary aircraft, resolved off the AircraftStore — the source
+   * of the MOTOR-vs-GLIDER discriminator (J-2 T-36: a motor flight is just a
+   * Flight with a motor aircraft, created in the unified /flights wizard; there
+   * is no separate /airmovements screen).
+   */
+  private readonly primaryAircraft = computed<PrimaryAircraftKind | null>(() => {
+    const id = this.primaryAircraftIdSignal();
+    if (!id) return null;
+    const a = this.aircraftStore.entities().find((x) => x.id === id);
+    return a ? { hasEngine: a.hasEngine, isTowingAircraft: a.isTowingAircraft } : null;
+  });
+
+  // A motor flight never tows; a glider defers to the aerotow start-type.
+  protected readonly needsTow = computed(() =>
+    flightNeedsTow(this.primaryAircraft(), this.startTypeSignal()),
+  );
 
   // Live solo flag so the co-pilot selector hides reactively and any
   // already-picked co-pilot is cleared the moment the flag flips on —
@@ -486,6 +541,12 @@ export class FlightsEditPage {
     this.form.controls.startTypeId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v) => this.startTypeSignal.set(v));
+
+    // Track the selected primary aircraft so the MOTOR discriminator +
+    // tow-step suppression respond when the user picks a motor aircraft.
+    this.form.controls.glider.controls.aircraftId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((v) => this.primaryAircraftIdSignal.set(v));
 
     // Track isSoloFlight: when it flips on, hide + clear the co-pilot
     // slot so the submitted snapshot can never contain a contradictory
@@ -602,6 +663,55 @@ export class FlightsEditPage {
     void this.router.navigateByUrl('/flights');
   }
 
+  /**
+   * 412 resolved: apply each "keep theirs" choice onto the glider form, then
+   * EXPLICITLY resubmit. The store refreshed `currentVersion` to the server's
+   * version on the 412, so the resubmit If-Matches the current value. There is
+   * NO auto-retry — this only runs because the user clicked resubmit.
+   */
+  protected onConflictResolved(resolution: ConflictResolution): void {
+    const c = this.store.saveConflict();
+    if (!c) {
+      return;
+    }
+    // Cast via `unknown`: the typed `CrewSubForm` control map has no string
+    // index signature, so a direct assertion trips TS2352 under the AOT build
+    // (the looser test tsconfig let it through — boyscout: T-04 leftover).
+    const glider = this.form.controls.glider.controls as unknown as Record<
+      string,
+      { setValue: (v: unknown) => void }
+    >;
+    for (const field of c.fields) {
+      if (resolution[field.name as ConflictFieldName] !== 'theirs') {
+        continue; // "keep mine" → leave the user's value in the form.
+      }
+      const control = CONFLICT_FIELD_TO_GLIDER_CONTROL[field.name as ConflictFieldName];
+      if (!control) {
+        continue;
+      }
+      const value =
+        field.name === 'startDateTime' || field.name === 'ldgDateTime'
+          ? timeOfConflictValue(field.theirs)
+          : field.theirs;
+      glider[control]?.setValue(value);
+    }
+    this.store.dismissConflict();
+    void this.finalSubmit();
+  }
+
+  protected onConflictDismissed(): void {
+    this.store.dismissConflict();
+  }
+
+  /** 409 reload action: drop local state + re-hydrate from the server. */
+  protected onReloadLatest(): void {
+    this.store.dismissConflict();
+    const id = this.store.current()?.id ?? this.route.snapshot.paramMap.get('id');
+    if (id) {
+      void this.hydrate('edit', id);
+    }
+  }
+
   @HostListener('document:keydown.escape')
   protected onEscape(): void {
     if (this.dirtyConfirmOpen()) {
@@ -615,6 +725,10 @@ export class FlightsEditPage {
 
   private snapshot(): FlightFormSnapshot {
     const raw = this.form.getRawValue();
+    // Infer the primary discriminator from the selected aircraft: a motor
+    // aircraft → MOTOR (no tow), otherwise GLIDER. Edit reuses the existing
+    // row's type server-side, so this override only bites on create.
+    const primaryAircraftType = primaryAircraftCreateType(this.primaryAircraft());
     return {
       flightId: raw.flightId,
       flightDate: raw.flightDate,
@@ -623,6 +737,7 @@ export class FlightsEditPage {
       canDeleteRecord: raw.canDeleteRecord,
       glider: { ...raw.glider, duration: null },
       tow: { ...raw.tow, duration: null },
+      primaryAircraftType,
     } as FlightFormSnapshot;
   }
 
@@ -674,6 +789,7 @@ export class FlightsEditPage {
     this.patchSub(this.form.controls.glider, snapshot.glider);
     this.patchSub(this.form.controls.tow, snapshot.tow);
     this.startTypeSignal.set(snapshot.startTypeId);
+    this.primaryAircraftIdSignal.set(snapshot.glider.aircraftId);
     this.gliderIsSolo.set(snapshot.glider.isSoloFlight);
     this.form.markAsPristine();
   }

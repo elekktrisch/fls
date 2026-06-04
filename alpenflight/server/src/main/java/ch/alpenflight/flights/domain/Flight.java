@@ -14,9 +14,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.hibernate.annotations.TenantId;
@@ -149,6 +149,17 @@ public class Flight {
 
     @Column(name = "flight_plan_opened_on")
     private @Nullable Instant flightPlanOpenedOn;
+
+    /**
+     * When this flight transitioned into {@link FlightProcessState#LOCKED}.
+     * Net-new in S-061 (legacy has no such column) — drives the billing
+     * gate ({@code locked_at <= today - 3d}, J-2 parity decision). Stamped
+     * by {@link #transition(FlightProcessState, TransitionTrigger, Instant)}
+     * on the Valid → Locked edge; {@code created_on} stays for audit but no
+     * longer drives any gate.
+     */
+    @Column(name = "locked_at")
+    private @Nullable Instant lockedAt;
 
     @Column(name = "engine_start_operating_counter_in_seconds")
     private @Nullable Long engineStartOperatingCounterInSeconds;
@@ -324,34 +335,66 @@ public class Flight {
     }
 
     /**
-     * Replaces the crew list wholesale. Aggregate-internal mutation —
-     * callers go through this method, never the JPA collection directly.
-     * Duplicates on {@code (personId, flightCrewTypeId)} are rejected per
-     * the partial-unique {@code ux_flight_crew_unique}.
+     * Replaces the crew list. Aggregate-internal mutation — callers go through
+     * this method, never the JPA collection directly. Duplicates on
+     * {@code (personId, flightCrewTypeId)} are rejected per the partial-unique
+     * {@code ux_flight_crew_unique}.
+     *
+     * <p>Reconciles IN PLACE rather than clear-and-recreate: rows whose
+     * {@code (personId, flightCrewTypeId)} identity is unchanged are MUTATED
+     * (operational fields only); rows no longer present are orphan-removed; only
+     * genuinely new keys are inserted. The naive {@code crew.clear()} +
+     * re-add tripped {@code ux_flight_crew_unique} (SQLState 23505) on an
+     * update that re-asserts an existing crew row — Hibernate orders the
+     * re-INSERT of the identical key BEFORE the orphan DELETE within one flush,
+     * so the partial unique index (WHERE deleted_on IS NULL) momentarily sees
+     * two live rows with the same key. Reconciling in place never re-inserts an
+     * unchanged key, closing that window. (J-2 T-21: the paired glider↔tow link
+     * PUT re-asserts the glider's PILOT crew row.)
      */
     public void replaceCrew(List<CrewMemberSpec> newCrew) {
         if (newCrew == null) {
             throw new IllegalArgumentException("newCrew must not be null");
         }
-        Set<String> seen = new HashSet<>();
+        Map<String, CrewMemberSpec> desired = new LinkedHashMap<>();
         for (CrewMemberSpec spec : newCrew) {
             String key = spec.personId() + "|" + spec.flightCrewTypeId();
-            if (!seen.add(key)) {
+            if (desired.putIfAbsent(key, spec) != null) {
                 throw new DuplicateCrewMemberException(
                         "Duplicate crew row (personId, flightCrewTypeId)=" + key);
             }
         }
-        this.crew.clear();
-        for (CrewMemberSpec spec : newCrew) {
-            this.crew.add(new FlightCrew(this,
-                    spec.personId(),
-                    spec.flightCrewTypeId(),
-                    spec.beginFlightDatetime(),
-                    spec.endFlightDatetime(),
-                    spec.beginInstructionDatetime(),
-                    spec.endInstructionDatetime(),
-                    spec.nrOfLdgs(),
-                    spec.nrOfStarts()));
+        // Index the existing live rows by the same identity key.
+        Map<String, FlightCrew> existing = new LinkedHashMap<>();
+        for (FlightCrew c : this.crew) {
+            existing.put(c.getPersonId() + "|" + c.getFlightCrewTypeId(), c);
+        }
+        // Orphan-remove rows no longer desired (hard delete via orphanRemoval).
+        this.crew.removeIf(c -> !desired.containsKey(
+                c.getPersonId() + "|" + c.getFlightCrewTypeId()));
+        // Mutate kept rows in place; insert only genuinely new keys.
+        for (Map.Entry<String, CrewMemberSpec> e : desired.entrySet()) {
+            CrewMemberSpec spec = e.getValue();
+            FlightCrew kept = existing.get(e.getKey());
+            if (kept != null) {
+                kept.updateOperationalFields(
+                        spec.beginFlightDatetime(),
+                        spec.endFlightDatetime(),
+                        spec.beginInstructionDatetime(),
+                        spec.endInstructionDatetime(),
+                        spec.nrOfLdgs(),
+                        spec.nrOfStarts());
+            } else {
+                this.crew.add(new FlightCrew(this,
+                        spec.personId(),
+                        spec.flightCrewTypeId(),
+                        spec.beginFlightDatetime(),
+                        spec.endFlightDatetime(),
+                        spec.beginInstructionDatetime(),
+                        spec.endInstructionDatetime(),
+                        spec.nrOfLdgs(),
+                        spec.nrOfStarts()));
+            }
         }
     }
 
@@ -405,6 +448,19 @@ public class Flight {
      * contract documented in the S-059 design notes.
      */
     public void transition(FlightProcessState target, TransitionTrigger trigger) {
+        transition(target, trigger, null);
+    }
+
+    /**
+     * Apply a process-state transition, stamping {@link #lockedAt} from
+     * {@code at} when this is the Valid → Locked edge (S-061's billing gate
+     * keys on it). {@code at} may be null for transitions that don't touch
+     * the lock edge — the two-arg overload uses that. The caller derives
+     * {@code at} from the injected {@link java.time.Clock} so tests pin it.
+     */
+    public void transition(FlightProcessState target,
+                           TransitionTrigger trigger,
+                           @Nullable Instant at) {
         if (target == null) {
             throw new IllegalArgumentException("target must not be null");
         }
@@ -414,6 +470,13 @@ public class Flight {
         FlightProcessState current = FlightProcessState.fromId(this.processStateId);
         if (!FlightTransitionMatrix.isLegal(trigger, current, target)) {
             throw new IllegalFlightTransitionException(current, target, trigger);
+        }
+        if (target == FlightProcessState.LOCKED) {
+            if (at == null) {
+                throw new IllegalArgumentException(
+                        "a Valid -> Locked transition requires a non-null timestamp to stamp locked_at");
+            }
+            this.lockedAt = at;
         }
         this.processStateId = target.id();
     }
@@ -601,6 +664,10 @@ public class Flight {
 
     public @Nullable Instant getFlightPlanOpenedOn() {
         return flightPlanOpenedOn;
+    }
+
+    public @Nullable Instant getLockedAt() {
+        return lockedAt;
     }
 
     /**

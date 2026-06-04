@@ -4,12 +4,15 @@ import ch.alpenflight.audit.domain.AuditAction;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.flights.domain.Flight;
+import ch.alpenflight.flights.domain.FlightGateNotReachedException;
 import ch.alpenflight.flights.domain.FlightInitialStateProvider;
 import ch.alpenflight.flights.domain.FlightNotFoundException;
 import ch.alpenflight.flights.domain.FlightProcessState;
 import ch.alpenflight.flights.domain.FlightRepository;
 import ch.alpenflight.flights.domain.TransitionTrigger;
 import ch.alpenflight.platform.id.FlightId;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,15 +42,21 @@ public class FlightStateTransitionService {
 
     private final FlightRepository repository;
     private final AuditTrail audit;
+    private final FlightGatePolicy gatePolicy;
+    private final Clock clock;
 
     @SuppressWarnings("UnusedVariable")
     private final FlightInitialStateProvider initialState;
 
     public FlightStateTransitionService(FlightRepository repository,
                                         AuditTrail audit,
+                                        FlightGatePolicy gatePolicy,
+                                        Clock clock,
                                         FlightInitialStateProvider initialState) {
         this.repository = repository;
         this.audit = audit;
+        this.gatePolicy = gatePolicy;
+        this.clock = clock;
         this.initialState = initialState;
     }
 
@@ -61,7 +70,9 @@ public class FlightStateTransitionService {
         Flight flight = repository.findByIdWithCrew(id)
                 .orElseThrow(() -> new FlightNotFoundException(id));
         FlightProcessState before = flight.getProcessState();
-        flight.transition(target, trigger);
+        Instant now = clock.instant();
+        assertTimeGate(flight, before, target, now);
+        flight.transition(target, trigger, now);
         Flight saved = repository.save(flight);
         audit.record(AuditAction.STATE_TRANSITION,
                 new AuditedTarget(AUDIT_ENTITY_TYPE,
@@ -83,7 +94,9 @@ public class FlightStateTransitionService {
         Flight glider = repository.findByIdWithCrew(gliderId)
                 .orElseThrow(() -> new FlightNotFoundException(gliderId));
         FlightProcessState gliderBefore = glider.getProcessState();
-        glider.transition(target, trigger);
+        Instant now = clock.instant();
+        assertTimeGate(glider, gliderBefore, target, now);
+        glider.transition(target, trigger, now);
         repository.save(glider);
         audit.record(AuditAction.STATE_TRANSITION,
                 new AuditedTarget(AUDIT_ENTITY_TYPE,
@@ -98,13 +111,37 @@ public class FlightStateTransitionService {
         Flight tow = repository.findByIdWithCrew(towId)
                 .orElseThrow(() -> new FlightNotFoundException(towId));
         FlightProcessState towBefore = tow.getProcessState();
-        tow.transition(target, trigger);
+        assertTimeGate(tow, towBefore, target, now);
+        tow.transition(target, trigger, now);
         repository.save(tow);
         audit.record(AuditAction.STATE_TRANSITION,
                 new AuditedTarget(AUDIT_ENTITY_TYPE,
                         Objects.requireNonNull(tow.getId()),
                         null,
                         new StateTransitionPayload(towBefore, target, trigger)));
+    }
+
+    /**
+     * Enforces the S-061 time-gate on the two gated edges. Other
+     * transitions pass through untouched. The matrix legality check still
+     * runs inside {@link Flight#transition} — this only adds the calendar
+     * gate, so an illegal edge surfaces as {@code IllegalFlightTransition},
+     * a too-recent legal edge as {@link FlightGateNotReachedException}.
+     */
+    private void assertTimeGate(Flight flight,
+                                FlightProcessState from,
+                                FlightProcessState target,
+                                Instant now) {
+        if (from == FlightProcessState.VALID
+                && target == FlightProcessState.LOCKED
+                && !gatePolicy.canLock(flight, now)) {
+            throw new FlightGateNotReachedException(FlightGateNotReachedException.Gate.LOCK);
+        }
+        if (from == FlightProcessState.LOCKED
+                && target == FlightProcessState.DELIVERY_PREPARED
+                && !gatePolicy.canBill(flight, now)) {
+            throw new FlightGateNotReachedException(FlightGateNotReachedException.Gate.BILL);
+        }
     }
 
     /**

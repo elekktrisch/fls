@@ -239,6 +239,38 @@ public class User {
         this.keycloakSub = null;
     }
 
+    /**
+     * Reconcile this active row's Keycloak identity to {@code newSub} — the
+     * JIT-on-login idempotency path when the same person re-appears under a
+     * fresh KC sub but the SAME {@code preferred_username}.
+     *
+     * <p>Why this is a legitimate in-place re-bind (unlike the cross-club
+     * "move" that {@link #register}'s class-doc forbids): the username is the
+     * person's stable identity in this system — {@code ux_user_username_lower_alive}
+     * is a partial-unique over alive usernames, so at most one active row can
+     * carry a given username, and that row is unambiguously the same human.
+     * KC may mint a new {@code sub} for that human (admin recreate, realm
+     * re-import, or — as observed — a concurrent first-login whose
+     * username-winning row carried a sibling principal's sub). Pointing the
+     * local row at the presenting JWT's sub keeps JIT idempotent on username
+     * and closes the silent-tenant-less failure mode where the by-sub
+     * re-read missed and the principal was left with no resolvable club_id.
+     *
+     * <p>Tenant safety is the caller's contract: the service only invokes
+     * this after asserting the existing row's {@code club_id} matches the
+     * JWT's {@code clubId} claim, so a re-bind never relocates identity
+     * across tenants. Refuses to fire on a tombstone — a soft-deleted row
+     * must go through the explicit re-invite ({@link #detachKeycloakSub})
+     * path, not a silent JIT re-bind.
+     */
+    public void rebindKeycloakSub(UUID newSub) {
+        requireNonNull(newSub, "newSub");
+        if (deletedOn != null) {
+            throw new IllegalStateException("Cannot rebind keycloak_sub on a soft-deleted user row");
+        }
+        this.keycloakSub = newSub;
+    }
+
     private static <T> T requireNonNull(@Nullable T value, String field) {
         if (value == null) {
             throw new IllegalArgumentException(field + " must not be null");

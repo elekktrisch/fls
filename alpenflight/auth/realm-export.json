@@ -3146,6 +3146,298 @@
         {
           "temporary": false,
           "type": "password",
+          "value": "clubadmin3-dev-2026!"
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "email": "clubadmin3@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Club",
+      "id": "9d08ed9c-699a-4c26-9036-9f0bd378003b",
+      "lastName": "Admin Three",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "OFFICE_USER",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "userProfileMetadata": {
+        "attributes": [
+          {
+            "displayName": "locale",
+            "multivalued": false,
+            "name": "locale",
+            "readOnly": false,
+            "required": false,
+            "validators": {}
+          },
+          {
+            "displayName": "${username}",
+            "multivalued": false,
+            "name": "username",
+            "readOnly": true,
+            "required": true,
+            "validators": {
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255,
+                "min": 3
+              },
+              "multivalued": {
+                "max": "1"
+              },
+              "up-username-not-idn-homograph": {
+                "ignore.empty.value": true
+              },
+              "username-prohibited-characters": {
+                "ignore.empty.value": true
+              }
+            }
+          },
+          {
+            "displayName": "${email}",
+            "multivalued": false,
+            "name": "email",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "email": {
+                "ignore.empty.value": true
+              },
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255
+              },
+              "multivalued": {
+                "max": "1"
+              }
+            }
+          },
+          {
+            "displayName": "${firstName}",
+            "multivalued": false,
+            "name": "firstName",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255
+              },
+              "multivalued": {
+                "max": "1"
+              },
+              "person-name-prohibited-characters": {
+                "ignore.empty.value": true
+              }
+            }
+          },
+          {
+            "displayName": "${lastName}",
+            "multivalued": false,
+            "name": "lastName",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255
+              },
+              "multivalued": {
+                "max": "1"
+              },
+              "person-name-prohibited-characters": {
+                "ignore.empty.value": true
+              }
+            }
+          },
+          {
+            "displayName": "Club ID (tenant assignment)",
+            "multivalued": false,
+            "name": "clubId",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "multivalued": {
+                "max": "1"
+              }
+            }
+          }
+        ],
+        "groups": [
+          {
+            "displayDescription": "Attributes, which refer to user metadata",
+            "displayHeader": "User metadata",
+            "name": "user-metadata"
+          }
+        ]
+      },
+      "username": "clubadmin3"
+    },
+    {
+      "access": {
+        "manage": true
+      },
+      "attributes": {
+        "clubId": [
+          "club-1"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "clubadmin4-dev-2026!"
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "email": "clubadmin4@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Club",
+      "id": "c1ab4d40-0000-4000-8000-000000000004",
+      "lastName": "Admin Four",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "OFFICE_USER",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "userProfileMetadata": {
+        "attributes": [
+          {
+            "displayName": "locale",
+            "multivalued": false,
+            "name": "locale",
+            "readOnly": false,
+            "required": false,
+            "validators": {}
+          },
+          {
+            "displayName": "${username}",
+            "multivalued": false,
+            "name": "username",
+            "readOnly": true,
+            "required": true,
+            "validators": {
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255,
+                "min": 3
+              },
+              "multivalued": {
+                "max": "1"
+              },
+              "up-username-not-idn-homograph": {
+                "ignore.empty.value": true
+              },
+              "username-prohibited-characters": {
+                "ignore.empty.value": true
+              }
+            }
+          },
+          {
+            "displayName": "${email}",
+            "multivalued": false,
+            "name": "email",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "email": {
+                "ignore.empty.value": true
+              },
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255
+              },
+              "multivalued": {
+                "max": "1"
+              }
+            }
+          },
+          {
+            "displayName": "${firstName}",
+            "multivalued": false,
+            "name": "firstName",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255
+              },
+              "multivalued": {
+                "max": "1"
+              },
+              "person-name-prohibited-characters": {
+                "ignore.empty.value": true
+              }
+            }
+          },
+          {
+            "displayName": "${lastName}",
+            "multivalued": false,
+            "name": "lastName",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "length": {
+                "ignore.empty.value": true,
+                "max": 255
+              },
+              "multivalued": {
+                "max": "1"
+              },
+              "person-name-prohibited-characters": {
+                "ignore.empty.value": true
+              }
+            }
+          },
+          {
+            "displayName": "Club ID (tenant assignment)",
+            "multivalued": false,
+            "name": "clubId",
+            "readOnly": false,
+            "required": false,
+            "validators": {
+              "multivalued": {
+                "max": "1"
+              }
+            }
+          }
+        ],
+        "groups": [
+          {
+            "displayDescription": "Attributes, which refer to user metadata",
+            "displayHeader": "User metadata",
+            "name": "user-metadata"
+          }
+        ]
+      },
+      "username": "clubadmin4"
+    },
+    {
+      "access": {
+        "manage": true
+      },
+      "attributes": {
+        "clubId": [
+          "club-1"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
           "value": "pilot1-dev-2026!"
         }
       ],

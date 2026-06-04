@@ -116,8 +116,19 @@ export default defineConfig({
       // One retry in CI catches Mailpit-delivery jitter without masking
       // real bugs. Local: zero retries — diagnose, don't paper over.
       retries: process.env['CI'] ? 1 : 0,
-      timeout: 60_000,
-      expect: { timeout: 10_000 },
+      // Per-TEST budget: a real-chain test (real Keycloak redirect-login +
+      // token exchange ~5-10s, then nav + multi-step create + several
+      // assertions) legitimately runs 20-35s on a loaded CI runner, so the
+      // budget is NOT the fail-fast lever — the per-assertion `expect.timeout`
+      // (5s, below) is: a genuinely stuck step fails precisely at 5s naming
+      // the assertion. 45s gives the long-but-legit flows (e.g. aircraft S-163
+      // owner-edit, the migrated-render ingest) headroom without the old 60s
+      // letting a stuck test report a vague minute-long "Test timeout".
+      timeout: 45_000,
+      // Per-ASSERTION/action timeout: 5s max so a stuck wait fails fast at
+      // the exact step (matches the mock `chromium` project). Explicit
+      // `waitForResponse` waits in specs are likewise capped at 5s.
+      expect: { timeout: 5_000 },
       maxFailures: Number(process.env['PLAYWRIGHT_REAL_IDP_MAX_FAILURES'] ?? 3),
     },
   ],

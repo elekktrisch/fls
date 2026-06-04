@@ -57,29 +57,41 @@
  * Location spec + that workflow document.
  */
 
-import { test, expect, gotoRoute, loginViaUi, waitForLoggedInState, screenshot } from '../../fixtures';
-import type { Page } from '@playwright/test';
+import { existsSync } from "node:fs";
+import {
+  test,
+  expect,
+  gotoRoute,
+  loginViaUi,
+  waitForLoggedInState,
+  screenshot,
+} from "../../fixtures";
+import type { Page } from "@playwright/test";
 
 // Record the read-only walkthrough as the legacy parity video regardless of
 // pass/fail. The fan-out workflow stages this artifact + publishes it to the
 // proof gallery under J-1 (declared via the `--legacy-video` sidecar). Authored
 // here so the spec is self-describing; the gate workflow records at the project
 // level too.
-test.use({ video: 'on' });
+test.use({ video: "on" });
 
-const API_BASE = process.env.FLS_API ?? 'http://localhost:25567';
+const API_BASE = process.env.FLS_API ?? "http://localhost:25567";
 
 // The seeded TestClub administrator (role ClubAdministrator). Password is the
 // single letter `s` (_test-fixture.sql convention) — same as the J-0c spec.
-const ADMIN = { username: 'testclubadmin', password: 's' } as const;
+const ADMIN = { username: "testclubadmin", password: "s" } as const;
 
 /** Read the bearer token the SPA persisted, for the read-only API pick below. */
 async function bearer(page: Page): Promise<string> {
   const token = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('ngStorage-loginResult');
-    try { return raw ? (JSON.parse(raw).access_token as string) : null; } catch { return null; }
+    const raw = sessionStorage.getItem("ngStorage-loginResult");
+    try {
+      return raw ? (JSON.parse(raw).access_token as string) : null;
+    } catch {
+      return null;
+    }
   });
-  expect(token, 'expected access_token in ngStorage-loginResult').toBeTruthy();
+  expect(token, "expected access_token in ngStorage-loginResult").toBeTruthy();
   return token as string;
 }
 
@@ -87,12 +99,17 @@ async function bearer(page: Page): Promise<string> {
 // give it the same headroom the other masterdata flows use.
 test.setTimeout(120_000);
 
-test('J-1 parity: legacy aircraft list + form field set (parity video)', async ({ browser }, testInfo) => {
+test("J-1 parity: legacy aircraft list + form field set (parity video)", async ({
+  browser,
+}, testInfo) => {
   // Own recording context (the J-0c spec's shape) so the video is one
   // continuous take of the list → form walkthrough at a fixed viewport.
   const ctx = await browser.newContext({
     viewport: { width: 1280, height: 800 },
-    recordVideo: { dir: testInfo.outputPath('video'), size: { width: 1280, height: 800 } },
+    recordVideo: {
+      dir: testInfo.outputPath("video"),
+      size: { width: 1280, height: 800 },
+    },
   });
   const page = await ctx.newPage();
 
@@ -102,58 +119,105 @@ test('J-1 parity: legacy aircraft list + form field set (parity video)', async (
     const token = await bearer(page);
 
     // ----- 1. LIST: the seeded aircraft fleet (the legacy column set) ---------
-    await gotoRoute(page, '/masterdata/aircrafts');
+    await gotoRoute(page, "/masterdata/aircrafts");
     // The ng-table renders one <tr> per aircraft; wait for the first data row's
     // Immatriculation cell so the recording captures a populated list, not the
     // empty/loading shell. (Header row has no [ng-bind] immatriculation cell.)
-    const firstImmat = page.locator('td[ng-bind="aircraft.Immatriculation"]').first();
-    await firstImmat.waitFor({ state: 'visible', timeout: 30_000 });
-    await expect(firstImmat).not.toBeEmpty();
-    await screenshot(page, 'aircrafts-parity-J1-01-legacy-list');
+    const firstImmat = page
+      .locator('td[ng-bind="aircraft.Immatriculation"]')
+      .first();
+    await firstImmat.waitFor({ state: "visible", timeout: 30_000 });
 
-    // J-1 T-19 — STABLE parity screenshot the fanout stages into the gallery
+    // J-1 T-42 — STABLE parity screenshot the fanout stages into the gallery
     // (declared in screenshots.json, side=legacy view=list). Written to this
     // test's output dir (under outputDir /tmp/fls-e2e-results/<spec-…>/) with a
     // FIXED basename so the staging step finds it by name the same way it finds
     // the .webm — distinct from the diagnostic `screenshot()` PNGs above (those
     // land under e2e/screenshots/<category>/ and are NOT gallery-declared).
-    await page.screenshot({ path: testInfo.outputPath('legacy-aircraft-list.png'), fullPage: true });
+    //
+    // ROBUSTNESS (run 26926684710): capture the list PNG AS SOON AS the first
+    // data row is visible — BEFORE the `not.toBeEmpty()` content assertion and
+    // BEFORE the API pick / form steps below. In that run the J-1 gallery half
+    // was missing BOTH legacy PNGs (list + form), so the spec aborted before the
+    // list PNG ever ran; landing the screenshot at the earliest settled-list
+    // moment makes the list-parity deliverable independent of any later check.
+    await page.screenshot({
+      path: testInfo.outputPath("legacy-aircraft-list.png"),
+      fullPage: true,
+    });
+    await expect(firstImmat).not.toBeEmpty();
+    await screenshot(page, "aircrafts-parity-J1-01-legacy-list");
 
     // Pick a REAL seeded AircraftId to open (read-only; the cheaper listitems
     // endpoint that aircrafts-crud.spec.ts uses, no paged-search 500 under
     // load). This drives WHICH form to open — it never mutates.
-    const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-    const listRes = await page.request.get(`${API_BASE}/api/v1/aircrafts/listitems/gliders`, { headers: auth });
+    const auth = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+    const listRes = await page.request.get(
+      `${API_BASE}/api/v1/aircrafts/listitems/gliders`,
+      { headers: auth },
+    );
     expect(
       listRes.ok(),
-      `GET aircrafts/listitems/gliders: ${listRes.status()}: ${(await listRes.text().catch(() => '')).slice(0, 200)}`,
+      `GET aircrafts/listitems/gliders: ${listRes.status()}: ${(await listRes.text().catch(() => "")).slice(0, 200)}`,
     ).toBeTruthy();
-    const fleet = (await listRes.json()) as Array<{ AircraftId: string; Immatriculation: string }>;
-    expect(fleet.length, 'FLSTest should seed at least one aircraft for the parity walkthrough').toBeGreaterThan(0);
+    const fleet = (await listRes.json()) as Array<{
+      AircraftId: string;
+      Immatriculation: string;
+    }>;
+    expect(
+      fleet.length,
+      "FLSTest should seed at least one aircraft for the parity walkthrough",
+    ).toBeGreaterThan(0);
     const sample = fleet[0];
 
     // ----- 2. FORM: open one aircraft so the legacy field set is on camera ----
     await gotoRoute(page, `/masterdata/aircrafts/${sample.AircraftId}`);
-    const immatInput = page.locator('#Immatriculation');
-    await immatInput.waitFor({ state: 'visible', timeout: 30_000 });
+    const immatInput = page.locator("#Immatriculation");
+    await immatInput.waitFor({ state: "visible", timeout: 30_000 });
+    await screenshot(page, "aircrafts-parity-J1-02-legacy-form-top");
+
+    // J-1 T-42 — STABLE parity screenshot (side=legacy view=form), written RIGHT
+    // AFTER the edit form's anchor field (#Immatriculation) is visible and
+    // BEFORE the lower-field-set scroll/assert below. This screenshot is the
+    // deliverable (the gallery's J-1 form-parity half); it must NOT be gated on
+    // the #Comment visibility check (run 26926684710: the J-1 gallery half was
+    // missing both legacy PNGs). The legacy aircraft edit form renders the whole
+    // field set in one DOM pass once #Immatriculation is visible, so a fullPage
+    // capture here gets the complete field set independent of any later check.
+    await page.screenshot({
+      path: testInfo.outputPath("legacy-aircraft-form.png"),
+      fullPage: true,
+    });
     await expect(immatInput).toHaveValue(sample.Immatriculation);
-    await screenshot(page, 'aircrafts-parity-J1-02-legacy-form-top');
 
     // Scroll the lower field set (homebase, spot link, counters, comment) into
     // view so the WHOLE legacy aircraft form is visible across the recording —
     // this is the parity surface the operator wants to eyeball vs AlpenFlight.
     // #Comment is the last text field on the form (aircraft-form-fields.html:258).
-    const comment = page.locator('#Comment');
+    const comment = page.locator("#Comment");
     await comment.scrollIntoViewIfNeeded();
-    await comment.waitFor({ state: 'visible', timeout: 15_000 });
-    await screenshot(page, 'aircrafts-parity-J1-03-legacy-form-fields');
-
-    // J-1 T-19 — STABLE parity screenshot (side=legacy view=form). fullPage so
-    // the WHOLE legacy aircraft field set (immatriculation → comment) is one
-    // image the operator eyeballs against AlpenFlight's form. Same fixed-name +
-    // output-dir contract as the list screenshot above.
-    await page.screenshot({ path: testInfo.outputPath('legacy-aircraft-form.png'), fullPage: true });
+    await comment.waitFor({ state: "visible", timeout: 15_000 });
+    await screenshot(page, "aircrafts-parity-J1-03-legacy-form-fields");
   } finally {
     await ctx.close();
+  }
+
+  // J-1 T-42 — SELF-GUARD: both gallery-declared parity PNGs MUST have landed.
+  // The fanout staging only DECLARES screenshots it can `find`, so a
+  // skipped-but-expected capture (run 26926684710: BOTH legacy PNGs missing
+  // from the J-1 gallery half) was silently absent instead of red. Asserting
+  // both files here turns a missed capture into a loud failure of THIS spec
+  // step (non-blocking parity aid — it does not gate the AlpenFlight chain, but
+  // it IS surfaced in the fanout's final-status step), so the gap can never
+  // again hide behind continue-on-error.
+  for (const png of ["legacy-aircraft-list.png", "legacy-aircraft-form.png"]) {
+    expect(
+      existsSync(testInfo.outputPath(png)),
+      `expected parity screenshot ${png} to have been written to the test output dir — ` +
+        `the fanout gallery's J-1 ${png.includes("list") ? "list" : "form"} parity half depends on it`,
+    ).toBeTruthy();
   }
 });

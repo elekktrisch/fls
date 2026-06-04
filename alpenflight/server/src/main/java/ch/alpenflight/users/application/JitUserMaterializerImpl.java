@@ -127,8 +127,23 @@ class JitUserMaterializerImpl implements JitUserMaterializer {
             // already-present so DoS alerting on `created` rate isn't
             // inflated by the race-loser cohort.
             outcomeAlreadyPresent.increment();
-            return users.findActiveByKeycloakSub(sub)
+            Optional<UUID> bySub = users.findActiveByKeycloakSub(sub)
                     .map(JitUserMaterializerImpl::idOf);
+            if (bySub.isPresent()) {
+                return bySub;
+            }
+            // By-sub re-read missed even though the username insert collided:
+            // the active row holding this `preferred_username` carries a
+            // DIFFERENT sub (the same person re-appearing under a fresh KC
+            // sub — admin recreate, realm re-import, or a concurrent
+            // first-login whose username-winning row was a sibling
+            // principal's). Reconcile that row's sub to this JWT's sub
+            // (tenant-guarded in the service) so JIT is idempotent on
+            // username — without it the principal is left permanently
+            // tenant-less and every @TenantId read misses its club_id
+            // (J-2 T-22 / T-23 silent-tenant-less gap).
+            UUID clubId = UUID.fromString(rawClubId);
+            return usersService.reconcileSubByUsername(username, sub, clubId);
         }
     }
 

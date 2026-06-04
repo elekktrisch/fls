@@ -244,6 +244,101 @@ class UsersJitFirstLoginIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void sameUsername_freshSub_reconcilesRowInPlace_notTenantLess() {
+        // J-2 T-23 durable fix: a principal re-appears under a FRESH KC sub
+        // but the SAME preferred_username (KC user recreated / realm
+        // re-import / a concurrent first-login whose username-winning row
+        // carried a sibling's sub). The first sub's row already holds the
+        // username, so the second sub's JIT insert hits
+        // ux_user_username_lower_alive (23505). Before the fix the by-sub
+        // re-read missed and the principal was left tenant-less forever; now
+        // JIT reconciles the row's keycloak_sub to the presenting sub.
+        UUID firstSub = freshSub();
+        UUID secondSub = freshSub();
+        String username = "jit-it-reconcile";
+
+        String firstToken = mintJitReadyRealm(firstSub, CLUB, username, "Recon",
+                "reconcile@example.com", "en");
+        get("/api/v1/me", firstToken);
+        UUID rowId = jdbc.queryForObject(
+                "SELECT id FROM t_user WHERE keycloak_sub = ?::uuid",
+                UUID.class, firstSub.toString());
+        assertThat(rowId).as("first login materialised one row").isNotNull();
+
+        // Same username, fresh sub.
+        String secondToken = mintJitReadyRealm(secondSub, CLUB, username, "Recon",
+                "reconcile@example.com", "en");
+        ResponseEntity<String> res = get("/api/v1/me", secondToken);
+        assertThat(res.getStatusCode())
+                .as("re-login under a fresh sub resolves a tenant — not a tenant-less hang")
+                .isEqualTo(HttpStatus.OK);
+
+        // Still exactly one active row for that username; its sub is now the
+        // SECOND sub (reconciled in place — no duplicate, no orphan).
+        Integer activeCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM t_user WHERE lower(username) = lower(?) AND deleted_on IS NULL",
+                Integer.class, username);
+        assertThat(activeCount).as("reconcile re-binds in place; no second row").isEqualTo(1);
+        UUID boundSub = jdbc.queryForObject(
+                "SELECT keycloak_sub FROM t_user WHERE id = ?::uuid",
+                UUID.class, rowId.toString());
+        assertThat(boundSub).as("the SAME row now points at the fresh sub").isEqualTo(secondSub);
+    }
+
+    @Test
+    void sameUsername_differentClub_isNotRebound_failsClosed() {
+        // Tenant guard: a username row in ANOTHER club must NOT be rebound —
+        // that would silently relocate identity across tenants. The principal
+        // stays tenant-less (fail-closed) and no row is mutated.
+        // t_user.club_id carries fk_user_club_id → t_club, so the "other"
+        // club must be a real row. Create a throwaway one (cleaned up below).
+        UUID otherClub = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id, slug,
+                                    public_registration_enabled)
+                VALUES (?::uuid, 'Other Club', ?, ?::uuid, ?::uuid, ?, false)
+                """,
+                otherClub.toString(), "OTH" + otherClub.toString().substring(0, 5),
+                "019e2e15-2c00-74be-8000-0000000004be",  // CH
+                "019e2e15-2c00-7bb8-8000-000000000bb8",  // ACTIVE
+                "other-club-" + otherClub);
+        UUID residentSub = freshSub();
+        UUID rowId = UUID.randomUUID();
+        String username = "jit-it-crosstenant";
+        // Seed an active row for `username` in `otherClub`. The guard we are
+        // testing is the club_id-match in reconcileSubByUsername.
+        jdbc.update("""
+                INSERT INTO t_user (id, club_id, username, friendly_name, notification_email,
+                                    language_id, keycloak_sub)
+                VALUES (?::uuid, ?::uuid, ?, ?, ?, ?::uuid, ?::uuid)
+                """,
+                rowId.toString(), otherClub.toString(), username, "Resident",
+                "resident@example.com", LANG_EN.toString(), residentSub.toString());
+
+        UUID intruderSub = freshSub();
+        String token = mintJitReadyRealm(intruderSub, CLUB, username, "Intruder",
+                "resident@example.com", "en");
+        // /api/v1/me itself is isAuthenticated() so it still 200s; the point
+        // is no row is created for the intruder sub and the resident row is
+        // untouched.
+        get("/api/v1/me", token);
+
+        Integer intruderRows = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM t_user WHERE keycloak_sub = ?::uuid",
+                Integer.class, intruderSub.toString());
+        assertThat(intruderRows).as("cross-tenant username row is never rebound to the intruder")
+                .isEqualTo(0);
+        UUID stillResident = jdbc.queryForObject(
+                "SELECT keycloak_sub FROM t_user WHERE id = ?::uuid",
+                UUID.class, rowId.toString());
+        assertThat(stillResident).as("the other club's row keeps its original sub")
+                .isEqualTo(residentSub);
+
+        jdbc.update("DELETE FROM t_user WHERE id = ?::uuid", rowId.toString());
+        jdbc.update("DELETE FROM t_club WHERE id = ?::uuid", otherClub.toString());
+    }
+
+    @Test
     void concurrentFirstLogin_sameSub_yieldsExactlyOneRow() throws Exception {
         UUID sub = freshSub();
         String token = mintJitReadyRealm(sub, CLUB, "jit-it-race", "Race",
