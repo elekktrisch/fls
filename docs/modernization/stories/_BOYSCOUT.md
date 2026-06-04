@@ -22,6 +22,15 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship 2026-06-04, J-2 window)
 
+- **Collapse the two proof galleries into one (operator-requested, J-2 window).** Each PR carries
+  TWO gallery sticky comments: the ci.yml AlpenFlight-only preview (`…/proof-preview/integration-J-N/`,
+  built every push, **no legacy pairing**) and the fanout `legacy-parity` gallery
+  (`…/legacy-parity/`, the complete paired legacy↔AlpenFlight proof). The operator only consumes the
+  full one — the AlpenFlight-only gallery + its second comment is noise. Make the fanout `legacy-parity`
+  gallery THE gallery at the canonical path and drop ci.yml's AlpenFlight-only deploy + its sticky
+  comment (or have ci point at the last fanout gallery). Needs a fanout run to validate → ride the next
+  journey's gate. *(seam: ci.yml gallery-deploy job + alpenflight-proof-fanout.yml deploy + the two
+  `<!-- proof-preview -->` / `<!-- fanout-proof-preview -->` comment upserts)*
 - **modernize-\* sunset (carried forward, deferred from J-2).** J-2 was the first non-migration-
   flavored feature journey (the rider's trigger), but the J-2 PR was already large (time-gate +
   412 + unified-motor + Flight migration + the real-export catches), so the ~21-file deletion +
