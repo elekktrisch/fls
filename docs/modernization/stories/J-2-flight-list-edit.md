@@ -2,8 +2,9 @@
 id: J-2
 title: Flight list + edit forms (airfield hot path)
 epic: E-07
-status: in_progress
+status: done  # PR #204 — ci GREEN (build + alpenflight-proof 18 specs) + real-export fanout GREEN (producer SELECT vs MSSQL; J-0c/J-1/J-2 real-bundle render; legacy↔AlpenFlight gallery + PR link). gap-hunter ×4 SHIP. Mocked seams: none.
 started_at: 2026-06-03
+done_at: 2026-06-04
 journey0: false
 carved: true
 depends_on: [J-1]   # J-1 = aircraft register (flights FK aircraft); inherits J-0/J-0b migration-fan-out infra
