@@ -50,7 +50,12 @@ class TenantsRunAsAllowlistTest {
             "ch.alpenflight.audit.application.MutationAuditEventListener",
             "ch.alpenflight.audit.web.RequestAuditFilter",
             "ch.alpenflight.deployments.application.DeploymentContext",
-            "ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService"
+            "ch.alpenflight.tenancy.provisioning.application.DeploymentProvisioningService",
+            // Showcase demo-data loader (@Profile("showcase"), never on the
+            // request path): writes tenant-scoped Location rows on behalf of
+            // multiple clubs in one pass — the documented cross-tenant
+            // bulk-seed case for Tenants.runAs.
+            "ch.alpenflight.tenancy.showcase.ShowcaseSeeder"
     );
 
     @ArchTest

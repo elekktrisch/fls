@@ -70,6 +70,54 @@ resolution actually keys on the `t_user.keycloak_sub` lookup
 (`UserPrincipalLookup.resolveTenantFor`), so a showcase principal resolves its
 tenant deterministically the moment it authenticates — no JIT race.
 
+## What exists today (J-3 T-03a — locations + aircraft)
+
+Both are built through their **domain aggregate factories** — `Location.create`
+and `Aircraft.register` (+ `Aircraft.changeState(OK, …)` for the opening
+airworthiness period) — so every ADR 0022 directive-2 business rule (ICAO
+shape, immatriculation/competition-sign normalisation, blank-name rejection,
+"exactly one open state period") runs over the seed data. Because
+`Location`/`Aircraft` own id generation (`@GeneratedValue(UUID)` mints a fresh
+random id on persist), the seeder uses the same **validate-via-aggregate, then
+JDBC-INSERT-with-a-deterministic-id** pattern the migration ingestor uses for
+these exact entities: construct the aggregate (it validates + normalises), read
+its getters into an idempotent `ON CONFLICT (id) DO NOTHING` INSERT carrying the
+fixed id. Tenant-scoped `Location` writes run inside `Tenants.runAs(clubId, …)`
+to honour the effective-tenant write-context contract (T-03b's flights will lean
+on the same wrap).
+
+The deterministic ids below are exposed as `public static final UUID` constants
+on `ShowcaseSeeder` (`LOCATION_*` / `AIRCRAFT_*`) so **T-03b's flight matrix can
+reference them by id**.
+
+**Locations** (`t_location`, `@TenantId`-scoped — same ICAO catalog is private
+per club; 3 per club: home glider airfield + two destinations):
+
+| Const | club | ICAO | location_type | id |
+| --- | --- | --- | --- | --- |
+| `LOCATION_C1_HOME`   | club-1 | LSZX | GLIDER_AIRFIELD | `…7301-…301` |
+| `LOCATION_C1_DEST_1` | club-1 | LSGB | CONCRETE_RUNWAY | `…7301-…302` |
+| `LOCATION_C1_DEST_2` | club-1 | LSPD | CONCRETE_RUNWAY | `…7301-…303` |
+| `LOCATION_C2_HOME`   | club-2 | LSZW | GLIDER_AIRFIELD | `…7301-…304` |
+| `LOCATION_C2_DEST_1` | club-2 | LSGT | CONCRETE_RUNWAY | `…7301-…305` |
+| `LOCATION_C2_DEST_2` | club-2 | LSPM | CONCRETE_RUNWAY | `…7301-…306` |
+
+**Aircraft** (`t_aircraft`, cross-tenant per S-058 — `managing_club_id` gates
+writes; reads are open so club-1 sees the club-2 charter; each gets an opening
+`OK` airworthiness period in `t_aircraft_aircraft_state`):
+
+| Const | managing club | immatriculation | aircraft_type | towing | id |
+| --- | --- | --- | --- | --- | --- |
+| `AIRCRAFT_C1_GLIDER`  | club-1 | HB-3001 | GLIDER          | no  | `…7401-…401` |
+| `AIRCRAFT_C1_TOW`     | club-1 | HB-TOW1 | MOTOR_AIRCRAFT  | yes | `…7401-…402` |
+| `AIRCRAFT_C1_MOTOR`   | club-1 | HB-MOT1 | MOTOR_GLIDER (TMG) | no | `…7401-…403` |
+| `AIRCRAFT_C2_GLIDER`  | club-2 | HB-3002 | GLIDER          | no  | `…7401-…404` |
+| `AIRCRAFT_CHARTER_C2` | club-2 | HB-CHTR | MOTOR_AIRCRAFT  | no  | `…7401-…405` |
+
+`AIRCRAFT_CHARTER_C2` is the **cross-club charter** case (J-1): managed by club-2,
+referenced read-only by club-1. Each aircraft's opening state row id is the
+aircraft id with the `-7401-` band bumped to `-7501-`.
+
 ## Per-journey-extension convention (the precedent J-3 sets)
 
 **Each future journey EXTENDS the showcase seed with its entity's realistic
@@ -96,7 +144,8 @@ Planned extensions (non-binding, from the J-3 plan):
 
 | Journey | adds |
 | --- | --- |
-| J-3 T-03 | aircraft (glider / tow / motor / charter) + locations + flights across every variation × state × date |
+| J-3 T-03a | locations (3/club) + aircraft (glider / tow / TMG / charter) — done |
+| J-3 T-03b | flights across every variation × state × date (references the T-03a ids) |
 | J-5 | reservations |
 | J-6 | planning days |
 | J-10 | deliveries |
