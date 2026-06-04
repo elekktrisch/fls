@@ -45,11 +45,46 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .status.success { background: var(--success-bg); color: var(--success); }
 .status.failure { background: var(--failure-bg); color: var(--failure); }
 .status.pending { background: var(--pending-bg); color: var(--pending); }
+/* Accordion — one native <details> per journey. ADR 0024: flat (1px slate
+   border, NO shadow), sharp corners (radius 0), restrained motion (the native
+   toggle only — no slide). The brand color lands only on the open-state accent
+   bar, never on chrome backgrounds. */
 .journey {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 6px; box-shadow: var(--shadow); padding: 1.25rem; margin: 1rem 0;
+  border-radius: 0; padding: 0; margin: 0 0 -1px;
 }
+.journey + .journey { margin-top: 0; }
+.journey > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; gap: .25rem;
+  padding: .9rem 1.1rem .9rem 2.1rem; position: relative;
+  background: var(--surface);
+  border-left: 2px solid transparent; transition: opacity 120ms ease-out;
+}
+.journey > summary::-webkit-details-marker { display: none; }
+/* CSS triangle marker — rotates on open (native toggle, no JS, no slide). */
+.journey > summary::before {
+  content: ''; position: absolute; left: 1rem; top: 1.25rem;
+  width: 0; height: 0;
+  border-left: 5px solid var(--muted);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transform: rotate(0deg); transform-origin: 25% 50%;
+}
+.journey[open] > summary::before { transform: rotate(90deg); }
+.journey[open] > summary { border-left-color: var(--primary); }
+.journey > summary:hover { background: var(--surface-2); }
+.journey > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.summary-head { display: flex; align-items: center; gap: .6rem; font-size: 1.05rem; }
+.summary-jid { font-weight: 500; }
+.summary-counts { color: var(--muted); font-size: .8rem; font-weight: 400; }
+.summary-caption { color: var(--muted); font-size: .85rem; }
+/* The body (videos / screenshots / pending note) sits inside the <details>. */
+.journey > .proofs,
+.journey > .parity-screenshots,
+.journey > p { margin-left: 1.1rem; margin-right: 1.1rem; }
+.journey[open] { padding-bottom: 1.1rem; }
 .pending-journey { opacity: .85; }
+.pending-journey > summary { cursor: default; }
 .proofs { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; margin-top: 1rem; }
 .proof {
   margin: 0; background: var(--surface-2); border: 1px solid var(--border);
@@ -85,7 +120,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>integration/J-2</code> &middot; 2026-06-04T02:49:28.517Z
+      assertion it proves. Generated on <code>integration/J-2</code> &middot; 2026-06-04T05:39:09.479Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -93,57 +128,69 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
-      <div class="journey pending-journey">
-        <h3>J-0 <span class="status pending">pending</span></h3>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-0b <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-0b</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey">
-        <h3>J-0c <span class="status success">3 proofs</span></h3>
+      </details>
+      <details class="journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-0c</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
+          <span class="summary-caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the ra…</span>
+        </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-cef4017d0c0456a34a95e2a4427b3f40334181ce.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a9ba620f1324b0c4ff858e4e4756a080c11a6f64.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-20469fb430865348a5b664e69966816e5a4ac3d4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-64fdb336496593806e8a97c4dad0d0e42973e52c.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-aa8979e2cba67f93763c286ad0194154454072d5.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-bfa643f2561b9ef0e1f2b0c143480ac0a28f2738.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
         </figure>
         </div>
 
-      </div>
-      <div class="journey">
-        <h3>J-1 <span class="status success">6 proofs</span></h3>
+      </details>
+      <details class="journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">6 proofs</span><span class="summary-counts">6 videos · 2 screenshots</span></span>
+          <span class="summary-caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that…</span>
+        </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ccec64105f373f9dad07f5c85c58077b8bfc5247.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-3a1dd5a73584d38ce52b5a9936d1afbab62fa769.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f4675bbab3f146e69bd34fc8e0d74216d846415b.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-acd98110d6fb658057f194ec36420b46fa44bfd4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1ffd16b948465add50fb9c2c4fb1ccfb41d80b5f.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-66a351d8f8fd02a627d26aa15d7255d568da2587.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a8c0abbdd1c02ceb22f5c9543e91e154e6405e63.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-e40edd5733fdda6ea7ec6e80085702b1a0efe176.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ba0857109b8eae34c2632f862c7da8c952af11a3.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-eedd3ea7ee18773fa8cd0a7bff56c0286881a270.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ab812c6ad249855aa95d4de72849013db703b76c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9768752ac483209e4a31363bfb43ee6a11e472e3.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -170,44 +217,47 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </div>
         </div>
         </div>
-      </div>
-      <div class="journey">
-        <h3>J-2 <span class="status success">9 proofs</span></h3>
+      </details>
+      <details class="journey" open>
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-2</span> <span class="status success">9 proofs</span><span class="summary-counts">9 videos · 7 screenshots</span></span>
+          <span class="summary-caption">Legacy flsweb: the seeded flight list (glider + paired tow rows) + one flight's edit form (glider+tow field s…</span>
+        </summary>
         <div class="proofs">
         <figure class="proof legacy-proof">
           <video controls preload="metadata" src="videos/legacy-flights-parity-J2.webm"></video>
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the seeded flight list (glider + paired tow rows) + one flight's edit form (glider+tow field set) + the /airmovements motor list — the legacy field set to eyeball against AlpenFlight's /flights logbook + /airmovements</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f8d6b4097441a83525e60c7ccb2d648a361f5adf.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-fd2821ca19ccd5af7eb6777b9be9232c1e8e4b71.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7a6f6d284d63a9213407128dc817c559a9d0a1d4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-cb87cdb282f374ce099b44331445d85ce59aa3d7.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6cee720431a32ca8731dc4beaf6f310a63b12062.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-25b1e2e3ab265e7baa6ed261a1a0884fd7d4af1a.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5e17810cc7c4c4b7f3069235d2bea8f52cddae55.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-67c529c8d49e8a1af6166ff7acb64cd424a39558.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e346fc240fc66dd281e793b23f7b4ec244f16ae3.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-eccbce4ffcdc62dc1acde218decf91265a376af2.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-eed82168bbe2689b0a073abdaf916a75a10446fd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-d43b6060d71a07a18e582df80ea3eb1630d904e4.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-51eff33406de2b30a9060e72e268f1e00c58c469.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-45509677ec26a4ae34d4c92cd79a276338dfdac0.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6e2c8de70e46fa61f7bf40588242e662fe609f70.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-5b10052f2659970c834156d48a0f828e4a2e8789.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
         </figure>
         </div>
@@ -224,110 +274,206 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
             <a href="screenshots/alpenflight-flights-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /flights logbook with a created glider flight (AEROTOW) + its linked TOW row</figcaption>
+            <figcaption>AlpenFlight: the unified /flights logbook — a created glider flight (AEROTOW) + its linked TOW row + a MOTOR row in ONE list (legacy's separate /airmovements screen is not carried forward)</figcaption>
           </figure>
           </div>
         </div>
         <div class="shot-pair">
           <div class="shot-view-label">form</div>
           <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-flight-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-flight-form.png" alt="legacy form" loading="lazy"></a>
+            <figcaption>Legacy flsweb: one flight's edit form, the full glider + tow field set in a two-column layout (date, glider aircraft/pilot/times, towplane registration + tow pilot/times) — paired against AlpenFlight's 3-step glider/tow wizard</figcaption>
+          </figure>
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-flights-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-form.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the flight edit form (3-step glider/tow wizard), the populated field set to compare against legacy</figcaption>
+            <a href="screenshots/alpenflight-flights-wizard-tow.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-wizard-tow.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the 3-step create wizard at the populated TOW step (Launch → Glider → Tow) — the paired glider+tow create UX a single edit-form PNG hides; pair against the legacy two-column glider+tow form</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">motor</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-airmovements-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-airmovements-list.png" alt="legacy motor" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the SEPARATE /airmovements motor screen (legacy splits motor 'air movements' out of the flight logbook) — paired against AlpenFlight, which UNIFIES motor flights into the same /flights wizard</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-motor-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-motor-form.png" alt="alpenflight motor" loading="lazy"></a>
+            <figcaption>AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">wizard (glider step)</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-flights-wizard-glider.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-wizard-glider.png" alt="alpenflight wizard (glider step)" loading="lazy"></a>
+            <figcaption>AlpenFlight: the create wizard's GLIDER step, populated — the full glider+tow wizard example (the Tow step follows; see view=form)</figcaption>
           </figure>
           </div>
         </div>
         </div>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-3 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-3</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-4 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-4</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-5 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-5</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-6 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-7 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-7</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-8 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-8</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-9 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-9</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-10 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-10</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-11 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-11</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-12 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-12</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-13 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-13</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-14 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-14</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-15 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-15</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-16 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-16</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-17 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-17</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-18 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-18</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-19 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-19</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-20 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-20</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-21 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-21</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-22 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-22</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-24 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-24</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
-      <div class="journey pending-journey">
-        <h3>J-25 <span class="status pending">pending</span></h3>
+      </details>
+      <details class="journey pending-journey">
+        <summary>
+          <span class="summary-head"><span class="summary-jid">J-25</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+        </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
-      </div>
+      </details>
   </section>
 
   <footer>
