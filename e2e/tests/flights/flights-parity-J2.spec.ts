@@ -76,6 +76,7 @@ import {
   gotoRoute,
   loginViaUi,
   waitForLoggedInState,
+  waitForBusyIndicatorsToClear,
   screenshot,
 } from "../../fixtures";
 
@@ -157,13 +158,47 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     // date picker as the visible-when-loaded anchor (flight-edit-form.html:17).
     const flightDate = page.locator("#FlightDate");
     await flightDate.waitFor({ state: "visible", timeout: 30_000 });
+
+    // J-2 T-48 — DATA-LOADED GATE (operator-caught demonstrability bug). The
+    // edit form renders its SHELL (all labels + #FlightDate host) BEFORE it
+    // binds the selected flight's data: `<fls-busy-indicator busy="busy">`
+    // wraps the whole form (flight-edit-form.html:3-7) and `busy` stays true
+    // until BOTH loadMasterdata() AND the flight load resolve — it is only
+    // cleared in the `$q.all(...).finally(() => $scope.busy = busyLoadingFlight)`
+    // (FlightsController.js:311-314). T-42 moved the form PNG to "right after
+    // the shell is visible" to drop the brittle tow drill-down dependency, but
+    // that caught the form EMPTY with the AngularJS spinner still spinning
+    // (every field value blank) — a useless legacy↔AlpenFlight parity shot.
+    //
+    // Gate the capture purely on DATA-LOADED (NOT on the tow sub-form — T-42's
+    // win stays):
+    //   (1) the busy spinner is GONE — `[data-testid="busy-indicator"]` (the
+    //       ng-show="busy" backdrop around `.cssload-loader`,
+    //       busy-indicator-directive.html:2-6) has collapsed to a zero box.
+    //   (2) a known bound field carries a NON-EMPTY value. We anchor on the
+    //       Datum field rather than a selectize: `#FlightDate` is the
+    //       fls-date-picker HOST and its real text input is the child
+    //       `input[pikaday]` bound to `stringDateValue`, which the directive
+    //       sets to `moment(ngModel).format('DD.MM.YYYY')` once the flight's
+    //       FlightDate binds (DatePickerInputDirective.js:56-58). An empty
+    //       (still-loading) form leaves it blank; a populated form shows the
+    //       seeded flight's date. Value-presence beats the selectize `.item`
+    //       text, which is documented hostile to Playwright (TEST_WRITING.md
+    //       §6). Per-assertion 5s cap per suite convention.
+    await waitForBusyIndicatorsToClear(page);
+    await expect(page.locator("#FlightDate input")).toHaveValue(/.+/, {
+      timeout: 5_000,
+    });
     await screenshot(page, "flights-parity-J2-02-legacy-form-top");
 
-    // J-2 T-42 — STABLE parity screenshot (side=legacy view=form), written
-    // RIGHT AFTER the edit form is visible and BEFORE the tow drill-down
-    // assertions below. This screenshot is the deliverable (the gallery's J-2
-    // form-parity half); it must NOT be gated on a finicky tow-field visibility
-    // check. The seeded glider flight is the paired-tow flight, and the legacy
+    // J-2 T-42/T-48 — STABLE parity screenshot (side=legacy view=form), written
+    // AFTER the data-loaded gate above (busy spinner gone + Datum populated) and
+    // BEFORE the tow drill-down assertions below. T-42 dropped the brittle
+    // tow-field dependency; T-48 added the data-loaded gate so the deliverable
+    // contains REAL field values (not an empty/loading form). This screenshot is
+    // the deliverable (the gallery's J-2 form-parity half); it must NOT be gated
+    // on a finicky tow-field visibility check. The seeded glider flight is the
+    // paired-tow flight, and the legacy
     // edit form renders the WHOLE field set (date → glider → tow) in one DOM
     // pass once `#FlightDate` is visible (trace run 26926684710 error-context
     // confirms the full Schleppflugzeug HB-KCB / Schleppilot / tow-times block
