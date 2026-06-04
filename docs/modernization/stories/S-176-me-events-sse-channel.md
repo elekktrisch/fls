@@ -3,6 +3,7 @@ id: S-176
 title: Server-sent events channel for the authenticated principal (/api/v1/me/events)
 epic: E-03
 status: todo
+rolled_up_into: J-3
 depends_on: [S-020, S-021]
 integration_base: integration/users-suite
 acceptance:

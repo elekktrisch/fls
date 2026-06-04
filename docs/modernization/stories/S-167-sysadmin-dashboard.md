@@ -3,6 +3,7 @@ id: S-167
 title: Home/dashboard page — sysadmin variant
 epic: E-07
 status: todo
+rolled_up_into: J-3
 depends_on: [S-165]
 acceptance:
   - When the authenticated user has the `SYSTEM_ADMINISTRATOR` role, `/start` renders the sysadmin variant instead of the pilot or club-admin variant.

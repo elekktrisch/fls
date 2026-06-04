@@ -3,6 +3,7 @@ id: S-166
 title: Home/dashboard page — club-admin variant
 epic: E-07
 status: todo
+rolled_up_into: J-3
 depends_on: [S-165]
 acceptance:
   - When the authenticated user has the `CLUB_ADMINISTRATOR` role, `/start` renders the club-admin variant instead of the pilot variant.
