@@ -22,6 +22,7 @@ import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
 import ch.alpenflight.flights.domain.TowLinkPolicy;
 import ch.alpenflight.platform.id.FlightId;
+import ch.alpenflight.platform.tenancy.TenantContextCarrier;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -30,8 +31,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -70,17 +73,20 @@ public class FlightsService {
     private final FlightInitialStateProvider initialState;
     private final FlightMapper mapper;
     private final AuditTrail audit;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public FlightsService(FlightRepository repository,
                           FlightInitialStateProvider initialState,
                           FlightMapper mapper,
                           AuditTrail audit,
+                          ApplicationEventPublisher events,
                           Clock clock) {
         this.repository = repository;
         this.initialState = initialState;
         this.mapper = mapper;
         this.audit = audit;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -98,10 +104,21 @@ public class FlightsService {
         flight.replaceCrew(mapper.toCrewSpecs(req.crew()));
         Flight saved = repository.save(flight);
         FlightDetail detail = mapper.toDetail(saved);
+        UUID flightId = Objects.requireNonNull(saved.getId());
         audit.record(AuditAction.CREATE,
-                AuditedTarget.created("Flight",
-                        Objects.requireNonNull(saved.getId()),
-                        saved));
+                AuditedTarget.created("Flight", flightId, saved));
+        // S-176 live-update nudge (J-3 T-05): publish the flights module's
+        // FlightCreatedEvent so the me-module listener fans a "flight.created"
+        // SSE to the creating principal's open dashboards once this
+        // transaction commits (AFTER_COMMIT — matching the audit listener, so
+        // the SSE only fires on a durably-committed flight). The Keycloak sub
+        // is captured here on the request thread because AFTER_COMMIT runs
+        // after the SecurityContext may have been cleared. The operating club
+        // comes from the live tenant carrier, not saved.getOperatingClubId():
+        // the @TenantId discriminator is stamped by Hibernate at flush and is
+        // not reliably populated back onto the in-memory entity post-save.
+        UUID operatingClub = TenantContextCarrier.current().orElse(null);
+        events.publishEvent(new FlightCreatedEvent(flightId, operatingClub, currentSub()));
         return detail;
     }
 
@@ -315,5 +332,21 @@ public class FlightsService {
         }
         return auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_CLUB_ADMINISTRATOR".equals(a.getAuthority()));
+    }
+
+    /**
+     * The creating principal's Keycloak {@code sub} off the request thread's
+     * {@link SecurityContextHolder} (same source as {@link #callerIsClubAdmin}).
+     * Captured at publish time onto {@link FlightCreatedEvent} so the
+     * AFTER_COMMIT SSE listener delivers to the right stream even after the
+     * context is cleared. Null for a non-JWT / system create (no dashboard to
+     * nudge); the listener then no-ops.
+     */
+    private static @Nullable String currentSub() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth instanceof JwtAuthenticationToken jwtAuth && auth.isAuthenticated()) {
+            return jwtAuth.getToken().getSubject();
+        }
+        return null;
     }
 }
