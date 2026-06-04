@@ -269,6 +269,33 @@ public final class BundleWriter {
         return pgcopy;
     }
 
+    /**
+     * Build the enum-complete {@code legacy_id_map/START_TYPE.pgcopy} (J-2 T-39).
+     * Unlike {@link #writeSystemGlobalSeedPgcopy}, the rows are NOT derived from
+     * the producer's NDJSON stream (which reflects only the legacy {@code StartTypes}
+     * TABLE rows) but from {@link ch.alpenflight.migration.bundle.flight.StartTypeMapper#legacyEnumIdToSeedPk()}
+     * — every legacy {@code AircraftStartType} enum value (1..5) mapped to its V2
+     * {@code t_start_type} seed PK. A FLIGHT's {@code start_type_id} may carry any
+     * enum value regardless of which rows the StartTypes table seeds, so the
+     * closure must enumerate the full enum or the ingest fail-closes with
+     * {@code BUNDLE_CROSS_TENANT_FK_LEAK} (the real FLSTest SelfStart(3) catch).
+     */
+    Path writeStartTypeEnumSeedPgcopy() {
+        Path pgcopy = temp("START_TYPE-seed-pgcopy");
+        Map<UUID, UUID> closure =
+                ch.alpenflight.migration.bundle.flight.StartTypeMapper.legacyEnumIdToSeedPk();
+        try (OutputStream fileOut = new BufferedOutputStream(Files.newOutputStream(pgcopy));
+             LegacyIdMapWriter writer = new LegacyIdMapWriter(fileOut)) {
+            for (Map.Entry<UUID, UUID> entry : closure.entrySet()) {
+                writer.write(entry.getKey(), entry.getValue());
+            }
+        } catch (IOException e) {
+            throw new ExportException(ExitCode.IO_ERROR,
+                    "Failed writing START_TYPE enum seed id map: " + e.getMessage(), e);
+        }
+        return pgcopy;
+    }
+
     /** SYSTEM_GLOBAL entities for which a legacy-guid -> seed-PK map is emitted. */
     private static boolean hasSeedResolver(EntityType entity) {
         return entity == EntityType.COUNTRY
@@ -350,6 +377,19 @@ public final class BundleWriter {
                     && entity.emitsIdentityMap()) {
                 pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
                         writeIdentityPgcopy(result));
+            } else if (entity == EntityType.START_TYPE) {
+                // START_TYPE is SYSTEM_GLOBAL but its closure is ENUM-driven, not
+                // NDJSON/table-row-driven (J-2 T-39). A FLIGHT's start_type_id can
+                // carry any legacy AircraftStartType enum value (1..5) regardless of
+                // which rows the legacy StartTypes TABLE seeds — the real FLSTest has
+                // a SelfStart(3) flight but the StartTypes table omitted that row, so
+                // a stream-derived map left UUID(0,3) unresolved → the ingest's
+                // ForeignKeyResolver fail-closed with BUNDLE_CROSS_TENANT_FK_LEAK.
+                // Emit the full enum closure (UUID(0, legacyId) -> V2 seed PK) so
+                // every enum value resolves. (Independent of whether the START_TYPE
+                // NDJSON stream is present — the closure is the source of truth.)
+                pgcopyEntries.put("legacy_id_map/" + entity.name() + ".pgcopy",
+                        writeStartTypeEnumSeedPgcopy());
             } else if (policy == MapperLegacyBindings.PortPolicy.SYSTEM_GLOBAL
                     && hasSeedResolver(entity)) {
                 // SYSTEM_GLOBAL reference entities (COUNTRY / CLUB_STATE / LANGUAGE)

@@ -3,7 +3,10 @@ package ch.alpenflight.migration.bundle;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.alpenflight.migration.bundle.flight.StartTypeMapper;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -601,6 +604,51 @@ class MapperLegacyBindingsTest {
                 .as("StartTypeMapper.writeNdjson reads StartTypeId")
                 .contains("StartTypeId");
         assertThat(select).contains("StartTypes");
+    }
+
+    /**
+     * START_TYPE SYSTEM_GLOBAL completeness guard (J-2 T-39, the J-1 T-16 class).
+     * A FLIGHT's {@code start_type_id} carries the synthetic
+     * {@code UUID(0, legacyAircraftStartType)} for ANY legacy enum value — the
+     * legacy {@code AircraftStartType} enum is 1=TowingByAircraft, 2=WinchLaunch,
+     * 3=SelfStart, 4=ExternalStart, 5=MotorFlightStart, and the column can hold
+     * any of them regardless of which rows the legacy {@code StartTypes} table
+     * seeds. So the bundle's {@code legacy_id_map_START_TYPE} closure must
+     * enumerate ALL FIVE — a missing value (the real FLSTest SelfStart(3) catch)
+     * fail-closes the ingest with {@code BUNDLE_CROSS_TENANT_FK_LEAK}. This guard
+     * fails loudly at build, not at the nightly real-bundle ingest.
+     */
+    @Test
+    void startTypeClosureEnumeratesTheFullLegacyAircraftStartTypeEnum() {
+        Map<UUID, UUID> closure = StartTypeMapper.legacyEnumIdToSeedPk();
+
+        // The legacy AircraftStartType enum is exactly 1..5 (no gaps, no extras):
+        // flsserver/src/FLS.Server.Data/Enums/AircraftStartType.cs.
+        assertThat(StartTypeMapper.LEGACY_ENUM_IDS)
+                .as("the START_TYPE closure must cover the full legacy "
+                        + "AircraftStartType enum (1..5) — add a missing value here, "
+                        + "do NOT weaken the ingest FK-leak guard")
+                .containsExactly(1, 2, 3, 4, 5);
+
+        for (int legacyId : List.of(1, 2, 3, 4, 5)) {
+            UUID synthetic = new UUID(0L, legacyId);
+            assertThat(closure)
+                    .as("legacy AircraftStartType %d (UUID(0,%d)) must resolve to a "
+                            + "t_start_type seed PK in the bundle closure — the real "
+                            + "FLSTest SelfStart(3) flight 400'd the ingest because it "
+                            + "did not (J-2 T-39)", legacyId, legacyId)
+                    .containsKey(synthetic);
+        }
+
+        // SelfStart(3) is the value the real export caught — pin it explicitly.
+        assertThat(closure)
+                .as("SelfStart(3) must map to the V2 SELF_START seed PK")
+                .containsEntry(new UUID(0L, 3L), SeedReferenceUuids.startTypeByCode("SELF_START"));
+
+        // The 5 enum values map to 5 DISTINCT seed PKs (no accidental collapse).
+        assertThat(closure.values().stream().distinct().count())
+                .as("the 5 legacy start types map to 5 distinct t_start_type seed PKs")
+                .isEqualTo(5L);
     }
 
     @Test

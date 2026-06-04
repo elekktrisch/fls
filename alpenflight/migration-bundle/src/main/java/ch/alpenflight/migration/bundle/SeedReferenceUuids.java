@@ -45,6 +45,7 @@ public final class SeedReferenceUuids {
     private static final long COUNTRY_OFFSET = 1_000L;
     private static final long LANGUAGE_OFFSET = 2_000L;
     private static final long CLUB_STATE_OFFSET = 3_000L;
+    private static final long START_TYPE_OFFSET = 4_000L;
 
     /**
      * ISO 3166-1 alpha-2 codes in the EXACT ordinal order
@@ -90,11 +91,27 @@ public final class SeedReferenceUuids {
      */
     private static final String[] CLUB_STATE_CODES = {"ACTIVE", "SUSPENDED", "CLOSED"};
 
+    /**
+     * V2 {@code t_start_type} codes in the EXACT ordinal order
+     * {@code GenerateCanonicalUuids} emits them and the V2 {@code t_start_type}
+     * INSERT preserves ({@code WINCH_LAUNCH}, {@code AEROTOW}, {@code SELF_START},
+     * {@code EXTERNAL_START}, {@code MOTOR}). The seed PK of
+     * {@code START_TYPE_CODES[i]} is {@code uuidV7(START_TYPE_OFFSET + i)} — the
+     * literal {@code 019e2e15-2c00-7fa{0..4}-…} UUIDs the V2 seed embeds. The
+     * migration producer joins a legacy {@code AircraftStartType} enum value to a
+     * code via {@code StartTypeMapper}'s id→code table, then reads the seed PK
+     * here so the FLIGHT {@code start_type_id} FK resolves at ingest (J-2 T-39).
+     */
+    private static final String[] START_TYPE_CODES =
+            {"WINCH_LAUNCH", "AEROTOW", "SELF_START", "EXTERNAL_START", "MOTOR"};
+
     /** Natural key -> seed PK, computed once. Keys upper-cased / case-stable. */
     private static final Map<String, UUID> COUNTRY_BY_ISO2 =
             indexByNaturalKey(COUNTRY_ISO2, COUNTRY_OFFSET);
     private static final Map<String, UUID> CLUB_STATE_BY_CODE =
             indexByNaturalKey(CLUB_STATE_CODES, CLUB_STATE_OFFSET);
+    private static final Map<String, UUID> START_TYPE_BY_CODE =
+            indexByNaturalKey(START_TYPE_CODES, START_TYPE_OFFSET);
 
     /**
      * {@code code -> seed PK} keyed by the EXACT V2 seed code (e.g. {@code de},
@@ -141,9 +158,23 @@ public final class SeedReferenceUuids {
         return code == null ? null : LANGUAGE_BY_LOWER_CODE.get(code.trim().toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * Seed {@code t_start_type.id} for a V2 start-type code (WINCH_LAUNCH /
+     * AEROTOW / SELF_START / EXTERNAL_START / MOTOR), or {@code null} if the code
+     * is unknown.
+     */
+    public static @Nullable UUID startTypeByCode(@Nullable String code) {
+        return code == null ? null : START_TYPE_BY_CODE.get(code.trim().toUpperCase(Locale.ROOT));
+    }
+
     /** Immutable {@code ISO2 -> seed PK} view (guard test asserts vs Flyway). */
     public static Map<String, UUID> countriesByIso2() {
         return Map.copyOf(COUNTRY_BY_ISO2);
+    }
+
+    /** Immutable {@code code -> seed PK} view (guard test asserts vs Flyway). */
+    public static Map<String, UUID> startTypesByCode() {
+        return Map.copyOf(START_TYPE_BY_CODE);
     }
 
     /** Immutable {@code code -> seed PK} view (guard test asserts vs Flyway). */
