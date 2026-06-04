@@ -2222,6 +2222,25 @@
         }
       }
     },
+    "/api/v1/me/events" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Live event stream for the authenticated principal (Server-Sent Events). Keyed by the JWT subject; in-memory, no replay across restart. Heartbeat comment line every ~25s keeps idle connections alive through proxies.",
+        "operationId" : "stream",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "text/event-stream" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SseEmitter"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/location-types" : {
       "get" : {
         "tags" : [ "LocationTypes" ],
@@ -5304,6 +5323,15 @@
           "username" : {
             "type" : "string",
             "description" : "Username from the user row, or JWT `preferred_username` claim when no user matches."
+          }
+        }
+      },
+      "SseEmitter" : {
+        "type" : "object",
+        "properties" : {
+          "timeout" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         }
       },
