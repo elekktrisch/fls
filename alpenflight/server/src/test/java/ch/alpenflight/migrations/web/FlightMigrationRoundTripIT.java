@@ -103,7 +103,9 @@ class FlightMigrationRoundTripIT extends PostgresIntegrationTest {
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
-    private static final int LEGACY_START_TYPE_AEROTOW = 2; // -> V2 AEROTOW
+    // Legacy AircraftStartType.TowingByAircraft = 1 (aerotow); maps to V2 AEROTOW.
+    // J-2 T-40 parity fix: was 2 (WinchLaunch) under the swapped convention.
+    private static final int LEGACY_START_TYPE_AEROTOW = 1; // -> V2 AEROTOW
     private static final UUID SEED_START_TYPE_AEROTOW =
             UUID.fromString("019e2e15-2c00-7fa1-8000-000000000fa1");
 

@@ -110,7 +110,11 @@ public final class FlightParityBundleSeeder {
     private static final int LEGACY_LOCATION_TYPE_GRASS = 2;
     private static final int LEGACY_UNIT_FEET = 2;
 
-    private static final int LEGACY_START_TYPE_AEROTOW = 2;     // -> V2 AEROTOW seed PK
+    // Legacy AircraftStartType.TowingByAircraft = 1 (towed by an aircraft —
+    // legacy needsTowplane ⇒ startType == 1). Maps to the V2 AEROTOW seed PK so
+    // the glider+tow PAIR seeds a real aerotow (J-2 T-40 parity fix: was 2,
+    // which is WinchLaunch — the swapped convention that mirrored the mapper bug).
+    private static final int LEGACY_START_TYPE_AEROTOW = 1;     // -> V2 AEROTOW seed PK
     private static final int LEGACY_FCBT_PILOT_PAYS_ALL = 1;    // -> V3 seed PK
 
     private static final int LEGACY_PROCESS_STATE_VALID = 30;

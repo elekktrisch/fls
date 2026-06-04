@@ -41,8 +41,8 @@ public final class StartTypeMapper implements Mapper {
     private static final String[] COLUMNS = { LEGACY_GUID, CODE };
 
     private static final Map<Integer, String> LEGACY_ID_TO_V2_CODE = Map.of(
-            1, "WINCH_LAUNCH",
-            2, "AEROTOW",
+            1, "AEROTOW",
+            2, "WINCH_LAUNCH",
             3, "SELF_START",
             4, "EXTERNAL_START",
             5, "MOTOR");
