@@ -7,6 +7,8 @@ import {
   type TestInfo,
 } from '@playwright/test';
 
+import type { FlightDetail, FlightUpdateRequest } from '../../../src/app/api/generated/model';
+
 import { selectAfOption } from '../_helpers/af-select';
 import {
   loginAsClubAdmin,
@@ -201,6 +203,47 @@ async function createMotorFlight(
 
   const body = (await createdResp.json()) as { id: string; flightAircraftType: string };
   return body;
+}
+
+/**
+ * Project a `FlightDetail` (GET response) onto a minimal `FlightUpdateRequest`
+ * (PUT body), with `comment` overridden. Mirrors the edit form's own update
+ * mapper (`flight-form.model.ts#snapshotToUpdateRequest` → `subFormToUpdate`):
+ * the PUT body is the create surface MINUS the discriminator, and excludes the
+ * detail's identity/read-only fields (`id`, `flightAircraftType`, `airState`,
+ * `processStateId`, `version`). Used to drive the out-of-band concurrency
+ * writer with a body the backend accepts regardless of detail-shape drift —
+ * spreading the whole detail 400s on strict-deserialize (J-2 T-37).
+ */
+function detailToUpdateRequest(d: FlightDetail, comment: string): FlightUpdateRequest {
+  const req: FlightUpdateRequest = {
+    aircraftId: d.aircraftId,
+    crew: d.crew,
+    comment,
+  };
+  if (d.flightDate != null) req.flightDate = d.flightDate;
+  if (d.startDateTime != null) req.startDateTime = d.startDateTime;
+  if (d.ldgDateTime != null) req.ldgDateTime = d.ldgDateTime;
+  if (d.startLocationId != null) req.startLocationId = d.startLocationId;
+  if (d.ldgLocationId != null) req.ldgLocationId = d.ldgLocationId;
+  if (d.flightTypeId != null) req.flightTypeId = d.flightTypeId;
+  if (d.startTypeId != null) req.startTypeId = d.startTypeId;
+  if (d.towFlightId != null) req.towFlightId = d.towFlightId;
+  if (d.nrOfLdgs != null) req.nrOfLdgs = d.nrOfLdgs;
+  if (d.outboundRoute != null) req.outboundRoute = d.outboundRoute;
+  if (d.inboundRoute != null) req.inboundRoute = d.inboundRoute;
+  if (d.flightCostBalanceTypeId != null) req.flightCostBalanceTypeId = d.flightCostBalanceTypeId;
+  if (d.couponNumber != null) req.couponNumber = d.couponNumber;
+  if (d.engineStartOperatingCounterInSeconds != null) {
+    req.engineStartOperatingCounterInSeconds = d.engineStartOperatingCounterInSeconds;
+  }
+  if (d.engineEndOperatingCounterInSeconds != null) {
+    req.engineEndOperatingCounterInSeconds = d.engineEndOperatingCounterInSeconds;
+  }
+  req.isSoloFlight = d.isSoloFlight;
+  req.noStartTimeInformation = d.noStartTimeInformation;
+  req.noLdgTimeInformation = d.noLdgTimeInformation;
+  return req;
 }
 
 // ===========================================================================
@@ -507,21 +550,32 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
         headers: { authorization: bearer },
       });
       expect(before.status()).toBe(200);
-      const detail = (await before.json()) as Record<string, unknown> & { version: number };
+      const detail = (await before.json()) as FlightDetail;
 
       // Open the edit form (the store now holds version N).
       await page.goto(`/flights/${flightId}/edit`);
       await expect(page.getByTestId('flight-form')).toBeVisible();
 
       // Out-of-band writer bumps the server version to N+1, changing the comment.
+      // Build a PROPER minimal FlightUpdateRequest (NOT a spread of the whole
+      // FlightDetail). The GET projection carries identity/read-only fields the
+      // PUT body rejects — `id`, `flightAircraftType`, `airState`, `processStateId`,
+      // `version` — none of which exist on FlightUpdateRequest (DTOs ≠ entities,
+      // CLAUDE.md). Spreading them makes the backend strict-deserialize reject the
+      // body with 400 "Request body could not be parsed" (J-2 T-37: T-36 changed the
+      // created glider's detail shape, exposing this latent fragility). Mirror the
+      // edit form's own PUT body (flight-form.model.ts#snapshotToUpdateRequest →
+      // subFormToUpdate: the create surface minus the discriminator) so the
+      // out-of-band write is robust regardless of detail-shape drift.
       const conflictingComment = 'changed-by-other-writer';
+      const oobBody = detailToUpdateRequest(detail, conflictingComment);
       const oob = await ctx.request.put(`/api/v1/flights/${flightId}`, {
         headers: {
           authorization: bearer,
           'content-type': 'application/json',
           'If-Match': String(detail.version),
         },
-        data: { ...detail, comment: conflictingComment },
+        data: oobBody,
       });
       expect(oob.status(), 'the out-of-band write succeeds, bumping the server version').toBe(200);
 
