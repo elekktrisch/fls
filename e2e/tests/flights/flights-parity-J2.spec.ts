@@ -239,6 +239,21 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
     await firstMotor.waitFor({ state: "visible", timeout: 30_000 });
     await expect(firstMotor).not.toBeEmpty();
     await screenshot(page, "flights-parity-J2-04-legacy-airmovements");
+
+    // J-2 T-43 — STABLE parity screenshot the fanout stages into the gallery
+    // (declared in screenshots.json, side=legacy view=motor). This is the
+    // legacy half of J-2's MOTOR-UNIFICATION parity story: legacy flsweb has a
+    // SEPARATE `#/airmovements` motor screen, whereas AlpenFlight unifies motor
+    // flights into the same /flights wizard (no separate route). Captured RIGHT
+    // AFTER the motor row is visible (the populated motor list is settled),
+    // BEFORE any further drill-down — same T-42 robustness lesson as the form
+    // PNG: the deliverable must not be gated on a finicky later assertion. A
+    // fullPage capture gets the whole motor list + its column set with zero
+    // dependence on a single widget's box.
+    await page.screenshot({
+      path: testInfo.outputPath("legacy-airmovements-list.png"),
+      fullPage: true,
+    });
   } finally {
     await ctx.close();
   }
@@ -251,11 +266,24 @@ test("J-2 parity: legacy flight list (glider+tow) + form + motor air-movements (
   // capture into a loud failure of THIS spec step (non-blocking parity aid —
   // it does not gate the AlpenFlight chain, but it IS surfaced in the fanout's
   // final-status step), so the gap can never again hide behind continue-on-error.
-  for (const png of ["legacy-flight-list.png", "legacy-flight-form.png"]) {
+  // J-2 T-43 adds the third legacy surface (the /airmovements motor list) so the
+  // gallery tells the MOTOR-UNIFICATION story (legacy separate /airmovements ↔
+  // AlpenFlight unified /flights + motor wizard). All three legacy PNGs are
+  // gallery-declared, so all three are guarded here.
+  for (const png of [
+    "legacy-flight-list.png",
+    "legacy-flight-form.png",
+    "legacy-airmovements-list.png",
+  ]) {
+    const view = png.includes("airmovements")
+      ? "motor"
+      : png.includes("list")
+        ? "list"
+        : "form";
     expect(
       existsSync(testInfo.outputPath(png)),
       `expected parity screenshot ${png} to have been written to the test output dir — ` +
-        `the fanout gallery's J-2 ${png.includes("list") ? "list" : "form"} parity half depends on it`,
+        `the fanout gallery's J-2 ${view} parity half depends on it`,
     ).toBeTruthy();
   }
 });

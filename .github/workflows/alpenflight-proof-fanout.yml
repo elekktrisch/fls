@@ -712,21 +712,37 @@ jobs:
           add_shot "alpenflight/web/test-results" "alpenflight-aircraft-form.png" "J-1" "alpenflight" "form" \
             "AlpenFlight: the aircraft edit form, the populated field set to compare field-by-field against legacy"
 
-          # ----- J-2 T-10 — flight parity SCREENSHOTS (legacy + AlpenFlight) ---
-          # Legacy list/form PNGs the flights-parity-J2 spec wrote with fullPage
-          # screenshots under /tmp/fls-e2e-results; the AlpenFlight list/form PNGs
-          # the flight-migration-parity spec wrote under alpenflight/web/test-results
-          # (alpenflight-flights-{list,form}.png, captured on a POPULATED list +
-          # form — J-1 T-22 lesson). Same fixed-name + paired legacy↔AlpenFlight
-          # per-view contract as J-1.
+          # ----- J-2 T-10/T-43 — flight parity SCREENSHOTS (legacy + AlpenFlight)
+          # J-2's parity story has THREE distinctive shapes, so the gallery pairs
+          # THREE views (≥6 paired PNGs), not the J-1 list/form 2-pair:
+          #   view=list  : legacy glider+tow flight list ↔ AlpenFlight unified
+          #                /flights list (glider+tow+motor rows).
+          #   view=form  : legacy two-column glider+tow edit form ↔ AlpenFlight's
+          #                3-step create wizard AT THE TOW STEP (the paired-create
+          #                UX a single edit-form PNG hides — T-43).
+          #   view=motor : legacy SEPARATE /airmovements motor list ↔ AlpenFlight's
+          #                unified /flights wizard with a MOTOR aircraft selected +
+          #                tow suppressed (motor-unification story — T-43).
+          # Plus an AlpenFlight-only "wizard (glider step)" view for the full
+          # glider+tow wizard example (the generator renders a single-side view as
+          # that side alone). Legacy PNGs land under /tmp/fls-e2e-results (the
+          # flights-parity-J2 spec); AlpenFlight PNGs under alpenflight/web/test-
+          # results (the flight-migration-parity spec), all fullPage on POPULATED
+          # surfaces (J-1 T-22 lesson). Same fixed-name contract as J-1.
           add_shot "/tmp/fls-e2e-results" "legacy-flight-list.png" "J-2" "legacy" "list" \
             "Legacy flsweb: the seeded flight list (Status · Date · Glider plane · Pilot/2nd crew · Start location · Takeoff · Landing · Glider duration · Towing plane · Towing pilot · Tow landing · Tow duration · Comment) — the glider + paired tow column set to eyeball against AlpenFlight's /flights logbook"
           add_shot "/tmp/fls-e2e-results" "legacy-flight-form.png" "J-2" "legacy" "form" \
-            "Legacy flsweb: one flight's edit form, the full glider + tow field set (date, glider aircraft/pilot/times, towplane registration + tow pilot/times)"
+            "Legacy flsweb: one flight's edit form, the full glider + tow field set in a two-column layout (date, glider aircraft/pilot/times, towplane registration + tow pilot/times) — paired against AlpenFlight's 3-step glider/tow wizard"
+          add_shot "/tmp/fls-e2e-results" "legacy-airmovements-list.png" "J-2" "legacy" "motor" \
+            "Legacy flsweb: the SEPARATE /airmovements motor screen (legacy splits motor 'air movements' out of the flight logbook) — paired against AlpenFlight, which UNIFIES motor flights into the same /flights wizard"
           add_shot "alpenflight/web/test-results" "alpenflight-flights-list.png" "J-2" "alpenflight" "list" \
-            "AlpenFlight: the /flights logbook with a created glider flight (AEROTOW) + its linked TOW row"
-          add_shot "alpenflight/web/test-results" "alpenflight-flights-form.png" "J-2" "alpenflight" "form" \
-            "AlpenFlight: the flight edit form (3-step glider/tow wizard), the populated field set to compare against legacy"
+            "AlpenFlight: the unified /flights logbook — a created glider flight (AEROTOW) + its linked TOW row + a MOTOR row in ONE list (legacy's separate /airmovements screen is not carried forward)"
+          add_shot "alpenflight/web/test-results" "alpenflight-flights-wizard-tow.png" "J-2" "alpenflight" "form" \
+            "AlpenFlight: the 3-step create wizard at the populated TOW step (Launch → Glider → Tow) — the paired glider+tow create UX a single edit-form PNG hides; pair against the legacy two-column glider+tow form"
+          add_shot "alpenflight/web/test-results" "alpenflight-flights-wizard-glider.png" "J-2" "alpenflight" "wizard (glider step)" \
+            "AlpenFlight: the create wizard's GLIDER step, populated — the full glider+tow wizard example (the Tow step follows; see view=form)"
+          add_shot "alpenflight/web/test-results" "alpenflight-motor-form.png" "J-2" "alpenflight" "motor" \
+            "AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen"
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

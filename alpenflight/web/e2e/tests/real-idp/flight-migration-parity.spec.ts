@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import {
   test,
   expect,
@@ -101,6 +103,10 @@ async function createGliderFlightAerotow(
   page: Page,
   md: FlightMasterdata,
   comment: string,
+  // J-2 T-43: when provided, capture the gallery's glider+tow WIZARD parity
+  // screenshots (glider step + tow step, both populated) on the way through —
+  // so the gallery shows the paired-create UX a single edit-form PNG hides.
+  shots?: { testInfo: TestInfo },
 ): Promise<string> {
   await page.goto('/flights/new');
   await expect(page.getByTestId('flight-form')).toBeVisible();
@@ -122,11 +128,36 @@ async function createGliderFlightAerotow(
   await page.getByTestId('flight-edit-glider-ldgTime').locator('input').fill('10:30');
   await page.getByTestId('flight-edit-glider-comment').locator('input').fill(comment);
 
+  // J-2 T-43 — OPTIONAL glider-step parity screenshot (populated). Captured here
+  // (glider step filled, before advancing to Tow) so the gallery can show the
+  // glider half of the paired-create wizard alongside the tow half below.
+  if (shots) {
+    await page.screenshot({
+      path: `${shots.testInfo.outputDir}/alpenflight-flights-wizard-glider.png`,
+      fullPage: true,
+    });
+  }
+
   // Step 2 (Tow): AEROTOW → the Tow step renders; pick the tow aircraft + pilot.
   await page.getByTestId('flight-step-next').click();
   await expect(page.getByTestId('flight-step-tow')).toBeVisible();
   await selectAfOption(page, 'flight-edit-tow-aircraft', md.towAircraftId);
   await selectAfOption(page, 'flight-edit-tow-pilot', md.towPilotPersonId);
+
+  // J-2 T-43 — the gallery's PRIMARY paired-create parity shot: the glider+tow
+  // wizard AT THE TOW STEP, populated (tow aircraft + tow pilot selected). This
+  // is the legacy-form ↔ AlpenFlight-wizard pairing's AlpenFlight half — a single
+  // edit-form PNG hides that create is a 3-step Launch → Glider → Tow flow, so we
+  // capture the distinctive Tow step here. Written BEFORE submit so the populated
+  // tow step is on the PNG (after submit the wizard navigates back to /flights).
+  // fullPage, no dependence on a single widget box (T-42 robustness lesson).
+  if (shots) {
+    await expect(page.getByTestId('flight-step-tow')).toBeVisible();
+    await page.screenshot({
+      path: `${shots.testInfo.outputDir}/alpenflight-flights-wizard-tow.png`,
+      fullPage: true,
+    });
+  }
 
   const created = page.waitForResponse(
     (r) =>
@@ -164,6 +195,11 @@ async function createMotorFlight(
   page: Page,
   md: FlightMasterdata,
   comment: string,
+  // J-2 T-43: when provided, capture the gallery's MOTOR create parity
+  // screenshot — the unified /flights wizard with a motor aircraft selected and
+  // the tow step suppressed (the AlpenFlight half of the legacy /airmovements ↔
+  // AlpenFlight unified-motor pairing).
+  shots?: { testInfo: TestInfo },
 ): Promise<{ id: string; flightAircraftType: string }> {
   await page.goto('/flights/new');
   await expect(page.getByTestId('flight-form')).toBeVisible();
@@ -188,6 +224,20 @@ async function createMotorFlight(
   // A motor flight never tows: the tow step must NOT render for the
   // motor-aircraft selection.
   await expect(page.getByTestId('flight-step-tow')).toHaveCount(0);
+
+  // J-2 T-43 — the gallery's MOTOR-UNIFICATION parity shot: the unified /flights
+  // wizard, populated, with a MOTOR aircraft selected and the tow step suppressed
+  // (asserted absent just above). This is the AlpenFlight half of the legacy
+  // /airmovements ↔ AlpenFlight motor-create pairing — it shows that legacy's
+  // SEPARATE /airmovements screen is unified into the same /flights wizard.
+  // Captured BEFORE submit so the populated motor form is on the PNG (after
+  // submit the wizard navigates back to /flights). fullPage, T-42 robustness.
+  if (shots) {
+    await page.screenshot({
+      path: `${shots.testInfo.outputDir}/alpenflight-motor-form.png`,
+      fullPage: true,
+    });
+  }
 
   const created = page.waitForResponse(
     (r) =>
@@ -300,8 +350,12 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       await expect(page.getByTestId('flights-table')).toBeVisible();
 
       // Create a glider flight via the wizard driving AEROTOW → the paired tow is
-      // created + linked in the same save.
-      flightId = await createGliderFlightAerotow(page, masterdata, 'created by J-2 e2e');
+      // created + linked in the same save. Pass `shots` so the create captures the
+      // gallery's glider+tow WIZARD parity PNGs (glider step + the distinctive
+      // populated Tow step) on the way through — J-2 T-43.
+      flightId = await createGliderFlightAerotow(page, masterdata, 'created by J-2 e2e', {
+        testInfo,
+      });
       expect(flightId).toMatch(/^fl-[0-9a-f-]{36}$/);
 
       // The glider row resolves its glider immatriculation.
@@ -343,6 +397,24 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
         path: `${testInfo.outputDir}/alpenflight-flights-list.png`,
         fullPage: true,
       });
+
+      // J-2 T-43 — SELF-GUARD (mirrors the legacy spec's T-42 guard): the
+      // gallery-declared AlpenFlight parity PNGs MUST have landed. The fanout
+      // staging only DECLARES screenshots it can `find`, so a skipped-but-expected
+      // capture would be silently absent from the gallery instead of red. Assert
+      // the three this test owns (the populated list + the glider+tow wizard pair)
+      // so a missed capture is a loud failure here, not a hidden gallery gap.
+      for (const png of [
+        'alpenflight-flights-list.png',
+        'alpenflight-flights-wizard-glider.png',
+        'alpenflight-flights-wizard-tow.png',
+      ]) {
+        expect(
+          existsSync(`${testInfo.outputDir}/${png}`),
+          `expected AlpenFlight parity screenshot ${png} in the test output dir — ` +
+            "the fanout gallery's J-2 AlpenFlight half depends on it",
+        ).toBeTruthy();
+      }
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -377,7 +449,13 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       // Create a motor flight via the unified wizard: select the motor aircraft,
       // no aerotow → no tow step. The wizard infers flightAircraftType = MOTOR
       // from the selected motor aircraft.
-      const createdBody = await createMotorFlight(page, masterdata, 'motor by J-2 e2e');
+      // Pass `shots` so the create captures the gallery's MOTOR create parity PNG
+      // (the unified /flights wizard, motor aircraft selected, tow suppressed) —
+      // the AlpenFlight half of the legacy /airmovements ↔ unified-motor pairing
+      // (J-2 T-43).
+      const createdBody = await createMotorFlight(page, masterdata, 'motor by J-2 e2e', {
+        testInfo,
+      });
 
       // DECISIVE FACT (unified-design correctness): the flight created from the
       // /flights wizard with a motor aircraft selected MUST be stamped
@@ -403,6 +481,15 @@ test.describe('Flight list+edit — clean-seed real chain (real-idp)', () => {
       ).toBeVisible();
       const motorId = (await row.getAttribute('data-testid'))!.replace(/^flights-row-/, '');
       await expect(page.getByTestId(`flights-aircraft-type-${motorId}`)).toContainText('Motor');
+
+      // J-2 T-43 — SELF-GUARD: the MOTOR create parity PNG (unified /flights
+      // wizard, motor aircraft, tow suppressed) must have landed for the gallery's
+      // legacy /airmovements ↔ AlpenFlight motor-create pairing.
+      expect(
+        existsSync(`${testInfo.outputDir}/alpenflight-motor-form.png`),
+        'expected AlpenFlight parity screenshot alpenflight-motor-form.png in the test output dir — ' +
+          "the fanout gallery's J-2 legacy-/airmovements ↔ AlpenFlight-motor pairing depends on it",
+      ).toBeTruthy();
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

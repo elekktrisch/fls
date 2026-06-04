@@ -257,6 +257,102 @@ describe('generateGallery — parity screenshots (T-20)', () => {
     ).toThrow(/legacy-aircraft-form\.png/);
   });
 
+  // J-2 T-43 — the gallery must render MORE THAN two views per journey as
+  // multiple paired rows (J-2's parity story is list + form/wizard + motor, not
+  // just J-1's list + form). Locks: (a) every declared view renders its own
+  // shot-pair row with its view label; (b) within each view legacy stays left;
+  // (c) a view declared with only ONE side (the AlpenFlight-only glider-step
+  // example) still renders that single side. This proves `renderScreenshots`
+  // generalizes beyond list+form without any hardcoded view list.
+  const J2_SHOTS = [
+    {
+      journey: 'J-2',
+      side: 'legacy',
+      view: 'list',
+      file: 'legacy-flight-list.png',
+      caption: 'Legacy flsweb: glider+tow flight list',
+    },
+    {
+      journey: 'J-2',
+      side: 'alpenflight',
+      view: 'list',
+      file: 'alpenflight-flights-list.png',
+      caption: 'AlpenFlight: unified /flights list (glider+tow+motor)',
+    },
+    {
+      journey: 'J-2',
+      side: 'legacy',
+      view: 'form',
+      file: 'legacy-flight-form.png',
+      caption: 'Legacy flsweb: two-column glider+tow form',
+    },
+    {
+      journey: 'J-2',
+      side: 'alpenflight',
+      view: 'form',
+      file: 'alpenflight-flights-wizard-tow.png',
+      caption: 'AlpenFlight: 3-step wizard at the Tow step',
+    },
+    {
+      journey: 'J-2',
+      side: 'legacy',
+      view: 'motor',
+      file: 'legacy-airmovements-list.png',
+      caption: 'Legacy flsweb: separate /airmovements motor screen',
+    },
+    {
+      journey: 'J-2',
+      side: 'alpenflight',
+      view: 'motor',
+      file: 'alpenflight-motor-form.png',
+      caption: 'AlpenFlight: unified motor create (tow suppressed)',
+    },
+    {
+      journey: 'J-2',
+      side: 'alpenflight',
+      view: 'wizard (glider step)',
+      file: 'alpenflight-flights-wizard-glider.png',
+      caption: 'AlpenFlight: the wizard Glider step (single-side example)',
+    },
+  ];
+
+  it('(d) renders >2 views per journey as multiple paired rows (J-2 parity)', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-j2-'));
+    const screenshotsDir = makeShotDir(dir, J2_SHOTS);
+
+    const { html, shots } = generateGallery({
+      reportPath: emptyReport(dir),
+      outDir: resolve(dir, 'out'),
+      screenshotsDir,
+      renderNav: false,
+    });
+
+    expect(shots).toHaveLength(7);
+    // One <img> per declared screenshot (7), not capped at the J-1 list+form 4.
+    expect((html.match(/<img /g) ?? []).length).toBe(7);
+    // Each declared view renders its own labelled shot-pair row.
+    for (const view of ['list', 'form', 'motor', 'wizard (glider step)']) {
+      expect(html, `view "${view}" renders a labelled row`).toContain(
+        `class="shot-view-label">${view}</div>`,
+      );
+    }
+    // Within each paired view, legacy renders left of alpenflight.
+    for (const [legacyFile, alpfFile] of [
+      ['legacy-flight-list.png', 'alpenflight-flights-list.png'],
+      ['legacy-flight-form.png', 'alpenflight-flights-wizard-tow.png'],
+      ['legacy-airmovements-list.png', 'alpenflight-motor-form.png'],
+    ]) {
+      const l = html.indexOf(`screenshots/${legacyFile}`);
+      const a = html.indexOf(`screenshots/${alpfFile}`);
+      expect(l, `${legacyFile} present`).toBeGreaterThan(-1);
+      expect(a, `${alpfFile} present`).toBeGreaterThan(-1);
+      expect(l, `${legacyFile} left of ${alpfFile}`).toBeLessThan(a);
+    }
+    // The AlpenFlight-only view still renders its single side.
+    expect(html).toContain('screenshots/alpenflight-flights-wizard-glider.png');
+  });
+
   it('(c2) a declared screenshot with no caption fails the AC5 link-check', async () => {
     const { generateGallery } = await loadGenerator();
     const dir = mkdtempSync(resolve(tmpdir(), 'gallery-shots-'));
