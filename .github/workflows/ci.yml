@@ -604,6 +604,17 @@ jobs:
           enable_jekyll: false
           commit_message: "proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
 
+      # J-4 T-24 — after the clean-seed gallery lands at .../<branch>/, rebuild
+      # the persistent previews index (alpenflight/previews/index.html) from the
+      # fresh gh-pages scan so this branch's "Clean-seed tenant-isolation" link is
+      # current. Fail-soft inside the composite (the index is an entry point, not
+      # a gate). Same PR + non-fork + gallery-green gate as the deploy above.
+      - name: Rebuild persistent previews index
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        uses: ./.github/actions/rebuild-previews-index
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       # J-25 T-02 — THE provable green: a live link-check against the deployed
       # preview. PR-only + gallery-green-gated, placed AFTER the preview deploy
       # step above so the gh-pages push has already happened. Polls the computed
@@ -675,26 +686,36 @@ jobs:
       # and a fork PR has no write token for the comment anyway, so both skip
       # cleanly on fork PRs (the documented "fork PRs silently skip" contract)
       # rather than failing the required proof gate red.
-      - name: Surface preview URL (step summary)
+      # J-4 T-24 — surface the PERSISTENT previews index (the single bookmark),
+      # not this branch's ephemeral clean-seed URL, on the step summary.
+      - name: Surface previews index (step summary)
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         run: |
           {
-            echo "### Proof gallery preview"
+            echo "### Proof previews index (permanent bookmark)"
             echo ""
-            echo "[$PREVIEW_URL]($PREVIEW_URL)"
+            echo "[$INDEX_URL]($INDEX_URL)"
           } >> "$GITHUB_STEP_SUMMARY"
         env:
-          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          INDEX_URL: https://elekktrisch.github.io/fls/alpenflight/previews/index.html
 
-      - name: Upsert sticky preview comment
+      # J-4 T-24 — THE single sticky PR comment. Replaces the former
+      # `<!-- proof-preview -->` (clean-seed) and `<!-- fanout-proof-preview -->`
+      # (fanout) comments: one `<!-- proof-index -->` comment that points at the
+      # PERSISTENT, bookmarkable index. The index lists THIS branch's proofs (and
+      # every other active branch's) with per-proof links + last-updated, so the
+      # operator bookmarks ONE URL and always returns to it. No per-branch URL in
+      # the comment — the index is the entry point.
+      - name: Upsert single sticky proof-index comment
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
         uses: actions/github-script@v7
         env:
-          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+          INDEX_URL: https://elekktrisch.github.io/fls/alpenflight/previews/index.html
         with:
           script: |
-            const marker = '<!-- proof-preview -->';
-            const body = `${marker}\n### Proof gallery preview\n\n[${process.env.PREVIEW_URL}](${process.env.PREVIEW_URL})\n\n_Updates in place on each green proof run for this branch._`;
+            const marker = '<!-- proof-index -->';
+            const url = process.env.INDEX_URL;
+            const body = `${marker}\n### Proof previews index — **permanent bookmark**\n\n[${url}](${url})\n\n_One stable page lists every active branch's proofs (clean-seed · dashboards · /profile · legacy-parity) with per-proof links + last-updated. Bookmark it — the URL never changes; the per-branch galleries come and go. Rebuilt on every proof deploy._`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -1082,6 +1103,15 @@ jobs:
           enable_jekyll: false
           commit_message: "J-3 dashboard proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
 
+      # J-4 T-24 — refresh the persistent previews index after the dashboard
+      # gallery lands at .../<branch>/dashboard/ so its "Showcase role dashboards"
+      # link is current. Fail-soft composite.
+      - name: Rebuild persistent previews index
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
+        uses: ./.github/actions/rebuild-previews-index
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Surface J-3 dashboard preview URL (step summary)
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
         env:
@@ -1441,6 +1471,15 @@ jobs:
           keep_files: true
           enable_jekyll: false
           commit_message: "J-4 profile proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
+
+      # J-4 T-24 — refresh the persistent previews index after the /profile
+      # gallery lands at .../<branch>/profile/ so its "Showcase /profile self-edit"
+      # link is per-push fresh (this is the required gate's own journey). Fail-soft.
+      - name: Rebuild persistent previews index
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
+        uses: ./.github/actions/rebuild-previews-index
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Surface J-4 profile preview URL (step summary)
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}

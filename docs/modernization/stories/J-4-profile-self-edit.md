@@ -555,7 +555,7 @@ UI spec required.** Both fold as the combined CI restructure T-21+T-22 below.
 **Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
 flake reds J-4's `required` gate — fold it or the flake fix before §4; operator call).
 
-- [ ] **T-24 — Persistent proof LINK-DIRECTORY (operator design — replaces "collapse to one gallery").**
+- [x] **T-24 — Persistent proof LINK-DIRECTORY (operator design — replaces "collapse to one gallery").**
   Problem: three auto-upserted sticky comments → three gh-pages paths, and after T-21+T-22 no per-push job
   deploys the /profile shots → the operator can't find the current J-4 proof. **Operator's design:** ONE
   **persistent, bookmarkable** index at **`https://elekktrisch.github.io/fls/alpenflight/previews/index.html`**
