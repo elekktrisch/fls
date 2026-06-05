@@ -120,7 +120,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>206/merge</code> &middot; 2026-06-05T05:18:24.179Z
+      assertion it proves. Generated on <code>206/merge</code> &middot; 2026-06-05T05:43:16.292Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -139,15 +139,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-09ac86c37478dc9c24ba76a6e9c49013db1761bd.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-75a0342adc23363511035ca2d8310b106af616cf.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-995ab87425fab3a0adb0e68a287f60e28384828b.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-2a9fb9ba26e3b09daf42f560f18f4f97d1264732.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3b70988ea75d310dd871ff2ec71943da0b9b8f99.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f6f4638714286639c01598b3320d83189a1542c1.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
         </figure>
         </div>
@@ -180,27 +180,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-d5203743f628e886f70b5c28a763b1d71fd87a1f.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1a7cda2223a95f095d2c1cccd070722f2fafaff2.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7de9bcb71fdfb46bc134a2643684197a7981161d.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9e4509edf909a73ee6a7d56f6db7cf16d2154a09.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f59a2f2872f4306149589bb22168434a6ebc1045.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9b63938f4e540561cbcd633386fdf35551544175.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-230a5cd17252ef6d75bfd3754dcebdcd3a49694d.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ed1d06dad256010433775e90aa067eab0f9d21c4.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-23cfe2249fefb5372d212667ac48ac4ae26663f9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-886fd7d3e89b9cd00096c1112fc91f9603057864.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-897b7f1a0e0181c47e735bb0c45e59b30b648d11.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-2b7fc6d0871c989d13c38aef10d44310beaedc9e.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -245,35 +245,35 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6b59a06174ef9dea63942e6c693b3bfb74fee826.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-31ffd05d70275dfb4a0fda91487160ac48c7227c.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-fc1ee0513e7dc7ba426f64bed3079faada128ee1.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-02cfec051242f01b3818089751a3cbd33bad08e1.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5f859cac3bb93401e1546ab18fb1b50f251e6c34.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-3874317ba114ec1e276bcdcc1d9263b5c9c9f6e9.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3a43874e22a0887a4a0123c9baad400e19d46007.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-a0325c3e76ad7b3a1111e8f7ae7f22be996f2d42.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ca32c3f3850f973ad79696bfed664714a3be627b.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-76d1b817798fbba54de3d608d39c0aee53d2dce2.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-161d3d6f81a73ebb3ec04d1bc3ba96bb51513588.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-8f918ead8b9ab8083d3b18135a70bc68488f2505.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-dd04b1dbe8199c7891fd49dcfe9d526d20de8ecf.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-752c412633deab2685f01bcd4fece0d7f8c1f7ca.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5f47f798cd5e8eafb369bd19fd091ca70118da50.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-163e0f181cabf7d00e810228128108845cecac67.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
         </figure>
         </div>
