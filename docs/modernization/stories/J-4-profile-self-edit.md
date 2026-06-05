@@ -196,11 +196,31 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   round-trip (T-13 / AC "Personal round-trip") needs `/me` (or a caller-scoped `GET /me/person`) extended
   with those Person contact fields — same shape T-05 added for the Account self-fields. Backend touch
   deferred to T-13 per T-07's frontend-only scope.
-- [ ] **T-08 — Person-licences `GET + PATCH /api/v1/me/person/licences` + audit.** Caller-scoped GET
+- [x] **T-08 — Person-licences `GET + PATCH /api/v1/me/person/licences` + audit.** Caller-scoped GET
   (returns the editable licence/medical shape so the Pilot tab hydrates) + PATCH (`updateLicences`) emitting
   `person.licences_updated` audit (before/after diff via `AuditTrail.record` — satisfies the audit-coverage
   guard); `operationId`s (`getMyLicences`/`updateMyLicences`); IT incl. audit-row read + isolation. Seam:
   me-person-licences endpoint.
+  **Done:** `MePersonLicencesController` (`me.web`, `GET + PATCH /api/v1/me/person/licences`,
+  `@PreAuthorize("isAuthenticated()")`, `operationId getMyLicences` / `updateMyLicences`) resolves the
+  caller's Person from `MeService.resolve(jwt).personId()` (no `:id`). `MePersonLicencesUpdateRequest` /
+  `MePersonLicencesResponse` carry ONLY the licence/medical fields (10 licence flags + `licenceNumber` +
+  6 expiry dates + 3 glider start-permission flags + `receiveOwnedAircraftStatisticReports`); flags are
+  nullable `Boolean` coerced to `false` (absent = unchecked, like T-06's `preferMailToBusinessMail` —
+  needed because Jackson `FAIL_ON_NULL_FOR_PRIMITIVES` is on). `PersonsService.getOwnLicences` (read) +
+  `updateOwnLicences` (`Person.updateLicences` + audit) over a lean KC-free `SelfLicencesView` snapshot.
+  No-Person (`person_id` null) → `NoLinkedPersonException` → 409 via `MePersonLicencesExceptionHandler`
+  (IllegalArgumentException→400). **AC4 readable audit:** emits under a DISTINCT audit entity type
+  `PersonLicences` (NOT `Person`, which stays in `audit.redaction.deny-all`) with an explicit
+  `audit.redaction.entities.PersonLicences.allow` list — so the `t_mutation_audit_event` before/after JSON
+  shows the changed licence/medical fields verbatim (readable by a sysadmin) instead of `[redacted]`.
+  Medical-field PII-redaction (which dates hashed vs verbatim) is DEFERRED per S-182 — noted in the yaml +
+  `SelfLicencesView` Javadoc; dates emit verbatim for now. `MePersonLicencesControllerIT` (6 cases): GET
+  populated, PATCH persists + re-GET reflects, **AC4 audit-row read** (sysadmin queries `t_mutation_audit_event`
+  WHERE `target_entity_type='PersonLicences'`, asserts before/after diff readable), isolation (A's token, no
+  id, B's row untouched), no-Person→409. OpenAPI snapshot regen'd (local pg:17 + flywayMigrate; remote DB
+  unreachable this window). IT + `ControllerAuditCoverageTest` + `AuditRedactionCoverageTest` +
+  `ApplicationModulesTest` green locally.
 - [ ] **T-09 — Pilot tab.** Licence/medical form + store (load via `GET /me/person/licences`, save via PATCH). Seam: Pilot tab component.
 - [ ] **T-10 — Notification-prefs `GET + PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
   New `updateNotificationPrefs` mutator on PersonClub (driven via Person); caller-tenant membership resolved

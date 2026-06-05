@@ -58,6 +58,12 @@ public class PersonsService {
 
     private static final String AUDIT_PERSON = "Person";
     private static final String AUDIT_PERSON_CLUB = "PersonClub";
+    // Distinct audit entity type for the licence/medical self-edit (J-4 T-08).
+    // Unlike AUDIT_PERSON (which is in audit.redaction.deny-all → fully
+    // redacted), "PersonLicences" carries an explicit allow-list so the
+    // before/after diff is READABLE by a sysadmin (AC4) — the FADP-sensitive
+    // provenance the Pilot tab needs. Medical-field hashing is deferred (S-182).
+    private static final String AUDIT_PERSON_LICENCES = "PersonLicences";
     private static final int LOOKUP_RESULT_CAP = 5;
 
     private final PersonRepository persons;
@@ -207,6 +213,64 @@ public class PersonsService {
                     p.getEmailPrivate(), p.getEmailBusiness(), p.isPreferMailToBusinessMail(),
                     p.getBirthday());
         }
+    }
+
+    /**
+     * Read the caller's OWN licence/medical shape (J-4 T-08) so the Pilot tab
+     * (T-09) hydrates. Resolved from the JWT → User → {@code person_id}; the
+     * {@code personId} arg is the caller's own linked Person, never a request
+     * parameter — no IDOR risk, no {@code :id}. Read-only, cross-tenant by PK
+     * (the caller's own Person may have its membership in another tenant).
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row.
+     */
+    @Transactional(readOnly = true)
+    public SelfLicencesView getOwnLicences(UUID personId) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        return SelfLicencesView.of(p);
+    }
+
+    /**
+     * Person licence/medical self-edit (J-4 T-08, the FADP-sensitive Pilot tab).
+     * The caller edits their OWN Person's licence flags, licence number, medical
+     * / instructor / part-M expiry dates and glider start-permission flags,
+     * resolved from the JWT → User → {@code person_id} (the {@code personId} arg
+     * is the caller's own linked Person, NEVER an id from the request body) — so
+     * cross-principal mutation is structurally impossible. Contact / name /
+     * membership fields are NOT on the command and are preserved unchanged.
+     *
+     * <p>Emits a {@code person.licences_updated} audit event (AC4) under the
+     * {@code PersonLicences} entity type — which has an explicit allow-list, so
+     * the before/after diff is READABLE by a sysadmin (unlike the deny-all
+     * {@code Person} type). The snapshot is a lean, Keycloak-free
+     * {@link SelfLicencesView} taken BEFORE the mutation, so before/after are
+     * distinct object references and the diff is non-empty.
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row.
+     */
+    public void updateOwnLicences(UUID personId, SelfLicencesUpdate cmd) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        SelfLicencesView before = SelfLicencesView.of(p);
+        p.updateLicences(
+                cmd.motorPilot(), cmd.towPilot(), cmd.gliderInstructor(), cmd.gliderPilot(),
+                cmd.gliderTrainee(), cmd.gliderPax(), cmd.tmg(), cmd.winchOperator(),
+                cmd.motorInstructor(), cmd.partM(),
+                cmd.licenceNumber(),
+                cmd.medicalClass1ExpireDate(), cmd.medicalClass2ExpireDate(),
+                cmd.medicalLaplExpireDate(),
+                cmd.gliderInstructorLicenceExpireDate(), cmd.motorInstructorLicenceExpireDate(),
+                cmd.partMLicenceExpireDate(),
+                cmd.gliderTowingStartPermission(), cmd.gliderSelfStartPermission(),
+                cmd.gliderWinchStartPermission(),
+                cmd.receiveOwnedAircraftStatisticReports());
+        Person saved = persistPerson(p);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_PERSON_LICENCES, personId, before,
+                        SelfLicencesView.of(saved)));
     }
 
     public void softDeletePerson(PersonId id, @Nullable UUID userId) {

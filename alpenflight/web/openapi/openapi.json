@@ -2195,6 +2195,82 @@
         }
       }
     },
+    "/api/v1/me/person/licences" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Read the caller's own Person licence/medical fields so the Pilot tab hydrates. Caller's Person resolved from the JWT → user → person_id — no :id. A caller with no linked Person gets 409.",
+        "operationId" : "getMyLicences",
+        "responses" : {
+          "200" : {
+            "description" : "The caller's editable licence/medical shape.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonLicencesResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The caller's user row has no linked Person record.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonLicencesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch" : {
+        "tags" : [ "me" ],
+        "summary" : "Edit the caller's own Person licence/medical fields. Caller's Person resolved from the JWT → user → person_id — no :id. Emits a person.licences_updated audit event with a readable before/after diff (FADP-sensitive provenance). A caller with no linked Person gets 409.",
+        "operationId" : "updateMyLicences",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MePersonLicencesUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated; body is the refreshed licence/medical shape.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonLicencesResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed (over-length licence number).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonLicencesResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The caller's user row has no linked Person record.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonLicencesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights/{id}/process-state" : {
       "patch" : {
         "tags" : [ "flights" ],
@@ -5406,6 +5482,179 @@
             "type" : "string",
             "format" : "date",
             "description" : "Date of birth."
+          }
+        }
+      },
+      "MePersonLicencesUpdateRequest" : {
+        "type" : "object",
+        "description" : "Person licence/medical self-edit payload — caller's own pilot/medical fields only.",
+        "properties" : {
+          "hasMotorPilotLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a motor-pilot licence (absent = false)."
+          },
+          "hasTowPilotLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a tow-pilot licence (absent = false)."
+          },
+          "hasGliderInstructorLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a glider-instructor licence (absent = false)."
+          },
+          "hasGliderPilotLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a glider-pilot licence (absent = false)."
+          },
+          "hasGliderTraineeLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a glider-trainee licence (absent = false)."
+          },
+          "hasGliderPaxLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a glider-passenger licence (absent = false)."
+          },
+          "hasTmgLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a TMG (touring motor glider) licence (absent = false)."
+          },
+          "hasWinchOperatorLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a winch-operator licence (absent = false)."
+          },
+          "hasMotorInstructorLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a motor-instructor licence (absent = false)."
+          },
+          "hasPartMLicence" : {
+            "type" : "boolean",
+            "description" : "Holds a Part-M licence (absent = false)."
+          },
+          "licenceNumber" : {
+            "type" : "string",
+            "description" : "Pilot licence number.",
+            "maxLength" : 20,
+            "minLength" : 0
+          },
+          "medicalClass1ExpireDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Class-1 medical expiry date."
+          },
+          "medicalClass2ExpireDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Class-2 medical expiry date."
+          },
+          "medicalLaplExpireDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "LAPL medical expiry date."
+          },
+          "gliderInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Glider-instructor licence expiry date."
+          },
+          "motorInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Motor-instructor licence expiry date."
+          },
+          "partMLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Part-M licence expiry date."
+          },
+          "hasGliderTowingStartPermission" : {
+            "type" : "boolean",
+            "description" : "Has glider aerotow start permission (absent = false)."
+          },
+          "hasGliderSelfStartPermission" : {
+            "type" : "boolean",
+            "description" : "Has glider self-launch start permission (absent = false)."
+          },
+          "hasGliderWinchStartPermission" : {
+            "type" : "boolean",
+            "description" : "Has glider winch-launch start permission (absent = false)."
+          },
+          "receiveOwnedAircraftStatisticReports" : {
+            "type" : "boolean",
+            "description" : "Receive owned-aircraft statistic reports (absent = false)."
+          }
+        }
+      },
+      "MePersonLicencesResponse" : {
+        "type" : "object",
+        "description" : "Caller's own Person licence/medical fields (read shape for the Pilot tab).",
+        "properties" : {
+          "hasMotorPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasTowPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderInstructorLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderPilotLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderTraineeLicence" : {
+            "type" : "boolean"
+          },
+          "hasGliderPaxLicence" : {
+            "type" : "boolean"
+          },
+          "hasTmgLicence" : {
+            "type" : "boolean"
+          },
+          "hasWinchOperatorLicence" : {
+            "type" : "boolean"
+          },
+          "hasMotorInstructorLicence" : {
+            "type" : "boolean"
+          },
+          "hasPartMLicence" : {
+            "type" : "boolean"
+          },
+          "licenceNumber" : {
+            "type" : "string"
+          },
+          "medicalClass1ExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "medicalClass2ExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "medicalLaplExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "gliderInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "motorInstructorLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "partMLicenceExpireDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "hasGliderTowingStartPermission" : {
+            "type" : "boolean"
+          },
+          "hasGliderSelfStartPermission" : {
+            "type" : "boolean"
+          },
+          "hasGliderWinchStartPermission" : {
+            "type" : "boolean"
+          },
+          "receiveOwnedAircraftStatisticReports" : {
+            "type" : "boolean"
           }
         }
       },
