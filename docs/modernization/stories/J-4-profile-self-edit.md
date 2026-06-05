@@ -554,3 +554,16 @@ UI spec required.** Both fold as the combined CI restructure T-21+T-22 below.
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
 **Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
 flake reds J-4's `required` gate — fold it or the flake fix before §4; operator call).
+
+- [ ] **T-24 — Collapse to ONE gallery + ONE PR comment (operator: can't find the current J-4 proof).**
+  THREE auto-upserted sticky comments (`proof-preview` clean-seed AlpenFlight-only [no /profile],
+  `profile-gallery` [manual], `fanout-proof-preview` legacy-parity) point at three gh-pages paths, and after
+  T-21+T-22 NO per-push job deploys the /profile shots (dashboard-proof scoped to dashboard-only; the new
+  required `alpenflight-profile-proof` deploys nothing) → J-4 /profile is currently in NO gallery. Fold the
+  gallery-collapse rider (boyscout): make the fanout **`legacy-parity`** gallery THE canonical one (complete
+  paired proof, all journeys), drop ci.yml's AlpenFlight-only `proof-preview` deploy + its sticky comment AND
+  the manual `profile-gallery` comment, so there is exactly **ONE** sticky comment + ONE URL. Have the per-push
+  `alpenflight-profile-proof` (required) capture + refresh the 4 AlpenFlight /profile shots into the canonical
+  gallery (or, per the rider, point ci at the last fanout gallery) so it shows the current state, not a stale
+  fanout. Seam: ci.yml gallery-deploy/comment upserts + the fanout deploy + the profile-proof job. (Folds the
+  J-2-window gallery-collapse rider — now operator-blocking.)
