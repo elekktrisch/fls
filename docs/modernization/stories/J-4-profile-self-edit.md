@@ -2,12 +2,13 @@
 id: J-4
 title: Profile self-edit (/profile — Account / Personal / Pilot / Notifications)
 epic: E-06
-status: in_progress
+status: done
 started_at: 2026-06-05
+done_at: 2026-06-05
 journey0: false
 carved: true
 depends_on: [J-2]
-rolls_up: [S-182]
+rolls_up: [S-182]   # S-182 rolled_up_into: J-4
 acceptance:
   - Avatar/initials button in the nav bar opens a dropdown with "Profile" + "Sign out"; "Profile" routes to `/profile` (any authenticated principal with a `t_user` row). [happy]
   - Account tab edits the User aggregate's mutable fields (friendlyName, notificationEmail, phoneNumber, languageId) via `PATCH /api/v1/me/profile`; username + clubId + keycloakSub render read-only; a language change refreshes the SPA locale. [happy]
@@ -24,6 +25,23 @@ migration: N/A — Person / User / PersonClub are ALREADY migrated (existing map
 parity_test: alpenflight/web/e2e/tests/profile/self-edit.spec.ts
 adr_refs: [0007, 0008, 0022, 0023]
 ---
+
+## Outcome (done 2026-06-05)
+
+Shipped on `integration/J-4` (PR #207), **gate green + properly gated**. The 4-tab `/profile` self-edit
+(Account/Personal/Pilot/Notifications) is real end-to-end: caller-scoped `GET+PATCH /api/v1/me/{profile,person,
+person/licences,club-membership/notification-prefs}` on the existing User/Person/PersonClub aggregates, each
+with its own audit event + structural tenant/principal isolation (no `:id`, JWT-resolved); 4 hydrating
+signal-store tabs; nav avatar entry; no-Person banner; cold-start honours the persisted `languageId`. **2×
+gap-hunter verdict: REAL VERTICAL, no mocked seams.** The thickened real-idp spec (round-trips persist on
+reload, Pilot audit row read via the real admin endpoint, locale flip, no-Person, isolation) passes in the
+**required** `alpenflight-profile-proof` job. Operator CI decisions folded: **proof-scoping** (per-push proof
+scoped off the cross-journey J-0/J-1/J-2 specs → nightly, so the J-1 aircraft flake no longer gates) and the
+profile spec made **required**. Demonstrability: per-push AlpenFlight `/profile` gallery + the **paired
+legacy↔AlpenFlight /profile** (8 screenshots) in the fanout `legacy-parity` gallery, both surfaced via the new
+persistent **proof link-directory** `…/alpenflight/previews/index.html` (operator design — one bookmark, one PR
+comment). Known follow-up: the legacy `/profile` *walkthrough video* didn't stage in the last fanout (paired
+screenshots deliver the side-by-side; video is a rider). Code is the source of truth; task detail below is the record.
 
 ## Context
 

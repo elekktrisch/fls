@@ -14,6 +14,14 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-ship 2026-06-05, J-4 window)
 
+- **Legacy `/profile` walkthrough video doesn't stage in the fanout `legacy-parity` gallery (J-4 done-bar
+  loose end).** The legacy parity spec `e2e/tests/profile/profile-parity-J4.spec.ts` now PASSES (accordion-
+  expand fix) + the 8 paired screenshots render, but the staging `find /tmp/fls-e2e-results -path
+  '*profile-parity-J4*' -name '*.webm'` finds no video → `profile-parity-J4.webm` not declared. The J-0c/J-1/J-2
+  legacy specs DO stage videos on pass, so it's a per-`profile`-project video-retention/output-dir quirk, not
+  pass-vs-fail. Done-bar was met by the paired screenshots ("judgeable side-by-side"); add the video on the next
+  fanout-touching task. *(seam: top-level e2e `profile` project video config / the fanout video-find path)*
+
 - **Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).** Each
   `timeout NNN ./gradlew test` that gets SIGKILLed leaks an `alpenflight-pg-test-*` container + ~1 GB volume
   because `PostgresTestContainerLifecycle`'s cleanup is a JVM **shutdown hook** that never fires on a kill.
