@@ -81,3 +81,13 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   (`github.event.before..after`); the three heavy jobs now gate on
   `next == 'true' && docs_only != 'true'`. Fail-safe toward running (undeterminable range
   → run). `required` aggregator stays green via the existing skipped-to-success case.
+
+## Pending (filed by /do-ship 2026-06-05, J-3 window)
+
+- **orval positional `getN` method naming is fragile across regenerations** — the generated TS client
+  names methods positionally (`get2`, `get3`, …); adding an endpoint (J-3 T-10 `/me/system-dashboard`)
+  renumbered them, silently re-pointing T-09's `ClubDashboardStore.get2()` at the wrong endpoint (caught
+  + fixed in T-11, but only because the next consumer broke the typecheck). Make the binding stable:
+  set explicit `operationId`s on the `me`-dashboard endpoints (and ideally project-wide) so orval emits
+  named methods, not positional `getN`. *(seam: backend operationId annotations + orval config + the few
+  `meService.getN()` call sites)* — fix-forward on the next web-touching journey.
