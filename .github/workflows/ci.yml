@@ -1066,6 +1066,113 @@ jobs:
           docker network rm alpenflight_shared || true
 
   # ---------------------------------------------------------------------------
+  # alpenflight-mock-e2e — the mock-auth chromium Playwright suite, folded into
+  # ci.yml so the `required` aggregator below can `needs:` it (J-3 T-12, operator
+  # J-2-retro decision). Previously this ran ONLY in the standalone
+  # `alpenflight-e2e.yml` workflow, invisible to `required` — so a red mock-auth
+  # e2e could slip past do-ship's gate to a "done" claim (J-2 T-47: a broken
+  # `proof-gallery.spec.ts` nobody watched). Now it gates exactly like
+  # `alpenflight build`.
+  #
+  # Self-contained: Playwright's webServer config starts
+  # `ng serve --configuration=mock-auth` (no Keycloak / no backend) — same as the
+  # steps lifted from alpenflight-e2e.yml. Test-only here: NO gh-pages publish /
+  # gallery (the proof galleries are owned by `alpenflight-proof` +
+  # `alpenflight-dashboard-proof`; the `/alpenflight/` e2e DASHBOARD publish stays
+  # in alpenflight-e2e.yml on main-push — see its header).
+  #
+  # TRIGGER SPLIT (no double-run of the suite, respecting the dedup comments in
+  # both workflow headers): this job is the PR gate, so it runs on PR syncs
+  # (integration/** + main) but is `if`-gated to SKIP on a `push` event —
+  # alpenflight-e2e.yml owns the `push`-to-main run (where it also publishes the
+  # dashboard). PR → here (gates `required`); main push (post-merge) →
+  # alpenflight-e2e.yml. The two never run the chromium suite on the same commit.
+  #
+  # Path-filtered on the same `next == 'true' && docs_only != 'true'` gate as the
+  # other heavy jobs: a docs-only push skips it, it reports `skipped`, and the
+  # `required` aggregator's skipped-to-success path keeps the gate green.
+  # ---------------------------------------------------------------------------
+  alpenflight-mock-e2e:
+    name: alpenflight mock-auth e2e (Run Playwright)
+    needs: changes
+    if: >-
+      github.event_name != 'push'
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-22.04
+    # Suite + ng-serve boot fit in <5 min when green; 8 min absorbs a cold
+    # pnpm/playwright cache. `maxFailures: 3` in the Playwright config bails the
+    # run itself; this is the backstop when the runner stalls.
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      # Step-level cap. Per-test timeout is 30s; maxFailures is 3; retries are 0
+      # in CI (flake-mask off). A test failure fails the job (no
+      # continue-on-error), which fails `required` — that is the whole point of
+      # the fold.
+      - name: Run Playwright
+        working-directory: alpenflight/web
+        timeout-minutes: 5
+        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+
+      # Surface the report as a workflow artifact on red so the failure is
+      # diagnosable without the gh-pages publish (which stays in alpenflight-e2e.yml).
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-mock-e2e-${{ github.sha }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/screenshots
+          retention-days: 14
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
   # every upstream job either succeeded or was correctly skipped (e.g.
   # docs-only PRs skip the next lane, that job reports `skipped`, aggregator
@@ -1073,7 +1180,7 @@ jobs:
   # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build, next-auth-realm-shape, alpenflight-proof]
+    needs: [changes, next-build, next-auth-realm-shape, alpenflight-proof, alpenflight-mock-e2e]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -1084,13 +1191,15 @@ jobs:
           R_NEXT: ${{ needs.next-build.result }}
           R_AUTH: ${{ needs.next-auth-realm-shape.result }}
           R_PROOF: ${{ needs.alpenflight-proof.result }}
+          R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e.result }}
         run: |
           fail=0
           for pair in \
               "changes:$R_CHANGES" \
               "alpenflight-build:$R_NEXT" \
               "alpenflight-auth-realm-shape:$R_AUTH" \
-              "alpenflight-proof:$R_PROOF" ; do
+              "alpenflight-proof:$R_PROOF" \
+              "alpenflight-mock-e2e:$R_MOCK_E2E" ; do
             name="${pair%%:*}"
             result="${pair##*:}"
             case "$result" in

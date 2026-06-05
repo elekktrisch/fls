@@ -14,14 +14,13 @@ genuinely new vertical feature scope.
 
 ## Pending (filed by /do-retro 2026-06-04, J-2 window)
 
-- **Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).** The mock-auth
-  e2e workflow ("Run Playwright") is NOT in the required `ci` aggregator, so a red mock-auth e2e
-  slipped past do-ship's gate to a "done" claim (J-2 T-47: the T-44 accordion broke
-  `proof-gallery.spec.ts` and nobody watched that workflow). Operator's chosen fix is **structural,
-  not procedural**: add "Run Playwright" to the required aggregator (or fold its job into `ci`) so a
-  red mock-auth e2e blocks merge the same way `alpenflight-proof` does — then do-ship's existing
-  "watch the required gate" already catches it, no skill rule needed. *(seam: .github/workflows/ci.yml
-  required aggregator + the "Run Playwright" workflow's required-status wiring)*
+- ~~**Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).**~~ **Shipped J-3 T-12**
+  — folded the mock-auth chromium suite into `ci.yml` as the `alpenflight-mock-e2e` ("Run Playwright")
+  job, added it to the `required` aggregator's `needs` + result-check loop, and gated it on the same
+  `next && !docs_only` path-filter as the other heavy jobs (skipped→success on docs-only). The suite no
+  longer double-runs: `alpenflight-e2e.yml` lost its `pull_request` trigger (now `push`-to-main only,
+  retaining the distinct `/alpenflight/` gh-pages e2e dashboard publish; ci.yml owns PR gating). A red
+  mock-auth e2e now turns `required` red and blocks merge like `alpenflight-proof` does.
 
 ## Pending (filed by /do-ship 2026-06-04, J-2 window)
 
