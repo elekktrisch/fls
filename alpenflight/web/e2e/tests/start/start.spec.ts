@@ -260,7 +260,10 @@ test.describe('home (/start) dashboard', () => {
 
     await page.getByTestId('start-quick-open-logbook').click();
     await expect(page).toHaveURL(/\/flights$/);
-    await page.goBack();
+
+    // Re-enter pilot view: navigating away resets the shell's local pilot-view
+    // override signal, so an admin principal lands back on its own variant.
+    await gotoPilotView(page);
 
     await page.getByTestId('start-quick-log-flight').click();
     await expect(page).toHaveURL(/\/flights\/new$/);
