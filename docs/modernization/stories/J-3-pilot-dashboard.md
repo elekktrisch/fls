@@ -112,9 +112,11 @@ realistic starting position from scratch each time.
   keep the full one; greenfield J-3 is AlpenFlight-only so it's a clean place to do it.
 - **e2e tsc-strictness + prettier-glob** — J-3 edits `start.spec.ts`; fold the e2e
   format/tsc normalization if it stays bounded.
-- **Role-vocab single-source** (S-165 open q): `KNOWN_REALM_ROLES` (BE `MeService`) ↔ FE
+- ~~**Role-vocab single-source** (S-165 open q): `KNOWN_REALM_ROLES` (BE `MeService`) ↔ FE
   `AppRole` ↔ `realm-export.json` are three hand-maintained copies — J-3's role-variant
-  routing reads exactly this vocabulary, so a CI cross-check rides naturally here.
+  routing reads exactly this vocabulary, so a CI cross-check rides naturally here.~~
+  **Shipped T-14** — `RoleVocabularySingleSourceTest` (server `arch` package) cross-checks
+  `Role` enum == `KNOWN_REALM_ROLES` == `AppRole` (equality) + `Role` ⊆ realm-export realm roles.
 
 **Likely task seams (non-binding, for /do-ship):** the `/start` role-switch shell
 (routes off `me.roles`); the club-admin variant component + its tiles; the sysadmin
@@ -174,7 +176,7 @@ Servlet MVC (no WebFlux) → `SseEmitter`. Seed today = `seed-club-1` only, **no
 - [x] **T-11** — Sysadmin variant component + tiles + a control that enters a tenant context. *(seam: one component)*
 - [ ] **T-12** — Rider: add "Run Playwright" to the required `ci` gate (operator, J-2 retro — structural). *(seam: .github/workflows/ci.yml required aggregator)* — clears the `_BOYSCOUT` bullet.
 - [ ] **T-13** — Rider: collapse the two proof galleries into one — drop the ci.yml AlpenFlight-only deploy + its sticky comment, keep the full `legacy-parity` gallery as THE gallery. *(seam: ci.yml gallery job + fanout deploy + the two comment upserts)* — clears the `_BOYSCOUT` bullet.
-- [ ] **T-14** — Rider: role-vocab single-source CI cross-check — assert `Role.java` ↔ FE `AppRole` ↔ `realm-export.json` agree (ArchUnit/CI test), since J-3's variant routing reads this vocabulary. *(seam: one cross-check test)* — clears the S-165 open-q.
+- [x] **T-14** — Rider: role-vocab single-source CI cross-check — assert `Role.java` ↔ FE `AppRole` ↔ `realm-export.json` agree (ArchUnit/CI test), since J-3's variant routing reads this vocabulary. *(seam: one cross-check test)* — clears the S-165 open-q.
 - [ ] **T-15** — Rider: modernize-* sunset (trigger met) — delete the 9 `modernize-*` skills + ~12 modernize agents + prune `rolled_up_into:` horizontal stories. Mechanical (one logical change: deletion). *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)* — clears the `_BOYSCOUT` bullet.
 - [ ] **T-16** — Thicken spec to full real-idp assertions: all 3 variants render **populated** from the showcase seed (counts non-zero, ≥2 clubs in the sysadmin aggregate, pilot last-flight filled) + SSE live tile update without reload + Bearer reject + role/tenant gating; capture the AlpenFlight gallery (surface early per do-ship §3). Fold the bounded e2e prettier/tsc normalization on touched specs. *(seam: spec thicken + gallery capture)*
 - [x] **T-17** — Gate-revealed (full ci on HEAD; real-idp proof GREEN, two suite/spec gaps): fix the 2 reds. (a) **`TenantsRunAsAllowlistTest`** fails — T-10's `SystemDashboardService` calls `Tenants.runAs` (cross-tenant flight count) but isn't allow-listed; add its FQN to the allowlist (deliberate, legitimate SYSTEM_ADMINISTRATOR-only caller — document per the class javadoc). (b) **mock-auth `start.spec.ts:254`** ("quick-action buttons") — `getByTestId('start-quick-log-flight')` times out because the T-07 shell lands the admin mock principal on the sysadmin variant; this case missed the `gotoPilotView(page)` helper the rest of the spec uses — add it before the pilot quick-action clicks. Verify `TenantsRunAsAllowlistTest` + the touched e2e spec. *(seam: Tenants.runAs allowlist + start.spec.ts:254 gotoPilotView)*
