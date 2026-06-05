@@ -130,7 +130,7 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `profile-pilot-{licence-glider,medical-expiry}`, `profile-notifications-pref-{flightReports,reservations,clubNews}`.
   Entry reuses nav `af-nav-user` trigger + Profile menuitem. **Open (→T-03):** spec needs the real-idp
   project but its `tests/profile/` path matches the mock `chromium` project — resolve project routing (testMatch/tag) in T-03.
-- [ ] **T-02 — Showcase-seed self-edit principal.** Extend the showcase seed: a self-editable
+- [x] **T-02 — Showcase-seed self-edit principal.** Extend the showcase seed: a self-editable
   PILOT principal (Person w/ full contact + licence/medical + PersonClub notif prefs) so tabs
   render populated, AND a separate no-Person user (`person_id` null) for the banner edge. Reuse
   existing realm users where possible (avoid net-new Keycloak realm churn). Seam: seed migration(s).
