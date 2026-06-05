@@ -158,6 +158,8 @@ const de = {
       heading: 'Systemübersicht',
       tenantEnter: 'Verein betreten',
       tiles: {
+        error: 'Zahl konnte nicht geladen werden.',
+        loading: 'Wird geladen…',
         totalClubs: 'Vereine',
         totalFlights: 'Flüge',
         totalUsers: 'Benutzer',

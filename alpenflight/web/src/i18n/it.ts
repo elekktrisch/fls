@@ -152,6 +152,8 @@ const it: Translations = {
       heading: 'Panoramica di sistema',
       tenantEnter: 'Entra in un club',
       tiles: {
+        error: 'Impossibile caricare questo numero.',
+        loading: 'Caricamento…',
         totalClubs: 'Club',
         totalFlights: 'Voli',
         totalUsers: 'Utenti',

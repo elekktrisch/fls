@@ -153,6 +153,8 @@ const fr: Translations = {
       heading: 'Aperçu du système',
       tenantEnter: 'Entrer dans un club',
       tiles: {
+        error: 'Impossible de charger ce nombre.',
+        loading: 'Chargement…',
         totalClubs: 'Clubs',
         totalFlights: 'Vols',
         totalUsers: 'Utilisateurs',

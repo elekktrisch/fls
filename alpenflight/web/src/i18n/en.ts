@@ -151,6 +151,8 @@ const en: Translations = {
       heading: 'System overview',
       tenantEnter: 'Enter a club',
       tiles: {
+        error: 'Could not load this count.',
+        loading: 'Loading…',
         totalClubs: 'Clubs',
         totalFlights: 'Flights',
         totalUsers: 'Users',

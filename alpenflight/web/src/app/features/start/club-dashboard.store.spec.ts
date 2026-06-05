@@ -23,10 +23,10 @@ import { ClubDashboardStore } from './club-dashboard.store';
 
 function meStub(counts: () => Observable<ClubDashboardResponse>): MeService {
   return {
-    get2: ((options?: unknown) => {
+    get3: ((options?: unknown) => {
       void options;
       return counts();
-    }) as MeService['get2'],
+    }) as MeService['get3'],
   } as unknown as MeService;
 }
 

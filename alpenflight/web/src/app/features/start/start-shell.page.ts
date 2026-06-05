@@ -7,6 +7,7 @@ import { SessionStore } from '../../core/session/session.store';
 
 import { StartClubadminPage } from './start-clubadmin.page';
 import { StartPage } from './start.page';
+import { StartSysadminPage } from './start-sysadmin.page';
 import { effectiveVariant, isAdminVariant } from './start-variant';
 
 /**
@@ -33,7 +34,7 @@ import { effectiveVariant, isAdminVariant } from './start-variant';
   selector: 'af-start-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoDirective, AfPageComponent, StartPage, StartClubadminPage],
+  imports: [TranslocoDirective, AfPageComponent, StartPage, StartClubadminPage, StartSysadminPage],
   template: `
     <ng-container *transloco="let t; read: 'home'">
       @switch (variant()) {
@@ -53,25 +54,9 @@ import { effectiveVariant, isAdminVariant } from './start-variant';
                   </button>
                 }
               </header>
-              <!-- Placeholder tiles (T-11 fills the cross-tenant aggregates). -->
-              <div class="grid grid-cols-1 gap-6 min-[900px]:grid-cols-3 mb-8">
-                <div class="border border-slate-200 p-5" data-testid="start-tile-total-clubs">
-                  <p class="text-slate-500">{{ t('sysadmin.tiles.totalClubs') }}</p>
-                </div>
-                <div class="border border-slate-200 p-5" data-testid="start-tile-total-users">
-                  <p class="text-slate-500">{{ t('sysadmin.tiles.totalUsers') }}</p>
-                </div>
-                <div class="border border-slate-200 p-5" data-testid="start-tile-total-flights">
-                  <p class="text-slate-500">{{ t('sysadmin.tiles.totalFlights') }}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                class="inline-flex items-center justify-center px-4 py-2 min-h-[44px] border border-slate-300 text-slate-800 hover:border-slate-500 focus-visible:outline-2 focus-visible:outline-brand-500 focus-visible:outline-offset-2"
-                data-testid="start-tenant-enter"
-              >
-                {{ t('sysadmin.tenantEnter') }}
-              </button>
+              <!-- Cross-tenant tiles fed by GET /api/v1/me/system-dashboard +
+                   the tenant-enter control (T-11). -->
+              <af-start-sysadmin />
             </div>
           </af-page>
         }
