@@ -28,6 +28,10 @@ import java.util.function.Supplier;
  *       — wraps each newly-provisioned Club in its tenant scope so the
  *       per-Club reference-data seed runs under the right Hibernate
  *       {@code @TenantId} carrier.</li>
+ *   <li>{@code ch.alpenflight.me.application.SystemDashboardService}
+ *       — sums {@code @TenantId}-scoped flight counts one club at a time so
+ *       the sysadmin dashboard tile spans all tenants; gated by a
+ *       SYSTEM_ADMINISTRATOR surface authorisation.</li>
  *   <li>{@code ch.alpenflight.platform.tenancy} — the carrier owner.</li>
  * </ul>
  *
@@ -55,7 +59,12 @@ class TenantsRunAsAllowlistTest {
             // request path): writes tenant-scoped Location rows on behalf of
             // multiple clubs in one pass — the documented cross-tenant
             // bulk-seed case for Tenants.runAs.
-            "ch.alpenflight.tenancy.showcase.ShowcaseSeeder"
+            "ch.alpenflight.tenancy.showcase.ShowcaseSeeder",
+            // Sysadmin dashboard totals (J-3 T-10): sums @TenantId-scoped flight
+            // counts one club at a time to span all tenants — a deliberate
+            // SYSTEM_ADMINISTRATOR-only read, gated by
+            // @PreAuthorize("hasRole('SYSTEM_ADMINISTRATOR')") on its controller.
+            "ch.alpenflight.me.application.SystemDashboardService"
     );
 
     @ArchTest
