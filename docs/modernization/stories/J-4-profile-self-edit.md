@@ -136,11 +136,13 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `receive_aircraft_reservation_notifications=false`, `receive_planning_day_role_reminder=true`; User self-fields filled.
   No-Person = reused realm `pilot-empty1@example.com` w/ `person_id NULL`. Zero realm churn; V1→V30 flyway clean + idempotent.
   Note: `member_state_id` NULL (no `t_member_state` seeded) — T-10/T-11 assert on notif prefs, not member state.
-- [x] **T-03 — `/profile` shell + tab routing + nav user-summary + no-Person gating.** New
-  `features/profile/` route + shell page with 4 tab segments (tab bodies stubbed), wire the
-  existing nav avatar dropdown to the session user summary, verify Sign out, render the no-Person
-  banner + disable Personal/Pilot/Notifications when person unlinked (Account stays live). First
-  gallery capture lands here. Seam: the profile feature shell/route.
+- [x] **T-03 — `/profile` shell.** `features/profile/{profile.routes.ts,profile-shell.page.ts}` (nz-tabs,
+  full testid contract), registered in `app.routes.ts`, i18n keys all 4 locales. Nav user-summary was
+  ALREADY app-level (`app.component.ts userSummary()` ← `SessionStore.authenticatedUser()`) → dropdown shows
+  on `/profile`, no new wiring. No-Person gating: `hasPerson = SessionStore...personId != null` drives banner +
+  `[nzDisabled]` on Personal/Pilot/Notifications (no MeController change needed — `/me` already returns personId).
+  Playwright routing fixed: chromium `testMatch` → `tests/!(real-idp|profile)/**`, real-idp → `[real-idp/**, profile/**]`.
+  Commit `a2cd80c6`.
 - [ ] **T-04 — Account endpoint `PATCH /api/v1/me/profile`.** Caller-scoped (JWT→User), self-fields
   only (friendlyName, notificationEmail, phoneNumber, languageId); username/clubId/keycloakSub
   immutable; reuse `User.updateProfile`; explicit `operationId` (folds orval rider). IT incl.
