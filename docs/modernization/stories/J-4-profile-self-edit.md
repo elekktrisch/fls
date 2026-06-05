@@ -130,10 +130,12 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `profile-pilot-{licence-glider,medical-expiry}`, `profile-notifications-pref-{flightReports,reservations,clubNews}`.
   Entry reuses nav `af-nav-user` trigger + Profile menuitem. **Open (→T-03):** spec needs the real-idp
   project but its `tests/profile/` path matches the mock `chromium` project — resolve project routing (testMatch/tag) in T-03.
-- [x] **T-02 — Showcase-seed self-edit principal.** Extend the showcase seed: a self-editable
-  PILOT principal (Person w/ full contact + licence/medical + PersonClub notif prefs) so tabs
-  render populated, AND a separate no-Person user (`person_id` null) for the banner edge. Reuse
-  existing realm users where possible (avoid net-new Keycloak realm churn). Seam: seed migration(s).
+- [x] **T-02 — Showcase-seed self-edit principal.** `V30__dev_profile_self_edit_seed.sql`. Self-edit
+  PILOT = reused realm `pilot1@example.com` (club seed-club-1) w/ full Person contact + `has_glider_pilot_licence`
+  + `medical_class2_expire_date=2027-09-30` + `licence_number=CH-GLD-0001`; PersonClub prefs `receive_flight_reports=true`,
+  `receive_aircraft_reservation_notifications=false`, `receive_planning_day_role_reminder=true`; User self-fields filled.
+  No-Person = reused realm `pilot-empty1@example.com` w/ `person_id NULL`. Zero realm churn; V1→V30 flyway clean + idempotent.
+  Note: `member_state_id` NULL (no `t_member_state` seeded) — T-10/T-11 assert on notif prefs, not member state.
 - [ ] **T-03 — `/profile` shell + tab routing + nav user-summary + no-Person gating.** New
   `features/profile/` route + shell page with 4 tab segments (tab bodies stubbed), wire the
   existing nav avatar dropdown to the session user summary, verify Sign out, render the no-Person
