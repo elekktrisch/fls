@@ -440,6 +440,32 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
 > the flake fix; operator decision. (2) The **dashboard-proof red is expected stub-tab redness** (Personal/
 > Pilot/Notifications field testids don't exist until T-07/09/11) — gallery still deploys (`!cancelled()`).
 
+- [ ] **T-20 — Locale honesty fix (§4 gap-hunter finding).** AC2 "language change refreshes the SPA locale"
+  is proven by a **trivially-green** assertion: Chromium boots `navigator.language=en-US`→`en`, and the SPA's
+  cold-start resolver (`core/i18n/lang-providers.ts`/`lang-resolver.ts`) **never reads the authenticated
+  user's persisted `languageId`** — so `<html lang>='en'` passes regardless of DB, and a saved language does
+  NOT survive reload. Backend persistence is real (`MeProfileControllerIT` proves it); the gap is frontend
+  cold-start + the spec oracle. Fix: (a) wire cold-start locale resolution to honor the persisted languageId
+  (from `/me` `languageCode`, already on the projection) so a saved preference applies on next login; (b)
+  make the spec's locale assertion REAL — boot the context at a non-`en` locale (e.g. `locale:'de-CH'` /
+  `?lang=de`), assert German initially, change→save→assert the flip to English AND survives reload; (c) fix
+  the stale `ci.yml` `pw`-step comment ("partially red-by-design / tab stubs") — the spec is now full-assertion.
+  Seam: i18n cold-start resolver + self-edit.spec.ts locale block + ci.yml comment.
+
+## §4 gate findings (2× gap-hunter, majority-vote)
+
+**Verdict: REAL VERTICAL** on the backend (both skeptics) — real controllers→services→aggregate mutators→
+`save()`→columns; real audit; structural isolation (no `:id`, JWT-resolved, IT-proven cross-principal);
+admin-fields structurally excluded from DTOs + re-passed unchanged in services; seeds real (pilot1→flights-PIC
+person, pilot-empty1 person_id NULL); **no undeclared mocks** (no `page.route`/`fulfill`; AC4 audit read is a
+real `AuditAdminController` HTTP call). Backend logic is gated by required ITs (`next-build` real-Postgres,
+fail-loud `SharedPostgresContainer` in CI).
+- **Finding A → T-20** (locale trivially-green + real cold-start gap).
+- **Finding B → operator decision (gate posture):** the UI round-trip spec runs only in the **non-required**
+  `alpenflight-dashboard-proof` (J-3's deliberate "UI proof = gallery, not gate" posture, `ci.yml:758-761`).
+  So a red UI assertion can't block merge (backend IS gated by required ITs). Per the operator's J-3 posture +
+  proof-scoping rider this is intended, not a defect — surfacing for an explicit keep/flip call.
+
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
 **Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
 flake reds J-4's `required` gate — fold it or the flake fix before §4; operator call).
