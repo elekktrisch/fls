@@ -2,7 +2,8 @@
 id: J-4
 title: Profile self-edit (/profile — Account / Personal / Pilot / Notifications)
 epic: E-06
-status: todo
+status: in_progress
+started_at: 2026-06-05
 journey0: false
 carved: true
 depends_on: [J-2]
@@ -112,3 +113,54 @@ operationIds), and the e2e prettier/tsc normalization on the new spec.
   open-q option (a) — cleaner than read-then-write of the whole membership shape); refine/ship
   confirms.
 - **Password / email-verification / account-closure / avatar** are out of scope (S-182 defers).
+
+## Tasks
+
+Ordered, dependency-first. Each is one seam, sized for a fresh `/do-task` worker. Per-tab
+verticals (backend endpoint → frontend tab) so the slice is provable incrementally and the
+gallery surfaces early. Backend mutators mostly **already exist** (`User.updateProfile`,
+`Person.updateContact`, `Person.updateLicences`); the nav avatar dropdown **already exists**
+in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` endpoints + DTOs
++ the `/profile` feature. Drive the spec as a **real PILOT** principal (J-3 lesson).
+
+- [ ] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/profile/self-edit.spec.ts`: nav
+  avatar dropdown → `/profile`, 4 tabs present (Account/Personal/Pilot/Notifications), selectors
+  for each tab's key fields, thin assertions (tabs render). Drive as PILOT. Commits the screen shape.
+- [ ] **T-02 — Showcase-seed self-edit principal.** Extend the showcase seed: a self-editable
+  PILOT principal (Person w/ full contact + licence/medical + PersonClub notif prefs) so tabs
+  render populated, AND a separate no-Person user (`person_id` null) for the banner edge. Reuse
+  existing realm users where possible (avoid net-new Keycloak realm churn). Seam: seed migration(s).
+- [ ] **T-03 — `/profile` shell + tab routing + nav user-summary + no-Person gating.** New
+  `features/profile/` route + shell page with 4 tab segments (tab bodies stubbed), wire the
+  existing nav avatar dropdown to the session user summary, verify Sign out, render the no-Person
+  banner + disable Personal/Pilot/Notifications when person unlinked (Account stays live). First
+  gallery capture lands here. Seam: the profile feature shell/route.
+- [ ] **T-04 — Account endpoint `PATCH /api/v1/me/profile`.** Caller-scoped (JWT→User), self-fields
+  only (friendlyName, notificationEmail, phoneNumber, languageId); username/clubId/keycloakSub
+  immutable; reuse `User.updateProfile`; explicit `operationId` (folds orval rider). IT incl.
+  cross-principal isolation. Seam: User me-profile endpoint cluster.
+- [ ] **T-05 — Account tab.** Account form + signal store + `PATCH /me/profile` via regenerated
+  orval client; language change refreshes the SPA locale; username/clubId read-only. Seam: Account tab component.
+- [ ] **T-06 — Person-contact endpoint `PATCH /api/v1/me/person`.** JWT→caller's Person,
+  `updateContact`; name fields (first/last/mid/company) read-only/ignored; no-Person → clean error;
+  `operationId`; IT + isolation. Seam: me-person endpoint.
+- [ ] **T-07 — Personal tab.** Contact/address form + store + `PATCH /me/person`; name fields read-only. Seam: Personal tab component.
+- [ ] **T-08 — Person-licences endpoint `PATCH /api/v1/me/person/licences` + audit.** `updateLicences`
+  + emit `person.licences_updated` audit with before/after diff via `AuditTrail.record`; `operationId`;
+  IT incl. audit-row read + isolation. Seam: me-person-licences endpoint.
+- [ ] **T-09 — Pilot tab.** Licence/medical form + store + `PATCH /me/person/licences`. Seam: Pilot tab component.
+- [ ] **T-10 — Notification-prefs endpoint `PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
+  New `updateNotificationPrefs` mutator on PersonClub (driven via Person); caller-tenant membership
+  resolved from JWT; admin-only fields (memberNumber/memberState/roles) untouched; `operationId`; IT +
+  isolation. Seam: PersonClub notif-prefs mutator + endpoint.
+- [ ] **T-11 — Notifications tab.** 3 pref toggles + store + `PATCH /me/club-membership/notification-prefs`. Seam: Notifications tab component.
+- [ ] **T-12 — Legacy-parity capture spec.** `e2e/tests/profile/profile-parity-J4.spec.ts` (top-level
+  e2e, flsweb stack — model on `e2e/tests/flights/flights-parity-J2.spec.ts`) records the legacy
+  `/profile` video + screenshots; wire into the legacy-video/gallery pipeline so the **paired
+  legacy↔AlpenFlight /profile** renders. Seam: parity capture spec + pipeline wiring.
+- [ ] **T-13 — Thicken spec + e2e normalization.** Full real assertions from the oracle (entry,
+  4 round-trips incl. sysadmin-fixture audit-row read for Pilot, no-Person banner, isolation);
+  fold the e2e prettier/tsc rider on the new specs. Seam: spec edit.
+
+**Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
+**Not folded** (carve decision): gallery-collapse + proof-scoping CI riders (infra-heavy, off this surface).
