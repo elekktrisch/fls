@@ -81,6 +81,30 @@ public class ClubsService {
         return clubs.findAllActive().stream().map(ClubMapper::toResponse).toList();
     }
 
+    /**
+     * Count of active (non-soft-deleted) clubs across the whole deployment —
+     * Clubs are the tenant root, never {@code @TenantId}-scoped, so this is a
+     * plain unscoped count. Feeds the sysadmin dashboard's {@code totalClubs}
+     * tile (J-3 T-10); the {@code me} module composes it via this published
+     * API rather than reaching into {@code clubs} internals.
+     */
+    @Transactional(readOnly = true)
+    public long countActiveClubs() {
+        return clubs.countActive();
+    }
+
+    /**
+     * Ids of every active club across the deployment — used by the sysadmin
+     * dashboard to iterate the tenant-scoped {@code totalFlights} count one
+     * club at a time (each iteration runs under {@code Tenants.runAs(clubId)},
+     * J-3 T-10). Clubs are cross-tenant, so this enumeration is itself
+     * unscoped.
+     */
+    @Transactional(readOnly = true)
+    public List<UUID> activeClubIds() {
+        return clubs.activeIds();
+    }
+
     @Transactional(readOnly = true)
     public ClubResponse getClub(ClubId id) {
         return clubs.findActiveById(id.value())

@@ -103,6 +103,15 @@ const fr: Translations = {
       'Pensé pour les clubs aéronautiques qui existent déjà et volent déjà. Un outil discret pour le carnet de vol, le calendrier des réservations et le registre des membres.',
   },
   home: {
+    admin: {
+      heading: 'Aperçu du club',
+      tiles: {
+        error: 'Impossible de charger le nombre.',
+        loading: 'Chargement…',
+        pendingValidation: 'Vols à valider',
+        todayFlights: 'Vols aujourd’hui',
+      },
+    },
     greeting: {
       afternoon: 'Bon après-midi, {{name}}',
       evening: 'Bonsoir, {{name}}',
@@ -129,6 +138,9 @@ const fr: Translations = {
       route: 'Route',
       title: 'Ton dernier vol',
     },
+    pilotView: {
+      toggle: 'Vue pilote',
+    },
     quickActions: {
       logFlight: 'Enregistrer un vol',
       openLogbook: 'Ouvrir le carnet',
@@ -136,6 +148,17 @@ const fr: Translations = {
     reservations: {
       placeholder: 'Réservations bientôt disponibles.',
       title: 'Prochaine réservation',
+    },
+    sysadmin: {
+      heading: 'Aperçu du système',
+      tenantEnter: 'Entrer dans un club',
+      tiles: {
+        error: 'Impossible de charger ce nombre.',
+        loading: 'Chargement…',
+        totalClubs: 'Clubs',
+        totalFlights: 'Vols',
+        totalUsers: 'Utilisateurs',
+      },
     },
   },
   locations: {

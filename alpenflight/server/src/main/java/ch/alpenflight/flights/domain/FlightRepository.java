@@ -3,6 +3,7 @@ package ch.alpenflight.flights.domain;
 import ch.alpenflight.platform.id.FlightId;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -98,6 +99,32 @@ public interface FlightRepository {
      * tenant filter structural.
      */
     List<Flight> findByProcessStateId(UUID processStateId);
+
+    /**
+     * Count of non-deleted flights flown on {@code flightDate} within the
+     * caller's tenant — feeds the club-admin dashboard "today's flights" tile
+     * (J-3 T-08). Tenant filter structural via {@code @TenantId}; "today" is
+     * resolved by the caller from the injected {@link java.time.Clock}.
+     */
+    long countByFlightDate(LocalDate flightDate);
+
+    /**
+     * Count of all non-deleted flights within the caller's tenant — feeds the
+     * sysadmin dashboard's {@code totalFlights} tile (J-3 T-10). Tenant filter
+     * structural via {@code @TenantId}: per call this counts exactly one
+     * club's flights, so the sysadmin total is built by the {@code me} module
+     * summing this across every club under {@code Tenants.runAs(clubId)} — the
+     * sanctioned cross-tenant read path (no native SQL, nothing to register).
+     */
+    long countAll();
+
+    /**
+     * Count of non-deleted flights in any of the given process states within
+     * the caller's tenant — feeds the club-admin "pending validation" tile
+     * (NotProcessed + Invalid, J-3 T-08). Tenant filter structural. An empty
+     * collection returns {@code 0} without hitting the DB.
+     */
+    long countByProcessStateIdIn(Collection<UUID> processStateIds);
 
     /**
      * Returns the most recently created flight for the given (aircraft,

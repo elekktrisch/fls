@@ -468,3 +468,23 @@ val seedAircraftOwnerLink by tasks.registering(JavaExec::class) {
         args = seederArgs.get().split(" ")
     }
 }
+
+// J-3 T-02: one-command loader for the on-demand SHOWCASE seed — a cumulative,
+// deterministic, reusable demo dataset (see src/main/resources/showcase/README.md).
+// Runs the app with the `showcase` profile (+ `dev` for the loopback datasource
+// defaults) and `exit-after-seed=true`, so the @Profile("showcase")
+// ShowcaseSeedRunner fires the idempotent seed once and the process exits 0 —
+// no long-running web server. NOT a Flyway V__ migration and never on the IT
+// bootstrap path (ADR 0021 keeps ITs lean). Requires a Flyway-migrated Postgres
+// reachable via the DATASOURCE_* env (application-dev.yml carries loopback
+// defaults). Main runtime classpath (the seeder + runner live in src/main).
+val seedShowcase by tasks.registering(JavaExec::class) {
+    group = "application"
+    description = "Load the on-demand showcase seed (deterministic demo dataset) in one command."
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "ch.alpenflight.AlpenFlightApplication"
+    args = listOf(
+        "--spring.profiles.active=dev,showcase",
+        "--alpenflight.showcase.exit-after-seed=true",
+    )
+}

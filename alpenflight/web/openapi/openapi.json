@@ -2222,6 +2222,63 @@
         }
       }
     },
+    "/api/v1/me/system-dashboard" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Sysadmin dashboard cross-tenant totals — total clubs / users / flights across ALL tenants (deliberately tenant-unscoped). SYSTEM_ADMINISTRATOR only.",
+        "operationId" : "get_2",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SystemDashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/events" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Live event stream for the authenticated principal (Server-Sent Events). Keyed by the JWT subject; in-memory, no replay across restart. Heartbeat comment line every ~25s keeps idle connections alive through proxies.",
+        "operationId" : "stream",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "text/event-stream" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SseEmitter"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/club-dashboard" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Club-admin dashboard tile counts — today's club flights + flights-pending-validation (NotProcessed + Invalid), tenant-scoped to the caller's club. CLUB_ADMINISTRATOR only.",
+        "operationId" : "get_3",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ClubDashboardResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/location-types" : {
       "get" : {
         "tags" : [ "LocationTypes" ],
@@ -5304,6 +5361,52 @@
           "username" : {
             "type" : "string",
             "description" : "Username from the user row, or JWT `preferred_username` claim when no user matches."
+          }
+        }
+      },
+      "SystemDashboardResponse" : {
+        "type" : "object",
+        "description" : "Sysadmin dashboard cross-tenant totals (all clubs).",
+        "properties" : {
+          "totalClubs" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Total active clubs across the whole deployment."
+          },
+          "totalUsers" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Total active users across all clubs."
+          },
+          "totalFlights" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Total non-deleted flights across all clubs."
+          }
+        }
+      },
+      "SseEmitter" : {
+        "type" : "object",
+        "properties" : {
+          "timeout" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "ClubDashboardResponse" : {
+        "type" : "object",
+        "description" : "Club-admin dashboard tile counts (caller's club only).",
+        "properties" : {
+          "todaysFlights" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Count of the caller club's flights flown today (flight_date = today)."
+          },
+          "pendingValidation" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Count of the caller club's flights pending validation (process state NotProcessed or Invalid)."
           }
         }
       },

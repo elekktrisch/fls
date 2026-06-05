@@ -1,21 +1,24 @@
 name: alpenflight e2e
 
 # Runs the alpenflight/web Playwright suite (Angular under the `mock-auth`
-# configuration — no Keycloak / no backend). Self-contained: Playwright's
-# webServer config starts `ng serve --configuration=mock-auth` for the run.
+# configuration — no Keycloak / no backend) on PUSH-TO-MAIN ONLY, and publishes
+# the result to the gh-pages `/alpenflight/` e2e dashboard (linked from the root
+# nav card in .github/pages/root-index.html).
 #
-# Why a separate workflow (not in ci.yml):
-#   - ci.yml is the PR gate; it must stay fast. Playwright + ng serve adds
-#     2–4 minutes to every push.
-#   - In-flight `integration/**` feature work is covered by its `pull_request`
-#     run (the report + screenshots are produced + uploaded as a workflow
-#     artifact there). `push` is `main`-only — that's the run that performs
-#     the `main`-ref-gated gh-pages publish below. (J-25 T-05 dedup: a branch
-#     listed under both `push` AND `pull_request` ran this workflow twice on
-#     one commit — the `alpenflight-e2e-${{ github.ref }}` concurrency groups
-#     don't cancel across the two refs — so `push` is now `main`-only.)
-#   - Publishes to gh-pages under /alpenflight/ on main pushes only;
-#     PR runs surface the same outputs as a workflow artifact.
+# Scope split with ci.yml (J-3 T-12, operator J-2-retro decision):
+#   - The PR GATE for this same chromium suite now lives in ci.yml as the
+#     `alpenflight-mock-e2e` ("Run Playwright") job, wired into the `required`
+#     aggregator — so a red mock-auth e2e BLOCKS merge. That job is `if`-gated to
+#     run on `pull_request` only (skips `push`).
+#   - This workflow keeps the DISTINCT post-merge purpose: the `main`-push run
+#     that performs the `main`-ref-gated gh-pages publish of the `/alpenflight/`
+#     e2e dashboard below. Its former `pull_request` trigger is REMOVED so the
+#     chromium suite never runs twice on one commit (ci.yml owns PRs; this owns
+#     main). The gallery-consolidation rider (J-3 T-13) may later retire this
+#     dashboard publish in favor of the proof galleries; until then it stays.
+#   - (J-25 T-05 dedup, retained: a branch under both `push` AND `pull_request`
+#     ran this twice on one commit — the `alpenflight-e2e-${{ github.ref }}`
+#     concurrency groups don't cancel across refs — so `push` is `main`-only.)
 #
 # gh-pages publication uses `keep_files: true` and namespaces under
 # /alpenflight/. The legacy nightly workflow (`nightly.yml`) now publishes
@@ -31,11 +34,9 @@ on:
     paths:
       - 'alpenflight/web/**'
       - '.github/workflows/alpenflight-e2e.yml'
-  pull_request:
-    branches: [main, "integration/**"]
-    paths:
-      - 'alpenflight/web/**'
-      - '.github/workflows/alpenflight-e2e.yml'
+  # NO `pull_request` trigger: the PR gate for this chromium suite is ci.yml's
+  # `alpenflight-mock-e2e` job (wired into `required`). Keeping a PR trigger here
+  # would double-run the suite on every integration PR (see header).
   workflow_dispatch:
 
 concurrency:

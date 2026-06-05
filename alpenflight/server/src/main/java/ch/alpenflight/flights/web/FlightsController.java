@@ -68,8 +68,15 @@ class FlightsController {
         this.stateService = stateService;
     }
 
+    // PILOT is granted READ on list + get (J-3): the home dashboard's
+    // "Your last flight" card (S-165) is a core PILOT surface that fetches
+    // `/flights?personId=<self>&limit=1` then `/flights/{id}`. Reads stay
+    // tenant-scoped by @TenantId, so a PILOT sees only their own club's
+    // flights — the same row set a FLIGHT_OPERATOR sees. Create / update /
+    // soft-delete remain CLUB_ADMINISTRATOR / FLIGHT_OPERATOR only (S-159):
+    // PILOT is read-only here.
     @GetMapping
-    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR', 'PILOT')")
     @Operation(summary = "List flights (keyset-cursor paginated). When `personId` is supplied "
             + "(prefixed `pn-<uuid>` per ADR 0019), rows are filtered to flights with a "
             + "non-deleted FlightCrew row for that person, and the sort order is the "
@@ -85,7 +92,7 @@ class FlightsController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR')")
+    @PreAuthorize("hasAnyRole('CLUB_ADMINISTRATOR', 'FLIGHT_OPERATOR', 'PILOT')")
     @Operation(summary = "Get a flight by id")
     FlightDetail get(@PathVariable("id") FlightId id) {
         return flights.getFlight(id);

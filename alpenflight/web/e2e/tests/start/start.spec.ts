@@ -184,6 +184,21 @@ async function stubFlightDetail(page: Page, detail: unknown): Promise<void> {
   );
 }
 
+/**
+ * Land on the S-165 pilot dashboard. The mock-auth principal holds
+ * SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR (the "can drive everything"
+ * persona), so the J-3 role-switch shell (T-07) renders the sysadmin variant by
+ * default. The "Pilot view" toggle is the admin→pilot fallback — clicking it
+ * drops to the pilot variant, where these S-165 selectors live. (Under real-idp
+ * the dedicated `pilot1` principal lands on the pilot variant directly; that's
+ * asserted in `real-idp/start-dashboard.spec.ts`.)
+ */
+async function gotoPilotView(page: Page): Promise<void> {
+  await page.goto('/start?lang=en');
+  await page.getByTestId('start-pilot-view-toggle').click();
+  await expect(page.getByTestId('start-variant-pilot')).toBeVisible();
+}
+
 test.describe('home (/start) dashboard', () => {
   test('greets the user, shows the last-flight card, navigates to detail on click', async ({
     page,
@@ -193,7 +208,7 @@ test.describe('home (/start) dashboard', () => {
     await page.route('**/api/v1/flights**', flightsListHandler([mockMyFlight]));
     await stubFlightDetail(page, mockMyFlight);
 
-    await page.goto('/start?lang=en');
+    await gotoPilotView(page);
 
     await expect(page.getByTestId('start-greeting')).toBeVisible();
     await expect(page.getByTestId('start-today')).toBeVisible();
@@ -220,7 +235,7 @@ test.describe('home (/start) dashboard', () => {
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([]));
 
-    await page.goto('/start?lang=en');
+    await gotoPilotView(page);
 
     const empty = page.getByTestId('start-last-flight-empty');
     await expect(empty).toBeVisible();
@@ -241,11 +256,14 @@ test.describe('home (/start) dashboard', () => {
     await stubPickerStores(page);
     await page.route('**/api/v1/flights**', flightsListHandler([]));
 
-    await page.goto('/start?lang=en');
+    await gotoPilotView(page);
 
     await page.getByTestId('start-quick-open-logbook').click();
     await expect(page).toHaveURL(/\/flights$/);
-    await page.goBack();
+
+    // Re-enter pilot view: navigating away resets the shell's local pilot-view
+    // override signal, so an admin principal lands back on its own variant.
+    await gotoPilotView(page);
 
     await page.getByTestId('start-quick-log-flight').click();
     await expect(page).toHaveURL(/\/flights\/new$/);

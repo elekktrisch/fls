@@ -102,6 +102,15 @@ const it: Translations = {
       'Pensato per i club di volo che già esistono e già volano. Uno strumento discreto per diario di volo, calendario delle prenotazioni e registro dei soci.',
   },
   home: {
+    admin: {
+      heading: 'Panoramica del club',
+      tiles: {
+        error: 'Impossibile caricare il numero.',
+        loading: 'Caricamento…',
+        pendingValidation: 'Voli da validare',
+        todayFlights: 'Voli oggi',
+      },
+    },
     greeting: {
       afternoon: 'Buon pomeriggio, {{name}}',
       evening: 'Buona sera, {{name}}',
@@ -128,6 +137,9 @@ const it: Translations = {
       route: 'Rotta',
       title: 'Il tuo ultimo volo',
     },
+    pilotView: {
+      toggle: 'Vista pilota',
+    },
     quickActions: {
       logFlight: 'Registra volo',
       openLogbook: 'Apri diario',
@@ -135,6 +147,17 @@ const it: Translations = {
     reservations: {
       placeholder: 'Prenotazioni in arrivo.',
       title: 'Prossima prenotazione',
+    },
+    sysadmin: {
+      heading: 'Panoramica di sistema',
+      tenantEnter: 'Entra in un club',
+      tiles: {
+        error: 'Impossibile caricare questo numero.',
+        loading: 'Caricamento…',
+        totalClubs: 'Club',
+        totalFlights: 'Voli',
+        totalUsers: 'Utenti',
+      },
     },
   },
   locations: {

@@ -46,4 +46,8 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     @Override
     @Query("select count(u) from User u where u.clubId = :clubId and u.deletedOn is null")
     long countActiveInClub(@Param("clubId") UUID clubId);
+
+    @Override
+    @Query("select count(u) from User u where u.deletedOn is null")
+    long countAllActive();
 }

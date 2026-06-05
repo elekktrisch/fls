@@ -6,6 +6,7 @@ import ch.alpenflight.platform.id.FlightId;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,6 +54,26 @@ public interface JpaFlightRepository
     @Override
     @Query("select f from Flight f where f.processStateId = :psid and f.deletedOn is null")
     List<Flight> findByProcessStateId(@Param("psid") UUID processStateId);
+
+    @Override
+    @Query("select count(f) from Flight f where f.flightDate = :date and f.deletedOn is null")
+    long countByFlightDate(@Param("date") LocalDate flightDate);
+
+    @Override
+    @Query("select count(f) from Flight f where f.deletedOn is null")
+    long countAll();
+
+    @Override
+    default long countByProcessStateIdIn(Collection<UUID> processStateIds) {
+        if (processStateIds.isEmpty()) {
+            return 0L;
+        }
+        return doCountByProcessStateIdIn(processStateIds);
+    }
+
+    @Query("select count(f) from Flight f"
+            + " where f.processStateId in :psids and f.deletedOn is null")
+    long doCountByProcessStateIdIn(@Param("psids") Collection<UUID> processStateIds);
 
     @Override
     default Optional<Flight> findLastByAircraftAndDate(UUID aircraftId, LocalDate flightDate) {

@@ -108,6 +108,15 @@ const de = {
       'Für Flugvereine, die schon bestehen und schon fliegen. Ein leises Werkzeug für Flugbuch, Reservationskalender und Mitgliederverwaltung.',
   },
   home: {
+    admin: {
+      heading: 'Vereinsübersicht',
+      tiles: {
+        error: 'Zahl konnte nicht geladen werden.',
+        loading: 'Wird geladen…',
+        pendingValidation: 'Flüge zur Prüfung',
+        todayFlights: 'Flüge heute',
+      },
+    },
     greeting: {
       afternoon: 'Guten Tag, {{name}}',
       evening: 'Guten Abend, {{name}}',
@@ -134,6 +143,9 @@ const de = {
       route: 'Route',
       title: 'Dein letzter Flug',
     },
+    pilotView: {
+      toggle: 'Pilotenansicht',
+    },
     quickActions: {
       logFlight: 'Flug erfassen',
       openLogbook: 'Flugbuch öffnen',
@@ -141,6 +153,17 @@ const de = {
     reservations: {
       placeholder: 'Reservationen folgen demnächst.',
       title: 'Nächste Reservation',
+    },
+    sysadmin: {
+      heading: 'Systemübersicht',
+      tenantEnter: 'Verein betreten',
+      tiles: {
+        error: 'Zahl konnte nicht geladen werden.',
+        loading: 'Wird geladen…',
+        totalClubs: 'Vereine',
+        totalFlights: 'Flüge',
+        totalUsers: 'Benutzer',
+      },
     },
   },
   locations: {

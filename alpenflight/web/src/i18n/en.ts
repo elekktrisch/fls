@@ -101,6 +101,15 @@ const en: Translations = {
       'Built for flying clubs that already exist and already fly. One quiet tool for the logbook, the reservation calendar, and the member roster.',
   },
   home: {
+    admin: {
+      heading: 'Club overview',
+      tiles: {
+        error: 'Count could not be loaded.',
+        loading: 'Loading…',
+        pendingValidation: 'Flights to validate',
+        todayFlights: 'Flights today',
+      },
+    },
     greeting: {
       afternoon: 'Good afternoon, {{name}}',
       evening: 'Good evening, {{name}}',
@@ -127,6 +136,9 @@ const en: Translations = {
       route: 'Route',
       title: 'Your last flight',
     },
+    pilotView: {
+      toggle: 'Pilot view',
+    },
     quickActions: {
       logFlight: 'Log flight',
       openLogbook: 'Open logbook',
@@ -134,6 +146,17 @@ const en: Translations = {
     reservations: {
       placeholder: 'Reservations coming soon.',
       title: 'Next reservation',
+    },
+    sysadmin: {
+      heading: 'System overview',
+      tenantEnter: 'Enter a club',
+      tiles: {
+        error: 'Could not load this count.',
+        loading: 'Loading…',
+        totalClubs: 'Clubs',
+        totalFlights: 'Flights',
+        totalUsers: 'Users',
+      },
     },
   },
   locations: {

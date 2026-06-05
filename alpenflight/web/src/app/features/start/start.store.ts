@@ -11,7 +11,7 @@ import {
   withState,
 } from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { EMPTY, pipe, switchMap, tap } from 'rxjs';
+import { EMPTY, catchError, pipe, switchMap, tap } from 'rxjs';
 
 import { FlightsService } from '@api/generated/flights/flights.service';
 import type { FlightDetail, FlightListItem, FlightListResponse } from '@api/generated/model';
@@ -95,6 +95,18 @@ export const StartStore = signalStore(
                   error: () => patchState(store, { isLoading: false, hasError: true }),
                 }),
               );
+            }),
+            // The LIST hop (raw http.get) had NO error handler: a non-2xx (e.g. a
+            // 403 from the role gate, or a 5xx) errored the rxMethod stream and
+            // left isLoading:true FOREVER, so the template rendered NONE of the
+            // card / empty / error branches — a stuck-loading hang (J-3: the
+            // showcase pilot got 403 on /flights before PILOT was granted read).
+            // Flip to the error branch instead so the dashboard degrades visibly
+            // rather than hanging. catchError here covers the list hop only; the
+            // detail hop keeps its own tapResponse error handler above.
+            catchError(() => {
+              patchState(store, { isLoading: false, hasError: true });
+              return EMPTY;
             }),
           );
         }),

@@ -3710,6 +3710,109 @@
       "username": "sysadmin"
     },
     {
+      "access": {
+        "manage": true
+      },
+      "attributes": {
+        "clubId": [
+          "club-1"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "pilot-empty1-dev-2026!"
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "email": "pilot-empty1@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Pilot",
+      "id": "019e30c3-2c00-7200-8000-000000000020",
+      "lastName": "Empty One",
+      "realmRoles": [
+        "PILOT",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "pilot-empty1"
+    },
+    {
+      "access": {
+        "manage": true
+      },
+      "attributes": {
+        "clubId": [
+          "club-2"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "clubadmin-c2-dev-2026!"
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "email": "clubadmin-c2@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Club Admin",
+      "id": "019e30c3-2c00-7200-8000-000000000021",
+      "lastName": "Two-Club",
+      "realmRoles": [
+        "CLUB_ADMINISTRATOR",
+        "OFFICE_USER",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "clubadmin-c2"
+    },
+    {
+      "access": {
+        "manage": true
+      },
+      "attributes": {
+        "clubId": [
+          "club-2"
+        ],
+        "locale": [
+          "de"
+        ]
+      },
+      "credentials": [
+        {
+          "temporary": false,
+          "type": "password",
+          "value": "pilot-c2-dev-2026!"
+        }
+      ],
+      "disableableCredentialTypes": [],
+      "email": "pilot-c2@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Pilot",
+      "id": "019e30c3-2c00-7200-8000-000000000022",
+      "lastName": "Two-Club",
+      "realmRoles": [
+        "PILOT",
+        "default-roles-alpenflight"
+      ],
+      "requiredActions": [],
+      "totp": false,
+      "username": "pilot-c2"
+    },
+    {
       "clientRoles": {
         "realm-management": [
           "manage-groups",

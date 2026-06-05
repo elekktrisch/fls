@@ -37,6 +37,17 @@
  *       supplier, bearer-token + redaction interceptors on a Spring
  *       {@code RestClient}).</li>
  * </ul>
+ *
+ * <p>Declared an {@link org.springframework.modulith.ApplicationModule#type()
+ * OPEN} Spring Modulith module so dashboard-oriented read surfaces (the
+ * {@code me} module's sysadmin {@code system-dashboard}, J-3 T-10) may call
+ * {@code users.application.UsersService} for a cross-tenant published count
+ * ({@code countAllActiveUsers()}) without a named interface — matching the
+ * sibling business modules {@code clubs} + {@code flights}, which are OPEN for
+ * the same compose-published-counts pattern. The dependency direction is
+ * {@code me}&rarr;{@code users}; users knows nothing of any consumer.
  */
+@org.springframework.modulith.ApplicationModule(
+        type = org.springframework.modulith.ApplicationModule.Type.OPEN)
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.users;

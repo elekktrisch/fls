@@ -13,7 +13,7 @@ Before reading anything else, decide which lane you're in:
 
 | If the task is… | Go here |
 | --- | --- |
-| Modernization (any phase) | `docs/modernization/README.md` + invoke the matching `/modernize-*` skill. Phases: discover → vision → adrs → decompose → refine → implement → review → rework (iterate as needed) → finalize. |
+| Modernization (planning or shipping a rewrite journey) | `docs/modernization/README.md` + invoke the matching `/do-*` skill. Flow: `/do-plan` (carve/roadmap journeys) → `/do-ship J-NNN` (drive one journey to a green PR; dispatches `/do-task` workers) → `/do-retro` (improve the suite from what shipping taught). The older `/modernize-*` phase skills are retired. |
 | Reading / understanding legacy server (`flsserver/`) | Read `docs/legacy/server.md` first — that's the mental model. |
 | Reading / understanding legacy web (`flsweb/`) | Read `docs/legacy/web.md` first — that's the mental model. |
 | Working in `alpenflight/` (the rewrite) | Treat as a fresh codebase; the `docs/modernization/` artifacts (current-state, vision, ADRs, stories) are the source of truth. |
@@ -35,7 +35,7 @@ If the task doesn't fit a lane, ask. Don't guess.
 - `flsserver/` — legacy ASP.NET Web API backend (.NET Framework 4.5, C#). **Reference only.** Mental model: `docs/legacy/server.md`.
 - `flsweb/` — legacy AngularJS 1.4 SPA. **Reference only.** Mental model: `docs/legacy/web.md`.
 - `alpenflight/` — the rewrite (AlpenFlight). New code goes here. Layout + decisions in `docs/modernization/adrs/`.
-- `docs/modernization/` — the modernization workflow output: current-state, vision, ADRs, epics, stories. Driven by the `/modernize-*` skills.
+- `docs/modernization/` — the modernization workflow output: current-state, vision, ADRs, epics, stories/journeys. Driven by the `/do-*` skills.
 - `docs/legacy/` — mental-model docs for the two legacy stacks. Read on demand.
 - `e2e/` — Playwright suite. Per-category projects (see `e2e/README*` if present).
 

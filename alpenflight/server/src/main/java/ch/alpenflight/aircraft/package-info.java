@@ -54,6 +54,17 @@
  * owner-person); it resolves the JWT sub → User → person_id and admits when
  * that matches {@code aircraft_owner_person_id}. It relies on the User→Person
  * link (S-052) being populated and fails closed when it is null.
+ *
+ * <p>Declared an {@link org.springframework.modulith.ApplicationModule#type()
+ * OPEN} Spring Modulith module (matching {@code clubs} / {@code referencedata} /
+ * {@code audit}) so a cross-cutting consumer — the {@code tenancy.showcase}
+ * seed loader — may build {@link ch.alpenflight.aircraft.domain.Aircraft}
+ * aggregates through their factory (plus the {@code changeState} airworthiness
+ * mutator) and persist deterministic demo rows. The seed is the only external
+ * importer of {@code aircraft.domain}; the normal read/write path stays the
+ * {@code aircraft.application} service + REST controller.
  */
+@org.springframework.modulith.ApplicationModule(
+        type = org.springframework.modulith.ApplicationModule.Type.OPEN)
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.aircraft;
