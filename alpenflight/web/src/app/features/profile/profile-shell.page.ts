@@ -7,7 +7,9 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { SessionStore } from '../../core/session/session.store';
 
 import { AccountStore } from './account.store';
+import { PersonalStore } from './personal.store';
 import { ProfileAccountTab } from './profile-account.tab';
+import { ProfilePersonalTab } from './profile-personal.tab';
 
 /**
  * `/profile` self-edit shell (T-03, J-4 / S-182). Renders the 4-tab scaffold —
@@ -34,10 +36,17 @@ import { ProfileAccountTab } from './profile-account.tab';
   selector: 'af-profile-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoDirective, NzTabsModule, AfPageComponent, ProfileAccountTab],
-  // AccountStore is feature-scoped to /profile — provided here so its lifetime
-  // is the shell, and a fresh /me load runs on every visit (T-05).
-  providers: [AccountStore],
+  imports: [
+    TranslocoDirective,
+    NzTabsModule,
+    AfPageComponent,
+    ProfileAccountTab,
+    ProfilePersonalTab,
+  ],
+  // Account / Personal stores are feature-scoped to /profile — provided here so
+  // their lifetime is the shell, and a fresh /me load runs on every visit
+  // (T-05 Account, T-07 Personal).
+  providers: [AccountStore, PersonalStore],
   template: `
     <ng-container *transloco="let t; read: 'profile'">
       <af-page>
@@ -71,7 +80,11 @@ import { ProfileAccountTab } from './profile-account.tab';
                 <span data-testid="profile-tab-personal">{{ t('tabs.personal') }}</span>
               </ng-template>
               <section data-testid="profile-panel-personal">
-                <p class="text-slate-500">{{ t('stub') }}</p>
+                @if (hasPerson()) {
+                  <af-profile-personal-tab />
+                } @else {
+                  <p class="text-slate-500">{{ t('stub') }}</p>
+                }
               </section>
             </nz-tab>
 

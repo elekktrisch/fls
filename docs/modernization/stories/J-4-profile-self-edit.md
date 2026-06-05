@@ -179,7 +179,23 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   (IllegalArgumentException→400). `MePersonControllerIT`: happy (PILOT, contact persists, names untouched) +
   isolation (A's token, no id, B's Person byte-identical) + no-Person→409. OpenAPI snapshot regen'd.
   `ControllerAuditCoverageTest` green (audit hookup satisfies the guard).
-- [ ] **T-07 — Personal tab.** Contact/address form + store + `PATCH /me/person`; name fields read-only. Seam: Personal tab component.
+- [x] **T-07 — Personal tab.** Contact/address form + store + `PATCH /me/person`; name fields read-only. Seam: Personal tab component.
+  **Done:** `features/profile/{profile-personal.tab.ts, personal.store.ts}` — reactive `nz-form`
+  (af-form-field/af-input/af-select; native `type="date"` for birthday, native checkbox for the
+  business-mail pref) with the full testid set; `PersonalStore` (feature-scoped, provided on the
+  shell next to `AccountStore`) loads `/me` + saves via orval **`updateMyPerson(mePersonUpdateRequest)`**,
+  reflects the projection, emits `profile.updated` MUTATION_BUS for session refresh. Name fields
+  (firstName/lastName) read-only display. Shell wires the tab inside the existing `hasPerson()`
+  `[nzDisabled]` gate (body also `@if (hasPerson())` so the store's `/me` load never fires for a
+  person-less principal). Orval client regenerated (the T-06 snapshot already had `updateMyPerson` +
+  `MePersonUpdateRequest`; only the client tree was stale). i18n `profile.personal.*` in all 4 locales.
+  tsc + lint + prettier + 331 unit tests (+4 `PersonalStore`) + `ng build --configuration mock-auth` green.
+  **/me projection gap (→T-13):** `MeResponse` carries only `firstName`/`lastName` of the Person — NOT
+  the contact/address fields. So the editable controls hydrate EMPTY on first load; the form is wired
+  to the PATCH (spec visibility asserts resolve) but the populated-render + edit→persist→reflect-on-reload
+  round-trip (T-13 / AC "Personal round-trip") needs `/me` (or a caller-scoped `GET /me/person`) extended
+  with those Person contact fields — same shape T-05 added for the Account self-fields. Backend touch
+  deferred to T-13 per T-07's frontend-only scope.
 - [ ] **T-08 — Person-licences endpoint `PATCH /api/v1/me/person/licences` + audit.** `updateLicences`
   + emit `person.licences_updated` audit with before/after diff via `AuditTrail.record`; `operationId`;
   IT incl. audit-row read + isolation. Seam: me-person-licences endpoint.

@@ -27,6 +27,7 @@ import {
 
 import type {
   ClubDashboardResponse,
+  MePersonUpdateRequest,
   MeProfileUpdateRequest,
   MeResponse,
   SseEmitter,
@@ -112,6 +113,42 @@ export class MeService {
     return this.http.patch<TData>(
       `/api/v1/me/profile`,
       meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Edit the caller's own Person contact / address fields (address, zip/city/region, country, phones, private/business email, birthday). Caller's Person resolved from the JWT → user → person_id — no :id. Name fields are admin-only and preserved; a caller with no linked Person gets 409.
+ */
+ updateMyPerson<TData = MeResponse>(mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyPerson<TData = MeResponse>(mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyPerson<TData = MeResponse>(mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyPerson<TData = MeResponse>(
+    mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person`,
+      mePersonUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person`,
+      mePersonUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/person`,
+      mePersonUpdateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
