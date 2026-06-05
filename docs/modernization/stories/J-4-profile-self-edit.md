@@ -236,7 +236,7 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   skipping` guard prevents). Full real-idp stack not run locally (Testcontainers unreliable on the LXC box) —
   CI showcase job is the proof. Gallery deploys to `proof-preview/integration-J-4/dashboard`.
 
-- [ ] **T-16 — Fix two arch-guard build failures (CI-surfaced on the T-15 run).** `./gradlew build` red on:
+- [x] **T-16 — Fix two arch-guard build failures (CI-surfaced on the T-15 run).** `./gradlew build` red on:
   (a) **`ControllerAuditCoverageTest`** — `MeProfileController.updateProfile` (T-04) is a mutating endpoint
   with no audit hookup; the guard requires every mutating controller method to reach `AuditTrail.record`
   (transitively) or be `@AuditedBy`. Fix: emit an audit event in `UsersService.updateOwnProfile`

@@ -260,11 +260,44 @@ public class UsersService {
         if (!users.languageExists(cmd.languageId())) {
             throw new IllegalArgumentException("Unknown languageId: " + cmd.languageId());
         }
+        // Snapshot WITHOUT a Keycloak round-trip: this surface cannot touch
+        // roles, so the audit diff carries the empty role set on both sides —
+        // a `currentRoles(sub)` read here would be a needless KC call on the
+        // self-edit hot path (and would couple the self-edit to KC reachability).
+        UserResponse before = selfEditSnapshot(u);
         // Preserve the admin-only remarks: the self-edit surface never sets it.
         u.updateProfile(cmd.friendlyName(), cmd.notificationEmail(),
                 cmd.phoneNumber(), u.getRemarks(), cmd.languageId());
-        users.save(u);
+        User saved = users.save(u);
         users.flush();
+        // Audit the self-edit on the User aggregate the caller owns. Target id
+        // is the caller's own row (resolved from the JWT sub, not a request id),
+        // so the forensic trail attributes the mutation to the principal who
+        // made it. Same UPDATE-on-"User" shape as the admin update() path.
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_USER, requireId(saved), before, selfEditSnapshot(saved)));
+    }
+
+    /**
+     * Audit snapshot for the self-edit path — projects the User's mutable
+     * self-fields with an empty role set (the self-edit surface cannot mutate
+     * roles, so they never enter the before/after diff) and so avoids the
+     * Keycloak round-trip {@link #toResponse} makes.
+     */
+    private UserResponse selfEditSnapshot(User u) {
+        return new UserResponse(
+                UserId.of(requireId(u)),
+                u.getClubId(),
+                u.getUsername(),
+                u.getFriendlyName(),
+                u.getNotificationEmail(),
+                u.getPhoneNumber(),
+                u.getRemarks(),
+                u.getLanguageId(),
+                u.getPersonId(),
+                List.of(),
+                /*enabled=*/ u.isActive(),
+                /*invitePending=*/ false);
     }
 
     private static UUID callerSubOrThrow(@Nullable Jwt jwt) {
