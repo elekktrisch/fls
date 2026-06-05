@@ -998,9 +998,17 @@ jobs:
             --no-nav \
             $SHOT_ARG
 
+      # `!cancelled()` (not the implicit `success()`): the J-3 dashboard proof is
+      # the journey's VISUAL showcase, non-blocking (not in `required.needs`). A
+      # red spec CASE (e.g. the brittle pilot last-flight-card assertion) must NOT
+      # cost the operator eyes-on the dashboards. The spec captures each variant
+      # screenshot the moment its container is visible (before the deep
+      # assertions), staging + gallery-build already run `if: always()`, and the
+      # gallery built green — so the deploy chain MUST proceed on a spec red too.
+      # Mirrors J-2 fanout's continue-on-error posture on non-blocking capture.
       - name: Compute J-3 dashboard preview destination
         id: preview
-        if: ${{ github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
@@ -1045,7 +1053,7 @@ jobs:
       # /alpenflight/proof/ (main), the `alpenflight-proof` preview, or the
       # fan-out's `.../legacy-parity` preview.
       - name: Deploy J-3 dashboard gallery to gh-pages (PR preview)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.subdir != '' }}
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -1057,7 +1065,7 @@ jobs:
           commit_message: "J-3 dashboard proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
 
       - name: Surface J-3 dashboard preview URL (step summary)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && steps.preview.outputs.url != '' }}
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |

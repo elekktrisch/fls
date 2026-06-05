@@ -223,23 +223,34 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
       await expect(page.getByTestId('start-variant-pilot')).toBeVisible();
       await expect(page.getByTestId('start-greeting')).toBeVisible();
 
+      // RESILIENT CAPTURE (J-2 T-42 lesson, now a do-ship principle): grab the
+      // variant screenshot the MOMENT its container is visible — BEFORE the deep
+      // last-flight-card assertion below, which can abort the test. The gallery
+      // must publish the pilot shot showing WHATEVER state the card is in
+      // (filled / empty / error / loading), so a red card assertion never costs
+      // the operator eyes-on the dashboard.
+      await captureVariantShot(page, testInfo, 'pilot');
+
       // pilot1 is PIC on 8 seeded club-1 flights (README T-03b), so the last-flight
       // card resolves a REAL flight — the FILLED card, not the empty state.
       //
       // The card is the ONLY assertion in this spec gated on a TWO-HOP chained
       // app-state transition: the StartStore fetches `/flights?personId=…&limit=1`
       // and THEN `/flights/{id}` for the crew+location detail, and the card only
-      // paints once BOTH resolve (until then the template renders none of the
-      // card/empty/error branches — the documented pre-attempt state). On the
-      // first real-idp test against a cold backend (JIT warmup + cold Hikari pool)
-      // that two-hop chain races the dashboard's parallel masterdata prefetch
-      // burst and can exceed the project-wide 5s `expect.timeout` — the gate's
-      // first live run hit exactly this (run 26988942197: `/me` resolved pilot1's
-      // personId + the list request fired, but the card never painted in 5s). This
-      // is a slower-but-legitimate app-state transition, not a loosened assertion:
-      // we still require the FILLED card (not empty/error) and a real resolved
-      // role below — only the WAIT budget is raised to match the two-hop chain,
-      // exactly as the SSE case (#4) already waits 15s for its multi-step chain.
+      // paints once BOTH resolve.
+      //
+      // ROOT-CAUSE NOTE (run 26996673488): this assertion failed not on latency
+      // but on a 403 — the list hop `GET /flights?personId=…` was role-gated to
+      // CLUB_ADMINISTRATOR / FLIGHT_OPERATOR, and the showcase pilot1 holds only
+      // the PILOT realm role, so the pilot's own last-flight read was Forbidden.
+      // The 15s bump never helped because the chain wasn't slow, it was DENIED;
+      // worse, the StartStore's list hop had no error handler, so the 403 left
+      // isLoading:true forever → the template rendered NONE of card/empty/error
+      // (a stuck-loading hang, exactly what the failure DOM showed). Fixed both
+      // sides: FlightsController grants PILOT read on list + get (the pilot
+      // dashboard is a core PILOT surface, tenant-scoped), and StartStore now
+      // catchErrors the list hop into the error branch instead of hanging. The
+      // 15s budget is retained as headroom for the genuine two-hop chain.
       await expect(page.getByTestId('start-last-flight-card')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId('start-last-flight-empty')).toHaveCount(0);
       await expect(page.getByTestId('start-last-flight-error')).toHaveCount(0);
@@ -251,6 +262,10 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
       await expect(page.getByTestId('start-variant-sysadmin')).toHaveCount(0);
       await expect(page.getByTestId('start-pilot-view-toggle')).toHaveCount(0);
 
+      // Re-capture once every assertion passed: overwrites the early
+      // resilience shot with the fully-resolved FILLED-card state. If any
+      // assertion above aborted, the early shot (captured right after the
+      // container appeared) is what the gallery shows — never a missing file.
       await captureVariantShot(page, testInfo, 'pilot');
     } finally {
       await context.close();
@@ -266,6 +281,10 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     try {
       await expect(page.getByTestId('start-variant-clubadmin')).toBeVisible();
 
+      // RESILIENT CAPTURE — shot the moment the container is visible, before the
+      // tile-count assertions that can abort the test.
+      await captureVariantShot(page, testInfo, 'clubadmin');
+
       // EXACT club-1 showcase numbers (README counts table). These are the club-1
       // scoped counts — NOT club-1 + club-2 (the tenant filter must scope to
       // club-1's 3 today, not 3 + club-2's 1 = 4) — which the SSE case re-proves.
@@ -276,6 +295,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
         String(CLUB1_PENDING_VALIDATION),
       );
 
+      // Re-capture with the resolved tile counts (overwrites the early shot).
       await captureVariantShot(page, testInfo, 'clubadmin');
     } finally {
       await context.close();
@@ -290,6 +310,10 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
     const { context, page } = await loginAsRole(browser, baseURL!, SYSADMIN);
     try {
       await expect(page.getByTestId('start-variant-sysadmin')).toBeVisible();
+
+      // RESILIENT CAPTURE — shot the moment the container is visible, before the
+      // floor-aggregate + tenant-enter assertions that can abort the test.
+      await captureVariantShot(page, testInfo, 'sysadmin');
 
       // FLOOR assertions: the sysadmin endpoint counts the WHOLE DB, so the
       // showcase only guarantees the ≥2-club / ≥14-flight / ≥6-principal floor.
@@ -314,6 +338,7 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
 
       await expect(page.getByTestId('start-tenant-enter')).toBeVisible();
 
+      // Re-capture with the resolved aggregates (overwrites the early shot).
       await captureVariantShot(page, testInfo, 'sysadmin');
     } finally {
       await context.close();

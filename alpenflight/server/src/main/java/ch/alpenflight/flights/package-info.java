@@ -22,8 +22,11 @@
  * <p>Authz model: tenant scoping is structural via {@code @TenantId}.
  * Role-within-tenant gates per S-159 (no {@code SYSTEM_ADMINISTRATOR} —
  * sysadmin has no tenant-scoped HTTP rights): CLUB_ADMINISTRATOR or
- * FLIGHT_OPERATOR for read / create / update; CLUB_ADMINISTRATOR only for
- * soft-delete (destructive, higher bar). Cross-tenant {@code GET} returns
+ * FLIGHT_OPERATOR for create / update; CLUB_ADMINISTRATOR only for
+ * soft-delete (destructive, higher bar). PILOT is additionally granted
+ * READ (list + get) for the J-3 home dashboard's "Your last flight" card
+ * (S-165) — reads are tenant-scoped by {@code @TenantId}, so a PILOT sees
+ * only their own club's flights. Cross-tenant {@code GET} returns
  * 404 (the row is invisible under the caller's tenant scope), not 403.
  *
  * <p>Out of scope for S-058: state-machine transitions (NotProcessed →
