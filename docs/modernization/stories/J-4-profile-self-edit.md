@@ -332,6 +332,46 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `playwright --list` discovers it; fanout YAML valid (js-yaml); `build.gradle.kts` parses + the
   `seedShowcase` task resolves (`gradlew help --task seedShowcase`). First LIVE green is the re-run
   fanout dispatch.
+  **Fix-pass 2 (fanout run 27039051676 — got CLOSER: the legacy `#username` scope fix worked,
+  `legacy-profile-account.png` deployed — but TWO bugs remained, both precisely diagnosed from logs):**
+  (1) *`seedShowcase` BUILD FAILED — the fix-pass-1 `--spring.main.web-application-type=none` was WRONG.*
+  Dropping the servlet web context broke Spring Security wiring:
+  `UnsatisfiedDependencyException: Error creating bean 'defaultFilterChain' (SecurityConfig): No
+  qualifying bean of type 'HttpSecurity' available` — `SecurityConfig.defaultFilterChain` needs
+  `HttpSecurity`, which exists ONLY in a servlet web context. Context died before `ShowcaseSeedRunner`
+  fired → no AlpenFlight `/profile` shots. **Correct fix:** REMOVED `--spring.main.web-application-type=none`,
+  KEPT the servlet web context, and added `--server.port=0` (ephemeral random port) to the `seedShowcase`
+  JavaExec args (`build.gradle.kts:486`). That dodges the port-8080 collision (the original problem — the
+  seed runs AFTER the long-running backend in the fanout) WHILE retaining the servlet context so
+  SecurityConfig gets its `HttpSecurity`. `ShowcaseSeedRunner` is a pure seed-then-`System.exit(0)`
+  `ApplicationRunner` (`exit-after-seed=true`), so an ephemeral port boots Tomcat harmlessly, seeds, and
+  exits 0. Stays correct in ci.yml's seed-before-backend ordering too (throwaway port = no-op).
+  **Verified locally against the (now-reachable) remote Postgres:** `./gradlew seedShowcase` →
+  `Tomcat initialized with port 0` → `Tomcat started on port 40925` → `Started AlpenFlightApplication`
+  (Spring Security wired, no HttpSecurity error) → ShowcaseSeeder ran (clubs + principals + 14 flights) →
+  `exit-after-seed=true — shutting down` → `BUILD SUCCESSFUL`, exit 0; self-exited, no leftover process,
+  no 8080 collision.
+  (2) *Legacy `/profile` spec timed out scrolling to the License group* — `#LicenceNumber`
+  `scrollIntoViewIfNeeded()` timed out (~10s): the legacy person-form (`person-form-fields.html`) is an
+  angular-ui-bootstrap 0.13.4 `<accordion>`, and only Masterdata (`status1`) + Communication (`status2`)
+  carry `ng-init="statusN = true"` → render OPEN; License (`status3`), Club-Settings (`status4`),
+  Person-Categories (`status5`) have NO ng-init → `is-open` undefined → render COLLAPSED, so their fields
+  are in the DOM but not visible/scrollable. **Fixed:** added an idempotent `expandGroupIfCollapsed(page,
+  headingTranslateKey, anchorSelector)` helper — it clicks the accordion heading anchor
+  (`a.accordion-toggle` containing `span[translate="<KEY>"]`; the angular-translate 2.8.0 attribute
+  directive leaves the locale-independent `translate` attribute in the DOM) only when the anchored field
+  isn't already visible, then waits for it. Each capture pass now expands its group first: Personal calls
+  it for `MASTERDATA`/`COMMUNICATION` (no-op while open, future-proofs the default), Pilot for `LICENSE`
+  (`#LicenceNumber`), Notifications for `CLUB_SETTINGS` (`#ReceiveFlightReports`). Still READ-ONLY (expand
+  → wait visible → scroll → screenshot; no field edits, no saves). Re-confirmed all heading keys + field
+  ids against the oracle (person-form-fields.html: MASTERDATA:8, COMMUNICATION:95, LICENSE:175,
+  CLUB_SETTINGS:321; `#Firstname`:15, `#MobilePhoneNumber`:110, `#LicenceNumber`:279,
+  `#HasGliderPilotLicence`:190, `#MedicalClass2ExpireDate`:289, `#ReceiveFlightReports`:387,
+  `#ReceiveAircraftReservationNotifications`:393, `#ReceivePlanningDayRoleReminder`:399). Verified: spec
+  prettier-clean (`prettier --write e2e/**/*.{ts,json}`) + `playwright test --list` discovers the single
+  test; fanout YAML untouched. First LIVE green is the re-run fanout dispatch — manager should then see in
+  `…/legacy-parity/` (J-4 section) 4 paired view rows (all 4 `legacy-profile-*.png` + all 4
+  `alpenflight-profile-*.png`) plus the legacy `/profile` walkthrough video.
 - [x] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
   only the Person's name, not contact/address — so the Personal tab renders empty + T-13's round-trip can't
   read. Add a caller-scoped `GET /me/person` (returns the editable contact/address shape; `operationId

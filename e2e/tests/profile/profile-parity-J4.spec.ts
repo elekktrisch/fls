@@ -104,6 +104,50 @@ import {
 import sql from "mssql";
 import type { Page } from "@playwright/test";
 
+/**
+ * Expand a collapsed `<fls-person-form>` accordion group, idempotently.
+ *
+ * The legacy person form (`person-form-fields.html`) is an angular-ui-bootstrap
+ * 0.13.4 `<accordion>` (package.json: "angular-ui-bootstrap": "0.13.4"). Each
+ * `<accordion-group>` heading transcludes into `a.accordion-toggle`
+ * (panel-heading) and toggles its `is-open` scope flag on click. Only
+ * Masterdata (`status1`) and Communication (`status2`) carry
+ * `ng-init="statusN = true"`, so they render OPEN; License (`status3`),
+ * Club-Settings (`status4`) and Person-Categories (`status5`) have NO ng-init,
+ * so `is-open` is undefined → those groups render COLLAPSED. A collapsed group's
+ * fields are in the DOM but not visible/scrollable, so a `scrollIntoViewIfNeeded`
+ * on e.g. `#LicenceNumber` times out (the ~10s timeout at the Pilot/Notifications
+ * captures, fan-out run 27039051676).
+ *
+ * The angular-translate 2.8.0 attribute directive leaves the `translate="<KEY>"`
+ * attribute on the heading span in the DOM (it only sets text content), so we
+ * target the group by its locale-independent translate key. We click the heading
+ * anchor only if the anchored field is not already visible — keeping it idempotent
+ * for the already-open groups and safe to call before any capture.
+ */
+async function expandGroupIfCollapsed(
+  page: Page,
+  headingTranslateKey: string,
+  anchorSelector: string,
+): Promise<void> {
+  const anchor = page.locator(anchorSelector);
+  // Already expanded (status1/status2, or a re-run on the same page) → nothing
+  // to do. A short poll: a collapsed group's field is hidden, not absent.
+  if (await anchor.isVisible().catch(() => false)) {
+    return;
+  }
+  // The transcluded heading: `a.accordion-toggle` is the ancestor of the
+  // `span[translate="<KEY>"]` heading label (accordion-group template).
+  const heading = page.locator("a.accordion-toggle", {
+    has: page.locator(`span[translate="${headingTranslateKey}"]`),
+  });
+  await heading.waitFor({ state: "visible", timeout: 15_000 });
+  await heading.click();
+  // The collapse animation reveals the panel body; wait for the anchored field
+  // to become visible before the caller scrolls/screenshots it.
+  await anchor.waitFor({ state: "visible", timeout: 15_000 });
+}
+
 // Record the read-only walkthrough as the legacy parity video regardless of
 // pass/fail. The fan-out workflow stages this artifact + publishes it to the
 // proof gallery under J-4 (declared via the `--legacy-video` sidecar). Identical
@@ -227,10 +271,13 @@ test("J-4 parity: legacy /profile field set (user-settings + person License/Noti
 
     // ----- 3. "Personal tab" view — person Masterdata + Communication groups --
     // The Masterdata (name/address) + Communication (email/phone) accordion
-    // groups render open by default (ng-init status1/status2 = true). Anchor on a
-    // Communication field so the capture proves the contact field set is bound,
-    // then fullPage so name+address+contact are all in the shot — the field set
-    // AlpenFlight's Personal tab edits.
+    // groups render open by default (ng-init status1/status2 = true). Expand
+    // idempotently (a no-op while they're open) so the capture is robust if the
+    // ng-init default ever changes, then anchor on a Communication field so the
+    // shot proves the contact field set is bound. fullPage so name+address+contact
+    // are all on camera — the field set AlpenFlight's Personal tab edits.
+    await expandGroupIfCollapsed(page, "MASTERDATA", "#Firstname");
+    await expandGroupIfCollapsed(page, "COMMUNICATION", "#MobilePhoneNumber");
     const mobile = page.locator("#MobilePhoneNumber");
     await mobile.scrollIntoViewIfNeeded();
     await mobile.waitFor({ state: "visible", timeout: 15_000 });
@@ -242,11 +289,15 @@ test("J-4 parity: legacy /profile field set (user-settings + person License/Noti
 
     // ----- 4. "Pilot tab" view — the person License group --------------------
     // The License group (status3) holds the licence flags + licence number +
-    // medical expiry dates — the exact field set J-4's Pilot tab maps to. Scroll
-    // its anchors into view. The group renders open by default but the License
-    // expiry-date fields are ng-show-gated on the matching licence flag, so we
-    // anchor on the always-present LicenceNumber + the glider-pilot flag +
-    // medical-class-2 expiry (all unconditionally rendered).
+    // medical expiry dates — the exact field set J-4's Pilot tab maps to. UNLIKE
+    // Masterdata/Communication, the License group has NO ng-init, so is-open is
+    // undefined → it renders COLLAPSED (its fields are in the DOM but not
+    // scrollable; the bare scrollIntoViewIfNeeded timed out, run 27039051676).
+    // Expand it first, then scroll its anchors into view. The expiry-date fields
+    // are ng-show-gated on the matching licence flag, so we anchor on the
+    // always-present LicenceNumber + the glider-pilot flag + medical-class-2
+    // expiry (all unconditionally rendered once the group is open).
+    await expandGroupIfCollapsed(page, "LICENSE", "#LicenceNumber");
     const licenceNumber = page.locator("#LicenceNumber");
     await licenceNumber.scrollIntoViewIfNeeded();
     await licenceNumber.waitFor({ state: "visible", timeout: 15_000 });
@@ -260,11 +311,17 @@ test("J-4 parity: legacy /profile field set (user-settings + person License/Noti
 
     // ----- 5. "Notifications tab" view — the Club-Settings notification flags -
     // The Club-Settings group (status4) holds the receive-* notification flags —
-    // the field set J-4's Notifications tab maps to (the 3 toggles). Scroll the
-    // notification checkboxes into view. (Legacy mixes these with admin-only
-    // membership fields — memberNumber/memberState — which AlpenFlight keeps
-    // admin-only and OFF the self-edit Notifications tab; the side-by-side makes
-    // that scoping visible.)
+    // the field set J-4's Notifications tab maps to (the 3 toggles). Like the
+    // License group, Club-Settings has NO ng-init → it renders COLLAPSED, so we
+    // expand it before scrolling the notification checkboxes into view. (Legacy
+    // mixes these with admin-only membership fields — memberNumber/memberState —
+    // which AlpenFlight keeps admin-only and OFF the self-edit Notifications tab;
+    // the side-by-side makes that scoping visible.)
+    await expandGroupIfCollapsed(
+      page,
+      "CLUB_SETTINGS",
+      "#ReceiveFlightReports",
+    );
     const receiveFlightReports = page.locator("#ReceiveFlightReports");
     await receiveFlightReports.scrollIntoViewIfNeeded();
     await receiveFlightReports.waitFor({ state: "visible", timeout: 15_000 });
