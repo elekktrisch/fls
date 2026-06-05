@@ -255,6 +255,15 @@ const de = {
     },
     noPersonBanner:
       'Kein Mitgliederdatensatz verknüpft. Bitte deinen Vereins-Administrator, deinen Mitgliederdatensatz zu verknüpfen.',
+    notifications: {
+      clubNews: 'Erinnerung an Planungstag-Funktionen',
+      flightReports: 'Flugberichte',
+      prefsGroup: 'Benachrichtigungen',
+      reservations: 'Benachrichtigungen zu Flugzeugreservationen',
+      save: 'Speichern',
+      saveError: 'Speichern fehlgeschlagen. Bitte erneut versuchen.',
+      saved: 'Benachrichtigungen gespeichert.',
+    },
     personal: {
       address: 'Adresse',
       addressLine2: 'Adresszusatz',

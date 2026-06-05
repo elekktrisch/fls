@@ -245,6 +245,15 @@ const en: Translations = {
       username: 'Username',
     },
     noPersonBanner: 'No member record linked. Ask your club admin to link your member record.',
+    notifications: {
+      clubNews: 'Planning-day role reminder',
+      flightReports: 'Flight reports',
+      prefsGroup: 'Notifications',
+      reservations: 'Aircraft reservation notifications',
+      save: 'Save',
+      saveError: 'Save failed. Please try again.',
+      saved: 'Notifications saved.',
+    },
     personal: {
       address: 'Address',
       addressLine2: 'Address line 2',

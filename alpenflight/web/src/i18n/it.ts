@@ -249,6 +249,15 @@ const it: Translations = {
     },
     noPersonBanner:
       'Nessun record membro collegato. Chiedi all’amministratore del club di collegare il tuo record membro.',
+    notifications: {
+      clubNews: 'Promemoria funzioni della giornata di pianificazione',
+      flightReports: 'Rapporti di volo',
+      prefsGroup: 'Notifiche',
+      reservations: 'Notifiche di prenotazione aeromobile',
+      save: 'Salva',
+      saveError: 'Salvataggio non riuscito. Riprova.',
+      saved: 'Notifiche salvate.',
+    },
     personal: {
       address: 'Indirizzo',
       addressLine2: 'Indirizzo (riga 2)',

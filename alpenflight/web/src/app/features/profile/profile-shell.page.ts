@@ -7,9 +7,11 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { SessionStore } from '../../core/session/session.store';
 
 import { AccountStore } from './account.store';
+import { NotificationsStore } from './notifications.store';
 import { PersonalStore } from './personal.store';
 import { PilotStore } from './pilot.store';
 import { ProfileAccountTab } from './profile-account.tab';
+import { ProfileNotificationsTab } from './profile-notifications.tab';
 import { ProfilePersonalTab } from './profile-personal.tab';
 import { ProfilePilotTab } from './profile-pilot.tab';
 
@@ -45,11 +47,12 @@ import { ProfilePilotTab } from './profile-pilot.tab';
     ProfileAccountTab,
     ProfilePersonalTab,
     ProfilePilotTab,
+    ProfileNotificationsTab,
   ],
-  // Account / Personal / Pilot stores are feature-scoped to /profile — provided
-  // here so their lifetime is the shell, and a fresh load runs on every visit
-  // (T-05 Account, T-07 Personal, T-09 Pilot).
-  providers: [AccountStore, PersonalStore, PilotStore],
+  // Account / Personal / Pilot / Notifications stores are feature-scoped to
+  // /profile — provided here so their lifetime is the shell, and a fresh load runs
+  // on every visit (T-05 Account, T-07 Personal, T-09 Pilot, T-11 Notifications).
+  providers: [AccountStore, PersonalStore, PilotStore, NotificationsStore],
   template: `
     <ng-container *transloco="let t; read: 'profile'">
       <af-page>
@@ -109,7 +112,11 @@ import { ProfilePilotTab } from './profile-pilot.tab';
                 <span data-testid="profile-tab-notifications">{{ t('tabs.notifications') }}</span>
               </ng-template>
               <section data-testid="profile-panel-notifications">
-                <p class="text-slate-500">{{ t('stub') }}</p>
+                @if (hasPerson()) {
+                  <af-profile-notifications-tab />
+                } @else {
+                  <p class="text-slate-500">{{ t('stub') }}</p>
+                }
               </section>
             </nz-tab>
           </nz-tabs>

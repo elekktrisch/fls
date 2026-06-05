@@ -251,6 +251,15 @@ const fr: Translations = {
     },
     noPersonBanner:
       'Aucun dossier de membre lié. Demande à ton administrateur de club de lier ton dossier de membre.',
+    notifications: {
+      clubNews: 'Rappel des fonctions du jour de planification',
+      flightReports: 'Rapports de vol',
+      prefsGroup: 'Notifications',
+      reservations: 'Notifications de réservation d’aéronef',
+      save: 'Enregistrer',
+      saveError: 'Échec de l’enregistrement. Réessaie.',
+      saved: 'Notifications enregistrées.',
+    },
     personal: {
       address: 'Adresse',
       addressLine2: 'Complément d’adresse',

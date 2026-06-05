@@ -27,6 +27,8 @@ import {
 
 import type {
   ClubDashboardResponse,
+  MeNotificationPrefsResponse,
+  MeNotificationPrefsUpdateRequest,
   MePersonLicencesResponse,
   MePersonLicencesUpdateRequest,
   MePersonUpdateRequest,
@@ -220,6 +222,75 @@ export class MeService {
     return this.http.patch<TData>(
       `/api/v1/me/person/licences`,
       mePersonLicencesUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Read the caller's own per-club notification preferences so the Notifications tab hydrates. Caller's Person + club resolved from the JWT → user → person_id / club_id — no :id. A caller with no linked Person, or no membership in the current club, gets 409.
+ */
+ getMyNotificationPrefs<TData = MeNotificationPrefsResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ getMyNotificationPrefs<TData = MeNotificationPrefsResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getMyNotificationPrefs<TData = MeNotificationPrefsResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getMyNotificationPrefs<TData = MeNotificationPrefsResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Edit the caller's own per-club notification preferences. Caller's Person + club resolved from the JWT → user → person_id / club_id — no :id. Changes ONLY the three toggles; admin-only membership fields (memberNumber / memberState / roles) stay untouched. Emits an audit event. A caller with no linked Person, or no membership in the current club, gets 409.
+ */
+ updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(
+    meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,
+      meNotificationPrefsUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,
+      meNotificationPrefsUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,
+      meNotificationPrefsUpdateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

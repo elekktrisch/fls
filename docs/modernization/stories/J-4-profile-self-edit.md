@@ -261,7 +261,20 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   **Pre-existing fail flagged:** `ApplicationModulesTest` is ALREADY RED on the branch HEAD (verified by stashing
   my changes) — the `me`→`persons.application` boundary was already violated by T-06/T-08; T-10 adds only the
   same violation class (no new boundary type). Not a T-10 regression.
-- [ ] **T-11 — Notifications tab.** 3 pref toggles + store + `PATCH /me/club-membership/notification-prefs`. Seam: Notifications tab component.
+- [x] **T-11 — Notifications tab.** 3 pref toggles + store + `PATCH /me/club-membership/notification-prefs`. Seam: Notifications tab component.
+  **Done:** `features/profile/{profile-notifications.tab.ts, notifications.store.ts}` — reactive form
+  with 3 native checkbox toggles (the simplest tab). `NotificationsStore` (feature-scoped, provided on
+  the shell next to Account/Personal/Pilot) loads via orval **`getMyNotificationPrefs()`** + saves via
+  **`updateMyNotificationPrefs(meNotificationPrefsUpdateRequest)`**, reflects the projection, emits
+  `profile.updated` MUTATION_BUS (no sibling-store injection). All 3 toggles always send (a cleared box
+  is a real `false`). Shell wires the tab inside the existing `hasPerson()` `[nzDisabled]` gate (body
+  `@if (hasPerson())` so the GET never fires for a person-less principal). testid contract ↔ T-10 DTO:
+  `profile-notifications-pref-flightReports` → `receiveFlightReports`; `...-reservations` →
+  `receiveAircraftReservationNotifications`; `...-clubNews` → `receivePlanningDayRoleReminder`; plus
+  `profile-notifications-save` / error / saved. i18n `profile.notifications.*` in all 4 locales (de first,
+  alphabetical). Orval client regenerated (T-10 snapshot already carried the ops + DTOs; TS client tree was
+  stale). tsc + eslint + prettier + new `NotificationsStore` spec (4 cases) + i18n gate (21) +
+  `ng build --configuration mock-auth` green locally. No backend touch (T-10 GET+PATCH).
 - [ ] **T-12 — Legacy-parity capture spec.** `e2e/tests/profile/profile-parity-J4.spec.ts` (top-level
   e2e, flsweb stack — model on `e2e/tests/flights/flights-parity-J2.spec.ts`) records the legacy
   `/profile` video + screenshots; wire into the legacy-video/gallery pipeline so the **paired
