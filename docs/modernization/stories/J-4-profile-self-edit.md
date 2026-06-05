@@ -372,6 +372,41 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   test; fanout YAML untouched. First LIVE green is the re-run fanout dispatch — manager should then see in
   `…/legacy-parity/` (J-4 section) 4 paired view rows (all 4 `legacy-profile-*.png` + all 4
   `alpenflight-profile-*.png`) plus the legacy `/profile` walkthrough video.
+  **Fix-pass 3 (final — the legacy `/profile` capture now WORKS: the latest fanout deployed all 4
+  `legacy-profile-*.png` + the legacy video to `…/legacy-parity/`. The remaining failure was the
+  AlpenFlight side, and the in-fanout recapture approach was ARCHITECTURALLY WRONG — replaced):** the
+  backend boots fine (the fix-pass-2 `--server.port=0` worked — `Tomcat started on port 41037` /
+  `Started AlpenFlightApplication`), but `seedShowcase` then BUILD-FAILED in ~1s — the showcase seed's
+  FIXED-ID clubs/persons/flights COLLIDE with the migrated J-0c/J-1/J-2 real-bundle data this run
+  already holds. J-4 carries NO migration, so the showcase seed fundamentally does not belong in the
+  fanout's migrate chain — stop fighting it. **Correct fix — pair the legacy shots against the per-push
+  AlpenFlight gallery instead of re-capturing.** The per-push REQUIRED `alpenflight-profile-proof` job
+  (ci.yml) already captures + deploys the 4 AlpenFlight `/profile` tab screenshots (clean showcase seed,
+  pilot1-populated — exactly the right pairing state) to the LIVE gh-pages path
+  `…/proof-preview/<branch>/profile/screenshots/alpenflight-profile-{account,personal,pilot,
+  notifications}.png` (verified live: HTTP 200×4 for `integration-J-4`). So in
+  `.github/workflows/alpenflight-proof-fanout.yml`: (1) **REMOVED** the three now-pointless
+  AlpenFlight-recapture steps — "Seed showcase data (additive)", "Restart alpenflight backend (reads
+  showcase rows)", and "Run J-4 AlpenFlight /profile showcase capture" (`id: pw-profile`, the one
+  targeting `test-results-profile/`) — plus their stale references (the `AF_PROF_WEBM` resolve, the
+  `test-results-profile` artifact path, the `steps.pw-profile.outcome` final-status mention). LEFT the
+  legacy `/profile` capture (step 2d), the J-0c/J-1/J-2 migrate chain, and the legacy parity specs
+  UNTOUCHED. LEFT `build.gradle.kts` as-is (the `--server.port=0` arg is correct + harmless and ci.yml's
+  dashboard/profile jobs still use `seedShowcase`; the fanout just stops calling it for J-4). (2) In the
+  STAGING step, replaced the AlpenFlight `/profile` shot source — instead of `add_shot
+  "alpenflight/web/test-results-profile" …` (the dir the removed capture would have written), the step
+  now `curl -fsS`s each of the 4 `alpenflight-profile-<tab>.png` from
+  `https://elekktrisch.github.io/fls/alpenflight/proof-preview/${SANITIZED_BRANCH}/profile/screenshots/`
+  into `$SHOT` (using the same branch-sanitize sed as the rest of the workflow: `integration/J-4` →
+  `integration-J-4`), each curl guarded (`|| echo "… not yet deployed, skipping"`) so a missing shot
+  skips rather than fails, then `add_shot "$SHOT" …` with the unchanged J-4 captions + view names. (Made
+  `add_shot` self-copy-safe — `[ "$src" -ef "$SHOT/$2" ] || cp …` — since the curled PNG already lives in
+  `$SHOT`.) The 4 `legacy-profile-*.png` add_shots + the legacy video stay. **Net:** the `…/legacy-parity/`
+  J-4 section renders 4 paired rows — legacy LEFT (fanout legacy capture) ↔ AlpenFlight RIGHT (curled from
+  the per-push gallery) — plus the legacy `/profile` video. Verified locally: live curl 200×4 for all 4
+  AlpenFlight shots on `integration-J-4`; fanout YAML valid (js-yaml); the 4 legacy + 4 curled-AlpenFlight
+  PNGs land in `$SHOT` with matching `view` names (Account/Personal/Pilot/Notifications tab) so the
+  generator pairs them. First LIVE green is the re-run fanout dispatch.
 - [x] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
   only the Person's name, not contact/address — so the Personal tab renders empty + T-13's round-trip can't
   read. Add a caller-scoped `GET /me/person` (returns the editable contact/address shape; `operationId
