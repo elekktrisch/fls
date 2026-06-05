@@ -2147,6 +2147,33 @@
       }
     },
     "/api/v1/me/person" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Read the caller's own Person contact / address fields (plus the read-only name fields for display) so the Personal tab hydrates. Caller's Person resolved from the JWT → user → person_id — no :id. A caller with no linked Person gets 409.",
+        "operationId" : "getMyPerson",
+        "responses" : {
+          "200" : {
+            "description" : "The caller's editable contact / address shape.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The caller's user row has no linked Person record.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MePersonResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch" : {
         "tags" : [ "me" ],
         "summary" : "Edit the caller's own Person contact / address fields (address, zip/city/region, country, phones, private/business email, birthday). Caller's Person resolved from the JWT → user → person_id — no :id. Name fields are admin-only and preserved; a caller with no linked Person gets 409.",
@@ -5953,6 +5980,68 @@
             "type" : "integer",
             "format" : "int64",
             "description" : "Total non-deleted flights across all clubs."
+          }
+        }
+      },
+      "MePersonResponse" : {
+        "type" : "object",
+        "description" : "Caller's own Person contact / address fields (read shape for the Personal tab).",
+        "properties" : {
+          "firstName" : {
+            "type" : "string"
+          },
+          "lastName" : {
+            "type" : "string"
+          },
+          "midName" : {
+            "type" : "string"
+          },
+          "companyName" : {
+            "type" : "string"
+          },
+          "addressLine1" : {
+            "type" : "string"
+          },
+          "addressLine2" : {
+            "type" : "string"
+          },
+          "zip" : {
+            "type" : "string"
+          },
+          "city" : {
+            "type" : "string"
+          },
+          "region" : {
+            "type" : "string"
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "privatePhone" : {
+            "type" : "string"
+          },
+          "mobilePhone" : {
+            "type" : "string"
+          },
+          "businessPhone" : {
+            "type" : "string"
+          },
+          "faxNumber" : {
+            "type" : "string"
+          },
+          "emailPrivate" : {
+            "type" : "string"
+          },
+          "emailBusiness" : {
+            "type" : "string"
+          },
+          "preferMailToBusinessMail" : {
+            "type" : "boolean"
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date"
           }
         }
       },

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ch.alpenflight.platform.security.JwtTestFixture;
 import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
@@ -25,17 +27,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * HTTP slice for {@code PATCH /api/v1/me/person} — the caller-scoped
- * Person-contact self-edit (J-4 T-06). The endpoint takes NO {@code :id}: the
- * Person being edited is resolved from the JWT {@code sub} → the caller's
- * {@code t_user} row → its {@code person_id}, so the isolation test below is
- * the structural proof that a caller can only ever mutate their own Person.
+ * HTTP slice for {@code GET + PATCH /api/v1/me/person} — the caller-scoped
+ * Person-contact self-edit (J-4 T-06 PATCH, T-18 GET). The endpoints take NO
+ * {@code :id}: the Person being read / edited is resolved from the JWT
+ * {@code sub} → the caller's {@code t_user} row → its {@code person_id}, so the
+ * isolation tests below are the structural proof that a caller can only ever
+ * read / mutate their own Person.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
 @Import(JwtTestFixture.class)
 class MePersonControllerIT extends PostgresIntegrationTest {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final UUID CLUB_UUID =
             UUID.fromString("019e30c3-2c00-7001-8000-000000000001");
     private static final UUID LANG_DE_UUID =
@@ -49,6 +53,67 @@ class MePersonControllerIT extends PostgresIntegrationTest {
     void cleanFixtures() {
         jdbc.update("DELETE FROM t_user WHERE username LIKE 'meperson-it-%'");
         jdbc.update("DELETE FROM t_person WHERE company_name = 'MePersonIT'");
+    }
+
+    @Test
+    void getPerson_returnsCallersOwnContactAndReadonlyNames() {
+        UUID kcSub = UUID.randomUUID();
+        UUID personId = seedPerson("Ada", "Lovelace", "M");
+        // Seed contact / address values directly on the row.
+        jdbc.update("UPDATE t_person SET address_line1 = '12 Analytical Ave', zip = '8000', "
+                        + "city = 'Zurich', region = 'ZH', private_phone = '+41 44 111 22 33', "
+                        + "business_phone = '+41 44 999 88 77', email_private = 'ada@example.com', "
+                        + "prefer_mail_to_business_mail = true, birthday = DATE '1815-12-10' "
+                        + "WHERE id = ?::uuid", personId.toString());
+        seedUser(kcSub, "meperson-it-get", personId);
+
+        ResponseEntity<String> res = get("/api/v1/me/person", pilotToken(kcSub));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        JsonNode body = parse(res.getBody());
+        // Editable contact / address fields are populated.
+        assertThat(body.get("addressLine1").asText()).isEqualTo("12 Analytical Ave");
+        assertThat(body.get("zip").asText()).isEqualTo("8000");
+        assertThat(body.get("city").asText()).isEqualTo("Zurich");
+        assertThat(body.get("region").asText()).isEqualTo("ZH");
+        assertThat(body.get("privatePhone").asText()).isEqualTo("+41 44 111 22 33");
+        assertThat(body.get("businessPhone").asText()).isEqualTo("+41 44 999 88 77");
+        assertThat(body.get("emailPrivate").asText()).isEqualTo("ada@example.com");
+        assertThat(body.get("preferMailToBusinessMail").asBoolean()).isTrue();
+        assertThat(body.get("birthday").asText()).isEqualTo("1815-12-10");
+        // Read-only name fields are present for display.
+        assertThat(body.get("firstName").asText()).isEqualTo("Ada");
+        assertThat(body.get("lastName").asText()).isEqualTo("Lovelace");
+        assertThat(body.get("midName").asText()).isEqualTo("M");
+    }
+
+    @Test
+    void getPerson_resolvesCallerFromJwt_neverReadsAnotherPrincipalsPerson() {
+        // Two principals, each with their own linked Person. The GET has no :id —
+        // the Person read is resolved from the caller's JWT sub via their user
+        // row, so principal A reads A's contact, never B's.
+        UUID subA = UUID.randomUUID();
+        UUID subB = UUID.randomUUID();
+        UUID personA = seedPerson("Ada", "Lovelace", null);
+        UUID personB = seedPerson("Grace", "Hopper", null);
+        jdbc.update("UPDATE t_person SET city = 'A-City' WHERE id = ?::uuid", personA.toString());
+        jdbc.update("UPDATE t_person SET city = 'B-City' WHERE id = ?::uuid", personB.toString());
+        seedUser(subA, "meperson-it-get-self", personA);
+        seedUser(subB, "meperson-it-get-other", personB);
+
+        JsonNode body = parse(get("/api/v1/me/person", pilotToken(subA)).getBody());
+        // A reads A's own contact — B's is unreachable through this surface.
+        assertThat(body.get("firstName").asText()).isEqualTo("Ada");
+        assertThat(body.get("city").asText()).isEqualTo("A-City");
+    }
+
+    @Test
+    void getPerson_callerWithNoLinkedPerson_returns409() {
+        UUID kcSub = UUID.randomUUID();
+        seedUser(kcSub, "meperson-it-get-noperson", null);
+
+        ResponseEntity<String> res = get("/api/v1/me/person", pilotToken(kcSub));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     @Test
@@ -168,6 +233,14 @@ class MePersonControllerIT extends PostgresIntegrationTest {
                 .claim("realm_access", Map.of("roles", List.of("PILOT"))));
     }
 
+    private ResponseEntity<String> get(String path, String token) {
+        return rest.exchange(
+                RequestEntity.method(HttpMethod.GET, URI.create(path))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .build(),
+                String.class);
+    }
+
     private ResponseEntity<String> patch(String path, Object body, String token) {
         return rest.exchange(
                 RequestEntity.method(HttpMethod.PATCH, URI.create(path))
@@ -175,5 +248,13 @@ class MePersonControllerIT extends PostgresIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .body(body),
                 String.class);
+    }
+
+    private static JsonNode parse(String json) {
+        try {
+            return MAPPER.readTree(json);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse JSON: " + json, e);
+        }
     }
 }

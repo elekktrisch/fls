@@ -279,12 +279,30 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   e2e, flsweb stack — model on `e2e/tests/flights/flights-parity-J2.spec.ts`) records the legacy
   `/profile` video + screenshots; wire into the legacy-video/gallery pipeline so the **paired
   legacy↔AlpenFlight /profile** renders. Seam: parity capture spec + pipeline wiring.
-- [ ] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
+- [x] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
   only the Person's name, not contact/address — so the Personal tab renders empty + T-13's round-trip can't
   read. Add a caller-scoped `GET /me/person` (returns the editable contact/address shape; `operationId
   getMyPerson`; no `:id`; no-Person → clean 409/empty) + wire `personal.store` to load it on init. Seam:
   me-person GET + personal.store hydrate. (Account already hydrates from `/me`; licences/prefs hydrate via
   their own GETs in T-08/T-10.)
+  **Done:** `GET /api/v1/me/person` added to `MePersonController` (`operationId getMyPerson`,
+  `@PreAuthorize("isAuthenticated()")`, no `:id`) — caller's Person resolved via
+  `MeService.resolve(jwt).personId()` through a shared `resolveOwnPersonId` helper (the PATCH now reuses
+  it); no-linked-Person → `NoLinkedPersonException` → 409 via the existing `MePersonExceptionHandler`.
+  Returns new `MePersonResponse` = the editable contact/address fields (addressLine1/2, zip, city, region,
+  countryId, privatePhone/mobile/business/fax, emailPrivate/Business, preferMailToBusinessMail, birthday)
+  PLUS read-only name fields (firstName/lastName/midName/companyName) for display. Read path
+  `PersonsService.getOwnContact(personId)` returns a lean KC-free `SelfContactView` (mirrors `getOwnLicences`
+  / `SelfLicencesView`). OpenAPI snapshot regen'd (throwaway local pg:17 + flywayMigrate; remote DB
+  unreachable this window); orval TS client regen'd. `personal.store` now loads via `getMyPerson()` on init
+  (mirroring `pilot.store`'s `getMyLicences()`) so the Personal tab hydrates with the caller's real
+  contact/address values; `save()` PATCHes then re-reads via `getMyPerson` (PATCH returns the name-only /me
+  projection) and emits `profile.updated`. IT (6 cases): `getPerson_returnsCallersOwnContactAndReadonlyNames`,
+  `getPerson_resolvesCallerFromJwt_neverReadsAnotherPrincipalsPerson`,
+  `getPerson_callerWithNoLinkedPerson_returns409` (+ the 3 existing PATCH cases) all green; arch guards
+  (`ApplicationModulesTest` 1, `ControllerAuditCoverageTest` 1, `NativeSqlRegisterTest` 2,
+  `AuditRedactionCoverageTest` 1) all green. Frontend: tsc + eslint + prettier clean, 339 unit tests +
+  `ng build --configuration mock-auth` green.
 - [x] **T-19 — Fix `me`→`persons.application` Modulith boundary (CI/arch-guard, build-blocking).**
   `ApplicationModulesTest.verifyModuleStructure()` red: the `me` module (MePersonController/MePersonLicences
   Controller/MeNotificationPrefsController) depends on **non-exposed** `persons.application` types

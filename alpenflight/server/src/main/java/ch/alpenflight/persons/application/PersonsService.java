@@ -166,6 +166,25 @@ public class PersonsService {
      * @throws PersonNotFoundException if the {@code personId} resolves to no
      *     active Person row.
      */
+    /**
+     * Read the caller's OWN contact / address shape (J-4 T-18) so the Personal
+     * tab (T-07) hydrates with real values. Resolved from the JWT → User →
+     * {@code person_id}; the {@code personId} arg is the caller's own linked
+     * Person, never a request parameter — no IDOR risk, no {@code :id}.
+     * Read-only, cross-tenant by PK (the caller's own Person may have its
+     * membership in another tenant). Returns the editable contact fields plus
+     * the read-only name fields for display (rename stays admin-only).
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row.
+     */
+    @Transactional(readOnly = true)
+    public SelfContactView getOwnContact(UUID personId) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        return SelfContactView.of(p);
+    }
+
     public void updateOwnContact(UUID personId, SelfContactUpdate cmd) {
         Person p = persons.findActiveById(personId)
                 .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));

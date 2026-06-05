@@ -5,35 +5,30 @@ import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { pipe, switchMap, tap } from 'rxjs';
 
 import { MeService } from '@api/generated/me/me.service';
-import type { MePersonUpdateRequest, MeResponse } from '@api/generated/model';
+import type { MePersonResponse, MePersonUpdateRequest } from '@api/generated/model';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
 
 /**
- * The Personal (Person-contact) self-edit values the form binds to.
+ * The Personal (Person-contact) self-edit values the form binds to. Sourced from
+ * the caller-scoped `GET /api/v1/me/person` projection (T-18) and round-tripped
+ * through `PATCH /api/v1/me/person` (`updateMyPerson`).
  *
- * `firstName` / `lastName` are sourced from the `/api/v1/me` projection and
- * render READ-ONLY (rename stays admin-only). The contact / address fields are
- * editable and round-trip through {@code PATCH /api/v1/me/person}
- * (`updateMyPerson`).
+ * `firstName` / `lastName` render READ-ONLY (rename stays admin-only). The
+ * contact / address fields are editable. All fields default to the empty string
+ * (or `false` for the business-mail pref) so the reactive form's non-nullable
+ * controls always have a value.
  *
- * <p><strong>/me projection gap (note for T-13 round-trip).</strong> The
- * `/api/v1/me` projection (`MeResponse`) carries only `firstName` / `lastName`
- * of the Person — NOT the contact / address fields (`addressLine1`, `city`,
- * `zip`, phones, `birthday`, …). So the editable controls hydrate empty on first
- * load and the populated-render + edit→persist→reflect-on-reload round-trip
- * (T-13 / S-182 AC "Personal round-trip") needs the `/me` projection (or a
- * caller-scoped `GET /me/person`) extended with those Person contact fields —
- * the same shape T-05 added for the Account self-fields. T-07 wires the form +
- * the PATCH; the projection touch + round-trip assertions are T-13's.
+ * <p>The dedicated GET (mirroring the Pilot / Notifications tabs, T-08 / T-10) is
+ * what makes the populated-render + edit→persist→reflect-on-reload round-trip
+ * work: `/me` carries only the Person's name, not the contact / address fields,
+ * so the tab would otherwise hydrate empty (the T-06/T-07 read gap).
  */
 export interface PersonalView {
   // Read-only identity (admin-owned rename) — display only.
   firstName: string;
   lastName: string;
-  // Editable contact / address fields. Sourced from /me where present; today
-  // /me carries none of these, so they start empty until the projection touch
-  // (see the class doc) — the form is still wired to the PATCH.
+  // Editable contact / address fields.
   addressLine1: string;
   addressLine2: string;
   zip: string;
@@ -67,45 +62,47 @@ const initial: PersonalState = {
   savedOnce: false,
 };
 
-/**
- * Map the `/me` projection to the Personal view. Only `firstName` / `lastName`
- * are present in `MeResponse` today; the contact fields fall back to empty (see
- * the {@link PersonalView} class doc — the projection touch is T-13's).
- */
-function toView(res: MeResponse): PersonalView {
+/** Map the contact/address projection to the view, defaulting absent fields. */
+function toView(res: MePersonResponse): PersonalView {
   return {
     firstName: res.firstName ?? '',
     lastName: res.lastName ?? '',
-    addressLine1: '',
-    addressLine2: '',
-    zip: '',
-    city: '',
-    region: '',
-    countryId: '',
-    privatePhone: '',
-    mobilePhone: '',
-    businessPhone: '',
-    faxNumber: '',
-    emailPrivate: '',
-    emailBusiness: '',
-    preferMailToBusinessMail: false,
-    birthday: '',
+    addressLine1: res.addressLine1 ?? '',
+    addressLine2: res.addressLine2 ?? '',
+    zip: res.zip ?? '',
+    city: res.city ?? '',
+    region: res.region ?? '',
+    countryId: res.countryId ?? '',
+    privatePhone: res.privatePhone ?? '',
+    mobilePhone: res.mobilePhone ?? '',
+    businessPhone: res.businessPhone ?? '',
+    faxNumber: res.faxNumber ?? '',
+    emailPrivate: res.emailPrivate ?? '',
+    emailBusiness: res.emailBusiness ?? '',
+    preferMailToBusinessMail: res.preferMailToBusinessMail ?? false,
+    birthday: res.birthday ?? '',
   };
 }
 
 /**
- * Personal-tab store (J-4 T-07). Loads the caller's own Person fields from
- * `/api/v1/me` (name fields for the read-only display) and persists contact /
- * address edits through `PATCH /api/v1/me/person` (orval `updateMyPerson`).
- * Name fields (first/last/mid/company) are admin-only — read-only here.
+ * Personal-tab store (J-4 T-07 form, T-18 hydrate). Loads the caller's own
+ * Person contact / address fields from `GET /api/v1/me/person` (orval
+ * `getMyPerson`) and persists edits through `PATCH /api/v1/me/person` (orval
+ * `updateMyPerson`). Name fields (first/last/mid/company) are admin-only —
+ * read-only here.
  *
- * On a saved edit it emits a `profile.updated` MUTATION_BUS event so the session
- * re-reads `/me` (the same event the Account tab emits) — coordinated via the
- * bus rather than a direct SessionStore injection (no-sibling-store rule,
- * CLAUDE.md §10).
+ * On a saved edit it re-reads via `getMyPerson` so the form reflects the
+ * persisted contact values (the PATCH response is the `/me` projection, which
+ * carries only the name) and emits a `profile.updated` MUTATION_BUS event so the
+ * session re-reads `/me` (the same event the Account / Pilot tabs emit) —
+ * coordinated via the bus rather than a direct SessionStore injection
+ * (no-sibling-store rule, CLAUDE.md §10).
  *
  * Feature-scoped (not `providedIn: 'root'`): the store's lifetime is the
  * `/profile` route, and a fresh load on every visit is the desired behavior.
+ * The backend GET / PATCH 409 when the caller has no linked Person; the shell
+ * gates this tab on `hasPerson()`, so the load never fires for a person-less
+ * principal.
  */
 export const PersonalStore = signalStore(
   withState<PersonalState>(initial),
@@ -117,9 +114,10 @@ export const PersonalStore = signalStore(
       pipe(
         tap(() => patchState(store, { isLoading: true, hasError: false })),
         switchMap(() =>
-          me.get1().pipe(
+          me.getMyPerson().pipe(
             tapResponse({
-              next: (res: MeResponse) => patchState(store, { view: toView(res), isLoading: false }),
+              next: (res: MePersonResponse) =>
+                patchState(store, { view: toView(res), isLoading: false }),
               error: () => patchState(store, { isLoading: false, hasError: true }),
             }),
           ),
@@ -132,8 +130,11 @@ export const PersonalStore = signalStore(
         tap(() => patchState(store, { isSaving: true, hasError: false })),
         switchMap((req) =>
           me.updateMyPerson(req).pipe(
+            // The PATCH response is the /me projection (name only); re-read the
+            // contact shape so the form reflects the persisted values.
+            switchMap(() => me.getMyPerson()),
             tapResponse({
-              next: (res: MeResponse) => {
+              next: (res: MePersonResponse) => {
                 patchState(store, {
                   view: toView(res),
                   isSaving: false,

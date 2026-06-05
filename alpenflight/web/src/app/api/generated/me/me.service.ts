@@ -31,6 +31,7 @@ import type {
   MeNotificationPrefsUpdateRequest,
   MePersonLicencesResponse,
   MePersonLicencesUpdateRequest,
+  MePersonResponse,
   MePersonUpdateRequest,
   MeProfileUpdateRequest,
   MeResponse,
@@ -117,6 +118,39 @@ export class MeService {
     return this.http.patch<TData>(
       `/api/v1/me/profile`,
       meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Read the caller's own Person contact / address fields (plus the read-only name fields for display) so the Personal tab hydrates. Caller's Person resolved from the JWT → user → person_id — no :id. A caller with no linked Person gets 409.
+ */
+ getMyPerson<TData = MePersonResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ getMyPerson<TData = MePersonResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getMyPerson<TData = MePersonResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getMyPerson<TData = MePersonResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/person`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/person`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/person`,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

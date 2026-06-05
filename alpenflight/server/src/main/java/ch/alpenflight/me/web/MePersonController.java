@@ -15,16 +15,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * {@code PATCH /api/v1/me/person} — the caller-scoped Person-contact self-edit
- * (J-4 T-06). A logged-in principal edits their OWN Person aggregate's
- * contact / address fields (address, zip/city/region, country, phones,
- * private/business email, birthday).
+ * {@code GET + PATCH /api/v1/me/person} — the caller-scoped Person-contact
+ * self-edit (J-4 T-06 PATCH, T-18 GET). A logged-in principal reads + edits
+ * their OWN Person aggregate's contact / address fields (address,
+ * zip/city/region, country, phones, private/business email, birthday).
+ *
+ * <p>The GET hydrates the Personal tab (T-07): {@code /me} carries only the
+ * Person's name, not its contact / address fields, so the tab needs its own
+ * caller-scoped read — mirroring the Pilot / Notifications tabs, which each
+ * have their own GET (T-08 / T-10). The read shape adds the read-only name
+ * fields (first/last/mid/company) so the tab can display them.
  *
  * <p><strong>No {@code :id} path param.</strong> The Person to edit is resolved
  * from the JWT {@code sub} → the caller's {@code t_user} row → its
@@ -54,6 +61,23 @@ class MePersonController {
         this.meService = meService;
     }
 
+    @GetMapping(path = "/person")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(
+            operationId = "getMyPerson",
+            summary = "Read the caller's own Person contact / address fields (plus the read-only "
+                    + "name fields for display) so the Personal tab hydrates. Caller's Person "
+                    + "resolved from the JWT → user → person_id — no :id. A caller with no linked "
+                    + "Person gets 409.")
+    @ApiResponse(responseCode = "200", description = "The caller's editable contact / address shape.")
+    @ApiResponse(responseCode = "409", description = "The caller's user row has no linked Person record.")
+    ResponseEntity<MePersonResponse> getPerson(@AuthenticationPrincipal Jwt jwt) {
+        UUID personId = resolveOwnPersonId(jwt);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(MePersonResponse.from(personsService.getOwnContact(personId)));
+    }
+
     @PatchMapping(path = "/person", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("isAuthenticated()")
     @Operation(
@@ -67,11 +91,7 @@ class MePersonController {
     @ApiResponse(responseCode = "409", description = "The caller's user row has no linked Person record.")
     ResponseEntity<MeResponse> updatePerson(@Valid @RequestBody MePersonUpdateRequest req,
                                             @AuthenticationPrincipal Jwt jwt) {
-        MeView view = meService.resolve(jwt);
-        UUID personId = view.personId();
-        if (personId == null) {
-            throw new NoLinkedPersonException();
-        }
+        UUID personId = resolveOwnPersonId(jwt);
         personsService.updateOwnContact(personId, new SelfContactUpdate(
                 req.addressLine1(), req.addressLine2(), req.zip(), req.city(), req.region(),
                 req.countryId(),
@@ -86,5 +106,14 @@ class MePersonController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(MeResponse.from(meService.resolve(jwt)));
+    }
+
+    private UUID resolveOwnPersonId(Jwt jwt) {
+        MeView view = meService.resolve(jwt);
+        UUID personId = view.personId();
+        if (personId == null) {
+            throw new NoLinkedPersonException();
+        }
+        return personId;
     }
 }

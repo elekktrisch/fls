@@ -87,6 +87,7 @@ export * from './meNotificationPrefsResponse';
 export * from './meNotificationPrefsUpdateRequest';
 export * from './mePersonLicencesResponse';
 export * from './mePersonLicencesUpdateRequest';
+export * from './mePersonResponse';
 export * from './mePersonUpdateRequest';
 export * from './meProfileUpdateRequest';
 export * from './meResponse';
