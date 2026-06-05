@@ -440,7 +440,7 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
 > the flake fix; operator decision. (2) The **dashboard-proof red is expected stub-tab redness** (Personal/
 > Pilot/Notifications field testids don't exist until T-07/09/11) — gallery still deploys (`!cancelled()`).
 
-- [ ] **T-20 — Locale honesty fix (§4 gap-hunter finding).** AC2 "language change refreshes the SPA locale"
+- [x] **T-20 — Locale honesty fix (§4 gap-hunter finding).** AC2 "language change refreshes the SPA locale"
   is proven by a **trivially-green** assertion: Chromium boots `navigator.language=en-US`→`en`, and the SPA's
   cold-start resolver (`core/i18n/lang-providers.ts`/`lang-resolver.ts`) **never reads the authenticated
   user's persisted `languageId`** — so `<html lang>='en'` passes regardless of DB, and a saved language does
@@ -451,6 +451,31 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `?lang=de`), assert German initially, change→save→assert the flip to English AND survives reload; (c) fix
   the stale `ci.yml` `pw`-step comment ("partially red-by-design / tab stubs") — the spec is now full-assertion.
   Seam: i18n cold-start resolver + self-edit.spec.ts locale block + ci.yml comment.
+  **Done:** (a) **cold-start honors persisted languageId.** Two pure helpers added to `core/i18n/lang-resolver.ts`
+  — `hasExplicitLangOverride(urlSearch)` (true only for a supported `?lang=`) + `localeForLanguageCode(code)`
+  (exact-then-base-lang match, `de-CH`→`de`, `rm`→null) — exported via `core/i18n/index.ts` (+10 unit cases in
+  `lang-resolver.spec.ts`). The hand-written `core/session/me.service.ts` `MeResponse` gained `languageCode`
+  (backend already emits it — `me/web/MeResponse.java` + `MeProfileControllerIT` assert `languageCode='en'`).
+  `SessionStore.loadMe()` (`core/session/session.store.ts`) now injects `LocaleService` and, in the `/me` `tap`,
+  applies the persisted locale: **precedence = explicit `?lang=` override → persisted `languageCode` →
+  navigator.language → `de`**. Bootstrap-ordering handling: the `provideAppInitializer` set runs synchronously at
+  boot (navigator→de fallback); `loadMe()` is async post-login, so when `/me` resolves it OVERRIDES that fallback
+  with the saved code *unless* `hasExplicitLangOverride(window.location.search)` (operator-pinned `?lang=` wins) or
+  the code maps to no SPA locale. Unauthenticated/public path is untouched (no `/me` → navigator→de). No
+  localStorage (project rule); reactive signal pattern preserved. (b) **spec is real.** `self-edit.spec.ts` AC2:
+  `loginAsPilot` now takes a `contextLocale` arg → the test boots `browser.newContext({locale:'de-CH'})` so the SPA
+  genuinely cold-starts German; asserts `<html lang>='de'` + the German label "Anzeigename" initially, flips
+  language→English on the Account tab → save → asserts `<html lang>='en'` + "Display name" visible + "Anzeigename"
+  gone, THEN reloads `/profile` and asserts it STAYS English (`<html lang>='en'` + "Display name") — the
+  navigator is still `de-CH`, so survival is ONLY possible via fix (a). Resilient gallery capture (first test)
+  left intact; testids unchanged. (c) **ci.yml comment** (`alpenflight-dashboard-proof` `pw` step) updated from
+  "partially red-by-design / tab stubs T-06..T-11" to "now full-assertion, expected green; resilient capture
+  still deploys the gallery on any red" (comment-only). **Verify:** `tsc -p tsconfig.app.json` 0 errors; eslint
+  clean on touched app + spec; prettier clean (`e2e/**`); `ng build --configuration mock-auth` green; `pnpm test`
+  350 unit tests green (incl. 30 in session.store + lang-resolver, +10 new resolver cases); `playwright test
+  --list` → all 8 spec tests route to `real-idp`, well-formed, 0 tsc errors in the spec (22 pre-existing
+  unrelated); ci.yml valid YAML. Full real-idp run is the `alpenflight-dashboard-proof` CI job (the reload-
+  survival assertion can ONLY pass if fix (a) is correct — authored together).
 
 ## §4 gate findings (2× gap-hunter, majority-vote)
 

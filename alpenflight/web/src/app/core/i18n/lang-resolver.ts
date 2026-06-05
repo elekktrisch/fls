@@ -52,3 +52,45 @@ function readQueryParam(search: string): string | null {
     return null;
   }
 }
+
+/**
+ * True when the URL carries an explicit, supported `?lang=` override. The
+ * authenticated-user locale resolution defers to it: an operator who pins a
+ * locale in the URL wins over their persisted preference (and over the
+ * navigator/default cold-start fallback). An absent or unsupported `?lang=`
+ * is not an override.
+ */
+export function hasExplicitLangOverride(
+  urlSearch: string | null | undefined,
+  availableLangs: readonly AppLocale[] = AVAILABLE_LOCALES,
+): boolean {
+  if (!urlSearch) {
+    return false;
+  }
+  const fromParam = readQueryParam(urlSearch);
+  return fromParam !== null && isLocale(availableLangs, fromParam);
+}
+
+/**
+ * Map a persisted BCP-47 language code (`/me` `languageCode`, e.g. `de`,
+ * `fr`, `de-CH`) to an SPA-supported locale, or `null` when it maps to none
+ * (a migrated user on `rm` keeps the cold-start-resolved locale). Same
+ * exact-then-base-lang matching the navigator path uses, so `de-CH` → `de`.
+ */
+export function localeForLanguageCode(
+  languageCode: string | null | undefined,
+  availableLangs: readonly AppLocale[] = AVAILABLE_LOCALES,
+): AppLocale | null {
+  if (!languageCode) {
+    return null;
+  }
+  const lower = languageCode.toLowerCase();
+  if (isLocale(availableLangs, lower)) {
+    return lower;
+  }
+  const base = lower.split('-')[0];
+  if (base && isLocale(availableLangs, base)) {
+    return base;
+  }
+  return null;
+}

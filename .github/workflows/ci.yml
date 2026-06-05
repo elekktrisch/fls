@@ -927,10 +927,12 @@ jobs:
       # profile spec writes 4 stable-named per-tab screenshots
       # (`alpenflight-profile-*.png`) into its per-test outputDir.
       #
-      # NON-BLOCKING: the J-4 profile spec is partially red-by-design (the deep
-      # round-trip assertions land in T-13 and the Personal/Pilot/Notifications tab
-      # bodies are stubs T-06..T-11) — it captures every tab shot BEFORE its
-      # assertions, so the gallery publishes regardless. The staging + gallery-build
+      # NON-BLOCKING: the J-4 profile spec is now FULL-ASSERTION (T-06..T-13 all
+      # landed — every tab body is real and the spec runs the full round-trip
+      # assertions: 4-tab round-trips, locale de→en flip + reload-survival, audit
+      # read, no-Person banner, isolation) and is EXPECTED GREEN. It still captures
+      # every tab shot BEFORE its deep assertions (resilient capture), so even if an
+      # assertion does go red the gallery still publishes: the staging + gallery-build
       # steps below are `if: always()` and the deploy is `!cancelled()`-gated, so a
       # red profile assertion here still stages the screenshots and deploys the
       # gallery. `id: pw` is preserved for the existing preview/deploy gates.

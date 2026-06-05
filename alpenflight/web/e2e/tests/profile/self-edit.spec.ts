@@ -107,8 +107,15 @@ async function loginAsPilot(
   browser: Browser,
   baseURL: string,
   principal: SeededPrincipal,
+  contextLocale?: string,
 ): Promise<{ context: BrowserContext; page: Page }> {
-  const context = await browser.newContext({ baseURL });
+  // `contextLocale` boots the browser context at a NON-`en` navigator locale so
+  // the SPA's cold-start resolver genuinely starts non-English (AC2 locale
+  // proof). Chromium defaults to `navigator.language=en-US`→`en`, which would
+  // make a `<html lang>='en'` assertion trivially green regardless of DB state.
+  const context = await browser.newContext(
+    contextLocale ? { baseURL, locale: contextLocale } : { baseURL },
+  );
   const page = await context.newPage();
   await page.goto('/');
   await page.getByTestId('landing-topbar-sign-in').click();
@@ -225,10 +232,22 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
     browser,
     baseURL,
   }) => {
-    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+    // Boot the context at a NON-`en` navigator locale (`de-CH` → resolves to
+    // `de`) so the SPA genuinely cold-starts in German — the de→en flip is then
+    // actually observable, not trivially-green off Chromium's `en-US` default.
+    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT, 'de-CH');
     try {
       await page.goto('/profile');
       await openTab(page, 'account');
+
+      // INITIAL locale is German. `<html lang>='de'` is the document-lang oracle;
+      // the German label "Anzeigename" (friendlyName) is a known-string oracle
+      // for the actual rendered translations. With navigator=de-CH the persisted
+      // German `languageCode` and the navigator both point at `de` here, so the
+      // start is unambiguously German (the reload assertion below is what proves
+      // the persisted-languageId cold-start path on its own).
+      await expect(page.locator('html')).toHaveAttribute('lang', 'de', { timeout: 10_000 });
+      await expect(page.getByText('Anzeigename', { exact: true })).toBeVisible();
 
       // Populated render: the seeded values hydrate the form.
       await expect(field(page, 'profile-account-friendlyName')).toHaveValue(SEED.friendlyName);
@@ -248,9 +267,9 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await field(page, 'profile-account-phone').fill(newPhone);
 
       // Language flip: switch the seeded German → English via the af-select
-      // (ng-zorro overlay) and assert the SPA locale flips. LocaleService.set
-      // mirrors the change onto <html lang> (the single switch the bootstrap
-      // uses), so the document lang is the most robust UI-locale oracle.
+      // (ng-zorro overlay) and assert the SPA locale FLIPS off German.
+      // LocaleService.set mirrors the change onto <html lang> + the rendered
+      // translations (the single switch the bootstrap uses).
       await page.getByTestId('profile-account-language').click();
       await page.getByTestId(`af-select-option-${LANGUAGE_ID_EN}`).click();
 
@@ -263,8 +282,11 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await patchPromise;
       await expect(page.getByTestId('profile-account-saved')).toBeVisible({ timeout: 15_000 });
 
-      // Locale flipped to English — assert via <html lang> (set by LocaleService).
+      // Locale flipped de→en — assert BOTH oracles: <html lang> AND the English
+      // label "Display name" (German "Anzeigename" must be gone).
       await expect(page.locator('html')).toHaveAttribute('lang', 'en', { timeout: 10_000 });
+      await expect(page.getByText('Display name', { exact: true })).toBeVisible();
+      await expect(page.getByText('Anzeigename', { exact: true })).toHaveCount(0);
 
       // SPA-nav-evicts-POST-body lesson: prove persistence via a RELOAD + re-GET,
       // never the PATCH response body. Reload /profile and re-read the fields.
@@ -272,8 +294,12 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       await openTab(page, 'account');
       await expect(field(page, 'profile-account-friendlyName')).toHaveValue(newFriendly);
       await expect(field(page, 'profile-account-phone')).toHaveValue(newPhone);
-      // The persisted language change also survives the reload (html lang stays en).
+      // LOCALE-SURVIVAL — this is the real proof of the persisted-languageId
+      // cold-start fix (T-20a). The context's navigator is STILL `de-CH`, so
+      // without that fix the reload would revert to German. It STAYS English
+      // ONLY because cold-start now reads the saved `/me` `languageCode='en'`.
       await expect(page.locator('html')).toHaveAttribute('lang', 'en', { timeout: 10_000 });
+      await expect(page.getByText('Display name', { exact: true })).toBeVisible();
     } finally {
       await context.close();
     }
