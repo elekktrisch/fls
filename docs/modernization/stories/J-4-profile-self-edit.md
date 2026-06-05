@@ -221,7 +221,20 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   id, B's row untouched), no-Person→409. OpenAPI snapshot regen'd (local pg:17 + flywayMigrate; remote DB
   unreachable this window). IT + `ControllerAuditCoverageTest` + `AuditRedactionCoverageTest` +
   `ApplicationModulesTest` green locally.
-- [ ] **T-09 — Pilot tab.** Licence/medical form + store (load via `GET /me/person/licences`, save via PATCH). Seam: Pilot tab component.
+- [x] **T-09 — Pilot tab.** Licence/medical form + store (load via `GET /me/person/licences`, save via PATCH). Seam: Pilot tab component.
+  **Done:** `features/profile/{profile-pilot.tab.ts, pilot.store.ts}` — reactive form grouped Licences /
+  Medical & expiry dates / Permissions & reports (af-form-field/af-input; native checkboxes for the 10
+  licence flags + 3 start-permission flags + statistic-reports flag; native `type="date"` af-inputs for the
+  6 expiry dates; af-input for `licenceNumber`). `PilotStore` (feature-scoped, provided on the shell next to
+  Account/Personal) loads via orval **`getMyLicences()`** + saves via **`updateMyLicences(mePersonLicencesUpdateRequest)`**,
+  reflects the projection, emits `profile.updated` MUTATION_BUS. Flags always send (a cleared box is a real
+  `false`); the licence number + dates only send when non-blank. Shell wires the tab inside the existing
+  `hasPerson()` `[nzDisabled]` gate (body also `@if (hasPerson())` so the GET never fires for a person-less
+  principal). Orval client regenerated (the T-08 snapshot already carried the ops + DTOs; the TS client tree
+  was stale). i18n `profile.pilot.*` in all 4 locales (de first, alphabetical). testids: spec contract
+  `profile-pilot-licence-glider` + `profile-pilot-medical-expiry` (class-2) + the full set below.
+  tsc + eslint + prettier + 335 unit tests (+4 `PilotStore`) + `ng build --configuration mock-auth` green.
+  No backend touch (T-08 GET+PATCH). Round-trip persistence + audit-row read are T-13.
 - [ ] **T-10 — Notification-prefs `GET + PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
   New `updateNotificationPrefs` mutator on PersonClub (driven via Person); caller-tenant membership resolved
   from JWT; GET returns the 3 pref values (Notif tab hydrates) + PATCH with audit (guard); admin-only fields

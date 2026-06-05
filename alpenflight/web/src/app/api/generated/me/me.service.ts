@@ -27,6 +27,8 @@ import {
 
 import type {
   ClubDashboardResponse,
+  MePersonLicencesResponse,
+  MePersonLicencesUpdateRequest,
   MePersonUpdateRequest,
   MeProfileUpdateRequest,
   MeResponse,
@@ -149,6 +151,75 @@ export class MeService {
     return this.http.patch<TData>(
       `/api/v1/me/person`,
       mePersonUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Read the caller's own Person licence/medical fields so the Pilot tab hydrates. Caller's Person resolved from the JWT → user → person_id — no :id. A caller with no linked Person gets 409.
+ */
+ getMyLicences<TData = MePersonLicencesResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ getMyLicences<TData = MePersonLicencesResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getMyLicences<TData = MePersonLicencesResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getMyLicences<TData = MePersonLicencesResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/person/licences`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/person/licences`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/person/licences`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Edit the caller's own Person licence/medical fields. Caller's Person resolved from the JWT → user → person_id — no :id. Emits a person.licences_updated audit event with a readable before/after diff (FADP-sensitive provenance). A caller with no linked Person gets 409.
+ */
+ updateMyLicences<TData = MePersonLicencesResponse>(mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyLicences<TData = MePersonLicencesResponse>(mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyLicences<TData = MePersonLicencesResponse>(mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyLicences<TData = MePersonLicencesResponse>(
+    mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person/licences`,
+      mePersonLicencesUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person/licences`,
+      mePersonLicencesUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/person/licences`,
+      mePersonLicencesUpdateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

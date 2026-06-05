@@ -8,8 +8,10 @@ import { SessionStore } from '../../core/session/session.store';
 
 import { AccountStore } from './account.store';
 import { PersonalStore } from './personal.store';
+import { PilotStore } from './pilot.store';
 import { ProfileAccountTab } from './profile-account.tab';
 import { ProfilePersonalTab } from './profile-personal.tab';
+import { ProfilePilotTab } from './profile-pilot.tab';
 
 /**
  * `/profile` self-edit shell (T-03, J-4 / S-182). Renders the 4-tab scaffold —
@@ -42,11 +44,12 @@ import { ProfilePersonalTab } from './profile-personal.tab';
     AfPageComponent,
     ProfileAccountTab,
     ProfilePersonalTab,
+    ProfilePilotTab,
   ],
-  // Account / Personal stores are feature-scoped to /profile — provided here so
-  // their lifetime is the shell, and a fresh /me load runs on every visit
-  // (T-05 Account, T-07 Personal).
-  providers: [AccountStore, PersonalStore],
+  // Account / Personal / Pilot stores are feature-scoped to /profile — provided
+  // here so their lifetime is the shell, and a fresh load runs on every visit
+  // (T-05 Account, T-07 Personal, T-09 Pilot).
+  providers: [AccountStore, PersonalStore, PilotStore],
   template: `
     <ng-container *transloco="let t; read: 'profile'">
       <af-page>
@@ -93,7 +96,11 @@ import { ProfilePersonalTab } from './profile-personal.tab';
                 <span data-testid="profile-tab-pilot">{{ t('tabs.pilot') }}</span>
               </ng-template>
               <section data-testid="profile-panel-pilot">
-                <p class="text-slate-500">{{ t('stub') }}</p>
+                @if (hasPerson()) {
+                  <af-profile-pilot-tab />
+                } @else {
+                  <p class="text-slate-500">{{ t('stub') }}</p>
+                }
               </section>
             </nz-tab>
 
