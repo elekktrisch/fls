@@ -164,9 +164,21 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `friendlyName,phoneNumber,languageId,languageCode` (username/clubId were already present) — snapshot +
   orval client regen'd, `MeProfileControllerIT` strengthened to assert the new projection fields. tsc + lint
   + 327 unit tests + `ng build --configuration mock-auth` green locally.
-- [ ] **T-06 — Person-contact endpoint `PATCH /api/v1/me/person`.** JWT→caller's Person,
+- [x] **T-06 — Person-contact endpoint `PATCH /api/v1/me/person`.** JWT→caller's Person,
   `updateContact`; name fields (first/last/mid/company) read-only/ignored; no-Person → clean error;
   `operationId`; IT + isolation. Seam: me-person endpoint.
+  **Done:** `MePersonController` (`me.web`, `PATCH /api/v1/me/person`, `@PreAuthorize("isAuthenticated()")`,
+  `operationId=updateMyPerson`) resolves the caller's Person from `MeService.resolve(jwt).personId()` (no `:id`);
+  `MePersonUpdateRequest` carries ONLY contact/address fields (addressLine1/2, zip, city, region, countryId,
+  privatePhone, mobilePhone, businessPhone, faxNumber, emailPrivate/@Email, emailBusiness/@Email,
+  preferMailToBusinessMail, birthday — NOT name/licence/membership/remarks/spotLink/enableAddress).
+  `PersonsService.updateOwnContact(personId, SelfContactUpdate)` applies `Person.updateContact` preserving
+  names + spotLink + enableAddress, and emits `auditTrail.record(UPDATE, AuditedTarget.updated("Person", id,
+  before, after))` over a lean KC-free `ContactSnapshot` (Person is in audit deny-all → redacts to
+  `[redacted]`). No-Person (`person_id` null) → `NoLinkedPersonException` → 409 via `MePersonExceptionHandler`
+  (IllegalArgumentException→400). `MePersonControllerIT`: happy (PILOT, contact persists, names untouched) +
+  isolation (A's token, no id, B's Person byte-identical) + no-Person→409. OpenAPI snapshot regen'd.
+  `ControllerAuditCoverageTest` green (audit hookup satisfies the guard).
 - [ ] **T-07 — Personal tab.** Contact/address form + store + `PATCH /me/person`; name fields read-only. Seam: Personal tab component.
 - [ ] **T-08 — Person-licences endpoint `PATCH /api/v1/me/person/licences` + audit.** `updateLicences`
   + emit `person.licences_updated` audit with before/after diff via `AuditTrail.record`; `operationId`;

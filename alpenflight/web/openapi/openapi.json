@@ -2146,6 +2146,55 @@
         }
       }
     },
+    "/api/v1/me/person" : {
+      "patch" : {
+        "tags" : [ "me" ],
+        "summary" : "Edit the caller's own Person contact / address fields (address, zip/city/region, country, phones, private/business email, birthday). Caller's Person resolved from the JWT → user → person_id — no :id. Name fields are admin-only and preserved; a caller with no linked Person gets 409.",
+        "operationId" : "updateMyPerson",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MePersonUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated; body is the refreshed /me projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed (bad email, over-length).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "The caller's user row has no linked Person record.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights/{id}/process-state" : {
       "patch" : {
         "tags" : [ "flights" ],
@@ -5269,6 +5318,94 @@
           "languageCode" : {
             "type" : "string",
             "description" : "BCP-47 code of `languageId` (e.g. `de`, `fr`). Lets the SPA flip its active locale on a saved language change without a second round-trip."
+          }
+        }
+      },
+      "MePersonUpdateRequest" : {
+        "type" : "object",
+        "description" : "Person-contact self-edit payload — caller's own contact / address fields only.",
+        "properties" : {
+          "addressLine1" : {
+            "type" : "string",
+            "description" : "Street address, line 1.",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "addressLine2" : {
+            "type" : "string",
+            "description" : "Street address, line 2.",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "zip" : {
+            "type" : "string",
+            "description" : "Postal / ZIP code.",
+            "maxLength" : 10,
+            "minLength" : 0
+          },
+          "city" : {
+            "type" : "string",
+            "description" : "City / town.",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "region" : {
+            "type" : "string",
+            "description" : "Region / canton / state.",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "countryId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "Country reference id."
+          },
+          "privatePhone" : {
+            "type" : "string",
+            "description" : "Private phone number.",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "mobilePhone" : {
+            "type" : "string",
+            "description" : "Mobile phone number.",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "businessPhone" : {
+            "type" : "string",
+            "description" : "Business phone number.",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "faxNumber" : {
+            "type" : "string",
+            "description" : "Fax number.",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "emailPrivate" : {
+            "type" : "string",
+            "format" : "email",
+            "description" : "Private email address.",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "emailBusiness" : {
+            "type" : "string",
+            "format" : "email",
+            "description" : "Business email address.",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "preferMailToBusinessMail" : {
+            "type" : "boolean",
+            "description" : "Prefer the business email for club correspondence (absent = false)."
+          },
+          "birthday" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Date of birth."
           }
         }
       },

@@ -18,6 +18,7 @@ import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -131,6 +132,81 @@ public class PersonsService {
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_PERSON, id.value(), beforeSnapshot, saved));
         return toResponse(saved);
+    }
+
+    /**
+     * Person-contact self-edit (J-4 T-06). The caller edits their OWN Person's
+     * contact / address fields, resolved from the JWT → User → {@code person_id}
+     * (the {@code personId} arg is the caller's own linked Person, NEVER an id
+     * from the request body) — so cross-principal mutation is structurally
+     * impossible. Updates only the contact / address fields; the name fields
+     * (firstname / lastname / midname / companyName) are NOT on the command and
+     * are preserved unchanged (rename stays admin-only). {@code spotLink} and
+     * {@code enableAddress} are likewise read from the existing aggregate and
+     * passed back through {@link Person#updateContact} unchanged.
+     *
+     * <p>This load is by PK and intentionally cross-tenant (the caller's own
+     * Person may have its membership in a different tenant than the resolved
+     * one) — but it carries no IDOR risk because the id is the caller's own,
+     * resolved from their JWT, not a request parameter.
+     *
+     * @throws PersonNotFoundException if the {@code personId} resolves to no
+     *     active Person row.
+     */
+    public void updateOwnContact(UUID personId, SelfContactUpdate cmd) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        // Snapshot the contact fields BEFORE mutating. A lean contact-only
+        // snapshot (not toResponse) avoids the cross-tenant membership-count +
+        // member-state lookups toResponse triggers on the self-edit hot path —
+        // and Person is in audit deny-all anyway, so the diff redacts to
+        // "[redacted]" regardless of which snapshot shape we hand it.
+        ContactSnapshot before = ContactSnapshot.of(p);
+        p.updateContact(
+                cmd.addressLine1(), cmd.addressLine2(), cmd.zip(), cmd.city(), cmd.region(),
+                cmd.countryId(),
+                cmd.privatePhone(), cmd.mobilePhone(), cmd.businessPhone(), cmd.faxNumber(),
+                cmd.emailPrivate(), cmd.emailBusiness(), cmd.preferMailToBusinessMail(),
+                cmd.birthday(),
+                // Preserve the non-contact fields the self-edit surface never sets.
+                p.getSpotLink(), p.isEnableAddress());
+        Person saved = persistPerson(p);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_PERSON, personId, before, ContactSnapshot.of(saved)));
+    }
+
+    /**
+     * Lean audit snapshot of the contact / address fields for the self-edit
+     * path — projects only what {@link #updateOwnContact} can mutate, avoiding
+     * the membership-count / member-state-name lookups {@link #toResponse}
+     * makes. Person is in the {@code audit.redaction.deny-all} policy (S-027),
+     * so these values redact to {@code [redacted]} in the trail; the snapshot
+     * still gives the redacting serializer a non-aliased before/after pair.
+     */
+    private record ContactSnapshot(
+            @Nullable String addressLine1,
+            @Nullable String addressLine2,
+            @Nullable String zip,
+            @Nullable String city,
+            @Nullable String region,
+            @Nullable UUID countryId,
+            @Nullable String privatePhone,
+            @Nullable String mobilePhone,
+            @Nullable String businessPhone,
+            @Nullable String faxNumber,
+            @Nullable String emailPrivate,
+            @Nullable String emailBusiness,
+            boolean preferMailToBusinessMail,
+            @Nullable LocalDate birthday) {
+
+        static ContactSnapshot of(Person p) {
+            return new ContactSnapshot(
+                    p.getAddressLine1(), p.getAddressLine2(), p.getZip(), p.getCity(), p.getRegion(),
+                    p.getCountryId(),
+                    p.getPrivatePhone(), p.getMobilePhone(), p.getBusinessPhone(), p.getFaxNumber(),
+                    p.getEmailPrivate(), p.getEmailBusiness(), p.isPreferMailToBusinessMail(),
+                    p.getBirthday());
+        }
     }
 
     public void softDeletePerson(PersonId id, @Nullable UUID userId) {
