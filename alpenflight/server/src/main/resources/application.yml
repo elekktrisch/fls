@@ -247,6 +247,16 @@ audit:
           - hasGliderSelfStartPermission
           - hasGliderWinchStartPermission
           - receiveOwnedAircraftStatisticReports
+      PersonClubNotificationPrefs:
+        # J-4 T-10 — the notification-prefs self-edit audit (Notifications tab).
+        # This entity type is the lean SelfNotificationPrefsView snapshot (NOT
+        # the PersonClub @Entity). The three booleans are non-sensitive
+        # operational flags, so the before/after diff emits verbatim for a
+        # readable trail.
+        allow:
+          - receiveFlightReports
+          - receiveAircraftReservationNotifications
+          - receivePlanningDayRoleReminder
       User:
         # S-052 — Email + friendlyName + phone are PII and omitted; the audit
         # row carries them as `[redacted]`. The id-shaped + tenant-shaped

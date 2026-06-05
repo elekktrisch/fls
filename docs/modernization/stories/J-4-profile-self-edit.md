@@ -235,10 +235,32 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `profile-pilot-licence-glider` + `profile-pilot-medical-expiry` (class-2) + the full set below.
   tsc + eslint + prettier + 335 unit tests (+4 `PilotStore`) + `ng build --configuration mock-auth` green.
   No backend touch (T-08 GET+PATCH). Round-trip persistence + audit-row read are T-13.
-- [ ] **T-10 — Notification-prefs `GET + PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
+- [x] **T-10 — Notification-prefs `GET + PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
   New `updateNotificationPrefs` mutator on PersonClub (driven via Person); caller-tenant membership resolved
   from JWT; GET returns the 3 pref values (Notif tab hydrates) + PATCH with audit (guard); admin-only fields
   (memberNumber/memberState/roles) untouched; `operationId`s; IT + isolation. Seam: PersonClub notif-prefs mutator + endpoint.
+  **Done:** `MeNotificationPrefsController` (`me.web`, `GET + PATCH /api/v1/me/club-membership/notification-prefs`,
+  `@PreAuthorize("isAuthenticated()")`, `operationId getMyNotificationPrefs` / `updateMyNotificationPrefs`)
+  resolves the caller's Person AND club from `MeService.resolve(jwt)` (`personId()` + `clubId()` — no `:id`).
+  `MeNotificationPrefsUpdateRequest` / `MeNotificationPrefsResponse` carry ONLY the 3 booleans
+  (`receiveFlightReports`, `receiveAircraftReservationNotifications`, `receivePlanningDayRoleReminder`); request
+  flags are nullable `Boolean` coerced to `false` (T-08 pattern). New focused mutator
+  `PersonClub.updateNotificationPrefs(prefs)` (package-private) changes ONLY the 3 booleans — memberNumber /
+  memberStateId / role flags / isActive left untouched — driven via the aggregate root
+  `Person.updateNotificationPrefs(clubId, prefs)` (resolves the caller-tenant alive membership; no membership →
+  `PersonNotFoundException`). `PersonsService.getOwnNotificationPrefs` (read) + `updateOwnNotificationPrefs`
+  (mutate + audit) over a lean `SelfNotificationPrefsView`. Audit: `AuditAction.UPDATE` under a DISTINCT entity
+  type `PersonClubNotificationPrefs` (its own allow-list in `audit.redaction.entities` — the 3 booleans emit
+  verbatim, readable diff). No linked Person OR no membership in current club → `NoLinkedPersonException` /
+  `PersonNotFoundException` → 409 via `MeNotificationPrefsExceptionHandler`. `MeNotificationPrefsControllerIT`
+  (6 cases): GET returns prefs, PATCH persists + re-GET reflects + **admin-only fields UNCHANGED**, readable
+  before/after audit row, isolation (A's token, no id, B's membership untouched), no-Person→409,
+  Person-but-no-membership→409. `PersonTest` adds 2 domain cases (only-3-booleans-change / no-membership-throws).
+  OpenAPI snapshot regen'd (throwaway local pg:17 + flywayMigrate; remote DB unreachable this window). IT +
+  `ControllerAuditCoverageTest` + `AuditRedactionCoverageTest` + `PersonTest` green locally.
+  **Pre-existing fail flagged:** `ApplicationModulesTest` is ALREADY RED on the branch HEAD (verified by stashing
+  my changes) — the `me`→`persons.application` boundary was already violated by T-06/T-08; T-10 adds only the
+  same violation class (no new boundary type). Not a T-10 regression.
 - [ ] **T-11 — Notifications tab.** 3 pref toggles + store + `PATCH /me/club-membership/notification-prefs`. Seam: Notifications tab component.
 - [ ] **T-12 — Legacy-parity capture spec.** `e2e/tests/profile/profile-parity-J4.spec.ts` (top-level
   e2e, flsweb stack — model on `e2e/tests/flights/flights-parity-J2.spec.ts`) records the legacy

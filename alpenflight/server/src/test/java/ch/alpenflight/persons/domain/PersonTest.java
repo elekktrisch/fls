@@ -92,4 +92,44 @@ class PersonTest {
         assertThat(pc.isMotorPilot()).isFalse();
         assertThat(pc.isTowPilot()).isFalse();
     }
+
+    @Test
+    void updateNotificationPrefs_changesOnlyTheThreeBooleans_adminFieldsUntouched() {
+        Person p = Person.register("Ada", "Lovelace", null);
+        p.joinClub(
+                CLUB_A, "M-42", UUID.fromString("019e30c3-2c00-7001-8000-0000000000b1"),
+                new PersonRoleFlags(true, true, true, true, false, false, false, false),
+                new PersonNotificationPrefs(false, false, false),
+                true);
+
+        PersonClub pc = p.updateNotificationPrefs(
+                CLUB_A, new PersonNotificationPrefs(true, false, true));
+
+        // The three notification booleans changed.
+        assertThat(pc.isReceiveFlightReports()).isTrue();
+        assertThat(pc.isReceiveAircraftReservationNotifications()).isFalse();
+        assertThat(pc.isReceivePlanningDayRoleReminder()).isTrue();
+        // The admin-only membership identity fields are UNTOUCHED.
+        assertThat(pc.getMemberNumber()).isEqualTo("M-42");
+        assertThat(pc.getMemberStateId())
+                .isEqualTo(UUID.fromString("019e30c3-2c00-7001-8000-0000000000b1"));
+        assertThat(pc.isMotorPilot()).isTrue();
+        assertThat(pc.isTowPilot()).isTrue();
+        assertThat(pc.isGliderInstructor()).isTrue();
+        assertThat(pc.isGliderPilot()).isTrue();
+        assertThat(pc.isActive()).isTrue();
+    }
+
+    @Test
+    void updateNotificationPrefs_withNoMembershipInClub_throws() {
+        Person p = Person.register("Grace", "Hopper", null);
+        p.joinClub(CLUB_A, "M-1", null,
+                PersonRoleFlags.none(), PersonNotificationPrefs.none(), true);
+
+        // No alive membership in CLUB_B → caller-tenant absence is a clean
+        // PersonNotFoundException (→ 409 at the edge).
+        assertThatThrownBy(() -> p.updateNotificationPrefs(
+                        CLUB_B, new PersonNotificationPrefs(true, true, true)))
+                .isInstanceOf(PersonNotFoundException.class);
+    }
 }

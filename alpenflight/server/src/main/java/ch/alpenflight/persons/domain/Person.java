@@ -373,6 +373,30 @@ public class Person {
         return pc;
     }
 
+    /**
+     * Notification-prefs self-edit (J-4 T-10, the Notifications tab). Applies
+     * the three notification booleans to the caller-tenant alive membership and
+     * leaves the admin-only membership identity fields (memberNumber,
+     * memberStateId, role flags, isActive) untouched — the narrow
+     * {@link PersonClub#updateNotificationPrefs} business rule, distinct from
+     * the full-shape {@link #updateClubMembership} an admin drives.
+     *
+     * <p>Throws {@link PersonNotFoundException} (→ 409) if the caller has no
+     * alive membership for {@code clubId} — the {@code @TenantId} filter has
+     * already trimmed the collection, so absence here means "the caller's
+     * Person has no membership in their current tenant".
+     */
+    public PersonClub updateNotificationPrefs(UUID clubId, PersonNotificationPrefs prefs) {
+        if (clubId == null) {
+            throw new IllegalArgumentException("clubId must not be null");
+        }
+        PersonClub pc = aliveMembershipIn(clubId).orElseThrow(
+                () -> new PersonNotFoundException(
+                        "Person has no alive PersonClub in club " + clubId));
+        pc.updateNotificationPrefs(prefs);
+        return pc;
+    }
+
     /** Soft-delete the alive membership for the given club. */
     public void leaveClub(UUID clubId, @Nullable UUID userId, Clock clock) {
         PersonClub pc = aliveMembershipIn(clubId).orElseThrow(

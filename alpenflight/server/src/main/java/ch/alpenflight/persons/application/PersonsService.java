@@ -14,6 +14,7 @@ import ch.alpenflight.persons.application.PersonDtos.PersonUpdateRequest;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonClub;
 import ch.alpenflight.persons.domain.PersonNotFoundException;
+import ch.alpenflight.persons.domain.PersonNotificationPrefs;
 import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
@@ -64,6 +65,12 @@ public class PersonsService {
     // before/after diff is READABLE by a sysadmin (AC4) — the FADP-sensitive
     // provenance the Pilot tab needs. Medical-field hashing is deferred (S-182).
     private static final String AUDIT_PERSON_LICENCES = "PersonLicences";
+    // Distinct audit entity type for the notification-prefs self-edit (J-4
+    // T-10). The three booleans are non-sensitive operational flags, so this
+    // type carries an explicit allow-list (unlike the deny-all Person) and the
+    // before/after diff reads verbatim. Distinct from "PersonClub" so the diff
+    // is the lean 3-field prefs shape, not the whole membership row.
+    private static final String AUDIT_PERSON_CLUB_NOTIFICATION_PREFS = "PersonClubNotificationPrefs";
     private static final int LOOKUP_RESULT_CAP = 5;
 
     private final PersonRepository persons;
@@ -271,6 +278,71 @@ public class PersonsService {
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_PERSON_LICENCES, personId, before,
                         SelfLicencesView.of(saved)));
+    }
+
+    /**
+     * Read the caller's OWN per-club notification preferences (J-4 T-10) so the
+     * Notifications tab (T-11) hydrates. The {@code personId} is the caller's
+     * own linked Person (resolved from the JWT → User → {@code person_id}, never
+     * a request parameter — no {@code :id}, no IDOR); {@code clubId} is the
+     * caller's CURRENT tenant/club. Read-only; resolves the alive membership in
+     * that club.
+     *
+     * @throws PersonNotFoundException if the {@code personId} resolves to no
+     *     active Person row, OR the caller has no alive membership in
+     *     {@code clubId} (→ 409 at the edge — the no-membership banner case).
+     */
+    @Transactional(readOnly = true)
+    public SelfNotificationPrefsView getOwnNotificationPrefs(UUID personId, UUID clubId) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        PersonClub pc = aliveMembershipInOrThrow(p, clubId);
+        return SelfNotificationPrefsView.of(pc);
+    }
+
+    /**
+     * Per-club notification-prefs self-edit (J-4 T-10, the Notifications tab).
+     * The caller edits ONLY the three notification booleans of their OWN
+     * caller-tenant {@link PersonClub}, via the focused
+     * {@link Person#updateNotificationPrefs} mutator — the admin-only membership
+     * identity fields (memberNumber / memberState / role flags / isActive) are
+     * NOT on the command and stay untouched. {@code personId} is the caller's
+     * own linked Person (JWT-resolved, never a request id → no cross-principal
+     * reach); {@code clubId} is the caller's current tenant/club.
+     *
+     * <p>Emits an {@code AuditAction.UPDATE} audit event under the
+     * {@code PersonClubNotificationPrefs} entity type — which carries an
+     * explicit allow-list, so the before/after diff is readable. The snapshot is
+     * a lean {@link SelfNotificationPrefsView} taken BEFORE the mutation, so
+     * before/after are distinct object references and the diff is non-empty.
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row, OR the caller has no alive membership in {@code clubId}
+     *     (→ 409 at the edge).
+     */
+    public void updateOwnNotificationPrefs(UUID personId, UUID clubId, SelfNotificationPrefsUpdate cmd) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        PersonClub before = aliveMembershipInOrThrow(p, clubId);
+        SelfNotificationPrefsView beforeSnapshot = SelfNotificationPrefsView.of(before);
+        PersonClub pc = p.updateNotificationPrefs(clubId, new PersonNotificationPrefs(
+                cmd.receiveFlightReports(),
+                cmd.receiveAircraftReservationNotifications(),
+                cmd.receivePlanningDayRoleReminder()));
+        persistPerson(p);
+        UUID pcId = requirePersonClubId(pc);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_PERSON_CLUB_NOTIFICATION_PREFS, pcId,
+                        beforeSnapshot, SelfNotificationPrefsView.of(pc)));
+    }
+
+    /** Resolve the caller's alive PersonClub in {@code clubId} or throw (→ 409). */
+    private static PersonClub aliveMembershipInOrThrow(Person p, UUID clubId) {
+        return p.getActivePersonClubs().stream()
+                .filter(pc -> clubId.equals(pc.getClubId()))
+                .findFirst()
+                .orElseThrow(() -> new PersonNotFoundException(
+                        "Person has no alive PersonClub in club " + clubId));
     }
 
     public void softDeletePerson(PersonId id, @Nullable UUID userId) {

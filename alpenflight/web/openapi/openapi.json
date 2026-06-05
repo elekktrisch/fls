@@ -2271,6 +2271,72 @@
         }
       }
     },
+    "/api/v1/me/club-membership/notification-prefs" : {
+      "get" : {
+        "tags" : [ "me" ],
+        "summary" : "Read the caller's own per-club notification preferences so the Notifications tab hydrates. Caller's Person + club resolved from the JWT → user → person_id / club_id — no :id. A caller with no linked Person, or no membership in the current club, gets 409.",
+        "operationId" : "getMyNotificationPrefs",
+        "responses" : {
+          "200" : {
+            "description" : "The caller's three notification preferences.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeNotificationPrefsResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "No linked Person or no membership in the current club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeNotificationPrefsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch" : {
+        "tags" : [ "me" ],
+        "summary" : "Edit the caller's own per-club notification preferences. Caller's Person + club resolved from the JWT → user → person_id / club_id — no :id. Changes ONLY the three toggles; admin-only membership fields (memberNumber / memberState / roles) stay untouched. Emits an audit event. A caller with no linked Person, or no membership in the current club, gets 409.",
+        "operationId" : "updateMyNotificationPrefs",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MeNotificationPrefsUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated; body is the refreshed notification preferences.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeNotificationPrefsResponse"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "No linked Person or no membership in the current club.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeNotificationPrefsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights/{id}/process-state" : {
       "patch" : {
         "tags" : [ "flights" ],
@@ -5654,6 +5720,39 @@
             "type" : "boolean"
           },
           "receiveOwnedAircraftStatisticReports" : {
+            "type" : "boolean"
+          }
+        }
+      },
+      "MeNotificationPrefsUpdateRequest" : {
+        "type" : "object",
+        "description" : "Per-club notification-prefs self-edit payload — caller's own three toggles only.",
+        "properties" : {
+          "receiveFlightReports" : {
+            "type" : "boolean",
+            "description" : "Receive flight reports (absent = false)."
+          },
+          "receiveAircraftReservationNotifications" : {
+            "type" : "boolean",
+            "description" : "Receive aircraft-reservation notifications (absent = false)."
+          },
+          "receivePlanningDayRoleReminder" : {
+            "type" : "boolean",
+            "description" : "Receive planning-day role reminders (absent = false)."
+          }
+        }
+      },
+      "MeNotificationPrefsResponse" : {
+        "type" : "object",
+        "description" : "Caller's own per-club notification preferences (read shape for the Notifications tab).",
+        "properties" : {
+          "receiveFlightReports" : {
+            "type" : "boolean"
+          },
+          "receiveAircraftReservationNotifications" : {
+            "type" : "boolean"
+          },
+          "receivePlanningDayRoleReminder" : {
             "type" : "boolean"
           }
         }
