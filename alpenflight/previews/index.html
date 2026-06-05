@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AlpenFlight proof previews — index</title>
+<style>
+:root {
+  --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
+  --text: #1a1d21; --muted: #5c6470; --border: #e3e6ea;
+  --primary: #0a66c2; --primary-hover: #0552a3;
+  --success: #0a7f3f; --success-bg: #e3f5ea;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface-2: #1c222b;
+    --text: #e6edf3; --muted: #8d96a0; --border: #2a313b;
+    --primary: #4da3ff; --primary-hover: #79bbff;
+    --success: #3fb950; --success-bg: #14271b;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+}
+.container { max-width: 1100px; margin: 0 auto; padding: clamp(1rem, 3vw, 2.5rem) clamp(1rem, 3vw, 1.5rem); }
+header { margin-bottom: 2rem; }
+h1 { font-size: clamp(1.5rem, 4vw, 2.25rem); margin: 0 0 .5rem; letter-spacing: -.02em; }
+p { margin: 0; color: var(--muted); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; background: var(--surface-2); padding: .1em .4em; border-radius: 4px; }
+a { color: var(--primary); text-decoration: none; }
+a:hover { color: var(--primary-hover); text-decoration: underline; }
+.meta { color: var(--muted); font-size: .9rem; }
+.bookmark { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); color: var(--text); font-size: .9rem; }
+.branch {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 0; padding: 0; margin: 0 0 -1px;
+}
+.branch + .branch { margin-top: 0; }
+.branch > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .9rem 1.1rem .9rem 2.1rem; position: relative;
+  background: var(--surface);
+  border-left: 2px solid transparent;
+}
+.branch > summary::-webkit-details-marker { display: none; }
+.branch > summary::before {
+  content: ''; position: absolute; left: 1rem; top: 1.25rem;
+  width: 0; height: 0;
+  border-left: 5px solid var(--muted);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+  transform: rotate(0deg); transform-origin: 25% 50%;
+}
+.branch[open] > summary::before { transform: rotate(90deg); }
+.branch[open] > summary { border-left-color: var(--primary); }
+.branch > summary:hover { background: var(--surface-2); }
+.branch-name { font-weight: 500; font-size: 1.05rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.branch-count { display: inline-block; padding: .2em .65em; border-radius: 4px; font-size: .8rem; font-weight: 500; background: var(--success-bg); color: var(--success); }
+.branch-updated { color: var(--muted); font-size: .8rem; }
+.proof-list { list-style: none; margin: 0; padding: .25rem 1.1rem 1.1rem; }
+.proof-row { display: flex; flex-direction: column; gap: .15rem; padding: .65rem .8rem; border: 1px solid var(--border); border-radius: 4px; margin-top: .6rem; background: var(--surface-2); }
+.proof-link { font-size: 1rem; }
+.purpose { color: var(--muted); font-size: .85rem; }
+.updated { color: var(--muted); font-size: .78rem; }
+.empty { padding: 1.25rem; border: 1px dashed var(--border); border-radius: 4px; background: var(--surface); }
+footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>AlpenFlight proof previews</h1>
+    <p class="meta">
+      The single, permanent entry point to every active branch/PR proof gallery.
+      Generated <code>2026-06-05T21:02:18.574Z</code> — rebuilt on every proof deploy.
+    </p>
+    <p class="bookmark">
+      <strong>Bookmark this page.</strong> Its URL never changes
+      (<code>/alpenflight/previews/index.html</code>); always come back here to
+      find the current proofs. The per-branch galleries below come and go as PRs
+      open and close.
+    </p>
+  </header>
+
+  <section>
+      <details class="branch" open>
+        <summary>
+          <span class="branch-name">integration-J-4</span>
+          <span class="branch-count">4 proofs</span>
+          <span class="branch-updated">last activity 2026-06-05 21:02 UTC</span>
+        </summary>
+        <ul class="proof-list">
+          <li class="proof-row">
+            <a class="proof-link" href="../proof-preview/integration-J-4/profile/"><strong>Showcase /profile self-edit</strong></a>
+            <span class="purpose">Real-idp PILOT self-edit — Account / Personal / Pilot / Notifications tabs (per-push, required gate).</span>
+            <span class="updated">updated 2026-06-05 20:31 UTC</span>
+          </li>
+          <li class="proof-row">
+            <a class="proof-link" href="../proof-preview/integration-J-4/dashboard/"><strong>Showcase role dashboards</strong></a>
+            <span class="purpose">Real-idp /start dashboard variants — pilot / club-admin / sysadmin, showcase-seeded (per-push).</span>
+            <span class="updated">updated 2026-06-05 20:25 UTC</span>
+          </li>
+          <li class="proof-row">
+            <a class="proof-link" href="../proof-preview/integration-J-4/"><strong>Clean-seed tenant-isolation</strong></a>
+            <span class="purpose">Real-idp two-club Locations tenant-isolation — the J-0 vertical proof (per-push).</span>
+            <span class="updated">updated 2026-06-05 21:02 UTC</span>
+          </li>
+          <li class="proof-row">
+            <a class="proof-link" href="../proof-preview/integration-J-4/legacy-parity/"><strong>Paired legacy ↔ AlpenFlight (all journeys)</strong></a>
+            <span class="purpose">Fan-out: legacy → migrate + Keycloak → AlpenFlight parity videos + paired screenshots (fanout dispatch).</span>
+            <span class="updated">updated 2026-06-05 20:57 UTC</span>
+          </li>
+        </ul>
+      </details>
+  </section>
+
+  <footer>
+    Each linked gallery is a live <code>real-idp</code> (or fan-out) proof run published to
+    its own per-branch sub-path under <code>alpenflight/proof-preview/&lt;branch&gt;/</code>.
+    Branches drop off this index when their PR closes.
+  </footer>
+</div>
+</body>
+</html>
