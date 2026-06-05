@@ -225,7 +225,22 @@ test.describe('J-3 dashboard (/start) — role variants [showcase seed, real cha
 
       // pilot1 is PIC on 8 seeded club-1 flights (README T-03b), so the last-flight
       // card resolves a REAL flight — the FILLED card, not the empty state.
-      await expect(page.getByTestId('start-last-flight-card')).toBeVisible();
+      //
+      // The card is the ONLY assertion in this spec gated on a TWO-HOP chained
+      // app-state transition: the StartStore fetches `/flights?personId=…&limit=1`
+      // and THEN `/flights/{id}` for the crew+location detail, and the card only
+      // paints once BOTH resolve (until then the template renders none of the
+      // card/empty/error branches — the documented pre-attempt state). On the
+      // first real-idp test against a cold backend (JIT warmup + cold Hikari pool)
+      // that two-hop chain races the dashboard's parallel masterdata prefetch
+      // burst and can exceed the project-wide 5s `expect.timeout` — the gate's
+      // first live run hit exactly this (run 26988942197: `/me` resolved pilot1's
+      // personId + the list request fired, but the card never painted in 5s). This
+      // is a slower-but-legitimate app-state transition, not a loosened assertion:
+      // we still require the FILLED card (not empty/error) and a real resolved
+      // role below — only the WAIT budget is raised to match the two-hop chain,
+      // exactly as the SSE case (#4) already waits 15s for its multi-step chain.
+      await expect(page.getByTestId('start-last-flight-card')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId('start-last-flight-empty')).toHaveCount(0);
       await expect(page.getByTestId('start-last-flight-error')).toHaveCount(0);
       // The card resolves a crew role for the viewing pilot (PIC on a real flight).

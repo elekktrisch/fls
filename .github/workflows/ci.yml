@@ -746,8 +746,26 @@ jobs:
   # ---------------------------------------------------------------------------
   alpenflight-dashboard-proof:
     name: alpenflight dashboard proof (real-idp, showcase seed)
-    needs: changes
-    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    # CHAINED after `alpenflight-proof` (not parallel with it) — `needs:` it so the
+    # two full-stack real-chain jobs never contend for one runner's CPU/IO. The
+    # first live run (run 26988942197) brought the stack up + seeded + passed 5/6
+    # specs, but the pilot last-flight card (the only TWO-HOP chained-fetch
+    # assertion) timed out at 5s against a cold backend racing the dashboard's
+    # masterdata prefetch burst — a starved 4th heavy parallel job (alongside
+    # alpenflight-build + alpenflight-proof + mock-e2e) made the cold-start latency
+    # worse. Serialising behind `alpenflight-proof` gives this job an uncontended
+    # runner. STILL NON-BLOCKING: deliberately NOT added to the `required`
+    # aggregator's `needs` (it's the journey's visual proof + gallery, mirroring
+    # the non-blocking `parity-legacy-video` posture). `needs.alpenflight-proof`
+    # only orders it AFTER that job — it does not make THIS job gate the merge.
+    # `if: always()` so a red `alpenflight-proof` (the required gate's own signal)
+    # doesn't skip the display run — a `needs:`-ed job otherwise skips when its
+    # dependency fails, and we still want the showcase gallery on a proof red.
+    needs: [changes, alpenflight-proof]
+    if: >-
+      always()
+      && needs.changes.outputs.next == 'true'
+      && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
