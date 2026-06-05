@@ -718,6 +718,354 @@ jobs:
           docker network rm alpenflight_shared || true
 
   # ---------------------------------------------------------------------------
+  # alpenflight-dashboard-proof — J-3's SHOWCASE-SEEDED dashboard display run.
+  #
+  # The J-3 dashboard variants only prove their worth against realistic data
+  # (empty cards / zero counts demonstrate nothing), so this job boots the SAME
+  # real stack as `alpenflight-proof` (Postgres + Keycloak + Mailpit + the
+  # alpenflight backend + `ng serve --configuration=development`), then loads the
+  # `@Profile("showcase")` seed (`./gradlew seedShowcase` — deterministic 2-club
+  # demo dataset: club-1 today=3/pending=4, 14 flights, the pilot1/clubadmin1/
+  # sysadmin principals) BEFORE starting the long-running backend, and runs ONLY
+  # `start-dashboard.spec.ts` against it with full real assertions.
+  #
+  # SEED-PROFILE SEPARATION (the critical J-3 constraint): the required
+  # `alpenflight-proof` job above runs the J-0/J-1/J-2 specs against a CLEAN
+  # `dev`-profile seed and asserts EXACT counts (e.g. aircraft = 3). Loading the
+  # showcase data there would pollute those counts (aircraft 6≠3). So the
+  # showcase seed lives in its OWN job, against its OWN Postgres, with the
+  # dashboard spec it serves — the two jobs share NO state and run in parallel.
+  #
+  # NON-BLOCKING DISPLAY RUN: this job is NOT in the `required` aggregator's
+  # `needs` (it's the journey's visual proof + gallery, not a branch-protection
+  # gate — mirroring the non-blocking `parity-legacy-video` posture). It deploys
+  # the 3 populated variant screenshots to a DISJOINT per-branch preview subpath
+  # (`alpenflight/proof-preview/<ref>/dashboard`) so it never clobbers the
+  # canonical proof gallery or the `alpenflight-proof` preview; the manager
+  # refreshes the PR sticky gallery comment after it lands.
+  # ---------------------------------------------------------------------------
+  alpenflight-dashboard-proof:
+    name: alpenflight dashboard proof (real-idp, showcase seed)
+    needs: changes
+    if: needs.changes.outputs.next == 'true' && needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      E2E_REAL_IDP: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create alpenflight_shared network
+        run: docker network create alpenflight_shared --driver bridge
+
+      - name: Bring up alpenflight-infra (mailpit)
+        run: |
+          for i in 1 2 3; do
+            bash alpenflight/ops/dev-up-infra.sh && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-infra bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Build pgAdmin + Keycloak images
+        run: |
+          for i in 1 2 3; do
+            docker compose -f docker-compose.yml --profile next build pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::pgAdmin + Keycloak image build failed after 3 attempts" >&2
+          exit 1
+
+      - name: Bring up alpenflight-dev (postgres + pgadmin + keycloak)
+        run: |
+          for i in 1 2 3; do
+            docker compose -p alpenflight-dev -f docker-compose.yml \
+              up -d --wait --wait-timeout 240 postgres pgadmin keycloak && exit 0
+            echo "attempt $i failed (registry blip?) — retrying in 15s" >&2
+            sleep 15
+          done
+          echo "::error::alpenflight-dev bring-up failed after 3 attempts" >&2
+          exit 1
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install alpenflight/web deps
+        working-directory: alpenflight/web
+        env:
+          CI: 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('alpenflight/web/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright browser + deps
+        working-directory: alpenflight/web
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      - name: Flyway migrate (alpenflight Postgres)
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          ./gradlew flywayMigrate --no-daemon --console=plain --quiet
+
+      # Load the showcase seed BEFORE starting the long-running backend. The
+      # `seedShowcase` task boots a SHORT-LIVED app under `dev,showcase` +
+      # `exit-after-seed=true`: it fires the idempotent `ShowcaseSeeder` once
+      # (the deterministic 2-club demo dataset) and exits 0. No Keycloak needed
+      # here — the showcase principals are realm-export + Flyway-seeded `t_user`
+      # rows; the seeder only writes the DB rows that reference their subs.
+      - name: Load showcase seed (gradlew seedShowcase)
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          LOGGING_LEVEL_ROOT: INFO
+        run: ./gradlew seedShowcase --no-daemon --console=plain --quiet
+
+      - name: Build alpenflight backend bootJar
+        working-directory: alpenflight/server
+        run: ./gradlew bootJar --no-daemon --console=plain --quiet
+
+      # Long-running backend on the `dev` profile (NOT showcase — the seed is
+      # already committed; the live backend just reads it). Same host-bootJar ↔
+      # host-mapped-Keycloak wiring as `alpenflight-proof`.
+      - name: Start alpenflight backend
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          SPRING_PROFILES_ACTIVE: dev
+          LOGGING_LEVEL_ROOT: INFO
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
+        run: |
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          echo "Starting backend from: $JAR"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "$!" > backend.pid
+
+      - name: Wait for backend /actuator/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready (attempt $i)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after 120s" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          exit 1
+
+      # Run ONLY the J-3 dashboard display spec (its `real-idp-setup` dependency
+      # runs automatically) against the showcase-seeded backend. The spec writes
+      # the 3 populated variant screenshots into its per-test outputDir.
+      - name: Run J-3 dashboard display proof (showcase seed)
+        id: pw
+        working-directory: alpenflight/web
+        timeout-minutes: 12
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            e2e/tests/real-idp/start-dashboard.spec.ts
+
+      # Stage the 3 populated variant screenshots + write the J-3 screenshots.json
+      # sidecar (greenfield → AlpenFlight-only, NO paired legacy shots) so the
+      # gallery renders them under the J-3 section. The spec wrote them as
+      # `alpenflight-start-<variant>.png` under test-results/<test>/; copy each by
+      # its stable name into the --screenshots dir + declare journey/side/view/
+      # caption. A DECLARED-yet-missing PNG fails the generator's AC5 link-check,
+      # so we declare strictly what we copied.
+      - name: Stage J-3 dashboard variant screenshots + sidecar
+        if: always()
+        run: |
+          SHOT="${{ github.workspace }}/j3-screenshots"
+          mkdir -p "$SHOT"
+          SHOTS=""
+          add_shot() { # $1 stable-name  $2 view  $3 caption
+            local src; src="$(find alpenflight/web/test-results -name "$1" 2>/dev/null | head -1 || true)"
+            if [ -n "$src" ]; then
+              cp "$src" "$SHOT/$1"
+              SHOTS="$SHOTS{\"journey\":\"J-3\",\"side\":\"alpenflight\",\"view\":\"$2\",\"file\":\"$1\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$3")},"
+            else
+              echo "screenshot $1 not found — skipping that entry."
+            fi
+          }
+          add_shot "alpenflight-start-pilot.png" "pilot variant" \
+            "AlpenFlight: the /start PILOT dashboard, populated from the showcase seed — greeting + a FILLED last-flight card (pilot1 is PIC on a real seeded club-1 flight; not the empty state)"
+          add_shot "alpenflight-start-clubadmin.png" "club-admin variant" \
+            "AlpenFlight: the /start CLUB-ADMIN dashboard (clubadmin1, club-1) — today's flights = 3 + pending-validation = 4, the exact tenant-scoped showcase club-1 counts"
+          add_shot "alpenflight-start-sysadmin.png" "sysadmin variant" \
+            "AlpenFlight: the /start SYSADMIN dashboard — cross-tenant aggregates (≥2 clubs / ≥14 flights / ≥6 users across the showcase) + the tenant-enter control"
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged J-3 variant screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No J-3 variant PNGs found — dashboard spec likely red."
+          fi
+
+      # Build + link-check the gallery from this run's manifest + the staged J-3
+      # screenshots. --no-nav: this is a LEAF per-run gallery deployed to a
+      # namespaced subpath, so the canonical-index "per-run galleries" nav is not
+      # rendered here. The generator exits non-zero on a declared-but-missing PNG
+      # (AC5) — that must fail the job.
+      - name: Build + link-check proof gallery (J-3 dashboard, showcase)
+        id: gallery
+        if: always()
+        working-directory: alpenflight/web
+        run: |
+          SHOT="${{ github.workspace }}/j3-screenshots"
+          SHOT_ARG=""
+          if [ -f "$SHOT/screenshots.json" ]; then
+            SHOT_ARG="--screenshots $SHOT"
+          fi
+          node e2e/proof-gallery/generate-gallery.mjs \
+            --report test-results/proof-manifest.json \
+            --out ../../public/alpenflight/proof \
+            --order ../../docs/modernization/stories/_ORDER.md \
+            --no-nav \
+            $SHOT_ARG
+
+      - name: Compute J-3 dashboard preview destination
+        id: preview
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          # SANITIZE RULE — byte-identical to ci.yml's `Compute proof-preview
+          # destination` + proof-preview-reap.yml so the reaper's per-branch
+          # parent (`alpenflight/proof-preview/<sanitized>`) recursively removes
+          # this nested `.../dashboard` subdir on PR close.
+          sanitized="$(printf '%s' "$HEAD_REF" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          subdir="alpenflight/proof-preview/${sanitized}/dashboard"
+          url="https://elekktrisch.github.io/fls/${subdir}/"
+          {
+            echo "subdir=${subdir}"
+            echo "url=${url}"
+          } >> "$GITHUB_OUTPUT"
+          echo "J-3 dashboard proof preview → ${url}"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "── backend log ─────────────────────────────" >&2
+          tail -n 200 alpenflight/server/backend.log >&2 || true
+          echo "── keycloak log ────────────────────────────" >&2
+          docker compose -p alpenflight-dev -f docker-compose.yml logs --tail 200 keycloak >&2 || true
+
+      - name: Upload dashboard proof artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpenflight-dashboard-proof-${{ github.run_id }}
+          path: |
+            alpenflight/web/playwright-report
+            alpenflight/web/test-results
+            alpenflight/web/screenshots
+            alpenflight/server/backend.log
+            public/alpenflight/proof
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Deploy the J-3 dashboard gallery to a DISJOINT per-branch preview subpath
+      # (`alpenflight/proof-preview/<ref>/dashboard`). keep_files:true + the
+      # nested per-branch destination mean it never clobbers the canonical
+      # /alpenflight/proof/ (main), the `alpenflight-proof` preview, or the
+      # fan-out's `.../legacy-parity` preview.
+      - name: Deploy J-3 dashboard gallery to gh-pages (PR preview)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: public/alpenflight/proof
+          destination_dir: ${{ steps.preview.outputs.subdir }}
+          publish_branch: gh-pages
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "J-3 dashboard proof preview: ${{ steps.pw.outcome }} for ${{ github.head_ref }} (${{ github.sha }})"
+
+      - name: Surface J-3 dashboard preview URL (step summary)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.url }}
+        run: |
+          {
+            echo "### J-3 dashboard proof gallery (showcase seed)"
+            echo ""
+            echo "3 populated variant screenshots (pilot · club-admin · sysadmin):"
+            echo ""
+            echo "[$PREVIEW_URL]($PREVIEW_URL)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f alpenflight/server/backend.pid ]; then
+            kill "$(cat alpenflight/server/backend.pid)" 2>/dev/null || true
+          fi
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -p alpenflight-dev   -f docker-compose.yml                   down -v --remove-orphans || true
+          docker compose -p alpenflight-infra -f docker-compose.yml --profile infra   down -v --remove-orphans || true
+          docker network rm alpenflight_shared || true
+
+  # ---------------------------------------------------------------------------
   # Aggregator — single check to wire into branch protection. Passes when
   # every upstream job either succeeded or was correctly skipped (e.g.
   # docs-only PRs skip the next lane, that job reports `skipped`, aggregator
