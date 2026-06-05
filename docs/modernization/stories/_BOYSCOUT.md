@@ -12,7 +12,18 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
-## Pending (filed by /do-retro 2026-06-04, J-2 window)
+## Pending (filed by /do-ship 2026-06-05, J-4 window)
+
+- **Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).** Each
+  `timeout NNN ./gradlew test` that gets SIGKILLed leaks an `alpenflight-pg-test-*` container + ~1 GB volume
+  because `PostgresTestContainerLifecycle`'s cleanup is a JVM **shutdown hook** that never fires on a kill.
+  Reclaimed ~10 GB across the window via `docker rm -f alpenflight-pg-test-* && docker volume/image prune`.
+  Durable fix: add a **pre-start sweep** to `PostgresTestContainerLifecycle.start()` (reap stale
+  `alpenflight-pg-test-*` before starting — reaps a leaked one on the next run regardless of how the prior
+  died) AND a settings.json **Stop hook** that prunes after each session/worker. Snapshot-regen throwaway PGs
+  are no longer needed now the remote DB is reachable again (use `DATASOURCE_*`). *(seam:
+  PostgresTestContainerLifecycle pre-start sweep + a cleanup hook)* — see [[project_docker_disk_leak_orphaned_testcontainers]].
+
 
 - ~~**Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).**~~ **Shipped J-3 T-12**
   — folded the mock-auth chromium suite into `ci.yml` as the `alpenflight-mock-e2e` ("Run Playwright")
