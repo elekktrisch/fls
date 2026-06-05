@@ -491,6 +491,26 @@ fail-loud `SharedPostgresContainer` in CI).
   So a red UI assertion can't block merge (backend IS gated by required ITs). Per the operator's J-3 posture +
   proof-scoping rider this is intended, not a defect — surfacing for an explicit keep/flip call.
 
+**Operator decisions (2026-06-05):** Q1 → **fold the proof-scoping rider** into J-4; Q2 → **make the profile
+UI spec required.** Both fold as the combined CI restructure T-21+T-22 below.
+
+- [x] **T-20a — Locale spec selector fix (CI-surfaced on the T-20 run).** T-20's cold-start fix is CORRECT
+  (`<html lang>='de'` passed on the live stack), but the spec's `getByText('Anzeigename', { exact: true })`
+  was brittle: `af-form-field` renders required labels as `<label>{{label}}<span>*</span></label>`, so the
+  label text is "Anzeigename *" and exact-match missed it (line 289's `exact` `toHaveCount(0)` was also
+  false-confidence — passed even when German showed). Fixed: dropped `exact:true` on all 4 locale text
+  assertions (substring match, more meaningful). prettier-clean, `--list` routes to real-idp. (Manager inline
+  fix — fully-diagnosed mechanical selector correction.)
+- [ ] **T-21+T-22 — CI proof restructure (operator Q1+Q2, combined).** (a) **Proof-scoping:** scope the
+  per-push required proof OFF the cross-journey J-0/J-1/J-2 specs — keep the stable journey-agnostic
+  tenant-isolation spec as the per-push structural gate, move the aircraft + flight migration-parity
+  regression to the nightly real-idp suite (so the known J-1 aircraft flake no longer reds J-4's `required`).
+  (b) **Profile-required:** make J-4's showcase `/profile` proof gate the merge — split a scoped
+  `alpenflight-profile-proof` job running ONLY `self-edit.spec.ts` (showcase seed) + add it to the `required`
+  aggregator's `needs` (keep the J-3 dashboard display non-blocking — don't couple J-4's gate to J-3's spec).
+  Seam: ci.yml proof-job split + `required.needs` + the nightly workflow regression move. MUST keep `required`
+  green: the profile spec is now green (T-20a) — verify the restructured gate is green before done.
+
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
 **Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
 flake reds J-4's `required` gate — fold it or the flake fix before §4; operator call).

@@ -247,7 +247,10 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       // start is unambiguously German (the reload assertion below is what proves
       // the persisted-languageId cold-start path on its own).
       await expect(page.locator('html')).toHaveAttribute('lang', 'de', { timeout: 10_000 });
-      await expect(page.getByText('Anzeigename', { exact: true })).toBeVisible();
+      // Substring (NOT exact): af-form-field renders the label as
+      // `<label>{{label}}<span>*</span></label>` for required fields, so the
+      // label's normalized text is "Anzeigename *" — an exact match would miss it.
+      await expect(page.getByText('Anzeigename')).toBeVisible();
 
       // Populated render: the seeded values hydrate the form.
       await expect(field(page, 'profile-account-friendlyName')).toHaveValue(SEED.friendlyName);
@@ -285,8 +288,8 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       // Locale flipped de→en — assert BOTH oracles: <html lang> AND the English
       // label "Display name" (German "Anzeigename" must be gone).
       await expect(page.locator('html')).toHaveAttribute('lang', 'en', { timeout: 10_000 });
-      await expect(page.getByText('Display name', { exact: true })).toBeVisible();
-      await expect(page.getByText('Anzeigename', { exact: true })).toHaveCount(0);
+      await expect(page.getByText('Display name')).toBeVisible();
+      await expect(page.getByText('Anzeigename')).toHaveCount(0);
 
       // SPA-nav-evicts-POST-body lesson: prove persistence via a RELOAD + re-GET,
       // never the PATCH response body. Reload /profile and re-read the fields.
@@ -299,7 +302,7 @@ test.describe('J-4 profile self-edit (/profile) — full round-trip [real PILOT,
       // without that fix the reload would revert to German. It STAYS English
       // ONLY because cold-start now reads the saved `/me` `languageCode='en'`.
       await expect(page.locator('html')).toHaveAttribute('lang', 'en', { timeout: 10_000 });
-      await expect(page.getByText('Display name', { exact: true })).toBeVisible();
+      await expect(page.getByText('Display name')).toBeVisible();
     } finally {
       await context.close();
     }
