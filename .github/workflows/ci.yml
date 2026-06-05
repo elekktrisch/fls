@@ -921,10 +921,20 @@ jobs:
           tail -n 200 alpenflight/server/backend.log >&2 || true
           exit 1
 
-      # Run ONLY the J-3 dashboard display spec (its `real-idp-setup` dependency
-      # runs automatically) against the showcase-seeded backend. The spec writes
-      # the 3 populated variant screenshots into its per-test outputDir.
-      - name: Run J-3 dashboard display proof (showcase seed)
+      # Run the J-3 dashboard display spec AND the J-4 /profile capture spec (their
+      # `real-idp-setup` dependency runs automatically) against the showcase-seeded
+      # backend. The dashboard spec writes the 3 populated variant screenshots; the
+      # profile spec writes 4 stable-named per-tab screenshots
+      # (`alpenflight-profile-*.png`) into its per-test outputDir.
+      #
+      # NON-BLOCKING: the J-4 profile spec is partially red-by-design (the deep
+      # round-trip assertions land in T-13 and the Personal/Pilot/Notifications tab
+      # bodies are stubs T-06..T-11) — it captures every tab shot BEFORE its
+      # assertions, so the gallery publishes regardless. The staging + gallery-build
+      # steps below are `if: always()` and the deploy is `!cancelled()`-gated, so a
+      # red profile assertion here still stages the screenshots and deploys the
+      # gallery. `id: pw` is preserved for the existing preview/deploy gates.
+      - name: Run J-3 dashboard + J-4 profile display proof (showcase seed)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 12
@@ -936,7 +946,8 @@ jobs:
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
-            e2e/tests/real-idp/start-dashboard.spec.ts
+            e2e/tests/real-idp/start-dashboard.spec.ts \
+            e2e/tests/profile/self-edit.spec.ts
 
       # Stage the 3 populated variant screenshots + write the J-3 screenshots.json
       # sidecar (greenfield → AlpenFlight-only, NO paired legacy shots) so the
@@ -945,35 +956,46 @@ jobs:
       # its stable name into the --screenshots dir + declare journey/side/view/
       # caption. A DECLARED-yet-missing PNG fails the generator's AC5 link-check,
       # so we declare strictly what we copied.
-      - name: Stage J-3 dashboard variant screenshots + sidecar
+      - name: Stage J-3 dashboard + J-4 profile screenshots + sidecar
         if: always()
         run: |
           SHOT="${{ github.workspace }}/j3-screenshots"
           mkdir -p "$SHOT"
           SHOTS=""
-          add_shot() { # $1 stable-name  $2 view  $3 caption
-            local src; src="$(find alpenflight/web/test-results -name "$1" 2>/dev/null | head -1 || true)"
+          add_shot() { # $1 journey  $2 stable-name  $3 view  $4 caption
+            local src; src="$(find alpenflight/web/test-results -name "$2" 2>/dev/null | head -1 || true)"
             if [ -n "$src" ]; then
-              cp "$src" "$SHOT/$1"
-              SHOTS="$SHOTS{\"journey\":\"J-3\",\"side\":\"alpenflight\",\"view\":\"$2\",\"file\":\"$1\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$3")},"
+              cp "$src" "$SHOT/$2"
+              SHOTS="$SHOTS{\"journey\":\"$1\",\"side\":\"alpenflight\",\"view\":\"$3\",\"file\":\"$2\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$4")},"
             else
-              echo "screenshot $1 not found — skipping that entry."
+              echo "screenshot $2 not found — skipping that entry."
             fi
           }
-          add_shot "alpenflight-start-pilot.png" "pilot variant" \
+          add_shot "J-3" "alpenflight-start-pilot.png" "pilot variant" \
             "AlpenFlight: the /start PILOT dashboard, populated from the showcase seed — greeting + a FILLED last-flight card (pilot1 is PIC on a real seeded club-1 flight; not the empty state)"
-          add_shot "alpenflight-start-clubadmin.png" "club-admin variant" \
+          add_shot "J-3" "alpenflight-start-clubadmin.png" "club-admin variant" \
             "AlpenFlight: the /start CLUB-ADMIN dashboard (clubadmin1, club-1) — today's flights = 3 + pending-validation = 4, the exact tenant-scoped showcase club-1 counts"
-          add_shot "alpenflight-start-sysadmin.png" "sysadmin variant" \
+          add_shot "J-3" "alpenflight-start-sysadmin.png" "sysadmin variant" \
             "AlpenFlight: the /start SYSADMIN dashboard — cross-tenant aggregates (≥2 clubs / ≥14 flights / ≥6 users across the showcase) + the tenant-enter control"
+          # J-4 /profile — the 4 self-edit tabs captured as PILOT pilot1 (T-15).
+          # A DECLARED-but-missing PNG fails the generator's AC5 link-check, so the
+          # helper only declares a shot it actually found (find … || skipping).
+          add_shot "J-4" "alpenflight-profile-account.png" "Account tab" \
+            "AlpenFlight: /profile → Account tab (PILOT pilot1) — self-edit account fields (friendly name, notification email, phone, language) functional via PATCH /api/v1/me/profile; username + club read-only"
+          add_shot "J-4" "alpenflight-profile-personal.png" "Personal tab" \
+            "AlpenFlight: /profile → Personal tab (PILOT pilot1) — tab present + enabled (pilot1 has a linked Person); the contact/address self-edit form lands in this vertical (T-07)"
+          add_shot "J-4" "alpenflight-profile-pilot.png" "Pilot tab" \
+            "AlpenFlight: /profile → Pilot tab (PILOT pilot1) — tab present + enabled; the licence/medical self-edit form (+ FADP audit on save) lands in this vertical (T-09)"
+          add_shot "J-4" "alpenflight-profile-notifications.png" "Notifications tab" \
+            "AlpenFlight: /profile → Notifications tab (PILOT pilot1) — tab present + enabled; the 3 notification-preference toggles land in this vertical (T-11)"
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
-            echo "Staged J-3 variant screenshots + sidecar:"
+            echo "Staged J-3 dashboard + J-4 profile screenshots + sidecar:"
             ls -l "$SHOT/"
             cat "$SHOT/screenshots.json"
           else
-            echo "No J-3 variant PNGs found — dashboard spec likely red."
+            echo "No J-3 dashboard / J-4 profile PNGs found — both specs likely red before capture."
           fi
 
       # Build + link-check the gallery from this run's manifest + the staged J-3

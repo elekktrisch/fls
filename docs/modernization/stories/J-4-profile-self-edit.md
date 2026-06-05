@@ -207,5 +207,34 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   Postgres 16 + `flywayMigrate` + harness-SQL replay: pilot1 `person_id`→`…7601…0601`, person carries the
   fields, membership carries the prefs, `pilot-empty1` stays `person_id NULL`.
 
+- [x] **T-15 — Early /profile AlpenFlight gallery (operator ask — stale gallery).** The operator's
+  `proof-preview/integration-J-4/` gallery is stale + structurally profile-less: the clean-seed
+  `alpenflight-proof` job (which feeds it) is scoped to the isolation spec only and never runs `/profile`.
+  Wire the AlpenFlight `/profile` capture into the **showcase-seed `alpenflight-dashboard-proof` job**
+  (non-blocking, `if: always()`/`!cancelled()`, deploys on red) so the operator gets a live 4-tab gallery
+  NOW: (1) add resilient per-tab screenshot capture to `self-edit.spec.ts` (model J-3's `captureVariantShot`
+  — shot the panel the moment it's visible, BEFORE deep asserts; PILOT pilot1); (2) add the profile spec to
+  the job's `playwright test` invocation; (3) `add_shot` J-4 sidecar entries (4 tabs) + ensure J-4 in
+  `_ORDER.md`. Seam: self-edit.spec.ts capture + ci.yml dashboard-proof job. (AlpenFlight-only here; the
+  paired legacy↔AlpenFlight gallery is the done-bar T-12.)
+  **Done:** (1) added `captureTabShot(page, testInfo, tab)` to `self-edit.spec.ts` (models J-3's
+  `captureVariantShot` — clicks the tab, waits for `profile-panel-*` visible, then `fullPage` screenshots
+  into `testInfo.outputDir` BEFORE any deep assertion) + a new first test `captures all four /profile tabs
+  for the gallery (PILOT pilot1)` that loops the 4 tabs → writes stable names
+  `alpenflight-profile-{account,personal,pilot,notifications}.png`. (2) ci.yml `alpenflight-dashboard-proof`
+  job: the `id: pw` step (renamed `Run J-3 dashboard + J-4 profile display proof`) now runs BOTH
+  `start-dashboard.spec.ts` AND `profile/self-edit.spec.ts` under `--project=real-idp`; the staging step
+  (`if: always()`) parameterised `add_shot` with a leading journey arg + added 4 `J-4`/`alpenflight` sidecar
+  entries (view = `<Tab> tab`, accurate captions: Account = self-edit fields functional, Personal/Pilot/
+  Notifications = tab present+enabled, form lands in its vertical). (3) `_ORDER.md` already carries J-4
+  (line 25, after J-3) + it's in the generator's ROADMAP_FALLBACK — no edit needed. Survives-red verified:
+  staging + gallery-build are `if: always()`, deploy is gated on `steps.gallery.outcome=='success'` (not on
+  the `pw` step outcome), so a red profile assertion still stages the 4 PNGs + deploys. Local checks:
+  prettier/eslint clean on the spec, `tsc -p e2e/tsconfig.json` adds ZERO new errors (22 pre-existing in
+  unrelated specs, present on base), ci.yml parses as valid YAML, and the real `extractScreenshots` generator
+  accepts the emitted sidecar shape (2 shots, 0 errors; missing-PNG → AC5 error, which the `find … ||
+  skipping` guard prevents). Full real-idp stack not run locally (Testcontainers unreliable on the LXC box) —
+  CI showcase job is the proof. Gallery deploys to `proof-preview/integration-J-4/dashboard`.
+
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
 **Not folded** (carve decision): gallery-collapse + proof-scoping CI riders (infra-heavy, off this surface).

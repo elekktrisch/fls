@@ -1,4 +1,11 @@
-import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  test,
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 
 import { fillKcLogin } from '../real-idp/_helpers/kc-form';
 
@@ -118,7 +125,56 @@ async function openTab(page: Page, tab: ProfileTab): Promise<void> {
   await expect(page.getByTestId(`profile-panel-${tab}`)).toBeVisible();
 }
 
+/**
+ * RESILIENT per-tab capture (J-2 T-42 lesson → a do-ship principle, modelled on
+ * `start-dashboard.spec.ts#captureVariantShot`): open a tab and screenshot its
+ * panel the MOMENT it is visible — BEFORE any deep round-trip assertion that
+ * could abort the test. The showcase-seed `alpenflight-dashboard-proof` CI job
+ * stages these into the gallery's `--screenshots` dir under stable names
+ * (`alpenflight-profile-<tab>.png`) + writes the J-4 `screenshots.json` sidecar,
+ * so the operator gets a live 4-tab `/profile` gallery even while the deep
+ * round-trip assertions (T-13) and the stub tab bodies (T-06..T-11) are still
+ * red-by-design. fullPage per CLAUDE.md §8 + the gallery's AlpenFlight-only
+ * (greenfield) policy.
+ */
+async function captureTabShot(page: Page, testInfo: TestInfo, tab: ProfileTab): Promise<void> {
+  await page.getByTestId(`profile-tab-${tab}`).click();
+  await expect(page.getByTestId(`profile-panel-${tab}`)).toBeVisible();
+  await page.screenshot({
+    path: `${testInfo.outputDir}/alpenflight-profile-${tab}.png`,
+    fullPage: true,
+  });
+}
+
 test.describe('J-4 profile self-edit (/profile) — screen shape [real PILOT, stub]', () => {
+  // ── Gallery capture: 4 stable-named per-tab screenshots (T-15) ───────────────
+  // Drives all four tabs as PILOT pilot1 and writes one STABLE-NAMED fullPage PNG
+  // per tab — `alpenflight-profile-{account,personal,pilot,notifications}.png` —
+  // into `testInfo.outputDir`, which the `alpenflight-dashboard-proof` CI job
+  // stages into the J-4 gallery. Each shot is taken the MOMENT its panel is
+  // visible (inside `captureTabShot`), BEFORE any further assertion, so all four
+  // always land even while the deep round-trip assertions (T-13) stay red. pilot1
+  // now has a linked Person (T-14), so Personal/Pilot/Notifications are enabled
+  // (stub bodies for now — the honest current state; captured anyway).
+  test('captures all four /profile tabs for the gallery (PILOT pilot1)', async ({
+    browser,
+    baseURL,
+  }, testInfo) => {
+    const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
+    try {
+      await page.goto('/profile');
+      await expect(page.getByTestId('profile-page')).toBeVisible();
+
+      // Capture each tab's panel before any later assertion can abort the run, so
+      // every one of the four stable-named shots reaches the gallery regardless.
+      for (const tab of TABS) {
+        await captureTabShot(page, testInfo, tab);
+      }
+    } finally {
+      await context.close();
+    }
+  });
+
   // ── Entry: nav avatar dropdown → Profile → /profile ─────────────────────────
   test('the nav avatar dropdown routes a PILOT to /profile', async ({ browser, baseURL }) => {
     const { context, page } = await loginAsPilot(browser, baseURL!, PILOT);
