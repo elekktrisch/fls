@@ -555,15 +555,20 @@ UI spec required.** Both fold as the combined CI restructure T-21+T-22 below.
 **Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
 flake reds J-4's `required` gate — fold it or the flake fix before §4; operator call).
 
-- [ ] **T-24 — Collapse to ONE gallery + ONE PR comment (operator: can't find the current J-4 proof).**
-  THREE auto-upserted sticky comments (`proof-preview` clean-seed AlpenFlight-only [no /profile],
-  `profile-gallery` [manual], `fanout-proof-preview` legacy-parity) point at three gh-pages paths, and after
-  T-21+T-22 NO per-push job deploys the /profile shots (dashboard-proof scoped to dashboard-only; the new
-  required `alpenflight-profile-proof` deploys nothing) → J-4 /profile is currently in NO gallery. Fold the
-  gallery-collapse rider (boyscout): make the fanout **`legacy-parity`** gallery THE canonical one (complete
-  paired proof, all journeys), drop ci.yml's AlpenFlight-only `proof-preview` deploy + its sticky comment AND
-  the manual `profile-gallery` comment, so there is exactly **ONE** sticky comment + ONE URL. Have the per-push
-  `alpenflight-profile-proof` (required) capture + refresh the 4 AlpenFlight /profile shots into the canonical
-  gallery (or, per the rider, point ci at the last fanout gallery) so it shows the current state, not a stale
-  fanout. Seam: ci.yml gallery-deploy/comment upserts + the fanout deploy + the profile-proof job. (Folds the
-  J-2-window gallery-collapse rider — now operator-blocking.)
+- [ ] **T-24 — Persistent proof LINK-DIRECTORY (operator design — replaces "collapse to one gallery").**
+  Problem: three auto-upserted sticky comments → three gh-pages paths, and after T-21+T-22 no per-push job
+  deploys the /profile shots → the operator can't find the current J-4 proof. **Operator's design:** ONE
+  **persistent, bookmarkable** index at **`https://elekktrisch.github.io/fls/alpenflight/previews/index.html`**
+  (stable URL, kept across PRs) that lists every ACTIVE branch/PR preview and, under each, links to that
+  branch's proofs with a title + one-line purpose + last-updated: **Showcase /profile + role dashboards**
+  (real-idp, per-push) → `…/<branch>/dashboard/`; **Clean-seed tenant-isolation** (per-push) →
+  `…/<branch>/`; **Paired legacy↔AlpenFlight (all journeys)** (fanout) → `…/<branch>/legacy-parity/`. The
+  per-job galleries keep their sub-paths (no path-conflict/freshness fight); the directory is the single entry
+  point. Build: a "rebuild previews index" step that scans the `proof-preview/*` branch subdirs on gh-pages +
+  regenerates `/alpenflight/previews/index.html` (runs on each deploy; the existing `proof-preview-reap.yml`
+  drops an entry on PR close). Collapse the three sticky comments → ONE pointing at the persistent index (or
+  drop comments entirely since the index is a permanent bookmark). Also wire the required
+  `alpenflight-profile-proof` to capture + deploy its 4 /profile shots to its sub-path (it currently deploys
+  nothing) so the directory's /profile link is per-push-fresh. Seam: a previews-index builder + the gallery
+  deploy/comment steps across ci.yml + alpenflight-proof-fanout.yml + proof-preview-reap.yml. (Supersedes the
+  J-2 gallery-collapse rider.)
