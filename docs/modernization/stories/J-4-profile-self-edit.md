@@ -16,6 +16,7 @@ acceptance:
   - No-Person state: when `user.person_id` is null, the Personal / Pilot / Notifications tabs show a "ask your club admin to link your member record" banner and disable their forms; the Account tab still works. [edge]
   - Tenant + principal isolation: every endpoint resolves the caller's User/Person/PersonClub from the JWT — no `:id` path param; a caller cannot read or edit another principal's profile (cross-principal edit is structurally impossible). [key-error]
   - A migrated/showcase Person renders its real values in the tabs and a round-trip edit persists + reflects on reload. [happy]
+  - Proof gallery shows the **paired legacy `flsweb` /profile ↔ AlpenFlight /profile** (screenshots + the legacy video) so the redesign is judgeable side-by-side — even though there's no data migration. [demonstrability]
 screen: /profile   # replacing legacy profile/ — partial redesign (4-tab SaaS); password change NOT carried (Keycloak owns it, ADR 0007)
 headless_pulled_in: avatar/initials nav-bar dropdown (Profile + Sign out) — the self-edit entry point; reused later by settings / theme stories
 migration: N/A — Person / User / PersonClub are ALREADY migrated (existing mappers in migration-bundle/identity + persons.application.PersonMapper); J-4 makes self-edit fields editable on those existing aggregates, carries no net-new mapper → no fanout. Proof is AlpenFlight-only + the migrated/showcase-Person-renders-and-round-trips check.
@@ -49,13 +50,19 @@ The Playwright run (`profile/self-edit.spec.ts`) proves, against a migrated/show
 
 ## Notes
 
-**Migration: none (no new mapper).** Person/User/PersonClub already migrate (prior identity
-journeys + `persons.application.PersonMapper`). J-4 is self-edit UI + caller-scoped PATCH
-endpoints on existing aggregates → **no fanout run required**; the done-bar is the
-AlpenFlight pass video + the 4-tab screenshots + the "migrated/showcase Person renders its
-real values and a round-trip edit sticks" assertion. (If ship-time finds a self-edit field
-the existing Person mapper doesn't carry, that's a small mapper touch, not a new entity —
-note it then.)
+**Migration: none (no new mapper) — but the paired legacy gallery IS in scope.** Person/User/
+PersonClub already migrate (prior identity journeys + `persons.application.PersonMapper`). J-4
+is self-edit UI + caller-scoped PATCH endpoints on existing aggregates → **no data-migration
+`fanout` run required** (no producer SELECT to validate). HOWEVER, `/profile` **replaces a
+legacy screen**, so the done-bar's legacy-replacing-screen requirement applies: capture the
+**legacy `flsweb` /profile** (screenshots + video) and pair it with the AlpenFlight 4-tab
+/profile in the proof gallery (operator ask). The legacy capture uses the **legacy-video
+harness** (the same `e2e/tests/**` flsweb-stack capture path J-2 used for legacy flights —
+`flights-parity-J2.spec.ts`), which runs in the `fanout`/legacy-video pipeline; J-4 needs that
+harness step but NOT the export→migrate half of fanout. Done-bar = AlpenFlight pass video +
+4-tab screenshots + the migrated/showcase-Person round-trip + the **paired legacy↔AlpenFlight
+/profile** in the gallery. (If ship-time finds a self-edit field the existing Person mapper
+doesn't carry, that's a small mapper touch, not a new entity — note it then.)
 
 **Parity exclusions (legacy `profile/` is a redesign):**
 - **Password change dropped** — credentials are Keycloak's (ADR 0007); the legacy in-app
@@ -87,16 +94,20 @@ Notifications — likely one task each, signal-store-backed); the four `me/*` PA
 clusters on User / Person / PersonClub aggregates (one task per aggregate's mutator +
 endpoint + IT — `User.updateProfile`, `Person.updateContact`, `Person.updateLicences` +
 audit event, `PersonClub.updateNotificationPrefs`); the showcase-seed self-edit-principal
-extension; the spec thicken. Riders to fold (from `_BOYSCOUT`): orval positional-`getN`
+extension; a **legacy-parity capture spec** (`e2e/tests/profile/profile-parity-J4.spec.ts` in
+the top-level e2e suite, flsweb-stack, records the legacy /profile video + screenshots — model
+on `e2e/tests/flights/flights-parity-J2.spec.ts`) + its wiring into the legacy-video/gallery
+pipeline so the paired legacy↔AlpenFlight /profile renders; the spec thicken. Riders to fold (from `_BOYSCOUT`): orval positional-`getN`
 naming (J-4 adds 4 `/me/*` endpoints → regenerates the client — good place to set explicit
 operationIds), and the e2e prettier/tsc normalization on the new spec.
 
 ## Assumptions made
 
 - **Route is `/profile`** opened from a **nav-bar avatar/initials dropdown** (S-182 AC1).
-- **No fanout** — J-4 carries no net-new mapper (existing identity mappers cover Person/User/
-  PersonClub); proof is AlpenFlight-only. If a self-edit field is unmigrated, ship adds it to
-  the existing mapper (still no fanout-gating new entity).
+- **No data-migration fanout** — J-4 carries no net-new mapper (existing identity mappers cover
+  Person/User/PersonClub). But the **paired legacy↔AlpenFlight /profile gallery IS required**
+  (operator) via the legacy-video harness — it's a legacy-replacing screen. If a self-edit field
+  is unmigrated, ship adds it to the existing mapper (still no fanout-gating new entity).
 - **PersonClub prefs mutator:** assume a new `updateNotificationPrefs(prefs)` mutator (S-182
   open-q option (a) — cleaner than read-then-write of the whole membership shape); refine/ship
   confirms.
