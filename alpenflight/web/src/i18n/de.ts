@@ -238,6 +238,18 @@ const de = {
     tagline:
       'Lade die Handshake-Datei herunter und übergib sie der Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
   },
+  profile: {
+    noPersonBanner:
+      'Kein Mitgliederdatensatz verknüpft. Bitte deinen Vereins-Administrator, deinen Mitgliederdatensatz zu verknüpfen.',
+    stub: 'Bearbeitung folgt.',
+    tabs: {
+      account: 'Konto',
+      notifications: 'Benachrichtigungen',
+      personal: 'Persönliches',
+      pilot: 'Pilot',
+    },
+    title: 'Profil',
+  },
   publicStub: {
     back: 'Zurück zur Startseite',
     body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',

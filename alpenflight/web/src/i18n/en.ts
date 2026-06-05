@@ -229,6 +229,17 @@ const en: Translations = {
     tagline:
       'Download the handshake file and give it to the export tool. Your data is encrypted before it reaches our servers.',
   },
+  profile: {
+    noPersonBanner: 'No member record linked. Ask your club admin to link your member record.',
+    stub: 'Editing coming soon.',
+    tabs: {
+      account: 'Account',
+      notifications: 'Notifications',
+      personal: 'Personal',
+      pilot: 'Pilot',
+    },
+    title: 'Profile',
+  },
   publicStub: {
     back: 'Back to the landing page',
     body: 'Public booking is on the way. In the meantime, contact your club directly.',

@@ -232,6 +232,18 @@ const it: Translations = {
     tagline:
       'Scarica il file di handshake e forniscilo allo strumento di esportazione. I tuoi dati vengono crittografati prima di raggiungere i nostri server.',
   },
+  profile: {
+    noPersonBanner:
+      'Nessun record membro collegato. Chiedi all’amministratore del club di collegare il tuo record membro.',
+    stub: 'Modifica in arrivo.',
+    tabs: {
+      account: 'Account',
+      notifications: 'Notifiche',
+      personal: 'Personale',
+      pilot: 'Pilota',
+    },
+    title: 'Profilo',
+  },
   publicStub: {
     back: 'Torna alla pagina iniziale',
     body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',

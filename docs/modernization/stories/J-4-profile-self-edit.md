@@ -136,7 +136,7 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `receive_aircraft_reservation_notifications=false`, `receive_planning_day_role_reminder=true`; User self-fields filled.
   No-Person = reused realm `pilot-empty1@example.com` w/ `person_id NULL`. Zero realm churn; V1→V30 flyway clean + idempotent.
   Note: `member_state_id` NULL (no `t_member_state` seeded) — T-10/T-11 assert on notif prefs, not member state.
-- [ ] **T-03 — `/profile` shell + tab routing + nav user-summary + no-Person gating.** New
+- [x] **T-03 — `/profile` shell + tab routing + nav user-summary + no-Person gating.** New
   `features/profile/` route + shell page with 4 tab segments (tab bodies stubbed), wire the
   existing nav avatar dropdown to the session user summary, verify Sign out, render the no-Person
   banner + disable Personal/Pilot/Notifications when person unlinked (Account stays live). First

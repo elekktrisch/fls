@@ -234,6 +234,18 @@ const fr: Translations = {
     tagline:
       'Téléchargez le fichier de handshake et fournissez-le à l’outil d’export. Vos données sont chiffrées avant d’atteindre nos serveurs.',
   },
+  profile: {
+    noPersonBanner:
+      'Aucun dossier de membre lié. Demande à ton administrateur de club de lier ton dossier de membre.',
+    stub: 'Édition à venir.',
+    tabs: {
+      account: 'Compte',
+      notifications: 'Notifications',
+      personal: 'Personnel',
+      pilot: 'Pilote',
+    },
+    title: 'Profil',
+  },
   publicStub: {
     back: 'Retour à la page d’accueil',
     body: 'La réservation publique est en préparation. En attendant, contactez directement votre club.',
