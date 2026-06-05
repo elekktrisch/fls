@@ -95,3 +95,22 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   set explicit `operationId`s on the `me`-dashboard endpoints (and ideally project-wide) so orval emits
   named methods, not positional `getN`. *(seam: backend operationId annotations + orval config + the few
   `meService.getN()` call sites)* — fix-forward on the next web-touching journey.
+
+## Pending (filed by /do-ship 2026-06-05, J-3 window)
+
+- **J-1 aircraft real-idp spec flake (S-163 timeout → retry → create-residue → 6≠3).** In the shared
+  clean-seed `alpenflight-proof` run, `aircraft-migration-parity.spec.ts` intermittently fails: the
+  `S-163` case (`:407`, non-managing-club owner edit) times out at 45s, Playwright retries the
+  create-aircraft test, the create isn't cleaned up across attempts, so the initial
+  `toHaveCount(3)` (`:228`) sees 6 on the retry. Pre-existing (predates J-3 — it's in `main` via J-1);
+  passed J-3's gate by luck on the final run. Fix on the next aircraft-touching journey: make the
+  aircraft-create test idempotent across retries (clean up the created row / assert a delta not an
+  absolute) AND diagnose the S-163 45s timeout (raise it or fix the slow non-managing-club edit path).
+  *(seam: aircraft-migration-parity.spec.ts retry-isolation + S-163 timeout)*
+- **PILOT flights-read authz gap — FIXED in J-3, lesson for /do-retro.** `FlightsController.list/get`
+  was `@PreAuthorize(hasAnyRole('CLUB_ADMINISTRATOR','FLIGHT_OPERATOR'))` (S-159, predating the pilot
+  dashboard) → a PILOT got 403 reading their OWN last flight; the pilot dashboard card hung. Fixed in
+  J-3 (PILOT granted tenant-scoped read on list+get + StartStore catchError). **Not a pending rider**
+  (shipped) — recorded here as the /do-retro lesson: the **mock-auth** suite's admin principal HID this
+  authz gap; only the **real-idp showcase run with a real PILOT principal** surfaced it. Real-roles
+  end-to-end catches authz gaps mock-auth can't. *(retro lesson, not a code rider)*

@@ -2,8 +2,9 @@
 id: J-3
 title: Dashboard / home — role variants + live updates (/start)
 epic: E-07
-status: in_progress
+status: done
 started_at: 2026-06-04
+done_at: 2026-06-05
 journey0: false
 carved: true
 depends_on: [J-2]
