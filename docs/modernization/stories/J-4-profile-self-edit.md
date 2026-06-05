@@ -123,7 +123,7 @@ gallery surfaces early. Backend mutators mostly **already exist** (`User.updateP
 in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` endpoints + DTOs
 + the `/profile` feature. Drive the spec as a **real PILOT** principal (J-3 lesson).
 
-- [ ] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/profile/self-edit.spec.ts`: nav
+- [x] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/profile/self-edit.spec.ts`: nav
   avatar dropdown → `/profile`, 4 tabs present (Account/Personal/Pilot/Notifications), selectors
   for each tab's key fields, thin assertions (tabs render). Drive as PILOT. Commits the screen shape.
 - [ ] **T-02 — Showcase-seed self-edit principal.** Extend the showcase seed: a self-editable
