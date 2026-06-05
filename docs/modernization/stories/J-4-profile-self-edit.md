@@ -314,9 +314,32 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   Test`, `NativeSqlRegisterTest`, `AuditRedactionCoverageTest`). Seam: persons module named-interface +
   package-info. **Process note:** backend workers must run the arch-guard suite, not just their IT (these
   guards only fire on the full build).
-- [ ] **T-13 — Thicken spec + e2e normalization.** Full real assertions from the oracle (entry,
+- [x] **T-13 — Thicken spec + e2e normalization.** Full real assertions from the oracle (entry,
   4 round-trips incl. sysadmin-fixture audit-row read for Pilot, no-Person banner, isolation);
   fold the e2e prettier/tsc rider on the new specs. Seam: spec edit. (Depends on T-18 + T-08/T-10 GETs.)
+  **Done:** `self-edit.spec.ts` thickened from visibility-only to 8 real-idp tests (gallery capture +
+  AC1-7). Drives PILOT `pilot1` against the showcase seed; the resilient 4-tab gallery capture stays
+  FIRST + assertion-light (so a red round-trip never costs the gallery shots). **AC1** entry +
+  Sign-out-ends-session (asserts off `/profile` + landing sign-in visible). **AC2** Account round-trip
+  (friendlyName/phone edit → `PATCH /me/profile` → reload re-GET persists; username/clubId disabled;
+  **language flip** German→English via the af-select → asserts `<html lang>='en'`, the single switch
+  `LocaleService.set` drives, and it survives reload). **AC3** Personal (city edit → `PATCH /me/person`
+  → reload persists; first/last name disabled). **AC4** Pilot (medical-class-2 expiry 2027-09-30→
+  2029-06-30 → `PATCH /me/person/licences` → reload persists) **+ audit-row read via the REAL HTTP
+  admin surface** `GET /api/v1/admin/audit-events?targetEntityType=PersonLicences` as `clubadmin1`
+  (CLUB_ADMINISTRATOR of club-1, same tenant — `AuditAdminController`, no DB peek / no seam); asserts
+  action=UPDATE + before/after diff shows the un-redacted class-2 expiry change. **AC5** Notifications
+  (reservations false→true → `PATCH /me/club-membership/notification-prefs` → reload persists). **AC6**
+  no-Person `pilot-empty1` → banner visible + the 3 person tabs `aria-disabled` (a disabled nz-tab can't
+  be activated, so the proof is the disabled nav item + the top banner) + Account still edits+saves.
+  **AC7** isolation: records every profile PATCH across all 4 tabs, asserts each is `/api/v1/me/*` with
+  NO id segment (caller resolved from JWT — cross-principal edit structurally impossible). All
+  round-trips read persisted state via reload + re-GET (SPA-nav-evicts-POST-body lesson), explicit
+  `waitForResponse` on the PATCH + `-saved` indicator (no `waitForTimeout`). e2e prettier/tsc rider
+  folded: prettier-clean across `e2e/**/*.{ts,json}`, eslint-clean, ZERO new `tsc -p e2e/tsconfig.json`
+  errors (22 pre-existing unrelated), `playwright test --list` routes all 8 to `real-idp` + well-formed.
+  Full real-idp stack not run locally (Testcontainers unreliable on the LXC box) — the showcase
+  `alpenflight-dashboard-proof` CI job is the proof.
 
 - [x] **T-14 — Fix V30 seed regression in J-3 dashboard proof (CI-surfaced).** T-04's push went red:
   `start-dashboard.spec.ts:254` pilot `start-last-flight-card` not found — V30 (`AND person_id IS NULL`)
