@@ -272,7 +272,7 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   getMyPerson`; no `:id`; no-Person → clean 409/empty) + wire `personal.store` to load it on init. Seam:
   me-person GET + personal.store hydrate. (Account already hydrates from `/me`; licences/prefs hydrate via
   their own GETs in T-08/T-10.)
-- [ ] **T-19 — Fix `me`→`persons.application` Modulith boundary (CI/arch-guard, build-blocking).**
+- [x] **T-19 — Fix `me`→`persons.application` Modulith boundary (CI/arch-guard, build-blocking).**
   `ApplicationModulesTest.verifyModuleStructure()` red: the `me` module (MePersonController/MePersonLicences
   Controller/MeNotificationPrefsController) depends on **non-exposed** `persons.application` types
   (`PersonsService`, `SelfContactUpdate`, `SelfLicencesView`, `SelfNotificationPrefsUpdate/View`) + `persons.
