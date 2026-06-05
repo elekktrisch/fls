@@ -235,6 +235,53 @@ public class UsersService {
         return after;
     }
 
+    /**
+     * Account self-edit (J-4 T-04). The caller edits their OWN User row,
+     * resolved from the JWT {@code sub} via {@code keycloak_sub} — never from
+     * an id in the request, so cross-principal mutation is structurally
+     * impossible. Updates only the self-fields (friendlyName, notificationEmail,
+     * phoneNumber, languageId); {@code remarks} (admin-only) is read from the
+     * existing row and passed back through {@link User#updateProfile} unchanged,
+     * and identity-binding fields (username / clubId / keycloakSub) are not on
+     * the parameter list. No Keycloak round-trip and no role delta — this
+     * surface cannot touch roles.
+     *
+     * <p>Returns {@code void}: no Keycloak round-trip and no role read — the
+     * caller's {@code me} controller re-projects the persisted state through
+     * {@code MeService} (the same projection {@code GET /me} serves).
+     *
+     * @throws IllegalArgumentException if the caller resolves to no active user
+     *     row, or {@code languageId} is not a known language.
+     */
+    public void updateOwnProfile(@Nullable Jwt callerJwt, SelfProfileUpdate cmd) {
+        UUID sub = callerSubOrThrow(callerJwt);
+        User u = users.findActiveByKeycloakSub(sub).orElseThrow(() ->
+                new IllegalArgumentException("No active user row for the authenticated principal"));
+        if (!users.languageExists(cmd.languageId())) {
+            throw new IllegalArgumentException("Unknown languageId: " + cmd.languageId());
+        }
+        // Preserve the admin-only remarks: the self-edit surface never sets it.
+        u.updateProfile(cmd.friendlyName(), cmd.notificationEmail(),
+                cmd.phoneNumber(), u.getRemarks(), cmd.languageId());
+        users.save(u);
+        users.flush();
+    }
+
+    private static UUID callerSubOrThrow(@Nullable Jwt jwt) {
+        if (jwt == null) {
+            throw new IllegalArgumentException("No authenticated principal");
+        }
+        String sub = jwt.getSubject();
+        if (sub == null || sub.isBlank()) {
+            throw new IllegalArgumentException("Authenticated principal has no subject");
+        }
+        try {
+            return UUID.fromString(sub);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Authenticated principal subject is not a UUID");
+        }
+    }
+
     public void softDelete(UserId id, @Nullable UUID callerUserId, @Nullable Jwt callerJwt) {
         User u = loadInCurrentTenantOrThrow(id);
         UUID rowId = requireId(u);

@@ -2107,6 +2107,45 @@
         }
       }
     },
+    "/api/v1/me/profile" : {
+      "patch" : {
+        "tags" : [ "me" ],
+        "summary" : "Edit the caller's own Account self-fields (friendlyName, notificationEmail, phoneNumber, languageId). Caller resolved from the JWT — no :id. Username / clubId / keycloakSub are immutable; remarks (admin-only) is preserved. Returns the updated /me projection.",
+        "operationId" : "updateMyProfile",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MeProfileUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated; body is the refreshed /me projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed (blank name, bad email, unknown language).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/flights/{id}/process-state" : {
       "patch" : {
         "tags" : [ "flights" ],
@@ -5145,6 +5184,78 @@
           }
         }
       },
+      "MeProfileUpdateRequest" : {
+        "type" : "object",
+        "description" : "Account self-edit payload — caller's own User self-fields only.",
+        "properties" : {
+          "friendlyName" : {
+            "type" : "string",
+            "description" : "Display name.",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "notificationEmail" : {
+            "type" : "string",
+            "format" : "email",
+            "description" : "Notification email (distinct from the Keycloak login email).",
+            "maxLength" : 256,
+            "minLength" : 0
+          },
+          "phoneNumber" : {
+            "type" : "string",
+            "description" : "Contact phone number.",
+            "maxLength" : 30,
+            "minLength" : 0
+          },
+          "languageId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "Preferred language id; must resolve to a known language."
+          }
+        },
+        "required" : [ "friendlyName", "languageId", "notificationEmail" ]
+      },
+      "MeResponse" : {
+        "type" : "object",
+        "description" : "Authenticated-principal projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Internal user.id (UUID). Null when the JWT sub matches no active user row."
+          },
+          "personId" : {
+            "type" : "string",
+            "description" : "Linked Person id, prefixed external form `pn-<uuid>`. Null when user.person_id is null (sysadmin / unmapped federated user)."
+          },
+          "clubId" : {
+            "type" : "string",
+            "description" : "Caller's home club, prefixed external form `clb-<uuid>`. Null when no user row matches the JWT sub."
+          },
+          "roles" : {
+            "type" : "array",
+            "description" : "AlpenFlight realm roles (no `ROLE_` prefix). Filtered to the canonical role catalog server-side; Keycloak built-ins (`uma_authorization`, `offline_access`, `default-roles-*`) are stripped.",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "firstName" : {
+            "type" : "string",
+            "description" : "First name. Resolved from the linked Person row when present, otherwise from the JWT `given_name` claim."
+          },
+          "lastName" : {
+            "type" : "string",
+            "description" : "Last name. Same resolution as firstName."
+          },
+          "email" : {
+            "type" : "string",
+            "description" : "Notification email from the user row, or JWT `email` claim when no user matches."
+          },
+          "username" : {
+            "type" : "string",
+            "description" : "Username from the user row, or JWT `preferred_username` claim when no user matches."
+          }
+        }
+      },
       "FlightProcessStateChangeRequest" : {
         "type" : "object",
         "description" : "Request body for `PATCH /api/v1/flights/{id}/process-state`. The transition matrix gates which state changes are legal under the OPERATOR trigger.",
@@ -5320,47 +5431,6 @@
           "occurredAt" : {
             "type" : "string",
             "format" : "date-time"
-          }
-        }
-      },
-      "MeResponse" : {
-        "type" : "object",
-        "description" : "Authenticated-principal projection.",
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "description" : "Internal user.id (UUID). Null when the JWT sub matches no active user row."
-          },
-          "personId" : {
-            "type" : "string",
-            "description" : "Linked Person id, prefixed external form `pn-<uuid>`. Null when user.person_id is null (sysadmin / unmapped federated user)."
-          },
-          "clubId" : {
-            "type" : "string",
-            "description" : "Caller's home club, prefixed external form `clb-<uuid>`. Null when no user row matches the JWT sub."
-          },
-          "roles" : {
-            "type" : "array",
-            "description" : "AlpenFlight realm roles (no `ROLE_` prefix). Filtered to the canonical role catalog server-side; Keycloak built-ins (`uma_authorization`, `offline_access`, `default-roles-*`) are stripped.",
-            "items" : {
-              "type" : "string"
-            }
-          },
-          "firstName" : {
-            "type" : "string",
-            "description" : "First name. Resolved from the linked Person row when present, otherwise from the JWT `given_name` claim."
-          },
-          "lastName" : {
-            "type" : "string",
-            "description" : "Last name. Same resolution as firstName."
-          },
-          "email" : {
-            "type" : "string",
-            "description" : "Notification email from the user row, or JWT `email` claim when no user matches."
-          },
-          "username" : {
-            "type" : "string",
-            "description" : "Username from the user row, or JWT `preferred_username` claim when no user matches."
           }
         }
       },

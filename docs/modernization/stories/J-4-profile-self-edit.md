@@ -143,10 +143,14 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `[nzDisabled]` on Personal/Pilot/Notifications (no MeController change needed — `/me` already returns personId).
   Playwright routing fixed: chromium `testMatch` → `tests/!(real-idp|profile)/**`, real-idp → `[real-idp/**, profile/**]`.
   Commit `a2cd80c6`.
-- [ ] **T-04 — Account endpoint `PATCH /api/v1/me/profile`.** Caller-scoped (JWT→User), self-fields
-  only (friendlyName, notificationEmail, phoneNumber, languageId); username/clubId/keycloakSub
-  immutable; reuse `User.updateProfile`; explicit `operationId` (folds orval rider). IT incl.
-  cross-principal isolation. Seam: User me-profile endpoint cluster.
+- [x] **T-04 — Account endpoint `PATCH /api/v1/me/profile`.** `MeProfileController` (+ `MeProfileUpdateRequest`,
+  `MeProfileExceptionHandler`, `users/application/SelfProfileUpdate`, `UsersService.updateOwnProfile`). Caller
+  resolved from JWT `sub` (no `:id`); DTO = friendlyName(@NotBlank≤100) / notificationEmail(@NotBlank @Email) /
+  phoneNumber(@Nullable≤30) / languageId(@NotNull, must exist); reuses `User.updateProfile` preserving existing
+  remarks (admin-only); `operationId=updateMyProfile` (folds orval rider). `MeProfileControllerIT`: happy +
+  isolation (A's token, no id, B's row byte-identical) + validation-400, PILOT-driven. OpenAPI snapshot regen'd.
+  **Verified via CI** (`next-build` runs the IT on GH runners) — local Testcontainers PG times out at 60s on the
+  LXC box (Docker fine; manual PG works), so local IT self-verify is unreliable this window.
 - [ ] **T-05 — Account tab.** Account form + signal store + `PATCH /me/profile` via regenerated
   orval client; language change refreshes the SPA locale; username/clubId read-only. Seam: Account tab component.
 - [ ] **T-06 — Person-contact endpoint `PATCH /api/v1/me/person`.** JWT→caller's Person,
