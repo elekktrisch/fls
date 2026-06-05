@@ -196,22 +196,30 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   round-trip (T-13 / AC "Personal round-trip") needs `/me` (or a caller-scoped `GET /me/person`) extended
   with those Person contact fields — same shape T-05 added for the Account self-fields. Backend touch
   deferred to T-13 per T-07's frontend-only scope.
-- [ ] **T-08 — Person-licences endpoint `PATCH /api/v1/me/person/licences` + audit.** `updateLicences`
-  + emit `person.licences_updated` audit with before/after diff via `AuditTrail.record`; `operationId`;
-  IT incl. audit-row read + isolation. Seam: me-person-licences endpoint.
-- [ ] **T-09 — Pilot tab.** Licence/medical form + store + `PATCH /me/person/licences`. Seam: Pilot tab component.
-- [ ] **T-10 — Notification-prefs endpoint `PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
-  New `updateNotificationPrefs` mutator on PersonClub (driven via Person); caller-tenant membership
-  resolved from JWT; admin-only fields (memberNumber/memberState/roles) untouched; `operationId`; IT +
-  isolation. Seam: PersonClub notif-prefs mutator + endpoint.
+- [ ] **T-08 — Person-licences `GET + PATCH /api/v1/me/person/licences` + audit.** Caller-scoped GET
+  (returns the editable licence/medical shape so the Pilot tab hydrates) + PATCH (`updateLicences`) emitting
+  `person.licences_updated` audit (before/after diff via `AuditTrail.record` — satisfies the audit-coverage
+  guard); `operationId`s (`getMyLicences`/`updateMyLicences`); IT incl. audit-row read + isolation. Seam:
+  me-person-licences endpoint.
+- [ ] **T-09 — Pilot tab.** Licence/medical form + store (load via `GET /me/person/licences`, save via PATCH). Seam: Pilot tab component.
+- [ ] **T-10 — Notification-prefs `GET + PATCH /api/v1/me/club-membership/notification-prefs` + mutator.**
+  New `updateNotificationPrefs` mutator on PersonClub (driven via Person); caller-tenant membership resolved
+  from JWT; GET returns the 3 pref values (Notif tab hydrates) + PATCH with audit (guard); admin-only fields
+  (memberNumber/memberState/roles) untouched; `operationId`s; IT + isolation. Seam: PersonClub notif-prefs mutator + endpoint.
 - [ ] **T-11 — Notifications tab.** 3 pref toggles + store + `PATCH /me/club-membership/notification-prefs`. Seam: Notifications tab component.
 - [ ] **T-12 — Legacy-parity capture spec.** `e2e/tests/profile/profile-parity-J4.spec.ts` (top-level
   e2e, flsweb stack — model on `e2e/tests/flights/flights-parity-J2.spec.ts`) records the legacy
   `/profile` video + screenshots; wire into the legacy-video/gallery pipeline so the **paired
   legacy↔AlpenFlight /profile** renders. Seam: parity capture spec + pipeline wiring.
+- [ ] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
+  only the Person's name, not contact/address — so the Personal tab renders empty + T-13's round-trip can't
+  read. Add a caller-scoped `GET /me/person` (returns the editable contact/address shape; `operationId
+  getMyPerson`; no `:id`; no-Person → clean 409/empty) + wire `personal.store` to load it on init. Seam:
+  me-person GET + personal.store hydrate. (Account already hydrates from `/me`; licences/prefs hydrate via
+  their own GETs in T-08/T-10.)
 - [ ] **T-13 — Thicken spec + e2e normalization.** Full real assertions from the oracle (entry,
   4 round-trips incl. sysadmin-fixture audit-row read for Pilot, no-Person banner, isolation);
-  fold the e2e prettier/tsc rider on the new specs. Seam: spec edit.
+  fold the e2e prettier/tsc rider on the new specs. Seam: spec edit. (Depends on T-18 + T-08/T-10 GETs.)
 
 - [x] **T-14 — Fix V30 seed regression in J-3 dashboard proof (CI-surfaced).** T-04's push went red:
   `start-dashboard.spec.ts:254` pilot `start-last-flight-card` not found — V30 (`AND person_id IS NULL`)
