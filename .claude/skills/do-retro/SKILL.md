@@ -116,16 +116,17 @@ present) — the lessons are then reconstruction-only.
    as cheaper tests take over the logic/error cases. Never delete a spec here; never
    list un-tagged or wiring/happy-path specs.
 
-## Coexist-then-retire (the modernize-* sunset)
+## Retiring superseded tooling
 
-The do-* suite coexists with the legacy `modernize-*` skills + 12 agents. Once
-do-* is proven on 2-3 real journeys, record the cleanup as a **boyscout rider** (not
-a journey — deleting the superseded `modernize-*` skills/agents + pruning the
-`rolled_up_into:` horizontal stories is mechanical, however many files). It rides the
-next journey via `/do-ship`. Don't delete on day one — record the rider once the
-shipped evidence says do-* covers the ground (ideally including one *non-migration*
-journey, since the early proofs are all fan-out flavored). The 47 `implemented/`
-stories and their docs stay as history.
+The do-* suite once coexisted with the legacy `modernize-*` skills + 12 agents.
+They were **retired in J-3 T-15** (the sunset rider): once do-* was proven across
+J-0/J-0b/J-0c/J-1/J-2/J-3 — including the non-migration feature journeys — the
+superseded `modernize-*` skills/agents were deleted and the `rolled_up_into:`
+horizontal stories pruned. The 47 `implemented/` stories and their docs stay as
+history. The lesson generalizes: when a do-* coexists with older tooling it
+supersedes, prove it on 2-3 real journeys, then record the cleanup as a
+**boyscout rider** (mechanical deletion, however many files — not its own journey)
+that rides the next journey via `/do-ship`. Don't delete on day one.
 
 ## Procedure
 
@@ -141,7 +142,8 @@ stories and their docs stay as history.
 5. Apply suite edits + memory hygiene directly. **Draft** ADR amendments. Record
    fixes/deletions/docs as **boyscout riders** in `_BOYSCOUT.md`; file a standalone
    journey only for genuinely new vertical scope (don't implement either).
-6. If the 2-3-journey bar is met, record the modernize-* cleanup as a rider.
+6. If a do-* skill has superseded older tooling and proven out on 2-3 journeys,
+   record the retirement as a boyscout rider (see "Retiring superseded tooling").
 7. **Land the output on a clean branch that rides the next journey.** `git fetch`
    first; commit the suite edits + `_BOYSCOUT.md` on a **fresh branch off the latest
    `origin/main`** — never onto a stale/merged branch you happen to be sitting on
@@ -165,8 +167,8 @@ stories and their docs stay as history.
 Print: the journey window digested; friction signals found; the grill conclusions
 (or that the ceremony was skipped — non-interactive); suite edits made (file +
 one-line why each); ADR amendments drafted (operator decides); backlog / infra /
-efficiency journeys filed; memory captured/updated/compacted; whether the
-modernize-* cleanup journey was filed and why.
+efficiency journeys filed; memory captured/updated/compacted; whether any
+superseded-tooling retirement rider was filed and why.
 
 ## Not in scope
 

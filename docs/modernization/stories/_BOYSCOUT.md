@@ -33,12 +33,6 @@ genuinely new vertical feature scope.
   comment (or have ci point at the last fanout gallery). Needs a fanout run to validate → ride the next
   journey's gate. *(seam: ci.yml gallery-deploy job + alpenflight-proof-fanout.yml deploy + the two
   `<!-- proof-preview -->` / `<!-- fanout-proof-preview -->` comment upserts)*
-- **modernize-\* sunset (TRIGGER NOW MET — ride the next journey).** do-* is proven on
-  J-0/J-0b/J-0c + J-1 + **J-2 (the first non-migration feature journey — the trigger condition)**, so
-  the 2-3-journey bar is unambiguously met. Delete the 9 `modernize-*` skills + ~12 modernize agents
-  and prune the `rolled_up_into:` horizontal stories (~21 files; mechanical → rides forward). Deferred
-  from J-2 only to keep that already-large gate PR reviewable. 47 `implemented/` stories stay as
-  history. *(seam: .claude/skills/modernize-*, .claude/agents/*, rolled_up_into stories)*
 - **e2e tsc-strictness** — `tsc -p alpenflight/web/e2e/tsconfig.json` reports ~23 pre-existing
   `exactOptionalPropertyTypes`/`maxFailures` errors (`playwright.config.ts`, `flights-list.spec.ts`,
   `aircraft-crud.spec.ts`, `persons-add-modal.spec.ts`, `proof-gallery.spec.ts`, `migration/handshake.spec.ts`).
@@ -71,6 +65,17 @@ the T-18 J-0c rename test — recorded in the J-1 journey file, not filed as an 
 _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pruning rider this round._
 
 ## Shipped
+
+- **modernize-\* sunset** — shipped J-3 T-15. do-* proven across J-0/J-0b/J-0c/J-1/J-2/J-3
+  (incl. the non-migration feature journeys), so the trigger was met. Deleted the 9 `modernize-*`
+  skills + the 12 modernize-specific agents (`requirements-engineer`, `solution-architect`,
+  `security-engineer`, `qa-engineer`, `performance-engineer`, `maintainability-reviewer`,
+  `parity-reviewer`, `security-reviewer`, `usability-reviewer`, `tech-writer-reviewer`,
+  `legacy-investigator`, `implementation-architect`) and pruned the 15 `rolled_up_into:` horizontal
+  `S-*` stories. Kept the 4 do-* agents (`legacy-oracle`, `slice-carver`, `gap-hunter`, `e2e-driver`)
+  and the 47 `implemented/` stories (history). Rewrote `docs/modernization/README.md` + the CLAUDE.md
+  triage table to the do-* workflow; updated do-retro's sunset section to past-tense. (The 2026-06-02
+  + 2026-06-04 sunset entries were consolidated into this one bullet.)
 
 - **ci.yml path-filter for docs/story-only pushes** — shipped J-2 T-11. Root cause: on
   `integration/**` branches the `pull_request` trigger made `dorny/paths-filter` diff the
