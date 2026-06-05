@@ -275,10 +275,35 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   alphabetical). Orval client regenerated (T-10 snapshot already carried the ops + DTOs; TS client tree was
   stale). tsc + eslint + prettier + new `NotificationsStore` spec (4 cases) + i18n gate (21) +
   `ng build --configuration mock-auth` green locally. No backend touch (T-10 GET+PATCH).
-- [ ] **T-12 — Legacy-parity capture spec.** `e2e/tests/profile/profile-parity-J4.spec.ts` (top-level
+- [x] **T-12 — Legacy-parity capture spec.** `e2e/tests/profile/profile-parity-J4.spec.ts` (top-level
   e2e, flsweb stack — model on `e2e/tests/flights/flights-parity-J2.spec.ts`) records the legacy
   `/profile` video + screenshots; wire into the legacy-video/gallery pipeline so the **paired
   legacy↔AlpenFlight /profile** renders. Seam: parity capture spec + pipeline wiring.
+  **Done:** authored `e2e/tests/profile/profile-parity-J4.spec.ts` (READ-ONLY, `video: 'on'`, own
+  120s budget) — drives `loggedInPage`, links `testclubadmin`→an existing TestClub Person via one
+  read-only `Users.PersonId` SQL UPDATE + patches `ngStorage-user.PersonId` (so the `ng-if`-gated
+  RIGHT `<fls-person-form>` renders), navigates `#/profile`, waits for both forms settled (`#username`
+  populated + `#Firstname` bound), and writes 4 fullPage gallery PNGs — one per AlpenFlight-tab
+  equivalent: **Account** (LEFT user-settings + dropped password form), **Personal** (person Masterdata
+  + Communication), **Pilot** (License group: `#HasGliderPilotLicence`/`#LicenceNumber`/
+  `#MedicalClass2ExpireDate`), **Notifications** (Club-Settings receive-* flags). No submit, no
+  password change, no save (mutation-free by design); self-guard asserts all 4 PNGs landed.
+  **Fanout wiring** (`.github/workflows/alpenflight-proof-fanout.yml`): (1) step 2d runs the legacy
+  spec (`--project=profile`, non-blocking `if: always()`/`continue-on-error`) → legacy video + 4
+  legacy PNGs; (2) steps 6b seed `seedShowcase` ADDITIVELY (AFTER the gating exact-count parity specs,
+  pollution-safe), restart the dev backend (reads showcase rows → `pilot1` exists), run the showcase
+  `self-edit.spec.ts` as the real PILOT into a REDIRECTED `test-results-profile/` dir +
+  `PLAYWRIGHT_JSON_OUTPUT_NAME` (so the gating `test-results/proof-manifest.json` with the J-0c/J-1/J-2
+  videos is NOT clobbered) → 4 AlpenFlight `alpenflight-profile-{account,personal,pilot,notifications}.png`;
+  (3) staging declares the J-4 legacy `/profile` VIDEO in `legacy-video.json` + 8 `add_shot` entries
+  (4 legacy + 4 alpenflight) with view names matching EXACTLY ("Account tab"/"Personal tab"/"Pilot
+  tab"/"Notifications tab") so the generator PAIRS legacy↔AlpenFlight per view. **Pairing/gallery:**
+  one `legacy-parity` gallery (fanout deploy → `…/legacy-parity/`), J-4 section, 4 paired view rows
+  (legacy LEFT, AlpenFlight RIGHT) + the legacy `/profile` walkthrough video. Verified: generator
+  `extractScreenshots` accepts the shape (8 shots, 0 AC5 errors, all 4 views paired legacy+alpenflight),
+  `extractLegacyVideos` accepts the J-4 video (0 errors); fanout YAML valid; spec prettier-clean +
+  `playwright test --list` well-formed + ZERO new tsc errors. First LIVE green is the fanout dispatch
+  (legacy stack can't run on this box) — manager triggers it as the proof.
 - [x] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
   only the Person's name, not contact/address — so the Personal tab renders empty + T-13's round-trip can't
   read. Add a caller-scoped `GET /me/person` (returns the editable contact/address shape; `operationId

@@ -383,6 +383,40 @@ jobs:
             tests/flights/flights-parity-J2.spec.ts
 
       # ========================================================================
+      # 2d. J-4 T-12 — legacy /profile parity spec. Read-only walkthrough of the
+      #     legacy `#/profile` page (the LEFT user-settings + password form and
+      #     the RIGHT shared <fls-person-form> accordion — Masterdata,
+      #     Communication, License, Club-Settings groups) in the flsweb UI;
+      #     records the legacy /profile parity video + writes the four
+      #     legacy-profile-<tab>.png screenshots (one per AlpenFlight-tab
+      #     equivalent: Account / Personal / Pilot / Notifications). The SAME
+      #     legacy stack (already up) + the SAME deterministic FLSTest seed — the
+      #     spec links testclubadmin to an existing TestClub Person (read-only
+      #     UPDATE) so the person form renders, then displays the field set; no
+      #     mutation, no submit (the legacy password form is the dropped-by-design
+      #     affordance, Keycloak owns credentials, ADR 0007). Paired side-by-side
+      #     with the AlpenFlight /profile showcase shots (step 6b) under J-4 in the
+      #     legacy-parity gallery (step 7b). J-4 carries NO data migration, so the
+      #     export→migrate half of the fanout does NOT run for it — only this
+      #     legacy-video harness step, exactly like J-0c/J-1/J-2 capture theirs.
+      #     Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-4 T-12 legacy /profile parity spec (records legacy video)
+        id: legacy-pw-profile
+        # NON-BLOCKING parity aid (operator: AlpenFlight green is the gate). Same
+        # contract as the J-1/J-2 steps above: `if: always()` (runs even after a
+        # prior failure) AND `continue-on-error: true` (its own failure neither
+        # fails the job nor cascade-skips the unguarded downstream gate steps).
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 10
+        run: |
+          npx playwright test \
+            --project=profile \
+            tests/profile/profile-parity-J4.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -618,6 +652,104 @@ jobs:
             e2e/tests/real-idp/flight-migration-parity.spec.ts
 
       # ========================================================================
+      # 6b. J-4 T-12 — AlpenFlight /profile SHOWCASE capture (the AlpenFlight half
+      #     of the legacy↔AlpenFlight /profile pairing). J-4 carries NO data
+      #     migration, so its AlpenFlight side is NOT a migrated-bundle render —
+      #     it is the showcase-seeded 4-tab /profile, the same shots the per-PR
+      #     `alpenflight-dashboard-proof` job (ci.yml) deploys to its dashboard
+      #     gallery (T-15). We re-capture them HERE so BOTH sides of the pairing
+      #     live in the SAME legacy-parity gallery (the generator pairs
+      #     legacy↔AlpenFlight by journey+view, and the legacy /profile shots are
+      #     in this run's staging dir).
+      #
+      #     SEED ORDERING (pollution-safe): the gating parity specs (step 6, `id:
+      #     pw`) assert EXACT clean-migrated counts (aircraft=3, the J-0c per-club
+      #     rows, etc.). `seedShowcase` is ADDITIVE (it inserts pilot1 + the
+      #     showcase fleet/flights), so it must run AFTER those gating assertions —
+      #     never before. Running it here, then the profile spec only, means the
+      #     showcase rows pollute nothing the gate checked. The dev-profile backend
+      #     just READS whatever is in Postgres (it does not re-seed), so a restart
+      #     after seedShowcase is enough for `pilot1` to exist for the real KC
+      #     login. NON-BLOCKING (`continue-on-error: true`): the profile spec is a
+      #     parity aid; its red must not fail the job or skip the gallery deploy.
+      #     The profile spec's FIRST test writes the four stable-named
+      #     `alpenflight-profile-{account,personal,pilot,notifications}.png` shots
+      #     into its per-test outputDir BEFORE any deep assertion (T-15), so the
+      #     gallery gets the AlpenFlight half even on a red round-trip.
+      # ========================================================================
+      - name: Seed showcase data (additive — AFTER the gating parity specs)
+        id: seed-showcase
+        if: always()
+        continue-on-error: true
+        working-directory: alpenflight/server
+        run: |
+          DATASOURCE_URL=jdbc:postgresql://localhost:5432/alpenflight \
+          DATASOURCE_USER=alpenflight \
+          DATASOURCE_PASSWORD=alpenflight \
+          ./gradlew seedShowcase --no-daemon --console=plain --quiet
+
+      - name: Restart alpenflight backend (reads showcase rows)
+        if: ${{ always() && steps.seed-showcase.outcome == 'success' }}
+        continue-on-error: true
+        working-directory: alpenflight/server
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          SPRING_PROFILES_ACTIVE: dev
+          LOGGING_LEVEL_ROOT: INFO
+          ALPENFLIGHT_KC_ADMIN_BASE_URL: http://localhost:8090
+          ALPENFLIGHT_KC_ADMIN_REALM: alpenflight
+          ALPENFLIGHT_KC_ADMIN_CLIENT_ID: alpenflight-backend-admin
+          ALPENFLIGHT_KC_ADMIN_CLIENT_SECRET: alpenflight-backend-admin-dev-secret
+          ALPENFLIGHT_OIDC_ISSUER_URI: http://localhost:8090/realms/alpenflight
+        run: |
+          # The backend reads, never re-seeds, so a clean restart picks up the
+          # showcase rows. Stop the old PID, relaunch the same bootJar.
+          if [ -f backend.pid ]; then kill "$(cat backend.pid)" 2>/dev/null || true; fi
+          sleep 3
+          JAR="$(ls build/libs/*.jar | grep -v -- '-plain.jar' | head -1)"
+          nohup java -jar "$JAR" > backend.log 2>&1 &
+          echo "$!" > backend.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/actuator/health >/dev/null 2>&1; then
+              echo "backend ready after showcase seed (attempt $i)"; exit 0
+            fi
+            sleep 2
+          done
+          echo "backend not ready after showcase reseed" >&2
+          tail -n 200 backend.log >&2 || true
+          exit 1
+
+      - name: Run J-4 AlpenFlight /profile showcase capture (records video + shots)
+        id: pw-profile
+        if: ${{ always() && steps.seed-showcase.outcome == 'success' }}
+        continue-on-error: true
+        working-directory: alpenflight/web
+        timeout-minutes: 12
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+          # CRITICAL — do NOT clobber the gating run's proof manifest. The config
+          # pins the json reporter to `../test-results/proof-manifest.json`, which
+          # already holds the J-0c/J-1/J-2 AlpenFlight proof VIDEOS from step 6. A
+          # second invocation would overwrite it (step-6 comment warns of exactly
+          # this), dropping those videos from the gallery. Redirect THIS run's
+          # manifest + artifacts to a sibling dir: `PLAYWRIGHT_JSON_OUTPUT_NAME`
+          # overrides the json reporter outputFile, and `--output` redirects the
+          # per-test artifact dir (where the 4 PNGs land). The staging step reads
+          # the PNGs from `test-results-profile/` and the gallery still reads the
+          # ORIGINAL `test-results/proof-manifest.json` for the videos.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ../test-results-profile/proof-manifest.json
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            --output ../test-results-profile \
+            e2e/tests/profile/self-edit.spec.ts
+
+      # ========================================================================
       # 7. GALLERY + VIDEO RETENTION. The AlpenFlight parity videos carry the
       #    proof-* annotations the generator reads (proofVideo() in the spec).
       #    T-06 owns captioning the LEGACY video into the same gallery; here we
@@ -646,6 +778,14 @@ jobs:
           AC_WEBM="$(find /tmp/fls-e2e-results -path '*aircrafts-parity-J1*' -name '*.webm' | head -1 || true)"
           # J-2 — legacy flight list+form+air-movements parity video (T-10).
           FL_WEBM="$(find /tmp/fls-e2e-results -path '*flights-parity-J2*' -name '*.webm' | head -1 || true)"
+          # J-4 — legacy /profile user-settings + person-form parity video (T-12).
+          PROF_WEBM="$(find /tmp/fls-e2e-results -path '*profile-parity-J4*' -name '*.webm' | head -1 || true)"
+          # J-4 — AlpenFlight /profile showcase 4-tab parity video (T-12 step 6b).
+          # Written by the showcase self-edit.spec.ts run into the redirected
+          # `test-results-profile/` dir (NOT `test-results/`, to preserve the
+          # gating manifest). Declared as side=alpenflight under J-4 so it renders
+          # next to the legacy /profile video in the legacy-parity gallery.
+          AF_PROF_WEBM="$(find alpenflight/web/test-results-profile -name '*.webm' | head -1 || true)"
 
           VIDEOS=""
           if [ -n "$LOC_WEBM" ]; then
@@ -669,6 +809,22 @@ jobs:
           else
             echo "No J-2 flight .webm found under /tmp/fls-e2e-results."
           fi
+          if [ -n "$PROF_WEBM" ]; then
+            cp "$PROF_WEBM" "$STAGE/profile-parity-J4.webm"
+            CAP_PROF="Legacy flsweb: the /profile screen — the LEFT user-settings + password form (username, language, the dropped-by-design password change) and the RIGHT shared person-form accordion (Masterdata, Communication, License, Club-Settings groups) — the legacy field set to eyeball against AlpenFlight's 4-tab /profile redesign (no data migration; redesign-only)"
+            VIDEOS="$VIDEOS{\"journey\":\"J-4\",\"file\":\"profile-parity-J4.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_PROF")},"
+          else
+            echo "No J-4 legacy /profile .webm found under /tmp/fls-e2e-results."
+          fi
+          # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
+          # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
+          # (the generator labels it "legacy parity"), so declaring the AlpenFlight
+          # video here would mislabel it. The AlpenFlight /profile side is already
+          # represented in the gallery by its 4 PAIRED SCREENSHOTS (declared below,
+          # side=alpenflight, one per tab view) — the same way J-2 declares only the
+          # legacy video in this sidecar and represents the AlpenFlight side via
+          # screenshots. `$AF_PROF_WEBM` is still resolved + retained as an artifact
+          # for debugging, just not rendered as a captioned gallery video.
 
           if [ -n "$VIDEOS" ]; then
             printf '{ "videos": [ %s ] }' "${VIDEOS%,}" \
@@ -744,6 +900,44 @@ jobs:
           add_shot "alpenflight/web/test-results" "alpenflight-motor-form.png" "J-2" "alpenflight" "motor" \
             "AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen"
 
+          # ----- J-4 T-12 — /profile parity SCREENSHOTS (legacy + AlpenFlight) --
+          # J-4 is a redesign (NO data migration): the legacy single two-form
+          # /profile page is split into AlpenFlight's 4 tabs. The gallery pairs
+          # legacy↔AlpenFlight per VIEW, and the view names below match EXACTLY
+          # the AlpenFlight tab views the showcase capture declares ("Account
+          # tab", "Personal tab", "Pilot tab", "Notifications tab") so each legacy
+          # /profile field-group lands beside its AlpenFlight-tab redesign:
+          #   Account tab       — legacy LEFT user-settings + password form
+          #                       (username/language/password-drop) ↔ AlpenFlight
+          #                       Account tab.
+          #   Personal tab      — legacy person-form Masterdata+Communication
+          #                       (name/address/contact) ↔ AlpenFlight Personal.
+          #   Pilot tab         — legacy person-form License group (licence flags
+          #                       /number/medical expiry) ↔ AlpenFlight Pilot.
+          #   Notifications tab — legacy person-form Club-Settings notification
+          #                       flags ↔ AlpenFlight Notifications.
+          # Legacy PNGs land under /tmp/fls-e2e-results (the profile-parity-J4
+          # spec); AlpenFlight PNGs under alpenflight/web/test-results-profile (the
+          # showcase self-edit.spec.ts run, redirected dir — preserves the gating
+          # manifest), all fullPage on POPULATED surfaces. Same fixed-name
+          # contract as J-1/J-2.
+          add_shot "/tmp/fls-e2e-results" "legacy-profile-account.png" "J-4" "legacy" "Account tab" \
+            "Legacy flsweb: the /profile user-settings form — username (disabled), language selectize, and the in-app password-change form (Old/New password) that AlpenFlight DROPS (Keycloak owns credentials, ADR 0007); pair against AlpenFlight's Account tab"
+          add_shot "/tmp/fls-e2e-results" "legacy-profile-personal.png" "J-4" "legacy" "Personal tab" \
+            "Legacy flsweb: the /profile person-form Masterdata + Communication groups (first/mid/last name, address, zip/city/region, country, birthday, email/phone) — the contact field set AlpenFlight's Personal tab edits (name fields stay admin-only / read-only)"
+          add_shot "/tmp/fls-e2e-results" "legacy-profile-pilot.png" "J-4" "legacy" "Pilot tab" \
+            "Legacy flsweb: the /profile person-form License group (licence flags incl. glider-pilot, licence number, medical class-1/2 + LAPL expiry dates) — the licence/medical field set AlpenFlight's Pilot tab edits (with FADP audit on save)"
+          add_shot "/tmp/fls-e2e-results" "legacy-profile-notifications.png" "J-4" "legacy" "Notifications tab" \
+            "Legacy flsweb: the /profile person-form Club-Settings group — the receive-* notification flags (flight reports, reservation notifications, planning-day reminder) AlpenFlight's Notifications tab edits, MIXED in legacy with admin-only membership fields (member number/state) that AlpenFlight keeps admin-only and OFF the self-edit tab"
+          add_shot "alpenflight/web/test-results-profile" "alpenflight-profile-account.png" "J-4" "alpenflight" "Account tab" \
+            "AlpenFlight: /profile → Account tab (real PILOT pilot1, showcase seed) — self-edit account fields (friendly name, notification email, phone, language) via PATCH /api/v1/me/profile; username + club read-only; no in-app password form (Keycloak owns it)"
+          add_shot "alpenflight/web/test-results-profile" "alpenflight-profile-personal.png" "J-4" "alpenflight" "Personal tab" \
+            "AlpenFlight: /profile → Personal tab (real PILOT pilot1) — the caller's contact/address self-edit form (address, zip/city/region, country, phones, emails, birthday) via PATCH /api/v1/me/person; name fields read-only (rename stays admin-only)"
+          add_shot "alpenflight/web/test-results-profile" "alpenflight-profile-pilot.png" "J-4" "alpenflight" "Pilot tab" \
+            "AlpenFlight: /profile → Pilot tab (real PILOT pilot1) — the licence/medical self-edit form (licence flags, licence number, medical expiry) via PATCH /api/v1/me/person/licences, emitting a person.licences_updated FADP audit event"
+          add_shot "alpenflight/web/test-results-profile" "alpenflight-profile-notifications.png" "J-4" "alpenflight" "Notifications tab" \
+            "AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab"
+
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
               | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
@@ -803,6 +997,7 @@ jobs:
           path: |
             alpenflight/web/playwright-report
             alpenflight/web/test-results
+            alpenflight/web/test-results-profile
             alpenflight/web/screenshots
             alpenflight/server/backend.log
             public/alpenflight/proof
@@ -977,12 +1172,15 @@ jobs:
           docker compose -p fls-e2e           -f docker-compose.yml                 down -v --remove-orphans || true
           docker network rm alpenflight_shared || true
 
-      # Surface the J-1 aircraft + J-2 flight legacy parity-video outcomes for
-      # visibility, but they are NON-BLOCKING parity aids (operator: AlpenFlight
-      # green is the gate), so they are NOT part of the hard-fail condition — only
-      # the J-0c legacy create spec + the AlpenFlight parity specs gate this job.
+      # Surface the J-1 aircraft + J-2 flight + J-4 /profile legacy parity-video
+      # outcomes for visibility, but they are NON-BLOCKING parity aids (operator:
+      # AlpenFlight green is the gate), so they are NOT part of the hard-fail
+      # condition — only the J-0c legacy create spec + the AlpenFlight parity
+      # specs gate this job. J-4 carries no data migration, so its /profile capture
+      # (both the legacy spec and the showcase AlpenFlight spec) is a parity aid
+      # only, never a gate.
       - name: Mark job failed if a gating spec was red (post-publish)
         if: ${{ steps.legacy-pw.outcome != 'success' || steps.pw.outcome != 'success' }}
         run: |
-          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs (J-0c+J-1+J-2): ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}; legacy J-2 flight parity video (non-blocking): ${{ steps.legacy-pw-flight.outcome }}" >&2
+          echo "legacy J-0c spec: ${{ steps.legacy-pw.outcome }}; AlpenFlight parity specs (J-0c+J-1+J-2): ${{ steps.pw.outcome }}; legacy J-1 aircraft parity video (non-blocking): ${{ steps.legacy-pw-aircraft.outcome }}; legacy J-2 flight parity video (non-blocking): ${{ steps.legacy-pw-flight.outcome }}; legacy J-4 /profile parity video (non-blocking): ${{ steps.legacy-pw-profile.outcome }}; AlpenFlight J-4 /profile showcase capture (non-blocking): ${{ steps.pw-profile.outcome }}" >&2
           exit 1
