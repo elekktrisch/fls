@@ -304,6 +304,34 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   `extractLegacyVideos` accepts the J-4 video (0 errors); fanout YAML valid; spec prettier-clean +
   `playwright test --list` well-formed + ZERO new tsc errors. First LIVE green is the fanout dispatch
   (legacy stack can't run on this box) — manager triggers it as the proof.
+  **Fix (fanout run 27035833678 — gallery rendered a J-4 heading but NO paired `/profile` shots; BOTH
+  capture halves produced nothing):** two confirmed bugs.
+  (1) *Legacy spec strict-mode violation* — `profile-parity-J4.spec.ts:138` failed with
+  `locator('#username') resolved to 2 elements`: the always-mounted login-form directive
+  (`core/directives/loginForm/login-form-directive.html:11`, `ng-model="user.username"`) renders a
+  SECOND `id="username"` alongside the profile form's disabled `#username` (`profile.html:15`). The
+  load-anchor was ambiguous → the legacy spec died before the video/4-PNG capture. **Fixed:** scoped
+  the anchor to `form[name="profileForm"] #username` (old `page.locator('#username')` → new
+  `page.locator('form[name="profileForm"] #username')`; the reused `username` var carries the scoped
+  locator through all four screenshot passes). Re-audited every other selector: only `#username`
+  collided — `#password` is login-only (the profile password drop uses `#OldPassword`/`#NewPassword`)
+  and every person-form anchor (`#Firstname`/`#MobilePhoneNumber`/`#LicenceNumber`/
+  `#HasGliderPilotLicence`/`#MedicalClass2ExpireDate`/`#Receive*`) is unique to
+  `person-form-fields.html`.
+  (2) *Step-6b `test-results-profile/` never created* — the `seedShowcase` step BUILD-FAILED with
+  `Web server failed to start. Port 8080 was already in use.`: the task boots a short-lived Spring app
+  (mainClass `AlpenFlightApplication`) that defaults to a web server, but in the fanout the seed runs
+  AFTER the gating parity specs (pollution-safe ordering), so the long-running backend already holds
+  8080 → context dies at `webServerStartStop` BEFORE the `ShowcaseSeedRunner` (an `ApplicationRunner`)
+  fires → `steps.seed-showcase.outcome=failure` → the gated restart + `pw-profile` capture steps SKIP →
+  `alpenflight/web/test-results-profile/` is never created → all 4 `alpenflight-profile-*.png`
+  "not found". **Fixed:** the `seedShowcase` Gradle task (`build.gradle.kts`) now passes
+  `--spring.main.web-application-type=none` — the seeder runs port-free (no Tomcat, no 8080 bind),
+  fires + `System.exit(0)` alongside the running backend. No-op on ci.yml's seed-before-backend path
+  (that ordering never started a web server). Verified locally: legacy spec prettier-clean +
+  `playwright --list` discovers it; fanout YAML valid (js-yaml); `build.gradle.kts` parses + the
+  `seedShowcase` task resolves (`gradlew help --task seedShowcase`). First LIVE green is the re-run
+  fanout dispatch.
 - [x] **T-18 — `GET /api/v1/me/person` + hydrate Personal tab (read gap from T-06/T-07).** `/me` returns
   only the Person's name, not contact/address — so the Personal tab renders empty + T-13's round-trip can't
   read. Add a caller-scoped `GET /me/person` (returns the editable contact/address shape; `operationId

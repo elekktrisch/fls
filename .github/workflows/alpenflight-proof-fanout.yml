@@ -677,6 +677,24 @@ jobs:
       #     into its per-test outputDir BEFORE any deep assertion (T-15), so the
       #     gallery gets the AlpenFlight half even on a red round-trip.
       # ========================================================================
+      # CRITICAL ORDERING NOTE (run 27035833678 root cause): the `seedShowcase`
+      # task boots a SHORT-LIVED Spring Boot app (mainClass AlpenFlightApplication,
+      # `dev,showcase` + exit-after-seed). In ci.yml's dashboard-proof the seed
+      # runs BEFORE the long-running backend, so it owns port 8080 freely. HERE it
+      # must run AFTER the gating parity specs (pollution-safe ordering), so the
+      # long-running backend (the "Start alpenflight backend" step) ALREADY HOLDS
+      # 8080 — the default web-server bring-up then died with "Port 8080 was
+      # already in use" at `webServerStartStop`, BEFORE the ApplicationRunner
+      # seeder fired → BUILD FAILED → `seed-showcase` outcome=failure → the
+      # restart + profile-capture steps below (`steps.seed-showcase.outcome ==
+      # 'success'` gated) SKIPPED → `test-results-profile/` was never created →
+      # the 4 `alpenflight-profile-*.png` were "not found" and the J-4 gallery
+      # lost its AlpenFlight half. FIX: the `seedShowcase` Gradle task now passes
+      # `--spring.main.web-application-type=none` (build.gradle.kts) — the seeder
+      # is an `ApplicationRunner` (ShowcaseSeedRunner) that fires on app-ready and
+      # `System.exit`s 0, so it needs NO Tomcat / NO 8080 bind and runs cleanly
+      # alongside the already-running backend. (Harmless on ci.yml's
+      # seed-before-backend path — that run never started a web server anyway.)
       - name: Seed showcase data (additive — AFTER the gating parity specs)
         id: seed-showcase
         if: always()

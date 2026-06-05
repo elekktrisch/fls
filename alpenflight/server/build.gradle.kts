@@ -486,5 +486,17 @@ val seedShowcase by tasks.registering(JavaExec::class) {
     args = listOf(
         "--spring.profiles.active=dev,showcase",
         "--alpenflight.showcase.exit-after-seed=true",
+        // No web server: the seed is driven by ShowcaseSeedRunner (an
+        // ApplicationRunner that fires on app-ready, commits the dataset, then
+        // System.exit(0)) — it never needs Tomcat. Booting one wasted startup AND
+        // collided with port 8080 when this task ran ALONGSIDE the already-running
+        // backend in the fan-out's seed-after-gating-specs ordering
+        // (alpenflight-proof-fanout.yml step 6b, run 27035833678: "Port 8080 was
+        // already in use" → the seed crashed before the runner fired → the J-4
+        // /profile capture + its 4 gallery PNGs were skipped). web-application-
+        // type=none makes the seed run port-free in BOTH orderings (ci.yml's
+        // seed-before-backend never started a web server either, so it's a no-op
+        // there).
+        "--spring.main.web-application-type=none",
     )
 }

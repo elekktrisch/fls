@@ -187,7 +187,20 @@ test("J-4 parity: legacy /profile field set (user-settings + person License/Noti
 
     // LEFT form anchor: the disabled username field is populated from the token
     // user (profile.html:13-17) the moment the controller binds myUser.
-    const username = page.locator("#username");
+    //
+    // SCOPE the locator to `form[name="profileForm"]` — a bare `#username` is
+    // AMBIGUOUS: the always-mounted login-form directive
+    // (core/directives/loginForm/login-form-directive.html:11) ALSO renders an
+    // `id="username"` (the `ng-model="user.username"` login input), so a
+    // page-wide `#username` resolves to TWO elements and trips Playwright strict
+    // mode (the original failure at this anchor). The profile form's disabled
+    // username (`<input disabled id="username" ng-model="myUser.UserName">`,
+    // profile.html:15) is the one we want — qualify by its `name="profileForm"`
+    // ancestor so the match is unique to the profile page. (No other anchor in
+    // this spec collides: `#password` is login-only — the profile password drop
+    // uses `#OldPassword`/`#NewPassword` — and every person-form anchor below is
+    // unique to person-form-fields.html.)
+    const username = page.locator('form[name="profileForm"] #username');
     await username.waitFor({ state: "visible", timeout: 30_000 });
     await expect(username).not.toHaveValue("");
 
