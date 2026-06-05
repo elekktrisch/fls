@@ -272,6 +272,17 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   getMyPerson`; no `:id`; no-Person → clean 409/empty) + wire `personal.store` to load it on init. Seam:
   me-person GET + personal.store hydrate. (Account already hydrates from `/me`; licences/prefs hydrate via
   their own GETs in T-08/T-10.)
+- [ ] **T-19 — Fix `me`→`persons.application` Modulith boundary (CI/arch-guard, build-blocking).**
+  `ApplicationModulesTest.verifyModuleStructure()` red: the `me` module (MePersonController/MePersonLicences
+  Controller/MeNotificationPrefsController) depends on **non-exposed** `persons.application` types
+  (`PersonsService`, `SelfContactUpdate`, `SelfLicencesView`, `SelfNotificationPrefsUpdate/View`) + `persons.
+  domain.PersonNotFoundException`. (Introduced T-06/T-08/T-10; targeted IT runs never ran this arch test.)
+  Fix: expose the needed `persons.application` surface via Spring Modulith `@NamedInterface` — **mirror exactly
+  how `me`→`users.application.UsersService` is already allowed** (that one isn't flagged, so users.application
+  is already a named interface). Run ALL arch guards green (`ApplicationModulesTest`, `ControllerAuditCoverage
+  Test`, `NativeSqlRegisterTest`, `AuditRedactionCoverageTest`). Seam: persons module named-interface +
+  package-info. **Process note:** backend workers must run the arch-guard suite, not just their IT (these
+  guards only fire on the full build).
 - [ ] **T-13 — Thicken spec + e2e normalization.** Full real assertions from the oracle (entry,
   4 round-trips incl. sysadmin-fixture audit-row read for Pilot, no-Person banner, isolation);
   fold the e2e prettier/tsc rider on the new specs. Seam: spec edit. (Depends on T-18 + T-08/T-10 GETs.)
