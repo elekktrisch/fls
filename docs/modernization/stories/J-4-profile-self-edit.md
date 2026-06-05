@@ -185,5 +185,27 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   4 round-trips incl. sysadmin-fixture audit-row read for Pilot, no-Person banner, isolation);
   fold the e2e prettier/tsc rider on the new specs. Seam: spec edit.
 
+- [x] **T-14 — Fix V30 seed regression in J-3 dashboard proof (CI-surfaced).** T-04's push went red:
+  `start-dashboard.spec.ts:254` pilot `start-last-flight-card` not found — V30 (`AND person_id IS NULL`)
+  links pilot1 to a NEW person, conflicting with the showcase-seed harness step that links pilot1 to the
+  8-flights PIC person (README T-03b). Fix so BOTH J-3 dashboard last-flight card AND J-4 profile tabs
+  render: ENRICH pilot1's EXISTING showcase person (contact/licence/medical + PersonClub prefs) instead of
+  creating a new one + relinking. Seam: V30 seed (+ the showcase-seed harness if the person is created there).
+  J-4 must not break J-3's green.
+  **Done:** root cause confirmed — pilot1's flights-PIC person + 8-flights linkage come from the
+  `ShowcaseSeeder` HARNESS (`@Profile("showcase")`, `seedPersonsAndLinks` → person `…7601…0601`,
+  linked via `linkUserPerson(pilot1, …0601)` guarded on `person_id IS NULL`). V30 ran at Flyway time
+  (before the harness) and grabbed pilot1's `person_id` with its own orphan person `…7300…0002`
+  (`AND person_id IS NULL`), so the harness link no-op'd → last-flight card empty. Fix: **enriched the
+  harness person** `…7601…0601` with the full self-edit field set (`ShowcaseSeeder.insertPilot1Person`
+  + `insertPilot1PersonClub` + pilot1 `t_user.phone_number` UPDATE); **V30 reduced** to the no-Person
+  `pilot-empty1` seed only (its orphan person/person_club/relink removed). So ONE person now backs both
+  the J-3 last-flight card and the J-4 profile tabs. Self-edit values preserved per T-02 contract
+  (`has_glider_pilot_licence=true`, `licence_number=CH-GLD-0001`, `medical_class2_expire_date=2027-09-30`,
+  prefs flightReports=true / reservations=false / planning-reminder=true); pilot1 profile data now lives
+  in the harness, not V30 (downstream T-09/T-11/T-13 read the same values). Validated via throwaway
+  Postgres 16 + `flywayMigrate` + harness-SQL replay: pilot1 `person_id`→`…7601…0601`, person carries the
+  fields, membership carries the prefs, `pilot-empty1` stays `person_id NULL`.
+
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
 **Not folded** (carve decision): gallery-collapse + proof-scoping CI riders (infra-heavy, off this surface).
