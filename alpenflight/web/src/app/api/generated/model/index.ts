@@ -83,6 +83,7 @@ export * from './locationListItem';
 export * from './locationTypeResponse';
 export * from './locationUpdateRequest';
 export * from './memberStateListItem';
+export * from './meProfileUpdateRequest';
 export * from './meResponse';
 export * from './migrationRunStatusView';
 export * from './migrationRunStatusViewState';

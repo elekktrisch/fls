@@ -73,10 +73,19 @@ class MeProfileControllerIT extends PostgresIntegrationTest {
         // Response reuses the /me projection shape — reflects persisted state.
         assertThat(body.get("email").asText()).isEqualTo("new@example.com");
         assertThat(body.get("username").asText()).isEqualTo("meprof-it-a");
+        // J-4: the projection now carries the Account self-fields so the SPA
+        // form reflects the round-trip (and reads back on reload) without a
+        // second endpoint. languageCode is the BCP-47 of the chosen language.
+        assertThat(body.get("friendlyName").asText()).isEqualTo("New Name");
+        assertThat(body.get("phoneNumber").asText()).isEqualTo("+41 22 222");
+        assertThat(body.get("languageId").asText()).isEqualTo(LANG_EN_UUID.toString());
+        assertThat(body.get("languageCode").asText()).isEqualTo("en");
 
         // Persisted: a fresh GET /me reflects the change.
         JsonNode reread = readJson(get("/api/v1/me", token));
         assertThat(reread.get("email").asText()).isEqualTo("new@example.com");
+        assertThat(reread.get("friendlyName").asText()).isEqualTo("New Name");
+        assertThat(reread.get("languageId").asText()).isEqualTo(LANG_EN_UUID.toString());
 
         // Direct row read: self-fields updated, remarks (admin-only) untouched.
         Map<String, Object> row = jdbc.queryForMap(

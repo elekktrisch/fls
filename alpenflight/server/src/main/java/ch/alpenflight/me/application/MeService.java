@@ -64,10 +64,15 @@ public class MeService {
                    u.username        AS username,
                    u.notification_email AS email,
                    u.person_id       AS person_id,
+                   u.friendly_name   AS friendly_name,
+                   u.phone_number    AS phone_number,
+                   u.language_id     AS language_id,
+                   l.code            AS language_code,
                    p.firstname       AS first_name,
                    p.lastname        AS last_name
             FROM t_user u
             LEFT JOIN t_person p ON p.id = u.person_id AND p.deleted_on IS NULL
+            LEFT JOIN t_language l ON l.id = u.language_id
             WHERE u.keycloak_sub = ?::uuid AND u.deleted_on IS NULL
             """;
 
@@ -89,7 +94,13 @@ public class MeService {
                     claim(jwt, "given_name"),
                     claim(jwt, "family_name"),
                     claim(jwt, "email"),
-                    claim(jwt, "preferred_username"));
+                    claim(jwt, "preferred_username"),
+                    // No user row → no Account self-fields. The SPA Account form
+                    // renders read-only JWT-claim fallbacks and disables save.
+                    null,
+                    null,
+                    null,
+                    null);
         }
         String firstName = row.firstName != null ? row.firstName : claim(jwt, "given_name");
         String lastName = row.lastName != null ? row.lastName : claim(jwt, "family_name");
@@ -101,7 +112,11 @@ public class MeService {
                 firstName,
                 lastName,
                 row.email,
-                row.username);
+                row.username,
+                row.friendlyName,
+                row.phoneNumber,
+                row.languageId,
+                row.languageCode);
     }
 
     private static List<String> extractRoles(Jwt jwt) {
@@ -142,7 +157,13 @@ public class MeService {
                     Objects.requireNonNull((String) row.get("email")),
                     asUuidNullable(row.get("person_id")),
                     (String) row.get("first_name"),
-                    (String) row.get("last_name"));
+                    (String) row.get("last_name"),
+                    // friendly_name / language_id are NOT NULL on t_user (V2);
+                    // phone_number + the joined language code are nullable.
+                    Objects.requireNonNull((String) row.get("friendly_name")),
+                    (String) row.get("phone_number"),
+                    asUuid(row.get("language_id")),
+                    (String) row.get("language_code"));
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -174,5 +195,9 @@ public class MeService {
             String email,
             @Nullable UUID personId,
             @Nullable String firstName,
-            @Nullable String lastName) {}
+            @Nullable String lastName,
+            String friendlyName,
+            @Nullable String phoneNumber,
+            UUID languageId,
+            @Nullable String languageCode) {}
 }

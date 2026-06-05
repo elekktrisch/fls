@@ -239,6 +239,20 @@ const de = {
       'Lade die Handshake-Datei herunter und übergib sie der Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
   },
   profile: {
+    account: {
+      clubId: 'Verein',
+      friendlyName: 'Anzeigename',
+      language: 'Sprache',
+      notificationEmail: 'Benachrichtigungs-E-Mail',
+      notificationEmailHelp:
+        'Für In-App-Benachrichtigungen. Die Login-E-Mail wird in Keycloak verwaltet.',
+      phone: 'Telefon',
+      readOnlyHint: 'Verwaltet vom Vereins-Administrator.',
+      save: 'Speichern',
+      saveError: 'Speichern fehlgeschlagen. Bitte erneut versuchen.',
+      saved: 'Konto gespeichert.',
+      username: 'Benutzername',
+    },
     noPersonBanner:
       'Kein Mitgliederdatensatz verknüpft. Bitte deinen Vereins-Administrator, deinen Mitgliederdatensatz zu verknüpfen.',
     stub: 'Bearbeitung folgt.',

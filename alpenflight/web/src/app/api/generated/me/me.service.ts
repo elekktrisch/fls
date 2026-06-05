@@ -27,6 +27,7 @@ import {
 
 import type {
   ClubDashboardResponse,
+  MeProfileUpdateRequest,
   MeResponse,
   SseEmitter,
   SystemDashboardResponse
@@ -80,6 +81,42 @@ type HttpClientObserveOptions = HttpClientOptions & {
 @Injectable({ providedIn: 'root' })
 export class MeService {
   private readonly http = inject(HttpClient);
+/**
+ * @summary Edit the caller's own Account self-fields (friendlyName, notificationEmail, phoneNumber, languageId). Caller resolved from the JWT — no :id. Username / clubId / keycloakSub are immutable; remarks (admin-only) is preserved. Returns the updated /me projection.
+ */
+ updateMyProfile<TData = MeResponse>(meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyProfile<TData = MeResponse>(meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyProfile<TData = MeResponse>(meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyProfile<TData = MeResponse>(
+    meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/profile`,
+      meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/profile`,
+      meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/profile`,
+      meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
 /**
  * @summary Authenticated-principal projection (id, personId, clubId, roles, firstName, lastName, email, username). personId is null for sysadmins / unmapped federated users.
  */

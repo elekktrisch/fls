@@ -230,6 +230,20 @@ const en: Translations = {
       'Download the handshake file and give it to the export tool. Your data is encrypted before it reaches our servers.',
   },
   profile: {
+    account: {
+      clubId: 'Club',
+      friendlyName: 'Display name',
+      language: 'Language',
+      notificationEmail: 'Notification email',
+      notificationEmailHelp:
+        'Used for in-app notifications. The login email is managed in Keycloak.',
+      phone: 'Phone',
+      readOnlyHint: 'Managed by your club admin.',
+      save: 'Save',
+      saveError: 'Save failed. Please try again.',
+      saved: 'Account saved.',
+      username: 'Username',
+    },
     noPersonBanner: 'No member record linked. Ask your club admin to link your member record.',
     stub: 'Editing coming soon.',
     tabs: {

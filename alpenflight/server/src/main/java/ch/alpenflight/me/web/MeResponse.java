@@ -43,7 +43,19 @@ record MeResponse(
         @Nullable String email,
         @Schema(description = "Username from the user row, or JWT `preferred_username` claim "
                 + "when no user matches.")
-        @Nullable String username) {
+        @Nullable String username,
+        @Schema(description = "Account display name (`t_user.friendly_name`). The Account "
+                + "self-edit form's initial value; null when no user row matches the JWT sub.")
+        @Nullable String friendlyName,
+        @Schema(description = "Contact phone (`t_user.phone_number`). Account self-edit field; "
+                + "nullable.")
+        @Nullable String phoneNumber,
+        @Schema(description = "Preferred-language id (`t_user.language_id`, raw UUID). The "
+                + "Account language-selector's current value; null when no user row matches.")
+        @Nullable String languageId,
+        @Schema(description = "BCP-47 code of `languageId` (e.g. `de`, `fr`). Lets the SPA flip "
+                + "its active locale on a saved language change without a second round-trip.")
+        @Nullable String languageCode) {
 
     static MeResponse from(MeView view) {
         return new MeResponse(
@@ -54,6 +66,10 @@ record MeResponse(
                 view.firstName(),
                 view.lastName(),
                 view.email(),
-                view.username());
+                view.username(),
+                view.friendlyName(),
+                view.phoneNumber(),
+                view.languageId() == null ? null : view.languageId().toString(),
+                view.languageCode());
     }
 }

@@ -233,6 +233,20 @@ const it: Translations = {
       'Scarica il file di handshake e forniscilo allo strumento di esportazione. I tuoi dati vengono crittografati prima di raggiungere i nostri server.',
   },
   profile: {
+    account: {
+      clubId: 'Club',
+      friendlyName: 'Nome visualizzato',
+      language: 'Lingua',
+      notificationEmail: 'E-mail di notifica',
+      notificationEmailHelp:
+        'Usata per le notifiche in-app. L’e-mail di accesso è gestita in Keycloak.',
+      phone: 'Telefono',
+      readOnlyHint: 'Gestito dall’amministratore del club.',
+      save: 'Salva',
+      saveError: 'Salvataggio non riuscito. Riprova.',
+      saved: 'Account salvato.',
+      username: 'Nome utente',
+    },
     noPersonBanner:
       'Nessun record membro collegato. Chiedi all’amministratore del club di collegare il tuo record membro.',
     stub: 'Modifica in arrivo.',

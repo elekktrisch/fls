@@ -6,6 +6,9 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 
 import { SessionStore } from '../../core/session/session.store';
 
+import { AccountStore } from './account.store';
+import { ProfileAccountTab } from './profile-account.tab';
+
 /**
  * `/profile` self-edit shell (T-03, J-4 / S-182). Renders the 4-tab scaffold —
  * Account / Personal / Pilot / Notifications — that the per-tab tasks build on.
@@ -31,7 +34,10 @@ import { SessionStore } from '../../core/session/session.store';
   selector: 'af-profile-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TranslocoDirective, NzTabsModule, AfPageComponent],
+  imports: [TranslocoDirective, NzTabsModule, AfPageComponent, ProfileAccountTab],
+  // AccountStore is feature-scoped to /profile — provided here so its lifetime
+  // is the shell, and a fresh /me load runs on every visit (T-05).
+  providers: [AccountStore],
   template: `
     <ng-container *transloco="let t; read: 'profile'">
       <af-page>
@@ -55,7 +61,7 @@ import { SessionStore } from '../../core/session/session.store';
                 <span data-testid="profile-tab-account">{{ t('tabs.account') }}</span>
               </ng-template>
               <section data-testid="profile-panel-account">
-                <p class="text-slate-500">{{ t('stub') }}</p>
+                <af-profile-account-tab />
               </section>
             </nz-tab>
 

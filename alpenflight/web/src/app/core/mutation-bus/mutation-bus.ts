@@ -4,6 +4,11 @@ import { Subject } from 'rxjs';
 export type MutationEvent =
   | { kind: 'session.logout' }
   | { kind: 'session.tenantSwitch'; clubId: string }
+  // The caller self-edited their own Account (/profile). The session re-reads
+  // /me so the nav avatar + any session-backed consumer reflect the new
+  // friendlyName / email / language. Cross-store, so it rides the bus rather
+  // than a direct SessionStore injection (no-sibling-store rule, CLAUDE.md §10).
+  | { kind: 'profile.updated' }
   | { kind: 'aircraft.created'; aircraftId: string }
   | { kind: 'aircraft.updated'; aircraftId: string }
   | { kind: 'aircraft.deleted'; aircraftId: string }

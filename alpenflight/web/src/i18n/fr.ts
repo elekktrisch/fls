@@ -235,6 +235,20 @@ const fr: Translations = {
       'Téléchargez le fichier de handshake et fournissez-le à l’outil d’export. Vos données sont chiffrées avant d’atteindre nos serveurs.',
   },
   profile: {
+    account: {
+      clubId: 'Club',
+      friendlyName: 'Nom affiché',
+      language: 'Langue',
+      notificationEmail: 'E-mail de notification',
+      notificationEmailHelp:
+        'Utilisé pour les notifications dans l’application. L’e-mail de connexion est géré dans Keycloak.',
+      phone: 'Téléphone',
+      readOnlyHint: 'Géré par ton administrateur de club.',
+      save: 'Enregistrer',
+      saveError: 'Échec de l’enregistrement. Réessaie.',
+      saved: 'Compte enregistré.',
+      username: 'Nom d’utilisateur',
+    },
     noPersonBanner:
       'Aucun dossier de membre lié. Demande à ton administrateur de club de lier ton dossier de membre.',
     stub: 'Édition à venir.',

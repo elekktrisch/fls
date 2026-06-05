@@ -1,5 +1,13 @@
-import { computed, inject } from '@angular/core';
-import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
+import { DestroyRef, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  patchState,
+  signalStore,
+  withComputed,
+  withHooks,
+  withMethods,
+  withState,
+} from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { EMPTY, catchError, pipe, switchMap, tap } from 'rxjs';
 
@@ -162,6 +170,22 @@ export const SessionStore = signalStore(
       };
     },
   ),
+  withHooks({
+    onInit(store) {
+      const bus = inject(MUTATION_BUS);
+      const destroyRef = inject(DestroyRef);
+      // The /profile Account self-edit (J-4) emits `profile.updated` after a
+      // successful PATCH /api/v1/me/profile. Re-read /me so the nav avatar +
+      // session-backed consumers reflect the new friendlyName / email /
+      // language without a page reload. Cross-store coordination via the bus
+      // (no direct AccountStore→SessionStore injection).
+      bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
+        if (evt.kind === 'profile.updated') {
+          store.loadMe();
+        }
+      });
+    },
+  }),
 );
 
 function sessionStatusIsLoading(status: SessionStatus): boolean {

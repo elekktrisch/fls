@@ -33,10 +33,9 @@ import type {
   UserUpdateRequest,
   UserUpdateRequestRolesItem,
 } from '@api/generated/model';
-import { LocaleService } from '@shared/ui/locale';
+import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS, LocaleService } from '@shared/ui/locale';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
-import { LANGUAGE_BY_LOCALE, LANGUAGE_OPTIONS } from '../language-options';
 import {
   CLUB_ADMIN_GRANTABLE_ROLES,
   MANAGED_ROLE_NAMES,

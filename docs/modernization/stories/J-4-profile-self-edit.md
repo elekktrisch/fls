@@ -151,8 +151,19 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   isolation (A's token, no id, B's row byte-identical) + validation-400, PILOT-driven. OpenAPI snapshot regen'd.
   **Verified via CI** (`next-build` runs the IT on GH runners) — local Testcontainers PG times out at 60s on the
   LXC box (Docker fine; manual PG works), so local IT self-verify is unreliable this window.
-- [ ] **T-05 — Account tab.** Account form + signal store + `PATCH /me/profile` via regenerated
-  orval client; language change refreshes the SPA locale; username/clubId read-only. Seam: Account tab component.
+- [x] **T-05 — Account tab.** `features/profile/{profile-account.tab.ts, account.store.ts}` — reactive
+  `nz-form` (af-form-field/af-input/af-select) with the T-01 testids; `AccountStore` (feature-scoped,
+  provided on the shell) loads `/me` + saves via orval **`updateMyProfile(meProfileUpdateRequest)`**;
+  username/clubId read-only. **Locale refresh:** on save the store maps the persisted `languageId`→locale
+  (`localeForLanguageId`, promoted to `shared/ui/locale` from `features/users/language-options`) and calls
+  `LocaleService.set` — the same single switch the bootstrap uses (ng-zorro + transloco + `<html lang>`).
+  **Session refresh:** emits a new `profile.updated` MUTATION_BUS event (no sibling-store injection);
+  `SessionStore` subscribes → `loadMe()` so the nav avatar reflects the change. **`/me` projection touch:**
+  `/me` lacked `friendlyName`/`phoneNumber`/`languageId` for the form's initial values + round-trip-reflect,
+  so extended `MeView`/`MeService` SELECT (join `t_language`)/`MeResponse` with
+  `friendlyName,phoneNumber,languageId,languageCode` (username/clubId were already present) — snapshot +
+  orval client regen'd, `MeProfileControllerIT` strengthened to assert the new projection fields. tsc + lint
+  + 327 unit tests + `ng build --configuration mock-auth` green locally.
 - [ ] **T-06 — Person-contact endpoint `PATCH /api/v1/me/person`.** JWT→caller's Person,
   `updateContact`; name fields (first/last/mid/company) read-only/ignored; no-Person → clean error;
   `operationId`; IT + isolation. Seam: me-person endpoint.
