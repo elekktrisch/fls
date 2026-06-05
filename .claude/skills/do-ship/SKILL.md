@@ -162,6 +162,16 @@ journey** — a **green real-export `fanout` run** (not just synth). CI: `alpenf
 (required, synth/clean-seed) + the `fanout` real-export run. For **Journey-0** the gate
 work *is* the tasks: stand up the thinnest whole chain.
 
+**Scope the heavy proof to THIS journey during build-up.** Run the journey's OWN spec
+per push, not every prior journey's specs — re-running all is slow and lets an unrelated
+prior-journey flake red your gate (J-3: the J-1 aircraft retry-flake blocked J-3 though it
+never touched aircraft). Full cross-journey regression runs at the **§4 gate / nightly**,
+not per push. Don't let task-pushes cancel an in-flight heavy proof — you lose its signal +
+the gallery deploy (J-3: dashboard-proof cancelled twice). **Gallery/screenshot deploy must
+survive a red case** — capture each screenshot as soon as its container renders, BEFORE the
+deep assertions, and gate deploy on `!cancelled()` so it publishes even when one assertion
+fails (the J-2 T-42 rule — recurred in J-3; the operator must *see* the proof on a partial red).
+
 **Mock governance.** Happy + key-error run fully real — no mocking. Any mocked seam
 (edge/error only) carries an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked
 seams"** list; **one operator signoff** at the gate. Spawn `gap-hunter` ×2-3 against `git

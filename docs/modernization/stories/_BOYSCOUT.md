@@ -96,6 +96,18 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   named methods, not positional `getN`. *(seam: backend operationId annotations + orval config + the few
   `meService.getN()` call sites)* — fix-forward on the next web-touching journey.
 
+## Pending (filed by /do-retro 2026-06-05, J-3 window)
+
+- **Scope the clean-seed `alpenflight-proof` job to the journey-under-work's spec (operator ask, J-3
+  retro).** Today `ci.yml`'s `alpenflight-proof` re-runs J-0+J-1+J-2(+…) real-idp specs on EVERY push —
+  slow, expensive, and it lets an unrelated prior-journey flake red the current journey's gate (J-3:
+  the J-1 aircraft retry-flake blocked J-3, which never touched aircraft). Make the per-push proof run
+  only the **current journey's** spec(s) (parameterize the spec list off the integration branch / a
+  journey marker), and move the **full cross-journey regression** to a **gate-only / nightly** run
+  (`alpenflight-e2e-real-idp.yml` already hosts a nightly full suite — point the regression there). Pairs
+  with the [[J-1 aircraft flake]] rider (lighter + scoped proof also stops that flake gating other
+  journeys). *(seam: ci.yml alpenflight-proof spec selection + the nightly full-suite trigger)*
+
 ## Pending (filed by /do-ship 2026-06-05, J-3 window)
 
 - **J-1 aircraft real-idp spec flake (S-163 timeout → retry → create-residue → 6≠3).** In the shared
