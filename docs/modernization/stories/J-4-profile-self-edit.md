@@ -501,7 +501,7 @@ UI spec required.** Both fold as the combined CI restructure T-21+T-22 below.
   false-confidence — passed even when German showed). Fixed: dropped `exact:true` on all 4 locale text
   assertions (substring match, more meaningful). prettier-clean, `--list` routes to real-idp. (Manager inline
   fix — fully-diagnosed mechanical selector correction.)
-- [ ] **T-21+T-22 — CI proof restructure (operator Q1+Q2, combined).** (a) **Proof-scoping:** scope the
+- [x] **T-21+T-22 — CI proof restructure (operator Q1+Q2, combined).** (a) **Proof-scoping:** scope the
   per-push required proof OFF the cross-journey J-0/J-1/J-2 specs — keep the stable journey-agnostic
   tenant-isolation spec as the per-push structural gate, move the aircraft + flight migration-parity
   regression to the nightly real-idp suite (so the known J-1 aircraft flake no longer reds J-4's `required`).
@@ -510,6 +510,18 @@ UI spec required.** Both fold as the combined CI restructure T-21+T-22 below.
   aggregator's `needs` (keep the J-3 dashboard display non-blocking — don't couple J-4's gate to J-3's spec).
   Seam: ci.yml proof-job split + `required.needs` + the nightly workflow regression move. MUST keep `required`
   green: the profile spec is now green (T-20a) — verify the restructured gate is green before done.
+  **Done (shape A):** (a) `ci.yml` `alpenflight-proof` per-push job scoped to ONLY
+  `locations-crud-tenant-isolation.spec.ts` (J-0 verticality + gallery) and DROPPED from `required.needs`;
+  the J-1 aircraft + J-2 flight migration-parity specs MOVED to the nightly `alpenflight-e2e-real-idp.yml`
+  full `--project=real-idp` run (DATASOURCE_* exported there for the beforeAll seeders; scoped to
+  `e2e/tests/real-idp/` so the showcase-only profile spec can't red the clean-seed nightly). (b) new gating
+  job `alpenflight-profile-proof` (cloned showcase bring-up from `alpenflight-dashboard-proof`) runs ONLY
+  `profile/self-edit.spec.ts` + stages the 4 profile tab shots to the gallery + ADDED to `required.needs`;
+  `alpenflight-dashboard-proof` narrowed to ONLY `start-dashboard.spec.ts`, still NON-blocking with its
+  resilient gallery deploy. `required` traced: red-on-profile-fail (job=failure → R_PROFILE_PROOF=failure →
+  fail=1), green-on-docs-only (all heavy jobs skip → R_*=skipped → success). Both workflow YAMLs parse.
+  `required.needs` before: `[changes, next-build, next-auth-realm-shape, alpenflight-proof, alpenflight-mock-e2e]`;
+  after: `[changes, next-build, next-auth-realm-shape, alpenflight-profile-proof, alpenflight-mock-e2e]`.
 
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
 **Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
