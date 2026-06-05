@@ -123,9 +123,13 @@ gallery surfaces early. Backend mutators mostly **already exist** (`User.updateP
 in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` endpoints + DTOs
 + the `/profile` feature. Drive the spec as a **real PILOT** principal (J-3 lesson).
 
-- [x] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/profile/self-edit.spec.ts`: nav
-  avatar dropdown → `/profile`, 4 tabs present (Account/Personal/Pilot/Notifications), selectors
-  for each tab's key fields, thin assertions (tabs render). Drive as PILOT. Commits the screen shape.
+- [x] **T-01 — Spec stub.** `self-edit.spec.ts` committed (`5c5a830e`), PILOT-driven (`pilot1@example.com`),
+  thin asserts, red-by-design. testid contract for downstream tabs: shell `profile-page` + `profile-tab-*`/`profile-panel-*`
+  (account/personal/pilot/notifications) + `profile-no-person-banner`; fields `profile-account-{friendlyName,
+  notificationEmail,phone,language}`, `profile-personal-{address,city,phonePrivate,phoneBusiness,birthday}`,
+  `profile-pilot-{licence-glider,medical-expiry}`, `profile-notifications-pref-{flightReports,reservations,clubNews}`.
+  Entry reuses nav `af-nav-user` trigger + Profile menuitem. **Open (→T-03):** spec needs the real-idp
+  project but its `tests/profile/` path matches the mock `chromium` project — resolve project routing (testMatch/tag) in T-03.
 - [ ] **T-02 — Showcase-seed self-edit principal.** Extend the showcase seed: a self-editable
   PILOT principal (Person w/ full contact + licence/medical + PersonClub notif prefs) so tabs
   render populated, AND a separate no-Person user (`person_id` null) for the banner edge. Reuse
