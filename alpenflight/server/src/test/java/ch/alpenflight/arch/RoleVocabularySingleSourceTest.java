@@ -110,7 +110,7 @@ class RoleVocabularySingleSourceTest {
 
         assertThat(appRoleMembers)
                 .as("AppRole union in session.store.ts must equal the Role enum exactly "
-                        + "(a wire role missing from the union becomes an un-typeable string in the SPA)")
+                        + "(a wire role absent in the union becomes an un-typeable string client-side)")
                 .isEqualTo(enumRoleNames());
     }
 
