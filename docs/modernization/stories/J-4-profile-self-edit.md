@@ -236,5 +236,29 @@ in `af-nav-bar.component.ts` — these tasks wire caller-scoped `PATCH /me/*` en
   skipping` guard prevents). Full real-idp stack not run locally (Testcontainers unreliable on the LXC box) —
   CI showcase job is the proof. Gallery deploys to `proof-preview/integration-J-4/dashboard`.
 
+- [ ] **T-16 — Fix two arch-guard build failures (CI-surfaced on the T-15 run).** `./gradlew build` red on:
+  (a) **`ControllerAuditCoverageTest`** — `MeProfileController.updateProfile` (T-04) is a mutating endpoint
+  with no audit hookup; the guard requires every mutating controller method to reach `AuditTrail.record`
+  (transitively) or be `@AuditedBy`. Fix: emit an audit event in `UsersService.updateOwnProfile`
+  (`AuditTrail.record(UPDATE, AuditedTarget.of("User", id, before, after))`) — **this also establishes the
+  audit pattern T-06/T-08/T-10 must each follow** (all self-edit endpoints are mutating → all need audit, not
+  just licences). (b) **`NativeSqlRegisterTest`** — T-14's `ShowcaseSeeder.insertPilot1PersonClub` is a NEW
+  native-SQL call site hitting tenant-scoped `t_person_club` not covered by the existing
+  `alpenflight/database/native-sql-register.md` entry; register the new call site (or consolidate into the
+  registered one). Seam: UsersService audit + native-sql-register. Verify locally (Testcontainers works now
+  the disk is freed): `ControllerAuditCoverageTest` + `NativeSqlRegisterTest` green.
+
+> **Audit requirement (carry into T-06/T-08/T-10):** every `/me/*` self-edit endpoint is mutating, so each
+> must emit its own audit event (e.g. `user.profile_updated`, `person.contact_updated`, `person.licences_updated`,
+> `personclub.notification_prefs_updated`) or the `ControllerAuditCoverageTest` guard reds the build.
+>
+> **Gate watch — not J-4 bugs:** (1) the **clean-seed `alpenflight-proof` red is the known J-1 aircraft flake**
+> (`aircraft-migration-parity.spec.ts:228` 6≠3 + `:407` S-163 45s timeout — boyscout rider, pre-existing on
+> main, J-4 touches no aircraft) — it reds `required`, a real merge-blocker → resolve before the §4 gate via
+> the **proof-scoping rider** (per-push clean-seed proof scoped off the journey; full regression → nightly) OR
+> the flake fix; operator decision. (2) The **dashboard-proof red is expected stub-tab redness** (Personal/
+> Pilot/Notifications field testids don't exist until T-07/09/11) — gallery still deploys (`!cancelled()`).
+
 **Riders folded:** orval explicit-`operationId` (T-04/06/08/10), e2e prettier/tsc on new specs (T-13).
-**Not folded** (carve decision): gallery-collapse + proof-scoping CI riders (infra-heavy, off this surface).
+**Not folded** (carve decision): gallery-collapse rider. **Proof-scoping rider now IN-PLAY** (the aircraft
+flake reds J-4's `required` gate — fold it or the flake fix before §4; operator call).
