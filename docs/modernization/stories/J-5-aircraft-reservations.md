@@ -552,3 +552,25 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   branch-preview deploy, run the spec in `GALLERY_DEPLOYED_URL` mode against the just-deployed
   `…/proof-preview/<branch>/` (fetch the index + every per-journey page + assert each link returns 200) and
   FAIL the gate on a 404 — so a deployed dead link can never ship green again. *(seam: proof-gallery-links.spec.ts + fanout post-deploy link-check step)*
+
+### §4 gate — seventh run (fanout AlpenFlight specs GREEN 25/25; T-33 deployed-check CAUGHT 3 live dead links; baseline test fragile)
+- [ ] **T-34 — Make `ReservationsBaselineIntegrationTest.aircraft_reservation_type_only_the_dev_seed_present` isolation-robust.**
+  Full-suite run shows `actual: []` — the V31 `Allgemein` dev-seed row is GONE when this test runs: a sibling
+  reservation IT (LeakageSweep `AircraftReservationTypeSweepFactory`, the round-trip ingest, or a controller IT)
+  mutates/cleans `t_aircraft_reservation_type` in the SHARED Testcontainers DB, so the row's presence is
+  order-dependent. T-30's seed-band filter didn't help because the row is absent, not extra. This test has
+  NEVER passed a full-suite CI run (the build never reached it pre-T-29). Fix robustly: either (a) find + stop
+  the sibling that deletes the seed row (if a test over-cleans, scope its cleanup to its OWN rows), or (b) make
+  this test verify the migration property without depending on shared-container row survival (e.g. `@Sql`/
+  fresh-context isolation, or re-seed-and-assert, or assert the V31 row by exact id tolerating sibling rows but
+  NOT tolerating its absence by ensuring isolation). Pick the robust option. **MUST run the full `./gradlew
+  :server:test` (all ~1113 tests, shared container) and confirm 0-failed** — the recurring blind spot is
+  focused `--tests` runs that miss cross-test pollution. *(seam: ReservationsBaselineIntegrationTest + whichever sibling over-cleans)*
+- [ ] **T-35 — Fix the 3 deployed gallery dead links the T-33 check caught.** On the live branch preview the
+  deployed-link-check (T-33, working as designed) found: `…/proof-preview/` → 404 (bare dir, no index.html),
+  `…/integration-J-5/j-0c-fanout/` → 404 (a per-run slug that isn't deployed there), `…/integration-J-5/previews/`
+  → 404 (a `previews/` link still relative to the branch). T-32 fixed the per-journey PAGE links; these come
+  from `generate-previews-index.mjs` (the persistent index link scheme, e.g. line ~99 `../proof/`, ~198
+  `../<rel>`) and/or the all-journeys page. Curl the live deploy to map each dead link to its emitting code,
+  fix the link scheme (site-absolute or correct-depth + dir→index.html), and **verify with the T-33
+  deployed-mode check logic + the local branch-preview walk** (the check must go green). *(seam: generate-previews-index.mjs / all-journeys page link scheme)*
