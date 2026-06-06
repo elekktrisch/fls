@@ -583,3 +583,24 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   `../<rel>`) and/or the all-journeys page. Curl the live deploy to map each dead link to its emitting code,
   fix the link scheme (site-absolute or correct-depth + dir→index.html), and **verify with the T-33
   deployed-mode check logic + the local branch-preview walk** (the check must go green). *(seam: generate-previews-index.mjs / all-journeys page link scheme)*
+
+### §4 gate — eighth run (server build GREEN via T-34; web step + mock-e2e + 1 deployed link red)
+- [ ] **T-36 — Fix the web build + mock-auth reservations e2e (the `alpenflight build` web step + `alpenflight-mock-e2e`).**
+  Server gradle build now GREEN (T-34). The `alpenflight build` job fails at "Lint + format + test + build
+  alpenflight/web": 2 ESLint `'store' is assigned a value but never used` (190:11, 206:11 — find the file, likely
+  a reservations store spec/component from T-09/T-27; remove/use). AND `alpenflight-mock-e2e` (in `required`)
+  fails `reservations-crud.spec.ts` (:419/:518/:566): the spec asserts GERMAN ("Reservationen"/"Zeitfenster"/
+  "Ganztägig") but chromium renders ENGLISH ("Reservations"/"Timed"/"All day") — the mock test browser defaults
+  to `en`. Make the reservations specs run in the product's primary **`de`** locale (force `?lang=de` / a context
+  locale, consistent with the real-idp spec which passed) so the German assertions hold + the gallery shows
+  German. Confirm `articles-crud.spec.ts:265` (`articles-save-error` not visible) is a PRE-EXISTING flake
+  unrelated to J-5 (note it; don't fix unless J-5 caused it). **MUST run the full local web build:** `pnpm
+  -C alpenflight/web lint`, `pnpm -C alpenflight/web generate-api` + `git diff --exit-code src/app/api/generated/`
+  (confirm not stale), `tsc`, `pnpm build` — all green. *(seam: web lint unused-var + reservations specs locale + generated-api check)*
+- [ ] **T-37 — Resolve the last deployed-link-check 404 (`…/integration-J-5/previews/`).** T-35 fixed 2 of 3;
+  this one persists though all current branch + per-journey pages link the correct absolute `/fls/alpenflight/previews/`.
+  Reproduce the T-33 deployed-mode crawl from `…/proof-preview/integration-J-5/` to find the referrer (a sub-page
+  not yet checked, OR the checker mis-resolving a site-absolute `/fls/...` href against the deployed base instead
+  of the host root → synthesizing `proof-preview/integration-J-5/previews/`). If it's a checker resolution bug,
+  fix the deployed-mode URL resolution (a leading-`/` href resolves against the host root, not the page dir); if
+  it's a real stale `keep_files` page, purge/overwrite it. Verify the deployed check (and local walk) goes green. *(seam: proof-gallery-links.spec.ts deployed-mode resolution OR a stale deployed page)*
