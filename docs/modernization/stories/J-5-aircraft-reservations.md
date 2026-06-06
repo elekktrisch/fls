@@ -141,7 +141,7 @@ journey whose proof is a *rejection*"):
 Feature ≥60% (T-01, T-03–T-10, T-16) + tech-debt ≤40% riders folded from `_BOYSCOUT.md` (T-02, T-11–T-15).
 One seam each; commit directly to `integration/J-5`.
 
-- [ ] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/reservations/reservations-crud.spec.ts`:
+- [x] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/reservations/reservations-crud.spec.ts`:
   structure + selectors + flow steps (list, create, edit, delete, conflict-409, all-day, cross-tenant,
   scheduler lane×time) with thin assertions. Commits the screen shape. *(seam: e2e spec)*
 - [ ] **T-02 — Testcontainers harness hardening (rider).** `PostgresTestContainerLifecycle` pre-start
