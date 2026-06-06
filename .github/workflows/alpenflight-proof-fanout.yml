@@ -1144,9 +1144,15 @@ jobs:
           sanitized="$(printf '%s' "$REF_NAME" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
           subdir="alpenflight/proof-preview/${sanitized}/legacy-parity"
           url="https://elekktrisch.github.io/fls/${subdir}/"
+          # The branch-preview PARENT (…/proof-preview/<branch>/) — the base the
+          # T-33 deployed link-check consumes (it appends legacy-parity/index.html
+          # + probes the site previews index). Kept distinct from `url` (the
+          # gallery's own legacy-parity root).
+          parent_url="https://elekktrisch.github.io/fls/alpenflight/proof-preview/${sanitized}/"
           {
             echo "subdir=${subdir}"
             echo "url=${url}"
+            echo "parent_url=${parent_url}"
           } >> "$GITHUB_OUTPUT"
           echo "fan-out proof preview → ${url}"
 
@@ -1200,6 +1206,34 @@ jobs:
             echo ""
             echo "**${PREVIEW_URL}**"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # J-5 T-33 — DEPLOYED link-check: the catch that makes "a deployed dead link
+      # can never ship green" TRUE. T-31's local check missed 2/3 of the operator's
+      # live dead links (it walked only the canonical layout + used existsSync, so a
+      # bare-dir link passed). T-33 hardened the LOCAL spec (it now walks the
+      # branch-preview layout + models gh-pages dir-index semantics), and this step
+      # closes the loop against the ACTUAL live deploy: it runs the SAME spec in
+      # `GALLERY_DEPLOYED_URL` mode against the just-deployed branch-preview, fetches
+      # the previews index + every per-journey page + asserts EVERY link returns
+      # HTTP 200 (the spec polls ~60s for gh-pages to serve a freshly-pushed file).
+      # Runs AFTER the branch-preview deploy + the index rebuild, on `!cancelled()`
+      # so it still fires on a PARTIAL-RED parity run (the same resilience rule as
+      # the deploys), but only when the gallery built + a deploy happened (the
+      # `steps.preview.outputs.parent_url` exists). A 404 on any link FAILS the step.
+      - name: Link-check the DEPLOYED branch-preview gallery (T-33)
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' && steps.gallery.outcome == 'success' && steps.preview.outputs.parent_url != '' }}
+        working-directory: alpenflight/web
+        env:
+          # The spec appends `legacy-parity/index.html` + probes the site previews
+          # index, so it consumes the branch-preview PARENT, not the gallery root.
+          GALLERY_DEPLOYED_URL: ${{ steps.preview.outputs.parent_url }}
+          # Browserless project — skip the dev webServer (see playwright.config.ts).
+          GALLERY_LINKS_ONLY: '1'
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=proof-gallery-links \
+            --grep '\[deployed\]'
 
       # J-4 T-24 — the former `<!-- fanout-proof-preview -->` sticky PR comment was
       # REMOVED. The fanout no longer posts its own PR comment; the single

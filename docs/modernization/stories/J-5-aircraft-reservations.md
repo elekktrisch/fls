@@ -544,7 +544,7 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   (gh-pages won't serve a dir listing); fix by linking to a real file OR emitting an `index.html` into the
   maintainability dir during the report-emit/gallery step. Verify against gh-pages semantics, both deploy
   layouts. *(seam: generate-gallery.mjs cross-section links + maintainability dir index/deploy)*
-- [ ] **T-33 — Harden the link-checker so it CATCHES deployed dead links (it missed 2/3).** T-31's local check
+- [x] **T-33 — Harden the link-checker so it CATCHES deployed dead links (it missed 2/3).** T-31's local check
   only generated the canonical layout + used `fs.existsSync` (a dir passes even though gh-pages 404s a dir with
   no index.html). Fix: (a) the local spec must also generate+walk the **branch-preview layout**
   (`proof-preview/<branch>/J-n/`) AND model gh-pages semantics — a link ending `/` (a directory) is only OK if
