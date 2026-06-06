@@ -147,7 +147,7 @@ One seam each; commit directly to `integration/J-5`.
 - [x] **T-02 — Testcontainers harness hardening (rider).** `PostgresTestContainerLifecycle` pre-start
   sweep of stale `alpenflight-pg-test-*` + raise the 60s readiness cap + a settings.json Stop hook —
   so backend workers self-verify ITs locally. *(seam: PostgresTestContainerLifecycle + settings.json hook)*
-- [ ] **T-03 — `AircraftReservation` aggregate + `AircraftReservationType`.** Domain entity + factory +
+- [x] **T-03 — `AircraftReservation` aggregate + `AircraftReservationType`.** Domain entity + factory +
   `validateDuration()` (end>start; all-day full-day span) + `conflictsWith()` (half-open overlap, self-
   exclude). Domain test. *(seam: `aircraft-reservations/domain/`)*
 - [ ] **T-04 — `JpaAircraftReservationRepository` + conflict GiST probe.** Projection ListRow queries,
