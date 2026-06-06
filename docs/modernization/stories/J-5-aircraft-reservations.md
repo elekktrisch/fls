@@ -194,7 +194,7 @@ One seam each; commit directly to `integration/J-5`.
   BE = `:pmdMain :cpdCheck`. Stable T-13-consumable paths under the gallery `--out` root:
   `public/alpenflight/proof/maintainability/{fallow-audit.json,fallow-health.json,pmd-main.xml,cpd-check.xml}`.
   *(seam: `.fallowrc.json` + ci/fanout emit steps)*
-- [ ] **T-13 — Per-journey gallery re-arch (operator ask 2026-06-06) + Maintainability panel (rider).**
+- [x] **T-13 — Per-journey gallery re-arch (operator ask 2026-06-06) + Maintainability panel (rider).** (split → T-13a + T-13b, both done)
   EXPANDED from the planned "first slice" to the full operator-visible result (the operator observed the
   index lists only the active branch + links the all-in-one per-proof-type galleries). Deliver:
   (a) **per-journey pages** — `generate-gallery.mjs` emits ONE page per `journey` (the sidecars already
