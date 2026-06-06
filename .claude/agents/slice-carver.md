@@ -58,10 +58,16 @@ five screens; not a single atomic action.
   layers). Size it as *building* the chain. [[verify-infra-is-run-not-just-authored]]
 - **Note the migration contribution.** For each journey, name the legacy
   entity/table it migrates so its per-journey mapper + seed can be scoped. Flag
-  greenfield/freemium journeys — migration is N/A. A mapper with a passing unit
-  test is NOT a working migrate (J-0's `LocationMapper` unit-passed, fan-out-
-  collided live) — treat migrate-fidelity as unproven until a real legacy→ingest
-  round-trip runs green.
+  greenfield/freemium journeys — migration is N/A. A unit-passing mapper is NOT a
+  working migrate (J-0's `LocationMapper` unit-passed, fan-out-collided live) —
+  migrate-fidelity is unproven until a real legacy→ingest round-trip runs green.
+- **Self-edit / CRUD journeys carry hidden seams — name them up front** (J-4 burned ~5
+  unplanned tasks): every mutating endpoint needs **its own audit event** (the audit guard
+  fails a PATCH that emits none — not just the "sensitive" one) + a **GET sibling** (PATCH-only
+  hydrates an empty form); a cross-module service call needs a **module-boundary** note (Modulith
+  OPEN / `@NamedInterface`); a new **showcase-seed** principal must not break a prior journey's
+  showcase proof (J-4's seed broke J-3's dashboard); a **no-migration** screen still owes paired
+  demonstrability via the legacy-video harness (not the export→migrate half).
 
 ## Output format
 

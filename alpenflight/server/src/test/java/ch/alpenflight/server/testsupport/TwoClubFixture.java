@@ -66,6 +66,13 @@ public final class TwoClubFixture {
         // flight_crew via the schema-level FK.
         jdbc.update("DELETE FROM t_flight WHERE operating_club_id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
+        // Aircraft reservations hold a RESTRICT FK to Aircraft (and to Location /
+        // reservation-type, deleted later in the catalog loop). Like flights,
+        // delete them up-front so the explicit aircraft cleanup below isn't
+        // blocked. The tenant-scoped reservation + type rows still get a second
+        // (idempotent) delete in the catalog loop.
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id IN (?::uuid, ?::uuid)",
+                clubA.toString(), clubB.toString());
         // Aircraft is cross-tenant since S-058 (reverts S-159), so it's no longer
         // in the catalog loop below. But managing_club_id → club is ON DELETE
         // RESTRICT, so aircraft rows under the seed clubs would block

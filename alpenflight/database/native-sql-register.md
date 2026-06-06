@@ -129,6 +129,39 @@ This register is the gate.
   ingestor + seeder share) that routes through JPA so the `@TenantId`
   discriminator engages without a chosen-id JDBC INSERT.
 
+### `reservations-conflict-gist-overlap-probe` — `Aircraft reservation GiST range-overlap conflict probe`
+
+- **Caller:** `src/main/java/ch/alpenflight/reservations/infra/AircraftReservationConflictProbeImpl.java`
+- **Tenant-scoped tables touched:** t_aircraft_reservation
+- **Justification:** the conflict probe (J-5 `existsActiveConflict`) tests whether
+  any active reservation on the same aircraft overlaps a half-open
+  `[start,end)` window. The overlap test uses the Postgres `&&` range-overlap
+  operator against the `reservation_range tstzrange` column that is
+  `GENERATED ALWAYS AS STORED` in V4 — neither the `&&` operator nor a
+  reference to a generated range column is expressible in JPQL/HQL. The query
+  rides the partial GiST index `ix_arv_aircraft_range_gist` on
+  `(aircraft_id, reservation_range) WHERE deleted_on IS NULL` for the sub-10ms
+  probe the V4 schema design notes call out. The rule itself lives on the
+  `AircraftReservation` aggregate (`conflictsWith`, ADR 0022 directive 2 — no
+  `EXCLUDE` constraint); this is the persistence-layer fast path the service
+  consults before save.
+- **Tenancy gate:** explicit `operating_club_id = :tenantId` predicate — the
+  tenant id is resolved from `ClubTenantIdentifierResolver` (same JWT →
+  `Tenants.runAs` carrier precedence the JPA path uses) and parameter-bound,
+  never caller-controlled string interpolation. Hibernate's `@TenantId`
+  discriminator does not apply to native SQL, so the predicate is the explicit
+  tenant gate. Soft-deleted rows excluded (`deleted_on IS NULL`); the edited row
+  self-excluded (`:excludeId IS NULL OR id <> :excludeId`).
+- **Reviewer:** auto-registered with J-5 T-04; security-reviewer panel
+  (ship-time gate) re-confirms.
+- **Approved:** 2026-06-06.
+- **Expires:** 2027-06-06
+- **Remove when:** Hibernate exposes a first-class range-overlap predicate over a
+  generated range column under the `@TenantId` filter, OR the conflict probe
+  moves to a derived JPQL `reservationStart < :end AND :start < reservationEnd`
+  form (loses the GiST index but stays tenant-filtered) if production query
+  plans show the index is unnecessary at per-club reservation counts.
+
 When you need to add one:
 
 1. Open a PR that updates this file with the entry below filled in.

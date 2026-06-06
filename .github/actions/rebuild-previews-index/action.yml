@@ -1,22 +1,34 @@
 name: Rebuild proof-previews index
 description: >-
-  J-4 T-24 — regenerate the persistent, bookmarkable proof-previews landing page
+  J-5 T-13b — regenerate the persistent, bookmarkable proof-previews landing page
   (alpenflight/previews/index.html) from the CURRENT gh-pages tree, then deploy
-  ONLY that one file. Checks out gh-pages, scans alpenflight/proof-preview/<branch>/
-  for active branch sub-galleries (root / dashboard / profile / legacy-parity),
-  full-regenerates the index, and pushes just alpenflight/previews/ back with
-  keep_files:true. Because the index is rebuilt from a fresh scan every time, the
-  shared page is correct under last-writer-wins even when concurrent per-branch
-  deploys race (they touch disjoint proof-preview/<branch>/ dirs).
+  ONLY that one file. The index is now a persistent JOURNEY directory: it lists
+  every roadmap journey J-0…J-N (in _ORDER.md order) and links each one's
+  per-journey page, probing — in priority order — the active branch preview
+  (alpenflight/proof-preview/<branch>/J-<n>/, ephemeral), the canonical main
+  deploy (alpenflight/proof/J-<n>/), and the fan-out archive
+  (alpenflight/proof/legacy-parity/J-<n>/). The latter two SURVIVE PR close (the
+  reaper only rm's proof-preview/<branch>/), so the index shows J-0…J-N even after
+  every PR merges. Pending journeys render a no-link "pending" row. Because the
+  index is rebuilt from a fresh scan every time, it is correct under
+  last-writer-wins even when concurrent per-branch deploys race (disjoint dirs).
 
-  Call this AFTER each per-branch gallery deploy step. Fail-soft: a missing
-  gh-pages branch or a push race is a warning, never a job-failing error — the
-  index is a convenience entry point, not a proof gate.
+  Call this AFTER each gallery deploy step (per-branch or main). Fail-soft: a
+  missing gh-pages branch or a push race is a warning, never a job-failing error —
+  the index is a convenience entry point, not a proof gate.
 
 inputs:
   github_token:
     description: Token with contents:write to push the rebuilt index to gh-pages.
     required: true
+  branch:
+    description: >-
+      Optional active branch ref to surface its freshly-built per-journey preview
+      pages (alpenflight/proof-preview/<sanitized>/J-<n>/). Defaults to the
+      sanitized github.head_ref (PR) / github.ref_name (push). Sanitized with the
+      SAME rule as ci.yml's preview subpath so the branch-preview source matches.
+    required: false
+    default: ''
 
 runs:
   using: composite
@@ -25,6 +37,9 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
+        BRANCH_INPUT: ${{ inputs.branch }}
+        HEAD_REF: ${{ github.head_ref }}
+        REF_NAME: ${{ github.ref_name }}
       run: |
         set -uo pipefail
         WORK="$(mktemp -d)"
@@ -40,15 +55,30 @@ runs:
           git checkout -q -b gh-pages FETCH_HEAD
         ) || { code=$?; [ "$code" = "7" ] && exit 0 || exit 0; }
 
-        if [ ! -d "$WORK/gh-pages/alpenflight/proof-preview" ]; then
-          echo "::warning::no alpenflight/proof-preview/ on gh-pages yet — nothing to index."
+        # T-13b — the index is now a persistent JOURNEY directory driven off the
+        # per-journey pages under alpenflight/proof/ (canonical) +
+        # alpenflight/proof/legacy-parity/ (fan-out archive) — both SURVIVE PR
+        # close. It must rebuild even when no active branch preview exists (the
+        # PR-closed world). So the gate is: SOME proof content exists (either the
+        # persistent journey pages or an active preview). Only skip when neither.
+        if [ ! -d "$WORK/gh-pages/alpenflight/proof" ] \
+           && [ ! -d "$WORK/gh-pages/alpenflight/proof-preview" ]; then
+          echo "::warning::no alpenflight/proof[-preview]/ on gh-pages yet — nothing to index."
           exit 0
         fi
+
+        # Sanitized active branch (SAME rule as ci.yml's preview subpath) so the
+        # branch-preview source (proof-preview/<sanitized>/J-<n>/) matches. The
+        # head_ref is set on PRs; ref_name on push. Empty branch simply skips the
+        # branch-preview source (canonical + archive still drive the listing).
+        RAW_BRANCH="${BRANCH_INPUT:-${HEAD_REF:-$REF_NAME}}"
+        BRANCH="$(printf '%s' "$RAW_BRANCH" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+        echo "indexing journeys (active branch: '${BRANCH}')"
 
         # --- regenerate the index from the on-disk scan (git-mtime mode) -----
         # The generator is dependency-free Node core; the runner already has Node.
         node "${GITHUB_ACTION_PATH}/../../../alpenflight/web/e2e/proof-gallery/generate-previews-index.mjs" \
-          --gh-pages-root "$WORK/gh-pages" --git \
+          --gh-pages-root "$WORK/gh-pages" --git ${BRANCH:+--branch "$BRANCH"} \
           || { echo "::warning::previews-index generation failed — leaving existing index untouched."; exit 0; }
 
         # --- deploy ONLY alpenflight/previews/ back to gh-pages -------------

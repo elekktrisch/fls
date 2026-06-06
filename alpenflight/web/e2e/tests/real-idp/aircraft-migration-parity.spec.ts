@@ -148,16 +148,58 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
   /** The aircraft club A creates + manages; reused across the CRUD + 403 cases. */
   let aircraftId: string;
   let aircraftImmat: string;
+  /**
+   * J-5 T-15 retry-isolation — EVERY aircraft this group creates in club A,
+   * tracked so `afterAll` can delete them. Club A is the Flyway-seeded
+   * `seed-club-1` (two-club-fixture.ts:46), the SAME tenant on every Playwright
+   * retry: `beforeAll` re-runs and mints a fresh admin but bound to that same
+   * club id, so rows a failed attempt created LINGER. Without cleanup the next
+   * attempt's count assertion (the old absolute `toHaveCount(3)`) saw the prior
+   * attempt's rows too (3 + 3 = 6 ≠ 3). We both (a) delete them here so a retry
+   * starts clean AND (b) assert a DELTA, not an absolute, as the robust fallback
+   * if a delete is missed.
+   */
+  const createdAircraftIds: string[] = [];
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    // A retry re-runs beforeAll (serial mode retries the whole group from the
+    // start); clear the prior attempt's id list so afterAll only chases this
+    // attempt's rows (the prior attempt's afterAll already deleted its own).
+    createdAircraftIds.length = 0;
     // Spec-scoped admin usernames ('acft') so this fixture's club admins are
     // disjoint from the J-0 Locations spec's ('loc') when both run in one
     // `playwright test` invocation — ux_user_username_lower_alive (T-11).
     fixture = await provisionTwoClubs(browser, baseURL, 'acft');
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser }) => {
+    // J-5 T-15 — delete every aircraft this group created in club A so the
+    // shared seed-club-1 tenant is left clean for the next Playwright retry /
+    // run. Best-effort: a failed delete falls back to the delta assertion in
+    // the create test. Uses a throwaway club-A session to capture a Bearer (the
+    // OIDC interceptor attaches it), then DELETEs as the managing-club admin
+    // (authorized → 204/200). Warm in-app nav only; no clearCookies
+    // (real-idp session-restore relies on the cookie jar).
+    if (fixture && createdAircraftIds.length > 0) {
+      const ctx = await browser.newContext({ baseURL });
+      const page = await ctx.newPage();
+      try {
+        await loginAsClubAdmin(page, fixture.clubA);
+        const bearer = await bearerFromAircraftList(page);
+        for (const id of createdAircraftIds) {
+          try {
+            await ctx.request.delete(`/api/v1/aircraft/${id}`, {
+              headers: { authorization: bearer },
+            });
+          } catch (err) {
+            console.warn(`[J-1] afterAll cleanup: delete ${id} failed (${(err as Error).message})`);
+          }
+        }
+      } finally {
+        await ctx.close();
+      }
+    }
     await fixture?.dispose();
   });
 
@@ -174,6 +216,13 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       await expect(page.locator('h1')).toHaveText('Aircraft');
       await expect(page.getByTestId('aircraft-table')).toBeVisible();
 
+      // J-5 T-15 — baseline count BEFORE we create, so the assertion below is a
+      // DELTA (grew by exactly the 3 rows this test creates), not an absolute
+      // `toHaveCount(3)`. Club A is the shared, never-truncated seed-club-1, so
+      // an absolute count is fragile to any residue (a missed cleanup, a prior
+      // run); the delta is residue-proof.
+      const baselineRowCount = await page.locator('[data-testid^="aircraft-row-"]').count();
+
       // Create via the form → appears in the list. The FIRST aircraft is the
       // one the rest of the suite edits/deletes/owns (aircraftId/aircraftImmat).
       aircraftImmat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
@@ -184,6 +233,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
         competitionSign: 'FG',
       });
       expect(aircraftId).toBeTruthy();
+      createdAircraftIds.push(aircraftId);
 
       // The new row shows immatriculation on the row LINK; the GLIDER type code
       // + manufacturer render in the SIBLING `#secondary` template under their
@@ -208,6 +258,7 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       for (const extra of extras) {
         const immat = `HB-J1${Date.now().toString(36).slice(-3).toUpperCase()}`;
         const extraId = await createAircraftViaUi(page, immat, extra);
+        createdAircraftIds.push(extraId);
         await expect(
           page.locator(`[data-testid="aircraft-row-${extraId}"]`),
           `extra aircraft "${immat}" must appear in the list`,
@@ -225,7 +276,20 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
       // the fanout's staging `find` picks it by name.
       await expect(page).toHaveURL('/aircraft');
       await expect(page.getByTestId('aircraft-table')).toBeVisible();
-      await expect(page.locator('[data-testid^="aircraft-row-"]')).toHaveCount(3);
+      // J-5 T-15 — DELTA assert: the list grew by exactly the 3 rows this test
+      // created (1 main + 2 extras), regardless of any pre-existing rows in the
+      // shared seed-club-1 tenant. Replaces the old absolute `toHaveCount(3)`,
+      // which a residual row from a prior Playwright attempt failed (6 ≠ 3).
+      await expect(page.locator('[data-testid^="aircraft-row-"]')).toHaveCount(
+        baselineRowCount + 3,
+      );
+      // And the 3 rows THIS test created are all present by id.
+      for (const id of createdAircraftIds) {
+        await expect(
+          page.locator(`[data-testid="aircraft-row-${id}"]`),
+          `created aircraft ${id} must be present for the parity screenshot`,
+        ).toBeVisible();
+      }
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-aircraft-list.png`,
         fullPage: true,
@@ -407,6 +471,26 @@ test.describe('Aircraft register — clean-seed real chain (real-idp)', () => {
   test('S-163 · the owner-person of a non-managing club may edit the aircraft', async ({
     browser,
   }, testInfo) => {
+    // J-5 T-15 — measured-cause timeout bump (NOT a stuck-test paper-over).
+    // ROOT CAUSE of the 45s flake: this test does fixture-STATE setup INSIDE the
+    // test body — `seedAircraftOwnerLink` shells out to Gradle
+    // (`gradlew seedAircraftOwnerLink`, aircraft-parity-fixture.ts:412-439) BEFORE
+    // a single assertion runs. A Gradle invocation on a loaded CI runner (daemon
+    // miss → JVM cold start + task configuration) routinely costs 15-35s; add the
+    // real-KC redirect login (~5-10s) + the PUT round-trip and the 45s per-test
+    // budget is consumed by setup, not by anything stuck — so the run reports a
+    // vague "Test timeout of 45000ms exceeded", retries, and the retry's create
+    // residue then reds the count assert. The other clean-seed tests don't carry
+    // this in-body Gradle cost, so the global 45s (playwright.config.ts:137) is
+    // right for them; only THIS test needs headroom for the seeder shell-out. We
+    // do NOT raise the per-ASSERTION expect timeout (5s) — a genuinely stuck step
+    // still fails fast at 5s naming the assertion. 90s = 45s base flow + ~45s
+    // Gradle-cold headroom.
+    // CI MUST CONFIRM: with this bump the S-163 case no longer times out under
+    // load (the 45s→retry→6≠3 chain is broken). If it still times out, the
+    // Gradle seeder itself is the cost to attack (warm the daemon / pre-seed the
+    // owner link in beforeAll), not a further timeout bump.
+    test.setTimeout(90_000);
     expect(aircraftId, 'create must have run first').toBeTruthy();
     // Club B is NOT the managing club. Link its admin's Person to the aircraft's
     // owner-person (DB fixture — no UI/REST surface sets the owner-person link),

@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.accounting;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -97,6 +98,33 @@ public final class AircraftReservationMapper implements Mapper {
                 EntityType.LOCATION,
                 EntityType.AIRCRAFT_RESERVATION_TYPE,
                 EntityType.FLIGHT_TYPE);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // Off-convention FK columns the <target>_id default resolver cannot
+        // derive — without these, the resolver looks for non-existent fields
+        // (club_id / person_id / aircraft_reservation_type_id) on the row, finds
+        // nothing, and leaves the real columns carrying the verbatim legacy GUID,
+        // which then FK-violates on INSERT (sqlstate 23503: fk_arv_*). Declared:
+        //  * operating_club_id → CLUB (the @TenantId; convention would be club_id)
+        //  * pilot_person_id + second_crew_person_id → PERSON (TWO columns to one
+        //    target; convention would be person_id)
+        //  * reservation_type_id → AIRCRAFT_RESERVATION_TYPE (convention would be
+        //    aircraft_reservation_type_id)
+        //  * location_id → LOCATION (fan-out target; the column name matches the
+        //    convention, but the fan-out disambiguator is this row's OWN
+        //    operating_club_id, not the default club_id — Location is tenant-scoped
+        //    fan-out so the composite (legacy_guid, club_id) lookup must key on the
+        //    reservation's operating club)
+        // aircraft_id → AIRCRAFT and flight_type_id → FLIGHT_TYPE match the
+        // <target>_id convention, so they are NOT declared (resolver falls back).
+        return List.of(
+                new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(PILOT_PERSON_ID, EntityType.PERSON),
+                new ForeignKeyColumn(SECOND_CREW_PERSON_ID, EntityType.PERSON),
+                new ForeignKeyColumn(RESERVATION_TYPE_ID, EntityType.AIRCRAFT_RESERVATION_TYPE),
+                new ForeignKeyColumn(LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID));
     }
 
     @Override

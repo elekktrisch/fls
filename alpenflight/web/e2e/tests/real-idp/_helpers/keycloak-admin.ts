@@ -229,6 +229,29 @@ export async function findUserByUsername(username: string): Promise<AdminUser | 
 }
 
 /**
+ * Enumerate users whose username matches `search` (KC's `search` is a
+ * substring/infix match across username + email + names). Used by the J-5
+ * migrated-read to discover EVERY provisioned `migrated-admin+<clubId>@…`
+ * identity, because the migrated CLUB does NOT keep its legacy UUID — the
+ * ingest reconciles it onto a provisioning-minted t_club (a fresh UUID;
+ * `EntityStreamIngestor`: "CLUB reconciles onto the provisioning-minted
+ * t_club … rewrite the row's own legacy id to the provisioned id"), so the
+ * admin username is keyed by the NEW UUID, not `0fa7b76f-…`. The caller picks
+ * the right club by which tenant actually carries the migrated reservation
+ * (the J-0c ownership-detection pattern). `max` bounds the page; the migrated
+ * realm has a handful of clubs.
+ */
+export async function findUsersByUsernameSearch(search: string, max = 50): Promise<AdminUser[]> {
+  const res = await adminRequest(`/users?search=${encodeURIComponent(search)}&max=${max}`);
+  if (!res.ok) {
+    throw new Error(
+      `findUsersByUsernameSearch(${search}) failed (${res.status}): ${await res.text()}`,
+    );
+  }
+  return (await res.json()) as AdminUser[];
+}
+
+/**
  * Make a migration-provisioned club admin loginable for the proof spec.
  *
  * Production `provisionClubAdminIdentity` provisions each migrated club admin

@@ -3,6 +3,7 @@ id: S-069
 title: Reservation scheduler (calendar/timeline view)
 epic: E-08
 status: todo
+rolled_up_into: J-5
 depends_on: [S-068]
 acceptance:
   - Calendar view (aircraft × time slot grid) at `/reservation-scheduler`.

@@ -33,7 +33,10 @@ export type MutationEvent =
   | { kind: 'article.deleted'; id: string }
   | { kind: 'user.created'; id: string }
   | { kind: 'user.updated'; id: string }
-  | { kind: 'user.deleted'; id: string };
+  | { kind: 'user.deleted'; id: string }
+  | { kind: 'reservation.created'; reservationId: string }
+  | { kind: 'reservation.updated'; reservationId: string }
+  | { kind: 'reservation.deleted'; reservationId: string };
 
 export const MUTATION_BUS = new InjectionToken<Subject<MutationEvent>>('MUTATION_BUS', {
   providedIn: 'root',

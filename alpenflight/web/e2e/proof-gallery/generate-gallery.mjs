@@ -30,6 +30,22 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Site-root-absolute base for the gh-pages deployment. gh-pages serves this repo
+ * at `https://elekktrisch.github.io/fls/`, so the base path is `/fls/`. Used for
+ * the ONE cross-deploy link a per-journey page must reach regardless of its own
+ * deploy depth: the persistent previews index at `<base>alpenflight/previews/`.
+ *
+ * Why absolute (not relative): a per-journey page is emitted into TWO layouts —
+ * the canonical `alpenflight/proof/J-<n>/` and the branch-preview
+ * `alpenflight/proof-preview/<branch>/J-<n>/` (one dir deeper). A relative
+ * `../../previews/` resolves correctly in neither/only one of them. A
+ * site-root-absolute path is depth-independent and works in both. Override via
+ * `generateGallery({ siteBase })` / `--site-base` if the repo's gh-pages base
+ * ever changes (must keep the trailing slash).
+ */
+export const DEFAULT_SITE_BASE = '/fls/';
+
+/**
  * Static roadmap fallback — the journey IDs the gallery iterates when
  * `_ORDER.md` is not reachable from the run dir. Kept in roadmap order.
  * Source of truth is docs/modernization/stories/_ORDER.md; this mirror exists
@@ -304,12 +320,31 @@ export function loadNavGalleries() {
   }
 }
 
-function renderNavBlock(navGalleries) {
+/**
+ * Resolve a per-run-gallery manifest href (relative to `/alpenflight/proof/`) to a
+ * site-root-absolute URL so it resolves in BOTH the canonical and branch-preview
+ * deploy layouts. An already-absolute (`/…`) or external (`scheme:`/`//`) href is
+ * passed through unchanged.
+ */
+export function navGalleryHref(href, siteBase = DEFAULT_SITE_BASE) {
+  if (/^(?:[a-z]+:|\/\/|\/)/i.test(href)) return href;
+  return `${siteBase}alpenflight/proof/${href}`;
+}
+
+function renderNavBlock(navGalleries, siteBase = DEFAULT_SITE_BASE) {
   if (!navGalleries.length) return '';
+  // The per-run galleries (`per-run-galleries.json`) are deployed ONLY under the
+  // CANONICAL `alpenflight/proof/` (the fanout's `j-0c-fanout/` etc. land there,
+  // never under a branch preview). Their manifest `href`s are relative to
+  // `/alpenflight/proof/`, so on the canonical all-journeys page a bare `href`
+  // resolves; but the SAME page is also deployed to the branch-preview path
+  // (`alpenflight/proof-preview/<branch>/legacy-parity/`), where the relative
+  // `j-0c-fanout/` 404s (T-35). Resolve each manifest href SITE-ROOT-ABSOLUTE
+  // against the canonical proof root so it works in BOTH deploy layouts.
   const links = navGalleries
     .map(
       (g) =>
-        `      &rarr; <a href="${esc(g.href)}"><strong>${esc(g.label)}</strong></a>` +
+        `      &rarr; <a href="${esc(navGalleryHref(g.href, siteBase))}"><strong>${esc(g.label)}</strong></a>` +
         (g.note ? ` <em>(${esc(g.note)})</em>` : ''),
     )
     .join('<br>\n');
@@ -418,67 +453,237 @@ ${videos}
 ${screenshotsBlock}`;
 }
 
-function renderHtml({
-  byJourney,
-  shotsByJourney,
-  roadmap,
-  generatedAt,
-  branch,
-  navGalleries = [],
-}) {
-  // Default-open policy: open the NEWEST journey that has content (the last
-  // roadmap-ordered journey with a green video or a declared screenshot), and
-  // collapse every older one. A CI-run gallery opens straight onto the journey
-  // just shipped; pending journeys are never auto-opened.
-  let newestWithContentIdx = -1;
-  roadmap.forEach((jid, i) => {
-    const proofs = byJourney.get(jid);
-    const shots = shotsByJourney?.get(jid);
-    if ((proofs && proofs.length) || (shots && shots.length)) newestWithContentIdx = i;
-  });
+/* ─────────────────────────── Maintainability panel ───────────────────────────
+ * T-13a — a compact maintainability summary per per-journey page, read from
+ * T-12's 4 artifacts under `<outDir>/maintainability/`:
+ *   - fallow-audit.json   FE journey DELTA (changed-files-vs-main envelope;
+ *                         `attribution.{dead_code,complexity,duplication}_introduced`
+ *                         = what THIS branch's diff added, + a `verdict`)
+ *   - fallow-health.json  FE repo SNAPSHOT (`health_score.{score,grade}`,
+ *                         `vital_signs.{maintainability_avg,duplication_pct,dead_file_pct}`)
+ *   - pmd-main.xml        BE complexity/dead-code violation count (one <violation> each)
+ *   - cpd-check.xml       BE duplication (sum of <duplication tokens> over total tokens)
+ *
+ * FAIL-SOFT: every artifact may be ABSENT on a given run (the T-12 producer is
+ * `continue-on-error`). A missing/malformed file becomes `null` and renders
+ * "— / no data"; this never throws (the panel is informational, not a gate).
+ *
+ * SCOPE HONESTY: the fallow audit is the CURRENT branch's diff-vs-main, so the
+ * journey-DELTA shown is only reconstructable for the journey under work. We show
+ * that delta on the current journey's page and the repo SNAPSHOT on every page;
+ * the per-journey historical delta for already-shipped J-0..J-4 isn't
+ * reconstructable, so those pages show the snapshot + a note (no false delta).
+ */
 
-  const sections = roadmap
-    .map((jid, i) => {
-      const proofs = byJourney.get(jid);
-      const shots = shotsByJourney?.get(jid);
-      const nVideos = proofs ? proofs.length : 0;
-      const nShots = shots ? shots.length : 0;
-      const hasContent = nVideos > 0 || nShots > 0;
+/** Read+parse a JSON artifact; any failure (absent/malformed) → null. */
+function readJsonSoft(absPath) {
+  try {
+    if (!existsSync(absPath)) return null;
+    return JSON.parse(readFileSync(absPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
 
-      // Status pill mirrors the pre-accordion labels.
-      let statusPill;
-      if (!hasContent) statusPill = '<span class="status pending">pending</span>';
-      else if (nVideos === 0) statusPill = '<span class="status success">parity screenshots</span>';
-      else
-        statusPill = `<span class="status success">${nVideos} proof${nVideos === 1 ? '' : 's'}</span>`;
+/** Read a text artifact (XML); any failure → null. */
+function readTextSoft(absPath) {
+  try {
+    if (!existsSync(absPath)) return null;
+    return readFileSync(absPath, 'utf8');
+  } catch {
+    return null;
+  }
+}
 
-      const journeyClass = hasContent ? 'journey' : 'journey pending-journey';
-      const open = i === newestWithContentIdx ? ' open' : '';
-      const counts = hasContent
-        ? `<span class="summary-counts">${esc(summaryCounts(nVideos, nShots))}</span>`
-        : '';
-      const caption = `<span class="summary-caption">${esc(summaryCaption(proofs, shots))}</span>`;
-      const body = renderJourneyBody(jid, proofs, shots);
+/**
+ * Parse the FE fallow AUDIT (journey delta). Returns
+ *   { verdict, dead_code_introduced, complexity_introduced, duplication_introduced }
+ * or null if the file is absent/unparseable. Tolerates a partial shape (missing
+ * `attribution` → counts default 0).
+ */
+export function parseFallowAudit(json) {
+  if (!json || typeof json !== 'object') return null;
+  const a = json.attribution ?? {};
+  return {
+    verdict: json.verdict ?? 'unknown',
+    deadIntroduced: Number(a.dead_code_introduced ?? 0),
+    complexityIntroduced: Number(a.complexity_introduced ?? 0),
+    duplicationIntroduced: Number(a.duplication_introduced ?? 0),
+  };
+}
 
-      return `      <details class="${journeyClass}"${open}>
-        <summary>
-          <span class="summary-head"><span class="summary-jid">${esc(jid)}</span> ${statusPill}${counts}</span>
-          ${caption}
-        </summary>
-${body}
-      </details>`;
-    })
-    .join('\n');
+/**
+ * Parse the FE fallow HEALTH (repo snapshot). Returns
+ *   { score, grade, maintainability, duplicationPct, deadFilePct }
+ * or null. Tolerates a partial shape (missing nested objects → "—" downstream).
+ */
+export function parseFallowHealth(json) {
+  if (!json || typeof json !== 'object') return null;
+  const hs = json.health_score ?? {};
+  const vs = json.vital_signs ?? {};
+  return {
+    score: hs.score ?? null,
+    grade: hs.grade ?? null,
+    maintainability: vs.maintainability_avg ?? null,
+    duplicationPct: vs.duplication_pct ?? null,
+    deadFilePct: vs.dead_file_pct ?? null,
+  };
+}
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof gallery</title>
-<style>
-:root {
+/**
+ * Parse the BE PMD report (text XML, no XML dep — count `<violation` and the
+ * complexity/dead-code subsets by their `rule="…"` attribute). Returns
+ *   { total, complexity, deadCode } or null if absent.
+ */
+export function parsePmd(xml) {
+  if (!xml || typeof xml !== 'string') return null;
+  const violations = xml.match(/<violation\b[^>]*\brule="([^"]+)"/g) ?? [];
+  let complexity = 0;
+  let deadCode = 0;
+  for (const v of violations) {
+    const rule = (v.match(/\brule="([^"]+)"/) ?? [])[1] ?? '';
+    if (/Complexity|NPath|Ncss|ExcessiveParameterList|TooMany|GodClass/i.test(rule))
+      complexity += 1;
+    else if (/Unused|Empty|DeadCode|UselessOverriding/i.test(rule)) deadCode += 1;
+  }
+  return { total: violations.length, complexity, deadCode };
+}
+
+/**
+ * Parse the BE CPD report (text XML). `<duplication tokens="N">` blocks are the
+ * clones; `<file totalNumberOfTokens="N">` lines are the per-file token totals.
+ * We report the clone-group count + a duplication % = duplicated-tokens /
+ * total-tokens (a coarse but honest proxy — CPD counts each clone group's tokens
+ * once; the file totals sum the corpus). Returns { groups, dupPct } or null.
+ */
+export function parseCpd(xml) {
+  if (!xml || typeof xml !== 'string') return null;
+  const dupes = xml.match(/<duplication\b[^>]*\btokens="(\d+)"/g) ?? [];
+  const groups = dupes.length;
+  let dupTokens = 0;
+  for (const d of dupes) dupTokens += Number((d.match(/\btokens="(\d+)"/) ?? [])[1] ?? 0);
+  let totalTokens = 0;
+  for (const f of xml.match(/\btotalNumberOfTokens="(\d+)"/g) ?? [])
+    totalTokens += Number((f.match(/"(\d+)"/) ?? [])[1] ?? 0);
+  const dupPct = totalTokens > 0 ? (dupTokens / totalTokens) * 100 : null;
+  return { groups, dupPct };
+}
+
+/**
+ * Load + parse all 4 maintainability artifacts from `<outDir>/maintainability/`.
+ * Returns a structured summary where any absent artifact is `null`. Never throws.
+ * `showDelta` flags whether THIS page is the journey-under-work (whose fallow
+ * audit delta is the current branch's diff — see SCOPE HONESTY above).
+ */
+export function loadMaintainability(outDir, { showDelta = false } = {}) {
+  const dir = resolve(outDir, 'maintainability');
+  const audit = parseFallowAudit(readJsonSoft(resolve(dir, 'fallow-audit.json')));
+  const health = parseFallowHealth(readJsonSoft(resolve(dir, 'fallow-health.json')));
+  const pmd = parsePmd(readTextSoft(resolve(dir, 'pmd-main.xml')));
+  const cpd = parseCpd(readTextSoft(resolve(dir, 'cpd-check.xml')));
+  const present = Boolean(audit || health || pmd || cpd);
+  return { audit, health, pmd, cpd, present, showDelta };
+}
+
+/**
+ * Compute the green/amber/red roll-up for the panel. Driven by the FE audit
+ * DELTA (what this branch introduced): green if it introduced no new
+ * complexity/dupes/dead-code, amber if it introduced any, red if the audit's own
+ * verdict is `fail`. With no delta available (audit absent OR this isn't the
+ * journey-under-work) → neutral "snapshot only". Returns { level, label }.
+ */
+export function maintainabilityRollup({ audit, showDelta }) {
+  if (!showDelta || !audit) return { level: 'neutral', label: 'snapshot only' };
+  const introduced =
+    (audit.deadIntroduced || 0) +
+    (audit.complexityIntroduced || 0) +
+    (audit.duplicationIntroduced || 0);
+  if (audit.verdict === 'fail') return { level: 'red', label: `${introduced} introduced (fail)` };
+  if (introduced > 0) return { level: 'amber', label: `${introduced} introduced` };
+  return { level: 'green', label: 'no new findings' };
+}
+
+const numOrDash = (n, suffix = '') =>
+  n === null || n === undefined || Number.isNaN(Number(n)) ? '—' : `${n}${suffix}`;
+const pctOrDash = (n) =>
+  n === null || n === undefined || Number.isNaN(Number(n)) ? '—' : `${Number(n).toFixed(1)}%`;
+
+/**
+ * Render the Maintainability panel HTML for one per-journey page. Always renders
+ * (even with zero artifacts — then it's an honest "no data this run"). `reportHref`
+ * links to the full reports dir. Scoped to the journey whose page it's on.
+ */
+function renderMaintainabilityPanel(maint, { reportHref = 'maintainability/', journeyUnderWork }) {
+  const roll = maintainabilityRollup(maint);
+  const pillClass =
+    roll.level === 'green'
+      ? 'success'
+      : roll.level === 'amber'
+        ? 'pending'
+        : roll.level === 'red'
+          ? 'failure'
+          : 'neutral';
+  const { audit, health, pmd, cpd, present, showDelta } = maint;
+
+  if (!present) {
+    return `        <section class="maintainability">
+          <h4>Maintainability <span class="status neutral">no data</span></h4>
+          <p class="meta">No maintainability artifacts were emitted on this run (the report step is fail-soft).</p>
+        </section>`;
+  }
+
+  // FE delta row — only meaningful on the journey-under-work page.
+  const deltaRow =
+    showDelta && audit
+      ? `          <tr>
+            <th>FE delta (this journey vs main)</th>
+            <td>complexity <strong>${numOrDash(audit.complexityIntroduced)}</strong> · duplication <strong>${numOrDash(audit.duplicationIntroduced)}</strong> · dead-code <strong>${numOrDash(audit.deadIntroduced)}</strong> · verdict <strong>${esc(audit.verdict)}</strong></td>
+          </tr>`
+      : `          <tr>
+            <th>FE delta (this journey)</th>
+            <td class="muted">— historical per-journey delta not reconstructable (only the current branch's diff is). Snapshot below applies repo-wide.</td>
+          </tr>`;
+
+  const healthRow = health
+    ? `          <tr>
+            <th>FE snapshot (repo)</th>
+            <td>score <strong>${numOrDash(health.score)}</strong> (${esc(health.grade ?? '—')}) · maintainability <strong>${numOrDash(health.maintainability)}</strong> · duplication <strong>${pctOrDash(health.duplicationPct)}</strong> · dead files <strong>${pctOrDash(health.deadFilePct)}</strong></td>
+          </tr>`
+    : `          <tr><th>FE snapshot (repo)</th><td class="muted">— no fallow health data</td></tr>`;
+
+  const pmdRow = pmd
+    ? `          <tr>
+            <th>BE complexity/dead-code (PMD)</th>
+            <td><strong>${numOrDash(pmd.total)}</strong> violations · complexity <strong>${numOrDash(pmd.complexity)}</strong> · dead-code <strong>${numOrDash(pmd.deadCode)}</strong></td>
+          </tr>`
+    : `          <tr><th>BE complexity/dead-code (PMD)</th><td class="muted">— no PMD report</td></tr>`;
+
+  const cpdRow = cpd
+    ? `          <tr>
+            <th>BE duplication (CPD)</th>
+            <td><strong>${pctOrDash(cpd.dupPct)}</strong> duplicated · <strong>${numOrDash(cpd.groups)}</strong> clone groups</td>
+          </tr>`
+    : `          <tr><th>BE duplication (CPD)</th><td class="muted">— no CPD report</td></tr>`;
+
+  return `        <section class="maintainability">
+          <h4>Maintainability <span class="status ${pillClass}">${esc(roll.label)}</span></h4>
+          <table class="maint-table">
+${deltaRow}
+${healthRow}
+${pmdRow}
+${cpdRow}
+          </table>
+          <p class="meta"><a href="${esc(reportHref)}">Full maintainability reports →</a> (fallow audit + health JSON, PMD + CPD XML)${journeyUnderWork ? ` · delta scoped to <strong>${esc(journeyUnderWork)}</strong>` : ''}</p>
+        </section>`;
+}
+
+/**
+ * Shared CSS (ADR 0024 flat look — slate neutrals, sharp corners, brand color
+ * only on the open-state accent bar). Used by BOTH the single all-journeys page
+ * (`renderHtml`) and each per-journey page (`renderJourneyPageHtml`) so they read
+ * as one system. Maintainability-panel rules are appended at the bottom.
+ */
+const GALLERY_CSS = `:root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
   --text: #1a1d21; --muted: #5c6470; --border: #e3e6ea;
   --primary: #0a66c2; --primary-hover: #0552a3;
@@ -517,6 +722,7 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .status.success { background: var(--success-bg); color: var(--success); }
 .status.failure { background: var(--failure-bg); color: var(--failure); }
 .status.pending { background: var(--pending-bg); color: var(--pending); }
+.status.neutral { background: var(--surface-2); color: var(--muted); }
 /* Accordion — one native <details> per journey. ADR 0024: flat (1px slate
    border, NO shadow), sharp corners (radius 0), restrained motion (the native
    toggle only — no slide). The brand color lands only on the open-state accent
@@ -583,7 +789,170 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .shot.shot-legacy .shot-side { background: var(--pending-bg); color: var(--pending); }
 .shot figcaption { padding: .65rem .75rem; font-size: .85rem; color: var(--text); }
 .nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
-footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
+/* Maintainability panel — flat, table-of-numbers; pill carries the roll-up. */
+.maintainability { margin-top: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0; padding: 1rem 1.1rem; }
+.maintainability h4 { margin: 0 0 .75rem; font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: .6rem; }
+.maint-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.maint-table th { text-align: left; font-weight: 500; color: var(--muted); padding: .4rem .75rem .4rem 0; white-space: nowrap; vertical-align: top; width: 1%; }
+.maint-table td { padding: .4rem 0; color: var(--text); border-top: 1px solid var(--border); }
+.maint-table tr:first-child td, .maint-table tr:first-child th { border-top: 0; }
+.maint-table td.muted { color: var(--muted); }
+.back-link { font-size: .85rem; }
+footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }`;
+
+/**
+ * Render one self-contained per-journey page (T-13a). Same CSS/flat look as the
+ * single all-journeys page, but scoped to ONE journey: all its videos + paired
+ * legacy↔AlpenFlight screenshots (the pairing logic is reused verbatim via
+ * `renderJourneyBody`) + the Maintainability panel. Written to
+ * `<outDir>/J-<n>/index.html` — see OUTPUT PATH SCHEME in `generateGallery`.
+ *
+ * The journey's video/screenshot `src`s are rewritten to `../videos/…` /
+ * `../screenshots/…` (one level up) because the shared media dirs live at the
+ * gallery `--out` root, NOT inside the per-journey subdir — so a per-journey page
+ * reuses the same copied assets without re-copying them.
+ */
+export function renderJourneyPageHtml({
+  jid,
+  proofs,
+  shots,
+  maint,
+  generatedAt,
+  branch,
+  journeyUnderWork,
+  siteBase = DEFAULT_SITE_BASE,
+}) {
+  const nVideos = proofs ? proofs.length : 0;
+  const nShots = shots ? shots.length : 0;
+  const hasContent = nVideos > 0 || nShots > 0;
+
+  // Per-journey pages live one dir below the media root → prefix asset srcs.
+  const upProofs = (proofs ?? []).map((p) => ({ ...p, videoSrc: `../${p.videoSrc}` }));
+  const upShots = (shots ?? []).map((s) => ({ ...s, imgSrc: `../${s.imgSrc}` }));
+
+  const body = hasContent
+    ? renderJourneyBody(jid, upProofs, upShots)
+    : `        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>`;
+
+  const panel = renderMaintainabilityPanel(maint, {
+    reportHref: '../maintainability/',
+    journeyUnderWork,
+  });
+
+  let statusPill;
+  if (!hasContent) statusPill = '<span class="status pending">pending</span>';
+  else if (nVideos === 0) statusPill = '<span class="status success">parity screenshots</span>';
+  else
+    statusPill = `<span class="status success">${nVideos} proof${nVideos === 1 ? '' : 's'}</span>`;
+  const counts = hasContent
+    ? ` <span class="summary-counts">${esc(summaryCounts(nVideos, nShots))}</span>`
+    : '';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AlpenFlight proof — ${esc(jid)}</title>
+<style>
+${GALLERY_CSS}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>${esc(jid)} — proof</h1>
+    <p class="meta">
+      <span class="summary-jid">${esc(jid)}</span> ${statusPill}${counts}
+    </p>
+    <p class="meta">
+      Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
+      for this journey. Generated on <code>${esc(branch)}</code> &middot; ${esc(generatedAt)}
+    </p>
+    <p class="meta back-link" style="margin-top:.5rem;">
+      <a href="${esc(siteBase)}alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
+      <a href="../">all-journeys gallery</a>
+    </p>
+  </header>
+
+  <section class="journey-page">
+${body}
+${panel}
+  </section>
+
+  <footer>
+    Proof source: <code>real-idp</code> Playwright run (live Keycloak + Spring + Postgres).
+    Maintainability is informational, scoped to this journey's delta where reconstructable.
+  </footer>
+</div>
+</body>
+</html>
+`;
+}
+
+function renderHtml({
+  byJourney,
+  shotsByJourney,
+  roadmap,
+  generatedAt,
+  branch,
+  navGalleries = [],
+  siteBase = DEFAULT_SITE_BASE,
+}) {
+  // Default-open policy: open the NEWEST journey that has content (the last
+  // roadmap-ordered journey with a green video or a declared screenshot), and
+  // collapse every older one. A CI-run gallery opens straight onto the journey
+  // just shipped; pending journeys are never auto-opened.
+  let newestWithContentIdx = -1;
+  roadmap.forEach((jid, i) => {
+    const proofs = byJourney.get(jid);
+    const shots = shotsByJourney?.get(jid);
+    if ((proofs && proofs.length) || (shots && shots.length)) newestWithContentIdx = i;
+  });
+
+  const sections = roadmap
+    .map((jid, i) => {
+      const proofs = byJourney.get(jid);
+      const shots = shotsByJourney?.get(jid);
+      const nVideos = proofs ? proofs.length : 0;
+      const nShots = shots ? shots.length : 0;
+      const hasContent = nVideos > 0 || nShots > 0;
+
+      // Status pill mirrors the pre-accordion labels.
+      let statusPill;
+      if (!hasContent) statusPill = '<span class="status pending">pending</span>';
+      else if (nVideos === 0) statusPill = '<span class="status success">parity screenshots</span>';
+      else
+        statusPill = `<span class="status success">${nVideos} proof${nVideos === 1 ? '' : 's'}</span>`;
+
+      const journeyClass = hasContent ? 'journey' : 'journey pending-journey';
+      const open = i === newestWithContentIdx ? ' open' : '';
+      const counts = hasContent
+        ? `<span class="summary-counts">${esc(summaryCounts(nVideos, nShots))}</span>`
+        : '';
+      const caption = `<span class="summary-caption">${esc(summaryCaption(proofs, shots))}</span>`;
+      const body = renderJourneyBody(jid, proofs, shots);
+
+      return `      <details class="${journeyClass}"${open}>
+        <summary>
+          <span class="summary-head"><span class="summary-jid">${esc(jid)}</span> ${statusPill}${counts}</span>
+          ${caption}
+        </summary>
+${body}
+      </details>`;
+    })
+    .join('\n');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>AlpenFlight proof gallery</title>
+<style>
+${GALLERY_CSS}
 </style>
 </head>
 <body>
@@ -595,8 +964,8 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
       assertion it proves. Generated on <code>${esc(branch)}</code> &middot; ${esc(generatedAt)}
     </p>
     <p class="meta" style="margin-top:.5rem;">
-      <a href="../">&larr; alpenflight dashboard</a>
-    </p>${renderNavBlock(navGalleries)}
+      <a href="${esc(siteBase)}alpenflight/previews/">&larr; all journeys (previews index)</a>
+    </p>${renderNavBlock(navGalleries, siteBase)}
   </header>
 
   <section>
@@ -626,7 +995,18 @@ ${sections}
  * @param {string} [o.screenshotsDir] Dir holding a `screenshots.json` sidecar +
  *   its `.png`(s) — declared legacy↔AlpenFlight parity screenshots (J-1+, list +
  *   form), rendered paired under the same journey. Absent dir/sidecar = no-op.
- * @returns {{ html: string, outFile: string, proofs: Array, shots: Array, roadmap: string[] }}
+ * @param {boolean} [o.perJourney=true] Also emit one self-contained page PER
+ *   journey-with-content (the T-13a re-arch). OUTPUT PATH SCHEME: each lands at
+ *   `<outDir>/J-<n>/index.html` (e.g. `…/proof/J-5/index.html`); its videos +
+ *   screenshots reference the SHARED `<outDir>/videos/…` + `<outDir>/screenshots/…`
+ *   via `../`. The all-journeys `<outDir>/index.html` is still written (callers /
+ *   the legacy index depend on it) — per-journey pages are ADDITIVE. T-13b's
+ *   index links each journey to `J-<n>/`.
+ * @param {string} [o.journeyUnderWork] The journey whose fallow-audit DELTA is the
+ *   current branch's diff (e.g. `J-5`) — only THAT per-journey page shows the FE
+ *   delta; every other page shows the repo snapshot only (the historical
+ *   per-journey delta isn't reconstructable). Defaults from the branch label.
+ * @returns {{ html: string, outFile: string, proofs: Array, shots: Array, roadmap: string[], journeyPages: Array<{journey: string, outFile: string}> }}
  * @throws on any AC5 link-check violation (no caption / missing .webm / missing .png).
  */
 export function generateGallery({
@@ -637,6 +1017,9 @@ export function generateGallery({
   legacyVideoDir,
   screenshotsDir,
   renderNav = true,
+  perJourney = true,
+  journeyUnderWork = journeyFromFile(branch),
+  siteBase = DEFAULT_SITE_BASE,
 }) {
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
@@ -701,12 +1084,97 @@ export function generateGallery({
     generatedAt: new Date().toISOString(),
     branch,
     navGalleries: renderNav ? loadNavGalleries() : [],
+    siteBase,
   });
 
   mkdirSync(outDir, { recursive: true });
   const outFile = resolve(outDir, 'index.html');
   writeFileSync(outFile, html, 'utf8');
-  return { html, outFile, proofs, shots, roadmap };
+
+  // ── Per-journey pages (T-13a) ─────────────────────────────────────────────
+  // One self-contained page per journey-WITH-content, at <outDir>/J-<n>/index.html.
+  // Pending journeys (no video, no screenshot) get NO page — T-13b's index links
+  // only the journeys that have a page (and shows the rest as pending rows).
+  const journeyPages = [];
+  if (perJourney) {
+    const generatedAt = new Date().toISOString();
+    for (const jid of roadmap) {
+      const jProofs = byJourney.get(jid);
+      const jShots = shotsByJourney.get(jid);
+      const hasContent = (jProofs && jProofs.length) || (jShots && jShots.length);
+      if (!hasContent) continue;
+      // The maintainability panel: read the (possibly absent) artifacts once per
+      // page. Only the journey-under-work shows its FE audit DELTA; others show
+      // the repo snapshot (showDelta=false).
+      const maint = loadMaintainability(outDir, { showDelta: jid === journeyUnderWork });
+      const pageHtml = renderJourneyPageHtml({
+        jid,
+        proofs: jProofs,
+        shots: jShots,
+        maint,
+        generatedAt,
+        branch,
+        journeyUnderWork: jid === journeyUnderWork ? jid : undefined,
+        siteBase,
+      });
+      const jDir = resolve(outDir, jid);
+      mkdirSync(jDir, { recursive: true });
+      const jFile = resolve(jDir, 'index.html');
+      writeFileSync(jFile, pageHtml, 'utf8');
+      journeyPages.push({ journey: jid, outFile: jFile });
+    }
+    // The per-journey panel's "Full maintainability reports →" link targets the
+    // `maintainability/` DIRECTORY (`../maintainability/`). gh-pages does not
+    // serve a bare directory listing, so a dir URL with no index.html 404s even
+    // when its JSON/XML artifacts deploy fine. Emit a tiny index.html listing
+    // whichever of the 4 artifacts exist so that dir URL serves 200. Only when
+    // artifacts are present — when none were emitted the panel renders "no data"
+    // and shows NO reports link, so a dead index would be pointless.
+    writeMaintainabilityIndex(outDir);
+  }
+
+  return { html, outFile, proofs, shots, roadmap, journeyPages };
+}
+
+/**
+ * Emit `<outDir>/maintainability/index.html` listing whichever of the 4
+ * maintainability artifacts are present, so the per-journey panel's
+ * `../maintainability/` directory link serves 200 on gh-pages (which won't
+ * render a directory listing). No-op when the dir is absent or carries none of
+ * the artifacts (then the panel shows "no data" and emits no reports link).
+ */
+export function writeMaintainabilityIndex(outDir) {
+  const dir = resolve(outDir, 'maintainability');
+  if (!existsSync(dir)) return null;
+  const artifacts = [
+    ['fallow-audit.json', 'fallow audit (FE complexity/duplication/dead-code delta)'],
+    ['fallow-health.json', 'fallow health (FE repo snapshot)'],
+    ['pmd-main.xml', 'PMD (BE complexity + dead-code)'],
+    ['cpd-check.xml', 'CPD (BE duplication)'],
+  ].filter(([f]) => existsSync(resolve(dir, f)));
+  if (!artifacts.length) return null;
+  const items = artifacts
+    .map(([f, label]) => `    <li><a href="./${esc(f)}">${esc(f)}</a> — ${esc(label)}</li>`)
+    .join('\n');
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AlpenFlight — maintainability reports</title>
+</head>
+<body>
+  <h1>Maintainability reports</h1>
+  <p>Raw artifacts behind the per-journey Maintainability panel.</p>
+  <ul>
+${items}
+  </ul>
+</body>
+</html>
+`;
+  const file = resolve(dir, 'index.html');
+  writeFileSync(file, html, 'utf8');
+  return file;
 }
 
 function parseArgs(argv) {
@@ -720,6 +1188,9 @@ function parseArgs(argv) {
     else if (a === '--legacy-video') out.legacyVideoDir = argv[++i];
     else if (a === '--screenshots') out.screenshotsDir = argv[++i];
     else if (a === '--no-nav') out.renderNav = false;
+    else if (a === '--no-per-journey') out.perJourney = false;
+    else if (a === '--journey-under-work') out.journeyUnderWork = argv[++i];
+    else if (a === '--site-base') out.siteBase = argv[++i];
   }
   return out;
 }
@@ -752,8 +1223,21 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     );
     orderPath = existsSync(guess) ? guess : undefined;
   }
+  // Local-eyeball convenience for `pnpm proof:gallery`: if the out-root carries
+  // no maintainability dir yet (CI stages the REAL T-12 artifacts there before
+  // running the generator), seed it from the committed sample fixtures so the
+  // panel renders with data locally. Never overwrites a real staged dir.
+  const fixtureMaint = resolve(__dirname, 'fixtures', 'maintainability');
+  const outMaint = resolve(outDir, 'maintainability');
+  if (!existsSync(outMaint) && existsSync(fixtureMaint)) {
+    mkdirSync(outMaint, { recursive: true });
+    for (const f of ['fallow-audit.json', 'fallow-health.json', 'pmd-main.xml', 'cpd-check.xml']) {
+      const src = resolve(fixtureMaint, f);
+      if (existsSync(src)) copyFileSync(src, resolve(outMaint, f));
+    }
+  }
   try {
-    const { outFile, proofs, shots, roadmap } = generateGallery({
+    const { outFile, proofs, shots, roadmap, journeyPages } = generateGallery({
       reportPath,
       outDir,
       orderPath,
@@ -761,12 +1245,19 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       legacyVideoDir,
       screenshotsDir,
       renderNav: args.renderNav !== false,
+      perJourney: args.perJourney !== false,
+      ...(args.journeyUnderWork ? { journeyUnderWork: args.journeyUnderWork } : {}),
+      ...(args.siteBase ? { siteBase: args.siteBase } : {}),
     });
     const pending = roadmap.filter((j) => !proofs.some((p) => p.journey === j));
     console.log(`proof-gallery: wrote ${outFile}`);
     console.log(
       `  ${proofs.length} green proof video(s); ${shots.length} parity screenshot(s); ${pending.length} pending journey(s).`,
     );
+    if (journeyPages.length) {
+      console.log(`  ${journeyPages.length} per-journey page(s):`);
+      for (const jp of journeyPages) console.log(`    ${jp.journey} → ${jp.outFile}`);
+    }
   } catch (err) {
     console.error(`proof-gallery: ${err.message}`);
     process.exit(1);

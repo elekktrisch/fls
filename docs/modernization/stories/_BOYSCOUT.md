@@ -12,6 +12,80 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-plan 2026-06-06, J-5 carve — maintainability tooling)
+
+**Maintainability = complexity + duplication + dead code** (operator, 2026-06-06 —
+[[feedback_maintainability_includes_dupes_and_deadcode]]): run fallow's **full default**
+(`dead-code` + `dupes` + `health`), not just `health`, and report/track all three.
+
+Ran `npx fallow@latest` (full default; deterministic TS/JS code-intelligence) on `alpenflight/web`.
+Raw score **52 D** was misleading — fallow scanned `node_modules` + a stray `node_modules.windows`
+tree (reported **2371** unused deps vs **41** declared) and counted the orval-generated client in
+duplication (**20.8%**). With `node_modules.windows` + `src/app/api/generated` excluded the honest
+read across all three axes is: **complexity** MI **92 (good)** but **87** high-complexity fns;
+**duplication 11.7%** (192 clone groups, 83 files); **dead code** small — **3** unused files, **1**
+unused dep + **5** unused devDeps, **1** unresolved import. NOT in trouble — a tight, real hotspot
+short-list + needs a committed config to stop crying wolf.
+
+- ~~**Commit `alpenflight/web/.fallowrc.json` so the score is honest (operator: commit config).** Add
+  `ignorePatterns: ["**/node_modules.windows/**", "src/app/api/generated/**", "dist/**", "coverage/**"]`
+  + `health.ignore: ["src/app/api/generated/**", "**/*.spec.ts", "e2e/**"]`.~~ **Shipped J-5 T-12.**
+  Committed `.fallowrc.json` (fallow loads it; score now **B (71.1)** vs the misleading 52 D — confirmed via
+  `fallow health --format badge --score` + `--format json`). Plus the CI report-emit (the T-13 panel feed):
+  fail-soft (`continue-on-error`) steps in both `ci.yml` + `alpenflight-proof-fanout.yml` emit the FE journey
+  delta (`fallow audit --base origin/main --format json` — changed-files envelope w/ `introduced` attribution),
+  the FE repo snapshot (`fallow health --format json`), and the BE PMD/CPD XML (`:pmdMain :cpdCheck`) to the
+  stable T-13-consumable paths `public/alpenflight/proof/maintainability/{fallow-audit.json,fallow-health.json,pmd-main.xml,cpd-check.xml}`.
+  *(seam: new `alpenflight/web/.fallowrc.json` + ci/fanout emit steps)* — see [[reference_fallow_maintainability_analyzer]].
+
+- **Refactor the genuine complexity hotspots — each rides the journey that TOUCHES it (operator:
+  riders only, no ad-hoc project-code change).** Real production offenders fallow flags (CRITICAL/HIGH
+  CRAP, after excluding tests/generated): `aircraft/edit/aircraft-edit.page.ts` `<component>`/`formToUpdateRequest`
+  (35cyc, 366 LOC); `flights/edit/flight-form.defaults.ts:53 applyLastContextThenPrefs` (29cyc, **CRAP 210**);
+  `flights/edit/flights-edit.page.ts:613` `finalSubmit` (27cyc); `users/edit/users-edit.page.ts:442 onSubmit`
+  (29cyc); `users/users.store.ts:307 errorPatch` (25cyc, CRAP 160); `flights/list/flights-list.page.ts` (24cyc,
+  315 LOC); `persons/edit/persons-edit.page.ts hydrate`. They cluster in the shared `*-edit.page.ts`
+  form-mapping + store-`errorPatch` pattern. **For J-5 specifically:** build the new reservation edit page
+  WITHOUT replicating that `formToUpdateRequest`/`finalSubmit`/`errorPatch` complexity — extract the shared
+  form↔request + error-patch helper so the new page lands low-CRAP (and the extraction can later absorb the
+  aircraft/flights/users hotspots as each is touched). The non-J-5 hotspots (aircraft/users/persons edit
+  pages) ride their own next-touch journey, not J-5. *(seam: `*-edit.page.ts` form-mapping helper extraction
+  + the per-feature store `errorPatch`)*
+  Minor, same budget: drop the **3 unused files + 6 unused deps + 1 unresolved import** fallow lists once
+  the config lands (`fallow dead-code` enumerates). Not worth `fallow fix` (dead files only 1.1%).
+
+- ~~**Java maintainability tool for `alpenflight/server` — add PMD + CPD (+ SpotBugs) (operator: "similar
+  tool for Java").**~~ **Shipped J-5 T-11.** Added the gradle built-in **PMD** (7.25.0 — 7.7.0 hit a
+  type-resolution StackOverflow on this codebase) with a **curated** `config/pmd/ruleset.xml` (complexity:
+  Cyclomatic/Cognitive/NPath/NcssCount/ExcessiveParameterList/TooManyMethods/TooManyFields + dead/unused
+  code: UnusedPrivate{Field,Method}/UnusedLocalVariable/UnusedAssignment/UnusedFormalParameter/Empty* — NO
+  style/naming/doc noise) and **CPD** (`de.aaschmid.cpd` 3.5, `cpdCheck`, minTokenCount=50). Both wired into
+  `check` as **report-generating, NOT hard-failing**: `pmdMain.ignoreFailures=true`; CPD duplication gated by
+  a **ratchet** (`cpdRatchet` task vs `config/pmd/cpd-baseline.txt` = 5300 tokens) that fails ONLY on growth
+  (verified: passes at 5300==baseline, reds when baseline lowered). Measured server-main: PMD **65 violations**
+  (34 cyclomatic / 15 excessive-params / 5 cognitive / 4 NPath / 4 too-many-fields / 3 too-many-methods;
+  **0 dead-code** — a clean signal), CPD **2.46%** dup (5300 tokens / 858 lines / 65 blocks / 34,769 LOC —
+  lower than the 5.57% jscpd proxy; CPD's token model at minTokens=50 is stricter). Reservation aggregate
+  (`ch.alpenflight.reservations`, T-03/T-09) confirmed clean: 2 benign PMD hits (class-sum cyc 62 but max
+  method cyc 9 < 10; 11-param factory) + 9 small DTO/exception boilerplate clones (no logic dup). Reports →
+  `build/reports/pmd/main.{xml,html}` + `build/reports/cpd/cpdCheck.xml` (T-12/T-13 panel feed). SpotBugs
+  deferred (operator scope was complexity+dup+dead-code; PMD covers dead code). — see
+  [[reference_fallow_maintainability_analyzer]].
+
+- **Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
+  to the proof gallery for each journey page").** Extends the gallery per-journey re-arch rider above (the
+  index → one page per journey). Each journey page gains a **Maintainability** section rendering the
+  journey's *delta* + repo snapshot across the three axes: **frontend** via fallow's changed-files envelope
+  for the journey's `integration/J-NNN` branch (`fallow ci`/`audit` emits a PR/MR JSON envelope = exactly
+  the complexity/dupes/dead-code introduced by the journey's diff) + the snapshot (MI, dup%, dead-code);
+  **backend** via the PMD/CPD (+SpotBugs) report on the changed Java. The gallery deploy step runs
+  `fallow ci --format json` + the gradle pmd/cpd XML, and `generate-gallery.mjs` renders an HTML panel
+  (green/amber/red on the delta, link to full report). So each journey's page shows not just "the screen
+  works" but "the journey didn't rot maintainability". Project-code/CI work → rides a journey's ≤40% budget
+  *with* the gallery re-arch (it's the same generator + deploy seam). *(seam: `generate-gallery.mjs`
+  maintainability panel + ci.yml/fanout `fallow ci` + pmd/cpd report-emit steps)* — see
+  [[feedback_proof_gallery_per_journey_one_bookmark]], [[feedback_maintainability_includes_dupes_and_deadcode]].
+
 ## Pending (filed by /do-ship 2026-06-05, J-4 window)
 
 - **Legacy `/profile` walkthrough video doesn't stage in the fanout `legacy-parity` gallery (J-4 done-bar
@@ -22,15 +96,35 @@ genuinely new vertical feature scope.
   pass-vs-fail. Done-bar was met by the paired screenshots ("judgeable side-by-side"); add the video on the next
   fanout-touching task. *(seam: top-level e2e `profile` project video config / the fanout video-find path)*
 
-- **Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).** Each
-  `timeout NNN ./gradlew test` that gets SIGKILLed leaks an `alpenflight-pg-test-*` container + ~1 GB volume
-  because `PostgresTestContainerLifecycle`'s cleanup is a JVM **shutdown hook** that never fires on a kill.
-  Reclaimed ~10 GB across the window via `docker rm -f alpenflight-pg-test-* && docker volume/image prune`.
-  Durable fix: add a **pre-start sweep** to `PostgresTestContainerLifecycle.start()` (reap stale
-  `alpenflight-pg-test-*` before starting — reaps a leaked one on the next run regardless of how the prior
-  died) AND a settings.json **Stop hook** that prunes after each session/worker. Snapshot-regen throwaway PGs
-  are no longer needed now the remote DB is reachable again (use `DATASOURCE_*`). *(seam:
-  PostgresTestContainerLifecycle pre-start sweep + a cleanup hook)* — see [[project_docker_disk_leak_orphaned_testcontainers]].
+- ~~**Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).**~~
+  **Shipped J-5 T-02.** `PostgresTestContainerLifecycle.start()` now runs a **pre-start sweep** that
+  `docker rm -f -v`s stale `alpenflight-pg-test-*` containers + their volumes (concurrency-safe: only reaps
+  containers older than a 60s age guard, never a sibling run's booting container; containers now carry a
+  `ch.alpenflight.test=pg` label for precise targeting); the **readiness cap was raised 60s → 120s** so
+  workers can self-verify ITs locally under load; and a fail-soft **settings.json Stop hook**
+  (`.claude/settings.json` → `.claude/hooks/prune-test-containers.sh`) prunes orphaned `alpenflight-pg-test-*`
+  + dangling volumes at session end. Verified via the `PostgresIntegrationTestSmokeIT` (lifecycle brings up a
+  container, Flyway migrates, container reaped cleanly). — see [[project_docker_disk_leak_orphaned_testcontainers]].
+
+## Pending (filed by /do-retro 2026-06-06, J-4 window)
+
+- **Proof galleries: collapse the 4 per-proof-type galleries into ONE page PER JOURNEY (operator design,
+  /do-retro J-4).** Today there are 4 gh-pages destinations (clean-seed `…/<branch>/`, showcase `…/dashboard/`,
+  `…/profile/`, fanout `…/legacy-parity/`) each rendering a DIFFERENT subset of state across ALL journeys, plus
+  the new persistent `…/alpenflight/previews/index.html` link-directory (J-4 T-24) that links to them. The
+  operator can't find one journey's current proof. **Target model (operator-confirmed):** the index lists
+  JOURNEYS (J-0…J-N); each links to ONE **per-journey page** that aggregates THAT journey's full proof — paired
+  legacy↔AlpenFlight screenshots/videos + the real-idp run — filtered to the single journey. The per-proof-type
+  galleries stop being separate destinations and become **sources** the per-journey page assembles from. Likely:
+  the gallery generator keys by `journey` (it already carries a `journey` field on every shot/video sidecar
+  entry) and emits one page per journey to `…/<branch>/J-<n>/` (or `…/previews/<branch>/J-<n>/`); the index +
+  the per-push/fanout deploy steps target the per-journey pages; retire the dashboard/profile/legacy-parity/
+  clean-seed sub-paths + their deploy steps. **SUBSTANTIAL pure tech-debt → rides journeys' ≤40% tech-debt
+  budget** (operator: a journey is a Scrum sprint ≥60% AlpenFlight feature / ≤40% tech-debt — gallery re-arch
+  delivers no AlpenFlight functionality so it is NOT its own journey). Too big for one 40% slot → split the
+  re-arch across the next 2-3 journeys' tech-debt budgets (e.g. generator keys-by-journey first, then retire
+  sub-paths, then the deploy/index rewire). *(seam: `generate-gallery.mjs` + `generate-previews-index.mjs` +
+  the gallery-deploy steps across ci.yml + alpenflight-proof-fanout.yml + the rebuild-previews-index composite)*
 
 
 - ~~**Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).**~~ **Shipped J-3 T-12**
@@ -117,27 +211,36 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-retro 2026-06-05, J-3 window)
 
-- **Scope the clean-seed `alpenflight-proof` job to the journey-under-work's spec (operator ask, J-3
-  retro).** Today `ci.yml`'s `alpenflight-proof` re-runs J-0+J-1+J-2(+…) real-idp specs on EVERY push —
-  slow, expensive, and it lets an unrelated prior-journey flake red the current journey's gate (J-3:
-  the J-1 aircraft retry-flake blocked J-3, which never touched aircraft). Make the per-push proof run
-  only the **current journey's** spec(s) (parameterize the spec list off the integration branch / a
-  journey marker), and move the **full cross-journey regression** to a **gate-only / nightly** run
-  (`alpenflight-e2e-real-idp.yml` already hosts a nightly full suite — point the regression there). Pairs
-  with the [[J-1 aircraft flake]] rider (lighter + scoped proof also stops that flake gating other
-  journeys). *(seam: ci.yml alpenflight-proof spec selection + the nightly full-suite trigger)*
+- ~~**Scope the clean-seed `alpenflight-proof` job to the journey-under-work's spec (operator ask, J-3
+  retro).**~~ **Shipped J-5 T-14.** The per-push `ci.yml` `alpenflight-proof` job no longer hardcodes the
+  J-0 Locations spec — a `changes`-job step DERIVES the journey-under-work's real-idp spec off the
+  integration branch (`integration/J-NNN` → the journey file's `parity_test:` frontmatter first token,
+  normalized relative to `alpenflight/web/`) and the proof job runs ONLY that single spec
+  (`--project=real-idp`). FAIL-SAFE to the J-0 Locations baseline for a mock-auth parity journey (J-5's
+  spec runs in `alpenflight-mock-e2e`), a showcase-seeded `tests/profile/` spec (J-4, own gating job), a
+  non-integration branch, or any underivable case — never a no-spec run. The J-0-caption live-link-check
+  is gated on the baseline having run, so a journey-specific run can't false-red. The **full
+  cross-journey regression** already lives nightly in `alpenflight-e2e-real-idp.yml` (J-4 T-21/T-22 moved
+  it there; J-5 T-14 reconfirmed + documented it) + runs once at the §4 do-ship gate — never per-push.
+  `required` aggregator unchanged. Pairs with the [[J-1 aircraft flake]] rider (T-15). *(seam: ci.yml
+  alpenflight-proof spec selection + the nightly full-suite trigger)*
 
 ## Pending (filed by /do-ship 2026-06-05, J-3 window)
 
-- **J-1 aircraft real-idp spec flake (S-163 timeout → retry → create-residue → 6≠3).** In the shared
-  clean-seed `alpenflight-proof` run, `aircraft-migration-parity.spec.ts` intermittently fails: the
-  `S-163` case (`:407`, non-managing-club owner edit) times out at 45s, Playwright retries the
-  create-aircraft test, the create isn't cleaned up across attempts, so the initial
-  `toHaveCount(3)` (`:228`) sees 6 on the retry. Pre-existing (predates J-3 — it's in `main` via J-1);
-  passed J-3's gate by luck on the final run. Fix on the next aircraft-touching journey: make the
-  aircraft-create test idempotent across retries (clean up the created row / assert a delta not an
-  absolute) AND diagnose the S-163 45s timeout (raise it or fix the slow non-managing-club edit path).
-  *(seam: aircraft-migration-parity.spec.ts retry-isolation + S-163 timeout)*
+- ~~**J-1 aircraft real-idp spec flake (S-163 timeout → retry → create-residue → 6≠3).**~~ **Shipped J-5
+  T-15.** Root cause: club A in `aircraft-migration-parity.spec.ts` is the shared, never-truncated Flyway
+  `seed-club-1` (two-club-fixture.ts:46), so a failed attempt's 3 created rows linger and the next attempt's
+  absolute `toHaveCount(3)` (`:228`) saw 6. Fixed BOTH halves: (a) retry-isolation — an `afterAll` DELETEs
+  every aircraft this group created as the managing-club admin (clean tenant for the next retry) + a
+  `beforeAll` id-list reset; AND (b) the absolute count → a DELTA (`baseline + 3` + each created row visible
+  by id), the residue-proof fallback. S-163 45s timeout root cause: the test does in-body fixture-STATE setup
+  — `seedAircraftOwnerLink` shells out to Gradle (`gradlew seedAircraftOwnerLink`, aircraft-parity-fixture.ts:412)
+  BEFORE any assertion, ~15-35s on a cold CI daemon, consuming the 45s per-test budget → vague timeout → retry
+  → residue. Bumped THIS test only to `test.setTimeout(90_000)` with the measured rationale (global 45s stays
+  for the other tests; per-assertion 5s expect unchanged). CI MUST CONFIRM S-163 no longer times out under
+  load; else attack the Gradle seeder cost (warm daemon / pre-seed in beforeAll). Local Playwright unrunnable
+  (chrome musl + needs real-idp stack) — reasoned from code + Playwright serial-retry semantics. *(seam:
+  aircraft-migration-parity.spec.ts retry-isolation + S-163 timeout)*
 - **PILOT flights-read authz gap — FIXED in J-3, lesson for /do-retro.** `FlightsController.list/get`
   was `@PreAuthorize(hasAnyRole('CLUB_ADMINISTRATOR','FLIGHT_OPERATOR'))` (S-159, predating the pilot
   dashboard) → a PILOT got 403 reading their OWN last flight; the pilot dashboard card hung. Fixed in

@@ -394,6 +394,29 @@ audit:
           - engineOperatingCounterInSeconds
           - nextMaintenanceAtFlightOperatingCounterInSeconds
           - nextMaintenanceAtEngineOperatingCounterInSeconds
+      AircraftReservation:
+        # Audit snapshot is the AircraftReservationDetail DTO. Person-id FKs are
+        # references (not raw PII — same posture as Aircraft.aircraftOwnerPersonId);
+        # the free-text `remarks`/`info` is deliberately NOT allowed so it
+        # default-denies to "[redacted]" on the audit walk. `isAllDay`/`allDay`
+        # cover the DTO + entity field-name variants.
+        allow:
+          - id
+          - operatingClubId
+          - aircraftId
+          - pilotPersonId
+          - secondCrewPersonId
+          - locationId
+          - reservationTypeId
+          - flightTypeId
+          - start
+          - end
+          - reservationStart
+          - reservationEnd
+          - isAllDay
+          - allDay
+          - deletedOn
+          - deletedByUserId
       FlightType:
         # No PII; per-club masterdata. Allow-list lists DTO field names + entity
         # field names so both audit-paths (service-layer DTO snapshot, entity

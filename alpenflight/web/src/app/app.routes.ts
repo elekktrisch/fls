@@ -50,6 +50,21 @@ export const routes: Routes = [
     loadChildren: () => import('@features/aircraft/aircraft.routes').then((m) => m.AIRCRAFT_ROUTES),
   },
   {
+    path: 'reservations',
+    loadChildren: () =>
+      import('@features/reservations/reservations.routes').then((m) => m.RESERVATIONS_ROUTES),
+  },
+  {
+    // Calendar view of the reservation data (J-5 T-10) — a top-level route the
+    // scheduler spec navigates to (`/reservation-scheduler`), served lazily by
+    // the reservations feature folder.
+    path: 'reservation-scheduler',
+    loadChildren: () =>
+      import('@features/reservations/reservations.routes').then(
+        (m) => m.RESERVATION_SCHEDULER_ROUTES,
+      ),
+  },
+  {
     // Motor flights ("air movements") are unified into this same /flights list
     // (a Flight with a motor aircraft + no tow) — legacy's separate
     // /airmovements screen is NOT carried forward (J-2 T-36 / S-064).

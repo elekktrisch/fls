@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.fallow.tools/schema/fallowrc.json",
+  "ignorePatterns": [
+    "**/node_modules.windows/**",
+    "src/app/api/generated/**",
+    "dist/**",
+    "coverage/**"
+  ],
+  "health": {
+    "ignore": ["src/app/api/generated/**", "**/*.spec.ts", "e2e/**"]
+  }
+}

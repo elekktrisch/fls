@@ -85,11 +85,20 @@ Build only this task. Typical task shapes:
 
 Iterate to local green against the fast inner loop (mock-auth + Testcontainers,
 or `page.route` mocks for FE-only). Honor the ≥5-min wallclock budget — surface
-a slow loop rather than re-running it five times. **A backend slice that adds a
-cross-module dependency (new import across packages) must also run the cheap
-pure-JVM arch/boundary tests** (`ApplicationModulesTest` — Spring Modulith) —
-*not just the touched test class* — or a boundary violation surfaces a whole gate
-round later (J-1 T-10: `aircraft`→`users` internal-type dep, caught at the gate).
+a slow loop rather than re-running it five times. **ANY backend slice must run the
+full pure-JVM arch-guard suite — not just the touched test class** — because these
+guards fire only on the whole-module build, so a targeted IT run passes while the
+gate's `./gradlew build` goes red (J-4 burned two extra fix-tasks T-16 + T-19 this
+way). Run all that apply: `ApplicationModulesTest` (Spring Modulith boundary — a new
+cross-package import/call from `me`→`persons.application` etc. needs the target module
+`OPEN` or a `@NamedInterface`), `ControllerAuditCoverageTest` (**every mutating
+controller method** must reach `AuditTrail.record` or be `@AuditedBy` — a new `PATCH`/
+`POST`/`PUT` endpoint that doesn't emit an audit event fails this), `NativeSqlRegisterTest`
+(a new native-SQL call site on a tenant-scoped table needs a `native-sql-register.md`
+entry), `AuditRedactionCoverageTest` (a new audited entity type needs its redaction
+policy). When unsure which apply, run all four — they're cheap. Do NOT block uncommitted
+on a long background gradle run (J-4 T-04: a worker polled a backgrounded task, never
+committed, and stranded its work) — run verification foreground-bounded, then commit.
 
 ### 4 — Commit + tick
 
@@ -109,6 +118,12 @@ then `--check "src/**/*.{ts,html,css,json}" "e2e/**/*.{ts,json}"`, the module's 
 not just the one or two files you eyeballed. `--check` alone reports but doesn't fix. A
 format-only miss fails CI a whole round later — the most wasteful red there is (J-0c T-09 +
 J-1 T-20/T-22 each burned a round on exactly this). Cheap locally, expensive at the gate.
+
+**Proof-gallery DoD.** If the task TOUCHED the proof gallery (the gallery generators, its
+CI/deploy steps, or screenshot/video sidecars), run the autonomous link check before marking
+done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links` (browserless; "are all gallery links live?").
+
+**Local-first verification DoD (J-5 T-43).** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent (whole `./gradlew test` + lint/tsc/build/api-drift + gallery tests/link-check + the mock-auth e2e when a chromium is launchable) — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix.
 
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it

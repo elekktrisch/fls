@@ -7,8 +7,14 @@ name: alpenflight e2e real-idp
 # scoped proofs in `ci.yml` stay the gates; real-idp's cross-process flakiness
 # must not gate feature work.
 #
-# PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q1). This nightly
-# suite is now the HOME of the full cross-journey migration-parity regression.
+# PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q1; reconfirmed by
+# J-5 T-14, J-3 retro rider). This nightly suite is the HOME of the full
+# cross-journey migration-parity regression. J-5 T-14 made the per-push
+# `ci.yml` `alpenflight-proof` job run only the journey-under-work's single
+# real-idp spec (derived off the integration branch) — so the FULL regression
+# runs HERE nightly (globbing `tests/real-idp/`) + once at the §4 do-ship gate,
+# never on every push. Nothing changed in THIS workflow; the per-push scoping
+# made this nightly run the sole per-commit-independent full-regression path.
 # `ci.yml`'s per-push `alpenflight-proof` job used to run the J-1
 # `aircraft-migration-parity.spec.ts` + J-2 `flight-migration-parity.spec.ts`
 # on every push and gate `required` — but the known aircraft-parity

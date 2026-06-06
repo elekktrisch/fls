@@ -1,0 +1,18 @@
+# CPD duplication ratchet baseline — total duplicated tokens (J-5 T-11).
+#
+# The `cpdRatchet` task (build.gradle.kts) sums the `tokens` attribute across
+# every <duplication> block in build/reports/cpd/cpdCheck.xml and FAILS the
+# build iff that total exceeds the number below. So existing duplication debt
+# passes; only NEW duplication reds CI.
+#
+# Lower is better. When duplication drops, cpdRatchet prints the new (lower)
+# number — commit it here to lock the gain (the ratchet only tightens).
+#
+# Measured 2026-06-06 (J-5 T-11, PMD/CPD 7.25.0, minimumTokenCount=50, server
+# main only): 5300 duplicated tokens across 65 clone blocks / 858 lines over
+# 34,769 production LOC (~2.46% duplicated lines). The reservation aggregate
+# (ch.alpenflight.reservations, T-03/T-09) is in only 9 small DTO/exception
+# boilerplate clones — no logic duplication.
+#
+# Single non-comment, non-blank line = the token baseline.
+5300

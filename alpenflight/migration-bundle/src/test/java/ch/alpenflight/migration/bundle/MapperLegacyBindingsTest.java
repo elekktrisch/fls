@@ -651,6 +651,143 @@ class MapperLegacyBindingsTest {
                 .isEqualTo(5L);
     }
 
+    // -------------------------------------------------------------------------
+    // AIRCRAFT_RESERVATION + AIRCRAFT_RESERVATION_TYPE (J-5 T-07). The mappers +
+    // KnownMappers entries + the TENANT_BYPASS_ALLOW_LIST entry already exist
+    // (S-185/S-187 authoring) but were UNBOUND — MapperLegacyBindings.require()
+    // threw "No legacy binding registered", so the producer never emitted the
+    // reservation streams and the round-trip was authored-but-unproven
+    // (verify_infra_is_run_not_just_authored). T-07 wires the producer SELECT
+    // (reconciled against the REAL legacy AircraftReservations / -Types MSSQL
+    // schema as it stands AFTER DBUpdate_v1.9.23 — which DROPS the v1.0
+    // ReservationTypeId + InstructorPersonId columns and ADDS
+    // AircraftReservationTypeId / FlightTypeId / SecondCrewPersonId) + the
+    // consumer INSERT. The closure guard below forces every reservation FK
+    // target (CLUB / AIRCRAFT / PERSON / LOCATION / AIRCRAFT_RESERVATION_TYPE /
+    // FLIGHT_TYPE) to be bound the moment AIRCRAFT_RESERVATION is.
+    //
+    // Producer-SELECT catch (project_synth_bundle_doesnt_validate_producer_select):
+    // the modern legacy column is AircraftReservationTypeId, NOT the v1.0
+    // ReservationTypeId (dropped in v1.9.23); the second-crew column is
+    // SecondCrewPersonId, NOT InstructorPersonId (also dropped in v1.9.23). A
+    // SELECT naming either dropped column would abort the live export — these
+    // guards pin the post-v1.9.23 names the mapper's writeNdjson actually reads.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Every legacy {@code AircraftReservations} ResultSet column
+     * {@code AircraftReservationMapper.writeNdjson} reads, in the post-v1.9.23
+     * schema. {@code ClubId} (the @TenantId source) + {@code LocationId} are
+     * added by DBUpdate_v1.1; {@code AircraftReservationTypeId} /
+     * {@code FlightTypeId} / {@code SecondCrewPersonId} by DBUpdate_v1.9.23.
+     */
+    private static final List<String> AIRCRAFT_RESERVATION_LEGACY_COLUMNS = List.of(
+            "AircraftReservationId", "ClubId", "AircraftId", "Start", "End",
+            "IsAllDayReservation", "PilotPersonId", "SecondCrewPersonId", "LocationId",
+            "AircraftReservationTypeId", "FlightTypeId", "Remarks",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    /** Every legacy column {@code AircraftReservationTypeMapper.writeNdjson} reads (post-v1.9.23). */
+    private static final List<String> AIRCRAFT_RESERVATION_TYPE_LEGACY_COLUMNS = List.of(
+            "AircraftReservationTypeId", "ClubId", "AircraftReservationTypeName",
+            "IsInstructorRequired", "IsMaintenance", "IsActive", "Remarks",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    @Test
+    void aircraftReservationAndTypeAreRegistered() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.AIRCRAFT_RESERVATION))
+                .as("AIRCRAFT_RESERVATION must be bound (J-5 T-07) so the reservation register migrates")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.AIRCRAFT_RESERVATION_TYPE))
+                .as("AIRCRAFT_RESERVATION_TYPE must be bound — it is an "
+                        + "AircraftReservationMapper.foreignKeys() target")
+                .isTrue();
+    }
+
+    @Test
+    void aircraftReservationAndTypeAreTenantScopedFullPort() {
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.AIRCRAFT_RESERVATION))
+                .as("AircraftReservation is FULL_PORT, tenant-scoped via operating_club_id (V4)")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.AIRCRAFT_RESERVATION_TYPE))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void aircraftReservationSelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT_RESERVATION);
+        for (String legacyColumn : AIRCRAFT_RESERVATION_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("AircraftReservationMapper.writeNdjson reads %s — the bound SELECT "
+                            + "must project it (else: silent NULL / export abort)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy AircraftReservations table")
+                .contains("AircraftReservations");
+    }
+
+    @Test
+    void aircraftReservationSelectUsesPostV1923ColumnNamesNotTheDroppedV10Ones() {
+        String select =
+                MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT_RESERVATION).toUpperCase();
+        // DBUpdate_v1.9.23 DROPs ReservationTypeId (replaced by
+        // AircraftReservationTypeId) and InstructorPersonId (replaced by
+        // SecondCrewPersonId). A SELECT naming either dropped column aborts the
+        // live export on a non-existent column (the J-1 T-16 producer-SELECT class).
+        assertThat(select)
+                .as("SELECT projects the post-v1.9.23 AircraftReservationTypeId column")
+                .contains("AIRCRAFTRESERVATIONTYPEID");
+        assertThat(select)
+                .as("SELECT must NOT reference the v1.9.23-dropped InstructorPersonId column")
+                .doesNotContain("INSTRUCTORPERSONID");
+    }
+
+    @Test
+    void aircraftReservationConsumerInsertTargetsTAircraftReservationWithOperatingClubId() {
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.AIRCRAFT_RESERVATION);
+        assertThat(insert)
+                .as("AIRCRAFT_RESERVATION FULL_PORT consumer INSERT targets t_aircraft_reservation")
+                .contains("INSERT INTO t_aircraft_reservation");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_aircraft_reservation is tenant-scoped via operating_club_id (V4) — "
+                        + "the INSERT binds it")
+                .contains("operating_club_id");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("reservation_range is GENERATED ALWAYS in V4 — the INSERT must NOT bind it")
+                .doesNotContain("reservation_range");
+    }
+
+    @Test
+    void aircraftReservationTypeSelectProjectsEveryColumnTheMapperReads() {
+        String select =
+                MapperLegacyBindings.selectForProducer(EntityType.AIRCRAFT_RESERVATION_TYPE);
+        for (String legacyColumn : AIRCRAFT_RESERVATION_TYPE_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("AircraftReservationTypeMapper.writeNdjson reads %s — the bound SELECT "
+                            + "must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy AircraftReservationTypes table")
+                .contains("AircraftReservationTypes");
+    }
+
+    @Test
+    void aircraftReservationTypeConsumerInsertTargetsTAircraftReservationType() {
+        String insert =
+                MapperLegacyBindings.insertForConsumer(EntityType.AIRCRAFT_RESERVATION_TYPE);
+        assertThat(insert)
+                .as("AIRCRAFT_RESERVATION_TYPE FULL_PORT consumer INSERT targets "
+                        + "t_aircraft_reservation_type")
+                .contains("INSERT INTO t_aircraft_reservation_type");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_aircraft_reservation_type is tenant-scoped via operating_club_id (V4)")
+                .contains("operating_club_id");
+    }
+
     @Test
     void everyBoundMappersForeignKeyTargetsAreAlsoBound() {
         for (Mapper mapper : KnownMappers.all()) {
