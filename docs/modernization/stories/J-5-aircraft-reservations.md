@@ -496,3 +496,16 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   (the 30 pre-existing strict-tsconfig errors in other e2e files are unchanged — none introduced); prettier
   reports unchanged (already formatted). Local Playwright unrunnable (chrome musl) — reasoned from the spec +
   fixture + the backend validation order. NEXT FANOUT must confirm `:296` (+ the cascaded cases) green → 21/21.
+
+### §4 gate — fifth run (fanout fully GREEN 25/25; ci build red on LeakageSweepIT)
+Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index deployed). ci heavy lane RAN
+(`alpenflight proof real-idp clean-seed` = SUCCESS — the required reservations proof passes); only `alpenflight build` red.
+- [ ] **T-29 — Register the tenant-scoped reservation aggregates with the leakage guard (`LeakageSweepIT`).**
+  T-26 unblocked the server compile, so the full test suite now runs and `LeakageSweepIT` fails: it enumerates
+  every `@TenantId` aggregate and asserts each has (a) a row-builder in `TenantScopedRowBuilders` and (b) an
+  exposed Spring Data `JpaRepository`. `AircraftReservation` (needs the row-builder) + `AircraftReservationType`
+  (needs a JpaRepository) are tenant-scoped (T-03/T-04) but unregistered. Runtime tenancy IS correct (the green
+  fanout cross-tenant + tenant-isolation specs prove it) — this is a missing STRUCTURAL guard registration, not a
+  leak. Mirror how an existing tenant-scoped aggregate (Flight/Location/Person) satisfies `LeakageSweepIT` +
+  `TenantScopedRowBuilders`. Run the FULL `./gradlew build` (the backend workers ran only focused arch guards +
+  ITs, not LeakageSweepIT — that's why it slipped) to confirm green. *(seam: TenantScopedRowBuilders + AircraftReservationType JpaRepository)*
