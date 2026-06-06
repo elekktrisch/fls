@@ -846,3 +846,20 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
   `reservations-crud.spec.ts` is the only reservations MOCK spec (the other is real-idp) — no shared anti-pattern
   elsewhere. prettier (unchanged/formatted) + tsc on the touched file clean (the 30 pre-existing strict-tsconfig
   errors in other e2e files are untouched, none introduced).
+
+### §4 gate — J-5 GREEN; sole blocker = pre-existing unrelated articles flake
+J-5 fully green: ci build ✓, required real-idp reservations proof ✓, fanout **25 passed/0 failed** ✓,
+deployed-link-check ✓, calendar gallery + paired parity captures ✓. `required` red ONLY via `alpenflight-mock-e2e`
+→ `articles-crud.spec.ts:255/:265` (the 409-inline `articles-save-error`). NOT a J-5 regression: main CI green for
+articles; J-5's shared-file changes are additive-only (icon-registry +3, mutation-bus +3); articles imports zero
+J-5 files; local run = 1-fail/6-pass (flaky timing). It holds the shared gate hostage.
+- [ ] **T-47 — Stabilize the pre-existing `articles-crud` 409-inline flake (gate-unblock; fix-forward).** Diagnose
+  `:265` (and `:255`) locally (`pnpm e2e --project=chromium articles-crud`, run ×3-5 to confirm flake vs race):
+  the `articles-save-error` 409-inline assertion races the error render. Harden it (proper wait on the error
+  state / fix any real articles-store 409-timing race) so it's deterministically green; run locally repeatedly
+  to confirm stable. Out of J-5's reservation scope but blocks J-5's required gate → fix-forward rider.
+  *(seam: articles-crud.spec.ts 409-inline assertion / articles.store 409 handling)*
+- **do-retro lesson (file):** the `required` `alpenflight-mock-e2e` gate runs ALL features' mock specs, so ONE
+  flaky unrelated spec reds an unrelated journey's gate (J-5 held hostage by articles). Scope the per-push
+  mock-e2e to the journey-under-work's spec (like T-14 did for the real-idp `alpenflight-proof`), full mock
+  suite at nightly/gate. *(do-retro: ci.yml mock-e2e journey-scoping)*
