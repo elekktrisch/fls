@@ -1,6 +1,8 @@
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 
 import { fillKcLogin } from './kc-form';
+import { findUserByUsername, makeMigratedAdminLoginable } from './keycloak-admin';
+import { E2E_CANNED_PASSWORD } from './test-user';
 
 /**
  * J-5 reservation real-chain fixture — the clean-seed masterdata seeder + the
@@ -264,4 +266,127 @@ export async function fetchReservationTypeId(
 /** `true` when the migrated-bundle real-export path is active (the fanout). */
 export function useRealBundle(): boolean {
   return (process.env['J5_BUNDLE_SOURCE'] ?? 'synth').toLowerCase() === 'real';
+}
+
+// ===========================================================================
+// MIGRATED-TENANT read (the migrated-data block) — read the migrated legacy
+// reservation as the MIGRATED legacy TestClub's admin, NOT as clubadmin4 /
+// seed-club-1.
+//
+// The T-07 legacy fixture (`flsserver/database/FLSTest/3 insert/_test-fixture.sql`
+// §10c) stamps the seeded reservation on the legacy TestClub
+// (`0FA7B76F-47BA-4138-8F96-671400FD7C83`). `CLUB` migrates FULL_PORT
+// (non-fanout) so it keeps its legacy UUID — the migrated reservation lands on
+// THAT tenant, NOT on seed-club-1. The paged read is `@TenantId`-scoped on
+// `operating_club_id`, so clubadmin4 (seed-club-1) never sees it: the old
+// `totalRows >= 1` assertion passed on unrelated seed-club-1 residue, not the
+// migrated row. To prove the legacy→export→migrate→render round-trip we MUST
+// read through the migrated TestClub's tenant.
+//
+// Mirrors the J-0c/J-1 migrated-read pattern: the migration provisions a
+// Keycloak admin `migrated-admin+<clubId>@migrated.alpenflight.local` per
+// migrated club (`DeploymentProvisioningService#migratedAdminUsername` —
+// clubId is the lowercase `UUID.toString()`). We resolve THAT admin for the
+// FULL_PORT TestClub UUID, make it loginable (test-only password + cleared
+// required-actions — same as `fan-out-parity-fixture.loginableAdmin`), and log
+// it in so the `@TenantId`-scoped reservation read sees the migrated row.
+// ===========================================================================
+
+/**
+ * The migrated legacy TestClub's tenant UUID. `CLUB` migrates FULL_PORT
+ * (non-fanout), so the legacy TestClub keeps its legacy UUID
+ * (`0FA7B76F-47BA-4138-8F96-671400FD7C83` in the MSSQL fixture); the migration
+ * stamps the provisioned tenant + the migrated-admin username with the lowercase
+ * `UUID.toString()` form (see `DeploymentProvisioningService`).
+ */
+export const MIGRATED_TEST_CLUB_ID = '0fa7b76f-47ba-4138-8f96-671400fd7c83';
+
+/** The unique remark the T-07 legacy fixture (§10c) stamps on the seeded reservation. */
+export const MIGRATED_RESERVATION_REMARK = 'Cross-tenant timed reservation (fixture)';
+
+/** The migrated reservation's type name (§10b — `Schulung`). */
+export const MIGRATED_RESERVATION_TYPE_NAME = 'Schulung';
+
+/** A loginable migrated club admin (the migration-provisioned Keycloak identity). */
+export interface MigratedClubAdmin {
+  clubId: string;
+  username: string;
+  password: string;
+  kcUserId: string;
+}
+
+function migratedAdminUsername(clubId: string): string {
+  return `migrated-admin+${clubId}@migrated.alpenflight.local`;
+}
+
+/**
+ * Resolve the migration-provisioned, loginable admin of the migrated legacy
+ * TestClub (the tenant the migrated reservation is stamped on). The fanout's
+ * J-0c fan-out spec ingests the SAME real bundle earlier in this Playwright
+ * invocation, which provisions this admin; here we set a known password + clear
+ * its required-actions (test-only, namespace-guarded) so the spec can log it in.
+ * Fails loud if the migration did not provision it — that is a provisioning /
+ * FULL_PORT regression, never a silently-skipped assertion.
+ */
+export async function resolveMigratedTestClubAdmin(): Promise<MigratedClubAdmin> {
+  const username = migratedAdminUsername(MIGRATED_TEST_CLUB_ID);
+  const kcUser = await findUserByUsername(username);
+  if (!kcUser) {
+    throw new Error(
+      `migration did not provision a Keycloak admin for the migrated TestClub ` +
+        `${MIGRATED_TEST_CLUB_ID} (expected username ${username}) — the FULL_PORT CLUB ` +
+        `migration / provisioning regressed, or the real bundle was not ingested.`,
+    );
+  }
+  await makeMigratedAdminLoginable(kcUser.id, username, E2E_CANNED_PASSWORD);
+  return {
+    clubId: MIGRATED_TEST_CLUB_ID,
+    username,
+    password: E2E_CANNED_PASSWORD,
+    kcUserId: kcUser.id,
+  };
+}
+
+/**
+ * Log the migrated TestClub admin in through the SPA + real Keycloak so its
+ * `@TenantId`-scoped reservation reads see the migrated row. Mirrors
+ * `loginAsReservationAdmin` but for the migration-provisioned identity.
+ */
+export async function loginAsMigratedTestClubAdmin(
+  page: Page,
+  admin: MigratedClubAdmin,
+): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('landing-topbar-sign-in').click();
+  await page.waitForURL(/\/realms\/alpenflight\//);
+  await fillKcLogin(page, admin.username, admin.password);
+  await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
+  await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
+}
+
+/**
+ * Drive the migrated TestClub admin through the SPA login in a throwaway context
+ * and capture the tenant-scoped Bearer the OIDC interceptor attaches to its
+ * first `/reservations` read, so the spec can issue the direct paged-read as the
+ * migrated tenant.
+ */
+export async function captureMigratedTestClubBearer(
+  browser: Browser,
+  baseURL: string,
+  admin: MigratedClubAdmin,
+): Promise<string> {
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  try {
+    const bearerPromise = page.waitForRequest((req) => {
+      const auth = req.headers()['authorization'];
+      return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
+    });
+    await loginAsMigratedTestClubAdmin(page, admin);
+    await page.goto('/reservations');
+    const req = await bearerPromise;
+    return req.headers()['authorization']!;
+  } finally {
+    await context.close();
+  }
 }

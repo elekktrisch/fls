@@ -15,16 +15,24 @@
 -- so the type dropdown is non-empty and the create→type-picker flow runs
 -- end-to-end on clean seed.
 --
--- DEV/TEST-ONLY, like every V8/V26/V28/V29/V30 dev seed: the row is bound to
+-- DEV/TEST-SEED, like every V8/V26/V29/V30 dev seed: the row is bound to
 -- `seed-club-1`, the canonical dev/test club row from
--- `V5__clubs_walking_skeleton.sql`. A production deployment is migrated into a
--- club created via the real `POST /api/v1/clubs` surface (a distinct, runtime
--- UUID) — seed-club-1 never exists there, so this row simply has no tenant to
--- attach to in prod. It carries no real reservation-type masterdata; it exists
--- only so the clean-seed test realm has a pickable type. The Flyway location is
--- the single `classpath:db/migration` for every profile (no profile split), so
--- the dev/test-only guarantee is the seed-club-1 binding, NOT a location fence
--- — identical to the sibling dev seeds.
+-- `V5__clubs_walking_skeleton.sql`. IMPORTANT — `seed-club-1` is NOT dev-only:
+-- V5 inserts it UNCONDITIONALLY (no profile guard), and Flyway runs the single
+-- `classpath:db/migration` location across EVERY profile (no profile split), so
+-- seed-club-1 — and therefore THIS reservation-type row — lands wherever the
+-- migrations run, production INCLUDED. That is the SAME accepted
+-- dev-seed-in-prod posture as the sibling V8/V26/V29/V30 dev seeds: an inert
+-- seed-club-1-bound row that real prod tenants (migrated in via `POST
+-- /api/v1/clubs`, each a distinct runtime UUID) never see, because the
+-- reservation-type read is `@TenantId`-filtered to the operating club. It
+-- carries no real reservation-type masterdata; it exists only so the clean-seed
+-- test realm has a pickable type. The dev/test guarantee is therefore the
+-- @TenantId isolation of the seed-club-1 binding, NOT a "seed-club-1 doesn't
+-- exist in prod" claim (it does) and NOT a Flyway location fence — identical to
+-- the sibling dev seeds, which carry the same accepted debt. Cleaning up the
+-- whole seed-club-1-in-prod posture is a separate cross-cutting decision, not
+-- this row's to make.
 --
 -- The active + not-deleted row appears in `findActiveTypeListItems()` (the
 -- `/aircraft-reservation-types` dropdown read), tenant-filtered by @TenantId to

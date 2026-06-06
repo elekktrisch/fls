@@ -282,7 +282,7 @@ One seam each; commit directly to `integration/J-5`.
   *(seam: clean-seed dev seed / two-club fixture + the real-idp spec's create flow)*
 
 ### §4 gate — gap-hunter findings (2/3 voted not-yet-vertical; domain confirmed honest)
-- [ ] **T-18 — Fix the migrated-data round-trip to read the migrated tenant (gap-hunter blocker B).** The
+- [x] **T-18 — Fix the migrated-data round-trip to read the migrated tenant (gap-hunter blocker B).** The
   migrated-data block in `reservations-migration-parity.spec.ts` reads as `clubadmin4`/seed-club-1, but the
   migrated legacy reservation is tenant-stamped on the **legacy TestClub** (CLUB is FULL_PORT non-fanout,
   keeps its legacy UUID `0FA7B76F-…`) → invisible to the seed-club-1 reader, so `totalRows >= 1` passes on

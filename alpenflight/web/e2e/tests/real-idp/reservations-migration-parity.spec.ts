@@ -1,10 +1,4 @@
-import {
-  test,
-  expect,
-  type Browser,
-  type BrowserContext,
-  type TestInfo,
-} from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext, type TestInfo } from '@playwright/test';
 
 import {
   loginAsClubAdmin,
@@ -12,11 +6,17 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 import {
+  captureMigratedTestClubBearer,
   captureReservationAdminBearer,
   fetchReservationTypeId,
+  loginAsMigratedTestClubAdmin,
   loginAsReservationAdmin,
+  resolveMigratedTestClubAdmin,
   seedReservationMasterdata,
   useRealBundle,
+  MIGRATED_RESERVATION_REMARK,
+  MIGRATED_RESERVATION_TYPE_NAME,
+  type MigratedClubAdmin,
   type ReservationMasterdata,
 } from './_helpers/reservation-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
@@ -68,12 +68,12 @@ async function newRecordedContext(
   return browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
 }
 
-interface ReservationDetail {
+/** A row of the paged-list envelope (`AircraftReservationListItem`). */
+interface ReservationListRow {
   id: string;
   aircraftId: string;
-  start: string;
-  end: string;
-  isAllDay: boolean;
+  reservationTypeName?: string | null;
+  remarks?: string | null;
 }
 
 /**
@@ -553,10 +553,21 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
 
 // ===========================================================================
 // MIGRATED-DATA real chain — a real legacy reservation, exported + migrated
-// through the live chain, renders in the owning club's list (with its migrated
-// type). Rides the REAL legacy export (T-07 wired the producer/consumer
+// through the live chain, renders in the MIGRATED TestClub's list (with its
+// migrated type). Rides the REAL legacy export (T-07 wired the producer/consumer
 // bindings + the legacy seed); there is NO synth reservation bundle, so this
 // block runs only when the fanout's real export ran (J5_BUNDLE_SOURCE=real).
+//
+// CRITICAL (J-5 T-18): the read MUST happen as the MIGRATED TestClub's admin,
+// NOT clubadmin4 / seed-club-1. The T-07 fixture (§10c) stamps the reservation on
+// the legacy TestClub (`0FA7B76F-…`); `CLUB` migrates FULL_PORT (non-fanout) so it
+// keeps that UUID. The paged read is `@TenantId`-scoped on `operating_club_id`, so
+// seed-club-1 (clubadmin4) never sees the migrated row — there is no Flyway-seeded
+// reservation on seed-club-1, so a `totalRows >= 1` read there would pass only on
+// unrelated clean-seed residue, never proving the round-trip. We resolve the
+// migration-provisioned migrated TestClub admin (the J-0c/J-1 migrated-read
+// pattern) and assert the migrated reservation's IDENTIFYING fields (the unique
+// fixture remark + its `Schulung` type), not a count.
 // ===========================================================================
 test.describe('Aircraft reservations — migrated legacy reservation renders (real-idp)', () => {
   test.describe.configure({ mode: 'serial', retries: 0 });
@@ -574,49 +585,64 @@ test.describe('Aircraft reservations — migrated legacy reservation renders (re
   );
 
   let baseURL: string;
-  let adminBearer: string;
+  let migratedAdmin: MigratedClubAdmin;
+  let migratedBearer: string;
 
   test.beforeAll(async ({ browser }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // The fanout ingests the real bundle via fan-out-migration-parity.spec.ts
-    // (J-0c) earlier in the same Playwright invocation; the migrated reservation
-    // lands in the operating (test) club. clubadmin4 is bound to seed-club-1 —
-    // but the migrated test-club is provisioned by the migration ingest, so the
-    // assertion reads the migrated reservation through the migration principal's
-    // tenant. Here we capture the seed-club-1 admin Bearer as the operating-club
-    // reader (the legacy fixture stamps the reservation onto the test club).
-    adminBearer = await captureReservationAdminBearer(browser, baseURL);
+    // (J-0c) earlier in the same Playwright invocation; the migration provisions
+    // a Keycloak admin for the FULL_PORT migrated TestClub — the tenant the
+    // legacy fixture stamped the reservation on. Resolve + make it loginable, then
+    // capture its tenant-scoped Bearer so the `@TenantId`-scoped read sees the
+    // migrated reservation (NOT seed-club-1, which carries none).
+    migratedAdmin = await resolveMigratedTestClubAdmin();
+    migratedBearer = await captureMigratedTestClubBearer(browser, baseURL, migratedAdmin);
   });
 
-  test('[happy] the migrated legacy reservation renders under its operating club', async ({
+  test('[happy] the migrated legacy reservation renders under its migrated TestClub tenant', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
-      await loginAsReservationAdmin(page);
+      await loginAsMigratedTestClubAdmin(page, migratedAdmin);
 
-      // The T-07 legacy fixture seeds a TIMED cross-tenant reservation with the
-      // remarks 'Cross-tenant timed reservation (fixture)' on the test club. The
-      // real export → migrate carries it into AlpenFlight; assert at least one
-      // reservation is present for the operating club via the real paged read.
+      // The T-07 legacy fixture (§10c) seeds a TIMED cross-tenant reservation
+      // with the unique remark 'Cross-tenant timed reservation (fixture)' and the
+      // 'Schulung' type (§10b) on the legacy TestClub. The real export → migrate
+      // carries it into AlpenFlight; assert the migrated row by its IDENTIFYING
+      // fields via the real paged read as the migrated tenant — distinguishing
+      // "the T-07 legacy reservation round-tripped" from "some other reservation
+      // exists" (a bare count cannot).
       const paged = await ctx.request.post(`${RESERVATIONS}/page/0/50`, {
-        headers: { authorization: adminBearer, 'content-type': 'application/json' },
+        headers: { authorization: migratedBearer, 'content-type': 'application/json' },
         data: { sorting: { start: 'asc' } },
       });
-      expect(paged.status(), 'the operating club can page its migrated reservations').toBe(200);
-      const body = (await paged.json()) as { items: ReservationDetail[]; totalRows: number };
-      expect(
-        body.totalRows,
-        'the migrated legacy reservation is present for the operating club',
-      ).toBeGreaterThanOrEqual(1);
+      expect(paged.status(), 'the migrated TestClub can page its migrated reservations').toBe(200);
+      const body = (await paged.json()) as { items: ReservationListRow[]; totalRows: number };
 
-      // It renders in the UI list (the screen wires to the migrated data).
+      const migrated = body.items.find((r) => r.remarks === MIGRATED_RESERVATION_REMARK);
+      expect(
+        migrated,
+        `the migrated legacy reservation (remark "${MIGRATED_RESERVATION_REMARK}") must be ` +
+          `present for the migrated TestClub — the T-07 legacy→export→migrate→render round-trip. ` +
+          `Got ${body.items.length} row(s): ${JSON.stringify(body.items.map((r) => r.remarks))}`,
+      ).toBeTruthy();
+      // Its migrated type round-tripped too (§10b — `Schulung`).
+      expect(
+        migrated!.reservationTypeName,
+        'the migrated reservation carries its migrated type name (Schulung)',
+      ).toBe(MIGRATED_RESERVATION_TYPE_NAME);
+
+      // It renders in the UI list as the migrated TestClub admin (the screen
+      // wires to the migrated data). Identify the row by the migrated id, not
+      // "first row", so a residual row can't satisfy the assertion.
       await page.goto('/reservations');
       await expect(page.getByTestId('reservations-table')).toBeVisible();
       await expect(
-        page.locator('[data-testid^="reservations-row-"]').first(),
-        'at least one migrated reservation row renders',
+        page.getByTestId(`reservations-row-${migrated!.id}`),
+        'the identified migrated reservation row renders in the list',
       ).toBeVisible();
 
       await page.screenshot({
@@ -629,8 +655,9 @@ test.describe('Aircraft reservations — migrated legacy reservation renders (re
         journey: 'J-5',
         caption:
           'J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated ' +
-          "through the live chain, renders in the operating club's /reservations list (full " +
-          'legacy→export→migrate→Keycloak→UI chain)',
+          "through the live chain, renders in the migrated TestClub's /reservations list under its " +
+          'unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI ' +
+          'chain, read via the migrated FULL_PORT tenant)',
         acTag: 'happy',
       });
     }
