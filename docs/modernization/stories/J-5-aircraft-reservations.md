@@ -180,9 +180,19 @@ One seam each; commit directly to `integration/J-5`.
 - [ ] **T-12 — `.fallowrc.json` + maintainability report-emit in CI (rider).** Commit
   `alpenflight/web/.fallowrc.json` (honest config) + add `fallow ci --format json` + gradle pmd/cpd XML
   emit steps to the proof workflow. *(seam: `.fallowrc.json` + ci/fanout emit steps)*
-- [ ] **T-13 — Gallery per-journey keying (first slice) + Maintainability panel (rider).**
-  `generate-gallery.mjs` keys by `journey` (first re-arch slice) + renders the per-journey Maintainability
-  panel (green/amber/red on the journey's fallow + pmd/cpd delta, link to full report). *(seam: generate-gallery.mjs)*
+- [ ] **T-13 — Per-journey gallery re-arch (operator ask 2026-06-06) + Maintainability panel (rider).**
+  EXPANDED from the planned "first slice" to the full operator-visible result (the operator observed the
+  index lists only the active branch + links the all-in-one per-proof-type galleries). Deliver:
+  (a) **per-journey pages** — `generate-gallery.mjs` emits ONE page per `journey` (the sidecars already
+  carry `journey`; the gallery already groups by it internally) instead of per-proof-type;
+  (b) **persistent J-0…J-5 index** — `generate-previews-index.mjs` lists JOURNEYS (not active branches),
+  each → its per-journey page, surviving PR close (source J-0…J-4 retroactively from the persistent
+  `alpenflight/proof/legacy-parity/` all-journeys archive — screenshots+videos survive on gh-pages);
+  the all-in-one paths become SOURCES the per-journey pages read, not destinations;
+  (c) **Maintainability panel** on each per-journey page (green/amber/red on that journey's fallow +
+  pmd/cpd delta from T-12, link to full report). May split into T-13a (per-journey pages + index) /
+  T-13b (maintainability panel) at dispatch if it overflows one clean worker.
+  *(seam: generate-gallery.mjs + generate-previews-index.mjs + the gallery-deploy/reap steps)*
 - [ ] **T-14 — Scope `alpenflight-proof` to the journey-under-work spec (rider).** Parameterize the
   per-push proof to run only J-5's spec(s) off the integration branch; move full cross-journey regression
   to nightly. *(seam: ci.yml proof spec selection + nightly trigger)*
