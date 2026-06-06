@@ -877,3 +877,15 @@ J-5 files; local run = 1-fail/6-pass (flaky timing). It holds the shared gate ho
   flaky unrelated spec reds an unrelated journey's gate (J-5 held hostage by articles). Scope the per-push
   mock-e2e to the journey-under-work's spec (like T-14 did for the real-idp `alpenflight-proof`), full mock
   suite at nightly/gate. *(do-retro: ci.yml mock-e2e journey-scoping)*
+
+### do-retro note (operator, 2026-06-06) — dev-time test strategy
+J-5's ~15 ci+fanout round-trips evidence this. Encode into the suite:
+- **Heavy proof = journey-under-work ONLY** during dev (T-14 did this for real-idp `alpenflight-proof`; extend
+  to the `alpenflight-mock-e2e` gate — articles-crud, a non-J-5 spec, red-ed J-5's required).
+- **Other journeys → mocked-IdP** during dev (real-IdP only for the journey-under-work); prior journeys may
+  STAY mocked-IdP even at done.
+- **Skip/ignore unrelated tests** during dev.
+- **Done-gate ONLY:** nothing skipped + full gate green (real-chain done-bar still absolute; prior journeys
+  remaining mocked-IdP is acceptable).
+- **Continuously update the journey proof page during development** (not just at the gate).
+- Pairs with the local-first fix (T-43: system chromium + `preflight` DoD) — see [[feedback_dev_time_test_strategy]].
