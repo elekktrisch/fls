@@ -237,8 +237,20 @@ One seam each; commit directly to `integration/J-5`.
   per-push. `required` aggregator unchanged (`alpenflight-proof` reports status via the existing chain; a
   scoped green run keeps it green). YAML validated via js-yaml; derivation traced across J-0c/J-1/J-2
   (own spec) and J-3/J-4/J-5/main (baseline). *(seam: ci.yml proof spec selection + nightly trigger)*
-- [ ] **T-15 — Fix J-1 aircraft real-idp flake (rider).** `aircraft-migration-parity.spec.ts` retry-
+- [x] **T-15 — Fix J-1 aircraft real-idp flake (rider).** `aircraft-migration-parity.spec.ts` retry-
   isolation (idempotent create / delta assert) + diagnose the S-163 45s timeout — J-5 shares the clean-seed
-  job, a stray aircraft flake would red its gate. *(seam: aircraft-migration-parity.spec.ts)*
+  job, a stray aircraft flake would red its gate. *(seam: aircraft-migration-parity.spec.ts)* Done: root cause
+  is club A = the shared, never-truncated Flyway `seed-club-1` (two-club-fixture.ts:46), so a failed attempt's
+  3 created rows linger and the next attempt's absolute `toHaveCount(3)` saw 6. Fix BOTH: (a) `afterAll`
+  DELETEs every created aircraft as the managing-club admin (clean tenant for the next retry) + a `beforeAll`
+  list-reset, AND (b) the absolute count → a DELTA (`baseline + 3` + each created row visible by id), the
+  residue-proof fallback if a delete is missed. S-163 timeout root cause: the test does in-body fixture-STATE
+  setup — `seedAircraftOwnerLink` shells out to Gradle (aircraft-parity-fixture.ts:412) BEFORE any assertion,
+  which costs 15-35s on a cold CI daemon and consumes the 45s per-test budget → vague timeout → retry → the
+  count residue. Bumped THIS test only to `test.setTimeout(90_000)` with the measured rationale (global 45s
+  stays right for the other tests; per-assertion expect timeout unchanged at 5s). CI MUST CONFIRM the S-163
+  case no longer times out under load; if it still does, attack the Gradle seeder cost (warm daemon /
+  pre-seed in beforeAll), not a further bump. Local Playwright unrunnable here (chrome musl + needs the
+  real-idp stack); reasoned from the code + Playwright serial-retry semantics (beforeAll re-runs).
 - [ ] **T-16 — Thicken spec to full real assertions.** From the oracle: conflict-409 + self-exclude, all-day
   band, cross-tenant-open success, paged envelope shape, scheduler lane×time placement. Final pre-gate. *(seam: e2e spec)*

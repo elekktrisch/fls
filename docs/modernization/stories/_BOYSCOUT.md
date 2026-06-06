@@ -227,15 +227,20 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-ship 2026-06-05, J-3 window)
 
-- **J-1 aircraft real-idp spec flake (S-163 timeout → retry → create-residue → 6≠3).** In the shared
-  clean-seed `alpenflight-proof` run, `aircraft-migration-parity.spec.ts` intermittently fails: the
-  `S-163` case (`:407`, non-managing-club owner edit) times out at 45s, Playwright retries the
-  create-aircraft test, the create isn't cleaned up across attempts, so the initial
-  `toHaveCount(3)` (`:228`) sees 6 on the retry. Pre-existing (predates J-3 — it's in `main` via J-1);
-  passed J-3's gate by luck on the final run. Fix on the next aircraft-touching journey: make the
-  aircraft-create test idempotent across retries (clean up the created row / assert a delta not an
-  absolute) AND diagnose the S-163 45s timeout (raise it or fix the slow non-managing-club edit path).
-  *(seam: aircraft-migration-parity.spec.ts retry-isolation + S-163 timeout)*
+- ~~**J-1 aircraft real-idp spec flake (S-163 timeout → retry → create-residue → 6≠3).**~~ **Shipped J-5
+  T-15.** Root cause: club A in `aircraft-migration-parity.spec.ts` is the shared, never-truncated Flyway
+  `seed-club-1` (two-club-fixture.ts:46), so a failed attempt's 3 created rows linger and the next attempt's
+  absolute `toHaveCount(3)` (`:228`) saw 6. Fixed BOTH halves: (a) retry-isolation — an `afterAll` DELETEs
+  every aircraft this group created as the managing-club admin (clean tenant for the next retry) + a
+  `beforeAll` id-list reset; AND (b) the absolute count → a DELTA (`baseline + 3` + each created row visible
+  by id), the residue-proof fallback. S-163 45s timeout root cause: the test does in-body fixture-STATE setup
+  — `seedAircraftOwnerLink` shells out to Gradle (`gradlew seedAircraftOwnerLink`, aircraft-parity-fixture.ts:412)
+  BEFORE any assertion, ~15-35s on a cold CI daemon, consuming the 45s per-test budget → vague timeout → retry
+  → residue. Bumped THIS test only to `test.setTimeout(90_000)` with the measured rationale (global 45s stays
+  for the other tests; per-assertion 5s expect unchanged). CI MUST CONFIRM S-163 no longer times out under
+  load; else attack the Gradle seeder cost (warm daemon / pre-seed in beforeAll). Local Playwright unrunnable
+  (chrome musl + needs real-idp stack) — reasoned from code + Playwright serial-retry semantics. *(seam:
+  aircraft-migration-parity.spec.ts retry-isolation + S-163 timeout)*
 - **PILOT flights-read authz gap — FIXED in J-3, lesson for /do-retro.** `FlightsController.list/get`
   was `@PreAuthorize(hasAnyRole('CLUB_ADMINISTRATOR','FLIGHT_OPERATOR'))` (S-159, predating the pilot
   dashboard) → a PILOT got 403 reading their OWN last flight; the pilot dashboard card hung. Fixed in
