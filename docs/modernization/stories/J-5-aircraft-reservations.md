@@ -174,9 +174,17 @@ One seam each; commit directly to `integration/J-5`.
   a reservation row. Read-only placement (drag-create/drag-move is the legacy heaviest seam and NOT a J-5
   AC — deliberately not built; `AircraftIdsToDisplayInScheduler` per-user setting deferred). Time→offset
   math in the pure `reservation-scheduler.placement.ts` helper (unit-tested). *(seam: reservation-scheduler component+route)*
-- [ ] **T-11 — PMD + CPD on `alpenflight/server` (rider).** Gradle `pmd` + `cpdCheck` wired into `check`
-  with a ratcheting baseline (no hard-fail on existing debt); reservation aggregate as first target.
-  *(seam: `alpenflight/server/build.gradle.kts`)*
+- [x] **T-11 — PMD + CPD on `alpenflight/server` (rider).** Gradle `pmd` (built-in, PMD 7.25.0) + CPD
+  (`de.aaschmid.cpd` 3.5, `cpdCheck`) wired into `check` with a ratcheting baseline (no hard-fail on
+  existing debt). Curated ruleset `config/pmd/ruleset.xml` = complexity (cyclomatic/cognitive/NPath/
+  NcssCount/params/methods/fields) + dead/unused code only (no style/naming noise); `pmdMain.ignoreFailures
+  = true` (report-only). CPD ratchet `config/pmd/cpd-baseline.txt` (5300 tokens) via the `cpdRatchet` task —
+  fails only on duplication GROWTH. Measured on server-main: PMD **65 violations** (34 cyclomatic, 15
+  excessive-params, 5 cognitive, 4 NPath, 4 too-many-fields, 3 too-many-methods; **0 dead-code**);
+  CPD **2.46%** dup (5300 tokens / 858 lines / 65 blocks over 34,769 LOC). Reservation aggregate clean: only
+  2 benign PMD hits (class-sum cyc 62 but max method cyc 9 < 10; 11-param factory) + 9 small DTO/exception
+  boilerplate clones, no logic dup. Reports → `build/reports/pmd/main.{xml,html}`,
+  `build/reports/cpd/cpdCheck.xml` (T-12 panel feed). *(seam: `alpenflight/server/build.gradle.kts`)*
 - [ ] **T-12 — `.fallowrc.json` + maintainability report-emit in CI (rider).** Commit
   `alpenflight/web/.fallowrc.json` (honest config) + add `fallow ci --format json` + gradle pmd/cpd XML
   emit steps to the proof workflow. *(seam: `.fallowrc.json` + ci/fanout emit steps)*

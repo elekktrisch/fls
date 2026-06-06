@@ -49,19 +49,23 @@ short-list + needs a committed config to stop crying wolf.
   Minor, same budget: drop the **3 unused files + 6 unused deps + 1 unresolved import** fallow lists once
   the config lands (`fallow dead-code` enumerates). Not worth `fallow fix` (dead files only 1.1%).
 
-- **Java maintainability tool for `alpenflight/server` — add PMD + CPD (+ SpotBugs) (operator: "similar
-  tool for Java").** The backend already covers the *architecture* axis (Spring Modulith
-  `ApplicationModulesTest` + ArchUnit boundary rules), but has **no** complexity / duplication / dead-code
-  analysis — the other three fallow axes. Closest deterministic-CLI Java analog (CI-friendly, gradle
-  plugins): **PMD** (cyclomatic/cognitive complexity rules + unused private code) + **CPD** (PMD's
-  copy-paste detector, the duplication axis) + optionally **SpotBugs** (dead stores / bug patterns from
-  bytecode). Concrete baseline today (jscpd proxy, `--min-lines 8`): **5.57% duplicated lines, 101 clones
-  across 434 files** — modest, worth tracking not firefighting. Recommend gradle `pmd` + a `cpdCheck` task
-  wired into `check` with a baseline so it ratchets, NOT a hard fail on existing debt. (SonarQube is the
-  fuller dashboard but heavier / server-hosted — defer unless the operator wants the dashboard.) Rides the
-  next backend-touching journey's ≤40% budget (J-5 builds the reservation aggregate — a natural first
-  PMD/CPD target). *(seam: `alpenflight/server/build.gradle.kts` pmd+cpd plugin + baseline + `check` wiring)*
-  — see [[reference_fallow_maintainability_analyzer]].
+- ~~**Java maintainability tool for `alpenflight/server` — add PMD + CPD (+ SpotBugs) (operator: "similar
+  tool for Java").**~~ **Shipped J-5 T-11.** Added the gradle built-in **PMD** (7.25.0 — 7.7.0 hit a
+  type-resolution StackOverflow on this codebase) with a **curated** `config/pmd/ruleset.xml` (complexity:
+  Cyclomatic/Cognitive/NPath/NcssCount/ExcessiveParameterList/TooManyMethods/TooManyFields + dead/unused
+  code: UnusedPrivate{Field,Method}/UnusedLocalVariable/UnusedAssignment/UnusedFormalParameter/Empty* — NO
+  style/naming/doc noise) and **CPD** (`de.aaschmid.cpd` 3.5, `cpdCheck`, minTokenCount=50). Both wired into
+  `check` as **report-generating, NOT hard-failing**: `pmdMain.ignoreFailures=true`; CPD duplication gated by
+  a **ratchet** (`cpdRatchet` task vs `config/pmd/cpd-baseline.txt` = 5300 tokens) that fails ONLY on growth
+  (verified: passes at 5300==baseline, reds when baseline lowered). Measured server-main: PMD **65 violations**
+  (34 cyclomatic / 15 excessive-params / 5 cognitive / 4 NPath / 4 too-many-fields / 3 too-many-methods;
+  **0 dead-code** — a clean signal), CPD **2.46%** dup (5300 tokens / 858 lines / 65 blocks / 34,769 LOC —
+  lower than the 5.57% jscpd proxy; CPD's token model at minTokens=50 is stricter). Reservation aggregate
+  (`ch.alpenflight.reservations`, T-03/T-09) confirmed clean: 2 benign PMD hits (class-sum cyc 62 but max
+  method cyc 9 < 10; 11-param factory) + 9 small DTO/exception boilerplate clones (no logic dup). Reports →
+  `build/reports/pmd/main.{xml,html}` + `build/reports/cpd/cpdCheck.xml` (T-12/T-13 panel feed). SpotBugs
+  deferred (operator scope was complexity+dup+dead-code; PMD covers dead code). — see
+  [[reference_fallow_maintainability_analyzer]].
 
 - **Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
   to the proof gallery for each journey page").** Extends the gallery per-journey re-arch rider above (the

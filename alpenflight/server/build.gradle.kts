@@ -1,3 +1,4 @@
+import de.aaschmid.gradle.plugins.cpd.Cpd
 import java.io.ByteArrayOutputStream
 import java.time.Instant
 import net.ltgt.gradle.errorprone.CheckSeverity
@@ -14,6 +15,16 @@ plugins {
     // `flywayMigrate` invokable from CI + ad-hoc local runs. Plugin version
     // is independent of the BOM-managed flyway-core version.
     id("org.flywaydb.flyway") version "11.14.1"
+    // J-5 T-11 (boyscout rider): the maintainability axes the architecture
+    // guards (Spring Modulith ApplicationModulesTest + ArchUnit) do NOT cover —
+    // complexity + dead/unused code (PMD) and copy-paste duplication (CPD). The
+    // Java analog of fallow on the TS side ([[reference_fallow_maintainability_analyzer]]).
+    //   - `pmd`  : Gradle built-in; curated ruleset at config/pmd/ruleset.xml.
+    //   - `cpd`  : de.aaschmid copy-paste detector (PMD's CPD), `cpdCheck` task.
+    // Both are REPORT-GENERATING + RATCHET-GUARDING, not hard-failing on today's
+    // debt (see the pmd{}/cpd{} blocks + the cpdRatchet task below).
+    pmd
+    id("de.aaschmid.cpd") version "3.5"
 }
 
 // Add the Postgres database module to the Flyway Gradle plugin's classpath
@@ -293,6 +304,136 @@ configurations.matching {
     it.name == "runtimeClasspath" || it.name == "compileClasspath"
 }.configureEach {
     resolutionStrategy.failOnVersionConflict()
+}
+
+// ---------------------------------------------------------------------------
+// J-5 T-11 (boyscout rider) — maintainability: complexity + dead code (PMD) +
+// duplication (CPD). The Java analog of fallow on the TS side. The architecture
+// axis is already covered (Spring Modulith ApplicationModulesTest + ArchUnit);
+// this fills the other three maintainability axes the operator counts
+// ([[feedback_maintainability_includes_dupes_and_deadcode]]).
+//
+// Posture (deliberate): REPORT-GENERATING + RATCHET-GUARDING, NOT a hard fail
+// on today's debt.
+//   - pmdMain      : ignoreFailures = true  → always emits the XML/HTML report,
+//                    never reds the build. Curated ruleset (complexity + unused
+//                    code only, no style/naming noise) at config/pmd/ruleset.xml.
+//   - cpdCheck     : ignoreFailures = true  → emits the duplication XML report,
+//                    never reds the build on its own.
+//   - cpdRatchet   : the ONLY duplication gate — fails iff the duplicate-token
+//                    total GROWS beyond the committed baseline (config/pmd/
+//                    cpd-baseline.txt). Ratchets down automatically when debt
+//                    is paid (a lower measurement rewrites nothing; you commit
+//                    the new lower baseline to lock the gain).
+// Reports under build/reports/{pmd,cpd}/ feed the J-5 T-12/T-13 gallery panel.
+// ---------------------------------------------------------------------------
+
+// PMD applies to all source sets by default (incl. test / archDemo / nullawayDemo /
+// the generated/demo leaks). We only want production code measured, so disable
+// the auto-created tasks for the non-main source sets and keep `pmdMain`.
+pmd {
+    // 7.25.0: 7.7.0 hit a StackOverflowError in type-resolution on this
+    // codebase (deep generic/JDK-25 bytecode parse); the fix landed in a later
+    // 7.x. Newer than the Gradle 9.4.1 PMD-plugin default, pinned for repro.
+    toolVersion = "7.25.0"
+    isConsoleOutput = false
+    // Our curated ruleset is the COMPLETE rule list (not additive on top of the
+    // PMD default), so switch the built-in defaults off.
+    ruleSetConfig = resources.text.fromFile("config/pmd/ruleset.xml")
+    ruleSets = emptyList()
+    // Report-generating, never a hard build failure on existing debt.
+    isIgnoreFailures = true
+}
+
+tasks.withType<org.gradle.api.plugins.quality.Pmd>().configureEach {
+    // Only the production aggregate matters for the maintainability signal —
+    // test/demo/generated code would flood the report with false hotspots.
+    enabled = name == "pmdMain"
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// CPD = PMD's copy-paste detector (the duplication axis). minimumTokenCount is
+// the sensitivity knob; 50 tokens ≈ jscpd's --min-lines 8 proxy used for the
+// 5.57% baseline number in the rider. Scan ONLY production Java.
+cpd {
+    toolVersion = "7.7.0"
+    language = "java"
+    minimumTokenCount = 50
+    isIgnoreFailures = true
+    isIgnoreLiterals = false
+    isIgnoreIdentifiers = false
+}
+
+tasks.named<Cpd>("cpdCheck") {
+    // Production sources only — exclude tests, the archDemo/nullawayDemo leak
+    // source sets, and any generated tree.
+    source = sourceSets.main.get().allJava
+    reports {
+        xml.required = true
+        text.required = false
+    }
+}
+
+// The duplication RATCHET. cpdCheck itself never fails (ignoreFailures); this
+// task is the gate: it parses the CPD XML, sums the duplicated-token count
+// across all <duplication> blocks, and fails iff that total exceeds the
+// committed baseline. So existing debt passes, but NEW duplication reds CI.
+val cpdBaselineFile = layout.projectDirectory.file("config/pmd/cpd-baseline.txt")
+
+val cpdRatchet by tasks.registering {
+    group = "verification"
+    description = "Fail iff CPD duplicate-token total grows beyond config/pmd/cpd-baseline.txt (ratchet)."
+    dependsOn("cpdCheck")
+    val reportXml = layout.buildDirectory.file("reports/cpd/cpdCheck.xml")
+    val baseline = cpdBaselineFile
+    inputs.file(reportXml).optional(true)
+    inputs.file(baseline).optional(true)
+    doLast {
+        val xml = reportXml.get().asFile
+        // No report ⇒ no duplication found ⇒ measured 0 (cpdCheck emits no XML
+        // when there are zero clones). Treat absent report as 0 tokens.
+        val measured =
+            if (xml.exists()) {
+                Regex("""<duplication\s+lines="\d+"\s+tokens="(\d+)"""")
+                    .findAll(xml.readText())
+                    .sumOf { it.groupValues[1].toLong() }
+            } else {
+                0L
+            }
+        val baselineFile = baseline.asFile
+        val baselineTokens =
+            if (baselineFile.exists()) {
+                baselineFile.readLines()
+                    .firstOrNull { it.isNotBlank() && !it.startsWith("#") }
+                    ?.trim()?.toLongOrNull() ?: 0L
+            } else {
+                Long.MAX_VALUE // no baseline committed yet ⇒ never fail; just report
+            }
+        logger.lifecycle("CPD duplicate tokens: measured=$measured baseline=$baselineTokens")
+        if (measured > baselineTokens) {
+            throw GradleException(
+                "Code duplication grew: $measured duplicated tokens > baseline $baselineTokens " +
+                    "(config/pmd/cpd-baseline.txt). Reduce duplication, or — if intentional — " +
+                    "re-measure with `./gradlew cpdCheck` and commit the new (lower-is-better) baseline.",
+            )
+        }
+        if (measured < baselineTokens && baselineTokens != Long.MAX_VALUE) {
+            logger.lifecycle(
+                "Duplication DROPPED below baseline ($measured < $baselineTokens) — " +
+                    "commit $measured to config/pmd/cpd-baseline.txt to lock the gain.",
+            )
+        }
+    }
+}
+
+// Wire both maintainability checks into `check` (which `build` depends on) so
+// they run in CI's `./gradlew build`. pmdMain + cpdCheck emit reports; cpdRatchet
+// is the only one that can red the build, and only on GROWTH past the baseline.
+tasks.named("check") {
+    dependsOn("pmdMain", cpdRatchet)
 }
 
 // S-009: Flyway Gradle plugin connection details. Reads env vars so CI can
