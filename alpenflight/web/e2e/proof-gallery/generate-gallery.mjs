@@ -1102,7 +1102,15 @@ export function generateGallery({
       const jProofs = byJourney.get(jid);
       const jShots = shotsByJourney.get(jid);
       const hasContent = (jProofs && jProofs.length) || (jShots && jShots.length);
-      if (!hasContent) continue;
+      // Emit a per-journey page for any journey WITH content, AND — per the
+      // operator's standing T-01b rule — a "pending" placeholder page for the
+      // journey-under-work even with ZERO captures, so its glanceable proof
+      // window exists from the journey's first task and ACCUMULATES captures as
+      // later specs go green. `renderJourneyPageHtml` already renders the
+      // content-less case as a pending page (no broken/empty link). Other
+      // content-less journeys get NO page (the index shows them as plain pending
+      // rows — never a dead link).
+      if (!hasContent && jid !== journeyUnderWork) continue;
       // The maintainability panel: read the (possibly absent) artifacts once per
       // page. Only the journey-under-work shows its FE audit DELTA; others show
       // the repo snapshot (showDelta=false).

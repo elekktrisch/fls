@@ -724,6 +724,36 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     expect(existsSync(resolve(outDir, 'J-1', 'index.html'))).toBe(false);
   });
 
+  // T-01b — operator standing rule: the journey-under-work's proof page must
+  // exist from the START (the first task scaffolds it) so the operator's
+  // glanceable proof window exists before any capture lands, then ACCUMULATES
+  // captures as later tasks' specs go green. So a journey-under-work with ZERO
+  // content still gets a per-journey "pending — awaiting captures" placeholder
+  // page (and the previews index links it). Other pending journeys still get no
+  // page (the index renders them as plain pending rows — no dead link).
+  it('emits a PENDING placeholder page for a content-less journey-under-work (T-01b scaffold)', async () => {
+    const { generateGallery } = await loadGenerator();
+    // J-1 is pending in ACCORDION_ORDER (no video, no screenshot) — name it the
+    // journey-under-work so the scaffold page is emitted even with no captures.
+    const { outDir, result } = buildPerJourney(generateGallery, { journeyUnderWork: 'J-1' });
+
+    // The journey-under-work gets a page despite zero content → it's listed.
+    expect(result.journeyPages.map((p) => p.journey).sort()).toEqual(['J-0', 'J-1', 'J-2']);
+    expect(existsSync(resolve(outDir, 'J-1', 'index.html'))).toBe(true);
+
+    const j1 = readOut(outDir, 'J-1', 'index.html');
+    // It renders the pending state (no video), not a broken/empty page.
+    expect(j1).toContain('>J-1 — proof</h1>');
+    expect(j1).toContain('No green proof yet');
+    expect(j1).toContain('<span class="status pending">pending</span>');
+    // The back-link to the persistent previews index is present (no dead link).
+    expect(j1).toContain('alpenflight/previews/');
+
+    // A DIFFERENT pending journey (J-0c) is NOT the journey-under-work → still
+    // no page (it stays a plain pending row in the index — no dead link).
+    expect(existsSync(resolve(outDir, 'J-0c', 'index.html'))).toBe(false);
+  });
+
   it('per-journey page renders the journey content with shared media referenced via ../', async () => {
     const { generateGallery } = await loadGenerator();
     const { outDir } = buildPerJourney(generateGallery);

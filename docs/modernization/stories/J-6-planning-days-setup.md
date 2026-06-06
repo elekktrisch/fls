@@ -225,7 +225,7 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   go RED until each has a Spring Data `JpaRepository` + a `TenantScopedRowBuilders` entry (and `Map.of`→`Map.ofEntries`,
   now at the 10-entry cap). Register both here when the repos land. `PlanningDayAssignment` is an aggregate-internal
   child WITHOUT `@TenantId` (FlightCrew/V7 pattern) — deliberately NOT a sweep participant.
-- [ ] **T-01b — journey proof-page scaffold (pulled forward — operator: T-01 should ALWAYS do this).**
+- [x] **T-01b — journey proof-page scaffold (pulled forward — operator: T-01 should ALWAYS do this).**
   Scaffold the J-6 per-journey gallery page + link it from the persistent index NOW, so the proof window
   exists from the start and accumulates captures as screens land. Minimal slice of T-14 (full
   maintainability-panel re-arch stays T-14). *(generate-gallery.mjs J-6 page + index link)* [[feedback_proof_gallery_per_journey_one_bookmark]]
