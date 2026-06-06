@@ -759,3 +759,22 @@ backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather
   expression-template and the limit doesn't apply (and/or split the block / trim captions). **Verify the fanout
   actually DISPATCHES** (`gh workflow run … --ref integration/J-5` succeeds, or `actionlint`) — js-yaml is NOT
   sufficient (it missed this). *(seam: alpenflight-proof-fanout.yml Stage/add_shot run block ${{ }} → env)*
+
+### Operator: reduce the long CI round-trips (local-first verification)
+Root cause: Alpine/musl box; Playwright's BUNDLED chromium is a glibc binary missing libnss3/libnspr4 → can't
+launch locally → ALL e2e/gallery/calendar checks are CI-only → issues discovered serially over ~20-min cycles.
+Compounded by workers reporting "done" off FOCUSED checks that miss cross-cutting failures (LeakageSweepIT,
+the baseline test, the GitHub expression-length limit js-yaml can't see, calendar selectors).
+- [ ] **T-43 — Local-first verification: system chromium + a full preflight + do-task DoD.** (a) Wire
+  `alpenflight/web/e2e/playwright.config.ts` to use the musl-native SYSTEM chromium: honor
+  `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`, else auto-detect the apk chromium (`/usr/lib/chromium/chromium` or
+  `which chromium`), else fall back to the bundled browser — so local `pnpm e2e` works once `apk add chromium nss`
+  is done (operator runs the apk install; chromium-148 is in the repos). (b) Add a one-shot **`preflight`** npm
+  script (+ a repo-level wrapper) that runs the FULL CI-equivalent locally: `:server:test` (the whole suite, not
+  focused), web `lint`+`tsc`+`build`+`generate-api`-drift, the proof-gallery generator tests + the browserless
+  `proof-gallery-links` spec, and (chromium present) the mock-auth e2e. (c) Add a **do-task SKILL.md DoD** line:
+  before reporting done, run `preflight` (not a focused `--tests` subset) — the blind spot that caused most J-5
+  round-trips. Verify the preflight runs + (post-apk) a local e2e launches. *(seam: playwright.config.ts executablePath + preflight script + do-task DoD)*
+- [ ] **T-44 — (optional, lower priority) CI fail-aggregate.** Make `ci.yml` run build/lint/test/mock-e2e as
+  jobs that ALL report (don't stop at the first failing layer), so one CI run surfaces every red at once instead
+  of serial layer-by-layer discovery. Defer unless the round-trips persist after T-43. *(seam: ci.yml job parallelism/aggregation)*
