@@ -21,14 +21,26 @@ import { LocationsService } from '@api/generated/locations/locations.service';
 import { PersonsService } from '@api/generated/persons/persons.service';
 import type {
   AircraftPickerItem,
+  AircraftReservationCreateRequest,
+  AircraftReservationDetail,
   AircraftReservationListItem,
   AircraftReservationPage,
   AircraftReservationTypeListItem,
+  AircraftReservationUpdateRequest,
   LocationListItem,
   PersonListItem,
 } from '@api/generated/model';
+import { mapApiSaveError } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../core/mutation-bus/mutation-bus';
+
+// Backend domain-error keys → inline save-error messages (T-05 wire contract).
+// Mapped via the shared `mapApiSaveError` helper — no per-status `if` cascade
+// (the `errorPatch` hotspot we deliberately do NOT replicate; see _BOYSCOUT.md).
+const SAVE_ERROR_KEYS: Readonly<Record<string, string>> = {
+  'aircraft.reservation.overlap': 'This aircraft is already reserved for an overlapping period.',
+  'aircraft.reservation.duration': 'End must be after start.',
+};
 
 export type ReservationItem = AircraftReservationListItem & { id: string };
 
@@ -38,9 +50,17 @@ interface ReservationsExtraState {
   pageStart: number;
   totalRows: number;
   isLoading: boolean;
+  isLoadingDetail: boolean;
   loadError: string | null;
   saveError: string | null;
+  selectedDetail: AircraftReservationDetail | null;
   reservationTypes: AircraftReservationTypeListItem[];
+  // Picker payloads — the edit form's selects source their options from these
+  // (components can't call HTTP directly, CLAUDE.md §4). Loaded once with the
+  // label maps below.
+  aircraftPicker: AircraftPickerItem[];
+  persons: PersonListItem[];
+  locations: LocationListItem[];
   // Client-side label maps — cross-module names are NOT server-denormalised
   // (ADR 0023). Decorate immatriculation / pilot / location from the picker
   // payloads, mirroring the no-cross-module-join convention.
@@ -53,9 +73,14 @@ const initialExtra: ReservationsExtraState = {
   pageStart: 0,
   totalRows: 0,
   isLoading: false,
+  isLoadingDetail: false,
   loadError: null,
   saveError: null,
+  selectedDetail: null,
   reservationTypes: [],
+  aircraftPicker: [],
+  persons: [],
+  locations: [],
   immatById: {},
   pilotNameById: {},
   locationNameById: {},
@@ -124,6 +149,9 @@ export const ReservationsStore = signalStore(
                 next: ({ types, aircraft, persons, locations }) =>
                   patchState(store, {
                     reservationTypes: types,
+                    aircraftPicker: aircraft,
+                    persons,
+                    locations,
                     immatById: buildImmatMap(aircraft),
                     pilotNameById: buildPilotNameMap(persons),
                     locationNameById: buildLocationNameMap(locations),
@@ -150,6 +178,59 @@ export const ReservationsStore = signalStore(
         clearSaveError(): void {
           patchState(store, { saveError: null });
         },
+        selectNew(): void {
+          patchState(store, { selectedDetail: null, saveError: null });
+        },
+        loadDetail: rxMethod<string>(
+          pipe(
+            tap(() =>
+              patchState(store, { isLoadingDetail: true, saveError: null, selectedDetail: null }),
+            ),
+            switchMap((id) =>
+              reservationsApi.getAircraftReservation(id).pipe(
+                tapResponse({
+                  next: (detail: AircraftReservationDetail) =>
+                    patchState(store, { selectedDetail: detail, isLoadingDetail: false }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, {
+                      saveError: mapApiSaveError(e, SAVE_ERROR_KEYS),
+                      isLoadingDetail: false,
+                    }),
+                }),
+              ),
+            ),
+          ),
+        ),
+        create: rxMethod<AircraftReservationCreateRequest>(
+          pipe(
+            tap(() => patchState(store, { saveError: null })),
+            switchMap((req) =>
+              reservationsApi.createAircraftReservation(req).pipe(
+                tapResponse({
+                  next: (detail: AircraftReservationDetail) =>
+                    bus.next({ kind: 'reservation.created', reservationId: detail.id }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, { saveError: mapApiSaveError(e, SAVE_ERROR_KEYS) }),
+                }),
+              ),
+            ),
+          ),
+        ),
+        update: rxMethod<{ id: string; req: AircraftReservationUpdateRequest }>(
+          pipe(
+            tap(() => patchState(store, { saveError: null })),
+            switchMap(({ id, req }) =>
+              reservationsApi.updateAircraftReservation(id, req).pipe(
+                tapResponse({
+                  next: (detail: AircraftReservationDetail) =>
+                    bus.next({ kind: 'reservation.updated', reservationId: detail.id }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, { saveError: mapApiSaveError(e, SAVE_ERROR_KEYS) }),
+                }),
+              ),
+            ),
+          ),
+        ),
         delete: rxMethod<string>(
           pipe(
             tap(() => patchState(store, { saveError: null })),
@@ -160,7 +241,8 @@ export const ReservationsStore = signalStore(
                     bus.next({ kind: 'reservation.deleted', reservationId: id });
                     loadPage(store.pageStart());
                   },
-                  error: (e: HttpErrorResponse) => patchState(store, { saveError: e.message }),
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, { saveError: mapApiSaveError(e, SAVE_ERROR_KEYS) }),
                 }),
               ),
             ),

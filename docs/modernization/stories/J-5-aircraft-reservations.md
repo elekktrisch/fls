@@ -166,7 +166,7 @@ One seam each; commit directly to `integration/J-5`.
   (real export, not synth). *(seam: legacy seed + migration verify)*
 - [x] **T-08 — `/reservations` list page + store + route + api client.** Paged table, store (`withEntities`,
   `saveError`), route, orval client (named methods from the operationIds). *(seam: reservations/list component+store)*
-- [ ] **T-09 — Reservation edit page (low-CRAP, rider).** Create/edit form (aircraft/pilot/location/start/
+- [x] **T-09 — Reservation edit page (low-CRAP, rider).** Create/edit form (aircraft/pilot/location/start/
   end/type/all-day/second-crew/remarks), conflict-409 inline error, end>start. Build via an **extracted**
   shared form↔request + error-patch helper — do NOT replicate `formToUpdateRequest`/`finalSubmit`/
   `errorPatch` complexity. *(seam: reservations/edit component + shared helper extraction)*
