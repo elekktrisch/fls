@@ -1,6 +1,7 @@
 package ch.alpenflight.me.web;
 
 import ch.alpenflight.persons.domain.PersonNotFoundException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -44,8 +45,6 @@ class MePersonLicencesExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

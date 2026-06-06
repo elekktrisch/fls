@@ -3,6 +3,7 @@ package ch.alpenflight.flighttypes.web;
 import ch.alpenflight.flighttypes.domain.DuplicateFlightTypeNameException;
 import ch.alpenflight.flighttypes.domain.FlightCostBalanceTypeInvariantException;
 import ch.alpenflight.flighttypes.domain.FlightTypeNotFoundException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -64,8 +65,6 @@ class FlightTypesExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

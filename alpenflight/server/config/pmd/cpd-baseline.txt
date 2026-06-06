@@ -24,5 +24,20 @@
 # its own tenant/audit columns, per the Flight/Aircraft/AircraftReservation
 # precedent). Structural mapping boilerplate, not logic duplication.
 #
+# Re-measured 2026-06-06 (J-6 T-04b, planning REST resource T-04/T-05): the
+# planning controller/service/mapper added NO logic duplication — its only CPD
+# clones were the per-resource RFC-7807 advice boilerplate (the byte-identical
+# problem(...) response builder + the generic 400 bad-request factory), the
+# paged-envelope DTO record, and the JPA tenant column block. Rather than just
+# absorb the +138, the genuine boilerplate was extracted at source: the new
+# shared-kernel `platform.web.ProblemResponses` (problem + badRequest) now backs
+# all 12 @RestControllerAdvice classes, collapsing the codebase-wide problem()/
+# handleIllegalArgument() clone groups. Net effect: 5488 (red) → 4767, i.e. 583
+# BELOW the prior 5350 baseline — the ratchet tightens. The 3 residual planning
+# clones (53t handler scaffolding, 52t paged-DTO, 50t JPA column block) are
+# irreducible: each Spring advice must own its @ExceptionHandler registration
+# (no shared base class — same reason the JPA column block isn't a
+# @MappedSuperclass), and the DTO/column shapes mirror reservations by design.
+#
 # Single non-comment, non-blank line = the token baseline.
-5350
+4767

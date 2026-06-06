@@ -4,6 +4,7 @@ import ch.alpenflight.planning.domain.InvalidPlanningDateException;
 import ch.alpenflight.planning.domain.PlanningDayConflictException;
 import ch.alpenflight.planning.domain.PlanningDayNotFoundException;
 import ch.alpenflight.planning.domain.PlanningRuleRangeException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -86,16 +87,10 @@ class PlanningDaysExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        pd.setType(URI.create("urn:alpenflight:problem:bad-request"));
-        pd.setTitle("Invalid request");
-        pd.setDetail(e.getMessage());
-        return problem(pd);
+        return ProblemResponses.badRequest(e);
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

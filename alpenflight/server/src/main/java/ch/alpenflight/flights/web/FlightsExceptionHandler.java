@@ -8,6 +8,7 @@ import ch.alpenflight.flights.domain.FlightStateGateException;
 import ch.alpenflight.flights.domain.FlightVersionMismatchException;
 import ch.alpenflight.flights.domain.IllegalFlightTransitionException;
 import ch.alpenflight.flights.domain.InvalidTowLinkException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -183,16 +184,10 @@ class FlightsExceptionHandler {
         // The aggregate throws IllegalArgumentException for runway / coupon /
         // temporal-ordering / non-negative invariants. The DTO validator
         // catches most before this fires, but the aggregate is authoritative.
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        pd.setType(INVALID_REQUEST);
-        pd.setTitle("Invalid request");
-        pd.setDetail(e.getMessage());
-        return problem(pd);
+        return ProblemResponses.badRequest(e);
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

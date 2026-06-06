@@ -3,6 +3,7 @@ package ch.alpenflight.persons.web;
 import ch.alpenflight.persons.domain.CrossTenantMembershipBlockedException;
 import ch.alpenflight.persons.domain.DuplicateClubMembershipException;
 import ch.alpenflight.persons.domain.PersonNotFoundException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -54,16 +55,10 @@ class PersonsExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
-        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        pd.setType(URI.create("urn:alpenflight:problem:bad-request"));
-        pd.setTitle("Invalid request");
-        pd.setDetail(e.getMessage());
-        return problem(pd);
+        return ProblemResponses.badRequest(e);
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

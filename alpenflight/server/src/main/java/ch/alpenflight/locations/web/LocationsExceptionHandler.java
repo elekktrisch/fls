@@ -4,6 +4,7 @@ import ch.alpenflight.locations.domain.IcaoCodeAlreadyExistsException;
 import ch.alpenflight.locations.domain.IcaoCodeInvalidException;
 import ch.alpenflight.locations.domain.InvalidLocationReferenceException;
 import ch.alpenflight.locations.domain.LocationNotFoundException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -93,8 +94,6 @@ class LocationsExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

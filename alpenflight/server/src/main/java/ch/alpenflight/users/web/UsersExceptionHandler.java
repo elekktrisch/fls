@@ -1,5 +1,6 @@
 package ch.alpenflight.users.web;
 
+import ch.alpenflight.platform.web.ProblemResponses;
 import ch.alpenflight.users.application.ForbiddenRoleGrantException;
 import ch.alpenflight.users.domain.UserConflictException;
 import ch.alpenflight.users.domain.UserDirectoryException;
@@ -71,8 +72,6 @@ class UsersExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }
