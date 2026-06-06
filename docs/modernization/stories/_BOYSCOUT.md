@@ -12,6 +12,24 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Retro-process flags (for the NEXT /do-retro to adjudicate — not code riders)
+
+- **🔁 The retro→new-carve branch handoff is rough — 5th time running (operator flag, J-6 carve 2026-06-06).**
+  Every cycle, starting the next journey's `integration/J-NNN` off the `/do-retro` output is friction-y.
+  **This cycle's concrete failure:** J-5 was **squash-merged** to `main`, but `do-retro/J-5-window` had
+  branched off the *pre-squash* J-4 line and carried all ~83 redundant J-5 commits. `/do-plan`'s rule
+  ("base the carve on the unmerged retro branch so riders ride forward") then produced a J-6 branch with a
+  clean 11-file **net** diff but a junk 83-commit / 126-file **history** — the operator saw the inflated
+  file count. Fixed by hand (reset to `origin/main` + cherry-pick the retro's net commit + the carve).
+  **Root mismatch:** `/do-retro` lands its output on a branch off `main` *intending* it to ride the next
+  journey, but once that journey squash-merges, the retro branch becomes divergent history; `/do-plan`
+  still treats it as the live integration line. **For /do-retro to decide:** make the do-plan↔do-retro
+  branch handoff deterministic — e.g. (a) `/do-plan` Mode B auto-detects a squash-merged prior journey and
+  bases on `origin/main` + cherry-picks the retro's net commit (never branches off the stale retro branch);
+  and/or (b) `/do-retro` keeps its net output as a *single* commit easy to cherry-pick forward; and/or
+  (c) the retro branch is rebased/refreshed onto `main` at carve time. Encode the chosen rule in both
+  SKILL.md files so this stops recurring. [[project_do_plan_carve_base_after_squash_merge]]
+
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
 - **Scope the per-push `alpenflight-mock-e2e` gate to the journey-under-work (dev-time test strategy).** Today it runs ALL features’ mock specs, so one unrelated flaky spec reds an unrelated journey’s `required` (J-5 held hostage by `articles-crud`). Mirror what J-3 T-14 did for the real-idp `alpenflight-proof`: per-push runs only the journey-under-work’s spec(s); skip/quarantine unrelated; prior journeys may run mock-IdP. Full mock suite at the §4 gate + nightly. *(seam: ci.yml mock-e2e spec selection + nightly)* [[feedback_dev_time_test_strategy]]
