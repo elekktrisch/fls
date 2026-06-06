@@ -1,5 +1,6 @@
 package ch.alpenflight.reservations.domain;
 
+import ch.alpenflight.platform.text.FreeText;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -290,15 +291,7 @@ public class AircraftReservation {
     }
 
     private void setInfo(@Nullable String value) {
-        String trimmed = value == null ? null : value.strip();
-        if (trimmed != null && trimmed.isEmpty()) {
-            trimmed = null;
-        }
-        if (trimmed != null && trimmed.length() > MAX_INFO_LENGTH) {
-            throw new IllegalArgumentException(
-                    "info exceeds " + MAX_INFO_LENGTH + " characters");
-        }
-        this.info = trimmed;
+        this.info = FreeText.normalize(value, MAX_INFO_LENGTH);
     }
 
     /**

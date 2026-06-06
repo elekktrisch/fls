@@ -14,5 +14,15 @@
 # (ch.alpenflight.reservations, T-03/T-09) is in only 9 small DTO/exception
 # boilerplate clones — no logic duplication.
 #
+# Re-measured 2026-06-06 (J-6 T-02, PlanningDay aggregate seam): 5350 (+50). The
+# `setInfo` free-text clone the PlanningDay aggregate would have shared with
+# AircraftReservation was eliminated at source by extracting the shared-kernel
+# `platform.text.FreeText.normalize` (both aggregates now delegate). The residual
+# +50 is the one irreducible clone: the JPA id/@TenantId/info column-declaration
+# block every tenant-scoped aggregate maps identically — abstracting it needs a
+# @MappedSuperclass, which this codebase deliberately avoids (each aggregate maps
+# its own tenant/audit columns, per the Flight/Aircraft/AircraftReservation
+# precedent). Structural mapping boilerplate, not logic duplication.
+#
 # Single non-comment, non-blank line = the token baseline.
-5300
+5350

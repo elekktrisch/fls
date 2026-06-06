@@ -215,11 +215,16 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
 - [x] **T-01 — spec stub.** Author both specs' structure + selectors + flow: mock inner-loop
   `e2e/tests/planning/planning-crud.spec.ts` (+ setup-wizard) and the real-idp parity skeleton
   `e2e/tests/real-idp/planning-migration-parity.spec.ts`. Thin assertions; commits the screen shape. *(spec seam)*
-- [ ] **T-02 — PlanningDay aggregate.** `ch.alpenflight.planning`: `PlanningDay` aggregate (date,
+- [x] **T-02 — PlanningDay aggregate.** `ch.alpenflight.planning`: `PlanningDay` aggregate (date,
   location, info, child assignments), `PlanningDayAssignment`, `PlanningDayAssignmentType` lookup,
   `PlanningRole` resolution by well-known name; dup + range invariants as domain methods (ADR-0022 §2). + JPA mapping. *(aggregate seam)*
 - [ ] **T-03 — JpaPlanningDayRepository.** Paged future-days query, `overview/future`, computed
   per-day reservation count (join `t_aircraft_reservation` by club+date+location), dedup-aware save. *(repo seam)*
+  **T-02 carry-over (mirrors J-5 T-03→T-29):** `PlanningDay` + `PlanningDayAssignmentType` bear `@TenantId`,
+  so the catalog-driven `LeakageSweepIT` + `TenantSweepFloorAndPinTest.every_discovered_entity_has_a_registered_row_builder`
+  go RED until each has a Spring Data `JpaRepository` + a `TenantScopedRowBuilders` entry (and `Map.of`→`Map.ofEntries`,
+  now at the 10-entry cap). Register both here when the repos land. `PlanningDayAssignment` is an aggregate-internal
+  child WITHOUT `@TenantId` (FlightCrew/V7 pattern) — deliberately NOT a sweep participant.
 - [ ] **T-04 — PlanningDay CRUD resource.** DTOs (3 person ids + date + locationId + info + computed
   count + CanUpdate/CanDelete) / service / mapper / controllers: page, overview/future, GET :id,
   insert (409 dup), update (409 dup), delete (perm-gated ClubAdmin|creator). **+ explicit `operationId`s**
