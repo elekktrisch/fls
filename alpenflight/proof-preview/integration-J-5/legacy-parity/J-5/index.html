@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-5 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-5</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 1 screenshot</span>
+      <span class="summary-jid">J-5</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 3 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-5</code> &middot; 2026-06-06T10:54:55.144Z
+      for this journey. Generated on <code>integration/J-5</code> &middot; 2026-06-06T11:48:28.229Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="../previews/">&larr; all journeys (previews index)</a> &middot;
@@ -147,6 +147,14 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <video controls preload="metadata" src="../videos/legacy-reservations-parity-J5.webm"></video>
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the seeded reservation list (Date · Start/End · Location · Immatriculation · Pilot · 2nd crew · Reservation type · Remarks) + one reservation's edit form + the reservation-scheduler aircraft×time grid — the legacy field set to eyeball against AlpenFlight's /reservations list + edit form + /reservation-scheduler</span></figcaption>
         </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-4476ca6140d8bd0e4adca5f46841aa58eabc962d.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders in the /reservations list and in the right aircraft lane on the /reservation-scheduler at its time offset (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-1b728b3751c1c0f510ded67a5efe5f798508b2cb.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated through the live chain, renders in the migrated TestClub's /reservations list under its unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)</span></figcaption>
+        </figure>
         </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
@@ -157,6 +165,21 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <span class="shot-side">legacy</span>
             <a href="../screenshots/legacy-reservation-list.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-reservation-list.png" alt="legacy list" loading="lazy"></a>
             <figcaption>Legacy flsweb: the seeded reservation list (Date · Start/End · Location · Immatriculation · Pilot · 2nd crew · Reservation type · Remarks) — the legacy reservation columns to eyeball against AlpenFlight's /reservations list</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-reservations-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservations-list.png" alt="alpenflight list" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /reservations list with a created reservation (immatriculation · start · end · pilot · location · type · all-day — full legacy column parity), decorated client-side from the picker label maps</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">scheduler</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="../screenshots/alpenflight-reservation-scheduler.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-reservation-scheduler.png" alt="alpenflight scheduler" loading="lazy"></a>
+            <figcaption>AlpenFlight: the /reservation-scheduler — a created reservation placed in its aircraft lane at a time-derived horizontal offset (read-only lane×time placement; legacy's drag-create heaviest seam is deliberately not carried forward)</figcaption>
           </figure>
           </div>
         </div>
