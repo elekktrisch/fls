@@ -566,7 +566,7 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   NOT tolerating its absence by ensuring isolation). Pick the robust option. **MUST run the full `./gradlew
   :server:test` (all ~1113 tests, shared container) and confirm 0-failed** — the recurring blind spot is
   focused `--tests` runs that miss cross-test pollution. *(seam: ReservationsBaselineIntegrationTest + whichever sibling over-cleans)*
-- [ ] **T-35 — Fix the 3 deployed gallery dead links the T-33 check caught.** On the live branch preview the
+- [x] **T-35 — Fix the 3 deployed gallery dead links the T-33 check caught.** On the live branch preview the
   deployed-link-check (T-33, working as designed) found: `…/proof-preview/` → 404 (bare dir, no index.html),
   `…/integration-J-5/j-0c-fanout/` → 404 (a per-run slug that isn't deployed there), `…/integration-J-5/previews/`
   → 404 (a `previews/` link still relative to the branch). T-32 fixed the per-journey PAGE links; these come

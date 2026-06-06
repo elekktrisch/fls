@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
@@ -135,6 +136,33 @@ function stageMaintainability(galleryOut: string): void {
   }
 }
 
+/**
+ * Stage a stub `index.html` for every per-run gallery declared in
+ * `per-run-galleries.json` under the CANONICAL proof out-root — mirroring where the
+ * fanout deploys them (`alpenflight/proof/<href>/index.html`). The all-journeys
+ * page links these site-root-absolute (`/fls/alpenflight/proof/<href>`), so the
+ * link target lives here regardless of which page (canonical or branch-preview)
+ * referenced it. Only RELATIVE manifest hrefs (the deployed-under-canonical ones)
+ * are staged; absolute/external hrefs are deploys we don't model.
+ */
+function stagePerRunGalleries(canonicalOut: string): void {
+  const manifestPath = resolve(PROOF_GALLERY, 'per-run-galleries.json');
+  if (!existsSync(manifestPath)) return;
+  let galleries: { href?: string }[] = [];
+  try {
+    galleries = JSON.parse(readFileSync(manifestPath, 'utf8')).galleries ?? [];
+  } catch {
+    return;
+  }
+  for (const gal of galleries) {
+    const href = gal?.href;
+    if (!href || /^(?:[a-z]+:|\/\/|\/)/i.test(href)) continue;
+    const dir = resolve(canonicalOut, href);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(resolve(dir, 'index.html'), '<!doctype html><title>per-run gallery stub</title>');
+  }
+}
+
 /** Generate the full gallery (all-journeys + per-journey pages) into one out-root. */
 function generateInto(
   g: Awaited<ReturnType<typeof loadGenerators>>,
@@ -151,7 +179,12 @@ function generateInto(
     branch: TEST_BRANCH,
     legacyVideoDir: LEGACY_VIDEO_DIR,
     screenshotsDir: SCREENSHOTS_DIR,
-    renderNav: false,
+    // renderNav ON: the all-journeys page's "Per-run proof galleries" block
+    // (per-run-galleries.json → `j-0c-fanout/`) is exactly one of the 3 T-35 dead
+    // links. With nav OFF (the old default) the walk never saw it. The per-run
+    // hrefs are site-root-absolute (T-35 fix) → they must resolve against the
+    // staged canonical `proof/j-0c-fanout/` page below in BOTH layouts.
+    renderNav: true,
     journeyUnderWork: 'J-5',
   });
   return { journeyPages };
@@ -177,6 +210,17 @@ function buildGallery(g: Awaited<ReturnType<typeof loadGenerators>>): {
 
   const canonicalOut = resolve(root, 'alpenflight', 'proof');
   const { journeyPages: canonicalPages } = generateInto(g, canonicalOut);
+
+  // The per-run galleries (per-run-galleries.json) are deployed by the fanout ONLY
+  // under the canonical `alpenflight/proof/` (e.g. `proof/j-0c-fanout/index.html`),
+  // never under a branch preview. The all-journeys page's nav block links them
+  // site-root-absolute (T-35) so the link resolves from BOTH the canonical and the
+  // branch-preview page. Stage a stub `index.html` for each so the walk can follow
+  // the site-absolute link to a served page (mirrors the deployed canonical layout);
+  // if the generator regresses to a RELATIVE `j-0c-fanout/`, the branch-preview
+  // page's relative resolution lands on a non-existent dir → the walk reports the
+  // dead link (the T-35 regression guard).
+  stagePerRunGalleries(canonicalOut);
 
   // BRANCH-PREVIEW: mirror the fanout deploy exactly — publish_dir
   // `public/alpenflight/proof` → destination_dir
@@ -278,12 +322,18 @@ function resolveLink(
   if (dirLink) {
     const index = resolve(abs, 'index.html');
     if (existsSync(index)) return { ok: true, target: index, page: index };
-    // Inside a gallery-owned tree, gh-pages 404s a bare dir with no index.html —
-    // DEAD (e.g. a maintainability/ dir whose JSON/XML deployed but no index.html
-    // emitted). A dir link that ESCAPES an out-root (the app dashboard `../`) is
-    // not the gallery's deploy to model — accept if the dir exists.
-    if (isInsideOutRoot(outRoots, abs)) return { ok: false, target: abs };
-    return { ok: isDir(abs), target: abs };
+    // gh-pages 404s ANY bare directory with no index.html — whether it's inside a
+    // gallery out-root (e.g. a maintainability/ dir whose JSON/XML deployed but no
+    // index.html emitted) OR a dir the gallery merely LINKS to but doesn't own.
+    // The 3 T-35 dead links were ALL of the latter class: a relative `../` resolving
+    // to the bare `proof-preview/` parent, a relative `j-0c-fanout/`, and a relative
+    // `../../previews/` — each a directory that exists on gh-pages but serves 404
+    // because no index.html sits in it. So modelling "dir → needs index.html"
+    // UNIFORMLY (not just inside out-roots) is what makes the local walk reproduce
+    // the deployed 404s. `isInsideOutRoot` is kept only to sharpen the failure
+    // message (gallery-owned vs linked-out).
+    void isInsideOutRoot(outRoots, abs);
+    return { ok: false, target: abs };
   }
   return { ok: existsSync(abs), target: abs };
 }

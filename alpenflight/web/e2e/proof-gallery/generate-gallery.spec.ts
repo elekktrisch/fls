@@ -40,6 +40,7 @@ async function loadGenerator(): Promise<{
     journeyPages: { journey: string; outFile: string }[];
   };
   DEFAULT_SITE_BASE: string;
+  navGalleryHref: (href: string, siteBase?: string) => string;
   parsePmd: (xml: string | null) => { total: number; complexity: number; deadCode: number } | null;
   parseCpd: (xml: string | null) => { groups: number; dupPct: number | null } | null;
   parseFallowAudit: (json: unknown) => {
@@ -928,5 +929,67 @@ describe('generateGallery — deployed-layout cross-section links (T-32)', () =>
     expect(j0).toContain('no data');
     // Fail-soft: no reports link at all when there are no artifacts.
     expect(j0).not.toContain('href="../maintainability/"');
+  });
+});
+
+/**
+ * T-35 guard — the ALL-JOURNEYS page's cross-section links must resolve in the
+ * DEPLOYED layouts (canonical `alpenflight/proof/` AND branch-preview
+ * `alpenflight/proof-preview/<branch>/legacy-parity/`, one dir deeper). The live
+ * branch-preview deploy had 3 dead links, ALL from the all-journeys page:
+ *   - the back-link `../` → the bare `proof-preview/` parent (no index.html → 404);
+ *   - the per-run nav `j-0c-fanout/` → only deployed under canonical, 404 under the
+ *     preview as a relative href;
+ *   - (the stale `../../previews/` per-journey back-link — already T-32-fixed to
+ *     site-absolute; covered by the per-journey-page assertions).
+ * The fix makes BOTH all-journeys cross-section links SITE-ROOT-ABSOLUTE (depth-
+ * independent), exactly like the per-journey pages' back-link (T-32).
+ */
+describe('generateGallery — all-journeys cross-section links resolve in deployed layouts (T-35)', () => {
+  it('the back-link is site-root-absolute to the previews index, NOT a relative bare dir', async () => {
+    const { generateGallery, DEFAULT_SITE_BASE } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-t35-back-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const outDir = resolve(dir, 'out');
+    generateGallery({ reportPath, outDir, orderPath, renderNav: true });
+
+    const html = readFileSync(resolve(outDir, 'index.html'), 'utf8');
+    // The depth-independent back-link (works in both canonical & branch-preview).
+    expect(html).toContain(`href="${DEFAULT_SITE_BASE}alpenflight/previews/"`);
+    // The OLD bug: a relative `../` that 404s the bare proof-preview/ parent.
+    expect(html).not.toContain('href="../">&larr; alpenflight dashboard');
+  });
+
+  it('per-run nav galleries link site-root-absolute to canonical proof (works under a branch preview)', async () => {
+    const { generateGallery, DEFAULT_SITE_BASE } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-t35-nav-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const outDir = resolve(dir, 'out');
+    // renderNav: true → the committed per-run-galleries.json (j-0c-fanout/) renders.
+    generateGallery({ reportPath, outDir, orderPath, renderNav: true });
+
+    const html = readFileSync(resolve(outDir, 'index.html'), 'utf8');
+    // The per-run gallery is deployed ONLY under canonical proof; a RELATIVE href
+    // 404s under the branch preview. Assert it's pinned site-root-absolute.
+    expect(html).toContain(`href="${DEFAULT_SITE_BASE}alpenflight/proof/j-0c-fanout/"`);
+    // No bare relative `j-0c-fanout/` anchor survives (the T-35 bug).
+    expect(html).not.toMatch(/<a[^>]+href="j-0c-fanout\/"/);
+  });
+
+  it('navGalleryHref: relative → site-absolute canonical; absolute/external pass through', async () => {
+    const { navGalleryHref, DEFAULT_SITE_BASE } = await loadGenerator();
+    // Relative (the manifest form, relative to /alpenflight/proof/) → site-absolute.
+    expect(navGalleryHref('j-0c-fanout/')).toBe(
+      `${DEFAULT_SITE_BASE}alpenflight/proof/j-0c-fanout/`,
+    );
+    expect(navGalleryHref('j-0c-fanout/', '/base/')).toBe('/base/alpenflight/proof/j-0c-fanout/');
+    // Already site-absolute → unchanged.
+    expect(navGalleryHref('/fls/alpenflight/proof/x/')).toBe('/fls/alpenflight/proof/x/');
+    // External → unchanged.
+    expect(navGalleryHref('https://example.test/g/')).toBe('https://example.test/g/');
   });
 });

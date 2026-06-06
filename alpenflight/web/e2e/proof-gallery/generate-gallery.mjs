@@ -320,12 +320,31 @@ export function loadNavGalleries() {
   }
 }
 
-function renderNavBlock(navGalleries) {
+/**
+ * Resolve a per-run-gallery manifest href (relative to `/alpenflight/proof/`) to a
+ * site-root-absolute URL so it resolves in BOTH the canonical and branch-preview
+ * deploy layouts. An already-absolute (`/…`) or external (`scheme:`/`//`) href is
+ * passed through unchanged.
+ */
+export function navGalleryHref(href, siteBase = DEFAULT_SITE_BASE) {
+  if (/^(?:[a-z]+:|\/\/|\/)/i.test(href)) return href;
+  return `${siteBase}alpenflight/proof/${href}`;
+}
+
+function renderNavBlock(navGalleries, siteBase = DEFAULT_SITE_BASE) {
   if (!navGalleries.length) return '';
+  // The per-run galleries (`per-run-galleries.json`) are deployed ONLY under the
+  // CANONICAL `alpenflight/proof/` (the fanout's `j-0c-fanout/` etc. land there,
+  // never under a branch preview). Their manifest `href`s are relative to
+  // `/alpenflight/proof/`, so on the canonical all-journeys page a bare `href`
+  // resolves; but the SAME page is also deployed to the branch-preview path
+  // (`alpenflight/proof-preview/<branch>/legacy-parity/`), where the relative
+  // `j-0c-fanout/` 404s (T-35). Resolve each manifest href SITE-ROOT-ABSOLUTE
+  // against the canonical proof root so it works in BOTH deploy layouts.
   const links = navGalleries
     .map(
       (g) =>
-        `      &rarr; <a href="${esc(g.href)}"><strong>${esc(g.label)}</strong></a>` +
+        `      &rarr; <a href="${esc(navGalleryHref(g.href, siteBase))}"><strong>${esc(g.label)}</strong></a>` +
         (g.note ? ` <em>(${esc(g.note)})</em>` : ''),
     )
     .join('<br>\n');
@@ -879,6 +898,7 @@ function renderHtml({
   generatedAt,
   branch,
   navGalleries = [],
+  siteBase = DEFAULT_SITE_BASE,
 }) {
   // Default-open policy: open the NEWEST journey that has content (the last
   // roadmap-ordered journey with a green video or a declared screenshot), and
@@ -944,8 +964,8 @@ ${GALLERY_CSS}
       assertion it proves. Generated on <code>${esc(branch)}</code> &middot; ${esc(generatedAt)}
     </p>
     <p class="meta" style="margin-top:.5rem;">
-      <a href="../">&larr; alpenflight dashboard</a>
-    </p>${renderNavBlock(navGalleries)}
+      <a href="${esc(siteBase)}alpenflight/previews/">&larr; all journeys (previews index)</a>
+    </p>${renderNavBlock(navGalleries, siteBase)}
   </header>
 
   <section>
@@ -1064,6 +1084,7 @@ export function generateGallery({
     generatedAt: new Date().toISOString(),
     branch,
     navGalleries: renderNav ? loadNavGalleries() : [],
+    siteBase,
   });
 
   mkdirSync(outDir, { recursive: true });
