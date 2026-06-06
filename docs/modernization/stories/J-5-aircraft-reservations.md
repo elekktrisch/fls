@@ -473,7 +473,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   failure modes) + `:603` green (resolves the real migrated club) → 20/20.
 
 ### §4 gate — fourth run (fanout 20 passed/1 failed; gallery+index deployed via T-24)
-- [ ] **T-28 — Add `reservationTypeId` to the spec's REST `createReservation` helper (`:296` 409 setup 400s).**
+- [x] **T-28 — Add `reservationTypeId` to the spec's REST `createReservation` helper (`:296` 409 setup 400s).**
   The clean-seed `[key-error] overlap → 409` (`:296`) + the other REST-helper-driven cases (duration-422,
   all-day, cross-tenant, delete-frees) set up their reservation via the spec's `createReservation` REST helper
   (`reservations-migration-parity.spec.ts:~100`), whose POST body **omits the reservation-type reference** →
@@ -483,3 +483,16 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   must include the V31-seeded `reservationTypeId` (already fetched via `fetchReservationTypeId`) in the create
   payload — thread it through `createReservation`. Pure spec-helper fix; no [happy]/[key-error] assertion
   loosened. Targets fanout 21/21 + the clean-seed proof green. *(seam: reservations-migration-parity.spec.ts createReservation helper)*
+  **Done:** added `reservationTypeId: string` as a REQUIRED field of the `createReservation` body type, so it is
+  forwarded in the helper's `data: body` POST and the compiler forces every caller to supply it. Threaded the
+  module-scoped `reservationTypeId` (already fetched once in the clean-seed `beforeAll` via `fetchReservationTypeId`
+  — the V31 `Allgemein` seed) into ALL six helper calls (overlap-setup `:307`, adjacent `:337`, all-day `:412`,
+  cross-tenant `:462`, delete-first `:515`, delete-freed `:548`) AND the four RAW `ctx.request` create/update
+  probes that also hit the backend's `requireTypeReference` guard FIRST (verified
+  `AircraftReservationsService.createReservation:85`/`updateReservation:109` call it before duration-construction
+  + the conflict probe, so a typeless body 400s before reaching the 409/422 target): the overlap-409 POST `:317`,
+  the self-edit PUT `:349`, the duration-422 POST `:384`, and the blocked-409 POST `:525`. No assertion touched
+  (overlap still 409, duration still 422, all-day/cross-tenant/delete unchanged). tsc clean on the touched file
+  (the 30 pre-existing strict-tsconfig errors in other e2e files are unchanged — none introduced); prettier
+  reports unchanged (already formatted). Local Playwright unrunnable (chrome musl) — reasoned from the spec +
+  fixture + the backend validation order. NEXT FANOUT must confirm `:296` (+ the cascaded cases) green → 21/21.

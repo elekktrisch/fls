@@ -88,6 +88,7 @@ async function createReservation(
     aircraftId: string;
     pilotPersonId: string;
     locationId: string;
+    reservationTypeId: string;
     start: string;
     end: string;
     isAllDay: boolean;
@@ -307,6 +308,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
+        reservationTypeId,
         start: '2026-09-02T13:00:00Z',
         end: '2026-09-02T14:00:00Z',
         isAllDay: false,
@@ -318,6 +320,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
           aircraftId: masterdata.managedAircraftId,
           pilotPersonId: masterdata.pilotPersonId,
           locationId: masterdata.locationId,
+          reservationTypeId,
           start: '2026-09-02T13:30:00Z',
           end: '2026-09-02T13:45:00Z',
           isAllDay: false,
@@ -335,6 +338,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
+        reservationTypeId,
         start: '2026-09-02T14:00:00Z',
         end: '2026-09-02T15:00:00Z',
         isAllDay: false,
@@ -348,6 +352,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
           aircraftId: masterdata.managedAircraftId,
           pilotPersonId: masterdata.pilotPersonId,
           locationId: masterdata.locationId,
+          reservationTypeId,
           start: '2026-09-02T13:00:00Z',
           end: '2026-09-02T13:50:00Z',
           isAllDay: false,
@@ -382,6 +387,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
           aircraftId: masterdata.managedAircraftId,
           pilotPersonId: masterdata.pilotPersonId,
           locationId: masterdata.locationId,
+          reservationTypeId,
           start: '2026-09-03T15:00:00Z',
           end: '2026-09-03T14:00:00Z',
           isAllDay: false,
@@ -407,6 +413,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
+        reservationTypeId,
         start: '2026-09-04T00:00:00Z',
         end: '2026-09-04T00:00:00Z',
         isAllDay: true,
@@ -456,6 +463,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         aircraftId: masterdata.foreignAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
+        reservationTypeId,
         start: '2026-09-05T09:00:00Z',
         end: '2026-09-05T10:00:00Z',
         isAllDay: false,
@@ -508,6 +516,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
+        reservationTypeId,
         start: '2026-09-06T16:00:00Z',
         end: '2026-09-06T17:00:00Z',
         isAllDay: false,
@@ -519,6 +528,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
           aircraftId: masterdata.managedAircraftId,
           pilotPersonId: masterdata.pilotPersonId,
           locationId: masterdata.locationId,
+          reservationTypeId,
           start: '2026-09-06T16:30:00Z',
           end: '2026-09-06T16:45:00Z',
           isAllDay: false,
@@ -539,6 +549,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
+        reservationTypeId,
         start: '2026-09-06T16:30:00Z',
         end: '2026-09-06T16:45:00Z',
         isAllDay: false,
