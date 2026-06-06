@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.89.0",
-  "elapsed_ms": 283,
+  "elapsed_ms": 366,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -2966,7 +2966,7 @@
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1330,
-      "total_lines": 23269,
+      "total_lines": 23276,
       "files_scored": 144,
       "total_deps": 0
     },
@@ -2985,7 +2985,7 @@
     },
     "p95_fan_in": 6,
     "coupling_high_pct": 1.4,
-    "total_loc": 23269
+    "total_loc": 23276
   },
   "health_score": {
     "formula_version": 2,
