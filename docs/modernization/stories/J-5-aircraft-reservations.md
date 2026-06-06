@@ -303,7 +303,7 @@ One seam each; commit directly to `integration/J-5`.
   still say "J-5 is a mock-auth journey → J-0 baseline" (gap-hunter nit). *(seam: ci.yml `required` needs + result loop)*
 
 ### §4 gate — first fanout run reds (genuine regressions caught by the real chain)
-- [ ] **T-20 — Fix the `_test-fixture.sql` §10 reservation seed column name (fanout seed red).** The fanout
+- [x] **T-20 — Fix the `_test-fixture.sql` §10 reservation seed column name (fanout seed red).** The fanout
   seed failed `Msg 207, Line 702: Invalid column name 'PilotPerson_PersonId'`. T-07's §10 AircraftReservations
   INSERT used the **v1.0.1 EF6 shadow column** `PilotPerson_PersonId`, but v1.1 superseded it with
   `[PilotPersonId]` (the final FLSTest schema — see the canonical insert `flsserver/database/FLSTest/3 insert/

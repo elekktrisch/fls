@@ -701,14 +701,14 @@ BEGIN
         LocationId, AircraftReservationTypeId, FlightTypeId,
         ClubId, Remarks,
         CreatedOn, CreatedByUserId, RecordState,
-        OwnerId, OwnershipType, PilotPerson_PersonId, IsDeleted
+        OwnerId, OwnershipType, IsDeleted
     ) VALUES (
         @reservationId, @reservationStart, @reservationEnd, 0,
         @otherClubAircraftId, @gliderPilotPersonId, NULL,
         @lszk, @reservationTypeId, NULL,
         @testClubId, N'Cross-tenant timed reservation (fixture)',
         DATEADD(MINUTE, 9, @anchor), @insertUserId, @recordState,
-        @testClubId, @ownershipClub, @gliderPilotPersonId, 0
+        @testClubId, @ownershipClub, 0
     )
 END
 
