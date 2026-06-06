@@ -194,7 +194,11 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await loginAsReservationAdmin(page);
 
       // Baseline list count BEFORE the create → assert a DELTA, not an absolute.
-      await page.goto('/reservations');
+      // Pin the German cold-start locale (`?lang=de`, web/CLAUDE.md §8b) so the
+      // whole session — incl. the create FORM screenshot below — renders German
+      // (the primary market + the gallery's locale; J-5 T-36). In-app router navs
+      // after this inherit the locale (no query needed).
+      await page.goto('/reservations?lang=de');
       await expect(page.locator('h1')).toContainText('Reservationen');
       await expect(page.getByTestId('reservations-table')).toBeVisible();
       const baseline = await page.locator('[data-testid^="reservations-row-"]').count();
@@ -223,6 +227,18 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await page.getByTestId('reservation-date').locator('input').fill('2026-09-01');
       await page.getByTestId('reservation-start-time').locator('input').fill('10:00');
       await page.getByTestId('reservation-end-time').locator('input').fill('11:00');
+
+      // PARITY SHOT (J-5 T-38): the AlpenFlight reservation create/edit FORM,
+      // fully populated (aircraft · type · pilot · location · date · start/end),
+      // captured AS SOON AS the form renders — BEFORE the save + the deep
+      // list/scheduler asserts (J-2 T-42: capture-before-assert, survive a
+      // partial red). The fanout stages this as (side=alpenflight, view=form),
+      // pairing it against the legacy reservation edit form so the operator can
+      // eyeball the field set side-by-side (legacy-replacing-screen done-bar).
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-reservation-form.png`,
+        fullPage: true,
+      });
 
       // Capture the 201 (the SPA navigates on bus-success → read the id from the
       // Location header, never the evicted POST body). Track it for afterAll

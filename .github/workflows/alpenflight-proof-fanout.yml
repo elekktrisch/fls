@@ -949,6 +949,8 @@ jobs:
             "Legacy flsweb: the reservation-scheduler SVG grid (aircraft rows × time-slot columns) — paired against AlpenFlight's /reservation-scheduler lane×time grid"
           add_shot "alpenflight/web/test-results" "alpenflight-reservations-list.png" "J-5" "alpenflight" "list" \
             "AlpenFlight: the /reservations list with a created reservation (immatriculation · start · end · pilot · location · type · all-day — full legacy column parity), decorated client-side from the picker label maps"
+          add_shot "alpenflight/web/test-results" "alpenflight-reservation-form.png" "J-5" "alpenflight" "form" \
+            "AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form"
           add_shot "alpenflight/web/test-results" "alpenflight-reservation-scheduler.png" "J-5" "alpenflight" "scheduler" \
             "AlpenFlight: the /reservation-scheduler — a created reservation placed in its aircraft lane at a time-derived horizontal offset (read-only lane×time placement; legacy's drag-create heaviest seam is deliberately not carried forward)"
 
