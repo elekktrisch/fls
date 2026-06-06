@@ -408,3 +408,19 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   (keep `steps.gallery.outcome == 'success'` so only a built gallery deploys; keep the main-only canonical
   deploy as-is) so a partial-red parity run still publishes the gallery + updates the persistent index. This is
   the do-ship §4 "deploy must survive a red case" rule. *(seam: alpenflight-proof-fanout.yml deploy/rebuild step `if:`)*
+  **Done:** prepended `!cancelled() &&` to all FIVE steps in the deploy path (the 3 named + the
+  `Compute fan-out branch-preview destination` step + the URL-emit step — the compute step was also implicitly
+  success()-gated and would have deployed to an EMPTY destination_dir). Kept `steps.gallery.outcome == 'success'`
+  + event/ref gates. Next partial-red fanout publishes the gallery + rebuilds the persistent index.
+- [ ] **T-25 — Typed-id FKs on the reservation request/response DTOs (backend; resolves T-23's escalation).**
+  The clean-seed UI create 400s because the masterdata pickers emit TYPED ids (`ac-…`/`pn-…`/`loc-…`) but
+  `AircraftReservationCreateRequest`/`UpdateRequest` (T-05) declare `aircraftId`/`pilotPersonId`/
+  `secondCrewPersonId`/`locationId` as plain `UUID` → Jackson can't parse the prefixed strings → 400 (flights
+  work because they use typed `AircraftId`/`PersonId`). Change those FK fields on the create/update requests
+  (and align `AircraftReservationDetail`/`AircraftReservationListItem`, the service `requireNonNull(...)`
+  unwraps, the application mapper, and `AircraftReservationsControllerIT`) to the typed ids
+  `AircraftId`/`PersonId`/`LocationId` — mirror `FlightCreateRequest`. `reservationTypeId`/`flightTypeId` stay
+  plain UUID (those listitems emit plain UUIDs — the POST body showed `reservationTypeId` parsed fine). The
+  reservation's OWN `id` stays plain UUID (separate, gap-hunter-OK). Regenerate the OpenAPI snapshot + orval
+  client; the store/form `string` types are unchanged. Run `AircraftReservationsControllerIT` green (Testcontainers).
+  Clears the `:188` create + the 7 cascaded clean-seed cases. *(seam: reservation request/response DTOs + mapper + ControllerIT + openapi/orval regen)*
