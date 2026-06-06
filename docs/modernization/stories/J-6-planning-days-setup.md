@@ -290,6 +290,10 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   FK-trip on the seed's weekend day. Smoke: new `PlanningDevSeedIT` (Flyway migrate green + the
   future-list endpoint renders both seeded days, weekday crew resolved, weekend bare — seed-band scoped,
   no absolute count). Whole `./gradlew test` green locally (1139 tests).
+- [ ] **T-04b — resolve planning-resource CPD duplication (gate-red fix).** T-04/T-05 pushed `:cpdRatchet`
+  to 5488 > 5350 (+138 tokens) — per-push `alpenflight build` red. Reduce genuine duplication in the
+  planning controller/service/mapper (extract shared helpers, low-CRAP rider); re-baseline ONLY the
+  irreducible DTO/mapper boilerplate with justification (as J-5 did for the reservation aggregate). *(server CPD/planning resource)*
 - [ ] **T-07 — SPA planning list page.** `/planning` list + store + route + orval client; future-days,
   Sat/Sun flag, new/edit/view/delete actions. *(component-route seam)*
 - [ ] **T-08 — SPA planning edit page.** `/planning/:id/edit|view`: date, location, 3 person pickers,
