@@ -90,6 +90,11 @@ gate, not their own journey ([[feedback_journey_is_a_60_40_sprint]]).
 - **Proof-gallery per-journey re-arch — FIRST slice only** (substantial pure tech-debt, split across
   2-3 journeys' budgets): e.g. make the gallery generator **key by `journey`** (the sidecars already
   carry the field) without yet retiring the per-proof-type sub-paths. [[feedback_proof_gallery_per_journey_one_bookmark]]
+- **Fallow maintainability pass** (filed by this carve): commit `alpenflight/web/.fallowrc.json`
+  (honest score 52 D→70 B), and build the new reservation `*-edit.page.ts` WITHOUT replicating the
+  flagged `formToUpdateRequest`/`finalSubmit`/`errorPatch` complexity — extract the shared form↔request
+  helper so the new page lands low-CRAP. Non-reservation hotspots ride their own next-touch journey.
+  [[reference_fallow_maintainability_analyzer]]
 - Minor: e2e prettier/tsc-strict normalization on touched specs only.
 
 **Assumptions made:**

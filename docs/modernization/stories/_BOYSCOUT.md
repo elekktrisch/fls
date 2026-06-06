@@ -12,6 +12,38 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-plan 2026-06-06, J-5 carve — `fallow` maintainability pass)
+
+Ran `npx fallow@latest health` (deterministic TS/JS code-intelligence) on `alpenflight/web`.
+Raw score **52 D** was misleading — fallow scanned `node_modules` + a stray `node_modules.windows`
+tree (reported **2371** unused deps vs **41** declared) and counted the orval-generated client in
+duplication (**20.8%**). With `node_modules.windows` + `src/app/api/generated` + specs excluded the
+honest score is **70 B**: maintainability index **92 (good)**, avg cyclomatic **2.2** / p90 **4**,
+dead files **1.1%**, duplication **6.3%**, **6** real unused deps. The rewrite is NOT in trouble —
+fallow surfaces a tight, real hotspot short-list + needs a committed config to stop crying wolf.
+
+- **Commit `alpenflight/web/.fallowrc.json` so the score is honest (operator: commit config).** Add
+  `ignorePatterns: ["**/node_modules.windows/**", "src/app/api/generated/**", "dist/**", "coverage/**"]`
+  + `health.ignore: ["src/app/api/generated/**", "**/*.spec.ts", "e2e/**"]`. Validated locally (52 D →
+  70 B; 2371→6 unused deps; 20.8%→6.3% dup). First/cheapest fold into J-5's ≤40% budget; unblocks any
+  later `fallow audit`/CI use. *(seam: new `alpenflight/web/.fallowrc.json`)* — see [[reference_fallow_maintainability_analyzer]].
+
+- **Refactor the genuine complexity hotspots — each rides the journey that TOUCHES it (operator:
+  riders only, no ad-hoc project-code change).** Real production offenders fallow flags (CRITICAL/HIGH
+  CRAP, after excluding tests/generated): `aircraft/edit/aircraft-edit.page.ts` `<component>`/`formToUpdateRequest`
+  (35cyc, 366 LOC); `flights/edit/flight-form.defaults.ts:53 applyLastContextThenPrefs` (29cyc, **CRAP 210**);
+  `flights/edit/flights-edit.page.ts:613` `finalSubmit` (27cyc); `users/edit/users-edit.page.ts:442 onSubmit`
+  (29cyc); `users/users.store.ts:307 errorPatch` (25cyc, CRAP 160); `flights/list/flights-list.page.ts` (24cyc,
+  315 LOC); `persons/edit/persons-edit.page.ts hydrate`. They cluster in the shared `*-edit.page.ts`
+  form-mapping + store-`errorPatch` pattern. **For J-5 specifically:** build the new reservation edit page
+  WITHOUT replicating that `formToUpdateRequest`/`finalSubmit`/`errorPatch` complexity — extract the shared
+  form↔request + error-patch helper so the new page lands low-CRAP (and the extraction can later absorb the
+  aircraft/flights/users hotspots as each is touched). The non-J-5 hotspots (aircraft/users/persons edit
+  pages) ride their own next-touch journey, not J-5. *(seam: `*-edit.page.ts` form-mapping helper extraction
+  + the per-feature store `errorPatch`)*
+  Minor, same budget: drop the **6 real unused deps** fallow lists once the config lands (`fallow dead-code`
+  to enumerate). Not worth `fallow fix` (dead files only 1.1%).
+
 ## Pending (filed by /do-ship 2026-06-05, J-4 window)
 
 - **Legacy `/profile` walkthrough video doesn't stage in the fanout `legacy-parity` gallery (J-4 done-bar
