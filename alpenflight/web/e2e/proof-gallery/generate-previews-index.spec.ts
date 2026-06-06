@@ -147,13 +147,36 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     const { root, orderPath } = makeRoot();
     const branch = 'integration-J-5';
     // J-5 page exists in BOTH the fresh branch preview and canonical → branch wins.
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-5');
+    // T-37 — the fan-out deploys the branch-preview gallery to
+    // `proof-preview/<branch>/legacy-parity/` (destination_dir in
+    // alpenflight-proof-fanout.yml), so the per-journey page lives one level under
+    // the branch dir, NOT directly at `proof-preview/<branch>/J-<n>/`.
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-5');
     writeJourneyPage(root, 'alpenflight/proof', 'J-5');
 
     const j5 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-5')!;
     expect(j5.found).toBe(true);
     expect(j5.source).toBe('branch');
-    expect(j5.href).toBe(`../proof-preview/${branch}/J-5/`);
+    expect(j5.href).toBe(`../proof-preview/${branch}/legacy-parity/J-5/`);
+  });
+
+  it('does NOT link a STALE page at the parent branch level (T-37 regression guard)', async () => {
+    // The fan-out deploys to `proof-preview/<branch>/legacy-parity/`; an OLDER
+    // deploy scheme wrote per-journey pages directly to `proof-preview/<branch>/`,
+    // and `keep_files:true` preserves those stale pages on gh-pages. The branch
+    // source must probe ONLY the current `legacy-parity/` location — never the
+    // parent — so a stale parent-level page (e.g. a pre-T-32 J-0 with a relative
+    // `../previews/` back-link that 404s) is never linked. With ONLY a stale parent
+    // page present (no legacy-parity, no canonical, no archive), the journey is
+    // PENDING, not a dead link.
+    const { scanJourneys } = await loadGenerator();
+    const { root, orderPath } = makeRoot();
+    const branch = 'integration-J-5';
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-0'); // STALE parent-level page
+
+    const j0 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-0')!;
+    expect(j0.found).toBe(false);
+    expect(j0.href).toBeUndefined();
   });
 
   it('keeps a single full-archive link in the footer (per-proof-type galleries are no longer primary)', async () => {

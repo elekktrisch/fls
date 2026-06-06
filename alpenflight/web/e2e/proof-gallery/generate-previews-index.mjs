@@ -82,9 +82,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *                            pages for ALL journeys (survives PR close; the J-0…J-4
  *                            history source).
  * `label` is shown on the live row so the operator knows which deploy they're seeing.
+ *
+ * T-37 — the branch-preview source MUST probe under `<branch>/legacy-parity/`, NOT
+ * the parent `<branch>/`. The fanout (`alpenflight-proof-fanout.yml`) deploys the
+ * gallery to `destination_dir: alpenflight/proof-preview/<branch>/legacy-parity`,
+ * so the freshly-built per-journey pages live at
+ * `proof-preview/<branch>/legacy-parity/J-<n>/`. Probing the parent level instead
+ * (the old path) NEVER found the current pages — it linked whatever STALE pages an
+ * older deploy scheme had left at the parent level (`keep_files:true` preserves
+ * them), including a pre-T-32 J-0 page whose relative `../previews/` back-link 404s.
+ * `subPath` is appended to `<base>/<branch>` for the on-disk probe + the href.
  */
 export const JOURNEY_PAGE_SOURCES = [
-  { id: 'branch', base: 'alpenflight/proof-preview', needsBranch: true, label: 'branch preview' },
+  {
+    id: 'branch',
+    base: 'alpenflight/proof-preview',
+    needsBranch: true,
+    subPath: 'legacy-parity',
+    label: 'branch preview',
+  },
   { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published' },
   {
     id: 'archive',
@@ -183,18 +199,21 @@ export function locateJourneyPage(ghPagesRoot, jid, { branch, git = false }) {
   const gitRoot = git ? resolve(ghPagesRoot) : undefined;
   for (const src of JOURNEY_PAGE_SOURCES) {
     if (src.needsBranch && !branch) continue;
-    const baseDir = src.needsBranch
-      ? join(resolve(ghPagesRoot, src.base), branch)
-      : resolve(ghPagesRoot, src.base);
+    // On-disk base dir for this source: <base>[/<branch>][/<subPath>].
+    let baseDir = resolve(ghPagesRoot, src.base);
+    if (src.needsBranch) baseDir = join(baseDir, branch);
+    if (src.subPath) baseDir = join(baseDir, src.subPath);
     const pageFile = join(baseDir, jid, 'index.html');
     if (!existsSync(pageFile)) continue;
     const updated = lastUpdated(pageFile, { git, gitRoot });
     // Href is relative to alpenflight/previews/index.html. The page lives at
-    // <base>/<jid>/index.html → from previews/, that's ../<base-without-leading-
-    // alpenflight>/[branch/]<jid>/.
-    const rel = src.needsBranch
-      ? `${src.base.replace(/^alpenflight\//, '')}/${branch}/${jid}/`
-      : `${src.base.replace(/^alpenflight\//, '')}/${jid}/`;
+    // <base>[/<branch>][/<subPath>]/<jid>/index.html → from previews/, that's
+    // ../<base-without-leading-alpenflight>/[<branch>/][<subPath>/]<jid>/.
+    const relParts = [src.base.replace(/^alpenflight\//, '')];
+    if (src.needsBranch) relParts.push(branch);
+    if (src.subPath) relParts.push(src.subPath);
+    relParts.push(jid);
+    const rel = `${relParts.join('/')}/`;
     return { found: true, href: `../${rel}`, source: src.id, label: src.label, updated };
   }
   return { found: false };

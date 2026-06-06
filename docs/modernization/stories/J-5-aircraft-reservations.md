@@ -619,10 +619,30 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   Local greens: `ng lint` 0 errors, generate-api no drift, `tsc -p tsconfig.app.json` 0 errors, production
   `ng build` succeeded (the lone NG8113 `AfButtonComponent` warning is pre-existing in the flights feature, not
   J-5; not an error). *(seam: web lint unused-var + reservations specs locale + generated-api check)*
-- [ ] **T-37 — Resolve the last deployed-link-check 404 (`…/integration-J-5/previews/`).** T-35 fixed 2 of 3;
+- [x] **T-37 — Resolve the last deployed-link-check 404 (`…/integration-J-5/previews/`).** T-35 fixed 2 of 3;
   this one persists though all current branch + per-journey pages link the correct absolute `/fls/alpenflight/previews/`.
   Reproduce the T-33 deployed-mode crawl from `…/proof-preview/integration-J-5/` to find the referrer (a sub-page
   not yet checked, OR the checker mis-resolving a site-absolute `/fls/...` href against the deployed base instead
   of the host root → synthesizing `proof-preview/integration-J-5/previews/`). If it's a checker resolution bug,
   fix the deployed-mode URL resolution (a leading-`/` href resolves against the host root, not the page dir); if
   it's a real stale `keep_files` page, purge/overwrite it. Verify the deployed check (and local walk) goes green. *(seam: proof-gallery-links.spec.ts deployed-mode resolution OR a stale deployed page)*
+  **Done:** NOT a checker bug (the deployed walk's `new URL(href, url)` resolves site-absolute `/fls/...` correctly
+  against the host origin — verified). ROOT CAUSE = a STALE `keep_files:true` page COMPOUNDED by an index↔deploy
+  PATH MISMATCH. The fanout deploys per-journey pages to `proof-preview/<branch>/legacy-parity/J-<n>/`
+  (`destination_dir` in alpenflight-proof-fanout.yml), but `generate-previews-index.mjs`'s branch source probed
+  the PARENT `proof-preview/<branch>/J-<n>/` — so the index never linked the freshly-deployed pages; it linked
+  whatever STALE pages older deploy schemes left at the parent level (`keep_files:true` preserves them). gh-pages
+  forensics (git log on the gh-pages tree): the parent-level `J-0/` is a pre-T-32 deploy (`ced93b41`, 12:12) whose
+  back-link is the relative `../previews/` → resolves to `…/integration-J-5/previews/` → 404; the parent `J-0c/J-1/J-5`
+  were overwritten post-T-32 (`80c84ae2`, 16:02, site-absolute back-link) but J-0 was NOT (no J-0 content that run
+  → keep_files kept the stale page); the CURRENT pages live at `legacy-parity/J-<n>/` (`8b1bedaa`, 16:12). FIX:
+  added a `subPath: 'legacy-parity'` to the branch source in `JOURNEY_PAGE_SOURCES` + threaded it through
+  `locateJourneyPage`'s on-disk probe AND href so the index links the ACTUAL deploy location. Result on the live
+  gh-pages tree snapshot: J-0c/J-1/J-2/J-4/J-5 link their current `legacy-parity/` pages (all site-absolute
+  back-links, all 200); J-0 (no page anywhere) becomes a PENDING no-link row → the stale dead J-0 page is never
+  reached. PROOF: ran the T-33 `[deployed]` check against a local node HTTP server serving the live gh-pages
+  snapshot with the regenerated index — the old (parent-probe) index reproduces the exact `…/previews/` 404 (RED),
+  the fixed index = GREEN (1 passed). Local `[happy]` walk green; updated the existing branch-source unit test to
+  the `legacy-parity/` href + added a T-37 regression guard ("a stale parent-level page is never linked" → PENDING);
+  7/7 unit tests green. No link weakened. The live deploy goes green on the NEXT index rebuild (the rebuild-previews-index
+  composite regenerates with the new probe path). *(seam: generate-previews-index.mjs branch-source probe path)*
