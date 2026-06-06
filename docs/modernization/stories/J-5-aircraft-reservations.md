@@ -522,3 +522,14 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   `contains` the V31 row), preserving the "V4 seeds zero types structurally; V31 adds exactly Allgemein" intent
   without depending on other tests not inserting random-UUID rows. **MUST run the full `./gradlew build` to
   confirm green** (focused runs missed both this and LeakageSweepIT — the recurring blind spot). *(seam: ReservationsBaselineIntegrationTest)*
+
+### Operator ask (2026-06-06) — gallery link-integrity DoD
+- [ ] **T-31 — Gallery link-integrity Playwright spec + do-task DoD wiring (operator ask).** A reusable,
+  autonomously-runnable check that ALL proof-gallery links work — guards the index/link breakage the operator
+  hit. Spec `alpenflight/web/e2e/tests/proof-gallery/proof-gallery-links.spec.ts`: generate the gallery (index
+  + per-journey pages) from the current proof artifacts/fixtures into a temp dir, then walk EVERY `<a href>` /
+  `<img src>` / `<video src>` / report link and assert each resolves (relative → file exists; no dead links;
+  every roadmap journey page reachable; every declared screenshot/video/maintainability-report present).
+  **Browserless** (Playwright `request` + fs) so it runs under the sandbox's musl chrome block — autonomous in
+  any task context; optional `--deployed <url>` mode asserts each live gh-pages link returns 200. Plus a one-line
+  **do-task/SKILL.md DoD** addition: gallery-touching tasks run this spec before marking done. *(seam: proof-gallery-links.spec.ts + do-task SKILL.md DoD line)*
