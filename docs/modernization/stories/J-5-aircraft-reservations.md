@@ -853,12 +853,26 @@ deployed-link-check ✓, calendar gallery + paired parity captures ✓. `require
 → `articles-crud.spec.ts:255/:265` (the 409-inline `articles-save-error`). NOT a J-5 regression: main CI green for
 articles; J-5's shared-file changes are additive-only (icon-registry +3, mutation-bus +3); articles imports zero
 J-5 files; local run = 1-fail/6-pass (flaky timing). It holds the shared gate hostage.
-- [ ] **T-47 — Stabilize the pre-existing `articles-crud` 409-inline flake (gate-unblock; fix-forward).** Diagnose
+- [x] **T-47 — Stabilize the pre-existing `articles-crud` 409-inline flake (gate-unblock; fix-forward).** Diagnose
   `:265` (and `:255`) locally (`pnpm e2e --project=chromium articles-crud`, run ×3-5 to confirm flake vs race):
   the `articles-save-error` 409-inline assertion races the error render. Harden it (proper wait on the error
   state / fix any real articles-store 409-timing race) so it's deterministically green; run locally repeatedly
   to confirm stable. Out of J-5's reservation scope but blocks J-5's required gate → fix-forward rider.
-  *(seam: articles-crud.spec.ts 409-inline assertion / articles.store 409 handling)*
+  *(seam: articles-crud.spec.ts 409-inline assertion / articles.store 409 handling)* **Done:** root cause = a
+  TEST-vs-APP MISMATCH wearing a race's clothes (locally now ~6/6 fail, not 1/6). The articles edit page
+  SUPPRESSED the `articles-save-error` banner for the `number-duplicate` kind (`@if (saveErrorKind() !==
+  'number-duplicate')`) and routed the duplicate to a FIELD error rendering the raw transloco key
+  (`common.errors.duplicate`, not "already in use") in the mock-auth build — so the asserted banner is REMOVED on
+  409, never showing "already in use". The "1-fail/6-pass" reading was the empty banner host briefly registering
+  attached-but-hidden before the patch evicted it. FIX (mirror the stable T-45/T-46 reservations pattern): (a)
+  app — render `<af-page-error data-testid="articles-save-error">` UNCONDITIONALLY from `store.saveError()`
+  (`articles-edit.page.ts`), which already carries the human-readable `Article number "A-100" is already in
+  use.`; the inline field-`duplicate` error still fires too (belt-and-suspenders), consistent with reservations.
+  (b) spec — `page.waitForResponse` the mocked 409 POST before asserting, and assert on the INNER `af-page-error`
+  body (`getByTestId('articles-save-error').getByTestId('af-page-error')`), which only emits when a message is
+  present (kills the empty-host visibility race). Meaning intact: still proves the 409 surfaces the inline
+  "already in use" error. LOCAL PROOF (system chromium): full `articles-crud.spec.ts` 5/5 consecutive all-green
+  (7/7 each), +1 prior confirmation run = 6 consecutive green. prettier + app-tsc clean on both touched files.
 - **do-retro lesson (file):** the `required` `alpenflight-mock-e2e` gate runs ALL features' mock specs, so ONE
   flaky unrelated spec reds an unrelated journey's gate (J-5 held hostage by articles). Scope the per-push
   mock-e2e to the journey-under-work's spec (like T-14 did for the real-idp `alpenflight-proof`), full mock

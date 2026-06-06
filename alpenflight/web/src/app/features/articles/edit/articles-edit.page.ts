@@ -59,13 +59,11 @@ type ArticleForm = FormGroup<{
     <af-page>
       <af-page-header [title]="isCreate() ? 'New article' : 'Edit article'" />
 
-      @if (store.saveErrorKind() !== 'number-duplicate') {
-        <af-page-error
-          [message]="store.saveError()"
-          [retryLabel]="null"
-          data-testid="articles-save-error"
-        />
-      }
+      <af-page-error
+        [message]="store.saveError()"
+        [retryLabel]="null"
+        data-testid="articles-save-error"
+      />
 
       @if (store.isLoadingDetail() && !isCreate()) {
         <div
