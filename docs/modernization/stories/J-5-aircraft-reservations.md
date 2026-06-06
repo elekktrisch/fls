@@ -825,7 +825,7 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
   and CI agree. *(seam: reservations-migration-parity.spec.ts calendar render/nav assertions)*
 
 ### Local-first verification surfaced a CI-masked local red
-- [ ] **T-46 — Make the full `reservations-crud` spec locally green (gotoDe/toHaveURL cold-start mismatch).**
+- [x] **T-46 — Make the full `reservations-crud` spec locally green (gotoDe/toHaveURL cold-start mismatch).**
   Local Playwright (T-43 + apk chromium) surfaced 3 tests (conflict/duration/delete) that fail DETERMINISTICALLY
   locally but pass in CI: they `gotoDe(page, '/reservations/new')` (keeps `?lang=de`) then assert strict
   `toHaveURL('/reservations/new')` — locally the cold-start `?lang=de` lingers in the URL → strict match fails;
@@ -833,3 +833,16 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
   the in-app new-button (like the passing `create:` test) OR relax to `toHaveURL(/\/reservations\/new/)`. **Verify
   the ENTIRE `reservations-crud` spec runs green locally** (`pnpm e2e --project=chromium reservations-crud`) —
   the local-first DoD must hold for the whole spec, not just the 2 T-45 cases. *(seam: reservations-crud.spec.ts nav/url assertions)*
+  **Done (local 12/12 green).** TWO distinct local reds, not one. (1) `conflict:751` + `duration:797`: the
+  predicted gotoDe cold-start `?lang=de` lingering past the strict `toHaveURL('/reservations/new')` — relaxed
+  BOTH to `toHaveURL(/\/reservations\/new(\?|$)/)` (tolerates the query; behavior + the German + the inline
+  409/422 assertions untouched). Kept the direct `gotoDe('/reservations/new')` nav (all the other form tests use
+  it; only the post-save `toHaveURL('/reservations')` cases never carried the query, so they needed no change;
+  `create:639` stays strict — it follows an in-app new-button click with no query). (2) `delete:836`: NOT a
+  url-match issue — it failed at `page.request.delete(...)` → **500** because `page.request.*` is a Node-side
+  `APIRequestContext` that BYPASSES `page.route` mocks and hit the backend-less dev proxy (CI masked it
+  differently). Fixed by issuing the DELETE as an IN-PAGE `fetch` via `page.evaluate` so the existing mock route
+  handler serves it (same endpoint/204/soft-delete semantics — web/CLAUDE.md §8 mock pattern). Sanity-checked:
+  `reservations-crud.spec.ts` is the only reservations MOCK spec (the other is real-idp) — no shared anti-pattern
+  elsewhere. prettier (unchanged/formatted) + tsc on the touched file clean (the 30 pre-existing strict-tsconfig
+  errors in other e2e files are untouched, none introduced).
