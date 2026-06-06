@@ -15,7 +15,8 @@ acceptance:
   - "[happy] Setup wizard at /planningsetup bulk-creates planning days across a date range filtered by weekday (e.g. every Sat+Sun between start/end) at a location; created days appear in the list."
   - "[key-error] Delete a planning day; its assignments cascade-delete; the list no longer shows it."
   - "[edge] Tenant isolation: a planning day created by club A is not readable by club B (cross-tenant GET 404)."
-  - "[happy/email] Assigning crew + running PlanningDayNotificationJob sends imminent (tomorrow) + week-ahead reminder emails to the assigned instructors / pilots → lands in mailpit."
+  - "[happy/email] PlanningDayNotificationJob: imminent (day+1) mail → the club's notification address (ok if the day has a reservation or club allows reservation-less days, else cancel); week-ahead (day+7) mail → each assigned person (all 3 roles). Both land in mailpit."
+  - "[key-error] Duplicate (date, location) for the same club is rejected: single create/update → 409; rule-wizard skips the existing day idempotently (V4 ux_pln_club_date_loc forces correcting legacy's no-dedup bug)."
   - "[migration/parity] Real legacy→migrate→Keycloak→AlpenFlight: a migrated planning day (with assignments + fan-out-resolved location) renders for the migrated club admin, identity-matched to legacy."
 screen: /planning (+ /planning/:id/edit|view, /planningsetup)   # replacing legacy flsweb planning/
 headless_pulled_in: PlanningDayNotificationJob (S-086) → real screen — assigning crew + the scheduled mail; asserted via the existing real-idp mailpit-client helper
@@ -164,3 +165,85 @@ takes a slice; `/do-ship` picks which, sized to its gate):
    not 3 FK columns; keeps parity with the authored mappers + legacy data.
 4. S-086's exact 7-day window + recipient rules are deferred to a ship-time
    `legacy-oracle` read (carve captures shape; oracle captures exact behavior).
+
+## Behavior oracle — ship-time decisions (legacy-oracle, 2026-06-06)
+
+Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
+
+- **Assignment mapping** — DTO keeps **3 nullable person ids** (`InstructorPersonId`,
+  `TowingPilotPersonId`, `FlightOperatorPersonId`) over generic assignment rows keyed
+  by per-club type **name** (case-insensitive German, `MappingExtensions.cs:3302/3325/3348`):
+  `segelflugleiter→FlightOperator`, `schlepppilot→TowingPilot`, `fluglehrer→Instructor`.
+  Write = upsert-or-delete per field (null/empty-guid removes the row). The 3 types are
+  **per-club rows** seeded at club creation (`ClubService.cs:206-228`), **NOT seeded by
+  migration** (migrated clubs bring their real types). **Decision:** clean-seed seeds the 3
+  types/club; domain resolves role by well-known name (mirroring legacy); `required_nr_of_assignments`
+  is DEAD for this journey (always 1, never read) — skip.
+- **Dedup (legacy-bug → corrected)** — legacy has no unique constraint; re-running the
+  wizard silently dupes. V4 adds `ux_pln_club_date_loc UNIQUE`. **Decision:** single
+  create/update → **409** on duplicate (club,date,location); rule-expand **skips** existing
+  days idempotently. Also bound the rule range (legacy is unbounded) — reject absurd ranges.
+- **Rule-expand** (`POST /planningdays/create/rule`) — inclusive date range, one day per
+  matching weekday, same location/info, **no default crew**; empty weekday flags → empty
+  list, no error (`PlanningDayService.cs:290-331`).
+- **Notification job** (`PlanningDayNotificationJob.cs`) — TWO passes, exact-equality on `.Date`:
+  - **imminent = day+1** → recipient is the **club** address (`Club.SendPlanningDayInfoMailTo`),
+    template `planningday-ok` if the day has ≥1 reservation OR `ClubUsePlanningDayWithoutReservations`,
+    else `planningday-cancel` (`:64-94`). **Not** the crew.
+  - **week-ahead = day+7** → recipient is **every assigned person** (all 3 roles),
+    template `planningday-assignment-notification` (`:124-163`). Skips blank emails.
+  - 3 templates total; per-club override via `GetEmailTemplate(name, clubId)`; missing template throws.
+  - Trigger is a noon-gated batch (`WorkflowService.cs:117-126`) — **preserve the semantic**
+    (day+1 / day+7), home an explicit guarded **"run planning notifications now"** test affordance
+    for the e2e (J-15 jobs console not built yet).
+- **Permissions** — delete/update gated: `ClubAdministrator` OR record creator
+  (`PlanningDayService.cs:407-425`); `CanUpdate/CanDeleteRecord` flags on every DTO drive UI.
+  Use a **real low-privilege principal** in the real-idp spec (mock-admin hides this —
+  [[project_real_idp_real_roles_catches_authz_gaps]]).
+- **Paged list** — `{Items, PageStart, PageSize, TotalRows}`, `Day.From` date filter,
+  default sort `Day asc`, size 100; `overview/future` = `planning_date >= today`;
+  `NumberOfAircraftReservations` = **computed** count (same club, `date(reservation_start)==day`,
+  same location), never stored. Date stores as pure `DATE` (no tz shift on migrate).
+- **Open product forks (mirror legacy = parity default; flag, don't block):** (a)
+  `ReceivePlanningDayRoleReminder` person flag exists but the legacy job **ignores** it →
+  default ignore (parity); (b) exact prod job cadence is deploy-config (semantic is clear).
+
+## Tasks
+
+≥60% feature (T-01…T-11, T-16) · ≤40% tech-debt riders (T-12, T-14, T-15). Sequential on `integration/J-6`.
+
+- [ ] **T-01 — spec stub.** Author both specs' structure + selectors + flow: mock inner-loop
+  `e2e/tests/planning/planning-crud.spec.ts` (+ setup-wizard) and the real-idp parity skeleton
+  `e2e/tests/real-idp/planning-migration-parity.spec.ts`. Thin assertions; commits the screen shape. *(spec seam)*
+- [ ] **T-02 — PlanningDay aggregate.** `ch.alpenflight.planning`: `PlanningDay` aggregate (date,
+  location, info, child assignments), `PlanningDayAssignment`, `PlanningDayAssignmentType` lookup,
+  `PlanningRole` resolution by well-known name; dup + range invariants as domain methods (ADR-0022 §2). + JPA mapping. *(aggregate seam)*
+- [ ] **T-03 — JpaPlanningDayRepository.** Paged future-days query, `overview/future`, computed
+  per-day reservation count (join `t_aircraft_reservation` by club+date+location), dedup-aware save. *(repo seam)*
+- [ ] **T-04 — PlanningDay CRUD resource.** DTOs (3 person ids + date + locationId + info + computed
+  count + CanUpdate/CanDelete) / service / mapper / controllers: page, overview/future, GET :id,
+  insert (409 dup), update (409 dup), delete (perm-gated ClubAdmin|creator). **+ explicit `operationId`s**
+  on every endpoint (orval-stability rider). *(resource seam)*
+- [ ] **T-05 — rule-expand endpoint.** `POST /planningdays/create/rule` — weekday expansion over a
+  bounded range, skip-existing idempotent, empty-flags→empty, returns created overviews. *(endpoint seam)*
+- [ ] **T-06 — clean-seed planning data.** Dev-seed Flyway: 3 assignment types/club + sample planning
+  days so the screen + spec have data clean-seed. *(migration seam)*
+- [ ] **T-07 — SPA planning list page.** `/planning` list + store + route + orval client; future-days,
+  Sat/Sun flag, new/edit/view/delete actions. *(component-route seam)*
+- [ ] **T-08 — SPA planning edit page.** `/planning/:id/edit|view`: date, location, 3 person pickers,
+  remarks; **reuse J-5's extracted form↔request + errorPatch helper (low-CRAP rider)**; per-day
+  reservations inline (J-5 rows) + link to reservation editor + "new reservation" preseed. *(component-route seam)*
+- [ ] **T-09 — SPA setup wizard.** `/planningsetup` multi-step (StartDate/EndDate/7 weekday checks/location)
+  → POST create/rule → back to list. *(component-route seam)*
+- [ ] **T-10 — PlanningDayNotificationJob + templates + run-now affordance.** Job (imminent day+1 →
+  club addr ok/cancel; week-ahead day+7 → assignees), 3 templates (ADR-0009/0013), guarded test-env
+  "run planning notifications now" trigger for the e2e. *(job seam — may overflow-split job/templates/affordance)*
+- [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
+  mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
+- [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
+  check so a missing binding / dropped column fails fast before the ~20-min fanout. *(migration-tool seam)* [[verify_infra_is_run_not_just_authored]]
+- [ ] **T-14 — per-journey gallery page + Maintainability panel (gallery re-arch slice, ≤40%).** This
+  journey's slice of the gallery re-arch: generator keys-by-journey for J-6 + the FE-fallow/BE-PMD/CPD delta panel. *(generate-gallery.mjs + emit steps)*
+- [ ] **T-15 — scope per-push `alpenflight-mock-e2e` to the journey-under-work (rider).** Mirror J-5 T-14's
+  real-idp scoping for mock-e2e; full mock suite at the §4 gate + nightly. *(ci.yml mock-e2e selection)* [[feedback_dev_time_test_strategy]]
+- [ ] **T-16 — thicken specs to full real assertions** from the oracle; run the §4 gate via `e2e-driver`. *(spec seam)*
