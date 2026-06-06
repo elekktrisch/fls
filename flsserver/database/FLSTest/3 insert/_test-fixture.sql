@@ -622,5 +622,95 @@ INSERT INTO Settings (
         DATEADD(MINUTE, 8, @anchor), @insertUserId, @recordState,
         @testClubId, @ownershipClub)
 
+-- ---------------------------------------------------------------------------
+-- 10. Aircraft reservations (J-5). The mappers
+--     (AircraftReservationMapper + AircraftReservationTypeMapper) already
+--     exist; J-5 T-07 proves them through the real legacy->migrate->AlpenFlight
+--     fanout (verify_infra_is_run_not_just_authored). The producer reads THIS
+--     data out of the real legacy MSSQL schema, so seed it here, wiring FKs to
+--     already-seeded rows (HB-3407 aircraft, the glider pilot, LSZK location)
+--     rather than inventing parallel rows.
+--
+--     Schema note: these rows target the POST-DBUpdate_v1.9.23 AircraftReservations
+--     / AircraftReservationTypes shape (ClubId + LocationId from v1.1;
+--     AircraftReservationTypeId + FlightTypeId + SecondCrewPersonId from v1.9.23;
+--     the v1.0 ReservationTypeId + InstructorPersonId columns are dropped). The
+--     mapper's producer SELECT was reconciled against exactly this shape.
+-- ---------------------------------------------------------------------------
+PRINT 'Fixture: AircraftReservationType + AircraftReservation (testclub) + cross-club aircraft'
+
+-- 10a. A cross-club aircraft owned by othertestclub. The reservation in 10c is
+--      created BY the test club operating THIS other-club aircraft — the
+--      legacy-open cross-tenant case (J-5 AC: an operating club MAY reserve an
+--      aircraft managed by a different club, no charter gate). AircraftType 1 =
+--      glider (matches the seeded gliders in "4 or 5 Insert Test Data.sql").
+DECLARE @otherClubAircraftId uniqueidentifier = 'F1500010-0000-0000-0000-000000000001'
+IF NOT EXISTS (SELECT 1 FROM Aircrafts WHERE AircraftId = @otherClubAircraftId)
+BEGIN
+    INSERT INTO Aircrafts (
+        AircraftId, ManufacturerName, AircraftModel, AircraftType,
+        Immatriculation, CompetitionSign, NrOfSeats, IsTowingOrWinchRequired,
+        IsTowingstartAllowed, IsWinchstartAllowed, IsTowingAircraft,
+        AircraftOwnerClubId, AircraftOwnerPersonId,
+        CreatedOn, CreatedByUserId, RecordState, OwnerId, OwnershipType
+    ) VALUES (
+        @otherClubAircraftId, 'Schleicher', 'ASK 21', 1,
+        'HB-3999', 'X9', 2, 1,
+        1, 1, 0,
+        @otherClubId, NULL,
+        DATEADD(MINUTE, 9, @anchor), @insertUserId, @recordState,
+        @otherClubId, @ownershipClub
+    )
+END
+
+-- 10b. A reservation type for the test club (the @TenantId / operating club).
+DECLARE @reservationTypeId uniqueidentifier = 'F1500010-0000-0000-0000-000000000002'
+IF NOT EXISTS (SELECT 1 FROM AircraftReservationTypes WHERE AircraftReservationTypeId = @reservationTypeId)
+BEGIN
+    INSERT INTO AircraftReservationTypes (
+        AircraftReservationTypeId, AircraftReservationTypeName,
+        IsInstructorRequired, IsMaintenance, IsActive, Remarks,
+        ClubId, CreatedOn, CreatedByUserId,
+        RecordState, OwnerId, OwnershipType, IsDeleted
+    ) VALUES (
+        @reservationTypeId, N'Schulung',
+        0, 0, 1, N'Training reservation type (fixture)',
+        @testClubId, DATEADD(MINUTE, 9, @anchor), @insertUserId,
+        @recordState, @testClubId, @ownershipClub, 0
+    )
+END
+
+-- 10c. An existing TIMED reservation: test club (operating/@TenantId) reserves
+--      the OTHER club's aircraft (10a) — cross-tenant legacy-open — flown by the
+--      test club's glider pilot, from LSZK. Timed (IsAllDayReservation=0),
+--      today->future relative to wall-clock so the /future overview lists it.
+--      @gliderPilotPersonId / @lszk resolved earlier in this script (section 5);
+--      bail loud if a prerequisite is missing rather than seed a dangling FK.
+DECLARE @reservationId uniqueidentifier = 'F1500010-0000-0000-0000-000000000003'
+DECLARE @reservationStart datetime2 = DATEADD(DAY, 7, SYSUTCDATETIME())
+DECLARE @reservationEnd   datetime2 = DATEADD(HOUR, 2, @reservationStart)
+
+IF @gliderPilotPersonId IS NULL
+    THROW 51010, 'Glider pilot person missing - section 5 prerequisite not met for reservation seed', 1
+
+IF NOT EXISTS (SELECT 1 FROM AircraftReservations WHERE AircraftReservationId = @reservationId)
+BEGIN
+    INSERT INTO AircraftReservations (
+        AircraftReservationId, [Start], [End], IsAllDayReservation,
+        AircraftId, PilotPersonId, SecondCrewPersonId,
+        LocationId, AircraftReservationTypeId, FlightTypeId,
+        ClubId, Remarks,
+        CreatedOn, CreatedByUserId, RecordState,
+        OwnerId, OwnershipType, PilotPerson_PersonId, IsDeleted
+    ) VALUES (
+        @reservationId, @reservationStart, @reservationEnd, 0,
+        @otherClubAircraftId, @gliderPilotPersonId, NULL,
+        @lszk, @reservationTypeId, NULL,
+        @testClubId, N'Cross-tenant timed reservation (fixture)',
+        DATEADD(MINUTE, 9, @anchor), @insertUserId, @recordState,
+        @testClubId, @ownershipClub, @gliderPilotPersonId, 0
+    )
+END
+
 PRINT '=== DETERMINISTIC TEST FIXTURE: complete ==='
 GO

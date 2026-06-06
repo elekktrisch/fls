@@ -31,7 +31,10 @@ class ExportCommandSmokeTest {
         // + the AIRCRAFT aggregate (AIRCRAFT + its two aggregate-internal children)
         // registered in J-1 T-04
         // + the FLIGHT group (FLIGHT + the aggregate-internal FLIGHT_CREW, plus the
-        // FLIGHT_TYPE and START_TYPE references it resolves against) bound in J-2 T-07.
+        // FLIGHT_TYPE and START_TYPE references it resolves against) bound in J-2 T-07
+        // + the AIRCRAFT_RESERVATION aggregate (AIRCRAFT_RESERVATION + its
+        // AIRCRAFT_RESERVATION_TYPE reference) wired in J-5 T-07 — proving the
+        // already-authored reservation mappers through the real export round-trip.
         List<EntityType> entities = ExportCommand.registeredEntities();
         assertThat(entities).containsExactlyInAnyOrder(
                 EntityType.COUNTRY, EntityType.LANGUAGE, EntityType.CLUB_STATE,
@@ -40,7 +43,8 @@ class ExportCommandSmokeTest {
                 EntityType.AIRCRAFT, EntityType.AIRCRAFT_AIRCRAFT_STATE,
                 EntityType.AIRCRAFT_OPERATING_COUNTER,
                 EntityType.FLIGHT, EntityType.FLIGHT_CREW,
-                EntityType.FLIGHT_TYPE, EntityType.START_TYPE);
+                EntityType.FLIGHT_TYPE, EntityType.START_TYPE,
+                EntityType.AIRCRAFT_RESERVATION, EntityType.AIRCRAFT_RESERVATION_TYPE);
     }
 
     @Test

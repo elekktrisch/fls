@@ -729,6 +729,94 @@ public final class MapperLegacyBindings {
                             ?, ?,
                             ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.AIRCRAFT_RESERVATION_TYPE, new Binding(
+                    // Tenant-scoped per-club reference (AircraftReservationTypeMapper):
+                    // legacy AircraftReservationTypes.AircraftReservationTypeId →
+                    // t_aircraft_reservation_type.id, ClubId → operating_club_id (the
+                    // @TenantId per V4). NOT fan-out — one legacy row → one row,
+                    // legacy_guid → id (like FLIGHT_TYPE). The producer SELECT projects
+                    // the POST-v1.9.23 schema: DBUpdate_v1.9.23 DROPs the v1.0
+                    // AircraftReservationTypes table (3 columns) and re-creates it with
+                    // the IsInstructorRequired / IsMaintenance / IsActive / ClubId /
+                    // audit column set the mapper reads — so the names below are the
+                    // re-created table's, not the v1.0 base names.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT AircraftReservationTypeId, ClubId, AircraftReservationTypeName,
+                           IsInstructorRequired, IsMaintenance, IsActive, Remarks,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM AircraftReservationTypes
+                    """,
+                    "t_aircraft_reservation_type",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 13 params match
+                    // AircraftReservationTypeMapper.columns() order.
+                    """
+                    INSERT INTO t_aircraft_reservation_type (
+                      id, operating_club_id, reservation_type_name,
+                      is_instructor_required, is_maintenance, is_active, remarks,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.AIRCRAFT_RESERVATION, new Binding(
+                    // Tenant-scoped aggregate root (AircraftReservationMapper): legacy
+                    // AircraftReservations.AircraftReservationId → t_aircraft_reservation.id;
+                    // operating_club_id is the @TenantId per V4, set from the real legacy
+                    // ClubId column (added by DBUpdate_v1.1). NOT fan-out — one legacy row
+                    // → one row, legacy_guid → id.
+                    //
+                    // Producer-SELECT reconciliation against the real post-v1.9.23 legacy
+                    // schema (project_synth_bundle_doesnt_validate_producer_select):
+                    //  * AircraftReservationTypeId — added v1.9.23, REPLACES the v1.0
+                    //    ReservationTypeId (dropped in v1.9.23). The mapper reads the new
+                    //    name; SELECTing the dropped ReservationTypeId would abort the
+                    //    live export on a non-existent column.
+                    //  * SecondCrewPersonId — added v1.9.23, REPLACES the v1.0
+                    //    InstructorPersonId (also dropped in v1.9.23, after the data was
+                    //    copied SecondCrewPersonId = InstructorPersonId).
+                    //  * FlightTypeId — added v1.9.23 (nullable). LocationId / ClubId —
+                    //    added v1.1. Start / End / IsAllDayReservation / PilotPersonId /
+                    //    Remarks + audit columns are on the v1.0 base table.
+                    //
+                    // location_id + reservation_type_id are tenant-scoped FK targets
+                    // resolved through the composite (legacy_guid, club_id) replica
+                    // selection; aircraft_id / pilot_person_id / second_crew_person_id are
+                    // cross-tenant (AIRCRAFT_RESERVATION is on the TENANT_BYPASS_ALLOW_LIST).
+                    // reservation_range is GENERATED ALWAYS in V4 (derived from
+                    // reservation_start + reservation_end) and so absent from both the
+                    // mapper columns() and this INSERT.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT AircraftReservationId, ClubId, AircraftId, Start, [End],
+                           IsAllDayReservation, PilotPersonId, SecondCrewPersonId, LocationId,
+                           AircraftReservationTypeId, FlightTypeId, Remarks,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM AircraftReservations
+                    """,
+                    "t_aircraft_reservation",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 18 params match
+                    // AircraftReservationMapper.columns() order. reservation_range
+                    // (GENERATED ALWAYS, V4) is NOT bound.
+                    """
+                    INSERT INTO t_aircraft_reservation (
+                      id, operating_club_id, aircraft_id,
+                      reservation_start, reservation_end, is_all_day,
+                      pilot_person_id, second_crew_person_id, location_id,
+                      reservation_type_id, flight_type_id, info,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

@@ -160,7 +160,7 @@ One seam each; commit directly to `integration/J-5`.
   `{sorting,searchFilter}`→`{items,pageStart,pageSize,totalRows}` (camelCase house style), `/future`, `/day/{date}`;
   ControllerIT for the page shape + future-excludes-past. Read-shaped POST exempted from the audit guard via
   a new `@ReadOnlyQuery` marker. *(seam: reservations resource — paged-list)*
-- [ ] **T-07 — Reservation legacy seed + mapper fanout round-trip.** Legacy seed (club, PILOT+person,
+- [x] **T-07 — Reservation legacy seed + mapper fanout round-trip.** Legacy seed (club, PILOT+person,
   same-club + other-club aircraft, location, type, an existing reservation, `AircraftIdsToDisplayInScheduler`
   setting) + prove `AircraftReservationMapper` + `AircraftReservationTypeMapper` round-trip via fanout
   (real export, not synth). *(seam: legacy seed + migration verify)*
