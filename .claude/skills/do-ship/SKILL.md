@@ -21,30 +21,23 @@ search/navigation, **codebase-memory-mcp** for prior-art recall; fall back to
 
 ## Shape
 
-One journey at a time (no fleet — vertical diffs collide). A journey takes many
-tasks to get working, so it lives on its **own integration branch**
-`integration/J-NNN`; tasks commit **directly** onto it. Each task runs in a
-**fresh-context worker** (`/do-task`) — clean context every time. You stay lean:
-decide the list, dispatch workers, collect one-line results, gate, PR.
-
-On-demand escalation tools (no standing panel): `legacy-oracle` (exact legacy
-behavior), `e2e-driver` (proof chain / Playwright), `gap-hunter` (attack the
-green at the gate).
+One journey at a time (no fleet — vertical diffs collide), on its **own integration branch**
+`integration/J-NNN`; tasks commit **directly** onto it, each in a **fresh-context `/do-task` worker**. You
+stay lean: decide the list, dispatch workers, collect one-line results, gate, PR. On-demand escalation tools:
+`legacy-oracle` (exact legacy behavior), `e2e-driver` (proof chain), `gap-hunter` (attack the green at the gate).
 
 ## The done bar — a real, honest green
 
 A journey is done only when its Playwright spec drives the **real UI** end to end and
 passes — clean seed first, then real legacy data migrated into AlpenFlight (Postgres +
-Keycloak). Two extra done-bar requirements (J-1):
+Keycloak). Two extra done-bar requirements:
 
-- **Migration journeys** (any carrying a mapper) need a **green real-legacy-export
-  (fanout) run**, not just the synth chain — synth bundles use aliased column names and
-  never exercise the producer SELECT against the real legacy schema (J-1: two producer-
-  column bugs hid behind a green synth proof; only the real export caught them).
-  [[project_synth_bundle_doesnt_validate_producer_select]].
-- **Legacy-replacing screens** produce paired legacy↔AlpenFlight **list+form screenshots
-  + the legacy video** in the gallery, with the link auto-posted on the PR — part of done,
-  not a post-hoc add (J-1: 3 reopens for exactly this). `e2e-driver` owns the capture.
+- **Migration journeys** (any carrying a mapper) need a **green real-export (fanout) run**, not just synth:
+  synth bundles use aliased columns + never hit the producer SELECT against the real schema. Authored ≠ proven —
+  a unit-passing mapper can still have unwired bindings, column drift, or FK-resolution bugs caught only at the
+  real fanout. [[project_synth_bundle_doesnt_validate_producer_select]] [[verify_infra_is_run_not_just_authored]]
+- **Legacy-replacing screens** produce paired legacy↔AlpenFlight **list+form screenshots + the legacy video**
+  in the gallery, link auto-posted on the PR — part of done, not post-hoc. `e2e-driver` owns the capture.
 
 **Red is the work-list, not a wall.** Never done while red; the bar is self-imposed and
 absolute. **A journey never merges red.** Synthetic / mocked-seam green is an inner-loop
@@ -85,18 +78,11 @@ touch this journey's surface (or stale infra/cleanup riders) into `T-NN`s sized 
 gate, and clear them from the file as they ship — that's how `/do-retro` fixes reach the
 proof loop.
 
-**Sizing gate (a pre-dispatch heuristic — apply to every task before writing it).**
-Each `T-NN` should pass all of:
-- **One seam** — exactly one of: one aggregate (+repo), one resource's endpoint
-  cluster, one component/route, one migration, one spec edit. *'The domain layer'
-  is not a task; 'the Booking aggregate' is.*
-- **≤8 files touched, ≤5 new**, one **logical change** (may be a few
-  work-package commits) describable without 'and', **≤3 tests at one layer**.
-- **Self-naming** — the scope line names the files (or ≤2 globs find them). If
-  finding them needs exploration, carve finer.
-
-A layer with N aggregates/components becomes **N tasks**, not one. The `/do-task` overflow
-tripwire is the backstop; when unsure split — early-finish is free, overflow costs a re-plan.
+**Sizing gate (pre-dispatch heuristic — every task).** Each `T-NN`: **one seam** (one aggregate+repo / one
+resource's endpoints / one component-route / one migration / one spec edit — *'the domain layer' is not a task,
+'the Booking aggregate' is*); **≤8 files, ≤5 new**, one logical change describable without 'and', **≤3 tests at
+one layer**; **self-naming** (scope line names the files / ≤2 globs find them, else carve finer). A layer with N
+aggregates = **N tasks**. When unsure split — early-finish is free, overflow costs a re-plan.
 
 This list is your only durable state — workers and re-runs read it.
 
@@ -123,15 +109,11 @@ Push at task boundaries; after the first locally-green backend task, open a
 integration/J-NNN`, body `Closes #N` + AC checklist). Watch CI in background;
 a red CI run becomes the next task, not a blocked wait.
 
-**Surface the gallery EARLY, not at the gate.** The proof gallery is the operator's only
-glanceable window — the cheapest place they catch a wrong screen shape or empty form
-*before* it costs a dozen reopens (J-2: ~14 reopens chasing a test red whose real cause was
-a wrong screen design the operator spotted in one glance). As soon as the spec produces its
-**first** screenshots/video (≈ after T-01 + the first capture), deploy the preview gallery
-and **give the operator the link**; refresh it as capture-bearing tasks land — don't wait
-for § 4. On a repeatedly-red proof, re-deploy + surface the current gallery *before* the
-next attempt ([[feedback_surface_proof_early_on_repeated_failure]]) and suspect the screen
-shape, not just the test.
+**Surface the gallery EARLY, not at the gate** — it's the operator's only glanceable window for catching a
+wrong screen shape before it costs many reopens. Deploy + give the link as soon as the spec produces its first
+screenshots/video; refresh as capture-bearing tasks land. On a repeatedly-red proof, re-deploy + surface the
+current gallery before the next attempt and suspect the screen shape, not just the test
+([[feedback_surface_proof_early_on_repeated_failure]]).
 
 **Drive to the goal with tasks — never follow-ups.** A gap between the journey and its
 ACs (worker- or gate-revealed) becomes **another `T-NN`** until the done bar — never a
@@ -162,15 +144,14 @@ journey** — a **green real-export `fanout` run** (not just synth). CI: `alpenf
 (required, synth/clean-seed) + the `fanout` real-export run. For **Journey-0** the gate
 work *is* the tasks: stand up the thinnest whole chain.
 
-**Scope the heavy proof to THIS journey during build-up.** Run the journey's OWN spec
-per push, not every prior journey's specs — re-running all is slow and lets an unrelated
-prior-journey flake red your gate (J-3: the J-1 aircraft retry-flake blocked J-3 though it
-never touched aircraft). Full cross-journey regression runs at the **§4 gate / nightly**,
-not per push. Don't let task-pushes cancel an in-flight heavy proof — you lose its signal +
-the gallery deploy (J-3: dashboard-proof cancelled twice). **Gallery/screenshot deploy must
-survive a red case** — capture each screenshot as soon as its container renders, BEFORE the
-deep assertions, and gate deploy on `!cancelled()` so it publishes even when one assertion
-fails (the J-2 T-42 rule — recurred in J-3; the operator must *see* the proof on a partial red).
+**Dev-time proof = THIS journey only; full green only at the gate** ([[feedback_dev_time_test_strategy]]).
+Per push, run only the journey's OWN spec(s) — real-idp AND mock-e2e scoped to this journey; skip unrelated
+specs; prior journeys run mock-IdP (may stay mock-IdP even at the gate) so an unrelated spec can't gate this
+journey. Full cross-journey real-idp regression runs nightly + once at the §4 gate, where **nothing is
+skipped**. Verify LOCALLY first (`pnpm preflight`); push at task boundaries only (a push cancels the branch's
+in-flight proof). **Gallery deploy survives a red case**: capture each screenshot as its container renders,
+before deep assertions, gate deploy on `!cancelled()`. **Refresh the journey proof page continuously during
+dev**, not just at the gate.
 
 **Mock governance.** Happy + key-error run fully real — no mocking. Any mocked seam
 (edge/error only) carries an inline `@mocked: <seam> — <reason>` tag + a PR **"Mocked

@@ -88,8 +88,7 @@ or `page.route` mocks for FE-only). Honor the ≥5-min wallclock budget — surf
 a slow loop rather than re-running it five times. **ANY backend slice must run the
 full pure-JVM arch-guard suite — not just the touched test class** — because these
 guards fire only on the whole-module build, so a targeted IT run passes while the
-gate's `./gradlew build` goes red (J-4 burned two extra fix-tasks T-16 + T-19 this
-way). Run all that apply: `ApplicationModulesTest` (Spring Modulith boundary — a new
+gate's `./gradlew build` goes red. Run all that apply: `ApplicationModulesTest` (Spring Modulith boundary — a new
 cross-package import/call from `me`→`persons.application` etc. needs the target module
 `OPEN` or a `@NamedInterface`), `ControllerAuditCoverageTest` (**every mutating
 controller method** must reach `AuditTrail.record` or be `@AuditedBy` — a new `PATCH`/
@@ -97,8 +96,7 @@ controller method** must reach `AuditTrail.record` or be `@AuditedBy` — a new 
 (a new native-SQL call site on a tenant-scoped table needs a `native-sql-register.md`
 entry), `AuditRedactionCoverageTest` (a new audited entity type needs its redaction
 policy). When unsure which apply, run all four — they're cheap. Do NOT block uncommitted
-on a long background gradle run (J-4 T-04: a worker polled a backgrounded task, never
-committed, and stranded its work) — run verification foreground-bounded, then commit.
+on a long background gradle run — run verification foreground-bounded, then commit.
 
 ### 4 — Commit + tick
 
@@ -107,8 +105,7 @@ summary>` / `J-NNN T-NN: …`). Don't push past red; don't `--no-verify` /
 force-push. Tick `T-NN` in the journey's `## Tasks` checklist (one commit may
 include the tick). **Then `git push` — always, as the last step of the task.** The
 branch already carries a PR + CI; a commit you don't push is stranded locally and
-makes CI (and the manager) test stale state (J-3: two tasks sat local-only,
-burning a confused diagnosis loop). The only reason to skip the push is a red local
+makes CI (and the manager) test stale state. The only reason to skip the push is a red local
 build — then you're not done. (`/do-ship` still opens the draft PR after the first
 green backend task if none exists; that doesn't relieve you of pushing your commit.)
 
@@ -116,14 +113,13 @@ green backend task if none exists; that doesn't relieve you of pushing your comm
 **write** mode then verify, over the **full glob** you changed (e.g. `prettier --write`
 then `--check "src/**/*.{ts,html,css,json}" "e2e/**/*.{ts,json}"`, the module's `lint`),
 not just the one or two files you eyeballed. `--check` alone reports but doesn't fix. A
-format-only miss fails CI a whole round later — the most wasteful red there is (J-0c T-09 +
-J-1 T-20/T-22 each burned a round on exactly this). Cheap locally, expensive at the gate.
+format-only miss fails CI a whole round later — the most wasteful red there is. Cheap locally, expensive at the gate.
 
 **Proof-gallery DoD.** If the task TOUCHED the proof gallery (the gallery generators, its
 CI/deploy steps, or screenshot/video sidecars), run the autonomous link check before marking
 done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links` (browserless; "are all gallery links live?").
 
-**Local-first verification DoD (J-5 T-43).** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent (whole `./gradlew test` + lint/tsc/build/api-drift + gallery tests/link-check + the mock-auth e2e when a chromium is launchable) — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix.
+**Local-first verification DoD.** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent (whole `./gradlew test` + lint/tsc/build/api-drift + gallery tests/link-check + the mock-auth e2e when a chromium is launchable) — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix. **CI/workflow edits: validate by the REAL check, not `js-yaml`** — it parses but misses GitHub's expression-length limit + step-skip (`success()`/`!cancelled()`) semantics; run `actionlint` or a real dispatch. **Don't push while a verification run is in flight** — any push (even docs) cancels the branch's in-flight CI (concurrency); push at task boundaries only.
 
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it

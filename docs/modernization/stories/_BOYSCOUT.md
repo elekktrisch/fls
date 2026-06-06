@@ -12,6 +12,13 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by /do-retro 2026-06-06, J-5 window)
+
+- **Scope the per-push `alpenflight-mock-e2e` gate to the journey-under-work (dev-time test strategy).** Today it runs ALL features’ mock specs, so one unrelated flaky spec reds an unrelated journey’s `required` (J-5 held hostage by `articles-crud`). Mirror what J-3 T-14 did for the real-idp `alpenflight-proof`: per-push runs only the journey-under-work’s spec(s); skip/quarantine unrelated; prior journeys may run mock-IdP. Full mock suite at the §4 gate + nightly. *(seam: ci.yml mock-e2e spec selection + nightly)* [[feedback_dev_time_test_strategy]]
+- **CI fail-aggregate (surface ALL reds in one run).** ci.yml stops at the first failing layer (build → server-test → web-lint → mock-e2e discovered serially across cycles). Run the independent checks as parallel jobs that all report, so one run shows every red at once. *(seam: ci.yml job parallelism/aggregation)*
+- **Assert the per-journey gallery shots are PRESENT, don’t tolerate absence.** `add_shot` silently skips a missing PNG + the deployed-link-check only validates DECLARED shots — a future partial-red capture could drop shots while the gate stays green. Add a guard asserting each journey’s expected paired shots exist before deploy. *(seam: alpenflight-proof-fanout.yml add_shot presence guard)*
+- **Cheap early mapper-binding check for migration journeys.** A journey carrying a mapper should fail FAST if its `MapperLegacyBindings` entry is missing / the producer SELECT names a dropped column — before the full ~20-min fanout (J-5 T-07 caught zero-binding only at the fanout). A binding-presence + producer-SELECT-column unit/contract check at build time. *(seam: migration-tool MapperLegacyBindings contract test)* [[verify_infra_is_run_not_just_authored]]
+
 ## Pending (filed by /do-plan 2026-06-06, J-5 carve — maintainability tooling)
 
 **Maintainability = complexity + duplication + dead code** (operator, 2026-06-06 —
