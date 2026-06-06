@@ -312,10 +312,25 @@ One seam each; commit directly to `integration/J-5`.
   schema; check the earlier `Msg 547` FK violations aren't a §10 dangling FK. (`_test-fixture.sql` is OUR
   migration test fixture — editable; the upstream `4 or 5 Insert…` is read-only reference to mirror.)
   *(seam: `flsserver/database/FLSTest/3 insert/_test-fixture.sql` §10)*
-- [ ] **T-21 — Fix the fanout gallery build step's Node (ESM `.mjs` red).** The fanout's "Build + link-check
+- [x] **T-21 — Fix the fanout gallery build step's Node (ESM `.mjs` red).** The fanout's "Build + link-check
   proof gallery" step runs `node e2e/proof-gallery/generate-gallery.mjs` on **Node ~8** (stack trace
   `vm.js`/`bootstrap_node.js`) → `SyntaxError: Unexpected token import`. The SAME generator runs fine in
   `ci.yml` (modern node). Align the fanout step's node env to the ci.yml gallery step (add
   `actions/setup-node@v4` node 20 before it, or invoke via the project toolchain). Investigate whether
   T-12/T-13 regressed it or it's pre-existing-but-only-now-exercised (the per-journey emission may be the
-  first ESM-heavy use). *(seam: alpenflight-proof-fanout.yml gallery build step node setup)*
+  first ESM-heavy use). *(seam: alpenflight-proof-fanout.yml gallery build step node setup)* **Done:**
+  ROOT CAUSE (pre-existing since J-0c #200, NOT a T-12/T-13 regression — the gallery step and the Node-8/20/22
+  setups were all born together in `ffa0a5f8`; only now exercised on a real fanout that red-ed upstream). The
+  `fanout-proof` job sets up Node 8 (line ~228, legacy flsweb webpack) BEFORE its later Node 20 (~285) / Node
+  22 (~504) setups. Those later setups are plain steps (no `if:`), so any upstream failure in the long
+  legacy→migrate→real chain SKIPS them — yet the gallery + maintainability steps are `if: always()`, so they
+  ran on the last node that actually got set up: **Node 8**, which can't parse `.mjs` ESM. ci.yml's
+  `alpenflight-proof` job has NO Node-8 setup, so its byte-identical `always()` gallery step always lands on
+  Node 22 — that's the asymmetry. FIX: a single `if: always()` `actions/setup-node@v4`
+  (`node-version-file: alpenflight/web/.nvmrc`, identical to ci.yml — = 22.13) re-pinned right before the
+  maintainability emit + gallery build + (later) the `rebuild-previews-index` composite, so a failed upstream
+  step can never leave Node 8 on PATH for ANY of the three `.mjs`/npx generators
+  (`generate-gallery.mjs`, `npx fallow`, `generate-previews-index.mjs`). Legacy-build jobs untouched
+  (`legacy-web-build` keeps its own Node 8 for the webpack build). YAML validated with js-yaml + step order
+  asserted (re-pin before maintainability/gallery/rebuild). Re-dispatched fanout must confirm the gallery step
+  no longer throws `Unexpected token import`.

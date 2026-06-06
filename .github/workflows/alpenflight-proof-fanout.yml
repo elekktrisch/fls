@@ -962,6 +962,26 @@ jobs:
             echo "No parity PNGs found — gallery renders videos only."
           fi
 
+      # J-5 T-21 — guarantee a modern Node for EVERY `.mjs`/npx generator that
+      # follows (the maintainability `npx fallow`, the gallery `generate-gallery.mjs`,
+      # and the rebuild-previews-index composite's `generate-previews-index.mjs`).
+      # This job sets up Node 8 (line ~228, for the legacy flsweb webpack build)
+      # BEFORE later Node 20/22 setups. Those later setups are plain steps with no
+      # `if:`, so if ANY upstream step in the long legacy→migrate→real chain fails,
+      # they are skipped — yet the gallery/maintainability steps below run on
+      # `if: always()`, landing on the last node that actually got set up: Node 8.
+      # Node 8 predates `.mjs` ESM (`SyntaxError: Unexpected token import` from
+      # `vm.js`/`bootstrap_node.js`), so the gallery step red-ed the live fanout.
+      # ci.yml's `alpenflight-proof` job has no Node-8 setup, so its identical
+      # `always()` gallery step always lands on Node 22 — mirror that here with an
+      # `always()` re-pin of the SAME `.nvmrc` node right before the generators,
+      # so a failed upstream step can never leave Node 8 on PATH for the .mjs runs.
+      - name: Re-pin Node for the .mjs proof generators (mirror ci.yml)
+        if: always()
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: alpenflight/web/.nvmrc
+
       # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
       # panel renders (same stable paths as ci.yml). PRODUCE + STAGE only; T-13
       # reads these. FAIL-SOFT: informational, must never red the fanout proof.
