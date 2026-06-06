@@ -889,6 +889,42 @@ jobs:
             echo "No parity PNGs found — gallery renders videos only."
           fi
 
+      # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
+      # panel renders (same stable paths as ci.yml). PRODUCE + STAGE only; T-13
+      # reads these. FAIL-SOFT: informational, must never red the fanout proof.
+      # Paths (under the gallery --out root + the always() proof artifact):
+      #   FE delta:    public/alpenflight/proof/maintainability/fallow-audit.json
+      #   FE snapshot: public/alpenflight/proof/maintainability/fallow-health.json
+      #   BE PMD:      public/alpenflight/proof/maintainability/pmd-main.xml
+      #   BE CPD:      public/alpenflight/proof/maintainability/cpd-check.xml
+      - name: Emit maintainability reports (fail-soft)
+        id: maintainability
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          OUT="public/alpenflight/proof/maintainability"
+          mkdir -p "$OUT"
+          # FE (fallow): audit = changed-files envelope vs main (journey delta).
+          git fetch --no-tags --depth=200 origin main:refs/remotes/origin/main 2>/dev/null || true
+          (
+            cd alpenflight/web
+            npx --yes fallow@latest audit --base origin/main --format json \
+              > ../../"$OUT"/fallow-audit.json 2>/dev/null || true
+            npx --yes fallow@latest health --format json \
+              > ../../"$OUT"/fallow-health.json 2>/dev/null || true
+          )
+          # BE (PMD/CPD from T-11).
+          (
+            cd alpenflight/server
+            ./gradlew :pmdMain :cpdCheck --no-daemon --console=plain --quiet || true
+          )
+          cp -f alpenflight/server/build/reports/pmd/main.xml "$OUT"/pmd-main.xml 2>/dev/null || true
+          cp -f alpenflight/server/build/reports/cpd/cpdCheck.xml "$OUT"/cpd-check.xml 2>/dev/null || true
+          echo "── staged maintainability reports ──" >&2
+          ls -l "$OUT" >&2 || true
+          exit 0
+
       - name: Build + link-check proof gallery (legacy + AlpenFlight, J-0c)
         id: gallery
         if: always()

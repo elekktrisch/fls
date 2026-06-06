@@ -27,11 +27,16 @@ read across all three axes is: **complexity** MI **92 (good)** but **87** high-c
 unused dep + **5** unused devDeps, **1** unresolved import. NOT in trouble — a tight, real hotspot
 short-list + needs a committed config to stop crying wolf.
 
-- **Commit `alpenflight/web/.fallowrc.json` so the score is honest (operator: commit config).** Add
+- ~~**Commit `alpenflight/web/.fallowrc.json` so the score is honest (operator: commit config).** Add
   `ignorePatterns: ["**/node_modules.windows/**", "src/app/api/generated/**", "dist/**", "coverage/**"]`
-  + `health.ignore: ["src/app/api/generated/**", "**/*.spec.ts", "e2e/**"]`. Validated locally (52 D →
-  70 B; 2371→6 unused deps; 20.8%→6.3% dup). First/cheapest fold into J-5's ≤40% budget; unblocks any
-  later `fallow audit`/CI use. *(seam: new `alpenflight/web/.fallowrc.json`)* — see [[reference_fallow_maintainability_analyzer]].
+  + `health.ignore: ["src/app/api/generated/**", "**/*.spec.ts", "e2e/**"]`.~~ **Shipped J-5 T-12.**
+  Committed `.fallowrc.json` (fallow loads it; score now **B (71.1)** vs the misleading 52 D — confirmed via
+  `fallow health --format badge --score` + `--format json`). Plus the CI report-emit (the T-13 panel feed):
+  fail-soft (`continue-on-error`) steps in both `ci.yml` + `alpenflight-proof-fanout.yml` emit the FE journey
+  delta (`fallow audit --base origin/main --format json` — changed-files envelope w/ `introduced` attribution),
+  the FE repo snapshot (`fallow health --format json`), and the BE PMD/CPD XML (`:pmdMain :cpdCheck`) to the
+  stable T-13-consumable paths `public/alpenflight/proof/maintainability/{fallow-audit.json,fallow-health.json,pmd-main.xml,cpd-check.xml}`.
+  *(seam: new `alpenflight/web/.fallowrc.json` + ci/fanout emit steps)* — see [[reference_fallow_maintainability_analyzer]].
 
 - **Refactor the genuine complexity hotspots — each rides the journey that TOUCHES it (operator:
   riders only, no ad-hoc project-code change).** Real production offenders fallow flags (CRITICAL/HIGH

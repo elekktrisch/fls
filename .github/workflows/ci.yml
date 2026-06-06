@@ -490,6 +490,51 @@ jobs:
             --project=real-idp \
             e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
 
+      # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
+      # panel renders. PRODUCE + STAGE only (T-13 reads these paths; no panel
+      # HTML here). FAIL-SOFT: a missing/failed report is informational and must
+      # NEVER red the proof gate (continue-on-error + `|| true` guards inside).
+      # Stable artifact paths consumed by the gallery deploy:
+      #   FE (fallow, journey delta): public/alpenflight/proof/maintainability/fallow-audit.json
+      #   FE (fallow, repo snapshot): public/alpenflight/proof/maintainability/fallow-health.json
+      #   BE (PMD):                   public/alpenflight/proof/maintainability/pmd-main.xml
+      #   BE (CPD):                   public/alpenflight/proof/maintainability/cpd-check.xml
+      # Placed BEFORE the gallery generate step so the JSON/XML are on disk under
+      # the gallery's --out root when T-13's generator scans for them, and so the
+      # always()-uploaded proof artifact carries them too.
+      - name: Emit maintainability reports (fail-soft)
+        id: maintainability
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          OUT="public/alpenflight/proof/maintainability"
+          mkdir -p "$OUT"
+          # --- Frontend (fallow) ---------------------------------------------
+          # audit = changed-files envelope (this journey's diff vs main):
+          # per-finding `introduced: true/false` attribution = the journey delta.
+          # Needs the base ref present (checkout is shallow) — fetch it best-effort.
+          git fetch --no-tags --depth=200 origin main:refs/remotes/origin/main 2>/dev/null || true
+          (
+            cd alpenflight/web
+            # audit exits non-zero on a fail/warn verdict — capture JSON regardless.
+            npx --yes fallow@latest audit --base origin/main --format json \
+              > ../../"$OUT"/fallow-audit.json 2>/dev/null || true
+            # health snapshot (overall grade/MI/dup/dead-code for the repo).
+            npx --yes fallow@latest health --format json \
+              > ../../"$OUT"/fallow-health.json 2>/dev/null || true
+          )
+          # --- Backend (PMD/CPD from T-11) -----------------------------------
+          (
+            cd alpenflight/server
+            ./gradlew :pmdMain :cpdCheck --no-daemon --console=plain --quiet || true
+          )
+          cp -f alpenflight/server/build/reports/pmd/main.xml "$OUT"/pmd-main.xml 2>/dev/null || true
+          cp -f alpenflight/server/build/reports/cpd/cpdCheck.xml "$OUT"/cpd-check.xml 2>/dev/null || true
+          echo "── staged maintainability reports ──" >&2
+          ls -l "$OUT" >&2 || true
+          exit 0
+
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;
       # on red there are no proof videos so it emits only pending rows. The

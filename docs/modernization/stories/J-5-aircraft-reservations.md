@@ -185,9 +185,15 @@ One seam each; commit directly to `integration/J-5`.
   2 benign PMD hits (class-sum cyc 62 but max method cyc 9 < 10; 11-param factory) + 9 small DTO/exception
   boilerplate clones, no logic dup. Reports → `build/reports/pmd/main.{xml,html}`,
   `build/reports/cpd/cpdCheck.xml` (T-12 panel feed). *(seam: `alpenflight/server/build.gradle.kts`)*
-- [ ] **T-12 — `.fallowrc.json` + maintainability report-emit in CI (rider).** Commit
-  `alpenflight/web/.fallowrc.json` (honest config) + add `fallow ci --format json` + gradle pmd/cpd XML
-  emit steps to the proof workflow. *(seam: `.fallowrc.json` + ci/fanout emit steps)*
+- [x] **T-12 — `.fallowrc.json` + maintainability report-emit in CI (rider).** Committed
+  `alpenflight/web/.fallowrc.json` (honest config — score now **B (71.1)** vs the misleading 52 D; fallow
+  confirms it loads the config + excludes `node_modules.windows` + the orval-generated client) + added
+  fail-soft (`continue-on-error`) emit steps to **both** proof workflows (`ci.yml` + `alpenflight-proof-fanout.yml`)
+  before the gallery-generate step. FE delta = `fallow audit --base origin/main --format json` (changed-files
+  envelope w/ per-finding `introduced: true/false` = the journey delta), FE snapshot = `fallow health --format json`,
+  BE = `:pmdMain :cpdCheck`. Stable T-13-consumable paths under the gallery `--out` root:
+  `public/alpenflight/proof/maintainability/{fallow-audit.json,fallow-health.json,pmd-main.xml,cpd-check.xml}`.
+  *(seam: `.fallowrc.json` + ci/fanout emit steps)*
 - [ ] **T-13 — Per-journey gallery re-arch (operator ask 2026-06-06) + Maintainability panel (rider).**
   EXPANDED from the planned "first slice" to the full operator-visible result (the operator observed the
   index lists only the active branch + links the all-in-one per-proof-type galleries). Deliver:
