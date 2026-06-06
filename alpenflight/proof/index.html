@@ -45,6 +45,7 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .status.success { background: var(--success-bg); color: var(--success); }
 .status.failure { background: var(--failure-bg); color: var(--failure); }
 .status.pending { background: var(--pending-bg); color: var(--pending); }
+.status.neutral { background: var(--surface-2); color: var(--muted); }
 /* Accordion — one native <details> per journey. ADR 0024: flat (1px slate
    border, NO shadow), sharp corners (radius 0), restrained motion (the native
    toggle only — no slide). The brand color lands only on the open-state accent
@@ -111,6 +112,15 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .shot.shot-legacy .shot-side { background: var(--pending-bg); color: var(--pending); }
 .shot figcaption { padding: .65rem .75rem; font-size: .85rem; color: var(--text); }
 .nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
+/* Maintainability panel — flat, table-of-numbers; pill carries the roll-up. */
+.maintainability { margin-top: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0; padding: 1rem 1.1rem; }
+.maintainability h4 { margin: 0 0 .75rem; font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: .6rem; }
+.maint-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.maint-table th { text-align: left; font-weight: 500; color: var(--muted); padding: .4rem .75rem .4rem 0; white-space: nowrap; vertical-align: top; width: 1%; }
+.maint-table td { padding: .4rem 0; color: var(--text); border-top: 1px solid var(--border); }
+.maint-table tr:first-child td, .maint-table tr:first-child th { border-top: 0; }
+.maint-table td.muted { color: var(--muted); }
+.back-link { font-size: .85rem; }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
 </head>
@@ -120,14 +130,14 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>main</code> &middot; 2026-06-06T04:24:00.885Z
+      assertion it proves. Generated on <code>main</code> &middot; 2026-06-06T20:24:52.046Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
-      <a href="../">&larr; alpenflight dashboard</a>
+      <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
     </p>
     <p class="meta nav-galleries">
       <strong>Per-run proof galleries</strong> (heavy chains not in the index below):<br>
-      &rarr; <a href="j-0c-fanout/"><strong>J-0c — fan-out migration parity</strong></a> <em>(real legacy → migrate + Keycloak → AlpenFlight, with the legacy create video &amp; per-club AlpenFlight fan-out videos)</em>
+      &rarr; <a href="/fls/alpenflight/proof/j-0c-fanout/"><strong>J-0c — fan-out migration parity</strong></a> <em>(real legacy → migrate + Keycloak → AlpenFlight, with the legacy create video &amp; per-club AlpenFlight fan-out videos)</em>
     </p>
   </header>
 
@@ -139,15 +149,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-fef90e53bfcf7e5017ef7cdd963457054773b3d7.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-e7f07285078399fac40045ce26c110a71f006304.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a32a246db2f88f655c9499cdb68c4af799dc62eb.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-6dd305cce602394d5e85abb356046a90e9a85619.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ba90f743f001ba1a685bfe625a5890ef08bb8a8b.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-afba9c6de642c9e629b03411591fa048d1276bec.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
         </figure>
         </div>
