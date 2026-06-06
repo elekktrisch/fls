@@ -524,7 +524,7 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   confirm green** (focused runs missed both this and LeakageSweepIT — the recurring blind spot). *(seam: ReservationsBaselineIntegrationTest)*
 
 ### Operator ask (2026-06-06) — gallery link-integrity DoD
-- [ ] **T-31 — Gallery link-integrity Playwright spec + do-task DoD wiring (operator ask).** A reusable,
+- [x] **T-31 — Gallery link-integrity Playwright spec + do-task DoD wiring (operator ask).** A reusable,
   autonomously-runnable check that ALL proof-gallery links work — guards the index/link breakage the operator
   hit. Spec `alpenflight/web/e2e/tests/proof-gallery/proof-gallery-links.spec.ts`: generate the gallery (index
   + per-journey pages) from the current proof artifacts/fixtures into a temp dir, then walk EVERY `<a href>` /

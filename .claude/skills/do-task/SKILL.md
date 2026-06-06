@@ -119,6 +119,10 @@ not just the one or two files you eyeballed. `--check` alone reports but doesn't
 format-only miss fails CI a whole round later — the most wasteful red there is (J-0c T-09 +
 J-1 T-20/T-22 each burned a round on exactly this). Cheap locally, expensive at the gate.
 
+**Proof-gallery DoD.** If the task TOUCHED the proof gallery (the gallery generators, its
+CI/deploy steps, or screenshot/video sidecars), run the autonomous link check before marking
+done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links` (browserless; "are all gallery links live?").
+
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it
 **ride with the next regular change** on `integration/J-NNN`. Never craft a separate

@@ -835,7 +835,7 @@ ${GALLERY_CSS}
       for this journey. Generated on <code>${esc(branch)}</code> &middot; ${esc(generatedAt)}
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
-      <a href="../previews/">&larr; all journeys (previews index)</a> &middot;
+      <a href="../../previews/">&larr; all journeys (previews index)</a> &middot;
       <a href="../">all-journeys gallery</a>
     </p>
   </header>

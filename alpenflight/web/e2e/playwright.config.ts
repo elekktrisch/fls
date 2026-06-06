@@ -63,7 +63,12 @@ export default defineConfig({
       // real PILOT principal, so it belongs to the `real-idp` project below.
       // `tests/profile/` would otherwise match `!(real-idp)` and try to run on
       // the mock-auth SPA (no KC form → the landing-sign-in click hangs).
+      // The proof-gallery-links spec (T-31) is BROWSERLESS (fs + request only,
+      // runs under musl's no-chrome sandbox) and owns the `proof-gallery-links`
+      // project below — exclude it here so it never launches a browser context
+      // or pulls in the webServer on the mock-auth gate.
       testMatch: ['tests/!(real-idp|profile)/**/*.spec.ts'],
+      testIgnore: ['**/proof-gallery/proof-gallery-links.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: MOCK_BASE_URL,
@@ -141,6 +146,22 @@ export default defineConfig({
       expect: { timeout: 5_000 },
       maxFailures: Number(process.env['PLAYWRIGHT_REAL_IDP_MAX_FAILURES'] ?? 3),
     },
+
+    // ── proof-gallery-links ───────────────────────────────────────────────
+    // T-31 — the autonomous "are ALL gallery links live?" DoD check. BROWSERLESS
+    // by design: the spec uses only node `fs` + the `request` (APIRequestContext)
+    // fixture, NEVER `page` / a browser context — so it runs under this sandbox's
+    // musl chrome block (and in CI) without launching chromium. No `devices`
+    // (no browser), no `baseURL`, no `dependencies`. To run WITHOUT booting the
+    // mock-auth dev server, set `GALLERY_LINKS_ONLY=1` (skips the webServer below)
+    //   GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links
+    {
+      name: 'proof-gallery-links',
+      testMatch: ['tests/proof-gallery/proof-gallery-links.spec.ts'],
+      retries: 0,
+      timeout: 60_000,
+      expect: { timeout: 10_000 },
+    },
   ],
   // mock-auth dev server is always wired (default `pnpm e2e` target).
   // real-idp dev server is opt-in via E2E_REAL_IDP=1 so PR CI (which
@@ -148,9 +169,39 @@ export default defineConfig({
   // The real-idp nightly workflow sets the env var; local invocations
   // either set it explicitly or rely on `reuseExistingServer` if a
   // separate `pnpm start` is already running on :4201.
-  webServer: process.env['E2E_REAL_IDP']
-    ? [
-        {
+  // `GALLERY_LINKS_ONLY=1` skips the dev server entirely — the T-31
+  // `proof-gallery-links` project is browserless + serverless, so the DoD
+  // check runs in any task context without paying the ~20-30s `ng serve` boot.
+  webServer: process.env['GALLERY_LINKS_ONLY']
+    ? undefined
+    : process.env['E2E_REAL_IDP']
+      ? [
+          {
+            command:
+              'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
+            cwd: PROJECT_ROOT,
+            url: MOCK_BASE_URL,
+            reuseExistingServer: !process.env['CI'],
+            timeout: 120_000,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+          {
+            // real-idp: `development` configuration keeps the real
+            // app.config.ts (no fileReplacements) so OIDC hits
+            // localhost:8090/realms/alpenflight.
+            command:
+              'node node_modules/@angular/cli/bin/ng serve --port=4201 --configuration=development',
+            cwd: PROJECT_ROOT,
+            url: REAL_IDP_BASE_URL,
+            reuseExistingServer: !process.env['CI'],
+            timeout: 180_000,
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        ]
+      : {
+          // mock-auth only — the default for PR CI and `pnpm e2e`.
           command:
             'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
           cwd: PROJECT_ROOT,
@@ -160,29 +211,4 @@ export default defineConfig({
           stdout: 'pipe',
           stderr: 'pipe',
         },
-        {
-          // real-idp: `development` configuration keeps the real
-          // app.config.ts (no fileReplacements) so OIDC hits
-          // localhost:8090/realms/alpenflight.
-          command:
-            'node node_modules/@angular/cli/bin/ng serve --port=4201 --configuration=development',
-          cwd: PROJECT_ROOT,
-          url: REAL_IDP_BASE_URL,
-          reuseExistingServer: !process.env['CI'],
-          timeout: 180_000,
-          stdout: 'pipe',
-          stderr: 'pipe',
-        },
-      ]
-    : {
-        // mock-auth only — the default for PR CI and `pnpm e2e`.
-        command:
-          'node node_modules/@angular/cli/bin/ng serve --port=4200 --configuration=mock-auth',
-        cwd: PROJECT_ROOT,
-        url: MOCK_BASE_URL,
-        reuseExistingServer: !process.env['CI'],
-        timeout: 120_000,
-        stdout: 'pipe',
-        stderr: 'pipe',
-      },
 });
