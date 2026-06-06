@@ -687,3 +687,29 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   with view=list + view=form each carrying both side=legacy and side=alpenflight; and the persistent index
   lands on the `legacy-parity/J-5/` page WITH the screenshots (T-37 `subPath:'legacy-parity'` probe, already
   in place — verified). *(seam: real-idp reservations spec form-capture + fanout add_shot + legacy capture reliability)*
+
+### Operator: adjust reservations screens to the design reference (calendar-first consolidation)
+Reference: `docs/modernization/design-reference/screens-reservations.jsx` (ADR 0024 Option A, the pixel oracle).
+Operator delegated the call → chose maintenance+UX-efficient while keeping the reference feel = **consolidate the
+redundant table + separate scheduler into ONE calendar**. Reuses the existing scheduler day-grid (T-10); keeps the
+backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather source — deferred).
+- [ ] **T-39 — `/reservations` calendar (day + week view), folding in `/reservation-scheduler`.** Replace the paged
+  TABLE primary view with the reference calendar: **day view** = aircraft×hour grid (promote/reuse the T-10
+  `reservation-scheduler` placement + grid as the day view; hour header 08–19 default, aircraft rows, time-placed
+  blocks, maintenance = hatched) + **week view** = aircraft×day matrix (per-cell count · hours · progress bar) +
+  **day/week toggle** + **week day-picker** (prev/next) + **"New reservation"** primary action. Redirect
+  `/reservation-scheduler` → `/reservations` (keep the route). Drop the redundant table; keep a compact single-day
+  **list as the mobile fallback** (reference: "mobile collapses to single-day list"). Apply the reference tokens/
+  components (`af-btn`/`af-tag`/`af-progress`/`--s-*` spacing/tabular nums/sentence case) via the production
+  Tailwind v4 `@theme` + ng-zorro (ADR 0023/0024); diff `tokens.css` ↔ `styles.css`, close missing tokens. SKIP
+  the METAR strip (deferred — no weather source). May split day-view (T-39a) / week-view+toggle (T-39b) if it
+  overflows a clean worker. *(seam: reservations calendar component(s) + routes + tokens)*
+- [ ] **T-40 — Restyle the reservation edit form to the reference.** Match the reference/`screenshots/flights-form.png`
+  visual (field grouping, af-form controls, button shapes, spacing, sentence-case labels, inline error style) +
+  the token set. Keep the T-09 low-CRAP structure + the conflict-409/422 inline handling. *(seam: reservation-edit.page.ts + tokens)*
+- [ ] **T-41 — Re-green e2e + parity captures for the calendar.** The inner-loop `reservations-crud.spec.ts` + the
+  real-idp `reservations-migration-parity.spec.ts` assert the TABLE (`reservations-row-<id>`) + the separate
+  scheduler — rework selectors/flow to drive the new calendar (day/week, blocks) + the form, KEEPING the load-bearing
+  assertions (conflict→409, all-day, cross-tenant-open, migrated render). Update the parity-screenshot captures (the
+  "list" shot becomes the calendar day/week view) + add_shot labels. Re-run the gate to green (ci required + fanout
+  25/25 + deployed-link-check + the 6 paired screenshots now calendar+form). *(seam: both reservations specs + fanout captures)*
