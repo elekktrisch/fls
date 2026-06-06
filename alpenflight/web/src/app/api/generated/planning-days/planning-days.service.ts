@@ -30,6 +30,7 @@ import type {
   PlanningDayDetail,
   PlanningDayPage,
   PlanningDayPageRequest,
+  PlanningDayRuleRequest,
   PlanningDayUpdateRequest
 } from '../model';
 
@@ -262,6 +263,42 @@ export class PlanningDaysService {
     return this.http.post<TData>(
       `/api/v1/planning-days/page/${start}/${size}`,
       planningDayPageRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Bulk-create planning days by weekday over an inclusive date range. Empty weekday flags → empty result; existing (club, date, location) days are skipped idempotently.
+ */
+ bulkCreatePlanningDays<TData = PlanningDayDetail[]>(planningDayRuleRequest: PlanningDayRuleRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ bulkCreatePlanningDays<TData = PlanningDayDetail[]>(planningDayRuleRequest: PlanningDayRuleRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ bulkCreatePlanningDays<TData = PlanningDayDetail[]>(planningDayRuleRequest: PlanningDayRuleRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  bulkCreatePlanningDays<TData = PlanningDayDetail[]>(
+    planningDayRuleRequest: PlanningDayRuleRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.post<TData>(
+      `/api/v1/planning-days/create/rule`,
+      planningDayRuleRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.post<TData>(
+      `/api/v1/planning-days/create/rule`,
+      planningDayRuleRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.post<TData>(
+      `/api/v1/planning-days/create/rule`,
+      planningDayRuleRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

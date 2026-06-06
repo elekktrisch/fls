@@ -60,6 +60,18 @@ public interface JpaPlanningDayRepository
     @Query("select d from PlanningDay d where d.id = :id and d.deletedOn is null")
     Optional<PlanningDay> findActiveById(@Param("id") UUID id);
 
+    /**
+     * Dedup existence check for the bulk rule-expand (T-05). Tenant-implicit
+     * ({@code @TenantId}) + soft-delete filtered, mirroring the partial
+     * {@code ux_pln_club_date_loc} index ({@code WHERE deleted_on IS NULL}).
+     */
+    @Override
+    @Query("select count(d) > 0 from PlanningDay d "
+            + "where d.deletedOn is null and d.planningDate = :planningDate "
+            + "and d.locationId = :locationId")
+    boolean existsActiveForDay(@Param("planningDate") LocalDate planningDate,
+                               @Param("locationId") UUID locationId);
+
     @Override
     default Page findFuturePage(LocalDate asOf, int pageStart, int pageSize) {
         if (pageSize <= 0) {

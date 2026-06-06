@@ -165,6 +165,64 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void ruleExpand_weekendOverTwoWeeks_createsExpectedDays_andReRunSkipsExisting() {
+        // First Saturday strictly after DAY's reference, so all created days are
+        // future + distinct from the single-create tests' DAY.
+        LocalDate firstSat = nextOrSame(LocalDate.now(ZoneOffset.UTC).plusDays(10), java.time.DayOfWeek.SATURDAY);
+        LocalDate end = firstSat.plusDays(13); // inclusive 2-week window → 2 Sat + 2 Sun
+
+        ResponseEntity<String> res = post("/api/v1/planning-days/create/rule",
+                weekendRule(firstSat, end));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        JsonNode created = readJson(res);
+        assertThat(created.isArray()).isTrue();
+        assertThat(created).hasSize(4);
+        // All created days sit at the rule location with no crew (bare days).
+        // path() yields a missing/null node when the slot is absent or null.
+        for (JsonNode day : created) {
+            assertThat(day.get("locationId").asText()).isEqualTo("loc-" + locationId);
+            assertThat(day.path("instructorPersonId").isNull() || day.path("instructorPersonId").isMissingNode())
+                    .isTrue();
+            assertThat(day.path("towingPilotPersonId").isNull() || day.path("towingPilotPersonId").isMissingNode())
+                    .isTrue();
+            assertThat(day.path("flightOperatorPersonId").isNull() || day.path("flightOperatorPersonId").isMissingNode())
+                    .isTrue();
+        }
+        assertThat(countPlanningDays()).isEqualTo(4);
+
+        // Re-running the SAME rule is idempotent: every day already exists, so
+        // nothing new is created (no 409, no dupes).
+        ResponseEntity<String> rerun = post("/api/v1/planning-days/create/rule",
+                weekendRule(firstSat, end));
+        assertThat(rerun.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(readJson(rerun)).hasSize(0);
+        assertThat(countPlanningDays()).isEqualTo(4);
+    }
+
+    @Test
+    void ruleExpand_noWeekdayFlags_createsNothing() {
+        LocalDate start = LocalDate.now(ZoneOffset.UTC).plusDays(10);
+        Map<String, Object> rule = ruleBase(start, start.plusDays(14));
+        // All weekday flags default false → empty result, no error, no rows.
+
+        ResponseEntity<String> res = post("/api/v1/planning-days/create/rule", rule);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(readJson(res)).hasSize(0);
+        assertThat(countPlanningDays()).isZero();
+    }
+
+    @Test
+    void ruleExpand_rangeOverCap_returns422() {
+        LocalDate start = LocalDate.now(ZoneOffset.UTC).plusDays(1);
+        Map<String, Object> rule = weekendRule(start, start.plusYears(5));
+
+        ResponseEntity<String> res = post("/api/v1/planning-days/create/rule", rule);
+        assertThat(res.getStatusCode().value()).isEqualTo(422);
+        assertThat(readJson(res).get("key").asText()).isEqualTo("planning.rule.range");
+        assertThat(countPlanningDays()).isZero();
+    }
+
+    @Test
     void get_crossTenant_returns404() {
         ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY));
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -188,6 +246,50 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         m.put("flightOperatorPersonId", "pn-" + flightOperatorId);
         m.put("info", "IT planning day");
         return m;
+    }
+
+    /**
+     * Base rule payload over an inclusive range at the IT location, all 7 weekday
+     * flags present + false (the wizard always sends all 7 checkboxes — the wire
+     * contract carries primitive bools).
+     */
+    private Map<String, Object> ruleBase(LocalDate start, LocalDate end) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("startDate", start.toString());
+        m.put("endDate", end.toString());
+        m.put("everyMonday", false);
+        m.put("everyTuesday", false);
+        m.put("everyWednesday", false);
+        m.put("everyThursday", false);
+        m.put("everyFriday", false);
+        m.put("everySaturday", false);
+        m.put("everySunday", false);
+        m.put("locationId", "loc-" + locationId);
+        m.put("info", "IT rule-expand");
+        return m;
+    }
+
+    /** Rule payload with Saturday + Sunday selected. */
+    private Map<String, Object> weekendRule(LocalDate start, LocalDate end) {
+        Map<String, Object> m = ruleBase(start, end);
+        m.put("everySaturday", true);
+        m.put("everySunday", true);
+        return m;
+    }
+
+    private static LocalDate nextOrSame(LocalDate from, java.time.DayOfWeek weekday) {
+        LocalDate d = from;
+        while (d.getDayOfWeek() != weekday) {
+            d = d.plusDays(1);
+        }
+        return d;
+    }
+
+    private long countPlanningDays() {
+        Long n = jdbc.queryForObject(
+                "SELECT count(*) FROM t_planning_day WHERE operating_club_id = ?::uuid AND deleted_on IS NULL",
+                Long.class, CLUB.toString());
+        return n == null ? 0L : n;
     }
 
     private String pilotToken(UUID sub) {

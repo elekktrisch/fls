@@ -7,6 +7,7 @@ import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayCreateRequ
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayDetail;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPage;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPageRequest;
+import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayRuleRequest;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayUpdateRequest;
 import ch.alpenflight.planning.domain.PlanningDay;
 import ch.alpenflight.planning.domain.PlanningDayAssignmentType;
@@ -19,13 +20,16 @@ import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.access.AccessDeniedException;
@@ -119,6 +123,44 @@ public class PlanningDaysService {
         auditTrail.record(AuditAction.CREATE,
                 AuditedTarget.created(AUDIT_ENTITY_TYPE, created.id(), created));
         return created;
+    }
+
+    /**
+     * Bulk weekday-expansion (T-05; legacy {@code CreatePlanningDays}). The
+     * domain method {@link PlanningDay#expandRuleDates} owns the expansion + the
+     * range bound (ADR 0022 directive 2); this service just orchestrates:
+     * resolve the tenant, then for each matching date <em>skip</em> a day that
+     * already exists at the location (idempotent re-run, no 409) and persist the
+     * rest as bare days (no crew). Returns only the days actually created
+     * (mirroring legacy's {@code List<PlanningDayOverview>} — skipped days are
+     * not in the result).
+     */
+    public List<PlanningDayDetail> bulkCreatePlanningDays(PlanningDayRuleRequest req) {
+        UUID operatingClubId = resolveTenantOrThrow();
+        UUID locationId = req.locationId().value();
+        Set<DayOfWeek> weekdays = req.selectedWeekdays();
+        // Domain owns the expansion + the range bound (→ PlanningRuleRangeException 422).
+        List<LocalDate> dates = PlanningDay.expandRuleDates(req.startDate(), req.endDate(), weekdays);
+        if (dates.isEmpty()) {
+            return List.of();
+        }
+        UUID creator = currentUserId();
+        List<PlanningDayDetail> created = new ArrayList<>();
+        for (LocalDate date : dates) {
+            // Skip-existing idempotent: a (club, date, location) already planned
+            // is left untouched (re-running the same rule is a no-op for it).
+            if (planningDays.existsActiveForDay(date, locationId)) {
+                continue;
+            }
+            PlanningDay day = PlanningDay.create(operatingClubId, date, locationId, req.info());
+            day.recordCreatedBy(creator);
+            // No default crew — bare days (J-6 oracle).
+            PlanningDayDetail detail = toDetail(planningDays.save(day));
+            auditTrail.record(AuditAction.CREATE,
+                    AuditedTarget.created(AUDIT_ENTITY_TYPE, detail.id(), detail));
+            created.add(detail);
+        }
+        return List.copyOf(created);
     }
 
     public PlanningDayDetail updatePlanningDay(UUID id, PlanningDayUpdateRequest req) {

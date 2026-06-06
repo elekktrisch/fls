@@ -3,6 +3,7 @@ package ch.alpenflight.planning.web;
 import ch.alpenflight.planning.domain.InvalidPlanningDateException;
 import ch.alpenflight.planning.domain.PlanningDayConflictException;
 import ch.alpenflight.planning.domain.PlanningDayNotFoundException;
+import ch.alpenflight.planning.domain.PlanningRuleRangeException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -21,6 +22,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *       (key {@code planning.day.duplicate}) — duplicate club+date+location.</li>
  *   <li>{@link InvalidPlanningDateException} → <strong>422</strong>
  *       (key {@code planning.day.date}) — planning date outside the sane range.</li>
+ *   <li>{@link PlanningRuleRangeException} → <strong>422</strong>
+ *       (key {@code planning.rule.range}) — bulk rule range over the span cap.</li>
  *   <li>{@link PlanningDayNotFoundException} → 404 (also the cross-tenant case).</li>
  *   <li>{@link IllegalArgumentException} → 400 (missing/invalid factory args,
  *       a crew role with no seeded club type).</li>
@@ -39,6 +42,8 @@ class PlanningDaysExceptionHandler {
             URI.create("urn:alpenflight:problem:planning-day-duplicate");
     private static final URI TYPE_DATE =
             URI.create("urn:alpenflight:problem:planning-day-date");
+    private static final URI TYPE_RULE_RANGE =
+            URI.create("urn:alpenflight:problem:planning-rule-range");
 
     @ExceptionHandler(PlanningDayNotFoundException.class)
     ResponseEntity<ProblemDetail> handleNotFound(PlanningDayNotFoundException e) {
@@ -66,6 +71,16 @@ class PlanningDaysExceptionHandler {
         pd.setTitle("Invalid planning date");
         pd.setDetail(e.getMessage());
         pd.setProperty("key", "planning.day.date");
+        return problem(pd);
+    }
+
+    @ExceptionHandler(PlanningRuleRangeException.class)
+    ResponseEntity<ProblemDetail> handleRuleRange(PlanningRuleRangeException e) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.UNPROCESSABLE_ENTITY);
+        pd.setType(TYPE_RULE_RANGE);
+        pd.setTitle("Planning rule range too large");
+        pd.setDetail(e.getMessage());
+        pd.setProperty("key", "planning.rule.range");
         return problem(pd);
     }
 

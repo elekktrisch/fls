@@ -257,8 +257,20 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   Added `createdByUserId` (mapped, updatable=false) to PlanningDay + a `PlanningDayAssignmentTypeRepository`
   domain port (ADR-0023 layering). `PlanningDaysControllerIT` (4 cases) green; whole `./gradlew test` green;
   PMD/CPD clean; OpenAPI snapshot + orval client regenerated (planning-days client ready for T-07/T-08).
-- [ ] **T-05 — rule-expand endpoint.** `POST /planningdays/create/rule` — weekday expansion over a
+- [x] **T-05 — rule-expand endpoint.** `POST /planningdays/create/rule` — weekday expansion over a
   bounded range, skip-existing idempotent, empty-flags→empty, returns created overviews. *(endpoint seam)*
+  **Done:** `POST /api/v1/planning-days/create/rule` (operationId `bulkCreatePlanningDays`). Body =
+  `PlanningDayRuleRequest` (startDate/endDate + 7 `every<Weekday>` bools + locationId + info?). Expansion
+  lives as a **domain method** `PlanningDay.expandRuleDates(start, end, Set<DayOfWeek>)` (ADR-0022 §2):
+  inclusive range × selected weekdays, ascending; empty flags or inverted range → empty list (legacy parity,
+  `PlanningDayService.cs:290-324`); span > `MAX_RULE_SPAN_DAYS` (366) → `PlanningRuleRangeException` (→ 422,
+  key `planning.rule.range`) — the bound legacy lacks. Service orchestrates: resolve tenant, expand, then
+  **skip-existing idempotent** via new `PlanningDayRepository.existsActiveForDay(date, location)` (tenant-scoped,
+  soft-delete-filtered JPQL) — a re-run is a no-op for already-planned days (no 409, no dupes); persists the
+  rest as **bare days** (no crew) reusing the T-02 aggregate + T-03 dedup-aware save. Returns only the days
+  actually created (skipped not included), mirroring legacy `List<PlanningDayOverview>`. 3 new domain unit
+  tests + 3 new ITs (weekend-2wk→4 days + idempotent re-run→0; empty-flags→empty+nothing; over-cap→422).
+  Whole `./gradlew test` green; PMD/CPD clean; arch-guards green; OpenAPI snapshot + orval client regenerated.
 - [ ] **T-06 — clean-seed planning data.** Dev-seed Flyway: 3 assignment types/club + sample planning
   days so the screen + spec have data clean-seed. *(migration seam)*
 - [ ] **T-07 — SPA planning list page.** `/planning` list + store + route + orval client; future-days,

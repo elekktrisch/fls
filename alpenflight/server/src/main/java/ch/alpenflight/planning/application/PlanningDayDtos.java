@@ -5,9 +5,12 @@ import ch.alpenflight.platform.id.PersonId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
@@ -120,4 +123,55 @@ public final class PlanningDayDtos {
     public record PlanningDaySearchFilter(
             @Nullable @Schema(description = "Lower-bound planning date (legacy `Day.From`); default today.")
                     LocalDate from) {}
+
+    /**
+     * Bulk weekday-expansion rule (T-05; legacy {@code PlanningDayCreatorRule}).
+     * Expands the <em>inclusive</em> {@code [startDate, endDate]} range to one
+     * bare planning day (no crew) per matching weekday at {@code locationId},
+     * sharing the optional {@code info}. Empty weekday flags → no days created
+     * (no error); a day that already exists for the (club, date, location) is
+     * skipped idempotently; a range wider than {@code PlanningDay.MAX_RULE_SPAN_DAYS}
+     * is rejected 422.
+     */
+    @Schema(description = "Bulk weekday-expansion rule (inclusive range × selected weekdays at a location).")
+    public record PlanningDayRuleRequest(
+            @NotNull LocalDate startDate,
+            @NotNull LocalDate endDate,
+            boolean everyMonday,
+            boolean everyTuesday,
+            boolean everyWednesday,
+            boolean everyThursday,
+            boolean everyFriday,
+            boolean everySaturday,
+            boolean everySunday,
+            @NotNull LocationId locationId,
+            @Nullable @Size(max = 4000) String info) {
+
+        /** The selected weekdays as a {@link DayOfWeek} set (empty if none flagged). */
+        public Set<DayOfWeek> selectedWeekdays() {
+            EnumSet<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
+            if (everyMonday) {
+                days.add(DayOfWeek.MONDAY);
+            }
+            if (everyTuesday) {
+                days.add(DayOfWeek.TUESDAY);
+            }
+            if (everyWednesday) {
+                days.add(DayOfWeek.WEDNESDAY);
+            }
+            if (everyThursday) {
+                days.add(DayOfWeek.THURSDAY);
+            }
+            if (everyFriday) {
+                days.add(DayOfWeek.FRIDAY);
+            }
+            if (everySaturday) {
+                days.add(DayOfWeek.SATURDAY);
+            }
+            if (everySunday) {
+                days.add(DayOfWeek.SUNDAY);
+            }
+            return days;
+        }
+    }
 }

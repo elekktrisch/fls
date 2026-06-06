@@ -51,6 +51,18 @@ public interface PlanningDayRepository {
     Optional<PlanningDay> findActiveById(UUID id);
 
     /**
+     * Whether the caller's tenant already has a non-deleted planning day on
+     * {@code planningDate} at {@code locationId} — the {@code (club, date,
+     * location)} dedup key the {@code ux_pln_club_date_loc} index enforces. Used
+     * by the bulk rule-expand (T-05) to skip an already-created day idempotently
+     * (re-running the same rule is a no-op for existing days) rather than letting
+     * the unique-index breach surface as a 409. Tenant-scoped via {@code @TenantId};
+     * a cross-tenant day at the same date/location is invisible (so each club's
+     * rule is independent).
+     */
+    boolean existsActiveForDay(LocalDate planningDate, UUID locationId);
+
+    /**
      * One page of future planning days ({@code planning_date >= asOf}) within
      * the caller's tenant, sorted {@code planning_date asc}, windowed to
      * {@code [pageStart, pageStart+pageSize)}. Backs {@code POST

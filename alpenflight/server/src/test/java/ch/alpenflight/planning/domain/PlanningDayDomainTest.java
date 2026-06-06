@@ -3,7 +3,11 @@ package ch.alpenflight.planning.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -91,5 +95,47 @@ class PlanningDayDomainTest {
         assertThatThrownBy(() -> day.reschedule(LocalDate.of(1800, 1, 1)))
                 .isInstanceOf(InvalidPlanningDateException.class);
         assertThat(day.getPlanningDate()).isEqualTo(LocalDate.of(2026, 6, 6));
+    }
+
+    @Test
+    void expandRuleDates_emitsOneDatePerMatchingWeekday_ascending() {
+        // 2026-06-06 is a Saturday; a 2-week window Sat 06 → Fri 19.
+        LocalDate start = LocalDate.of(2026, 6, 6);   // Sat
+        LocalDate end = LocalDate.of(2026, 6, 19);    // Fri
+        Set<DayOfWeek> weekend = EnumSet.of(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY);
+
+        List<LocalDate> dates = PlanningDay.expandRuleDates(start, end, weekend);
+
+        // Sat 06, Sun 07, Sat 13, Sun 14 — the only Sat/Sun in [06,19].
+        assertThat(dates).containsExactly(
+                LocalDate.of(2026, 6, 6), LocalDate.of(2026, 6, 7),
+                LocalDate.of(2026, 6, 13), LocalDate.of(2026, 6, 14));
+        assertThat(dates).allMatch(d -> weekend.contains(d.getDayOfWeek()));
+    }
+
+    @Test
+    void expandRuleDates_emptyFlags_orInvertedRange_returnEmpty() {
+        LocalDate start = LocalDate.of(2026, 6, 6);
+        LocalDate end = LocalDate.of(2026, 6, 19);
+
+        // No weekday flags → empty list, no error (legacy parity).
+        assertThat(PlanningDay.expandRuleDates(start, end, Set.of())).isEmpty();
+        // endDate before startDate → empty (the loop never enters).
+        assertThat(PlanningDay.expandRuleDates(end, start, EnumSet.of(DayOfWeek.SATURDAY))).isEmpty();
+    }
+
+    @Test
+    void expandRuleDates_overSpanCap_throws() {
+        LocalDate start = LocalDate.of(2026, 1, 1);
+        // > MAX_RULE_SPAN_DAYS (366) → rejected before any expansion.
+        LocalDate tooFar = start.plusDays(PlanningDay.MAX_RULE_SPAN_DAYS);
+        assertThatThrownBy(() ->
+                PlanningDay.expandRuleDates(start, tooFar, EnumSet.of(DayOfWeek.MONDAY)))
+                .isInstanceOf(PlanningRuleRangeException.class);
+
+        // Exactly at the cap (366 inclusive) is allowed.
+        LocalDate atCap = start.plusDays(PlanningDay.MAX_RULE_SPAN_DAYS - 1);
+        assertThat(PlanningDay.expandRuleDates(start, atCap, EnumSet.of(DayOfWeek.MONDAY)))
+                .isNotEmpty();
     }
 }

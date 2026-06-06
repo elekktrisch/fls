@@ -5,6 +5,7 @@ import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayCreateRequ
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayDetail;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPage;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPageRequest;
+import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayRuleRequest;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayUpdateRequest;
 import ch.alpenflight.planning.application.PlanningDaysService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -115,6 +116,28 @@ public class PlanningDaysController {
         return ResponseEntity
                 .created(URI.create("/api/v1/planning-days/" + created.id()))
                 .body(created);
+    }
+
+    /**
+     * Bulk weekday-expansion (T-05; legacy {@code POST .../create/rule},
+     * {@code PlanningDayCreatorRule}). Expands the inclusive date range to one
+     * bare day (no crew) per selected weekday at the location, skipping
+     * already-existing (club, date, location) days idempotently. Empty weekday
+     * flags → empty result, no error; a range wider than the domain cap → 422.
+     * Returns the list of days actually created (skipped days are not included).
+     */
+    @Operation(operationId = "bulkCreatePlanningDays",
+            summary = "Bulk-create planning days by weekday over an inclusive date range. Empty weekday "
+                    + "flags → empty result; existing (club, date, location) days are skipped idempotently.")
+    @ApiResponse(responseCode = "201", description = "The list of days actually created (may be empty).")
+    @ApiResponse(responseCode = "400", description = "Validation failed.")
+    @ApiResponse(responseCode = "422", description = "The date range exceeds the sane span cap.")
+    @PostMapping(path = "/create/rule", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<PlanningDayDetail>> bulkCreatePlanningDays(
+            @Valid @RequestBody PlanningDayRuleRequest req) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(service.bulkCreatePlanningDays(req));
     }
 
     @Operation(operationId = "updatePlanningDay",

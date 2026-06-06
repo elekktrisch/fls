@@ -1571,6 +1571,64 @@
         }
       }
     },
+    "/api/v1/planning-days/create/rule" : {
+      "post" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Bulk-create planning days by weekday over an inclusive date range. Empty weekday flags → empty result; existing (club, date, location) days are skipped idempotently.",
+        "operationId" : "bulkCreatePlanningDays",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningDayRuleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The list of days actually created (may be empty).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "The date range exceeds the sane span cap.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/persons" : {
       "get" : {
         "tags" : [ "Persons" ],
@@ -5472,6 +5530,52 @@
           }
         },
         "required" : [ "items", "pageSize", "pageStart", "totalRows" ]
+      },
+      "PlanningDayRuleRequest" : {
+        "type" : "object",
+        "description" : "Bulk weekday-expansion rule (inclusive range × selected weekdays at a location).",
+        "properties" : {
+          "startDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "endDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "everyMonday" : {
+            "type" : "boolean"
+          },
+          "everyTuesday" : {
+            "type" : "boolean"
+          },
+          "everyWednesday" : {
+            "type" : "boolean"
+          },
+          "everyThursday" : {
+            "type" : "boolean"
+          },
+          "everyFriday" : {
+            "type" : "boolean"
+          },
+          "everySaturday" : {
+            "type" : "boolean"
+          },
+          "everySunday" : {
+            "type" : "boolean"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "info" : {
+            "type" : "string",
+            "maxLength" : 4000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "endDate", "locationId", "startDate" ]
       },
       "PersonCreateRequest" : {
         "type" : "object",

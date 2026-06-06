@@ -10,12 +10,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.hibernate.annotations.TenantId;
 import org.jspecify.annotations.Nullable;
@@ -143,6 +146,73 @@ public class PlanningDay {
                     "planningDate " + date + " is outside the sane range ["
                             + MIN_PLANNING_DATE + ", " + MAX_PLANNING_DATE + "]");
         }
+    }
+
+    /**
+     * Maximum span (inclusive, in days) the bulk weekday-expansion rule (T-05)
+     * may cover. Legacy is unbounded ({@code PlanningDayService.cs:304}); V4's
+     * {@code ux_pln_club_date_loc} + the dedup-aware save make an unbounded rule
+     * an expensive way to insert thousands of rows. Capped at ~one year + a
+     * leap-day margin so a full-season weekend rule is fine but an absurd range
+     * (e.g. 1900→2100) is rejected ({@link PlanningRuleRangeException} → 422).
+     */
+    public static final long MAX_RULE_SPAN_DAYS = 366;
+
+    /**
+     * Expands a bulk-creation rule (T-05) to the inclusive list of dates whose
+     * weekday is selected, in ascending order — the legacy
+     * {@code CreatePlanningDays} weekday loop ({@code PlanningDayService.cs:304-324})
+     * as a domain rule (ADR 0022 directive 2: the expansion + range bound live
+     * here, not the controller/SQL).
+     *
+     * <ul>
+     *   <li>Empty {@code weekdays} → empty list (legacy returns an empty list, no
+     *       error — {@code PlanningDayService.cs:290-300}).</li>
+     *   <li>{@code endDate} before {@code startDate} → empty list (the loop never
+     *       enters — parity with the legacy {@code for} condition).</li>
+     *   <li>Span exceeding {@link #MAX_RULE_SPAN_DAYS} → {@link
+     *       PlanningRuleRangeException} (the bound legacy lacks).</li>
+     * </ul>
+     *
+     * <p>The caller (service) then skips dates that already have a day at the
+     * location (idempotent re-run) and persists the rest as bare days — no crew.
+     *
+     * @param startDate inclusive range start
+     * @param endDate inclusive range end
+     * @param weekdays the selected weekdays (an empty set yields no dates)
+     * @return the matching dates, ascending; never null
+     */
+    public static List<LocalDate> expandRuleDates(LocalDate startDate,
+                                                  LocalDate endDate,
+                                                  Set<DayOfWeek> weekdays) {
+        if (startDate == null) {
+            throw new IllegalArgumentException("startDate must not be null");
+        }
+        if (endDate == null) {
+            throw new IllegalArgumentException("endDate must not be null");
+        }
+        if (weekdays == null) {
+            throw new IllegalArgumentException("weekdays must not be null");
+        }
+        // Validate the endpoints with the same sanity range a single create uses.
+        validatePlanningDate(startDate);
+        validatePlanningDate(endDate);
+        if (weekdays.isEmpty() || endDate.isBefore(startDate)) {
+            return List.of();
+        }
+        long span = ChronoUnit.DAYS.between(startDate, endDate) + 1;
+        if (span > MAX_RULE_SPAN_DAYS) {
+            throw new PlanningRuleRangeException(
+                    "Rule range " + startDate + "…" + endDate + " spans " + span
+                            + " days, exceeding the cap of " + MAX_RULE_SPAN_DAYS);
+        }
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            if (weekdays.contains(date.getDayOfWeek())) {
+                dates.add(date);
+            }
+        }
+        return List.copyOf(dates);
     }
 
     /** Moves the day to a different date, re-running the sanity range check. */

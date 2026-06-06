@@ -118,6 +118,7 @@ export * from './planningDayDetail';
 export * from './planningDayPage';
 export * from './planningDayPageRequest';
 export * from './planningDayPageRequestSorting';
+export * from './planningDayRuleRequest';
 export * from './planningDaySearchFilter';
 export * from './planningDayUpdateRequest';
 export * from './sseEmitter';
