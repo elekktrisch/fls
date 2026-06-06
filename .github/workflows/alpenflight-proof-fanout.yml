@@ -727,7 +727,7 @@ jobs:
           # aircraft). Each gets a stable, named filename so the sidecar's `file`
           # reference is deterministic, and is declared under its OWN journey so
           # the gallery groups it with the matching AlpenFlight videos.
-          STAGE="${{ github.workspace }}/j0c-legacy-video"
+          STAGE="$GITHUB_WORKSPACE/j0c-legacy-video"
           mkdir -p "$STAGE"
 
           # J-0c — legacy Location fan-out create video.
@@ -813,7 +813,7 @@ jobs:
           # no-op for THAT entry (we only declare the ones we found) — but a
           # DECLARED-yet-missing PNG fails the generator's AC5 link-check, so we
           # declare strictly what we copied.
-          SHOT="${{ github.workspace }}/j1-screenshots"
+          SHOT="$GITHUB_WORKSPACE/j1-screenshots"
           mkdir -p "$SHOT"
           SHOTS=""
           add_shot() { # $1 src-glob  $2 stable-name  $3 journey  $4 side  $5 view  $6 caption
@@ -905,7 +905,7 @@ jobs:
           # SANITIZE: byte-identical to the workflow's other branch-sanitize
           # (integration/J-4 → integration-J-4) — see the "Compute fan-out
           # branch-preview destination" step's sed rule.
-          SANITIZED_BRANCH="$(printf '%s' "${{ github.ref_name }}" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
+          SANITIZED_BRANCH="$(printf '%s' "$GITHUB_REF_NAME" | sed -E 's#[^A-Za-z0-9._-]#-#g')"
           AF_PROFILE_BASE="https://elekktrisch.github.io/fls/alpenflight/proof-preview/${SANITIZED_BRANCH}/profile/screenshots"
           for tab in account personal pilot notifications; do
             if curl -fsS "${AF_PROFILE_BASE}/alpenflight-profile-${tab}.png" \

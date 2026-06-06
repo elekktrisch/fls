@@ -748,7 +748,7 @@ backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather
   masterdata-touch journey — not fixed here).
 
 ### §4 gate — fanout dispatch BROKE (T-41 caption length × GitHub expression limit)
-- [ ] **T-42 — Fix the fanout `Exceeded max expression length 21000` parse error.** `gh workflow run
+- [x] **T-42 — Fix the fanout `Exceeded max expression length 21000` parse error.** `gh workflow run
   alpenflight-proof-fanout.yml` now fails: `failed to parse workflow: (Line: 722, Col: 14): Exceeded max
   expression length 21000`. Line 722 is the `run: |` of the "Stage legacy parity videos" step — a single
   ~240-line run block that (because it contains `${{ github.workspace }}` etc.) GitHub compiles as ONE
