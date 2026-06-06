@@ -24,17 +24,20 @@ import { fillKcLogin } from './kc-form';
  * (`clubadmin1/2/3`) so this spec co-locates cleanly in one Playwright
  * invocation.
  *
- * RESERVATION-TYPE GAP (reported precisely, NOT papered over): the reservation
- * type has NO create API — `t_aircraft_reservation_type` is tenant-scoped and
- * populated only by migration (or a JDBC seed in the ControllerIT). A clean realm
- * club therefore has zero reservation types, so the UI edit form's
- * `reservationTypeId` (form-required) dropdown is EMPTY. The backend treats
- * `reservationTypeId` as OPTIONAL (AircraftReservationCreateRequest), so the
- * clean-seed chain drives the reservation MUTATIONS through the REAL REST API
- * (no type needed) and drives the LIST + SCHEDULER render through the UI (proving
- * the screen wires to the live backend). The migrated-data half (a real legacy
- * reservation, with its migrated type) is what proves the type renders end to
- * end. See the spec header + the task report for the surfaced gap.
+ * RESERVATION-TYPE — clean-seed default (J-5 T-17): the reservation type has NO
+ * create API — `t_aircraft_reservation_type` is tenant-scoped and populated only
+ * by migration (or the future masterdata screen). To let the FULL clean-seed UI
+ * create flow run (form → type-picker), `V31__dev_reservation_type_seed.sql`
+ * seeds ONE active default type ("Allgemein") for seed-club-1, so the form-
+ * required `reservationTypeId` dropdown is non-empty on a clean realm. The
+ * happy-path create test drives that real type through the UI `<af-select>`
+ * (`fetchReservationTypeId` below reads the seeded id off the live
+ * `/aircraft-reservation-types` listitems endpoint). The remaining mutation
+ * cases (overlap-409, duration-422, all-day, cross-tenant, edit/delete-frees)
+ * still drive the REST API directly (the type is OPTIONAL on the backend
+ * request, so those error/edge probes need no type). The migrated-data half (a
+ * real legacy reservation, with its migrated type) proves the type renders end
+ * to end from migrated data too.
  */
 
 /** Seeded `clubadmin4` (V29) bound to seed-club-1 — the J-5 clean-seed principal. */
@@ -226,6 +229,36 @@ export async function seedReservationMasterdata(
     pilotPersonId: String(pilot['id']),
     locationId: String(location['id']),
   };
+}
+
+/**
+ * Read the clean-seed default reservation-type id off the live
+ * `/aircraft-reservation-types` listitems endpoint (the same read the form's
+ * type dropdown issues). `V31__dev_reservation_type_seed.sql` seeds exactly one
+ * active "Allgemein" type for seed-club-1, so the clean-seed UI create flow can
+ * select a REAL type from the picker. Fails loud if the seed is absent rather
+ * than silently falling back to a typeless create (the T-17 done-bar is that the
+ * type-picker flow runs).
+ */
+export async function fetchReservationTypeId(
+  api: APIRequestContext,
+  bearer: string,
+): Promise<string> {
+  const res = await api.get('/api/v1/aircraft-reservation-types', {
+    headers: { authorization: bearer },
+  });
+  if (!res.ok()) {
+    throw new Error(`list reservation types failed (${res.status()}): ${await res.text()}`);
+  }
+  const types = (await res.json()) as { id: string; name: string }[];
+  const seeded = types.find((t) => t.name === 'Allgemein') ?? types[0];
+  if (!seeded?.id) {
+    throw new Error(
+      'no reservation type on the clean-seed club — V31__dev_reservation_type_seed.sql ' +
+        'must seed a default type for seed-club-1 (T-17)',
+    );
+  }
+  return seeded.id;
 }
 
 /** `true` when the migrated-bundle real-export path is active (the fanout). */

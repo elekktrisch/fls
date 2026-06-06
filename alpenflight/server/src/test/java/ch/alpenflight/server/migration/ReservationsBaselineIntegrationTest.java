@@ -632,10 +632,34 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
-    /** Per-club ref tables: operator creates via API; migration does NOT seed. */
+    /**
+     * Per-club ref tables: the STRUCTURAL migration (V4) does NOT seed reservation
+     * types — operators get them via migration import or the future masterdata
+     * screen. The ONE tolerated row is the J-5 T-17 dev/test seed
+     * (`V31__dev_reservation_type_seed.sql`): a default "Allgemein" type bound to
+     * seed-club-1 so the clean-seed UI create→type-picker e2e has a pickable type
+     * (a clean realm club otherwise has zero types → an empty form dropdown). Same
+     * dev/test-only posture as the V8/V26/V29 dev-user seeds — bound to the
+     * canonical dev club, absent in any real prod tenant. The guard still catches
+     * any UNEXPECTED structural seeding.
+     */
     @Test
-    void aircraft_reservation_type_NOT_seeded_in_migration() throws Exception {
-        assertTableEmpty("t_aircraft_reservation_type");
+    void aircraft_reservation_type_only_the_dev_seed_present() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT id::text, operating_club_id::text, reservation_type_name "
+                                + "FROM t_aircraft_reservation_type")) {
+            List<String> rows = new ArrayList<>();
+            while (rs.next()) {
+                rows.add(rs.getString(1) + "|" + rs.getString(2) + "|" + rs.getString(3));
+            }
+            assertThat(rows)
+                    .as("t_aircraft_reservation_type carries ONLY the V31 dev/test seed "
+                            + "(no structural V4 seeding)")
+                    .containsExactly(
+                            "019e30c3-2c00-7400-8000-000000000001"
+                                    + "|019e30c3-2c00-7001-8000-000000000001|Allgemein");
+        }
     }
 
     @Test

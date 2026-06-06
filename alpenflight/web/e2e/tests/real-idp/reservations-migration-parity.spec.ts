@@ -3,7 +3,6 @@ import {
   expect,
   type Browser,
   type BrowserContext,
-  type Page,
   type TestInfo,
 } from '@playwright/test';
 
@@ -14,12 +13,14 @@ import {
 } from './_helpers/two-club-fixture';
 import {
   captureReservationAdminBearer,
+  fetchReservationTypeId,
   loginAsReservationAdmin,
   seedReservationMasterdata,
   useRealBundle,
   type ReservationMasterdata,
 } from './_helpers/reservation-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
+import { selectAfOption } from '../_helpers/af-select';
 
 /**
  * J-5 T-16 — the Aircraft-reservation real chain (live Keycloak auth + real
@@ -40,19 +41,21 @@ import { proofVideo } from './_helpers/proof-video';
  *   - read a created id from the 201 `Location` header / a re-GET, never the POST
  *     response body (the SPA navigates on success → Chrome evicts the body).
  *
- * ── RESERVATION-TYPE GAP (surfaced, NOT papered over) ──────────────────────
+ * ── RESERVATION-TYPE — clean-seed default + UI type-picker (J-5 T-17) ───────
  * The reservation type has NO create API (`t_aircraft_reservation_type` is
- * tenant-scoped, populated only by migration / a JDBC seed), and a clean realm
- * club has zero types — so the UI edit form's form-required `reservationTypeId`
- * dropdown is EMPTY for the clean-seed club. The backend treats
- * `reservationTypeId` as OPTIONAL, so the clean-seed chain drives the reservation
- * MUTATIONS (create / overlap-409 / duration-422 / all-day / cross-tenant /
- * edit-delete-frees) through the REAL REST API (no type needed) and drives the
- * LIST + SCHEDULER render through the UI (proving the screen wires to the live
- * backend). The MIGRATED-DATA half (a real legacy reservation carrying its
- * migrated type) is what proves the type renders end to end. The reservation
- * TYPE-PICKER UI flow is reported as a precise app-side gap (no type-create API),
- * NOT loosened into a fake pass.
+ * tenant-scoped, populated only by migration). To let the FULL clean-seed UI
+ * create flow run, `V31__dev_reservation_type_seed.sql` seeds ONE active default
+ * type ("Allgemein") for seed-club-1, so the form-required `reservationTypeId`
+ * dropdown is non-empty on a clean realm. The HAPPY-PATH create test now drives
+ * the whole thing through the UI: navigate to `/reservations/new`, pick the
+ * aircraft / the seeded TYPE / pilot / location from the real `<af-select>`s,
+ * fill the date+time, submit, and read the created id off the 201 Location — the
+ * full clean-seed UI create→type-picker chain end-to-end. The remaining mutation
+ * cases (overlap-409 / duration-422 / all-day / cross-tenant / edit-delete-frees)
+ * still drive the REST API directly — those error/edge probes need no type (it is
+ * OPTIONAL on the backend request). The MIGRATED-DATA half proves the type
+ * renders end to end from a real legacy reservation too. The type-CREATE API
+ * itself stays out of scope (deferred masterdata screen).
  */
 
 const RESERVATIONS = '/api/v1/aircraft-reservations';
@@ -120,6 +123,8 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
   /** clubadmin4's Bearer (seed-club-1, the operating/@TenantId club). */
   let adminBearer: string;
   let masterdata: ReservationMasterdata;
+  /** The clean-seed default reservation type (V31 seed) the UI picker selects. */
+  let reservationTypeId: string;
   /** Every reservation id this group created in seed-club-1 — deleted in afterAll. */
   const createdIds: string[] = [];
   let cleanupCtx: BrowserContext;
@@ -156,6 +161,10 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
 
     masterdata = await seedReservationMasterdata(request, adminBearer, foreignBearer);
 
+    // The clean-seed default reservation type (V31 dev seed) — the UI create flow
+    // selects it from the form's type dropdown. Fails loud if the seed is missing.
+    reservationTypeId = await fetchReservationTypeId(request, adminBearer);
+
     // A persistent context for the afterAll cleanup deletes (own request fixture).
     cleanupCtx = await browser.newContext({ baseURL });
   });
@@ -176,7 +185,7 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
     await twoClubs?.dispose();
   });
 
-  test('[happy] create a timed reservation → it renders in the list and scheduler lane', async ({
+  test('[happy] create a timed reservation through the UI type-picker → it renders in the list and scheduler lane', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -190,23 +199,47 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await expect(page.getByTestId('reservations-table')).toBeVisible();
       const baseline = await page.locator('[data-testid^="reservations-row-"]').count();
 
-      // Create a TIMED reservation on the managed aircraft (real API → real
-      // GiST-backed aggregate → real Postgres).
-      const start = '2026-09-01T10:00:00Z';
-      const end = '2026-09-01T11:00:00Z';
-      const id = await createReservation(ctx, adminBearer, createdIds, {
-        aircraftId: masterdata.managedAircraftId,
-        pilotPersonId: masterdata.pilotPersonId,
-        locationId: masterdata.locationId,
-        start,
-        end,
-        isAllDay: false,
-        remarks: 'J-5 clean-seed timed',
-      });
+      // Drive the FULL clean-seed UI create: new-form → pick aircraft / the
+      // V31-seeded TYPE / pilot / location from the real <af-select>s → fill the
+      // timed window → submit. Proves the create→type-picker chain end-to-end on
+      // clean seed (real form → real backend → real GiST aggregate → real PG).
+      await page.getByTestId('reservations-new-button').locator('button').click();
+      await expect(page).toHaveURL('/reservations/new');
+
+      await selectAfOption(page, 'reservation-aircraft-select', masterdata.managedAircraftId);
+      // The clean-seed default reservation type — the T-17 done-bar (an empty
+      // dropdown before V31 made this flow impossible; now it is selectable).
+      await selectAfOption(page, 'reservation-type-select', reservationTypeId);
+      await selectAfOption(page, 'reservation-pilot-select', masterdata.pilotPersonId);
+      await selectAfOption(page, 'reservation-location-select', masterdata.locationId);
+      await page.getByTestId('reservation-date').locator('input').fill('2026-09-01');
+      await page.getByTestId('reservation-start-time').locator('input').fill('10:00');
+      await page.getByTestId('reservation-end-time').locator('input').fill('11:00');
+
+      // Capture the 201 (the SPA navigates on bus-success → read the id from the
+      // Location header, never the evicted POST body). Track it for afterAll
+      // cleanup BEFORE asserting, so a later failure still cleans the row.
+      const createdResp = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === '/api/v1/aircraft-reservations' &&
+          r.status() === 201,
+      );
+      await page.getByTestId('reservation-save-button').click();
+      const resp = await createdResp;
+      const location = resp.headers()['location'];
+      expect(location, 'create must return a 201 Location header').toBeTruthy();
+      const id = new URL(location!, 'http://localhost').pathname.split('/').pop() ?? '';
+      expect(id, `Location "${location}" must end in a reservation UUID`).toMatch(
+        /^[0-9a-f-]{36}$/,
+      );
+      createdIds.push(id);
+
+      // On bus-success the SPA returns to the list.
+      await expect(page).toHaveURL('/reservations');
 
       // It renders in the UI list (the screen wires to the live backend). The
       // immat is decorated client-side from the aircraft picker.
-      await page.goto('/reservations');
       const row = page.getByTestId(`reservations-row-${id}`);
       await expect(row, 'the created reservation renders in the list').toBeVisible();
       await expect(page.getByTestId(`reservations-immat-${id}`)).toHaveText(
@@ -243,9 +276,11 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await proofVideo(page, testInfo, {
         journey: 'J-5',
         caption:
-          'J-5 · reservations · a club admin logs in via real Keycloak, creates a timed aircraft ' +
-          'reservation, and it renders in the /reservations list and in the right aircraft lane on ' +
-          'the /reservation-scheduler at its time offset (real backend round-trip)',
+          'J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft ' +
+          'reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, ' +
+          'pilot and location from the real dropdowns — and it renders in the /reservations list and ' +
+          'in the right aircraft lane on the /reservation-scheduler at its time offset (full ' +
+          'clean-seed UI create→type-picker chain, real backend round-trip)',
         acTag: 'happy',
       });
     }
