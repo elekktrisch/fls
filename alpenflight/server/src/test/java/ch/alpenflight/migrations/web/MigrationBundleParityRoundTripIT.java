@@ -130,6 +130,21 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
 
     @AfterEach
     void cleanup() {
+        // Reservation round-trip rows (RESTRICT FKs — delete child→parent before
+        // the club teardown). Scoped to the deployment this test's owner created.
+        String clubsByOwner =
+                "SELECT id FROM t_club WHERE deployment_id IN "
+                        + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id IN ("
+                + clubsByOwner + ")", userSub.toString());
+        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id IN ("
+                + clubsByOwner + ")", userSub.toString());
+        // FK parents the test pre-inserted under the seed club, by their sentinel.
+        jdbc.update("DELETE FROM t_aircraft WHERE immatriculation = 'HB-3999'");
+        jdbc.update("DELETE FROM t_flight_type WHERE flight_type_name = 'Reservation Type Flight'");
+        jdbc.update("DELETE FROM t_location WHERE location_name = 'Reservation Field'");
+        jdbc.update("DELETE FROM t_person WHERE lastname IN ('Pilot', 'Crew') "
+                + "AND firstname IN ('Reservation', 'Second')");
         jdbc.update("DELETE FROM t_mutation_audit_event WHERE actor_keycloak_sub = ?", userSub.toString());
         // Bundle-ingested users land under the provisioned Club — tear those
         // down first so the FK to t_club doesn't block the Club delete.
@@ -140,9 +155,6 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM t_migration_run WHERE upload_id IN "
                 + "(SELECT id FROM t_migration_upload WHERE user_id = ?::uuid)", userId.toString());
         jdbc.update("DELETE FROM t_migration_upload WHERE user_id = ?::uuid", userId.toString());
-        String clubsByOwner =
-                "SELECT id FROM t_club WHERE deployment_id IN "
-                        + "(SELECT id FROM t_deployment WHERE owner_keycloak_sub = ?::uuid)";
         jdbc.update("DELETE FROM t_flight_type WHERE operating_club_id IN (" + clubsByOwner + ")",
                 userSub.toString());
         jdbc.update("DELETE FROM t_member_state WHERE club_id IN (" + clubsByOwner + ")",
@@ -229,6 +241,151 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
         assertThat(provisionedClub.get("clubname")).isEqualTo("Parity Club");
         assertThat(provisionedClub.get("slug")).isEqualTo(testClubSlug);
         assertThat(provisionedClub.get("club_key")).isEqualTo(testClubKey);
+    }
+
+    /**
+     * J-5 T-22 regression: the AIRCRAFT_RESERVATION_TYPE + AIRCRAFT_RESERVATION
+     * round-trip. The live fanout 500'd with {@code sqlstate=23503} (Postgres FK
+     * violation) because neither reservation mapper declared its OFF-CONVENTION
+     * FK columns, so the {@code <target>_id} default resolver looked for fields
+     * that don't exist on the row ({@code club_id}, {@code person_id},
+     * {@code aircraft_reservation_type_id}) and left the REAL columns
+     * ({@code operating_club_id}, {@code pilot_person_id},
+     * {@code reservation_type_id}) carrying their verbatim legacy GUIDs — which
+     * then FK-violate ({@code fk_arvt_operating_club_id} / {@code fk_arv_*}) at
+     * INSERT. The fix is the mappers' {@code foreignKeyColumns()} overrides;
+     * with them, every FK rewrites to the new-stack id and the ingest is green.
+     *
+     * <p>The reservation's FK parents (aircraft / pilot person / location /
+     * flight_type) are inserted directly into Postgres keyed by their NEW ids and
+     * their {@code legacy_id_map_<entity>} entries seeded legacy→new, so the
+     * test exercises the exact resolver path the fanout drives (LOCATION through
+     * the composite (legacy_guid, club_id) fan-out map disambiguated by the
+     * reservation's OWN operating_club_id).
+     */
+    @Test
+    void reservation_and_type_round_trip_with_off_convention_fk_columns_resolved()
+            throws Exception {
+        JsonNode handshake = mintHandshake();
+        UUID uploadId = UUID.fromString(handshake.get("uploadId").asText());
+        byte[] publicKeyDer = decodePem(handshake.get("publicKeyPem").asText());
+
+        UUID legacyClubId = UUID.randomUUID();
+        BundleManifest.ClubDeclaration club = new BundleManifest.ClubDeclaration(
+                legacyClubId, "Reservation Club", testClubSlug, testClubKey, false,
+                SEED_COUNTRY_CH, SEED_CLUB_STATE_ACTIVE);
+
+        // Legacy ids the reservation row references (pre-rewrite, GUID form).
+        UUID legacyAircraftId = UUID.randomUUID();
+        UUID legacyPilotPersonId = UUID.randomUUID();
+        UUID legacySecondCrewPersonId = UUID.randomUUID();
+        UUID legacyLocationId = UUID.randomUUID();
+        UUID legacyFlightTypeId = UUID.randomUUID();
+        UUID legacyReservationTypeId = UUID.randomUUID();
+        UUID legacyReservationId = UUID.randomUUID();
+
+        // New-stack ids the parents land on (identity for non-fan-out FULL_PORT;
+        // derived for the fan-out LOCATION replica).
+        UUID newAircraftId = legacyAircraftId;
+        UUID newPilotPersonId = legacyPilotPersonId;
+        UUID newSecondCrewPersonId = legacySecondCrewPersonId;
+        UUID newFlightTypeId = legacyFlightTypeId;
+        UUID newReservationTypeId = legacyReservationTypeId;
+        UUID newLocationId =
+                ch.alpenflight.migration.bundle.Coercions.deriveFanOutId(legacyLocationId, legacyClubId);
+
+        // FULL_PORT for the two ingested reservation entities + the parents whose
+        // id-maps the resolver consults; SYSTEM_GLOBAL_RESOLVE for the reference
+        // entities. Map.of caps at 10 entries, so build it explicitly.
+        Map<EntityType, EntityPolicy> entityPolicies = new java.util.HashMap<>();
+        entityPolicies.put(EntityType.AIRCRAFT_RESERVATION_TYPE, fullPortPolicy());
+        entityPolicies.put(EntityType.AIRCRAFT_RESERVATION, fullPortPolicy());
+        entityPolicies.put(EntityType.COUNTRY, systemGlobalPolicy());
+        entityPolicies.put(EntityType.LANGUAGE, systemGlobalPolicy());
+        entityPolicies.put(EntityType.CLUB_STATE, systemGlobalPolicy());
+
+        Map<String, byte[]> tarEntries = new LinkedHashMap<>();
+        tarEntries.put("legacy_id_map/COUNTRY.pgcopy", pgcopyMap(legacyCountryId, SEED_COUNTRY_CH));
+        tarEntries.put("legacy_id_map/CLUB_STATE.pgcopy",
+                pgcopyMap(LEGACY_CLUB_STATE_ACTIVE_SYNTHETIC, SEED_CLUB_STATE_ACTIVE));
+        // Parent id-maps the reservation FK resolver consults — legacy→new.
+        // LOCATION is fan-out: its map is the 3-column composite keyed on the
+        // reservation's own operating (legacy) club.
+        tarEntries.put("legacy_id_map/AIRCRAFT.pgcopy", pgcopyMap(legacyAircraftId, newAircraftId));
+        tarEntries.put("legacy_id_map/PERSON.pgcopy", pgcopyMapMulti(
+                new UUID[] {legacyPilotPersonId, newPilotPersonId},
+                new UUID[] {legacySecondCrewPersonId, newSecondCrewPersonId}));
+        tarEntries.put("legacy_id_map/FLIGHT_TYPE.pgcopy",
+                pgcopyMap(legacyFlightTypeId, newFlightTypeId));
+        tarEntries.put("legacy_id_map/AIRCRAFT_RESERVATION_TYPE.pgcopy",
+                pgcopyMap(legacyReservationTypeId, newReservationTypeId));
+        tarEntries.put("legacy_id_map/LOCATION.pgcopy",
+                pgcopyMapFanOut(legacyLocationId, legacyClubId, newLocationId));
+        tarEntries.put("AIRCRAFT_RESERVATION_TYPE.ndjson",
+                reservationTypeNdjson(legacyReservationTypeId, legacyClubId));
+        tarEntries.put("AIRCRAFT_RESERVATION.ndjson", reservationNdjson(
+                legacyReservationId, legacyClubId, legacyAircraftId, legacyPilotPersonId,
+                legacySecondCrewPersonId, legacyLocationId, legacyReservationTypeId,
+                legacyFlightTypeId));
+
+        byte[] bundle = MigrationBundleTestFactory.buildBundleWithEntries(
+                cipher, uploadId, publicKeyDer, "Reservation IT Deployment",
+                List.of(club), entityPolicies, tarEntries);
+
+        // Pre-insert the reservation's FK parents that are NOT ingested by this
+        // bundle (aircraft / pilot+second-crew person / location / flight_type),
+        // keyed by their NEW ids. The reservation's resolver rewrites the row's FK
+        // columns to these ids; the INSERT then satisfies fk_arv_*. AIRCRAFT_-
+        // RESERVATION_TYPE is the only parent carried in the bundle (it ingests
+        // before the reservation in tar order) — its own operating_club_id resolves
+        // to the provisioned club via legacy_id_map_club. Parents are attached to
+        // the existing Flyway seed club so their own NOT-NULL club FKs hold; the
+        // reservation references them purely by id (aircraft + person are cross-
+        // tenant, location is tenant-scoped but referenced cross-tenant here only
+        // for the FK-presence proof).
+        seedReservationFkParents(newAircraftId, newPilotPersonId, newSecondCrewPersonId,
+                newLocationId, newFlightTypeId);
+
+        ResponseEntity<String> res = postBundle(uploadId, bundle, verifiedToken);
+
+        assertThat(res.getStatusCode())
+                .as("reservation + type round-trip ingest failed (FK resolution); body=%s",
+                        res.getBody())
+                .isEqualTo(HttpStatus.OK);
+        JsonNode body = JSON.readTree(res.getBody());
+        UUID newClubId = UUID.fromString(body.get("clubIds").get(0).asText());
+
+        // The reservation + type landed with every FK rewritten to the new-stack id.
+        Map<String, Object> type = jdbc.queryForMap(
+                "SELECT id, operating_club_id, reservation_type_name "
+                        + "FROM t_aircraft_reservation_type WHERE id = ?::uuid",
+                newReservationTypeId.toString());
+        assertThat(UUID.fromString(type.get("operating_club_id").toString()))
+                .as("operating_club_id must rewrite to the provisioned club via "
+                        + "legacy_id_map_club — NOT keep the verbatim legacy guid (the T-22 23503)")
+                .isEqualTo(newClubId);
+
+        Map<String, Object> reservation = jdbc.queryForMap(
+                "SELECT operating_club_id, aircraft_id, pilot_person_id, second_crew_person_id, "
+                        + "location_id, reservation_type_id, flight_type_id "
+                        + "FROM t_aircraft_reservation WHERE id = ?::uuid",
+                legacyReservationId.toString());
+        assertThat(UUID.fromString(reservation.get("operating_club_id").toString()))
+                .isEqualTo(newClubId);
+        assertThat(UUID.fromString(reservation.get("aircraft_id").toString()))
+                .isEqualTo(newAircraftId);
+        assertThat(UUID.fromString(reservation.get("pilot_person_id").toString()))
+                .isEqualTo(newPilotPersonId);
+        assertThat(UUID.fromString(reservation.get("second_crew_person_id").toString()))
+                .isEqualTo(newSecondCrewPersonId);
+        assertThat(UUID.fromString(reservation.get("location_id").toString()))
+                .as("location_id must rewrite through the composite fan-out map "
+                        + "disambiguated by the reservation's own operating_club_id")
+                .isEqualTo(newLocationId);
+        assertThat(UUID.fromString(reservation.get("reservation_type_id").toString()))
+                .isEqualTo(newReservationTypeId);
+        assertThat(UUID.fromString(reservation.get("flight_type_id").toString()))
+                .isEqualTo(newFlightTypeId);
     }
 
     @Test
@@ -486,6 +643,108 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
             writer.write(legacyGuid, newUuid);
         }
         return sink.toByteArray();
+    }
+
+    /** 2-column identity map carrying several (legacy_guid, new_uuid) rows in ONE COPY stream. */
+    private static byte[] pgcopyMapMulti(UUID[]... pairs) throws IOException {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
+            for (UUID[] pair : pairs) {
+                writer.write(pair[0], pair[1]);
+            }
+        }
+        return sink.toByteArray();
+    }
+
+    /** 3-column composite (legacy_guid, club_id, new_uuid) map for a fan-out target. */
+    private static byte[] pgcopyMapFanOut(UUID legacyGuid, UUID legacyClubId, UUID newUuid)
+            throws IOException {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        try (LegacyIdMapWriter writer = new LegacyIdMapWriter(sink)) {
+            writer.write(legacyGuid, legacyClubId, newUuid);
+        }
+        return sink.toByteArray();
+    }
+
+    /**
+     * Insert the reservation's non-ingested FK parents (aircraft / pilot person /
+     * second-crew person / location / flight_type), keyed by their NEW ids, so the
+     * reservation INSERT's rewritten FK columns resolve to real rows. Reference
+     * seed FKs (country / location_type / aircraft_type) are read from the Flyway
+     * baseline at runtime so the test does not pin seed UUIDs.
+     */
+    private void seedReservationFkParents(UUID aircraftId, UUID pilotPersonId,
+                                          UUID secondCrewPersonId, UUID locationId,
+                                          UUID flightTypeId) {
+        UUID anyCountry = jdbc.queryForObject(
+                "SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID anyLocationType = jdbc.queryForObject(
+                "SELECT id FROM t_location_type LIMIT 1", UUID.class);
+        UUID anyAircraftType = jdbc.queryForObject(
+                "SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
+
+        jdbc.update("INSERT INTO t_person (id, lastname, firstname) VALUES (?::uuid, ?, ?)",
+                pilotPersonId.toString(), "Pilot", "Reservation");
+        jdbc.update("INSERT INTO t_person (id, lastname, firstname) VALUES (?::uuid, ?, ?)",
+                secondCrewPersonId.toString(), "Crew", "Second");
+        jdbc.update("INSERT INTO t_location (id, club_id, location_name, country_id, location_type_id) "
+                        + "VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?::uuid)",
+                locationId.toString(), SEED_TENANT_USER_CLUB.toString(), "Reservation Field",
+                anyCountry.toString(), anyLocationType.toString());
+        jdbc.update("INSERT INTO t_aircraft (id, managing_club_id, aircraft_type_id, immatriculation) "
+                        + "VALUES (?::uuid, ?::uuid, ?::uuid, ?)",
+                aircraftId.toString(), SEED_TENANT_USER_CLUB.toString(),
+                anyAircraftType.toString(), "HB-3999");
+        jdbc.update("INSERT INTO t_flight_type (id, operating_club_id, flight_type_name) "
+                        + "VALUES (?::uuid, ?::uuid, ?)",
+                flightTypeId.toString(), SEED_TENANT_USER_CLUB.toString(), "Reservation Type Flight");
+    }
+
+    private static byte[] reservationTypeNdjson(UUID legacyTypeId, UUID legacyClubId)
+            throws IOException {
+        ObjectNode row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyTypeId.toString());
+        row.put("operating_club_id", legacyClubId.toString());
+        row.put("reservation_type_name", "Wartung");
+        row.put("is_instructor_required", false);
+        row.put("is_maintenance", true);
+        row.put("is_active", true);
+        row.putNull("remarks");
+        String created = Instant.parse("2024-01-01T00:00:00Z").toString();
+        row.put("created_on", created);
+        row.putNull("created_by_user_id");
+        row.put("modified_on", created);
+        row.putNull("modified_by_user_id");
+        row.putNull("deleted_on");
+        row.putNull("deleted_by_user_id");
+        return ndjsonLine(row);
+    }
+
+    private static byte[] reservationNdjson(UUID legacyId, UUID legacyClubId, UUID legacyAircraftId,
+                                            UUID legacyPilotPersonId, UUID legacySecondCrewPersonId,
+                                            UUID legacyLocationId, UUID legacyReservationTypeId,
+                                            UUID legacyFlightTypeId) throws IOException {
+        ObjectNode row = JSON.createObjectNode();
+        row.put("legacy_guid", legacyId.toString());
+        row.put("operating_club_id", legacyClubId.toString());
+        row.put("aircraft_id", legacyAircraftId.toString());
+        row.put("reservation_start", Instant.parse("2024-06-15T07:00:00Z").toString());
+        row.put("reservation_end", Instant.parse("2024-06-15T11:00:00Z").toString());
+        row.put("is_all_day", false);
+        row.put("pilot_person_id", legacyPilotPersonId.toString());
+        row.put("second_crew_person_id", legacySecondCrewPersonId.toString());
+        row.put("location_id", legacyLocationId.toString());
+        row.put("reservation_type_id", legacyReservationTypeId.toString());
+        row.put("flight_type_id", legacyFlightTypeId.toString());
+        row.put("info", "Cross-tenant timed reservation (fixture)");
+        String created = Instant.parse("2024-01-01T00:00:00Z").toString();
+        row.put("created_on", created);
+        row.putNull("created_by_user_id");
+        row.put("modified_on", created);
+        row.putNull("modified_by_user_id");
+        row.putNull("deleted_on");
+        row.putNull("deleted_by_user_id");
+        return ndjsonLine(row);
     }
 
     private static byte[] userNdjson(UUID legacyUserId, UUID legacyClubId, UUID syntheticLanguageId)

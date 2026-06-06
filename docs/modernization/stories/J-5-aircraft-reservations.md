@@ -338,7 +338,7 @@ One seam each; commit directly to `integration/J-5`.
 ### §4 gate — second fanout run reds (chain now reaches real specs: 15 passed, 3 failed)
 T-20/T-21 cleared the seed + gallery-node reds; the chain now runs the real Playwright specs. Two distinct
 J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SAME bundle-ingest 500 as T-22):
-- [ ] **T-22 — Fix the reservation bundle-ingest FK violation (sqlstate 23503).** The migration bundle ingest
+- [x] **T-22 — Fix the reservation bundle-ingest FK violation (sqlstate 23503).** The migration bundle ingest
   now 500s (`Database error during ingest [sqlstate=23503]` = Postgres FK violation) because the bundle carries
   the new `AIRCRAFT_RESERVATION` + `AIRCRAFT_RESERVATION_TYPE` entities (T-07 bindings). Export succeeded
   (AIRCRAFT_RESERVATION_TYPE 1 row, FLIGHT_TYPE 17 rows). A reservation FK isn't satisfied at insert — most
@@ -348,6 +348,23 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   ingested consumer entity. Reproduce locally via the migration-tool ingest IT (bundle→Postgres, T-02 harness)
   to get the exact constraint, fix the ordering/resolution. This 500 also reds the J-0c `fan-out:133` + the
   J-5 migrated-read `:603` (no bundle → no migrated clubs/admins provisioned). *(seam: migration-tool ingest ordering/FK resolution)*
+  **Done:** NOT an ordering bug — the EntityType enum order is correct (every FK parent precedes the reservation).
+  ROOT CAUSE: neither reservation mapper declared its OFF-CONVENTION FK columns. The `ForeignKeyResolver`
+  default convention derives the FK column from each `foreignKeys()` target as `<target>_id`, so for the type+
+  reservation it looked for non-existent row fields (`club_id`, `person_id`, `aircraft_reservation_type_id`) and
+  left the REAL columns (`operating_club_id`, `pilot_person_id`/`second_crew_person_id`, `reservation_type_id`)
+  carrying their verbatim legacy GUIDs — which FK-violate on INSERT. First-failing entity is AIRCRAFT_RESERVATION_TYPE
+  (ingests before the reservation in tar order): EXACT constraint reproduced locally via the new round-trip IT =
+  `insert or update on table "t_aircraft_reservation_type" violates foreign key constraint "fk_arvt_operating_club_id"`
+  / `Key (operating_club_id)=(<legacy club GUID>) is not present in table "t_club"` (sqlstate 23503). FIX:
+  added `foreignKeyColumns()` overrides to both mappers (the FlightMapper/AircraftMapper precedent) —
+  `operating_club_id→CLUB`, `pilot_person_id`+`second_crew_person_id→PERSON`, `reservation_type_id→
+  AIRCRAFT_RESERVATION_TYPE`, and `location_id→LOCATION` with the fan-out disambiguator set to the reservation's
+  OWN `operating_club_id` (Location is tenant-scoped fan-out). `aircraft_id→AIRCRAFT` + `flight_type_id→FLIGHT_TYPE`
+  already match convention and stay convention-resolved. Regression IT
+  (`MigrationBundleParityRoundTripIT.reservation_and_type_round_trip_with_off_convention_fk_columns_resolved`)
+  ingests a type+reservation through the real bundle ingest against Testcontainers and asserts every FK rewrites
+  to the new-stack id — green locally (5/5). No FK loosened, no entity skipped. *(seam: migration-tool ingest ordering/FK resolution)*
 - [ ] **T-23 — Fix the clean-seed UI type-picker create timeout (`:188`, 45s).** J-5's clean-seed real-chain
   `[happy] create through the UI type-picker` hung 45s. Independent of the bundle (clean-seed). Diagnose the
   hang (download the run's `test-results/…/error-context.md` + trace): likely an empty picker (masterdata
