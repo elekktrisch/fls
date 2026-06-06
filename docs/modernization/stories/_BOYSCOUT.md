@@ -211,15 +211,19 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
 
 ## Pending (filed by /do-retro 2026-06-05, J-3 window)
 
-- **Scope the clean-seed `alpenflight-proof` job to the journey-under-work's spec (operator ask, J-3
-  retro).** Today `ci.yml`'s `alpenflight-proof` re-runs J-0+J-1+J-2(+…) real-idp specs on EVERY push —
-  slow, expensive, and it lets an unrelated prior-journey flake red the current journey's gate (J-3:
-  the J-1 aircraft retry-flake blocked J-3, which never touched aircraft). Make the per-push proof run
-  only the **current journey's** spec(s) (parameterize the spec list off the integration branch / a
-  journey marker), and move the **full cross-journey regression** to a **gate-only / nightly** run
-  (`alpenflight-e2e-real-idp.yml` already hosts a nightly full suite — point the regression there). Pairs
-  with the [[J-1 aircraft flake]] rider (lighter + scoped proof also stops that flake gating other
-  journeys). *(seam: ci.yml alpenflight-proof spec selection + the nightly full-suite trigger)*
+- ~~**Scope the clean-seed `alpenflight-proof` job to the journey-under-work's spec (operator ask, J-3
+  retro).**~~ **Shipped J-5 T-14.** The per-push `ci.yml` `alpenflight-proof` job no longer hardcodes the
+  J-0 Locations spec — a `changes`-job step DERIVES the journey-under-work's real-idp spec off the
+  integration branch (`integration/J-NNN` → the journey file's `parity_test:` frontmatter first token,
+  normalized relative to `alpenflight/web/`) and the proof job runs ONLY that single spec
+  (`--project=real-idp`). FAIL-SAFE to the J-0 Locations baseline for a mock-auth parity journey (J-5's
+  spec runs in `alpenflight-mock-e2e`), a showcase-seeded `tests/profile/` spec (J-4, own gating job), a
+  non-integration branch, or any underivable case — never a no-spec run. The J-0-caption live-link-check
+  is gated on the baseline having run, so a journey-specific run can't false-red. The **full
+  cross-journey regression** already lives nightly in `alpenflight-e2e-real-idp.yml` (J-4 T-21/T-22 moved
+  it there; J-5 T-14 reconfirmed + documented it) + runs once at the §4 do-ship gate — never per-push.
+  `required` aggregator unchanged. Pairs with the [[J-1 aircraft flake]] rider (T-15). *(seam: ci.yml
+  alpenflight-proof spec selection + the nightly full-suite trigger)*
 
 ## Pending (filed by /do-ship 2026-06-05, J-3 window)
 

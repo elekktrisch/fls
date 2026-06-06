@@ -223,9 +223,20 @@ One seam each; commit directly to `integration/J-5`.
   branches), each → its per-journey page, surviving PR close — source J-0…J-4 retroactively from the
   persistent `alpenflight/proof/legacy-parity/` all-journeys archive. The all-in-one per-proof-type paths
   become SOURCES, not destinations. *(seam: generate-previews-index.mjs + gallery-deploy/reap steps)*
-- [ ] **T-14 — Scope `alpenflight-proof` to the journey-under-work spec (rider).** Parameterize the
-  per-push proof to run only J-5's spec(s) off the integration branch; move full cross-journey regression
-  to nightly. *(seam: ci.yml proof spec selection + nightly trigger)*
+- [x] **T-14 — Scope `alpenflight-proof` to the journey-under-work spec (rider).** Parameterized the
+  per-push proof: a new `changes`-job step derives the journey-under-work's real-idp spec off the
+  integration branch (`integration/J-NNN` → the journey file's `parity_test:` frontmatter first token,
+  normalized relative to `alpenflight/web/`) and emits `proof_spec`/`proof_journey`/`proof_is_baseline`.
+  The clean-seed `alpenflight-proof` job runs ONLY that single derived spec (`--project=real-idp`).
+  FAIL-SAFE: a mock-auth parity spec (J-5's `tests/reservations/…` runs in `alpenflight-mock-e2e`
+  instead), a showcase-seeded `tests/profile/` spec (J-4 own gating job), a non-integration branch, or
+  any underivable case → the journey-agnostic J-0 Locations baseline (never a no-spec / run-everything
+  run). The J-0-caption live-link-check is gated on `proof_is_baseline == 'true'` so a journey-specific
+  run can't false-red on absent J-0 captions. Full cross-journey regression stays NIGHTLY
+  (`alpenflight-e2e-real-idp.yml`, full `--project=real-idp`) + once at the §4 do-ship gate — never
+  per-push. `required` aggregator unchanged (`alpenflight-proof` reports status via the existing chain; a
+  scoped green run keeps it green). YAML validated via js-yaml; derivation traced across J-0c/J-1/J-2
+  (own spec) and J-3/J-4/J-5/main (baseline). *(seam: ci.yml proof spec selection + nightly trigger)*
 - [ ] **T-15 — Fix J-1 aircraft real-idp flake (rider).** `aircraft-migration-parity.spec.ts` retry-
   isolation (idempotent create / delta assert) + diagnose the S-163 45s timeout — J-5 shares the clean-seed
   job, a stray aircraft flake would red its gate. *(seam: aircraft-migration-parity.spec.ts)*

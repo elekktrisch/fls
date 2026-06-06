@@ -42,6 +42,16 @@ jobs:
     outputs:
       next: ${{ steps.filter.outputs.next }}
       docs_only: ${{ steps.incremental.outputs.docs_only }}
+      # J-5 T-14 — the journey-under-work's real-idp proof spec, derived off the
+      # integration branch name (see the "Derive journey proof spec" step). The
+      # per-push `alpenflight-proof` job runs ONLY this spec; `proof_is_baseline`
+      # is 'true' when it resolved to the J-0 Locations baseline (either the
+      # branch is not an integration/J-NNN branch, the journey has no real-idp
+      # parity spec — e.g. a mock-auth journey like J-5 — or derivation failed:
+      # the FAIL-SAFE always runs a known-good real-chain proof, never nothing).
+      proof_spec: ${{ steps.proof_spec.outputs.spec }}
+      proof_journey: ${{ steps.proof_spec.outputs.journey }}
+      proof_is_baseline: ${{ steps.proof_spec.outputs.is_baseline }}
     steps:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
@@ -112,6 +122,91 @@ jobs:
             echo "── no heavy-lane files in this push → docs-only (skip build+proof) ──"
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # ---------------------------------------------------------------------
+      # Derive the journey-under-work's real-idp proof spec (J-5 T-14).
+      #
+      # PROBLEM (J-3 retro): the per-push `alpenflight-proof` job used to be
+      # hardcoded to the J-0 Locations spec; the rider asks that — during a
+      # journey's build-up — the per-push proof run the CURRENT journey's spec,
+      # not a fixed prior journey's, so iteration is fast and a prior-journey
+      # flake can't red an unrelated journey's gate.
+      #
+      # DERIVATION (most-robust path, per the rider): read the journey FILE's
+      # `parity_test:` frontmatter off the integration branch name.
+      #   1. branch = github.head_ref (PR) || github.ref_name (push).
+      #   2. integration/J-NNN  →  journey id  J-NNN  (anything else → baseline).
+      #   3. docs/modernization/stories/J-NNN-*.md  →  the `parity_test:` value;
+      #      take its FIRST path token, normalize to a path relative to
+      #      alpenflight/web/ (so it's runnable from that working-directory).
+      #   4. Only specs UNDER tests/real-idp/ are runnable by the CLEAN-SEED
+      #      `alpenflight-proof` job (they self-seed in beforeAll). A mock-auth
+      #      parity spec (e.g. J-5's tests/reservations/…, which runs in the
+      #      `alpenflight-mock-e2e` gate instead), a showcase-seeded
+      #      tests/profile/ spec (J-4 — own showcase-seeded gating job), or an
+      #      underivable branch → FALL BACK to the journey-agnostic J-0 Locations
+      #      baseline (`is_baseline=true`). FAIL-SAFE: always a known-good
+      #      real-chain proof, NEVER nothing — the baseline keeps the J-0
+      #      captions the preview live-link-check greps for.
+      - name: Derive journey proof spec
+        id: proof_spec
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          BASELINE='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
+          emit() { # $1 spec  $2 journey  $3 is_baseline
+            echo "spec=$1" >> "$GITHUB_OUTPUT"
+            echo "journey=$2" >> "$GITHUB_OUTPUT"
+            echo "is_baseline=$3" >> "$GITHUB_OUTPUT"
+            echo "── proof spec: $1  (journey=$2, baseline=$3) ──"
+          }
+          branch="${HEAD_REF:-${REF_NAME:-}}"
+          echo "branch under work: '${branch}'"
+          # Only integration/J-NNN branches carry a journey-under-work.
+          jid="$(printf '%s' "$branch" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
+          if [ -z "$jid" ]; then
+            echo "not an integration/J-NNN branch → J-0 Locations baseline (fail-safe)"
+            emit "$BASELINE" "J-0" "true"; exit 0
+          fi
+          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          if [ -z "$jf" ] || [ ! -f "$jf" ]; then
+            echo "no journey file for ${jid} → baseline (fail-safe)"
+            emit "$BASELINE" "$jid" "true"; exit 0
+          fi
+          # First path token of the `parity_test:` frontmatter value: stop at the
+          # first whitespace, '(', or ';' (the value can carry prose / a second
+          # path after a separator). Strip a leading alpenflight/web/ so the path
+          # is relative to that working-directory.
+          raw="$(grep -m1 -E '^parity_test:' "$jf" | sed -E 's/^parity_test:[[:space:]]*//')"
+          spec="$(printf '%s' "$raw" | sed -E 's/[[:space:](;].*$//' | sed -E 's#^alpenflight/web/##')"
+          echo "${jid} parity_test first token → '${spec}'"
+          case "$spec" in
+            e2e/tests/real-idp/*.spec.ts)
+              # A CLEAN-SEED real-idp spec the proof job can run directly: the
+              # real-idp specs self-seed in their own beforeAll (Gradle seeder
+              # shell-outs against the clean-seed Postgres), so they run green in
+              # this clean-seed job. (`tests/profile/` is DELIBERATELY excluded:
+              # the J-4 self-edit spec needs the @Profile("showcase") seed, which
+              # only the dedicated showcase-seeded `alpenflight-profile-proof`
+              # job loads — running it here, clean-seed, would red. It already
+              # has its own gating job, so we fall through to the baseline.)
+              if [ -f "alpenflight/web/${spec}" ]; then
+                emit "$spec" "$jid" "false"; exit 0
+              fi
+              echo "derived spec '${spec}' not found on disk → baseline (fail-safe)"
+              emit "$BASELINE" "$jid" "true"; exit 0
+              ;;
+            *)
+              # A mock-auth parity spec (runs in `alpenflight-mock-e2e`), a
+              # showcase-seeded `tests/profile/` spec (own gating job), or an
+              # unparseable value → run the journey-agnostic J-0 Locations
+              # baseline (fail-safe: a known-good real-chain proof, never nothing).
+              echo "parity spec is not a clean-seed real-idp spec → baseline (fail-safe)"
+              emit "$BASELINE" "$jid" "true"; exit 0
+              ;;
+          esac
 
 
   # ---------------------------------------------------------------------------
@@ -246,37 +341,44 @@ jobs:
         run: bash alpenflight/auth/scripts/check-realm-shape.sh
 
   # ---------------------------------------------------------------------------
-  # alpenflight-proof — J-0's real-chain verticality proof (clean-seed) (S-062g,
-  # S-110).
+  # alpenflight-proof — the per-push real-chain verticality proof (clean-seed)
+  # (S-062g, S-110).
   #
   # Brings up the real stack — Postgres + Keycloak + Mailpit + the alpenflight
   # backend + `ng serve --configuration=development` — applies a CLEAN Flyway
   # seed (NO legacy-up / NO MSSQL / NO migrate; the legacy→migrate half is
-  # DEFERRED to J-0b), then runs the real-idp two-club Locations
-  # tenant-isolation spec against the real backend. This is the only run that
-  # proves verticality (real Keycloak JWT → @TenantId filter → Postgres).
+  # DEFERRED to J-0b), then runs ONE real-idp spec against the real backend —
+  # the JOURNEY-UNDER-WORK's spec (derived in the `changes` job; see
+  # `proof_spec`). This is the run that proves verticality (real Keycloak JWT →
+  # @TenantId filter → Postgres) for the journey currently in flight.
   #
-  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q1).
+  # PROOF-SCOPING — two riders, one mechanism.
   # ----------------------------------------------------------------------------
   # This job used to ALSO run the J-1 aircraft + J-2 flight migration-parity
   # specs AND gate `required`. The known J-1 `aircraft-migration-parity.spec.ts`
   # cross-process flake then intermittently RED-ed the per-push `required` gate
-  # on journeys that touch no aircraft at all (e.g. J-4 /profile). Per the
-  # operator's proof-scoping rider — "per-push runs the current journey's spec;
-  # the full cross-journey regression runs nightly" — the aircraft + flight
-  # parity specs MOVED to the nightly real-idp suite
-  # (`alpenflight-e2e-real-idp.yml`, full `--project=real-idp` run), and this
-  # job is NO LONGER in the `required` aggregator's `needs` (see `required`
-  # below). It still runs per-push, scoped to ONLY the journey-agnostic
-  # Locations tenant-isolation spec, so the J-0 proof gallery + the per-PR
-  # preview live-link-check (which greps for the J-0 Locations captions) keep
-  # working AND `alpenflight-dashboard-proof` can still chain after it.
+  # on journeys that touch no aircraft at all (e.g. J-4 /profile).
   #
-  # Scoped to the single isolation spec (plus its `real-idp-setup` dependency,
-  # which Playwright runs automatically) to stay inside the ~8-min PR budget —
-  # the heavier full real-idp suite stays nightly in `alpenflight-e2e-real-idp.yml`.
-  # Lives INSIDE ci.yml (not the nightly workflow) so it can build the same proof
-  # gallery the other in-repo proof jobs do.
+  #   • J-4 T-21+T-22 (operator Q1 2026-06-05): the aircraft + flight parity
+  #     specs MOVED to the nightly real-idp suite (`alpenflight-e2e-real-idp.yml`,
+  #     full `--project=real-idp` run), and this job is NO LONGER in the
+  #     `required` aggregator's `needs` (see `required` below).
+  #   • J-5 T-14 (J-3 retro): the per-push spec is DERIVED off the integration
+  #     branch name, so during a journey's build-up this runs THAT journey's
+  #     real-idp spec only — not a fixed prior journey's, and not all of them. A
+  #     mock-auth journey (J-5's parity spec runs in `alpenflight-mock-e2e`) or a
+  #     non-integration branch falls back to the journey-agnostic J-0 Locations
+  #     baseline (`proof_is_baseline`), so the J-0 proof gallery + the per-PR
+  #     preview live-link-check (which greps for the J-0 Locations captions) keep
+  #     working on the baseline path, AND `alpenflight-dashboard-proof` can still
+  #     chain after it.
+  #
+  # The FULL cross-journey regression runs NIGHTLY (`alpenflight-e2e-real-idp.yml`,
+  # full `--project=real-idp`) + once at the §4 do-ship gate (e2e-driver's full
+  # chain) — never on every push. This per-push job stays a SINGLE spec (plus its
+  # `real-idp-setup` dependency, which Playwright runs automatically) to hold the
+  # ~8-min PR budget. Lives INSIDE ci.yml (not the nightly workflow) so it can
+  # build the same proof gallery the other in-repo proof jobs do.
   #
   # The `real-idp` project's `video: 'on'` (playwright.config.ts) retains the
   # pass-video; the upload step archives it as J-0's acceptance artifact.
@@ -459,24 +561,31 @@ jobs:
           tail -n 200 alpenflight/server/backend.log >&2 || true
           exit 1
 
-      # The journey-agnostic J-0 Locations tenant-isolation proof spec (its
-      # `real-idp-setup` dependency runs automatically) — NOT the full real-idp
-      # suite, and NO LONGER the J-1 aircraft / J-2 flight migration-parity
-      # specs.
+      # The JOURNEY-UNDER-WORK's real-idp proof spec (its `real-idp-setup`
+      # dependency runs automatically) — a SINGLE spec, NOT the full real-idp
+      # suite, and NOT every prior journey's spec.
       #
-      # PROOF-SCOPING (J-4 T-21+T-22, operator Q1 2026-06-05). The aircraft +
-      # flight parity specs MOVED to the nightly real-idp suite
-      # (`alpenflight-e2e-real-idp.yml`'s full `--project=real-idp` run) — the
-      # known J-1 `aircraft-migration-parity.spec.ts` flake intermittently
-      # red-ed the per-push `required` gate on journeys touching no aircraft.
-      # This per-push job keeps ONLY the stable, journey-agnostic Locations
-      # tenant-isolation spec, which proves the real Keycloak→@TenantId→Postgres
-      # vertical and emits the J-0 captions the per-PR preview live-link-check
-      # greps for. Single spec → single proof-manifest → the gallery still
-      # publishes the J-0 proof video.
+      # PROOF-SCOPING — two riders, one mechanism:
+      #   • J-4 T-21+T-22 (operator Q1 2026-06-05): the J-1 aircraft / J-2 flight
+      #     migration-parity specs MOVED to the nightly real-idp suite
+      #     (`alpenflight-e2e-real-idp.yml`'s full `--project=real-idp` run) — the
+      #     known `aircraft-migration-parity.spec.ts` flake intermittently red-ed
+      #     the per-push `required` gate on journeys touching no aircraft.
+      #   • J-5 T-14 (J-3 retro): the per-push spec is now DERIVED off the
+      #     integration branch (`changes` job → `proof_spec`), so during a
+      #     journey's build-up this runs THAT journey's real-idp spec, not a
+      #     fixed prior journey's. A mock-auth journey (e.g. J-5, whose parity
+      #     spec runs in `alpenflight-mock-e2e`) or a non-integration branch
+      #     falls back to the stable J-0 Locations baseline (`proof_is_baseline`),
+      #     so this job still proves the real Keycloak→@TenantId→Postgres vertical
+      #     and emits the J-0 captions the per-PR preview live-link-check greps
+      #     for. The full cross-journey regression runs NIGHTLY (the real-idp
+      #     workflow) + at the §4 do-ship gate (e2e-driver's full chain) —
+      #     deliberately NOT on every push.
       #
-      #   - J-0: Locations two-club tenant isolation.
-      - name: Run real-idp proof spec (J-0 Locations tenant isolation)
+      # Single spec → single proof-manifest → the gallery still publishes one
+      # proof video per push.
+      - name: Run real-idp proof spec (journey-under-work)
         id: pw
         working-directory: alpenflight/web
         timeout-minutes: 15
@@ -484,11 +593,22 @@ jobs:
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
+          PROOF_SPEC: ${{ needs.changes.outputs.proof_spec }}
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
         run: |
+          set -euo pipefail
+          # Fail-safe: an empty PROOF_SPEC (output unexpectedly missing) must NOT
+          # become a no-spec run that Playwright would treat as "run everything"
+          # — pin the J-0 baseline.
+          SPEC="${PROOF_SPEC:-e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts}"
+          if [ -z "$SPEC" ]; then
+            SPEC='e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts'
+          fi
+          echo "running per-push proof spec for ${PROOF_JOURNEY:-?}: ${SPEC}"
           pnpm exec playwright test \
             --config=e2e/playwright.config.ts \
             --project=real-idp \
-            e2e/tests/real-idp/locations-crud-tenant-isolation.spec.ts
+            "$SPEC"
 
       # J-5 T-12 — emit the per-journey Maintainability reports the T-13 gallery
       # panel renders. PRODUCE + STAGE only (T-13 reads these paths; no panel
@@ -688,8 +808,17 @@ jobs:
       # build latency can exceed even this budget — the failure message names
       # the URL so a transient propagation miss is diagnosable + re-runnable.
       # Dependency-free: bash + curl (both on the ubuntu runner).
+      #
+      # J-5 T-14 — the captions below are the J-0 Locations spec's. They are only
+      # present when this push ran the J-0 BASELINE spec (the fail-safe path).
+      # When the per-push proof ran a journey-under-work's OWN real-idp spec
+      # (proof_is_baseline != 'true'), the gallery carries that journey's
+      # captions instead, so this J-0-specific grep would false-red. Gate the
+      # check on the baseline having run — the journey-specific run is still
+      # proven green by its own `pw` step (the gate signal), and the gallery
+      # still deploys + the preview index still rebuilds above.
       - name: Live link-check the deployed preview (200 + captions)
-        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' }}
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && steps.gallery.outcome == 'success' && needs.changes.outputs.proof_is_baseline == 'true' }}
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.url }}
         run: |
