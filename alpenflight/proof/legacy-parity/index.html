@@ -120,7 +120,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>main</code> &middot; 2026-06-05T06:43:14.527Z
+      assertion it proves. Generated on <code>main</code> &middot; 2026-06-06T06:24:02.921Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -144,20 +144,24 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
       </details>
       <details class="journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0c</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the ra…</span>
+          <span class="summary-head"><span class="summary-jid">J-0c</span> <span class="status success">4 proofs</span><span class="summary-counts">4 videos · 0 screenshots</span></span>
+          <span class="summary-caption">Legacy flsweb: a random-named Location is created and set as homebase on 2 clubs — the global Location row th…</span>
         </summary>
         <div class="proofs">
+        <figure class="proof legacy-proof">
+          <video controls preload="metadata" src="videos/legacy-locations-fanout-J0c.webm"></video>
+          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: a random-named Location is created and set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows</span></figcaption>
+        </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-54d1d57289a9b7ac1c469c335b50ca4d9f3f4b8c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ee4354863c61775329eb6bc4bdb57a198841a2d4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6f8fcf5c4a06d0b511c868a8b70a7189d28414c5.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f9bc0dc29e34872033cd4d8a4f0ad996aa414969.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-424a700e2a0075afb7532d275c53dd2627e76605.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ddd06214c2e2ecea8c64eb3d51821932284aef24.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
         </figure>
         </div>
@@ -170,27 +174,27 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-b39b8c3b3d7fefd64ed2925d930d784aa312d935.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-fef51af2eb2a07128bcc7c16df735de6750f77e3.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · club admin logs in via real Keycloak, lists the fleet, and creates an aircraft that appears in the list (immatriculation + type)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-34c29ebbb43730d17e79fcec1859c2fb5eebd1d4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-7e61b04169b3f0578f70e0061cfd54a369560d17.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · aircraft register · the managing-club admin edits the aircraft and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-40ab978e8ff1dda90964cf56294e0197b40e3bd7.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-748a73a0eb3aa60ae826146f24d244a558e820a9.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-1 · edit isolation · a caller whose club ≠ the aircraft's managing club is denied edit and delete (403, managing-club gate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-e2b8e57938b55e264a943ace4a4824d2665f9474.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-82d6aeb9eb01876e2bc65e7164b10b22fcb938fb.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-164 · the aircraft's latestCounter is surfaced to the managing-club admin on the detail view (real backend, real counter)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-af9267a133454ce7bcf3e4df033b9b9707ed95da.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-b911b6781b0833d1cdb55df7d76e9d1d6eca05c5.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-1 · S-163 · a caller whose linked Person == the aircraft's owner-person may edit it even from a non-managing club (net-new owner-person admit, fully real)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-51fb18312a302f193cb0133b0ba453e7d20fb30d.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-533026a76eec51b0e4b011807029dc860e1fa667.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-1 · migrated aircraft · a real legacy Aircraft, migrated through the live migration endpoint, renders in the owning club's /aircraft list under its immatriculation (full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         </div>
@@ -218,46 +222,42 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
         </div>
       </details>
-      <details class="journey" open>
+      <details class="journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-2</span> <span class="status success">9 proofs</span><span class="summary-counts">9 videos · 7 screenshots</span></span>
-          <span class="summary-caption">Legacy flsweb: the seeded flight list (glider + paired tow rows) + one flight's edit form (glider+tow field s…</span>
+          <span class="summary-head"><span class="summary-jid">J-2</span> <span class="status success">8 proofs</span><span class="summary-counts">8 videos · 4 screenshots</span></span>
+          <span class="summary-caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via …</span>
         </summary>
         <div class="proofs">
-        <figure class="proof legacy-proof">
-          <video controls preload="metadata" src="videos/legacy-flights-parity-J2.webm"></video>
-          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the seeded flight list (glider + paired tow rows) + one flight's edit form (glider+tow field set) + the /airmovements motor list — the legacy field set to eyeball against AlpenFlight's /flights logbook + /airmovements</span></figcaption>
-        </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-2bd138a710eb9c1164e19e545ba102d798d52fc4.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-4a12db25405dbca04d34e20ea643b5b591705071.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-2e7575e726c14e8cdf3fdffc5a8a767a45962c3c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-12a0a9f335da8eea069e274303a9e1b8af851bd4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-2d9b60642b3848e79ca2a094c285a7a169641ee9.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9ba27025d33310ddb20b79ec91573be998daf384.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9ecd07c167e87727d1320cf76fc65b9993872b4a.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-271fbc1bcd6db1c4b0fb8be2c24de057d49655bd.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-a606ae4cdb83787618440f94e853a449621a6835.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-cb2d6a8ee89263f5eed2a30f26e7ed21a5905b6e.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-82c94400ceb8b96f283ae54d0852c2ce23a6d81a.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-4728da226da6bb47d68efcf1f52c9d20d605bb41.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-7ac039e2e0a06c815b12356bcacd2a84b8eb8150.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-ee0a55d5dad3b0ae40f6d3075230b72cd738f14f.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9d0daa66d41c1a1bd28ca910667ada69120d267c.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-412bab762ed43f39a39862c6c2fecf80661db94f.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
         </figure>
         </div>
@@ -266,11 +266,6 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <div class="shot-pair">
           <div class="shot-view-label">list</div>
           <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-flight-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-flight-list.png" alt="legacy list" loading="lazy"></a>
-            <figcaption>Legacy flsweb: the seeded flight list (Status · Date · Glider plane · Pilot/2nd crew · Start location · Takeoff · Landing · Glider duration · Towing plane · Towing pilot · Tow landing · Tow duration · Comment) — the glider + paired tow column set to eyeball against AlpenFlight's /flights logbook</figcaption>
-          </figure>
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
             <a href="screenshots/alpenflight-flights-list.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-list.png" alt="alpenflight list" loading="lazy"></a>
@@ -281,30 +276,10 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         <div class="shot-pair">
           <div class="shot-view-label">form</div>
           <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-flight-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-flight-form.png" alt="legacy form" loading="lazy"></a>
-            <figcaption>Legacy flsweb: one flight's edit form, the full glider + tow field set in a two-column layout (date, glider aircraft/pilot/times, towplane registration + tow pilot/times) — paired against AlpenFlight's 3-step glider/tow wizard</figcaption>
-          </figure>
           <figure class="shot shot-alpenflight">
             <span class="shot-side">alpenflight</span>
             <a href="screenshots/alpenflight-flights-wizard-tow.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-flights-wizard-tow.png" alt="alpenflight form" loading="lazy"></a>
             <figcaption>AlpenFlight: the 3-step create wizard at the populated TOW step (Launch → Glider → Tow) — the paired glider+tow create UX a single edit-form PNG hides; pair against the legacy two-column glider+tow form</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">motor</div>
-          <div class="shot-grid">
-          <figure class="shot shot-legacy">
-            <span class="shot-side">legacy</span>
-            <a href="screenshots/legacy-airmovements-list.png" target="_blank" rel="noopener"><img src="screenshots/legacy-airmovements-list.png" alt="legacy motor" loading="lazy"></a>
-            <figcaption>Legacy flsweb: the SEPARATE /airmovements motor screen (legacy splits motor 'air movements' out of the flight logbook) — paired against AlpenFlight, which UNIFIES motor flights into the same /flights wizard</figcaption>
-          </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="screenshots/alpenflight-motor-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-motor-form.png" alt="alpenflight motor" loading="lazy"></a>
-            <figcaption>AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen</figcaption>
           </figure>
           </div>
         </div>
@@ -318,6 +293,16 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </figure>
           </div>
         </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">motor</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-motor-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-motor-form.png" alt="alpenflight motor" loading="lazy"></a>
+            <figcaption>AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen</figcaption>
+          </figure>
+          </div>
+        </div>
         </div>
       </details>
       <details class="journey pending-journey">
@@ -327,12 +312,54 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-4</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-4</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
+          <span class="summary-caption">Legacy flsweb: the /profile user-settings form — username (disabled), language selectize, and the in-app pass…</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="parity-screenshots">
+          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">Account tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-profile-account.png" target="_blank" rel="noopener"><img src="screenshots/legacy-profile-account.png" alt="legacy Account tab" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the /profile user-settings form — username (disabled), language selectize, and the in-app password-change form (Old/New password) that AlpenFlight DROPS (Keycloak owns credentials, ADR 0007); pair against AlpenFlight's Account tab</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">Personal tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-profile-personal.png" target="_blank" rel="noopener"><img src="screenshots/legacy-profile-personal.png" alt="legacy Personal tab" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the /profile person-form Masterdata + Communication groups (first/mid/last name, address, zip/city/region, country, birthday, email/phone) — the contact field set AlpenFlight's Personal tab edits (name fields stay admin-only / read-only)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">Pilot tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-profile-pilot.png" target="_blank" rel="noopener"><img src="screenshots/legacy-profile-pilot.png" alt="legacy Pilot tab" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the /profile person-form License group (licence flags incl. glider-pilot, licence number, medical class-1/2 + LAPL expiry dates) — the licence/medical field set AlpenFlight's Pilot tab edits (with FADP audit on save)</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">Notifications tab</div>
+          <div class="shot-grid">
+          <figure class="shot shot-legacy">
+            <span class="shot-side">legacy</span>
+            <a href="screenshots/legacy-profile-notifications.png" target="_blank" rel="noopener"><img src="screenshots/legacy-profile-notifications.png" alt="legacy Notifications tab" loading="lazy"></a>
+            <figcaption>Legacy flsweb: the /profile person-form Club-Settings group — the receive-* notification flags (flight reports, reservation notifications, planning-day reminder) AlpenFlight's Notifications tab edits, MIXED in legacy with admin-only membership fields (member number/state) that AlpenFlight keeps admin-only and OFF the self-edit tab</figcaption>
+          </figure>
+          </div>
+        </div>
+        </div>
       </details>
       <details class="journey pending-journey">
         <summary>
