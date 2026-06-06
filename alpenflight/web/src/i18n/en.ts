@@ -344,6 +344,11 @@ const en: Translations = {
     },
     new: 'New reservation',
     rowActions: 'Reservation actions',
+    scheduler: {
+      aircraft: 'Aircraft',
+      empty: 'No reservations for this day.',
+      title: 'Reservation scheduler',
+    },
     timed: 'Timed',
     title: 'Reservations',
   },

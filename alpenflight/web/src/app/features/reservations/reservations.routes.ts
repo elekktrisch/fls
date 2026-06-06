@@ -27,3 +27,20 @@ export const RESERVATIONS_ROUTES: Routes = [
     loadComponent: () => import('./edit/reservation-edit.page').then((m) => m.ReservationEditPage),
   },
 ];
+
+/**
+ * `/reservation-scheduler` (J-5 T-10) — the calendar view of the same
+ * reservation data. Registered top-level in `app.routes.ts` (the spec navigates
+ * to `/reservation-scheduler`, not `/reservations/scheduler`) but kept in this
+ * feature folder per CLAUDE.md §2 (one feature owns its routing; cross-feature
+ * dumps are forbidden). `loadChildren` keeps the top-level entry lazy.
+ */
+export const RESERVATION_SCHEDULER_ROUTES: Routes = [
+  {
+    path: '',
+    canActivate: [tenantRequiredGuard],
+    data: { showNavBar: true },
+    loadComponent: () =>
+      import('./scheduler/reservation-scheduler.page').then((m) => m.ReservationSchedulerPage),
+  },
+];

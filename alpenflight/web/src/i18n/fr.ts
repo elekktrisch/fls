@@ -351,6 +351,11 @@ const fr: Translations = {
     },
     new: 'Nouvelle réservation',
     rowActions: 'Actions de réservation',
+    scheduler: {
+      aircraft: 'Avion',
+      empty: 'Aucune réservation pour ce jour.',
+      title: 'Planning des réservations',
+    },
     timed: 'Créneau',
     title: 'Réservations',
   },

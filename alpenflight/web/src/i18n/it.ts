@@ -349,6 +349,11 @@ const it: Translations = {
     },
     new: 'Nuova prenotazione',
     rowActions: 'Azioni prenotazione',
+    scheduler: {
+      aircraft: 'Aeromobile',
+      empty: 'Nessuna prenotazione per questo giorno.',
+      title: 'Pianificazione prenotazioni',
+    },
     timed: 'Fascia oraria',
     title: 'Prenotazioni',
   },

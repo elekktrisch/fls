@@ -355,6 +355,11 @@ const de = {
     },
     new: 'Neue Reservation',
     rowActions: 'Aktionen für Reservation',
+    scheduler: {
+      aircraft: 'Flugzeug',
+      empty: 'Keine Reservationen für diesen Tag.',
+      title: 'Reservationsplan',
+    },
     timed: 'Zeitfenster',
     title: 'Reservationen',
   },

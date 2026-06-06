@@ -44,6 +44,18 @@ const SAVE_ERROR_KEYS: Readonly<Record<string, string>> = {
 
 export type ReservationItem = AircraftReservationListItem & { id: string };
 
+/**
+ * One scheduler lane = one aircraft + the reservations to render in its row
+ * (J-5 T-10). Lanes are derived from the loaded reservations grouped by
+ * aircraft, decorated with the picker immatriculation — no extra fetch, the
+ * scheduler view reuses the list store's already-loaded `entities()` + picker.
+ */
+export interface SchedulerLane {
+  aircraftId: string;
+  immatriculation: string;
+  reservations: ReservationItem[];
+}
+
 const PAGE_SIZE = 20;
 
 interface ReservationsExtraState {
@@ -97,11 +109,31 @@ export const ReservationsStore = signalStore(
   { providedIn: 'root' },
   withEntities<ReservationItem>(),
   withState<ReservationsExtraState>(initialExtra),
-  withComputed(({ entities, loadError, totalRows }) => ({
+  withComputed(({ entities, loadError, totalRows, immatById }) => ({
     isEmpty: computed(() => entities().length === 0),
     hasError: computed(() => loadError() !== null),
     pageSize: computed(() => PAGE_SIZE),
     total: computed(() => totalRows()),
+    // Scheduler-view selector (T-10): group the loaded reservations into one
+    // lane per aircraft that has reservations, in immatriculation order. A thin
+    // derivation over `entities()` — the calendar view shares the list store's
+    // already-loaded data rather than duplicating the fetch.
+    schedulerLanes: computed<SchedulerLane[]>(() => {
+      const byAircraft = new Map<string, ReservationItem[]>();
+      for (const r of entities()) {
+        const bucket = byAircraft.get(r.aircraftId);
+        if (bucket) bucket.push(r);
+        else byAircraft.set(r.aircraftId, [r]);
+      }
+      const immat = immatById();
+      return [...byAircraft.entries()]
+        .map(([aircraftId, reservations]) => ({
+          aircraftId,
+          immatriculation: immat[aircraftId] ?? aircraftId,
+          reservations,
+        }))
+        .sort((a, b) => a.immatriculation.localeCompare(b.immatriculation));
+    }),
   })),
   withMethods(
     (

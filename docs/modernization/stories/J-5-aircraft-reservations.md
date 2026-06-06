@@ -170,9 +170,10 @@ One seam each; commit directly to `integration/J-5`.
   end/type/all-day/second-crew/remarks), conflict-409 inline error, end>start. Build via an **extracted**
   shared form↔request + error-patch helper — do NOT replicate `formToUpdateRequest`/`finalSubmit`/
   `errorPatch` complexity. *(seam: reservations/edit component + shared helper extraction)*
-- [ ] **T-10 — `/reservation-scheduler` calendar view.** Aircraft×time grid; assert lane×time placement of
-  a reservation row; drag-create. Heaviest seam — re-plan into sub-tasks if it overflows a clean worker.
-  *(seam: reservation-scheduler component+route)*
+- [x] **T-10 — `/reservation-scheduler` calendar view.** Aircraft×time grid; assert lane×time placement of
+  a reservation row. Read-only placement (drag-create/drag-move is the legacy heaviest seam and NOT a J-5
+  AC — deliberately not built; `AircraftIdsToDisplayInScheduler` per-user setting deferred). Time→offset
+  math in the pure `reservation-scheduler.placement.ts` helper (unit-tested). *(seam: reservation-scheduler component+route)*
 - [ ] **T-11 — PMD + CPD on `alpenflight/server` (rider).** Gradle `pmd` + `cpdCheck` wired into `check`
   with a ratcheting baseline (no hard-fail on existing debt); reservation aggregate as first target.
   *(seam: `alpenflight/server/build.gradle.kts`)*
