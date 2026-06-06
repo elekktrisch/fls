@@ -509,3 +509,16 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   leak. Mirror how an existing tenant-scoped aggregate (Flight/Location/Person) satisfies `LeakageSweepIT` +
   `TenantScopedRowBuilders`. Run the FULL `./gradlew build` (the backend workers ran only focused arch guards +
   ITs, not LeakageSweepIT — that's why it slipped) to confirm green. *(seam: TenantScopedRowBuilders + AircraftReservationType JpaRepository)*
+
+### §4 gate — sixth run (fanout GREEN 25/25 again; ci build red on ONE test)
+- [ ] **T-30 — De-brittle `ReservationsBaselineIntegrationTest.aircraft_reservation_type_only_the_dev_seed_present`.**
+  T-29 fixed LeakageSweepIT; full suite now `1113 tests, 1 failed`. The lone failure: this baseline test does
+  `SELECT * FROM t_aircraft_reservation_type` + `containsExactly(<the V31 Allgemein seed row>)`, but in the
+  FULL suite other reservation ITs (the round-trip ingest inserts the migrated `Schulung` type; the
+  LeakageSweep `AircraftReservationTypeSweepFactory` inserts a sweep row) write into the SHARED Testcontainers
+  DB → `containsExactly` breaks. Runtime fine; brittle full-suite assertion (it passed in focused runs because
+  it lives in `…server.migration`, outside `ch.alpenflight.reservations.*`). Fix: assert the V31 dev-seed row
+  is PRESENT + that no OTHER **seed-band** type row exists (filter to the `019e30c3-…` seed-band id/club, or
+  `contains` the V31 row), preserving the "V4 seeds zero types structurally; V31 adds exactly Allgemein" intent
+  without depending on other tests not inserting random-UUID rows. **MUST run the full `./gradlew build` to
+  confirm green** (focused runs missed both this and LeakageSweepIT — the recurring blind spot). *(seam: ReservationsBaselineIntegrationTest)*
