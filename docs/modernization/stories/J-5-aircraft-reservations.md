@@ -354,7 +354,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   beforeAll-seed didn't populate aircraft/person/location for the clean realm), a `reservation-type-select`
   selector mismatch vs the real DOM, or the post-create list/scheduler render assertion. Fix to green (raise a
   measured timeout only if the cause is genuinely slow, not to mask a hang). *(seam: real-idp reservations spec create flow / masterdata seed)*
-- [ ] **T-24 — Make the fanout gh-pages deploy + index rebuild survive a partial-red parity run (operator: "the
+- [x] **T-24 — Make the fanout gh-pages deploy + index rebuild survive a partial-red parity run (operator: "the
   proof index is not updating; I'd expect to see the green specs"; J-2 T-42 rule recurrence).** In the last
   fanout the gallery BUILD succeeded (T-21 node fix) + 15 specs passed, but the three deploy steps
   (`alpenflight-proof-fanout.yml:1087` legacy-parity deploy, `:1140` branch-preview deploy, `:1156` rebuild
