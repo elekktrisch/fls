@@ -424,3 +424,28 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   reservation's OWN `id` stays plain UUID (separate, gap-hunter-OK). Regenerate the OpenAPI snapshot + orval
   client; the store/form `string` types are unchanged. Run `AircraftReservationsControllerIT` green (Testcontainers).
   Clears the `:188` create + the 7 cascaded clean-seed cases. *(seam: reservation request/response DTOs + mapper + ControllerIT + openapi/orval regen)*
+
+### §4 gate — third run reds (fanout 18 passed/2 failed; ci build broke)
+- [ ] **T-26 — Fix the `compileNullawayDemoJava` build regression (T-11 PMD wiring).** `ci alpenflight build`
+  fails: `:compileNullawayDemoJava FAILED` (the deliberately-broken negative-test demo source set). The
+  `nullawayDemo` (+ `archDemo`) source set is intentionally NOT wired into `check`/`build` (only its
+  expect-failure verification task compiles it). T-11's `pmd` plugin auto-creates a `pmd<SourceSet>` task per
+  source set; T-11 disabled the task ACTION (`enabled = name == "pmdMain"`) but a disabled task's COMPILE
+  dependency still runs, so `check`→`pmdNullawayDemo`/`pmdArchDemo`→`compile{Nullaway,Arch}DemoJava` now
+  executes and the deliberately-broken nullawayDemo fails the build. Fix: fully detach pmd from the non-main
+  demo/test source sets so their compile isn't pulled into `check`/`build` (e.g. remove the auto-created
+  non-main pmd tasks from `check`'s deps, or skip pmd-task creation for those source sets) — keep `pmdMain`.
+  Verify `./gradlew build` passes (the nullawayDemo verification task still expects-failure separately).
+  cpdRatchet already clean (5300=5300). *(seam: alpenflight/server/build.gradle.kts pmd source-set wiring)*
+- [ ] **T-27 — Fix the two reservations real-idp reds (`:188` + `:603`).** (a) `:188` clean-seed create: T-25
+  fixed the 400; now two failure modes — in the fanout the aircraft **af-select option wasn't visible**
+  (`af-select-option-ac-…`, the known af-select goBack overlay flake, `af-select.ts:49`), and in ci the
+  **created row didn't render in the list** (`reservations-row-<id>` not visible 5s after create → list
+  doesn't refetch/show the new row, or the new future-dated row isn't in the default list view). Make the
+  select robust + ensure the post-create list shows the new row (refetch trigger / correct view / id source).
+  (b) `:603` migrated read: T-22 fixed the bundle ingest (J-0c Location now passes → bundle ingests), but the
+  migrated TestClub admin `migrated-admin+0fa7b76f-…` is STILL not found — T-18's assumption about which
+  migrated club the reservation lands in / which club gets a provisioned admin is wrong. Determine the ACTUAL
+  migrated club + admin for the seeded reservation (how does J-0c's own `loginAsMigratedAdmin(fixture.clubA)`
+  resolve its admin? does the reservation's legacy TestClub get a provisioned admin, or should the spec read
+  via an already-provisioned fan-out club?) and fix the resolution. *(seam: reservations real-idp spec + fixture)*
