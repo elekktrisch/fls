@@ -471,3 +471,15 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   prettier-formatted. Local Playwright unrunnable (chrome musl) — reasoned from the downloaded ci/fanout
   error-context/trace + the page/store/fixture/ingest source. NEXT FANOUT must confirm `:188` green (both
   failure modes) + `:603` green (resolves the real migrated club) → 20/20.
+
+### §4 gate — fourth run (fanout 20 passed/1 failed; gallery+index deployed via T-24)
+- [ ] **T-28 — Add `reservationTypeId` to the spec's REST `createReservation` helper (`:296` 409 setup 400s).**
+  The clean-seed `[key-error] overlap → 409` (`:296`) + the other REST-helper-driven cases (duration-422,
+  all-day, cross-tenant, delete-frees) set up their reservation via the spec's `createReservation` REST helper
+  (`reservations-migration-parity.spec.ts:~100`), whose POST body **omits the reservation-type reference** →
+  backend correctly 400s `"a reservation-type reference is required: set reservationTypeId or flightTypeId"`
+  (T-05 service rule; legacy parity — type is `[Required]`). Only surfaced now because `:188` previously aborted
+  the serial group before `:296` ran (T-27 fixed `:188` → group progresses). Fix: the helper (+ its callers)
+  must include the V31-seeded `reservationTypeId` (already fetched via `fetchReservationTypeId`) in the create
+  payload — thread it through `createReservation`. Pure spec-helper fix; no [happy]/[key-error] assertion
+  loosened. Targets fanout 21/21 + the clean-seed proof green. *(seam: reservations-migration-parity.spec.ts createReservation helper)*
