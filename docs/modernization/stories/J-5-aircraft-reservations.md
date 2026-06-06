@@ -354,3 +354,13 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   beforeAll-seed didn't populate aircraft/person/location for the clean realm), a `reservation-type-select`
   selector mismatch vs the real DOM, or the post-create list/scheduler render assertion. Fix to green (raise a
   measured timeout only if the cause is genuinely slow, not to mask a hang). *(seam: real-idp reservations spec create flow / masterdata seed)*
+- [ ] **T-24 — Make the fanout gh-pages deploy + index rebuild survive a partial-red parity run (operator: "the
+  proof index is not updating; I'd expect to see the green specs"; J-2 T-42 rule recurrence).** In the last
+  fanout the gallery BUILD succeeded (T-21 node fix) + 15 specs passed, but the three deploy steps
+  (`alpenflight-proof-fanout.yml:1087` legacy-parity deploy, `:1140` branch-preview deploy, `:1156` rebuild
+  previews index) were SKIPPED: their `if:` lacks a status function, so GitHub applies an implicit `success()`
+  → because the earlier "Run parity specs" step failed, the deploys skip even though `steps.gallery.outcome ==
+  'success'`. Fix: prepend `!cancelled() &&` to the branch-preview deploy + the rebuild-index step conditions
+  (keep `steps.gallery.outcome == 'success'` so only a built gallery deploys; keep the main-only canonical
+  deploy as-is) so a partial-red parity run still publishes the gallery + updates the persistent index. This is
+  the do-ship §4 "deploy must survive a red case" rule. *(seam: alpenflight-proof-fanout.yml deploy/rebuild step `if:`)*
