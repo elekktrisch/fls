@@ -419,6 +419,37 @@ jobs:
             tests/profile/profile-parity-J4.spec.ts
 
       # ========================================================================
+      # 2e. J-5 T-16 — legacy RESERVATION parity spec. Read-only walkthrough of
+      #     the seeded reservation list + one reservation's edit form (+ the
+      #     reservation-scheduler grid, best-effort) in the flsweb UI; records the
+      #     legacy reservation parity video + writes the legacy-reservation-
+      #     {list,form,scheduler}.png screenshots. The SAME legacy stack (already
+      #     up) + the SAME deterministic FLSTest seed the J-0c/J-1/J-2 specs used —
+      #     J-5 T-07 added the reservation type + cross-tenant aircraft + an
+      #     existing reservation to `_test-fixture.sql`, so the list is populated;
+      #     no extra seeding, runs on this one fanout run alongside T-04 + the
+      #     others. Paired side-by-side with J-5's AlpenFlight reservation videos
+      #     (proof-journey: J-5) in the gallery via the legacy-video sidecar (step
+      #     7b). Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-5 T-16 legacy reservation parity spec (records legacy video)
+        id: legacy-pw-reservation
+        # NON-BLOCKING parity aid (operator: AlpenFlight green is the gate). Same
+        # contract as the J-1/J-2/J-4 steps above: `if: always()` (runs even after
+        # a prior failure) AND `continue-on-error: true` (its own failure neither
+        # fails the job nor cascade-skips the unguarded downstream gate steps —
+        # incl. the real alpenflight-export producer-SELECT validation that proves
+        # the T-07 reservation bindings, + the AlpenFlight parity specs).
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 12
+        run: |
+          npx playwright test \
+            --project=reservations \
+            tests/reservations/reservations-parity-J5.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -633,15 +664,21 @@ jobs:
       #    (seedAircraftParityBundle build + seedAircraftOwnerLink DB write) reach
       #    the same Postgres the backend uses.
       # ========================================================================
-      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight)
+      - name: Run AlpenFlight parity specs (J-0c real-bundle + J-1 aircraft + J-2 flight + J-5 reservations)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 20
+        timeout-minutes: 25
         env:
           J0C_BUNDLE_SOURCE: real
           J0C_REAL_HANDSHAKE_FILE: ${{ github.workspace }}/j0c-handshake.json
           J0C_REAL_BUNDLE_FILE: ${{ github.workspace }}/j0c-bundle.enc
           J0C_REAL_LOCATION_NAME: ${{ env.J0C_LOCATION_NAME }}
+          # J-5: the migrated-reservation render block rides the SAME real export
+          # the J-0c fan-out spec ingests (the T-07-bound reservation rows are in
+          # the real bundle). Flag the real path so the J-5 migrated-data describe
+          # runs (it `test.skip`s when unset, so the per-push synth gate doesn't
+          # false-green); the J-5 clean-seed real chain always runs.
+          J5_BUNDLE_SOURCE: real
           DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
           DATASOURCE_USER: alpenflight
           DATASOURCE_PASSWORD: alpenflight
@@ -651,7 +688,8 @@ jobs:
             --project=real-idp \
             e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
             e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
-            e2e/tests/real-idp/flight-migration-parity.spec.ts
+            e2e/tests/real-idp/flight-migration-parity.spec.ts \
+            e2e/tests/real-idp/reservations-migration-parity.spec.ts
 
       # ========================================================================
       # 6b. J-4 T-12 — AlpenFlight /profile parity SHOTS are NOT re-captured here.
@@ -700,6 +738,8 @@ jobs:
           FL_WEBM="$(find /tmp/fls-e2e-results -path '*flights-parity-J2*' -name '*.webm' | head -1 || true)"
           # J-4 — legacy /profile user-settings + person-form parity video (T-12).
           PROF_WEBM="$(find /tmp/fls-e2e-results -path '*profile-parity-J4*' -name '*.webm' | head -1 || true)"
+          # J-5 — legacy reservation list+form(+scheduler) parity video (T-16).
+          RESV_WEBM="$(find /tmp/fls-e2e-results -path '*reservations-parity-J5*' -name '*.webm' | head -1 || true)"
           # J-4 — the AlpenFlight /profile VIDEO is NOT captured in this fanout
           # (T-12: seedShowcase collides with this run's migrated data). The
           # AlpenFlight /profile half is represented by the 4 PAIRED SCREENSHOTS
@@ -735,6 +775,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-4\",\"file\":\"profile-parity-J4.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_PROF")},"
           else
             echo "No J-4 legacy /profile .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$RESV_WEBM" ]; then
+            cp "$RESV_WEBM" "$STAGE/reservations-parity-J5.webm"
+            CAP_RESV="Legacy flsweb: the seeded reservation list (Date · Start/End · Location · Immatriculation · Pilot · 2nd crew · Reservation type · Remarks) + one reservation's edit form + the reservation-scheduler aircraft×time grid — the legacy field set to eyeball against AlpenFlight's /reservations list + edit form + /reservation-scheduler"
+            VIDEOS="$VIDEOS{\"journey\":\"J-5\",\"file\":\"reservations-parity-J5.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_RESV")},"
+          else
+            echo "No J-5 reservation .webm found under /tmp/fls-e2e-results."
           fi
           # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
           # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
@@ -878,6 +925,32 @@ jobs:
             "AlpenFlight: /profile → Pilot tab (real PILOT pilot1) — the licence/medical self-edit form (licence flags, licence number, medical expiry) via PATCH /api/v1/me/person/licences, emitting a person.licences_updated FADP audit event"
           add_shot "$SHOT" "alpenflight-profile-notifications.png" "J-4" "alpenflight" "Notifications tab" \
             "AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab"
+
+          # ----- J-5 T-16 — reservation parity SCREENSHOTS (legacy + AlpenFlight)
+          # J-5 pairs THREE views (the load-bearing list + form, plus the
+          # distinctive scheduler grid):
+          #   view=list      : legacy reservation table ↔ AlpenFlight /reservations
+          #                    list (populated, all 7 columns).
+          #   view=form      : legacy reservation edit form ↔ AlpenFlight's
+          #                    reservation edit form.
+          #   view=scheduler : legacy reservation-scheduler SVG grid ↔ AlpenFlight's
+          #                    /reservation-scheduler lane×time grid.
+          # Legacy PNGs land under /tmp/fls-e2e-results (the reservations-parity-J5
+          # spec); AlpenFlight PNGs under alpenflight/web/test-results (the
+          # reservations-migration-parity spec), all fullPage on POPULATED surfaces
+          # (J-1 T-22 lesson — the AlpenFlight list shows a created row, not "No
+          # Data"). The legacy scheduler shot is best-effort (slow grid); a missing
+          # PNG just drops that one entry (add_shot no-ops what it can't find).
+          add_shot "/tmp/fls-e2e-results" "legacy-reservation-list.png" "J-5" "legacy" "list" \
+            "Legacy flsweb: the seeded reservation list (Date · Start/End · Location · Immatriculation · Pilot · 2nd crew · Reservation type · Remarks) — the legacy reservation columns to eyeball against AlpenFlight's /reservations list"
+          add_shot "/tmp/fls-e2e-results" "legacy-reservation-form.png" "J-5" "legacy" "form" \
+            "Legacy flsweb: one reservation's edit form (aircraft, pilot, 2nd crew, location, start/end, all-day, reservation type, remarks) — paired against AlpenFlight's reservation edit form"
+          add_shot "/tmp/fls-e2e-results" "legacy-reservation-scheduler.png" "J-5" "legacy" "scheduler" \
+            "Legacy flsweb: the reservation-scheduler SVG grid (aircraft rows × time-slot columns) — paired against AlpenFlight's /reservation-scheduler lane×time grid"
+          add_shot "alpenflight/web/test-results" "alpenflight-reservations-list.png" "J-5" "alpenflight" "list" \
+            "AlpenFlight: the /reservations list with a created reservation (immatriculation · start · end · pilot · location · type · all-day — full legacy column parity), decorated client-side from the picker label maps"
+          add_shot "alpenflight/web/test-results" "alpenflight-reservation-scheduler.png" "J-5" "alpenflight" "scheduler" \
+            "AlpenFlight: the /reservation-scheduler — a created reservation placed in its aircraft lane at a time-derived horizontal offset (read-only lane×time placement; legacy's drag-create heaviest seam is deliberately not carried forward)"
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

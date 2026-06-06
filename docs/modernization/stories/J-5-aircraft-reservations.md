@@ -18,7 +18,7 @@ acceptance:
 screen: /reservations (+ /reservation-scheduler calendar view of the same data)
 headless_pulled_in: none
 migration: AircraftReservation + AircraftReservationType (mappers already authored+unit-tested in migration-bundle — needs a real round-trip)
-parity_test: alpenflight/web/e2e/tests/reservations/reservations-crud.spec.ts
+parity_test: alpenflight/web/e2e/tests/real-idp/reservations-migration-parity.spec.ts
 adr_refs: [0005, 0008, 0022]
 ---
 
@@ -252,5 +252,22 @@ One seam each; commit directly to `integration/J-5`.
   case no longer times out under load; if it still does, attack the Gradle seeder cost (warm daemon /
   pre-seed in beforeAll), not a further bump. Local Playwright unrunnable here (chrome musl + needs the
   real-idp stack); reasoned from the code + Playwright serial-retry semantics (beforeAll re-runs).
-- [ ] **T-16 — Thicken spec to full real assertions.** From the oracle: conflict-409 + self-exclude, all-day
-  band, cross-tenant-open success, paged envelope shape, scheduler lane×time placement. Final pre-gate. *(seam: e2e spec)*
+- [x] **T-16 — Thicken spec to full real assertions + author the real-idp gate spec + legacy parity capture.**
+  (a) Thickened the inner-loop `tests/reservations/reservations-crud.spec.ts` to FULL assertions
+  (dropped `.skip`): conflict-409 + self-exclude, duration-422, all-day full-day band, cross-tenant-open
+  success, paged envelope shape, scheduler lane×time placement (10:00 ≈ 41.6% offset). Reconciled the
+  T-01 stub against the SHIPPED screens: `res-`→plain-UUID fixtures, `/persons`+`/locations` picker
+  routes (not the non-existent `/picker` variants), `isAllDay` field, `selectAfOption` by value, the
+  `af-input` date/time markup. (b) Authored the real-idp gate spec
+  `tests/real-idp/reservations-migration-parity.spec.ts` (the §4 gate + the scoped per-push
+  `alpenflight-proof` run) — clean-seed real chain (real KC clubadmin4 → real backend → real Postgres):
+  create→list→scheduler, overlap→409 (+ adjacent OK + self-exclude), duration→422, all-day full-band,
+  cross-tenant-open 201 stamped with the operating club, edit/delete-frees; retry-isolation (afterAll
+  cleanup + delta asserts + read id from 201 Location). A migrated-data block rides the REAL legacy
+  export (T-07 bindings) gated on `J5_BUNDLE_SOURCE=real` (fanout only; `test.skip` otherwise). (c) Wired
+  the J-5 legacy parity capture `e2e/tests/reservations/reservations-parity-J5.spec.ts` (legacy flsweb
+  reservation list+form+scheduler video + paired legacy↔AlpenFlight list/form/scheduler screenshots) +
+  the fanout staging steps (legacy spec run, AlpenFlight spec in the parity invocation, legacy-video +
+  screenshots sidecar declarations under journey J-5). RESERVATION-TYPE GAP surfaced (no type-create
+  API → clean-seed UI form's required type dropdown is empty; mutations drive the real REST API, list +
+  scheduler drive the UI) — reported, not papered over. *(seam: e2e specs + fanout wiring)*
