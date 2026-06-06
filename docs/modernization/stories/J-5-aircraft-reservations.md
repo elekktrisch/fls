@@ -778,3 +778,15 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
 - [ ] **T-44 — (optional, lower priority) CI fail-aggregate.** Make `ci.yml` run build/lint/test/mock-e2e as
   jobs that ALL report (don't stop at the first failing layer), so one CI run surfaces every red at once instead
   of serial layer-by-layer discovery. Defer unless the round-trips persist after T-43. *(seam: ci.yml job parallelism/aggregation)*
+
+### §4 gate — calendar-redesign fanout (21 passed / 2 failed; deployed-link-check GREEN)
+- [ ] **T-45 — Fix the 2 calendar-render real-idp assertions (T-41 rewrite vs T-39 actual render).**
+  `reservations-migration-parity.spec.ts` 2 fails: (1) `:485` `[happy] all-day reservation … renders as a
+  full-day band` — the day-view all-day band assertion doesn't match the calendar's actual all-day block
+  render; (2) `:721` `[happy] migrated reservation renders under its migrated TestClub tenant` — the week
+  day-picker navigation to the migrated reservation's day + the block assertion doesn't match. The REST
+  assertions (409/422/cross-tenant/create) all pass (21 green); these 2 are pure calendar-render selector/nav
+  mismatches from the T-41 table→calendar rewrite. Fix against the T-39 calendar DOM (read
+  `reservations-calendar.page.ts` for the all-day block markup + the day-picker date keying). **Verify LOCALLY**
+  via `pnpm e2e` (T-43 + the operator's `apk add chromium` enable this) before pushing — this IS the round-trip
+  case. *(seam: reservations-migration-parity.spec.ts calendar render/nav assertions)*
