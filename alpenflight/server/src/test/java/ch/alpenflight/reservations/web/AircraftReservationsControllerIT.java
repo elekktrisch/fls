@@ -1,0 +1,209 @@
+package ch.alpenflight.reservations.web;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import ch.alpenflight.platform.security.JwtTestFixture;
+import ch.alpenflight.server.testsupport.PostgresIntegrationTest;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.RequestEntity;
+import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/**
+ * Full-stack HTTP integration test for the AircraftReservation CRUD slice
+ * (J-5 T-05). Proves the web-layer wire contract: create → 201 + Location +
+ * get round-trip; same-aircraft overlap create → 409; timed end ≤ start → 422.
+ * The persistence-level conflict + tenant proof lives in
+ * {@code AircraftReservationRepositoryIT} (T-04); the pure overlap predicate in
+ * the domain unit test (T-03). Driven as a CLUB_ADMINISTRATOR of seed-club-1 —
+ * authz is legacy-open ({@code isAuthenticated()}), so the role is incidental.
+ */
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+@AutoConfigureTestRestTemplate
+@Import(JwtTestFixture.class)
+class AircraftReservationsControllerIT extends PostgresIntegrationTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String CLUB_ID = "019e30c3-2c00-7001-8000-000000000001";
+
+    @Autowired TestRestTemplate rest;
+    @Autowired JdbcTemplate jdbc;
+    @Autowired JwtTestFixture jwts;
+
+    private String token;
+    private UUID aircraftId;
+    private UUID pilotId;
+    private UUID locationId;
+    private UUID reservationTypeId;
+
+    @BeforeEach
+    void seedAndAuth() {
+        token = jwts.mint(c -> c
+                .claim("clubId", CLUB_ID)
+                .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
+        // Pre-clean (ADR 0021): reservations FK to aircraft (RESTRICT), so they
+        // must go before the aircraft rows seeded under this club are cleared.
+        jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
+                + "AND immatriculation LIKE 'HB-RV%'", CLUB_ID);
+
+        aircraftId = seedAircraft();
+        pilotId = seedPerson();
+        locationId = seedLocation();
+        reservationTypeId = seedReservationType();
+    }
+
+    @Test
+    void create_returns_201_with_location_and_getRoundTrips() {
+        Map<String, Object> body = timedPayload(
+                "2026-07-01T10:00:00Z", "2026-07-01T11:00:00Z");
+        ResponseEntity<String> res = post("/api/v1/aircraft-reservations", body);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        JsonNode created = readJson(res);
+        String id = created.get("id").asText();
+        assertThat(created.get("aircraftId").asText()).isEqualTo(aircraftId.toString());
+        assertThat(created.get("isAllDay").asBoolean()).isFalse();
+        URI loc = res.getHeaders().getLocation();
+        assertThat(loc).isNotNull();
+        assertThat(loc.getPath()).isEqualTo("/api/v1/aircraft-reservations/" + id);
+
+        ResponseEntity<String> got = get("/api/v1/aircraft-reservations/" + id);
+        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode detail = readJson(got);
+        assertThat(detail.get("id").asText()).isEqualTo(id);
+        assertThat(detail.get("pilotPersonId").asText()).isEqualTo(pilotId.toString());
+        assertThat(detail.get("start").asText()).isEqualTo("2026-07-01T10:00:00Z");
+    }
+
+    @Test
+    void create_overlappingSameAircraft_returns_409() {
+        ResponseEntity<String> first = post("/api/v1/aircraft-reservations",
+                timedPayload("2026-07-01T10:00:00Z", "2026-07-01T11:00:00Z"));
+        assertThat(first.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // 10:30–10:45 overlaps the 10:00–11:00 booking on the SAME aircraft.
+        ResponseEntity<String> overlap = post("/api/v1/aircraft-reservations",
+                timedPayload("2026-07-01T10:30:00Z", "2026-07-01T10:45:00Z"));
+        assertThat(overlap.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(readJson(overlap).get("key").asText()).isEqualTo("aircraft.reservation.overlap");
+    }
+
+    @Test
+    void create_timedEndBeforeStart_returns_422() {
+        ResponseEntity<String> res = post("/api/v1/aircraft-reservations",
+                timedPayload("2026-07-01T11:00:00Z", "2026-07-01T10:00:00Z"));
+        // 422 — the reason-phrase constant was aliased UNPROCESSABLE_ENTITY →
+        // UNPROCESSABLE_CONTENT, so assert on the numeric code, not the enum.
+        assertThat(res.getStatusCode().value()).isEqualTo(422);
+        assertThat(readJson(res).get("key").asText()).isEqualTo("aircraft.reservation.duration");
+    }
+
+    // ----- payload + seed helpers -----
+
+    private Map<String, Object> timedPayload(String startIso, String endIso) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("aircraftId", aircraftId.toString());
+        m.put("pilotPersonId", pilotId.toString());
+        m.put("locationId", locationId.toString());
+        m.put("reservationTypeId", reservationTypeId.toString());
+        m.put("start", startIso);
+        m.put("end", endIso);
+        m.put("isAllDay", false);
+        return m;
+    }
+
+    private UUID seedAircraft() {
+        UUID id = UUID.randomUUID();
+        UUID aircraftTypeId = jdbc.queryForObject(
+                "SELECT id FROM t_aircraft_type LIMIT 1", UUID.class);
+        String immat = ("HB-RV" + Long.toString(System.nanoTime(), 36).substring(0, 6))
+                .toUpperCase(java.util.Locale.ROOT);
+        jdbc.update("""
+                INSERT INTO t_aircraft (id, managing_club_id, owner_club_id, aircraft_type_id,
+                        immatriculation, is_towing_or_winch_required, is_towing_start_allowed,
+                        is_winch_start_allowed, is_towing_aircraft, is_fast_entry_record, nr_of_seats)
+                VALUES (?::uuid, ?::uuid, ?::uuid, ?::uuid, ?, false, false, false, false, false, 2)
+                """,
+                id.toString(), CLUB_ID, CLUB_ID, aircraftTypeId.toString(), immat);
+        return id;
+    }
+
+    private UUID seedPerson() {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO t_person (id, firstname, lastname) VALUES (?::uuid, ?, ?)",
+                id.toString(), "Res", "Pilot");
+        return id;
+    }
+
+    private UUID seedLocation() {
+        UUID id = UUID.randomUUID();
+        UUID countryId = jdbc.queryForObject("SELECT id FROM t_country LIMIT 1", UUID.class);
+        UUID locationTypeId = jdbc.queryForObject(
+                "SELECT id FROM t_location_type LIMIT 1", UUID.class);
+        jdbc.update("""
+                INSERT INTO t_location (id, club_id, location_name, country_id, location_type_id,
+                        is_inbound_route_required, is_outbound_route_required, is_fast_entry_record)
+                VALUES (?::uuid, ?::uuid, ?, ?::uuid, ?::uuid, false, false, false)
+                """,
+                id.toString(), CLUB_ID, "RV-Home", countryId.toString(), locationTypeId.toString());
+        return id;
+    }
+
+    private UUID seedReservationType() {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_aircraft_reservation_type (id, operating_club_id, reservation_type_name,
+                        is_instructor_required, is_maintenance, is_active)
+                VALUES (?::uuid, ?::uuid, ?, false, false, true)
+                """,
+                id.toString(), CLUB_ID, "Flight");
+        return id;
+    }
+
+    private ResponseEntity<String> get(String path) {
+        return rest.exchange(authed(RequestEntity.get(URI.create(path))).build(), String.class);
+    }
+
+    private ResponseEntity<String> post(String path, Object body) {
+        return rest.exchange(
+                authed(RequestEntity.post(URI.create(path)).contentType(MediaType.APPLICATION_JSON))
+                        .body(body),
+                String.class);
+    }
+
+    private <T extends RequestEntity.BodyBuilder> T authed(T builder) {
+        builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        return builder;
+    }
+
+    private RequestEntity.HeadersBuilder<?> authed(RequestEntity.HeadersBuilder<?> builder) {
+        return builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+    }
+
+    private static JsonNode readJson(ResponseEntity<String> res) {
+        try {
+            return MAPPER.readTree(res.getBody());
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse response: " + res.getBody(), e);
+        }
+    }
+}

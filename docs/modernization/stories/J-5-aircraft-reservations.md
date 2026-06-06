@@ -153,7 +153,7 @@ One seam each; commit directly to `integration/J-5`.
 - [x] **T-04 — `JpaAircraftReservationRepository` + conflict GiST probe.** Projection ListRow queries,
   the tenant-scoped GiST range-overlap conflict query (→ `NativeSqlRegisterTest` entry), soft-delete
   filter. *(seam: `aircraft-reservations/infra/`)*
-- [ ] **T-05 — Reservations CRUD resource.** Service + DTOs + mapper + controller create/get/update/delete
+- [x] **T-05 — Reservations CRUD resource.** Service + DTOs + mapper + controller create/get/update/delete
   + `aircraftreservationtypes/listitems`; conflict→409, end≤start→422; explicit `operationId`s (orval
   rider); each mutating method → `ControllerAuditCoverageTest`; ControllerIT. *(seam: reservations resource — CRUD)*
 - [ ] **T-06 — Paged-list + future/day overview endpoints.** `POST .../page/{start}/{size}` SPA envelope

@@ -41,6 +41,9 @@
     "name" : "Users",
     "description" : "User CRUD + role assignment (CLUB_ADMINISTRATOR cabin)."
   }, {
+    "name" : "Aircraft reservation types",
+    "description" : "Reservation-type listitems for the reservation form dropdown."
+  }, {
     "name" : "Countries",
     "description" : "ISO-3166 country catalog."
   }, {
@@ -70,6 +73,9 @@
   }, {
     "name" : "MemberStates",
     "description" : "Per-club member-state listitem catalog (tenant-scoped reference data)."
+  }, {
+    "name" : "Aircraft reservations",
+    "description" : "Aircraft-reservation CRUD (tenant-scoped; conflict-409 on same-aircraft overlap)."
   }, {
     "name" : "FlightCostBalanceTypes",
     "description" : "Flight-cost-balance reference catalog (cross-tenant)."
@@ -1086,6 +1092,132 @@
         }
       }
     },
+    "/api/v1/aircraft-reservations/{id}" : {
+      "get" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Read a single aircraft reservation by id.",
+        "operationId" : "getAircraftReservation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Reservation detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active reservation with that id in the tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Update an aircraft reservation. Self-excluded on the overlap probe (an in-place reschedule does not conflict with itself).",
+        "operationId" : "updateAircraftReservation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AircraftReservationUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active reservation with that id in the tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Overlaps another booking on the aircraft.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Timed reservation end is not after start.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Soft-delete an aircraft reservation (frees the slot for a new overlapping booking).",
+        "operationId" : "deleteAircraftReservation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "404" : {
+            "description" : "No active reservation with that id in the tenant."
+          }
+        }
+      }
+    },
     "/api/v1/users" : {
       "get" : {
         "tags" : [ "Users" ],
@@ -2038,6 +2170,65 @@
         }
       }
     },
+    "/api/v1/aircraft-reservations" : {
+      "post" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Create an aircraft reservation. Overlap on the same aircraft → 409; timed end ≤ start → 422.",
+        "operationId" : "createAircraftReservation",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AircraftReservationCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Overlaps an existing booking on the aircraft.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Timed reservation end is not after start.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/deployments/{id}/lifecycle" : {
       "post" : {
         "tags" : [ "Admin Deployments" ],
@@ -2821,6 +3012,28 @@
                   "type" : "array",
                   "items" : {
                     "$ref" : "#/components/schemas/AircraftStateResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/aircraft-reservation-types" : {
+      "get" : {
+        "tags" : [ "Aircraft reservation types" ],
+        "summary" : "List active reservation types in the tenant (the type dropdown).",
+        "operationId" : "listAircraftReservationTypes",
+        "responses" : {
+          "200" : {
+            "description" : "Array of reservation-type listitems.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AircraftReservationTypeListItem"
                   }
                 }
               }
@@ -4560,6 +4773,106 @@
         },
         "required" : [ "aircraftStateId", "id", "validFrom" ]
       },
+      "AircraftReservationUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update an aircraft reservation.",
+        "properties" : {
+          "aircraftId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pilotPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "locationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "secondCrewPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reservationTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "flightTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "start" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "end" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "isAllDay" : {
+            "type" : "boolean"
+          },
+          "remarks" : {
+            "type" : "string",
+            "maxLength" : 4000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "aircraftId", "end", "isAllDay", "locationId", "pilotPersonId", "start" ]
+      },
+      "AircraftReservationDetail" : {
+        "type" : "object",
+        "description" : "Aircraft-reservation detail / list projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "operatingClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "aircraftId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pilotPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "secondCrewPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "locationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reservationTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "flightTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "start" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "end" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "isAllDay" : {
+            "type" : "boolean"
+          },
+          "remarks" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "aircraftId", "end", "id", "isAllDay", "locationId", "operatingClubId", "pilotPersonId", "start" ]
+      },
       "UserInviteRequest" : {
         "type" : "object",
         "description" : "Payload to invite a new user. Backend creates the Keycloak user, then inserts the FLS row in the same transaction; on DB failure the KC user is compensated-deleted.",
@@ -5370,6 +5683,53 @@
           }
         },
         "required" : [ "atDateTime" ]
+      },
+      "AircraftReservationCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to create an aircraft reservation.",
+        "properties" : {
+          "aircraftId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "pilotPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "locationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "secondCrewPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reservationTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "flightTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "start" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "end" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "isAllDay" : {
+            "type" : "boolean"
+          },
+          "remarks" : {
+            "type" : "string",
+            "maxLength" : 4000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "aircraftId", "end", "isAllDay", "locationId", "pilotPersonId", "start" ]
       },
       "LifecycleTransitionRequest" : {
         "type" : "object",
@@ -6666,6 +7026,23 @@
           }
         },
         "required" : [ "code", "description", "id", "isAircraftFlyable" ]
+      },
+      "AircraftReservationTypeListItem" : {
+        "type" : "object",
+        "description" : "Reservation-type listitem for the type dropdown.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "active" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "active", "id", "name" ]
       },
       "AuditEventPage" : {
         "type" : "object",
