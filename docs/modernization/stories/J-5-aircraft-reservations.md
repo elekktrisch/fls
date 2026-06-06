@@ -150,7 +150,7 @@ One seam each; commit directly to `integration/J-5`.
 - [x] **T-03 — `AircraftReservation` aggregate + `AircraftReservationType`.** Domain entity + factory +
   `validateDuration()` (end>start; all-day full-day span) + `conflictsWith()` (half-open overlap, self-
   exclude). Domain test. *(seam: `aircraft-reservations/domain/`)*
-- [ ] **T-04 — `JpaAircraftReservationRepository` + conflict GiST probe.** Projection ListRow queries,
+- [x] **T-04 — `JpaAircraftReservationRepository` + conflict GiST probe.** Projection ListRow queries,
   the tenant-scoped GiST range-overlap conflict query (→ `NativeSqlRegisterTest` entry), soft-delete
   filter. *(seam: `aircraft-reservations/infra/`)*
 - [ ] **T-05 — Reservations CRUD resource.** Service + DTOs + mapper + controller create/get/update/delete
