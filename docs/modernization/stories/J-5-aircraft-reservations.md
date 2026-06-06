@@ -535,7 +535,7 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   **do-task/SKILL.md DoD** addition: gallery-touching tasks run this spec before marking done. *(seam: proof-gallery-links.spec.ts + do-task SKILL.md DoD line)*
 
 ### Operator: deployed J-5 page has 2/3 dead links — T-31 checker missed them
-- [ ] **T-32 — Fix the per-journey page cross-section links for the DEPLOYED layouts.** On the live branch-preview
+- [x] **T-32 — Fix the per-journey page cross-section links for the DEPLOYED layouts.** On the live branch-preview
   page (`…/proof-preview/integration-J-5/J-5/`) 2 of 3 nav links 404: (1) back-index `../../previews/` resolves
   to `proof-preview/previews/` (wrong depth — branch-preview `proof-preview/<branch>/J-n/` is one level deeper
   than canonical `proof/J-n/`); the persistent index is always at `alpenflight/previews/` → make the back-link

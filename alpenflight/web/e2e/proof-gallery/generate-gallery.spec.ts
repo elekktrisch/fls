@@ -31,6 +31,7 @@ async function loadGenerator(): Promise<{
     renderNav?: boolean;
     perJourney?: boolean;
     journeyUnderWork?: string;
+    siteBase?: string;
   }) => {
     html: string;
     roadmap: string[];
@@ -38,6 +39,7 @@ async function loadGenerator(): Promise<{
     shots: unknown[];
     journeyPages: { journey: string; outFile: string }[];
   };
+  DEFAULT_SITE_BASE: string;
   parsePmd: (xml: string | null) => { total: number; complexity: number; deadCode: number } | null;
   parseCpd: (xml: string | null) => { groups: number; dupPct: number | null } | null;
   parseFallowAudit: (json: unknown) => {
@@ -809,5 +811,122 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     expect(result.journeyPages).toEqual([]);
     expect(existsSync(resolve(outDir, 'index.html'))).toBe(true);
     expect(existsSync(resolve(outDir, 'J-0', 'index.html'))).toBe(false);
+  });
+});
+
+/**
+ * T-32 — the per-journey page is deployed into TWO layouts on gh-pages:
+ *   - canonical:      <site>/alpenflight/proof/J-<n>/
+ *   - branch-preview: <site>/alpenflight/proof-preview/<branch>/J-<n>/  (one deeper)
+ * The operator found 2/3 cross-section links dead on the live branch-preview page:
+ *   (1) the back-to-previews-index link was relative (`../../previews/`) → 404 at
+ *       the deeper depth; it must be site-root-absolute so it works at ANY depth.
+ *   (2) `../maintainability/` targeted a directory with no index.html → gh-pages
+ *       404s a bare dir; the dir must carry an index.html so the link serves.
+ */
+describe('generateGallery — deployed-layout cross-section links (T-32)', () => {
+  function buildAt(
+    generateGallery: Awaited<ReturnType<typeof loadGenerator>>['generateGallery'],
+    relLayout: string[],
+    opts: { siteBase?: string } = {},
+  ): { outDir: string } {
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-t32-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    // Mirror the real deploy depth: place outDir at the layout's J-parent.
+    const outDir = resolve(dir, ...relLayout);
+    mkdirSync(outDir, { recursive: true });
+    writeMaint(outDir, {
+      'fallow-audit.json': SAMPLE_AUDIT,
+      'fallow-health.json': SAMPLE_HEALTH,
+      'pmd-main.xml': SAMPLE_PMD,
+      'cpd-check.xml': SAMPLE_CPD,
+    });
+    generateGallery({
+      reportPath,
+      outDir,
+      orderPath,
+      renderNav: false,
+      journeyUnderWork: 'J-0',
+      ...(opts.siteBase ? { siteBase: opts.siteBase } : {}),
+    });
+    return { outDir };
+  }
+
+  // Both deploy layouts, relative to the temp root. The branch-preview is one
+  // dir deeper — the case that broke the relative back-link.
+  const CANONICAL = ['alpenflight', 'proof'];
+  const BRANCH_PREVIEW = ['alpenflight', 'proof-preview', 'integration-J-5'];
+
+  it('back-index link is site-root-absolute (depth-independent) in BOTH layouts', async () => {
+    const { generateGallery, DEFAULT_SITE_BASE } = await loadGenerator();
+    expect(DEFAULT_SITE_BASE).toBe('/fls/');
+
+    for (const layout of [CANONICAL, BRANCH_PREVIEW]) {
+      const { outDir } = buildAt(generateGallery, layout);
+      const j0 = readOut(outDir, 'J-0', 'index.html');
+      // Absolute, gh-pages base — works from canonical AND branch-preview depth.
+      expect(j0).toContain('href="/fls/alpenflight/previews/"');
+      // The old depth-fragile relative link must be gone.
+      expect(j0).not.toContain('href="../../previews/"');
+      // The all-journeys + asset links stay relative-within-the-same-deploy.
+      expect(j0).toContain('href="../"');
+    }
+  });
+
+  it('honors a custom --site-base (configurable, not hardcoded magic)', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { outDir } = buildAt(generateGallery, BRANCH_PREVIEW, { siteBase: '/elsewhere/' });
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('href="/elsewhere/alpenflight/previews/"');
+  });
+
+  it('emits maintainability/index.html so the reports dir URL serves 200 (BOTH layouts)', async () => {
+    const { generateGallery } = await loadGenerator();
+    for (const layout of [CANONICAL, BRANCH_PREVIEW]) {
+      const { outDir } = buildAt(generateGallery, layout);
+      const idx = resolve(outDir, 'maintainability', 'index.html');
+      expect(existsSync(idx)).toBe(true);
+      const html = readFileSync(idx, 'utf8');
+      // Links the artifacts that exist (relative to the dir itself).
+      expect(html).toContain('href="./fallow-audit.json"');
+      expect(html).toContain('href="./pmd-main.xml"');
+      // The panel link still targets the dir (now backed by index.html).
+      const j0 = readOut(outDir, 'J-0', 'index.html');
+      expect(j0).toContain('href="../maintainability/"');
+    }
+  });
+
+  it('maintainability index lists only the artifacts present (partial dir)', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-t32-partial-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const outDir = resolve(dir, 'out');
+    mkdirSync(outDir, { recursive: true });
+    writeMaint(outDir, { 'pmd-main.xml': SAMPLE_PMD }); // only one of the 4
+    generateGallery({ reportPath, outDir, orderPath, renderNav: false, journeyUnderWork: 'J-0' });
+
+    const html = readFileSync(resolve(outDir, 'maintainability', 'index.html'), 'utf8');
+    expect(html).toContain('href="./pmd-main.xml"');
+    expect(html).not.toContain('href="./fallow-audit.json"');
+  });
+
+  it('emits NO maintainability index when no artifacts exist (panel shows "no data", no dead link)', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-t32-none-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const outDir = resolve(dir, 'out');
+    generateGallery({ reportPath, outDir, orderPath, renderNav: false, journeyUnderWork: 'J-0' });
+
+    expect(existsSync(resolve(outDir, 'maintainability', 'index.html'))).toBe(false);
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('no data');
+    // Fail-soft: no reports link at all when there are no artifacts.
+    expect(j0).not.toContain('href="../maintainability/"');
   });
 });

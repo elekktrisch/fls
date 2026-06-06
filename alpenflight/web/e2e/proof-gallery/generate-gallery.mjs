@@ -30,6 +30,22 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Site-root-absolute base for the gh-pages deployment. gh-pages serves this repo
+ * at `https://elekktrisch.github.io/fls/`, so the base path is `/fls/`. Used for
+ * the ONE cross-deploy link a per-journey page must reach regardless of its own
+ * deploy depth: the persistent previews index at `<base>alpenflight/previews/`.
+ *
+ * Why absolute (not relative): a per-journey page is emitted into TWO layouts —
+ * the canonical `alpenflight/proof/J-<n>/` and the branch-preview
+ * `alpenflight/proof-preview/<branch>/J-<n>/` (one dir deeper). A relative
+ * `../../previews/` resolves correctly in neither/only one of them. A
+ * site-root-absolute path is depth-independent and works in both. Override via
+ * `generateGallery({ siteBase })` / `--site-base` if the repo's gh-pages base
+ * ever changes (must keep the trailing slash).
+ */
+export const DEFAULT_SITE_BASE = '/fls/';
+
+/**
  * Static roadmap fallback — the journey IDs the gallery iterates when
  * `_ORDER.md` is not reachable from the run dir. Kept in roadmap order.
  * Source of truth is docs/modernization/stories/_ORDER.md; this mirror exists
@@ -785,6 +801,7 @@ export function renderJourneyPageHtml({
   generatedAt,
   branch,
   journeyUnderWork,
+  siteBase = DEFAULT_SITE_BASE,
 }) {
   const nVideos = proofs ? proofs.length : 0;
   const nShots = shots ? shots.length : 0;
@@ -835,7 +852,7 @@ ${GALLERY_CSS}
       for this journey. Generated on <code>${esc(branch)}</code> &middot; ${esc(generatedAt)}
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
-      <a href="../../previews/">&larr; all journeys (previews index)</a> &middot;
+      <a href="${esc(siteBase)}alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
       <a href="../">all-journeys gallery</a>
     </p>
   </header>
@@ -982,6 +999,7 @@ export function generateGallery({
   renderNav = true,
   perJourney = true,
   journeyUnderWork = journeyFromFile(branch),
+  siteBase = DEFAULT_SITE_BASE,
 }) {
   const reportDir = dirname(resolve(reportPath));
   const report = JSON.parse(readFileSync(reportPath, 'utf8'));
@@ -1076,6 +1094,7 @@ export function generateGallery({
         generatedAt,
         branch,
         journeyUnderWork: jid === journeyUnderWork ? jid : undefined,
+        siteBase,
       });
       const jDir = resolve(outDir, jid);
       mkdirSync(jDir, { recursive: true });
@@ -1083,9 +1102,58 @@ export function generateGallery({
       writeFileSync(jFile, pageHtml, 'utf8');
       journeyPages.push({ journey: jid, outFile: jFile });
     }
+    // The per-journey panel's "Full maintainability reports →" link targets the
+    // `maintainability/` DIRECTORY (`../maintainability/`). gh-pages does not
+    // serve a bare directory listing, so a dir URL with no index.html 404s even
+    // when its JSON/XML artifacts deploy fine. Emit a tiny index.html listing
+    // whichever of the 4 artifacts exist so that dir URL serves 200. Only when
+    // artifacts are present — when none were emitted the panel renders "no data"
+    // and shows NO reports link, so a dead index would be pointless.
+    writeMaintainabilityIndex(outDir);
   }
 
   return { html, outFile, proofs, shots, roadmap, journeyPages };
+}
+
+/**
+ * Emit `<outDir>/maintainability/index.html` listing whichever of the 4
+ * maintainability artifacts are present, so the per-journey panel's
+ * `../maintainability/` directory link serves 200 on gh-pages (which won't
+ * render a directory listing). No-op when the dir is absent or carries none of
+ * the artifacts (then the panel shows "no data" and emits no reports link).
+ */
+export function writeMaintainabilityIndex(outDir) {
+  const dir = resolve(outDir, 'maintainability');
+  if (!existsSync(dir)) return null;
+  const artifacts = [
+    ['fallow-audit.json', 'fallow audit (FE complexity/duplication/dead-code delta)'],
+    ['fallow-health.json', 'fallow health (FE repo snapshot)'],
+    ['pmd-main.xml', 'PMD (BE complexity + dead-code)'],
+    ['cpd-check.xml', 'CPD (BE duplication)'],
+  ].filter(([f]) => existsSync(resolve(dir, f)));
+  if (!artifacts.length) return null;
+  const items = artifacts
+    .map(([f, label]) => `    <li><a href="./${esc(f)}">${esc(f)}</a> — ${esc(label)}</li>`)
+    .join('\n');
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AlpenFlight — maintainability reports</title>
+</head>
+<body>
+  <h1>Maintainability reports</h1>
+  <p>Raw artifacts behind the per-journey Maintainability panel.</p>
+  <ul>
+${items}
+  </ul>
+</body>
+</html>
+`;
+  const file = resolve(dir, 'index.html');
+  writeFileSync(file, html, 'utf8');
+  return file;
 }
 
 function parseArgs(argv) {
@@ -1101,6 +1169,7 @@ function parseArgs(argv) {
     else if (a === '--no-nav') out.renderNav = false;
     else if (a === '--no-per-journey') out.perJourney = false;
     else if (a === '--journey-under-work') out.journeyUnderWork = argv[++i];
+    else if (a === '--site-base') out.siteBase = argv[++i];
   }
   return out;
 }
@@ -1157,6 +1226,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       renderNav: args.renderNav !== false,
       perJourney: args.perJourney !== false,
       ...(args.journeyUnderWork ? { journeyUnderWork: args.journeyUnderWork } : {}),
+      ...(args.siteBase ? { siteBase: args.siteBase } : {}),
     });
     const pending = roadmap.filter((j) => !proofs.some((p) => p.journey === j));
     console.log(`proof-gallery: wrote ${outFile}`);
