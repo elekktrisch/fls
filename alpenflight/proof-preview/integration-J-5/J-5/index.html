@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>210/merge</code> &middot; 2026-06-06T14:33:59.646Z
+      for this journey. Generated on <code>210/merge</code> &middot; 2026-06-06T14:53:51.228Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,23 +144,23 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-91165c19f72e67e9b851bc3b2d6307c05ca03157.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-8b3abe2e7e6f808d5db5d150e610599934f7049d.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders in the /reservations list and in the right aircraft lane on the /reservation-scheduler at its time offset (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-03b1c22cbe6e397c4d7d57f9947fb29462a92291.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-938fbe90de9ffac8c23a3e2e1b99614e6a2a5ef5.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-55a7ca8a02200d0af85dade6de076d5e5fdb928d.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-ca02cae10fbc27eafbbc34263da0f26ff4f892c4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservation-scheduler (real backend)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ec93719e32326394266bb511820481b19d280620.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-9661ec44a9e7b32e1a4f1661601cb95fd072ac4a.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-04131372084b8e2a19854ef48c92674fd92865f5.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-58170f158e361d969a7f7eb67a558d4e145dad85.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
         </figure>
         </div>
