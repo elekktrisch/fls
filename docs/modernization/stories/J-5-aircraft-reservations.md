@@ -585,7 +585,7 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   deployed-mode check logic + the local branch-preview walk** (the check must go green). *(seam: generate-previews-index.mjs / all-journeys page link scheme)*
 
 ### §4 gate — eighth run (server build GREEN via T-34; web step + mock-e2e + 1 deployed link red)
-- [ ] **T-36 — Fix the web build + mock-auth reservations e2e (the `alpenflight build` web step + `alpenflight-mock-e2e`).**
+- [x] **T-36 — Fix the web build + mock-auth reservations e2e (the `alpenflight build` web step + `alpenflight-mock-e2e`).**
   Server gradle build now GREEN (T-34). The `alpenflight build` job fails at "Lint + format + test + build
   alpenflight/web": 2 ESLint `'store' is assigned a value but never used` (190:11, 206:11 — find the file, likely
   a reservations store spec/component from T-09/T-27; remove/use). AND `alpenflight-mock-e2e` (in `required`)
@@ -597,6 +597,28 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   unrelated to J-5 (note it; don't fix unless J-5 caused it). **MUST run the full local web build:** `pnpm
   -C alpenflight/web lint`, `pnpm -C alpenflight/web generate-api` + `git diff --exit-code src/app/api/generated/`
   (confirm not stale), `tsc`, `pnpm build` — all green. *(seam: web lint unused-var + reservations specs locale + generated-api check)*
+  **Done:** (1) LINT — the two `'store' assigned but never used` errors were in
+  `src/app/features/reservations/reservations.store.spec.ts:190/206` (the J-5 T-27 refetch-on-bus tests); the
+  `TestBed.inject(ReservationsStore)` call is load-bearing (it instantiates the store so its `onInit` bus
+  subscription wires), so kept the call + dropped the unused `const store =` binding (the assertion reads
+  `offsets` via the service stub). `ng lint` now reports "All files pass linting" (0 errors); the 7 store unit
+  tests stay green. (2) LOCALE — added a spec-local `gotoDe(page, path)` helper to
+  `e2e/tests/reservations/reservations-crud.spec.ts` that appends `?lang=de` to every cold-start `page.goto`,
+  and switched all 13 gotos to it. Per web/CLAUDE.md §8b the cold-start chain is `?lang=` → navigator.language →
+  `de`, and the mock chromium runner's navigator.language is `en` (why it rendered English) — pinning `?lang=de`
+  wins the cold-start so the German assertions (`Reservationen`/`Zeitfenster`/`Ganztägig`) hold + the gallery
+  renders German (the primary market). The real-idp `reservations-migration-parity.spec.ts` already asserts the
+  same German strings and PASSED (its CI runner resolves to German); left it unchanged — consistent. The
+  `toHaveURL(...)` assertions run after in-app router navs (fresh paths, no query), so `?lang=de` never leaks
+  into them. (Playwright unrunnable here — chrome musl; the `alpenflight-mock-e2e` job confirms the German
+  render in CI.) (3) GENERATED-API — `generate-api` + `git diff --exit-code src/app/api/generated/` = NO DRIFT
+  (committed orval client is current). (4) ARTICLES-CRUD `:265` — PRE-EXISTING flake, unrelated to J-5
+  (`git diff main..integration/J-5` touches zero article files; the spec was last edited in S-054 "Articles
+  CRUD"; the failing case is a mock-routed 409-duplicate inline-error timing assertion in the masterdata/articles
+  feature). NOT fixed — out of J-5 scope; flag as a boyscout candidate for a future masterdata-touch journey.
+  Local greens: `ng lint` 0 errors, generate-api no drift, `tsc -p tsconfig.app.json` 0 errors, production
+  `ng build` succeeded (the lone NG8113 `AfButtonComponent` warning is pre-existing in the flights feature, not
+  J-5; not an error). *(seam: web lint unused-var + reservations specs locale + generated-api check)*
 - [ ] **T-37 — Resolve the last deployed-link-check 404 (`…/integration-J-5/previews/`).** T-35 fixed 2 of 3;
   this one persists though all current branch + per-journey pages link the correct absolute `/fls/alpenflight/previews/`.
   Reproduce the T-33 deployed-mode crawl from `…/proof-preview/integration-J-5/` to find the referrer (a sub-page

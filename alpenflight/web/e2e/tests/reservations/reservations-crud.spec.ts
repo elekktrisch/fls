@@ -393,6 +393,22 @@ async function wireReservations(page: Page, reservations: MockReservation[]): Pr
   await page.route('**/api/v1/aircraft-reservations**', setupReservationBackend(reservations));
 }
 
+/**
+ * Navigate, forcing the German cold-start locale (`?lang=de`). German is the
+ * product's primary market + the i18n source (`de.ts`), so the gallery + these
+ * assertions are German. The cold-start chain is `?lang=` → navigator.language →
+ * `de` (web/CLAUDE.md §8b); the mock chromium runner's navigator.language is
+ * `en`, so we pin `?lang=de` EXPLICITLY (it wins the cold-start) — matching the
+ * real-idp reservations spec, whose runner already resolves to German. Only the
+ * cold-start `page.goto` needs it; subsequent in-app router navs keep the
+ * in-memory locale. The `toHaveURL` assertions run after an in-app click (a fresh
+ * router path with no query), so the `?lang=de` query never leaks into them.
+ */
+async function gotoDe(page: Page, path: string): Promise<void> {
+  const sep = path.includes('?') ? '&' : '?';
+  await gotoDe(page, `${path}${sep}lang=de`);
+}
+
 /** Fill the timed/all-day shared fields on the create/edit form. */
 async function fillReservationCommon(page: Page, aircraftId: string): Promise<void> {
   await selectAfOption(page, 'reservation-aircraft-select', aircraftId);
@@ -414,7 +430,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   }) => {
     await wireReservations(page, [{ ...seedReservation }]);
 
-    await page.goto('/reservations');
+    await gotoDe(page, '/reservations');
 
     await expect(page.locator('h1')).toContainText('Reservationen');
     await expect(page.getByTestId('reservations-table')).toBeVisible();
@@ -463,7 +479,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
         /\/api\/v1\/aircraft-reservations\/page\/\d+\/\d+$/.test(new URL(r.url()).pathname) &&
         r.status() === 200,
     );
-    await page.goto('/reservations');
+    await gotoDe(page, '/reservations');
     const res = await paged;
     const body = (await res.json()) as {
       items: { id: string; aircraftId: string; isAllDay: boolean }[];
@@ -487,7 +503,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   }) => {
     await wireReservations(page, []);
 
-    await page.goto('/reservations');
+    await gotoDe(page, '/reservations');
     await page.getByTestId('reservations-new-button').locator('button').click();
     await expect(page).toHaveURL('/reservations/new');
 
@@ -528,7 +544,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   }) => {
     await wireReservations(page, []);
 
-    await page.goto('/reservations/new');
+    await gotoDe(page, '/reservations/new');
 
     await fillReservationCommon(page, AC_SAME);
     await page.getByTestId('reservation-date').locator('input').fill('2026-07-03');
@@ -566,7 +582,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(page.getByTestId(`reservations-allday-${rowId}`)).toHaveText('Ganztägig');
 
     // Full-day band on the SCHEDULER: an all-day block spans the whole lane.
-    await page.goto('/reservation-scheduler');
+    await gotoDe(page, '/reservation-scheduler');
     const block = page.getByTestId(`reservation-scheduler-block-${rowId}`);
     await expect(block).toBeVisible();
     await expect(block).toHaveCSS('width', /.+/);
@@ -582,7 +598,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await wireReservations(page, [{ ...seedReservation }]);
 
     // Try to book the SAME aircraft 10:30–10:45 — overlaps the 10:00–11:00 seed.
-    await page.goto('/reservations/new');
+    await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
     await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
@@ -605,7 +621,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     // Editing the EXISTING overlapping row (self-exclude) → no conflict, saves
     // and navigates back to the list (the row is excluded from its own probe).
-    await page.goto(`/reservations/${SEED_RESERVATION_ID}/edit`);
+    await gotoDe(page, `/reservations/${SEED_RESERVATION_ID}/edit`);
     await expect(page.getByTestId('reservation-edit-form')).toBeVisible();
     await page.getByTestId('reservation-end-time').locator('input').fill('11:30');
     const updated = page.waitForResponse(
@@ -626,7 +642,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   }) => {
     await wireReservations(page, []);
 
-    await page.goto('/reservations/new');
+    await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
     await page.getByTestId('reservation-date').locator('input').fill('2026-07-05');
     await page.getByTestId('reservation-start-time').locator('input').fill('15:00');
@@ -654,7 +670,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     // Pre-flight: a 10:30–10:45 create overlaps the seed → 409 (proves the slot
     // is occupied before the delete frees it).
-    await page.goto('/reservations/new');
+    await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
     await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
@@ -670,14 +686,14 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(saveError(page)).toBeVisible();
 
     // Delete the seed via the list kebab → confirm dialog.
-    await page.goto('/reservations');
+    await gotoDe(page, '/reservations');
     page.once('dialog', (d) => d.accept());
     await page.getByTestId(`reservations-kebab-${SEED_RESERVATION_ID}`).click();
     await page.getByTestId(`reservations-delete-${SEED_RESERVATION_ID}`).click();
     await expect(page.getByTestId(`reservations-row-${SEED_RESERVATION_ID}`)).toHaveCount(0);
 
     // The freed 10:00–11:00 slot now ACCEPTS the same overlapping booking (201).
-    await page.goto('/reservations/new');
+    await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
     await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
@@ -701,7 +717,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   }) => {
     await wireReservations(page, []);
 
-    await page.goto('/reservations/new');
+    await gotoDe(page, '/reservations/new');
     // HB-OTHR is owned by CLUB_B (not the operating tenant) — legacy-open: the
     // picker offers it and the create succeeds (no tenant/charter rejection),
     // stamped with the operating club.
@@ -731,7 +747,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
   }) => {
     await wireReservations(page, [{ ...seedReservation }]);
 
-    await page.goto('/reservation-scheduler');
+    await gotoDe(page, '/reservation-scheduler');
 
     await expect(page.getByTestId('reservation-scheduler')).toBeVisible();
     // The aircraft lane for the seed's aircraft exists + is labelled by immat.

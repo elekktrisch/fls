@@ -187,7 +187,9 @@ describe('ReservationsStore', () => {
         },
       }),
     );
-    const store = TestBed.inject(ReservationsStore);
+    // Instantiate the store so its onInit bus subscription is wired (the return
+    // value is unused — the assertion reads `offsets` via the service stub).
+    TestBed.inject(ReservationsStore);
     const callsBefore = offsets.length;
     bus.next({ kind: 'reservation.created', reservationId: RES_ID });
     expect(offsets.length).toBeGreaterThan(callsBefore);
@@ -203,7 +205,9 @@ describe('ReservationsStore', () => {
         },
       }),
     );
-    const store = TestBed.inject(ReservationsStore);
+    // Instantiate the store so its onInit bus subscription is wired (the return
+    // value is unused — the assertion reads `offsets` via the service stub).
+    TestBed.inject(ReservationsStore);
     const callsBefore = offsets.length;
     bus.next({ kind: 'reservation.updated', reservationId: RES_ID });
     expect(offsets.length).toBeGreaterThan(callsBefore);
