@@ -123,6 +123,8 @@ J-1 T-20/T-22 each burned a round on exactly this). Cheap locally, expensive at 
 CI/deploy steps, or screenshot/video sidecars), run the autonomous link check before marking
 done: `GALLERY_LINKS_ONLY=1 pnpm exec playwright test --config=e2e/playwright.config.ts --project=proof-gallery-links` (browserless; "are all gallery links live?").
 
+**Local-first verification DoD (J-5 T-43).** Before reporting `done`, run `pnpm preflight` (or the matching `--scope`: `preflight:web` for FE-only tasks, `preflight:no-e2e` when chromium is absent) — the comprehensive local CI-equivalent (whole `./gradlew test` + lint/tsc/build/api-drift + gallery tests/link-check + the mock-auth e2e when a chromium is launchable) — NOT a focused `--tests`/single-spec subset; comprehensive local green is the CI round-trip fix.
+
 **Boyscout (uncommitted leftovers).** A small incidental fix or cleanup you made
 in passing doesn't need its own commit/PR — leave it in the working tree and let it
 **ride with the next regular change** on `integration/J-NNN`. Never craft a separate

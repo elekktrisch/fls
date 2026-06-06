@@ -765,7 +765,7 @@ Root cause: Alpine/musl box; Playwright's BUNDLED chromium is a glibc binary mis
 launch locally → ALL e2e/gallery/calendar checks are CI-only → issues discovered serially over ~20-min cycles.
 Compounded by workers reporting "done" off FOCUSED checks that miss cross-cutting failures (LeakageSweepIT,
 the baseline test, the GitHub expression-length limit js-yaml can't see, calendar selectors).
-- [ ] **T-43 — Local-first verification: system chromium + a full preflight + do-task DoD.** (a) Wire
+- [x] **T-43 — Local-first verification: system chromium + a full preflight + do-task DoD.** (a) Wire
   `alpenflight/web/e2e/playwright.config.ts` to use the musl-native SYSTEM chromium: honor
   `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`, else auto-detect the apk chromium (`/usr/lib/chromium/chromium` or
   `which chromium`), else fall back to the bundled browser — so local `pnpm e2e` works once `apk add chromium nss`

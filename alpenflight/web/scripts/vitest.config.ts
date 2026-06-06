@@ -12,7 +12,14 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   root: __dirname + '/..',
   test: {
-    include: ['scripts/**/*.spec.ts', 'e2e/proof-gallery/**/*.spec.ts'],
+    include: [
+      'scripts/**/*.spec.ts',
+      'e2e/proof-gallery/**/*.spec.ts',
+      // T-43 — the Chromium-resolver helper unit test. Scoped to the single
+      // file (NOT `e2e/**`) so vitest never grabs the Playwright specs under
+      // `e2e/tests/`, which require the Playwright runner, not vitest.
+      'e2e/chromium-executable.spec.ts',
+    ],
     environment: 'node',
     globals: true,
   },

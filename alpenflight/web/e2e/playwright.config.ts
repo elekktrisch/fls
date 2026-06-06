@@ -1,9 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
 import { resolve } from 'node:path';
+import { resolveChromiumExecutablePath, chromiumLaunchArgs } from './chromium-executable';
 
 const PROJECT_ROOT = resolve(__dirname, '..');
 const MOCK_BASE_URL = process.env['E2E_BASE_URL'] ?? 'http://localhost:4200';
 const REAL_IDP_BASE_URL = process.env['E2E_REAL_IDP_BASE_URL'] ?? 'http://localhost:4201';
+
+// T-43 — local-first verification. Resolve a launchable Chromium at config-eval
+// time: the apk system chromium on the musl dev box (so e2e runs LOCALLY), or
+// `undefined` on CI's glibc runners (→ Playwright's bundled browser, unchanged).
+// `--no-sandbox` is added ONLY when a system executable is resolved, so CI's
+// sandbox posture is untouched. See e2e/chromium-executable.ts.
+const CHROMIUM_EXECUTABLE_PATH = resolveChromiumExecutablePath();
+const CHROMIUM_LAUNCH_OPTIONS = {
+  ...(CHROMIUM_EXECUTABLE_PATH ? { executablePath: CHROMIUM_EXECUTABLE_PATH } : {}),
+  args: chromiumLaunchArgs(CHROMIUM_EXECUTABLE_PATH),
+};
 
 export default defineConfig({
   testDir: './tests',
@@ -72,6 +84,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         baseURL: MOCK_BASE_URL,
+        launchOptions: CHROMIUM_LAUNCH_OPTIONS,
       },
       // Zero retries in CI: this is a mock-only suite (no Keycloak, no
       // backend, no flaky cross-process timing). Retries here mask flake
@@ -122,6 +135,10 @@ export default defineConfig({
         // global `video: 'retain-on-failure'`; mock-auth chromium keeps
         // the global policy so every PR run isn't bloated with videos.
         video: 'on',
+        // T-43 — same local-first Chromium resolution as the mock-auth project
+        // (system chromium on the musl box, bundled on CI). The browserless
+        // `proof-gallery-links` project deliberately gets NO launchOptions.
+        launchOptions: CHROMIUM_LAUNCH_OPTIONS,
       },
       // Single worker against one realm + one Mailpit inbox — parallel
       // registration races against KC user-exists checks and Mailpit
