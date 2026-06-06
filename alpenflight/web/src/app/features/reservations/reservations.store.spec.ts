@@ -173,6 +173,42 @@ describe('ReservationsStore', () => {
     expect(offsets.length).toBeGreaterThan(callsBefore);
   });
 
+  it('refetches the list when a reservation.created event fires on the bus (J-5 T-27)', () => {
+    // The root-scoped store does NOT re-init when the edit form navigates back
+    // to /reservations after a create, so it must refetch on the mutation-bus
+    // event — otherwise the just-created row never renders (the genuine app gap
+    // that red-ed the real-idp create spec). Mirrors the J-2 flight store.
+    const offsets: number[] = [];
+    const bus = configure(
+      reservationsServiceStub({
+        page: (start) => {
+          offsets.push(start);
+          return of(seedPage);
+        },
+      }),
+    );
+    const store = TestBed.inject(ReservationsStore);
+    const callsBefore = offsets.length;
+    bus.next({ kind: 'reservation.created', reservationId: RES_ID });
+    expect(offsets.length).toBeGreaterThan(callsBefore);
+  });
+
+  it('refetches the list when a reservation.updated event fires on the bus (J-5 T-27)', () => {
+    const offsets: number[] = [];
+    const bus = configure(
+      reservationsServiceStub({
+        page: (start) => {
+          offsets.push(start);
+          return of(seedPage);
+        },
+      }),
+    );
+    const store = TestBed.inject(ReservationsStore);
+    const callsBefore = offsets.length;
+    bus.next({ kind: 'reservation.updated', reservationId: RES_ID });
+    expect(offsets.length).toBeGreaterThan(callsBefore);
+  });
+
   it('clears entities on session.logout', () => {
     const bus = configure(reservationsServiceStub({}));
     const store = TestBed.inject(ReservationsStore);

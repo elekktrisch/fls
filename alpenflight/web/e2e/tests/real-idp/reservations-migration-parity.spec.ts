@@ -6,7 +6,6 @@ import {
   type TwoClubFixture,
 } from './_helpers/two-club-fixture';
 import {
-  captureMigratedTestClubBearer,
   captureReservationAdminBearer,
   fetchReservationTypeId,
   loginAsMigratedTestClubAdmin,
@@ -206,7 +205,15 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await page.getByTestId('reservations-new-button').locator('button').click();
       await expect(page).toHaveURL('/reservations/new');
 
-      await selectAfOption(page, 'reservation-aircraft-select', masterdata.managedAircraftId);
+      // The aircraft picker can list many rows on a populated tenant and
+      // nz-select virtualises — type the immat to filter so the seeded option
+      // renders (J-5 T-27).
+      await selectAfOption(
+        page,
+        'reservation-aircraft-select',
+        masterdata.managedAircraftId,
+        masterdata.managedImmat,
+      );
       // The clean-seed default reservation type — the T-17 done-bar (an empty
       // dropdown before V31 made this flow impossible; now it is selectable).
       await selectAfOption(page, 'reservation-type-select', reservationTypeId);
@@ -592,12 +599,15 @@ test.describe('Aircraft reservations — migrated legacy reservation renders (re
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     // The fanout ingests the real bundle via fan-out-migration-parity.spec.ts
     // (J-0c) earlier in the same Playwright invocation; the migration provisions
-    // a Keycloak admin for the FULL_PORT migrated TestClub — the tenant the
-    // legacy fixture stamped the reservation on. Resolve + make it loginable, then
-    // capture its tenant-scoped Bearer so the `@TenantId`-scoped read sees the
-    // migrated reservation (NOT seed-club-1, which carries none).
-    migratedAdmin = await resolveMigratedTestClubAdmin();
-    migratedBearer = await captureMigratedTestClubBearer(browser, baseURL, migratedAdmin);
+    // a Keycloak admin per migrated club. The migrated CLUB gets a FRESH
+    // provisioned UUID (the reservation's operating_club_id is FK-rewritten to
+    // it), so we discover the right admin by OWNERSHIP — the provisioned club
+    // whose tenant actually carries the unique fixture reservation — not by the
+    // legacy UUID (J-5 T-27). Returns the loginable admin + its captured
+    // tenant-scoped Bearer in one pass.
+    const resolved = await resolveMigratedTestClubAdmin(browser, baseURL);
+    migratedAdmin = resolved.admin;
+    migratedBearer = resolved.bearer;
   });
 
   test('[happy] the migrated legacy reservation renders under its migrated TestClub tenant', async ({

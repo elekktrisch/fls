@@ -239,8 +239,15 @@ export const ReservationsStore = signalStore(
             switchMap((req) =>
               reservationsApi.createAircraftReservation(req).pipe(
                 tapResponse({
-                  next: (detail: AircraftReservationDetail) =>
-                    bus.next({ kind: 'reservation.created', reservationId: detail.id }),
+                  next: (detail: AircraftReservationDetail) => {
+                    // Refetch the list so the new row renders when the form
+                    // navigates back to /reservations (the store is root-scoped
+                    // → the list page does NOT re-init on nav). Mirror the J-2
+                    // flight store's create→loadPage; the bus event additionally
+                    // keeps other subscribers (scheduler) consistent.
+                    loadPage(store.pageStart());
+                    bus.next({ kind: 'reservation.created', reservationId: detail.id });
+                  },
                   error: (e: HttpErrorResponse) =>
                     patchState(store, { saveError: mapApiSaveError(e, SAVE_ERROR_KEYS) }),
                 }),
@@ -254,8 +261,10 @@ export const ReservationsStore = signalStore(
             switchMap(({ id, req }) =>
               reservationsApi.updateAircraftReservation(id, req).pipe(
                 tapResponse({
-                  next: (detail: AircraftReservationDetail) =>
-                    bus.next({ kind: 'reservation.updated', reservationId: detail.id }),
+                  next: (detail: AircraftReservationDetail) => {
+                    loadPage(store.pageStart());
+                    bus.next({ kind: 'reservation.updated', reservationId: detail.id });
+                  },
                   error: (e: HttpErrorResponse) =>
                     patchState(store, { saveError: mapApiSaveError(e, SAVE_ERROR_KEYS) }),
                 }),
@@ -290,12 +299,25 @@ export const ReservationsStore = signalStore(
       store.loadPage(0);
       store.loadDecorations();
       bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
-        if (evt.kind === 'session.logout' || evt.kind === 'session.tenantSwitch') {
-          patchState(store, setAllEntities<ReservationItem>([]), {
-            pageStart: 0,
-            totalRows: 0,
-          });
-          store.loadDecorations();
+        switch (evt.kind) {
+          case 'session.logout':
+          case 'session.tenantSwitch':
+            patchState(store, setAllEntities<ReservationItem>([]), {
+              pageStart: 0,
+              totalRows: 0,
+            });
+            store.loadDecorations();
+            break;
+          // Refetch-on-mutation (CLAUDE.md §4b): a reservation create/update/
+          // delete from ANY view (edit form, scheduler) refreshes the live list.
+          // The create/update methods already refetch inline for the same-tab
+          // navigate-back flow; this keeps a second subscriber (the scheduler,
+          // sharing this root store) consistent without its own fetch.
+          case 'reservation.created':
+          case 'reservation.updated':
+          case 'reservation.deleted':
+            store.loadPage(store.pageStart());
+            break;
         }
       });
     },

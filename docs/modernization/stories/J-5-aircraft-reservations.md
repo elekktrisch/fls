@@ -437,7 +437,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   non-main pmd tasks from `check`'s deps, or skip pmd-task creation for those source sets) — keep `pmdMain`.
   Verify `./gradlew build` passes (the nullawayDemo verification task still expects-failure separately).
   cpdRatchet already clean (5300=5300). *(seam: alpenflight/server/build.gradle.kts pmd source-set wiring)*
-- [ ] **T-27 — Fix the two reservations real-idp reds (`:188` + `:603`).** (a) `:188` clean-seed create: T-25
+- [x] **T-27 — Fix the two reservations real-idp reds (`:188` + `:603`).** (a) `:188` clean-seed create: T-25
   fixed the 400; now two failure modes — in the fanout the aircraft **af-select option wasn't visible**
   (`af-select-option-ac-…`, the known af-select goBack overlay flake, `af-select.ts:49`), and in ci the
   **created row didn't render in the list** (`reservations-row-<id>` not visible 5s after create → list
@@ -449,3 +449,25 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   migrated club + admin for the seeded reservation (how does J-0c's own `loginAsMigratedAdmin(fixture.clubA)`
   resolve its admin? does the reservation's legacy TestClub get a provisioned admin, or should the spec read
   via an already-provisioned fan-out club?) and fix the resolution. *(seam: reservations real-idp spec + fixture)*
+  **Done:** (a) TWO genuine causes, both fixed. (a1) af-select option not visible: the aircraft `<af-select>`
+  has `nzShowSearch` ON and nz-select VIRTUALISES a long option list (the populated tenant lists 16+ aircraft),
+  so the seeded option is never attached — `toBeVisible()` times out (NOT the goBack overlay flake). Fix:
+  `selectAfOption` gained an optional `search` arg that types the LABEL into `input.ant-select-selection-search-input`
+  to filter the list before clicking by value; the create spec passes `masterdata.managedImmat` for the aircraft
+  pick (type/pilot/location are short lists, unchanged). (a2) created row not in the list = a real APP BUG: the
+  `ReservationsStore` is `providedIn:'root'` (singleton) so navigating back to `/reservations` does NOT re-init
+  it, and `create`/`update` only `bus.next(...)` — nothing refetched (only `delete` inlined `loadPage`). Error-
+  context confirmed the post-create list showed "Keine Daten". Fix (mirrors the J-2 flight store): `create`/
+  `update` now inline `loadPage(pageStart)` AND the `onInit` bus handler refetches on `reservation.created/
+  updated/deleted` (CLAUDE.md §4b refetch-on-mutation). 2 new store unit tests lock it (7/7 green via `ng test`).
+  (b) T-18's premise was wrong: CLUB does NOT keep its legacy UUID. `EntityStreamIngestor` reconciles each
+  migrated CLUB onto a provisioning-MINTED `t_club` with a FRESH UUID and FK-rewrites the reservation's
+  `operating_club_id` to it — so the provisioned admin is `migrated-admin+<NEW-UUID>@…`, never `…+0fa7b76f-…`.
+  Fix (the J-0c ownership-detection pattern): added `findUsersByUsernameSearch` (keycloak-admin) and rewrote
+  `resolveMigratedTestClubAdmin(browser, baseURL)` to ENUMERATE every provisioned `migrated-admin+<clubId>@…`,
+  make each loginable, capture its tenant Bearer, page its reservations, and return the ONE whose tenant carries
+  the unique fixture remark — zero matches = hard failure (round-trip regression), never a count weakening. The
+  `:603` assertions (remark + `Schulung` type + row render) are unchanged. tsc clean on all touched e2e files;
+  prettier-formatted. Local Playwright unrunnable (chrome musl) — reasoned from the downloaded ci/fanout
+  error-context/trace + the page/store/fixture/ingest source. NEXT FANOUT must confirm `:188` green (both
+  failure modes) + `:603` green (resolves the real migrated club) → 20/20.

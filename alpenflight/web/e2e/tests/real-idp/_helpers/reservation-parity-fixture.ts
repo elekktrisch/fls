@@ -1,7 +1,7 @@
 import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
 
 import { fillKcLogin } from './kc-form';
-import { findUserByUsername, makeMigratedAdminLoginable } from './keycloak-admin';
+import { findUsersByUsernameSearch, makeMigratedAdminLoginable } from './keycloak-admin';
 import { E2E_CANNED_PASSWORD } from './test-user';
 
 /**
@@ -270,36 +270,36 @@ export function useRealBundle(): boolean {
 
 // ===========================================================================
 // MIGRATED-TENANT read (the migrated-data block) — read the migrated legacy
-// reservation as the MIGRATED legacy TestClub's admin, NOT as clubadmin4 /
-// seed-club-1.
+// reservation as the MIGRATED club's admin, NOT as clubadmin4 / seed-club-1.
 //
 // The T-07 legacy fixture (`flsserver/database/FLSTest/3 insert/_test-fixture.sql`
 // §10c) stamps the seeded reservation on the legacy TestClub
-// (`0FA7B76F-47BA-4138-8F96-671400FD7C83`). `CLUB` migrates FULL_PORT
-// (non-fanout) so it keeps its legacy UUID — the migrated reservation lands on
-// THAT tenant, NOT on seed-club-1. The paged read is `@TenantId`-scoped on
-// `operating_club_id`, so clubadmin4 (seed-club-1) never sees it: the old
-// `totalRows >= 1` assertion passed on unrelated seed-club-1 residue, not the
-// migrated row. To prove the legacy→export→migrate→render round-trip we MUST
-// read through the migrated TestClub's tenant.
+// (`0FA7B76F-47BA-4138-8F96-671400FD7C83`). T-18 ASSUMED `CLUB` migrates keeping
+// that legacy UUID — WRONG (J-5 T-27). The migration RECONCILES each CLUB onto a
+// provisioning-MINTED `t_club` with a FRESH UUID (`EntityStreamIngestor`: "CLUB
+// reconciles onto the provisioning-minted t_club … rewrite the row's own legacy
+// id to the provisioned id"), and the reservation's `operating_club_id` is
+// FK-rewritten to that same new UUID via the seed legacy-id map. So the migrated
+// reservation lands on the PROVISIONED club UUID, and the provisioned admin
+// username is `migrated-admin+<NEW-UUID>@…` — never `…+0fa7b76f-…`. Hardcoding
+// the legacy UUID can NEVER find the admin.
 //
-// Mirrors the J-0c/J-1 migrated-read pattern: the migration provisions a
-// Keycloak admin `migrated-admin+<clubId>@migrated.alpenflight.local` per
-// migrated club (`DeploymentProvisioningService#migratedAdminUsername` —
-// clubId is the lowercase `UUID.toString()`). We resolve THAT admin for the
-// FULL_PORT TestClub UUID, make it loginable (test-only password + cleared
-// required-actions — same as `fan-out-parity-fixture.loginableAdmin`), and log
-// it in so the `@TenantId`-scoped reservation read sees the migrated row.
+// Fix (the J-0c ownership-detection pattern, applied to reservations): the J-0c
+// fan-out spec ingests the SAME real bundle earlier in this Playwright
+// invocation, provisioning ONE Keycloak admin
+// (`migrated-admin+<clubId>@migrated.alpenflight.local`) per migrated club. We
+// ENUMERATE every provisioned migrated admin, make each loginable + capture its
+// `@TenantId`-scoped Bearer, page its reservations, and keep the ONE whose
+// tenant carries the unique fixture remark — i.e. the tenant the migrated legacy
+// TestClub reconciled onto. That admin reads the migrated row; ZERO matches is a
+// hard failure (round-trip regressed), never a silent skip.
 // ===========================================================================
 
-/**
- * The migrated legacy TestClub's tenant UUID. `CLUB` migrates FULL_PORT
- * (non-fanout), so the legacy TestClub keeps its legacy UUID
- * (`0FA7B76F-47BA-4138-8F96-671400FD7C83` in the MSSQL fixture); the migration
- * stamps the provisioned tenant + the migrated-admin username with the lowercase
- * `UUID.toString()` form (see `DeploymentProvisioningService`).
- */
-export const MIGRATED_TEST_CLUB_ID = '0fa7b76f-47ba-4138-8f96-671400fd7c83';
+/** The provisioned migrated-admin username namespace (KC `search` infix). */
+const MIGRATED_ADMIN_USERNAME_INFIX = 'migrated-admin+';
+
+/** The reservations paged-read endpoint. */
+const RESERVATIONS_PATH = '/api/v1/aircraft-reservations';
 
 /** The unique remark the T-07 legacy fixture (§10c) stamps on the seeded reservation. */
 export const MIGRATED_RESERVATION_REMARK = 'Cross-tenant timed reservation (fixture)';
@@ -309,42 +309,99 @@ export const MIGRATED_RESERVATION_TYPE_NAME = 'Schulung';
 
 /** A loginable migrated club admin (the migration-provisioned Keycloak identity). */
 export interface MigratedClubAdmin {
+  /** The PROVISIONED club UUID (NOT the legacy one — see the section header). */
   clubId: string;
   username: string;
   password: string;
   kcUserId: string;
 }
 
-function migratedAdminUsername(clubId: string): string {
-  return `migrated-admin+${clubId}@migrated.alpenflight.local`;
+/** A resolved migrated admin plus its captured `@TenantId`-scoped Bearer. */
+export interface ResolvedMigratedAdmin {
+  admin: MigratedClubAdmin;
+  bearer: string;
+}
+
+/** Parse the provisioned clubId out of a `migrated-admin+<clubId>@…` username. */
+function clubIdFromUsername(username: string): string | null {
+  const m = /^migrated-admin\+([0-9a-f-]{36})@migrated\.alpenflight\.local$/i.exec(username);
+  return m ? m[1]! : null;
 }
 
 /**
- * Resolve the migration-provisioned, loginable admin of the migrated legacy
- * TestClub (the tenant the migrated reservation is stamped on). The fanout's
- * J-0c fan-out spec ingests the SAME real bundle earlier in this Playwright
- * invocation, which provisions this admin; here we set a known password + clear
- * its required-actions (test-only, namespace-guarded) so the spec can log it in.
- * Fails loud if the migration did not provision it — that is a provisioning /
- * FULL_PORT regression, never a silently-skipped assertion.
+ * Resolve the migration-provisioned, loginable admin of the club the migrated
+ * legacy reservation reconciled onto — discovered by OWNERSHIP, not by a
+ * hardcoded UUID (J-5 T-27; the migrated CLUB gets a fresh provisioned UUID, so
+ * the legacy `0fa7b76f-…` admin never exists). Enumerate every provisioned
+ * `migrated-admin+<clubId>@…`, make each loginable, capture its tenant Bearer,
+ * page its reservations, and return the one whose tenant carries the unique
+ * fixture remark (`MIGRATED_RESERVATION_REMARK`). Fails loud if none does — that
+ * is a migration round-trip regression, never a silently-skipped assertion.
+ *
+ * The fanout's J-0c fan-out spec ingests the SAME real bundle earlier in this
+ * Playwright invocation, so the admins already exist by the time this runs.
  */
-export async function resolveMigratedTestClubAdmin(): Promise<MigratedClubAdmin> {
-  const username = migratedAdminUsername(MIGRATED_TEST_CLUB_ID);
-  const kcUser = await findUserByUsername(username);
-  if (!kcUser) {
+export async function resolveMigratedTestClubAdmin(
+  browser: Browser,
+  baseURL: string,
+): Promise<ResolvedMigratedAdmin> {
+  const candidates = await findUsersByUsernameSearch(MIGRATED_ADMIN_USERNAME_INFIX);
+  const migratedAdmins = candidates.filter((u) => clubIdFromUsername(u.username) !== null);
+  if (migratedAdmins.length === 0) {
     throw new Error(
-      `migration did not provision a Keycloak admin for the migrated TestClub ` +
-        `${MIGRATED_TEST_CLUB_ID} (expected username ${username}) — the FULL_PORT CLUB ` +
-        `migration / provisioning regressed, or the real bundle was not ingested.`,
+      `no migration-provisioned admin (${MIGRATED_ADMIN_USERNAME_INFIX}…) exists — the J-0c ` +
+        `fan-out spec must ingest the real bundle earlier in this invocation, or the ` +
+        `CLUB provisioning regressed.`,
     );
   }
-  await makeMigratedAdminLoginable(kcUser.id, username, E2E_CANNED_PASSWORD);
-  return {
-    clubId: MIGRATED_TEST_CLUB_ID,
-    username,
-    password: E2E_CANNED_PASSWORD,
-    kcUserId: kcUser.id,
-  };
+
+  const triedClubIds: string[] = [];
+  for (const kcUser of migratedAdmins) {
+    const clubId = clubIdFromUsername(kcUser.username)!;
+    triedClubIds.push(clubId);
+    const admin: MigratedClubAdmin = {
+      clubId,
+      username: kcUser.username,
+      password: E2E_CANNED_PASSWORD,
+      kcUserId: kcUser.id,
+    };
+    await makeMigratedAdminLoginable(kcUser.id, kcUser.username, E2E_CANNED_PASSWORD);
+    const bearer = await captureMigratedTestClubBearer(browser, baseURL, admin);
+    if (await tenantCarriesMigratedReservation(browser, baseURL, bearer)) {
+      return { admin, bearer };
+    }
+  }
+
+  throw new Error(
+    `none of the ${migratedAdmins.length} provisioned migrated club(s) ` +
+      `[${triedClubIds.join(', ')}] carries the migrated legacy reservation ` +
+      `(remark "${MIGRATED_RESERVATION_REMARK}") — the T-07 legacy→export→migrate ` +
+      `round-trip regressed (the reservation or its operating_club_id FK did not migrate).`,
+  );
+}
+
+/**
+ * `true` when the tenant resolved off `bearer` carries the unique migrated
+ * reservation (its fixture remark). Uses the SAME paged-read API the spec
+ * asserts on, so ownership is judged by the product's tenant-scoped read.
+ */
+async function tenantCarriesMigratedReservation(
+  browser: Browser,
+  baseURL: string,
+  bearer: string,
+): Promise<boolean> {
+  const context = await browser.newContext({ baseURL });
+  try {
+    const res = await context.request.post(`${RESERVATIONS_PATH}/page/0/50`, {
+      headers: { authorization: bearer, 'content-type': 'application/json' },
+      data: { sorting: { start: 'asc' } },
+    });
+    if (!res.ok()) return false;
+    const body = (await res.json()) as { items: { remarks?: string | null }[] };
+    return body.items.some((r) => r.remarks === MIGRATED_RESERVATION_REMARK);
+  } finally {
+    await context.close();
+  }
 }
 
 /**
