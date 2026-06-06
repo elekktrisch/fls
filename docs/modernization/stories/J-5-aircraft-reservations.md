@@ -204,9 +204,15 @@ One seam each; commit directly to `integration/J-5`.
   `alpenflight/proof/legacy-parity/` all-journeys archive — screenshots+videos survive on gh-pages);
   the all-in-one paths become SOURCES the per-journey pages read, not destinations;
   (c) **Maintainability panel** on each per-journey page (green/amber/red on that journey's fallow +
-  pmd/cpd delta from T-12, link to full report). May split into T-13a (per-journey pages + index) /
-  T-13b (maintainability panel) at dispatch if it overflows one clean worker.
-  *(seam: generate-gallery.mjs + generate-previews-index.mjs + the gallery-deploy/reap steps)*
+  pmd/cpd delta from T-12, link to full report). **Pre-split per the sizing gate into T-13a/T-13b:**
+- [ ] **T-13a — per-journey gallery pages + Maintainability panel.** `generate-gallery.mjs` emits ONE
+  page per `journey` (keyed by the existing `journey` sidecar field) to a stable per-journey path +
+  renders the Maintainability panel reading T-12's 4 artifacts from `public/alpenflight/proof/maintainability/`
+  (tolerate any absent — fail-soft). *(seam: generate-gallery.mjs)*
+- [ ] **T-13b — persistent J-0…J-5 index.** `generate-previews-index.mjs` lists JOURNEYS (not active
+  branches), each → its per-journey page, surviving PR close — source J-0…J-4 retroactively from the
+  persistent `alpenflight/proof/legacy-parity/` all-journeys archive. The all-in-one per-proof-type paths
+  become SOURCES, not destinations. *(seam: generate-previews-index.mjs + gallery-deploy/reap steps)*
 - [ ] **T-14 — Scope `alpenflight-proof` to the journey-under-work spec (rider).** Parameterize the
   per-push proof to run only J-5's spec(s) off the integration branch; move full cross-journey regression
   to nightly. *(seam: ci.yml proof spec selection + nightly trigger)*
