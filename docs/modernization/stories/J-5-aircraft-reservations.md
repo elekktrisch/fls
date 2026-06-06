@@ -693,7 +693,7 @@ Reference: `docs/modernization/design-reference/screens-reservations.jsx` (ADR 0
 Operator delegated the call → chose maintenance+UX-efficient while keeping the reference feel = **consolidate the
 redundant table + separate scheduler into ONE calendar**. Reuses the existing scheduler day-grid (T-10); keeps the
 backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather source — deferred).
-- [ ] **T-39 — `/reservations` calendar (day + week view), folding in `/reservation-scheduler`.** Replace the paged
+- [x] **T-39 — `/reservations` calendar (day + week view), folding in `/reservation-scheduler`.** Replace the paged
   TABLE primary view with the reference calendar: **day view** = aircraft×hour grid (promote/reuse the T-10
   `reservation-scheduler` placement + grid as the day view; hour header 08–19 default, aircraft rows, time-placed
   blocks, maintenance = hatched) + **week view** = aircraft×day matrix (per-cell count · hours · progress bar) +

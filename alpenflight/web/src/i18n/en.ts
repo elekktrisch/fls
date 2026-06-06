@@ -317,6 +317,17 @@ const en: Translations = {
   },
   reservations: {
     allDay: 'All day',
+    calendar: {
+      dayPicker: 'Pick day',
+      nextWeek: 'Next week',
+      prevWeek: 'Previous week',
+      reservationsCount: '{{count}} reservations',
+      today: 'Today',
+      view: {
+        day: 'Day',
+        week: 'Week',
+      },
+    },
     delete: 'Delete',
     deleteConfirm: 'Delete reservation for "{{immatriculation}}"? This cannot be undone.',
     edit: 'Edit',

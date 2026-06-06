@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dayWindow, placeBlock } from './reservation-scheduler.placement';
+import { dayWindow, hourWindow, placeBlock } from './reservation-scheduler.placement';
 
 /**
  * Placement math for the scheduler view (J-5 T-10) — the load-bearing
@@ -45,5 +45,18 @@ describe('reservation-scheduler placement', () => {
     );
     expect(leftPct).toBeCloseTo((23 / 24) * 100, 5);
     expect(leftPct + widthPct).toBeLessThanOrEqual(100 + 1e-9);
+  });
+
+  it('places a block within a business-hours window (T-39 calendar day view)', () => {
+    // Window 08:00–20:00 local (12h); a 10:00–11:00 reservation → left 2/12.
+    const win = hourWindow('2026-07-01T10:00:00', 8, 20);
+    const { leftPct, widthPct } = placeBlock(
+      new Date(2026, 6, 1, 10, 0).toISOString(),
+      new Date(2026, 6, 1, 11, 0).toISOString(),
+      false,
+      win,
+    );
+    expect(leftPct).toBeCloseTo((2 / 12) * 100, 5);
+    expect(widthPct).toBeCloseTo((1 / 12) * 100, 5);
   });
 });

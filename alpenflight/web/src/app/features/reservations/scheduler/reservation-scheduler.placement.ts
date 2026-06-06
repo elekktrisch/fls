@@ -41,6 +41,25 @@ export function dayWindow(instant: string | number | Date): SchedulerWindow {
   return { startMs, endMs };
 }
 
+/**
+ * The LOCAL hour window `[day startHour:00, day endHourExclusive:00)` for the
+ * day containing `instant`. The `/reservations` calendar day view (J-5 T-39)
+ * renders only business hours (reference default 08–19), so blocks are placed
+ * relative to that window rather than the full UTC day — a 10:00 reservation in
+ * an 08:00–20:00 window lands at (10−8)/12 of the lane, matching the reference.
+ * Local time (not UTC) so the displayed hour matches the user's day.
+ */
+export function hourWindow(
+  instant: string | number | Date,
+  startHour: number,
+  endHourExclusive: number,
+): SchedulerWindow {
+  const d = new Date(instant);
+  const startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), startHour).getTime();
+  const endMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), endHourExclusive).getTime();
+  return { startMs, endMs };
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

@@ -327,6 +327,17 @@ const de = {
   },
   reservations: {
     allDay: 'Ganztägig',
+    calendar: {
+      dayPicker: 'Tag wählen',
+      nextWeek: 'Nächste Woche',
+      prevWeek: 'Vorherige Woche',
+      reservationsCount: '{{count}} Reservationen',
+      today: 'Heute',
+      view: {
+        day: 'Tag',
+        week: 'Woche',
+      },
+    },
     delete: 'Löschen',
     deleteConfirm:
       'Reservation für «{{immatriculation}}» löschen? Dies kann nicht rückgängig gemacht werden.',

@@ -322,6 +322,17 @@ const it: Translations = {
   },
   reservations: {
     allDay: 'Tutto il giorno',
+    calendar: {
+      dayPicker: 'Scegli il giorno',
+      nextWeek: 'Settimana successiva',
+      prevWeek: 'Settimana precedente',
+      reservationsCount: '{{count}} prenotazioni',
+      today: 'Oggi',
+      view: {
+        day: 'Giorno',
+        week: 'Settimana',
+      },
+    },
     delete: 'Elimina',
     deleteConfirm: 'Eliminare la prenotazione per «{{immatriculation}}»? Operazione irreversibile.',
     edit: 'Modifica',
