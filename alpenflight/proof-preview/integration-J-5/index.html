@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>210/merge</code> &middot; 2026-06-06T15:29:42.268Z
+      assertion it proves. Generated on <code>210/merge</code> &middot; 2026-06-06T16:02:41.284Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -236,23 +236,23 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6de443fd9c239ba868c5ed2c6e344cc6bf2a297e.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-6da15235f812eb0c2d723fdc3d5545f847950828.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders in the /reservations list and in the right aircraft lane on the /reservation-scheduler at its time offset (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3bd71acc0d04d2e42fa4819352acb622452ab2d5.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-c92e3fe635544f9aefa21823140ca24c71bcadcd.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-323f048e4a1074d4f54fd8516b1dee46ed71b2b1.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-1d1d38a950e9e3b86bd02a1c053d2e04ef2f764b.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservation-scheduler (real backend)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-3e7de42f04ef4f39e04b0bea2b6836a1eba49452.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-cab665a9e397aee262f4c63f1d19a891f7f1771a.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-4af969cf430ff2563d7380610d9e33f5d5008e89.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-158d00227497080dc3911b40b631d0d216980044.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
         </figure>
         </div>
