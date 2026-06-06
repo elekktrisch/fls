@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ch.alpenflight.AlpenFlightApplication;
 import ch.alpenflight.audit.domain.AuditTrail;
 import ch.alpenflight.audit.domain.AuditedBy;
+import ch.alpenflight.audit.domain.ReadOnlyQuery;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
@@ -72,6 +73,12 @@ class ControllerAuditCoverageTest {
     private boolean isUncovered(JavaMethod controllerMethod) {
         if (controllerMethod.isAnnotatedWith(AuditedBy.class)
                 || controllerMethod.getOwner().isAnnotatedWith(AuditedBy.class)) {
+            return false;
+        }
+        // Read-shaped POST (paged-list / search / lookup carrying its query in
+        // the body) legitimately emits no audit event — the @ReadOnlyQuery
+        // marker is the narrow exemption (NOT a way to silence a real mutation).
+        if (controllerMethod.isAnnotatedWith(ReadOnlyQuery.class)) {
             return false;
         }
         return !reachesAuditTrail(controllerMethod);

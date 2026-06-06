@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -76,6 +77,85 @@ public interface JpaAircraftReservationRepository
             @Param("aircraftId") UUID aircraftId,
             @Param("start") Instant windowStart,
             @Param("end") Instant windowEnd);
+
+    // ----- T-06: paged-list + future/day overview projections -----
+    //
+    // The enriched ListItemRow left-joins AircraftReservationType (same module)
+    // for the type name; cross-module labels stay client-decorated (ADR 0023).
+    // Sort direction can't be parameterised in JPQL, so asc/desc are two methods
+    // selected by a default-method dispatcher. The optional [from,to) window is
+    // applied with sentinel bounds (Instant.MIN/MAX) when a bound is absent —
+    // a single typed query, avoiding the Hibernate-6 `:param is null` type-
+    // inference pitfall on an Instant parameter.
+
+    Instant MIN_INSTANT = Instant.parse("0001-01-01T00:00:00Z");
+    Instant MAX_INSTANT = Instant.parse("9999-12-31T23:59:59Z");
+
+    /** Base projection + tenant-implicit (@TenantId) + soft-delete filter; callers append their window. */
+    String LIST_ITEM_SELECT =
+            "select new ch.alpenflight.reservations.domain.AircraftReservationRepository$ListItemRow("
+                    + "r.id, r.aircraftId, r.reservationStart, r.reservationEnd, r.allDay, "
+                    + "r.pilotPersonId, r.secondCrewPersonId, r.locationId, "
+                    + "r.reservationTypeId, t.reservationTypeName, r.flightTypeId, r.info) "
+                    + "from AircraftReservation r "
+                    + "left join AircraftReservationType t on t.id = r.reservationTypeId "
+                    + "where r.deletedOn is null ";
+
+    /** Half-open [from,to) window on the reservation start, appended by the paged-list queries. */
+    String LIST_ITEM_WINDOW = "and r.reservationStart >= :from and r.reservationStart < :to ";
+
+    @Override
+    default List<AircraftReservationRepository.ListItemRow> findActiveListPage(
+            @Nullable Instant from, @Nullable Instant to,
+            boolean ascending, int pageStart, int pageSize) {
+        Instant lo = from == null ? MIN_INSTANT : from;
+        Instant hi = to == null ? MAX_INSTANT : to;
+        var page = org.springframework.data.domain.PageRequest.of(
+                pageSize <= 0 ? 0 : pageStart / pageSize, Math.max(pageSize, 1));
+        return ascending
+                ? findActiveListPageAsc(lo, hi, page)
+                : findActiveListPageDesc(lo, hi, page);
+    }
+
+    @Query(LIST_ITEM_SELECT + LIST_ITEM_WINDOW + "order by r.reservationStart asc, r.id asc")
+    List<AircraftReservationRepository.ListItemRow> findActiveListPageAsc(
+            @Param("from") Instant from,
+            @Param("to") Instant to,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query(LIST_ITEM_SELECT + LIST_ITEM_WINDOW + "order by r.reservationStart desc, r.id desc")
+    List<AircraftReservationRepository.ListItemRow> findActiveListPageDesc(
+            @Param("from") Instant from,
+            @Param("to") Instant to,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Override
+    default long countActiveList(@Nullable Instant from, @Nullable Instant to) {
+        return countActiveListBetween(from == null ? MIN_INSTANT : from,
+                to == null ? MAX_INSTANT : to);
+    }
+
+    @Query("select count(r) from AircraftReservation r where r.deletedOn is null "
+            + "and r.reservationStart >= :from and r.reservationStart < :to")
+    long countActiveListBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Override
+    @Query(LIST_ITEM_SELECT + "and r.reservationStart >= :asOf "
+            + "order by r.reservationStart asc, r.id asc")
+    List<AircraftReservationRepository.ListItemRow> findFutureListRows(@Param("asOf") Instant asOf);
+
+    @Override
+    @Query("select new ch.alpenflight.reservations.domain.AircraftReservationRepository$ListItemRow("
+            + "r.id, r.aircraftId, r.reservationStart, r.reservationEnd, r.allDay, "
+            + "r.pilotPersonId, r.secondCrewPersonId, r.locationId, "
+            + "r.reservationTypeId, t.reservationTypeName, r.flightTypeId, r.info) "
+            + "from AircraftReservation r "
+            + "left join AircraftReservationType t on t.id = r.reservationTypeId "
+            + "where r.deletedOn is null "
+            + "and r.reservationStart < :dayEnd and :dayStart < r.reservationEnd "
+            + "order by r.reservationStart asc, r.id asc")
+    List<AircraftReservationRepository.ListItemRow> findActiveListRowsForDay(
+            @Param("dayStart") Instant dayStart, @Param("dayEnd") Instant dayEnd);
 
     @Override
     @Query("select r from AircraftReservation r where r.id = :id and r.deletedOn is null")

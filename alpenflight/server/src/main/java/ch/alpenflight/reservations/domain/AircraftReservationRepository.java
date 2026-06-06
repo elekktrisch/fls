@@ -60,6 +60,27 @@ public interface AircraftReservationRepository {
                    @Nullable UUID flightTypeId,
                    @Nullable String info) {}
 
+    /**
+     * Enriched list-item projection for the paged-list / future / day overview
+     * reads (T-06). Same FK ids as {@link ListRow} plus the same-module
+     * {@code reservationTypeName} (left-joined from {@code AircraftReservationType}
+     * — like the Aircraft list row denormalises its type code). Cross-module
+     * labels (immatriculation, pilot/location names) stay client-decorated
+     * (ADR 0023). Sorted-by-start at the query layer.
+     */
+    record ListItemRow(UUID id,
+                       UUID aircraftId,
+                       Instant reservationStart,
+                       Instant reservationEnd,
+                       boolean allDay,
+                       UUID pilotPersonId,
+                       @Nullable UUID secondCrewPersonId,
+                       UUID locationId,
+                       @Nullable UUID reservationTypeId,
+                       @Nullable String reservationTypeName,
+                       @Nullable UUID flightTypeId,
+                       @Nullable String info) {}
+
     /** Slim list-item for the {@code /aircraftreservationtypes/listitems} dropdown. */
     record TypeListItem(UUID id, String name, boolean active) {}
 
@@ -92,6 +113,34 @@ public interface AircraftReservationRepository {
      *     {@code null} on create.
      */
     boolean existsActiveConflict(UUID aircraftId, Range window, @Nullable UUID excludeId);
+
+    /**
+     * One page of active list rows within the caller's tenant, optionally
+     * narrowed to {@code [from, to)} on the reservation start, sorted by start
+     * ({@code ascending} or descending), windowed to {@code [pageStart,
+     * pageStart+pageSize)}. Backs {@code POST .../page/{start}/{size}}.
+     */
+    List<ListItemRow> findActiveListPage(@Nullable Instant from,
+                                         @Nullable Instant to,
+                                         boolean ascending,
+                                         int pageStart,
+                                         int pageSize);
+
+    /** Unpaged count of the same predicate as {@link #findActiveListPage} (→ {@code totalRows}). */
+    long countActiveList(@Nullable Instant from, @Nullable Instant to);
+
+    /**
+     * Active reservations starting at/after {@code asOf} within the caller's
+     * tenant, sorted by start asc — the scheduler/table default ({@code /future}).
+     */
+    List<ListItemRow> findFutureListRows(Instant asOf);
+
+    /**
+     * Active reservations overlapping the half-open day window
+     * {@code [dayStart, dayEnd)} within the caller's tenant, sorted by start asc
+     * ({@code /day/{yyyy-MM-dd}}).
+     */
+    List<ListItemRow> findActiveListRowsForDay(Instant dayStart, Instant dayEnd);
 
     /** Active reservation types within the caller's tenant, for the dropdown. */
     List<TypeListItem> findActiveTypeListItems();

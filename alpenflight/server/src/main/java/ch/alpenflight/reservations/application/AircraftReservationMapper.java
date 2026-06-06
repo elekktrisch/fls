@@ -1,8 +1,10 @@
 package ch.alpenflight.reservations.application;
 
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationDetail;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationListItem;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationTypeListItem;
 import ch.alpenflight.reservations.domain.AircraftReservation;
+import ch.alpenflight.reservations.domain.AircraftReservationRepository.ListItemRow;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.ListRow;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.TypeListItem;
 import java.util.Objects;
@@ -60,6 +62,22 @@ final class AircraftReservationMapper {
                 row.reservationStart(),
                 row.reservationEnd(),
                 row.allDay(),
+                row.info());
+    }
+
+    static AircraftReservationListItem toListItem(ListItemRow row) {
+        return new AircraftReservationListItem(
+                row.id(),
+                row.aircraftId(),
+                row.reservationStart(),
+                row.reservationEnd(),
+                row.allDay(),
+                row.pilotPersonId(),
+                row.secondCrewPersonId(),
+                row.locationId(),
+                row.reservationTypeId(),
+                row.reservationTypeName(),
+                row.flightTypeId(),
                 row.info());
     }
 

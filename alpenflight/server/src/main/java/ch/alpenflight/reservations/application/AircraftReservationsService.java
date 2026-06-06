@@ -6,6 +6,9 @@ import ch.alpenflight.audit.domain.AuditedTarget;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationCreateRequest;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationDetail;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationListItem;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPage;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPageRequest;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationTypeListItem;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationUpdateRequest;
 import ch.alpenflight.reservations.domain.AircraftReservation;
@@ -14,6 +17,7 @@ import ch.alpenflight.reservations.domain.AircraftReservationRepository;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.Range;
 import ch.alpenflight.reservations.domain.ReservationConflictException;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
@@ -52,6 +56,10 @@ public class AircraftReservationsService {
      * free-text {@code remarks} / PII-adjacent person ids).
      */
     private static final String AUDIT_ENTITY_TYPE = "AircraftReservation";
+
+    /** Paged-list guards: a {@code size ≤ 0} falls back to this; oversize is clamped. */
+    private static final int DEFAULT_PAGE_SIZE = 25;
+    private static final int MAX_PAGE_SIZE = 200;
 
     private final AircraftReservationRepository reservations;
     private final ClubTenantIdentifierResolver tenantResolver;
@@ -126,6 +134,67 @@ public class AircraftReservationsService {
         reservations.save(r);
         auditTrail.record(AuditAction.DELETE,
                 AuditedTarget.deleted(AUDIT_ENTITY_TYPE, id, before));
+    }
+
+    /**
+     * One SPA page of the tenant's active reservations (J-5 T-06). Honours the
+     * legacy-shaped {@code sorting} (only {@code start: asc|desc} — default asc)
+     * + a basic {@code searchFilter} date-range on the reservation start. The
+     * {@code totalRows} is the unpaged count of the same predicate so the SPA
+     * can render pagination in one round-trip.
+     */
+    @Transactional(readOnly = true)
+    public AircraftReservationPage page(int pageStart, int pageSize,
+                                        @Nullable AircraftReservationPageRequest request) {
+        int safeStart = Math.max(pageStart, 0);
+        int safeSize = pageSize <= 0 ? DEFAULT_PAGE_SIZE : Math.min(pageSize, MAX_PAGE_SIZE);
+        boolean ascending = sortStartAscending(request);
+        var from = filterFrom(request);
+        var to = filterTo(request);
+
+        List<AircraftReservationListItem> items = reservations
+                .findActiveListPage(from, to, ascending, safeStart, safeSize).stream()
+                .map(AircraftReservationMapper::toListItem)
+                .toList();
+        long total = reservations.countActiveList(from, to);
+        return new AircraftReservationPage(items, safeStart, safeSize, total);
+    }
+
+    /** Future reservations (start ≥ now) — the scheduler/table default ({@code /future}). */
+    @Transactional(readOnly = true)
+    public List<AircraftReservationListItem> listFuture() {
+        return reservations.findFutureListRows(clock.instant()).stream()
+                .map(AircraftReservationMapper::toListItem)
+                .toList();
+    }
+
+    /** Reservations overlapping the UTC day {@code [date 00:00, date+1 00:00)} ({@code /day/{date}}). */
+    @Transactional(readOnly = true)
+    public List<AircraftReservationListItem> listForDay(java.time.LocalDate date) {
+        Instant dayStart = date.atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        Instant dayEnd = date.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant();
+        return reservations.findActiveListRowsForDay(dayStart, dayEnd).stream()
+                .map(AircraftReservationMapper::toListItem)
+                .toList();
+    }
+
+    private static boolean sortStartAscending(@Nullable AircraftReservationPageRequest request) {
+        if (request == null || request.sorting() == null) {
+            return true;
+        }
+        String dir = request.sorting().get("start");
+        // Default asc; only an explicit "desc" flips it (case-insensitive).
+        return dir == null || !"desc".equalsIgnoreCase(dir.trim());
+    }
+
+    private static @Nullable Instant filterFrom(@Nullable AircraftReservationPageRequest request) {
+        return request == null || request.searchFilter() == null
+                ? null : request.searchFilter().from();
+    }
+
+    private static @Nullable Instant filterTo(@Nullable AircraftReservationPageRequest request) {
+        return request == null || request.searchFilter() == null
+                ? null : request.searchFilter().to();
     }
 
     @Transactional(readOnly = true)

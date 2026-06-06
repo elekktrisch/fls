@@ -156,9 +156,10 @@ One seam each; commit directly to `integration/J-5`.
 - [x] **T-05 — Reservations CRUD resource.** Service + DTOs + mapper + controller create/get/update/delete
   + `aircraftreservationtypes/listitems`; conflict→409, end≤start→422; explicit `operationId`s (orval
   rider); each mutating method → `ControllerAuditCoverageTest`; ControllerIT. *(seam: reservations resource — CRUD)*
-- [ ] **T-06 — Paged-list + future/day overview endpoints.** `POST .../page/{start}/{size}` SPA envelope
-  `{Sorting,SearchFilter}`→`{Items,PageStart,PageSize,TotalRows}`, `/future`, `/day`; ControllerIT for the
-  page shape. *(seam: reservations resource — paged-list)*
+- [x] **T-06 — Paged-list + future/day overview endpoints.** `POST .../page/{start}/{size}` SPA envelope
+  `{sorting,searchFilter}`→`{items,pageStart,pageSize,totalRows}` (camelCase house style), `/future`, `/day/{date}`;
+  ControllerIT for the page shape + future-excludes-past. Read-shaped POST exempted from the audit guard via
+  a new `@ReadOnlyQuery` marker. *(seam: reservations resource — paged-list)*
 - [ ] **T-07 — Reservation legacy seed + mapper fanout round-trip.** Legacy seed (club, PILOT+person,
   same-club + other-club aircraft, location, type, an existing reservation, `AircraftIdsToDisplayInScheduler`
   setting) + prove `AircraftReservationMapper` + `AircraftReservationTypeMapper` round-trip via fanout

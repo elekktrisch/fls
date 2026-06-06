@@ -117,6 +117,54 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         assertThat(readJson(res).get("key").asText()).isEqualTo("aircraft.reservation.duration");
     }
 
+    @Test
+    void page_returns_camelCaseEnvelope_withTenantScopedItems_sortedByStart() {
+        // Two non-overlapping bookings on the same aircraft; created out of
+        // start order to prove the page sorts by start asc.
+        post("/api/v1/aircraft-reservations",
+                timedPayload("2026-07-02T10:00:00Z", "2026-07-02T11:00:00Z"));
+        post("/api/v1/aircraft-reservations",
+                timedPayload("2026-07-01T10:00:00Z", "2026-07-01T11:00:00Z"));
+
+        ResponseEntity<String> res = post("/api/v1/aircraft-reservations/page/0/10",
+                Map.of("sorting", Map.of("start", "asc")));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        JsonNode page = readJson(res);
+        // camelCase envelope (NOT legacy PascalCase Items/TotalRows).
+        assertThat(page.has("items")).isTrue();
+        assertThat(page.get("pageStart").asInt()).isZero();
+        assertThat(page.get("pageSize").asInt()).isEqualTo(10);
+        assertThat(page.get("totalRows").asLong()).isEqualTo(2);
+
+        JsonNode items = page.get("items");
+        assertThat(items).hasSize(2);
+        // Sorted by start asc — earliest (2026-07-01) first.
+        assertThat(items.get(0).get("start").asText()).isEqualTo("2026-07-01T10:00:00Z");
+        assertThat(items.get(1).get("start").asText()).isEqualTo("2026-07-02T10:00:00Z");
+        // Row carries the FK ids + same-module type name (no cross-module labels).
+        assertThat(items.get(0).get("aircraftId").asText()).isEqualTo(aircraftId.toString());
+        assertThat(items.get(0).get("reservationTypeName").asText()).isEqualTo("Flight");
+    }
+
+    @Test
+    void future_excludesPastReservations_sortedByStart() {
+        // One reservation safely in the past, one safely in the future relative
+        // to the test-run clock — /future returns only the future one.
+        post("/api/v1/aircraft-reservations",
+                timedPayload("2000-01-01T10:00:00Z", "2000-01-01T11:00:00Z"));
+        post("/api/v1/aircraft-reservations",
+                timedPayload("2999-01-01T10:00:00Z", "2999-01-01T11:00:00Z"));
+
+        ResponseEntity<String> res = get("/api/v1/aircraft-reservations/future");
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        JsonNode items = readJson(res);
+        assertThat(items.isArray()).isTrue();
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).get("start").asText()).isEqualTo("2999-01-01T10:00:00Z");
+    }
+
     // ----- payload + seed helpers -----
 
     private Map<String, Object> timedPayload(String startIso, String endIso) {

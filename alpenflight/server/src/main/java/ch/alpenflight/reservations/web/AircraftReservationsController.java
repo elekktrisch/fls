@@ -1,8 +1,12 @@
 package ch.alpenflight.reservations.web;
 
+import ch.alpenflight.audit.domain.ReadOnlyQuery;
 import ch.alpenflight.platform.tenancy.UserPrincipalLookup;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationCreateRequest;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationDetail;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationListItem;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPage;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPageRequest;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationUpdateRequest;
 import ch.alpenflight.reservations.application.AircraftReservationsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +14,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
@@ -35,7 +41,8 @@ import org.springframework.web.bind.annotation.RestController;
  * {@code /api/v1/aircraft-reservation-types} listitems path.
  *
  * <p>The paged-list ({@code POST .../page/{start}/{size}}) and the
- * {@code /future} / {@code /day} overview endpoints are T-06, NOT here.
+ * {@code /future} / {@code /day/{date}} overview read endpoints are added here
+ * by T-06 (read-shaped — the page POST carries {@code @ReadOnlyQuery}).
  *
  * <p><strong>Authz: legacy-open.</strong> Any authenticated tenant member may
  * CRUD reservations within their own tenant ({@code @TenantId} scopes every
@@ -68,6 +75,51 @@ public class AircraftReservationsController {
     @PreAuthorize("isAuthenticated()")
     public AircraftReservationDetail getAircraftReservation(@PathVariable UUID id) {
         return service.getReservation(id);
+    }
+
+    /**
+     * SPA paged list — the legacy {@code POST .../page/{start}/{size}} shape with
+     * a {@code PageableSearchFilter}-style body. Read-shaped POST (the legacy
+     * filter body doesn't fit a GET query string), so it carries
+     * {@link ReadOnlyQuery} to opt out of the mutating-verb audit guard and emits
+     * no audit event. Response is the camelCase {@code {items, pageStart,
+     * pageSize, totalRows}} envelope the T-01 spec stub locks (NOT legacy
+     * PascalCase). Rows are sorted by start (asc default; {@code sorting.start:
+     * desc} flips), tenant-scoped via {@code @TenantId}.
+     */
+    @Operation(operationId = "pageAircraftReservations",
+            summary = "Paged aircraft-reservation list (SPA-compat page shape). Body carries optional "
+                    + "sorting (`start: asc|desc`) + a basic date-range search filter.")
+    @ApiResponse(responseCode = "200", description = "One page of list rows + totalRows.")
+    @PostMapping(path = "/page/{start}/{size}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    @ReadOnlyQuery
+    public AircraftReservationPage pageAircraftReservations(
+            @PathVariable int start,
+            @PathVariable int size,
+            @RequestBody(required = false) @Nullable AircraftReservationPageRequest request) {
+        return service.page(start, size, request);
+    }
+
+    @Operation(operationId = "listFutureAircraftReservations",
+            summary = "Future reservations (start ≥ now), tenant-scoped, sorted by start — "
+                    + "the scheduler/table default view.")
+    @ApiResponse(responseCode = "200", description = "Future list rows, sorted by start asc.")
+    @GetMapping("/future")
+    @PreAuthorize("isAuthenticated()")
+    public List<AircraftReservationListItem> listFutureAircraftReservations() {
+        return service.listFuture();
+    }
+
+    @Operation(operationId = "listAircraftReservationsForDay",
+            summary = "Reservations overlapping the given UTC day, tenant-scoped, sorted by start.")
+    @ApiResponse(responseCode = "200", description = "List rows overlapping the day, sorted by start asc.")
+    @GetMapping("/day/{date}")
+    @PreAuthorize("isAuthenticated()")
+    public List<AircraftReservationListItem> listAircraftReservationsForDay(
+            @PathVariable @org.springframework.format.annotation.DateTimeFormat(iso =
+                    org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate date) {
+        return service.listForDay(date);
     }
 
     @Operation(operationId = "createAircraftReservation",
