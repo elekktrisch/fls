@@ -45,6 +45,7 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .status.success { background: var(--success-bg); color: var(--success); }
 .status.failure { background: var(--failure-bg); color: var(--failure); }
 .status.pending { background: var(--pending-bg); color: var(--pending); }
+.status.neutral { background: var(--surface-2); color: var(--muted); }
 /* Accordion — one native <details> per journey. ADR 0024: flat (1px slate
    border, NO shadow), sharp corners (radius 0), restrained motion (the native
    toggle only — no slide). The brand color lands only on the open-state accent
@@ -111,6 +112,15 @@ a:hover { color: var(--primary-hover); text-decoration: underline; }
 .shot.shot-legacy .shot-side { background: var(--pending-bg); color: var(--pending); }
 .shot figcaption { padding: .65rem .75rem; font-size: .85rem; color: var(--text); }
 .nav-galleries { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); }
+/* Maintainability panel — flat, table-of-numbers; pill carries the roll-up. */
+.maintainability { margin-top: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0; padding: 1rem 1.1rem; }
+.maintainability h4 { margin: 0 0 .75rem; font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: .6rem; }
+.maint-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.maint-table th { text-align: left; font-weight: 500; color: var(--muted); padding: .4rem .75rem .4rem 0; white-space: nowrap; vertical-align: top; width: 1%; }
+.maint-table td { padding: .4rem 0; color: var(--text); border-top: 1px solid var(--border); }
+.maint-table tr:first-child td, .maint-table tr:first-child th { border-top: 0; }
+.maint-table td.muted { color: var(--muted); }
+.back-link { font-size: .85rem; }
 footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 </style>
 </head>
@@ -120,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>210/merge</code> &middot; 2026-06-06T07:13:43.861Z
+      assertion it proves. Generated on <code>210/merge</code> &middot; 2026-06-06T07:53:29.264Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -139,15 +149,15 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-6a55d5e3a4ce415d6d149ca3029f47ef8e647135.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-208911fedd986e00d2b1b683f2b71e5d9857bf9c.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-ea6d55840b4263d015610850a8ee7ae74104648d.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-962e32f4f282043bbba8094a245af2ab99dff967.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-df87dc426c92bf18bd6bdaca56c4342f27fb0952.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-9cb34e5302227c775d232c8ec0250cdd15842dab.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
         </figure>
         </div>
