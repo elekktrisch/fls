@@ -624,6 +624,17 @@ jobs:
           enable_jekyll: false
           commit_message: "alpenflight proof gallery: ${{ steps.pw.outcome }} for ${{ github.sha }}"
 
+      # J-5 T-13b — after the canonical gallery (incl. T-13a's persistent
+      # per-journey pages at alpenflight/proof/J-<n>/) lands on main, rebuild the
+      # persistent JOURNEY index so the just-merged journey is listed as a live
+      # row. The index sources J-0…J-N from the persistent canonical + fan-out
+      # archive pages (no active branch needed on main). Fail-soft composite.
+      - name: Rebuild persistent previews index (main)
+        if: ${{ steps.gallery.outcome == 'success' && github.ref == 'refs/heads/main' }}
+        uses: ./.github/actions/rebuild-previews-index
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
       # J-25 — per-PR preview deploy. PR-only + gallery-success-gated (a red
       # run produces no valid gallery, so don't publish a broken preview).
       # Publishes the SAME generated gallery (public/alpenflight/proof) to a

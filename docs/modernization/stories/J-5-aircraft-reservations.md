@@ -219,7 +219,7 @@ One seam each; commit directly to `integration/J-5`.
   reconstructable). Snapshot rows (FE health score/grade/MI/dup%, BE PMD violation+complexity+dead-code
   counts, BE CPD dup%) render on every page; any absent artifact → "—"/"no data", never throws. New
   CLI flags: `--no-per-journey`, `--journey-under-work J-N`.
-- [ ] **T-13b — persistent J-0…J-5 index.** `generate-previews-index.mjs` lists JOURNEYS (not active
+- [x] **T-13b — persistent J-0…J-5 index.** `generate-previews-index.mjs` lists JOURNEYS (not active
   branches), each → its per-journey page, surviving PR close — source J-0…J-4 retroactively from the
   persistent `alpenflight/proof/legacy-parity/` all-journeys archive. The all-in-one per-proof-type paths
   become SOURCES, not destinations. *(seam: generate-previews-index.mjs + gallery-deploy/reap steps)*
