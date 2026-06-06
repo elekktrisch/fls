@@ -533,3 +533,22 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   **Browserless** (Playwright `request` + fs) so it runs under the sandbox's musl chrome block — autonomous in
   any task context; optional `--deployed <url>` mode asserts each live gh-pages link returns 200. Plus a one-line
   **do-task/SKILL.md DoD** addition: gallery-touching tasks run this spec before marking done. *(seam: proof-gallery-links.spec.ts + do-task SKILL.md DoD line)*
+
+### Operator: deployed J-5 page has 2/3 dead links — T-31 checker missed them
+- [ ] **T-32 — Fix the per-journey page cross-section links for the DEPLOYED layouts.** On the live branch-preview
+  page (`…/proof-preview/integration-J-5/J-5/`) 2 of 3 nav links 404: (1) back-index `../../previews/` resolves
+  to `proof-preview/previews/` (wrong depth — branch-preview `proof-preview/<branch>/J-n/` is one level deeper
+  than canonical `proof/J-n/`); the persistent index is always at `alpenflight/previews/` → make the back-link
+  **site-root-absolute** (`/fls/alpenflight/previews/`, gh-pages base; generator takes/derives the site base) so
+  it works in BOTH layouts. (2) `../maintainability/` 404s because it points at a DIRECTORY with no `index.html`
+  (gh-pages won't serve a dir listing); fix by linking to a real file OR emitting an `index.html` into the
+  maintainability dir during the report-emit/gallery step. Verify against gh-pages semantics, both deploy
+  layouts. *(seam: generate-gallery.mjs cross-section links + maintainability dir index/deploy)*
+- [ ] **T-33 — Harden the link-checker so it CATCHES deployed dead links (it missed 2/3).** T-31's local check
+  only generated the canonical layout + used `fs.existsSync` (a dir passes even though gh-pages 404s a dir with
+  no index.html). Fix: (a) the local spec must also generate+walk the **branch-preview layout**
+  (`proof-preview/<branch>/J-n/`) AND model gh-pages semantics — a link ending `/` (a directory) is only OK if
+  that dir contains `index.html`; (b) wire the **deployed-URL check into the fanout POST-deploy**: after the
+  branch-preview deploy, run the spec in `GALLERY_DEPLOYED_URL` mode against the just-deployed
+  `…/proof-preview/<branch>/` (fetch the index + every per-journey page + assert each link returns 200) and
+  FAIL the gate on a 404 — so a deployed dead link can never ship green again. *(seam: proof-gallery-links.spec.ts + fanout post-deploy link-check step)*
