@@ -26,11 +26,32 @@ genuinely new vertical feature scope.
   `timeout NNN ./gradlew test` that gets SIGKILLed leaks an `alpenflight-pg-test-*` container + ~1 GB volume
   because `PostgresTestContainerLifecycle`'s cleanup is a JVM **shutdown hook** that never fires on a kill.
   Reclaimed ~10 GB across the window via `docker rm -f alpenflight-pg-test-* && docker volume/image prune`.
-  Durable fix: add a **pre-start sweep** to `PostgresTestContainerLifecycle.start()` (reap stale
-  `alpenflight-pg-test-*` before starting — reaps a leaked one on the next run regardless of how the prior
-  died) AND a settings.json **Stop hook** that prunes after each session/worker. Snapshot-regen throwaway PGs
-  are no longer needed now the remote DB is reachable again (use `DATASOURCE_*`). *(seam:
-  PostgresTestContainerLifecycle pre-start sweep + a cleanup hook)* — see [[project_docker_disk_leak_orphaned_testcontainers]].
+  Durable fix (**operator approved at /do-retro: "fix local self-verify"**): (1) add a **pre-start sweep** to
+  `PostgresTestContainerLifecycle.start()` (reap stale `alpenflight-pg-test-*` before starting — reaps a leaked
+  one on the next run regardless of how the prior died); (2) **raise the 60s readiness cap** (it was timing out
+  under load, so workers couldn't self-verify ITs locally → forced CI round-trips); (3) a settings.json **Stop
+  hook** that prunes orphaned `alpenflight-pg-test-*` + dangling volumes after each session. Goal: workers
+  reliably run their IT + the arch-guards locally, no leak. Snapshot-regen throwaway PGs are no longer needed
+  now the remote DB is reachable (use `DATASOURCE_*`). *(seam: PostgresTestContainerLifecycle pre-start sweep +
+  readiness-cap + a cleanup hook)* — see [[project_docker_disk_leak_orphaned_testcontainers]].
+
+## Pending (filed by /do-retro 2026-06-06, J-4 window)
+
+- **Proof galleries: collapse the 4 per-proof-type galleries into ONE page PER JOURNEY (operator design,
+  /do-retro J-4).** Today there are 4 gh-pages destinations (clean-seed `…/<branch>/`, showcase `…/dashboard/`,
+  `…/profile/`, fanout `…/legacy-parity/`) each rendering a DIFFERENT subset of state across ALL journeys, plus
+  the new persistent `…/alpenflight/previews/index.html` link-directory (J-4 T-24) that links to them. The
+  operator can't find one journey's current proof. **Target model (operator-confirmed):** the index lists
+  JOURNEYS (J-0…J-N); each links to ONE **per-journey page** that aggregates THAT journey's full proof — paired
+  legacy↔AlpenFlight screenshots/videos + the real-idp run — filtered to the single journey. The per-proof-type
+  galleries stop being separate destinations and become **sources** the per-journey page assembles from. Likely:
+  the gallery generator keys by `journey` (it already carries a `journey` field on every shot/video sidecar
+  entry) and emits one page per journey to `…/<branch>/J-<n>/` (or `…/previews/<branch>/J-<n>/`); the index +
+  the per-push/fanout deploy steps target the per-journey pages; retire the dashboard/profile/legacy-parity/
+  clean-seed sub-paths + their deploy steps. **SUBSTANTIAL — recommend `/do-plan` carve this as its own
+  proof-gallery-rearchitecture infra slice rather than fold it into a product journey's gate** (folding it would
+  swamp that journey). *(seam: `generate-gallery.mjs` + `generate-previews-index.mjs` + the gallery-deploy steps
+  across ci.yml + alpenflight-proof-fanout.yml + the rebuild-previews-index composite)*
 
 
 - ~~**Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).**~~ **Shipped J-3 T-12**

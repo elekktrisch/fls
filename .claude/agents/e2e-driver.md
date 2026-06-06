@@ -34,7 +34,13 @@ invent a parallel convention.
   **list+form screenshots** (declare via a sidecar the gallery pairs by `side`×`view`).
   Capture the AlpenFlight list **populated** — create ≥3 rows showing every column (J-1
   T-22: an empty "No Data" shot proves nothing). Reuse `e2e/` legacy specs; drive only if
-  none. Review aid, not pass/fail; greenfield → AlpenFlight-only.
+  none. Review aid, not pass/fail; greenfield → AlpenFlight-only. **No-migration
+  legacy-replacing screen** (J-4 `/profile`): run the legacy capture in the fanout but do
+  NOT re-seed showcase inside the migrate-fanout (it collides with the migrated DB) —
+  `curl` the AlpenFlight side's shots from the **per-push showcase gallery** + pair those
+  against the fanout's legacy shots. Legacy accordion/collapsed groups must be expanded
+  before scrolling/shooting; anchor on a unique element (a bare `#username` matched the
+  login form too — J-4 fix-pass 1).
 - **Two parallel jobs.** Own the journey-gate workflow under `.github/workflows/`:
   `alpenflight-proof` (required check; brings up legacy→seed→migrate→real,
   uploads the pass video) and `parity-legacy-video` (non-blocking; legacy
