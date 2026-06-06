@@ -4,13 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof previews — index</title>
+<title>AlpenFlight proof — journeys index</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
   --text: #1a1d21; --muted: #5c6470; --border: #e3e6ea;
   --primary: #0a66c2; --primary-hover: #0552a3;
   --success: #0a7f3f; --success-bg: #e3f5ea;
+  --pending: #8a6d00; --pending-bg: #fbf3d6;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 1px 3px rgba(0,0,0,.06);
 }
 @media (prefers-color-scheme: dark) {
@@ -19,6 +20,7 @@
     --text: #e6edf3; --muted: #8d96a0; --border: #2a313b;
     --primary: #4da3ff; --primary-hover: #79bbff;
     --success: #3fb950; --success-bg: #14271b;
+    --pending: #d6a700; --pending-bg: #2a2410;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.3);
   }
 }
@@ -37,88 +39,191 @@ a { color: var(--primary); text-decoration: none; }
 a:hover { color: var(--primary-hover); text-decoration: underline; }
 .meta { color: var(--muted); font-size: .9rem; }
 .bookmark { margin-top: .75rem; padding: .6rem .8rem; border: 2px solid var(--primary); border-radius: 4px; background: var(--surface-2); color: var(--text); font-size: .9rem; }
-.branch {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 0; padding: 0; margin: 0 0 -1px;
+.journey-list { list-style: none; margin: 0; padding: 0; }
+.journey-row {
+  display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
+  padding: .8rem 1.1rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 0; margin: 0 0 -1px;
+  border-left: 2px solid var(--success);
 }
-.branch + .branch { margin-top: 0; }
-.branch > summary {
-  list-style: none; cursor: pointer; user-select: none;
-  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
-  padding: .9rem 1.1rem .9rem 2.1rem; position: relative;
-  background: var(--surface);
-  border-left: 2px solid transparent;
-}
-.branch > summary::-webkit-details-marker { display: none; }
-.branch > summary::before {
-  content: ''; position: absolute; left: 1rem; top: 1.25rem;
-  width: 0; height: 0;
-  border-left: 5px solid var(--muted);
-  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
-  transform: rotate(0deg); transform-origin: 25% 50%;
-}
-.branch[open] > summary::before { transform: rotate(90deg); }
-.branch[open] > summary { border-left-color: var(--primary); }
-.branch > summary:hover { background: var(--surface-2); }
-.branch-name { font-weight: 500; font-size: 1.05rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.branch-count { display: inline-block; padding: .2em .65em; border-radius: 4px; font-size: .8rem; font-weight: 500; background: var(--success-bg); color: var(--success); }
-.branch-updated { color: var(--muted); font-size: .8rem; }
-.proof-list { list-style: none; margin: 0; padding: .25rem 1.1rem 1.1rem; }
-.proof-row { display: flex; flex-direction: column; gap: .15rem; padding: .65rem .8rem; border: 1px solid var(--border); border-radius: 4px; margin-top: .6rem; background: var(--surface-2); }
-.proof-link { font-size: 1rem; }
-.purpose { color: var(--muted); font-size: .85rem; }
-.updated { color: var(--muted); font-size: .78rem; }
-.empty { padding: 1.25rem; border: 1px dashed var(--border); border-radius: 4px; background: var(--surface); }
-footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
+.journey-row.pending { border-left-color: var(--border); opacity: .8; }
+.journey-link { font-size: 1.02rem; }
+.journey-row.pending .journey-link { color: var(--muted); }
+.source { display: inline-block; padding: .2em .65em; border-radius: 4px; font-size: .78rem; font-weight: 500; background: var(--success-bg); color: var(--success); }
+.journey-row.pending .source { background: var(--pending-bg); color: var(--pending); }
+.updated { color: var(--muted); font-size: .78rem; margin-left: auto; }
+footer { margin-top: 2.5rem; color: var(--muted); font-size: .85em; }
+.archive-link { margin-top: 1.5rem; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <h1>AlpenFlight proof previews</h1>
+    <h1>AlpenFlight proof — journeys</h1>
     <p class="meta">
-      The single, permanent entry point to every active branch/PR proof gallery.
-      Generated <code>2026-06-06T07:47:05.561Z</code> — rebuilt on every proof deploy.
+      The single, permanent entry point — one row per modernization journey, each
+      linking its per-journey proof page. Generated <code>2026-06-06T07:53:41.497Z</code> —
+      rebuilt on every proof deploy. 3 journeys with a published proof page.
     </p>
     <p class="bookmark">
       <strong>Bookmark this page.</strong> Its URL never changes
-      (<code>/alpenflight/previews/index.html</code>); always come back here to
-      find the current proofs. The per-branch galleries below come and go as PRs
-      open and close.
+      (<code>/alpenflight/previews/index.html</code>). Journeys persist here after
+      their PR merges — the per-journey pages live under <code>alpenflight/proof/</code>
+      and are never reaped. The active branch <code>integration-J-5</code>'s freshly-built per-journey pages are surfaced as soon as its PR deploy lands.
     </p>
   </header>
 
   <section>
-      <details class="branch" open>
-        <summary>
-          <span class="branch-name">integration-J-5</span>
-          <span class="branch-count">3 proofs</span>
-          <span class="branch-updated">last activity 2026-06-06 07:46 UTC</span>
-        </summary>
-        <ul class="proof-list">
-          <li class="proof-row">
-            <a class="proof-link" href="../proof-preview/integration-J-5/profile/"><strong>Showcase /profile self-edit</strong></a>
-            <span class="purpose">Real-idp PILOT self-edit — Account / Personal / Pilot / Notifications tabs (per-push, required gate).</span>
-            <span class="updated">updated 2026-06-06 07:46 UTC</span>
-          </li>
-          <li class="proof-row">
-            <a class="proof-link" href="../proof-preview/integration-J-5/dashboard/"><strong>Showcase role dashboards</strong></a>
-            <span class="purpose">Real-idp /start dashboard variants — pilot / club-admin / sysadmin, showcase-seeded (per-push).</span>
-            <span class="updated">updated 2026-06-06 07:40 UTC</span>
-          </li>
-          <li class="proof-row">
-            <a class="proof-link" href="../proof-preview/integration-J-5/"><strong>Clean-seed tenant-isolation</strong></a>
-            <span class="purpose">Real-idp two-club Locations tenant-isolation — the J-0 vertical proof (per-push).</span>
-            <span class="updated">updated 2026-06-06 07:13 UTC</span>
-          </li>
-        </ul>
-      </details>
+    <ul class="journey-list">
+        <li class="journey-row">
+          <a class="journey-link" href="../proof-preview/integration-J-5/J-0/"><strong>J-0</strong> proof page</a>
+          <span class="source">branch preview</span>
+          <span class="updated">updated 2026-06-06 07:53 UTC</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-0b</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row">
+          <a class="journey-link" href="../proof-preview/integration-J-5/J-0c/"><strong>J-0c</strong> proof page</a>
+          <span class="source">branch preview</span>
+          <span class="updated">updated 2026-06-06 07:53 UTC</span>
+        </li>
+        <li class="journey-row">
+          <a class="journey-link" href="../proof-preview/integration-J-5/J-1/"><strong>J-1</strong> proof page</a>
+          <span class="source">branch preview</span>
+          <span class="updated">updated 2026-06-06 07:53 UTC</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-2</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-3</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-4</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-5</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-6</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-7</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-8</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-9</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-10</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-11</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-12</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-13</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-14</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-15</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-16</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-17</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-18</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-19</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-20</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-21</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-22</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-24</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+        <li class="journey-row pending">
+          <span class="journey-link"><strong>J-25</strong></span>
+          <span class="source">pending</span>
+          <span class="updated">no proof page yet</span>
+        </li>
+    </ul>
+    <p class="archive-link">
+      &rarr; <a href="../proof/"><strong>Full all-journeys gallery</strong></a>
+      — The canonical all-journeys gallery (every green proof video + paired legacy↔AlpenFlight screenshots, one page).
+    </p>
   </section>
 
   <footer>
-    Each linked gallery is a live <code>real-idp</code> (or fan-out) proof run published to
-    its own per-branch sub-path under <code>alpenflight/proof-preview/&lt;branch&gt;/</code>.
-    Branches drop off this index when their PR closes.
+    Each per-journey page is assembled from the green <code>real-idp</code> proof
+    videos + paired legacy↔AlpenFlight screenshots for that journey, published under
+    <code>alpenflight/proof/J-&lt;n&gt;/</code> (canonical) or
+    <code>alpenflight/proof/legacy-parity/J-&lt;n&gt;/</code> (fan-out archive). These
+    survive PR close — only the ephemeral <code>alpenflight/proof-preview/&lt;branch&gt;/</code>
+    previews are reaped.
   </footer>
 </div>
 </body>
