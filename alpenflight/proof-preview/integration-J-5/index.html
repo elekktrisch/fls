@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>210/merge</code> &middot; 2026-06-06T07:53:29.264Z
+      assertion it proves. Generated on <code>210/merge</code> &middot; 2026-06-06T12:01:48.367Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="../">&larr; alpenflight dashboard</a>
@@ -142,26 +142,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span>
+          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-208911fedd986e00d2b1b683f2b71e5d9857bf9c.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-962e32f4f282043bbba8094a245af2ab99dff967.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-9cb34e5302227c775d232c8ec0250cdd15842dab.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -183,7 +169,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
 
       </details>
-      <details class="journey" open>
+      <details class="journey">
         <summary>
           <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
           <span class="summary-caption">Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) —…</span>
@@ -243,12 +229,34 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-5</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-5</span> <span class="status success">5 proofs</span><span class="summary-counts">5 videos · 0 screenshots</span></span>
+          <span class="summary-caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH …</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-f8db3d1155f7c7ca083059c8d1e6bd70950c22ad.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders in the /reservations list and in the right aircraft lane on the /reservation-scheduler at its time offset (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-553b12fc95aef313eb47423f21bd2926e1ad25a3.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-2d113ae2925335a80946632aeebc64c6df23c892.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservation-scheduler (real backend)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-e8f056705cd342c7789b347fe2936d34ec783e09.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-72f087d3cc2f233029bea33f775c795155cb10d0.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
+        </figure>
+        </div>
+
       </details>
       <details class="journey pending-journey">
         <summary>

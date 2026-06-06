@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-0c</title>
+<title>AlpenFlight proof — J-5</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-0c — proof</h1>
+    <h1>J-5 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-0c</span> <span class="status success">1 proof</span> <span class="summary-counts">1 video · 0 screenshots</span>
+      <span class="summary-jid">J-5</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -143,9 +143,25 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 
   <section class="journey-page">
         <div class="proofs">
-        <figure class="proof legacy-proof">
-          <video controls preload="metadata" src="../videos/legacy-locations-fanout-J0c.webm"></video>
-          <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: a random-named Location is created and set as homebase on 2 clubs — the global Location row the migration fans out into 2 distinct per-club AlpenFlight rows</span></figcaption>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-f8db3d1155f7c7ca083059c8d1e6bd70950c22ad.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders in the /reservations list and in the right aircraft lane on the /reservation-scheduler at its time offset (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-553b12fc95aef313eb47423f21bd2926e1ad25a3.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-2d113ae2925335a80946632aeebc64c6df23c892.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservation-scheduler (real backend)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-e8f056705cd342c7789b347fe2936d34ec783e09.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-72f087d3cc2f233029bea33f775c795155cb10d0.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
         </figure>
         </div>
 

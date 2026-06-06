@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.89.0",
-  "elapsed_ms": 354,
+  "elapsed_ms": 335,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -2990,13 +2990,13 @@
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1330,
-      "total_lines": 22889,
+      "total_lines": 22911,
       "files_scored": 144,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 86.3,
-      "medium_risk": 6.3,
+      "low_risk": 86.1,
+      "medium_risk": 6.6,
       "high_risk": 3.5,
       "very_high_risk": 3.8
     },
@@ -3009,7 +3009,7 @@
     },
     "p95_fan_in": 6,
     "coupling_high_pct": 1.4,
-    "total_loc": 22889
+    "total_loc": 22911
   },
   "health_score": {
     "formula_version": 2,
@@ -3829,6 +3829,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reservations/reservations.store.ts",
+      "fan_in": 4,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 90.8,
+      "total_cyclomatic": 54,
+      "total_cognitive": 10,
+      "function_count": 42,
+      "lines": 344,
+      "crap_max": 13.8,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/locations/edit/locations-edit.mapper.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -4273,20 +4287,6 @@
       "total_cognitive": 5,
       "function_count": 9,
       "lines": 109,
-      "crap_max": 4.9,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/reservations/reservations.store.ts",
-      "fan_in": 4,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.16,
-      "maintainability_index": 90.8,
-      "total_cyclomatic": 51,
-      "total_cognitive": 11,
-      "function_count": 42,
-      "lines": 322,
       "crap_max": 4.9,
       "crap_above_threshold": 0
     },
@@ -5134,16 +5134,16 @@
       "line_count": 157
     },
     {
+      "path": "src/app/features/reservations/reservations.store.ts",
+      "name": "<arrow>",
+      "line": 139,
+      "line_count": 155
+    },
+    {
       "path": "src/app/shared/ui/organisms/af-nav-bar/af-nav-bar.component.ts",
       "name": "<template>",
       "line": 33,
       "line_count": 151
-    },
-    {
-      "path": "src/app/features/reservations/reservations.store.ts",
-      "name": "<arrow>",
-      "line": 139,
-      "line_count": 146
     },
     {
       "path": "src/app/features/articles/edit/articles-edit.page.ts",
