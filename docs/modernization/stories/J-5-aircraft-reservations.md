@@ -746,3 +746,16 @@ backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather
   deployed-link-check green; the 6 paired screenshots now calendar+form. `articles-crud.spec.ts:265` remains a
   PRE-EXISTING flake unrelated to J-5 (zero article files touched on this branch; boyscout candidate for a future
   masterdata-touch journey — not fixed here).
+
+### §4 gate — fanout dispatch BROKE (T-41 caption length × GitHub expression limit)
+- [ ] **T-42 — Fix the fanout `Exceeded max expression length 21000` parse error.** `gh workflow run
+  alpenflight-proof-fanout.yml` now fails: `failed to parse workflow: (Line: 722, Col: 14): Exceeded max
+  expression length 21000`. Line 722 is the `run: |` of the "Stage legacy parity videos" step — a single
+  ~240-line run block that (because it contains `${{ github.workspace }}` etc.) GitHub compiles as ONE
+  expression template; T-41's longer J-5 add_shot captions tipped the block's total over GitHub's 21000-char
+  per-expression limit. `${{ }}` are balanced (54/54) — a length limit, not a syntax error (so js-yaml passed,
+  missing it). Fix: replace the `${{ }}` references INSIDE that run block with shell env equivalents
+  (`$GITHUB_WORKSPACE`, etc. — set via `env:` on the step if needed) so the block is no longer an
+  expression-template and the limit doesn't apply (and/or split the block / trim captions). **Verify the fanout
+  actually DISPATCHES** (`gh workflow run … --ref integration/J-5` succeeds, or `actionlint`) — js-yaml is NOT
+  sufficient (it missed this). *(seam: alpenflight-proof-fanout.yml Stage/add_shot run block ${{ }} → env)*
