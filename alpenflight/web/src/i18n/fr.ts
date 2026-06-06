@@ -350,6 +350,11 @@ const fr: Translations = {
       remarks: 'Remarques',
       save: 'Enregistrer',
       secondCrew: 'Second membre d’équipage',
+      sections: {
+        details: 'Réservation',
+        notes: 'Remarques',
+        timeframe: 'Période',
+      },
       selectAircraft: 'Sélectionner un aéronef',
       selectLocation: 'Sélectionner un lieu',
       selectPilot: 'Sélectionner un pilote',

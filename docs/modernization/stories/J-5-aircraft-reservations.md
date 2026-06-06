@@ -704,7 +704,7 @@ backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather
   Tailwind v4 `@theme` + ng-zorro (ADR 0023/0024); diff `tokens.css` ↔ `styles.css`, close missing tokens. SKIP
   the METAR strip (deferred — no weather source). May split day-view (T-39a) / week-view+toggle (T-39b) if it
   overflows a clean worker. *(seam: reservations calendar component(s) + routes + tokens)*
-- [ ] **T-40 — Restyle the reservation edit form to the reference.** Match the reference/`screenshots/flights-form.png`
+- [x] **T-40 — Restyle the reservation edit form to the reference.** Match the reference/`screenshots/flights-form.png`
   visual (field grouping, af-form controls, button shapes, spacing, sentence-case labels, inline error style) +
   the token set. Keep the T-09 low-CRAP structure + the conflict-409/422 inline handling. *(seam: reservation-edit.page.ts + tokens)*
 - [ ] **T-41 — Re-green e2e + parity captures for the calendar.** The inner-loop `reservations-crud.spec.ts` + the

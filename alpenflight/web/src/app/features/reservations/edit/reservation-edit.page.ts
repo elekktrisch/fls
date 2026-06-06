@@ -108,144 +108,173 @@ type ReservationForm = FormGroup<{
             [formGroup]="form"
             (ngSubmit)="onSubmit()"
             data-testid="reservation-edit-form"
-            class="flex flex-col gap-4"
+            class="flex flex-col gap-6"
             novalidate
           >
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <!-- Section 1: Reservation details -->
+            <section class="flex flex-col gap-2" data-testid="reservation-section-details">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
+              >
+                {{ t('sections.details') }}
+              </h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <af-form-field
+                  [label]="t('aircraft')"
+                  for="ReservationAircraft"
+                  [required]="true"
+                  [errors]="
+                    form.controls.aircraftId.touched ? form.controls.aircraftId.errors : null
+                  "
+                >
+                  <af-select
+                    inputId="ReservationAircraft"
+                    formControlName="aircraftId"
+                    [placeholder]="t('selectAircraft')"
+                    [options]="aircraftOptions()"
+                    data-testid="reservation-aircraft-select"
+                  />
+                </af-form-field>
+                <af-form-field
+                  [label]="t('type')"
+                  for="ReservationType"
+                  [required]="true"
+                  [errors]="
+                    form.controls.reservationTypeId.touched
+                      ? form.controls.reservationTypeId.errors
+                      : null
+                  "
+                >
+                  <af-select
+                    inputId="ReservationType"
+                    formControlName="reservationTypeId"
+                    [placeholder]="t('selectType')"
+                    [options]="typeOptions()"
+                    data-testid="reservation-type-select"
+                  />
+                </af-form-field>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <af-form-field
+                  [label]="t('pilot')"
+                  for="ReservationPilot"
+                  [required]="true"
+                  [errors]="
+                    form.controls.pilotPersonId.touched ? form.controls.pilotPersonId.errors : null
+                  "
+                >
+                  <af-select
+                    inputId="ReservationPilot"
+                    formControlName="pilotPersonId"
+                    [placeholder]="t('selectPilot')"
+                    [options]="personOptions()"
+                    data-testid="reservation-pilot-select"
+                  />
+                </af-form-field>
+                <af-form-field [label]="t('secondCrew')" for="ReservationSecondCrew">
+                  <af-select
+                    inputId="ReservationSecondCrew"
+                    formControlName="secondCrewPersonId"
+                    [placeholder]="t('selectSecondCrew')"
+                    [options]="secondCrewOptions()"
+                    data-testid="reservation-second-crew-select"
+                  />
+                </af-form-field>
+              </div>
               <af-form-field
-                [label]="t('aircraft')"
-                for="ReservationAircraft"
+                [label]="t('location')"
+                for="ReservationLocation"
                 [required]="true"
-                [errors]="form.controls.aircraftId.touched ? form.controls.aircraftId.errors : null"
+                [errors]="form.controls.locationId.touched ? form.controls.locationId.errors : null"
               >
                 <af-select
-                  inputId="ReservationAircraft"
-                  formControlName="aircraftId"
-                  [placeholder]="t('selectAircraft')"
-                  [options]="aircraftOptions()"
-                  data-testid="reservation-aircraft-select"
+                  inputId="ReservationLocation"
+                  formControlName="locationId"
+                  [placeholder]="t('selectLocation')"
+                  [options]="locationOptions()"
+                  data-testid="reservation-location-select"
                 />
               </af-form-field>
-              <af-form-field
-                [label]="t('type')"
-                for="ReservationType"
-                [required]="true"
-                [errors]="
-                  form.controls.reservationTypeId.touched
-                    ? form.controls.reservationTypeId.errors
-                    : null
-                "
-              >
-                <af-select
-                  inputId="ReservationType"
-                  formControlName="reservationTypeId"
-                  [placeholder]="t('selectType')"
-                  [options]="typeOptions()"
-                  data-testid="reservation-type-select"
-                />
-              </af-form-field>
-            </div>
+            </section>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <af-form-field
-                [label]="t('pilot')"
-                for="ReservationPilot"
-                [required]="true"
-                [errors]="
-                  form.controls.pilotPersonId.touched ? form.controls.pilotPersonId.errors : null
-                "
+            <!-- Section 2: Timeframe -->
+            <section class="flex flex-col gap-2" data-testid="reservation-section-timeframe">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
               >
-                <af-select
-                  inputId="ReservationPilot"
-                  formControlName="pilotPersonId"
-                  [placeholder]="t('selectPilot')"
-                  [options]="personOptions()"
-                  data-testid="reservation-pilot-select"
+                {{ t('sections.timeframe') }}
+              </h2>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                <af-form-field
+                  [label]="t('date')"
+                  for="ReservationDate"
+                  [required]="true"
+                  [errors]="form.controls.date.touched ? form.controls.date.errors : null"
+                >
+                  <af-input
+                    inputId="ReservationDate"
+                    type="date"
+                    formControlName="date"
+                    data-testid="reservation-date"
+                  />
+                </af-form-field>
+                @if (!isAllDay()) {
+                  <af-form-field
+                    [label]="t('startTime')"
+                    for="ReservationStartTime"
+                    [required]="true"
+                    [errors]="
+                      form.controls.startTime.touched ? form.controls.startTime.errors : null
+                    "
+                  >
+                    <af-input
+                      inputId="ReservationStartTime"
+                      type="time"
+                      formControlName="startTime"
+                      data-testid="reservation-start-time"
+                    />
+                  </af-form-field>
+                  <af-form-field
+                    [label]="t('endTime')"
+                    for="ReservationEndTime"
+                    [required]="true"
+                    [errors]="form.controls.endTime.touched ? form.controls.endTime.errors : null"
+                  >
+                    <af-input
+                      inputId="ReservationEndTime"
+                      type="time"
+                      formControlName="endTime"
+                      data-testid="reservation-end-time"
+                    />
+                  </af-form-field>
+                }
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer select-none mt-1">
+                <input
+                  type="checkbox"
+                  formControlName="isAllDay"
+                  class="w-4 h-4 accent-brand-500 cursor-pointer"
+                  data-testid="reservation-allday-toggle"
                 />
-              </af-form-field>
-              <af-form-field [label]="t('secondCrew')" for="ReservationSecondCrew">
-                <af-select
-                  inputId="ReservationSecondCrew"
-                  formControlName="secondCrewPersonId"
-                  [placeholder]="t('selectSecondCrew')"
-                  [options]="secondCrewOptions()"
-                  data-testid="reservation-second-crew-select"
-                />
-              </af-form-field>
-            </div>
+                <span>{{ t('allDay') }}</span>
+              </label>
+            </section>
 
-            <af-form-field
-              [label]="t('location')"
-              for="ReservationLocation"
-              [required]="true"
-              [errors]="form.controls.locationId.touched ? form.controls.locationId.errors : null"
-            >
-              <af-select
-                inputId="ReservationLocation"
-                formControlName="locationId"
-                [placeholder]="t('selectLocation')"
-                [options]="locationOptions()"
-                data-testid="reservation-location-select"
-              />
-            </af-form-field>
-
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-              <af-form-field
-                [label]="t('date')"
-                for="ReservationDate"
-                [required]="true"
-                [errors]="form.controls.date.touched ? form.controls.date.errors : null"
+            <!-- Section 3: Notes -->
+            <section class="flex flex-col gap-2" data-testid="reservation-section-notes">
+              <h2
+                class="text-xs font-medium text-slate-600 uppercase tracking-wide border-b border-slate-200 pb-1"
               >
+                {{ t('sections.notes') }}
+              </h2>
+              <af-form-field [label]="t('remarks')" for="ReservationRemarks">
                 <af-input
-                  inputId="ReservationDate"
-                  type="date"
-                  formControlName="date"
-                  data-testid="reservation-date"
+                  inputId="ReservationRemarks"
+                  formControlName="remarks"
+                  autocomplete="off"
                 />
               </af-form-field>
-              @if (!isAllDay()) {
-                <af-form-field
-                  [label]="t('startTime')"
-                  for="ReservationStartTime"
-                  [required]="true"
-                  [errors]="form.controls.startTime.touched ? form.controls.startTime.errors : null"
-                >
-                  <af-input
-                    inputId="ReservationStartTime"
-                    type="time"
-                    formControlName="startTime"
-                    data-testid="reservation-start-time"
-                  />
-                </af-form-field>
-                <af-form-field
-                  [label]="t('endTime')"
-                  for="ReservationEndTime"
-                  [required]="true"
-                  [errors]="form.controls.endTime.touched ? form.controls.endTime.errors : null"
-                >
-                  <af-input
-                    inputId="ReservationEndTime"
-                    type="time"
-                    formControlName="endTime"
-                    data-testid="reservation-end-time"
-                  />
-                </af-form-field>
-              }
-            </div>
-
-            <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                formControlName="isAllDay"
-                class="w-4 h-4 accent-brand-500 cursor-pointer"
-                data-testid="reservation-allday-toggle"
-              />
-              <span>{{ t('allDay') }}</span>
-            </label>
-
-            <af-form-field [label]="t('remarks')" for="ReservationRemarks">
-              <af-input inputId="ReservationRemarks" formControlName="remarks" autocomplete="off" />
-            </af-form-field>
+            </section>
 
             <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
               <af-button htmlType="button" (clicked)="router.navigateByUrl('/reservations')">

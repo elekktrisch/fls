@@ -354,6 +354,11 @@ const de = {
       remarks: 'Bemerkungen',
       save: 'Speichern',
       secondCrew: 'Zweite Besatzung',
+      sections: {
+        details: 'Reservation',
+        notes: 'Bemerkungen',
+        timeframe: 'Zeitraum',
+      },
       selectAircraft: 'Flugzeug auswählen',
       selectLocation: 'Standort auswählen',
       selectPilot: 'Pilot auswählen',

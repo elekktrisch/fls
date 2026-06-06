@@ -348,6 +348,11 @@ const it: Translations = {
       remarks: 'Note',
       save: 'Salva',
       secondCrew: 'Secondo membro equipaggio',
+      sections: {
+        details: 'Prenotazione',
+        notes: 'Note',
+        timeframe: 'Periodo',
+      },
       selectAircraft: 'Seleziona aeromobile',
       selectLocation: 'Seleziona luogo',
       selectPilot: 'Seleziona pilota',

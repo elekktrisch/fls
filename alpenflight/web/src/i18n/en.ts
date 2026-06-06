@@ -343,6 +343,11 @@ const en: Translations = {
       remarks: 'Remarks',
       save: 'Save',
       secondCrew: 'Second crew',
+      sections: {
+        details: 'Reservation',
+        notes: 'Remarks',
+        timeframe: 'Timeframe',
+      },
       selectAircraft: 'Select aircraft',
       selectLocation: 'Select location',
       selectPilot: 'Select pilot',
