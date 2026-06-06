@@ -3,6 +3,7 @@ id: S-071
 title: Planning-setup wizard
 epic: E-08
 status: todo
+rolled_up_into: J-6
 depends_on: [S-070]
 acceptance:
   - Multi-step wizard at `/planningsetup` creates planning days for a date range (e.g. all Saturdays in summer) with default assignments.

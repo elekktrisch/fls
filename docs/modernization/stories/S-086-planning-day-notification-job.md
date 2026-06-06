@@ -3,6 +3,7 @@ id: S-086
 title: Port PlanningDayNotificationJob + email template
 epic: E-10
 status: todo
+rolled_up_into: J-6
 depends_on: [S-082, S-070]
 acceptance:
   - Job emails tomorrow's planning-day status + 7-day-ahead reminders to assigned instructors / pilots.
