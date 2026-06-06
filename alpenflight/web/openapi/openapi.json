@@ -4877,19 +4877,23 @@
         "properties" : {
           "aircraftId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "pilotPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "locationId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "secondCrewPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "reservationTypeId" : {
             "type" : "string",
@@ -4932,19 +4936,23 @@
           },
           "aircraftId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "pilotPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "secondCrewPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "locationId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "reservationTypeId" : {
             "type" : "string",
@@ -5788,19 +5796,23 @@
         "properties" : {
           "aircraftId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "pilotPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "locationId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "secondCrewPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "reservationTypeId" : {
             "type" : "string",
@@ -5869,7 +5881,8 @@
           },
           "aircraftId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "ac-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "start" : {
             "type" : "string",
@@ -5884,15 +5897,18 @@
           },
           "pilotPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "secondCrewPersonId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "locationId" : {
             "type" : "string",
-            "format" : "uuid"
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "reservationTypeId" : {
             "type" : "string",

@@ -365,7 +365,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   (`MigrationBundleParityRoundTripIT.reservation_and_type_round_trip_with_off_convention_fk_columns_resolved`)
   ingests a type+reservation through the real bundle ingest against Testcontainers and asserts every FK rewrites
   to the new-stack id — green locally (5/5). No FK loosened, no entity skipped. *(seam: migration-tool ingest ordering/FK resolution)*
-- [ ] **T-23 — Fix the clean-seed UI type-picker create timeout (`:188`, 45s).** J-5's clean-seed real-chain
+- [x] **T-23 — Fix the clean-seed UI type-picker create timeout (`:188`, 45s).** J-5's clean-seed real-chain
   `[happy] create through the UI type-picker` hung 45s. Independent of the bundle (clean-seed). Diagnose the
   hang (download the run's `test-results/…/error-context.md` + trace): likely an empty picker (masterdata
   beforeAll-seed didn't populate aircraft/person/location for the clean realm), a `reservation-type-select`
@@ -412,7 +412,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   `Compute fan-out branch-preview destination` step + the URL-emit step — the compute step was also implicitly
   success()-gated and would have deployed to an EMPTY destination_dir). Kept `steps.gallery.outcome == 'success'`
   + event/ref gates. Next partial-red fanout publishes the gallery + rebuilds the persistent index.
-- [ ] **T-25 — Typed-id FKs on the reservation request/response DTOs (backend; resolves T-23's escalation).**
+- [x] **T-25 — Typed-id FKs on the reservation request/response DTOs (backend; resolves T-23's escalation).**
   The clean-seed UI create 400s because the masterdata pickers emit TYPED ids (`ac-…`/`pn-…`/`loc-…`) but
   `AircraftReservationCreateRequest`/`UpdateRequest` (T-05) declare `aircraftId`/`pilotPersonId`/
   `secondCrewPersonId`/`locationId` as plain `UUID` → Jackson can't parse the prefixed strings → 400 (flights

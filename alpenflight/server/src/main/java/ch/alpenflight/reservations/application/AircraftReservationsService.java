@@ -87,15 +87,15 @@ public class AircraftReservationsService {
         // validateDuration() runs at construction → InvalidReservationDurationException (422).
         AircraftReservation r = AircraftReservation.create(
                 operatingClubId,
-                req.aircraftId(),
-                req.pilotPersonId(),
-                req.locationId(),
+                req.aircraftId().value(),
+                req.pilotPersonId().value(),
+                req.locationId().value(),
                 req.reservationTypeId(),
                 req.flightTypeId(),
                 req.start(),
                 req.end(),
                 req.isAllDay(),
-                req.secondCrewPersonId(),
+                req.secondCrewPersonId() == null ? null : req.secondCrewPersonId().value(),
                 req.remarks());
         rejectIfConflicting(r, null);
         AircraftReservationDetail created = AircraftReservationMapper.toDetail(reservations.save(r));
@@ -110,9 +110,10 @@ public class AircraftReservationsService {
         AircraftReservation r = loadOrThrow(id);
         AircraftReservationDetail before = AircraftReservationMapper.toDetail(r);
 
-        r.changeAircraft(req.aircraftId());
-        r.changeCrew(req.pilotPersonId(), req.secondCrewPersonId());
-        r.reassignLocation(req.locationId());
+        r.changeAircraft(req.aircraftId().value());
+        r.changeCrew(req.pilotPersonId().value(),
+                req.secondCrewPersonId() == null ? null : req.secondCrewPersonId().value());
+        r.reassignLocation(req.locationId().value());
         r.changeType(req.reservationTypeId(), req.flightTypeId());
         r.updateInfo(req.remarks());
         // reschedule re-runs validateDuration() → InvalidReservationDurationException (422).

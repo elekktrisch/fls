@@ -1,5 +1,8 @@
 package ch.alpenflight.reservations.application;
 
+import ch.alpenflight.platform.id.AircraftId;
+import ch.alpenflight.platform.id.LocationId;
+import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationDetail;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationListItem;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationTypeListItem;
@@ -28,11 +31,13 @@ final class AircraftReservationMapper {
                 Objects.requireNonNull(r.getId(), "Cannot map an unpersisted AircraftReservation"),
                 Objects.requireNonNull(r.getOperatingClubId(),
                         "AircraftReservation is missing operatingClubId (@TenantId NOT NULL)"),
-                Objects.requireNonNull(r.getAircraftId(), "AircraftReservation is missing aircraftId"),
-                Objects.requireNonNull(r.getPilotPersonId(),
-                        "AircraftReservation is missing pilotPersonId"),
-                r.getSecondCrewPersonId(),
-                Objects.requireNonNull(r.getLocationId(), "AircraftReservation is missing locationId"),
+                AircraftId.of(Objects.requireNonNull(r.getAircraftId(),
+                        "AircraftReservation is missing aircraftId")),
+                PersonId.of(Objects.requireNonNull(r.getPilotPersonId(),
+                        "AircraftReservation is missing pilotPersonId")),
+                PersonId.ofNullable(r.getSecondCrewPersonId()),
+                LocationId.of(Objects.requireNonNull(r.getLocationId(),
+                        "AircraftReservation is missing locationId")),
                 r.getReservationTypeId(),
                 r.getFlightTypeId(),
                 Objects.requireNonNull(r.getReservationStart(),
@@ -53,10 +58,10 @@ final class AircraftReservationMapper {
                 // never surface the tenant id on the wire — emit the nil UUID
                 // placeholder rather than a cross-module lookup.
                 new java.util.UUID(0L, 0L),
-                row.aircraftId(),
-                row.pilotPersonId(),
-                row.secondCrewPersonId(),
-                row.locationId(),
+                AircraftId.of(row.aircraftId()),
+                PersonId.of(row.pilotPersonId()),
+                PersonId.ofNullable(row.secondCrewPersonId()),
+                LocationId.of(row.locationId()),
                 row.reservationTypeId(),
                 row.flightTypeId(),
                 row.reservationStart(),
@@ -68,13 +73,13 @@ final class AircraftReservationMapper {
     static AircraftReservationListItem toListItem(ListItemRow row) {
         return new AircraftReservationListItem(
                 row.id(),
-                row.aircraftId(),
+                AircraftId.of(row.aircraftId()),
                 row.reservationStart(),
                 row.reservationEnd(),
                 row.allDay(),
-                row.pilotPersonId(),
-                row.secondCrewPersonId(),
-                row.locationId(),
+                PersonId.of(row.pilotPersonId()),
+                PersonId.ofNullable(row.secondCrewPersonId()),
+                LocationId.of(row.locationId()),
                 row.reservationTypeId(),
                 row.reservationTypeName(),
                 row.flightTypeId(),

@@ -11,12 +11,16 @@
  */
 export type AircraftReservationListItem = {
   id: string;
+  /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftId: string;
   start: string;
   end: string;
   isAllDay: boolean;
+  /** @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   pilotPersonId: string;
+  /** @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   secondCrewPersonId?: string;
+  /** @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   locationId: string;
   reservationTypeId?: string;
   reservationTypeName?: string;

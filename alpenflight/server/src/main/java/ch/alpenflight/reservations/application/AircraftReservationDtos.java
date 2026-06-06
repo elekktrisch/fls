@@ -1,5 +1,8 @@
 package ch.alpenflight.reservations.application;
 
+import ch.alpenflight.platform.id.AircraftId;
+import ch.alpenflight.platform.id.LocationId;
+import ch.alpenflight.platform.id.PersonId;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -19,9 +22,18 @@ import org.jspecify.annotations.Nullable;
  * the T-01 spec stub ({@code aircraftId}, {@code pilotPersonId},
  * {@code locationId}, {@code secondCrewPersonId?}, {@code reservationTypeId} /
  * {@code flightTypeId}, {@code start}, {@code end}, {@code isAllDay}, the
- * free-text {@code remarks} mapped to the aggregate's {@code info}). Ids are
- * plain {@link UUID} — the aggregate (T-03) and repository (T-04) carry raw
- * {@code UUID}s, so no typed-id / path-converter plumbing is introduced here.
+ * free-text {@code remarks} mapped to the aggregate's {@code info}). The
+ * cross-aggregate FK references ({@code aircraftId} / {@code pilotPersonId} /
+ * {@code secondCrewPersonId} / {@code locationId}) are the typed-id family
+ * ({@link AircraftId} / {@link PersonId} / {@link LocationId}) so the wire shape
+ * matches the masterdata pickers (which serialize {@code ^ac-…} / {@code ^pn-…} /
+ * {@code ^loc-…}) and mirrors {@code FlightCreateRequest} — Jackson deserializes
+ * the prefixed strings via {@code TypedIdJacksonModule} (J-5 T-25, resolving the
+ * 400 in T-23). The reservation-type references ({@code reservationTypeId} /
+ * {@code flightTypeId}) and the reservation's OWN {@code id} stay plain
+ * {@link UUID} (those listitems emit plain UUIDs). The aggregate (T-03) and
+ * repository (T-04) still carry raw {@code UUID}s; the mapper wraps/unwraps at
+ * this boundary.
  *
  * <p>{@code operatingClubId} is intentionally absent from the request records:
  * the reservation is tenant-stamped from the caller's resolved tenant
@@ -37,10 +49,10 @@ public final class AircraftReservationDtos {
     public record AircraftReservationDetail(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID operatingClubId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID aircraftId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID pilotPersonId,
-            @Nullable UUID secondCrewPersonId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID locationId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) PersonId pilotPersonId,
+            @Nullable PersonId secondCrewPersonId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocationId locationId,
             @Nullable UUID reservationTypeId,
             @Nullable UUID flightTypeId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant start,
@@ -58,10 +70,10 @@ public final class AircraftReservationDtos {
      */
     @Schema(description = "Payload to create an aircraft reservation.")
     public record AircraftReservationCreateRequest(
-            @NotNull UUID aircraftId,
-            @NotNull UUID pilotPersonId,
-            @NotNull UUID locationId,
-            @Nullable UUID secondCrewPersonId,
+            @NotNull AircraftId aircraftId,
+            @NotNull PersonId pilotPersonId,
+            @NotNull LocationId locationId,
+            @Nullable PersonId secondCrewPersonId,
             @Nullable UUID reservationTypeId,
             @Nullable UUID flightTypeId,
             @NotNull Instant start,
@@ -71,10 +83,10 @@ public final class AircraftReservationDtos {
 
     @Schema(description = "Payload to update an aircraft reservation.")
     public record AircraftReservationUpdateRequest(
-            @NotNull UUID aircraftId,
-            @NotNull UUID pilotPersonId,
-            @NotNull UUID locationId,
-            @Nullable UUID secondCrewPersonId,
+            @NotNull AircraftId aircraftId,
+            @NotNull PersonId pilotPersonId,
+            @NotNull LocationId locationId,
+            @Nullable PersonId secondCrewPersonId,
             @Nullable UUID reservationTypeId,
             @Nullable UUID flightTypeId,
             @NotNull Instant start,
@@ -101,13 +113,13 @@ public final class AircraftReservationDtos {
     @Schema(description = "Aircraft-reservation list row (FK ids + same-module type name; SPA decorates the rest).")
     public record AircraftReservationListItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID aircraftId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId aircraftId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant start,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant end,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isAllDay,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID pilotPersonId,
-            @Nullable UUID secondCrewPersonId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID locationId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) PersonId pilotPersonId,
+            @Nullable PersonId secondCrewPersonId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) LocationId locationId,
             @Nullable UUID reservationTypeId,
             @Nullable String reservationTypeName,
             @Nullable UUID flightTypeId,

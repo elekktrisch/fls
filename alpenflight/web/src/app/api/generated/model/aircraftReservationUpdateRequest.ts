@@ -10,9 +10,13 @@
  * Payload to update an aircraft reservation.
  */
 export type AircraftReservationUpdateRequest = {
+  /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftId: string;
+  /** @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   pilotPersonId: string;
+  /** @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   locationId: string;
+  /** @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   secondCrewPersonId?: string;
   reservationTypeId?: string;
   flightTypeId?: string;

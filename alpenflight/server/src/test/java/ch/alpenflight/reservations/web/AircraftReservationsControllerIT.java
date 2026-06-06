@@ -80,7 +80,9 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
         JsonNode created = readJson(res);
         String id = created.get("id").asText();
-        assertThat(created.get("aircraftId").asText()).isEqualTo(aircraftId.toString());
+        // FK ids are the typed-id external form (`ac-`/`pn-`/`loc-`) — matches
+        // the masterdata pickers + FlightCreateRequest (J-5 T-25).
+        assertThat(created.get("aircraftId").asText()).isEqualTo("ac-" + aircraftId);
         assertThat(created.get("isAllDay").asBoolean()).isFalse();
         URI loc = res.getHeaders().getLocation();
         assertThat(loc).isNotNull();
@@ -90,7 +92,7 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode detail = readJson(got);
         assertThat(detail.get("id").asText()).isEqualTo(id);
-        assertThat(detail.get("pilotPersonId").asText()).isEqualTo(pilotId.toString());
+        assertThat(detail.get("pilotPersonId").asText()).isEqualTo("pn-" + pilotId);
         assertThat(detail.get("start").asText()).isEqualTo("2026-07-01T10:00:00Z");
     }
 
@@ -142,8 +144,8 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         // Sorted by start asc — earliest (2026-07-01) first.
         assertThat(items.get(0).get("start").asText()).isEqualTo("2026-07-01T10:00:00Z");
         assertThat(items.get(1).get("start").asText()).isEqualTo("2026-07-02T10:00:00Z");
-        // Row carries the FK ids + same-module type name (no cross-module labels).
-        assertThat(items.get(0).get("aircraftId").asText()).isEqualTo(aircraftId.toString());
+        // Row carries the FK ids (typed-id external form) + same-module type name.
+        assertThat(items.get(0).get("aircraftId").asText()).isEqualTo("ac-" + aircraftId);
         assertThat(items.get(0).get("reservationTypeName").asText()).isEqualTo("Flight");
     }
 
@@ -169,9 +171,12 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
 
     private Map<String, Object> timedPayload(String startIso, String endIso) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("aircraftId", aircraftId.toString());
-        m.put("pilotPersonId", pilotId.toString());
-        m.put("locationId", locationId.toString());
+        // The masterdata pickers serialize typed ids (`ac-`/`pn-`/`loc-`); the
+        // create request DTO now binds those typed ids (J-5 T-25). The type id
+        // stays a plain UUID (its listitems emit plain UUIDs).
+        m.put("aircraftId", "ac-" + aircraftId);
+        m.put("pilotPersonId", "pn-" + pilotId);
+        m.put("locationId", "loc-" + locationId);
         m.put("reservationTypeId", reservationTypeId.toString());
         m.put("start", startIso);
         m.put("end", endIso);

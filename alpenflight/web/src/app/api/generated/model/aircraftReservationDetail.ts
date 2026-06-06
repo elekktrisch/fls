@@ -12,9 +12,13 @@
 export type AircraftReservationDetail = {
   id: string;
   operatingClubId: string;
+  /** @pattern ^ac-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   aircraftId: string;
+  /** @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   pilotPersonId: string;
+  /** @pattern ^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   secondCrewPersonId?: string;
+  /** @pattern ^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ */
   locationId: string;
   reservationTypeId?: string;
   flightTypeId?: string;
