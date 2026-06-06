@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-4</title>
+<title>AlpenFlight proof — J-0c</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-4 — proof</h1>
+    <h1>J-0c — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-4</span> <span class="status success">parity screenshots</span> <span class="summary-counts">0 videos · 4 screenshots</span>
+      <span class="summary-jid">J-0c</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -142,49 +142,21 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section class="journey-page">
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">Account tab</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-account.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-account.png" alt="alpenflight Account tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Account tab (real PILOT pilot1, showcase seed) — self-edit account fields (friendly name, notification email, phone, language) via PATCH /api/v1/me/profile; username + club read-only; no in-app password form (Keycloak owns it)</figcaption>
-          </figure>
-          </div>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-68c4019dedacdaa4afbdd17eeb5c33c92fe1a4b8.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-ec22eeeb4a423bd15618623d84c09b2e44ffefa7.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-a4f69cfc553028b3361e64a28aecbdb68ec92974.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
+        </figure>
         </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">Personal tab</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-personal.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-personal.png" alt="alpenflight Personal tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Personal tab (real PILOT pilot1) — the caller's contact/address self-edit form (address, zip/city/region, country, phones, emails, birthday) via PATCH /api/v1/me/person; name fields read-only (rename stays admin-only)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">Pilot tab</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-pilot.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-pilot.png" alt="alpenflight Pilot tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Pilot tab (real PILOT pilot1) — the licence/medical self-edit form (licence flags, licence number, medical expiry) via PATCH /api/v1/me/person/licences, emitting a person.licences_updated FADP audit event</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">Notifications tab</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-profile-notifications.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-profile-notifications.png" alt="alpenflight Notifications tab" loading="lazy"></a>
-            <figcaption>AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
           <table class="maint-table">
