@@ -292,3 +292,12 @@ One seam each; commit directly to `integration/J-5`.
   migrated type), not just a count. Also correct the V31 dev-seed comment (its "seed-club-1 never exists in
   prod" rationale is factually wrong — V5 inserts seed-club-1 unconditionally; it's the same accepted
   dev-seed-in-prod debt as V8/V26/V29/V30, so fix the *justification*, keep the row). *(seam: real-idp spec migrated block + V31 comment)*
+- [ ] **T-19 — Re-add `alpenflight-proof` to the `required` merge gate (operator decision 2026-06-06; gap-hunter blocker A).**
+  The real-idp proof was dropped from `required.needs` on 2026-06-05 because the J-1 aircraft flake red-ed
+  unrelated journeys. T-14 (scoped the proof to the journey's OWN spec) + T-15 (fixed that flake) removed
+  the reason — operator chose to re-enforce. Add `alpenflight-proof` to the `required` aggregator's `needs`
+  + its result-check loop (`ci.yml`), keeping the skipped-to-success path correct (docs-only → skipped →
+  green) and confirming the job genuinely reports red on a test failure (not always-green). Net: a red
+  real-idp reservations run now blocks merge. Operator accepted the tradeoff (a real-idp infra hiccup can
+  block merges — mitigated by the per-journey scoping). Update the stale ci.yml derivation comments that
+  still say "J-5 is a mock-auth journey → J-0 baseline" (gap-hunter nit). *(seam: ci.yml `required` needs + result loop)*
