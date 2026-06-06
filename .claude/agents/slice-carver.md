@@ -61,16 +61,13 @@ five screens; not a single atomic action.
   greenfield/freemium journeys — migration is N/A. A unit-passing mapper is NOT a
   working migrate (J-0's `LocationMapper` unit-passed, fan-out-collided live) —
   migrate-fidelity is unproven until a real legacy→ingest round-trip runs green.
-- **Self-edit / CRUD journeys carry hidden seams — name them up front** (J-4 burned
-  ~5 unplanned tasks missing these): every mutating endpoint needs (a) its own audit
-  event (the audit-coverage guard fails a PATCH that emits none — not just the
-  "sensitive" tab) and (b) a **GET sibling** so the screen hydrates (PATCH-only ships
-  an empty form); a cross-module service call needs a **module-boundary** note
-  (Modulith OPEN / `@NamedInterface`); a new **showcase-seed** principal must not break
-  a prior journey's showcase proof (seed-harness coupling — J-4's seed broke J-3's
-  dashboard); a **no-migration screen** still owes demonstrability — the paired legacy
-  capture rides the legacy-video harness but NOT the export→migrate half, and pulls the
-  AlpenFlight side from the per-push gallery (don't re-seed showcase inside the migrate-fanout).
+- **Self-edit / CRUD journeys carry hidden seams — name them up front** (J-4 burned ~5
+  unplanned tasks): every mutating endpoint needs **its own audit event** (the audit guard
+  fails a PATCH that emits none — not just the "sensitive" one) + a **GET sibling** (PATCH-only
+  hydrates an empty form); a cross-module service call needs a **module-boundary** note (Modulith
+  OPEN / `@NamedInterface`); a new **showcase-seed** principal must not break a prior journey's
+  showcase proof (J-4's seed broke J-3's dashboard); a **no-migration** screen still owes paired
+  demonstrability via the legacy-video harness (not the export→migrate half).
 
 ## Output format
 

@@ -10,6 +10,14 @@ one user-facing path — DB→domain→API→UI — provable by a single green P
 run. This skill keeps a thin roadmap of journeys and, on demand, deep-carves
 the next one into a full slice the `/do-ship` skill can build.
 
+**A journey is a Scrum sprint: ≥60% AlpenFlight feature improvement, ≤40% tech-debt/infra**
+([[feedback_journey_is_a_60_40_sprint]]). Every journey leads with a real AlpenFlight feature
+(the green-Playwright path above); pending riders + infra/flake/CI/proof-tooling cleanup fill the
+remaining ≤40% by riding the journey's gate. **Pure tech-debt never earns its own journey** —
+it delivers no AlpenFlight functionality; if a debt item is too big for one journey's 40% slot,
+split it across the next 2-3 journeys' budgets. A standalone journey is *only* genuinely new
+vertical AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
+
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 Per directive 1: a journey body is *just enough to ship behavior* — ACs grounded
 in legacy code beat context paragraphs. Per [[feedback-derive-before-asking]]:

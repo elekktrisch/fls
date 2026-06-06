@@ -48,10 +48,12 @@ genuinely new vertical feature scope.
   the gallery generator keys by `journey` (it already carries a `journey` field on every shot/video sidecar
   entry) and emits one page per journey to `…/<branch>/J-<n>/` (or `…/previews/<branch>/J-<n>/`); the index +
   the per-push/fanout deploy steps target the per-journey pages; retire the dashboard/profile/legacy-parity/
-  clean-seed sub-paths + their deploy steps. **SUBSTANTIAL — recommend `/do-plan` carve this as its own
-  proof-gallery-rearchitecture infra slice rather than fold it into a product journey's gate** (folding it would
-  swamp that journey). *(seam: `generate-gallery.mjs` + `generate-previews-index.mjs` + the gallery-deploy steps
-  across ci.yml + alpenflight-proof-fanout.yml + the rebuild-previews-index composite)*
+  clean-seed sub-paths + their deploy steps. **SUBSTANTIAL pure tech-debt → rides journeys' ≤40% tech-debt
+  budget** (operator: a journey is a Scrum sprint ≥60% AlpenFlight feature / ≤40% tech-debt — gallery re-arch
+  delivers no AlpenFlight functionality so it is NOT its own journey). Too big for one 40% slot → split the
+  re-arch across the next 2-3 journeys' tech-debt budgets (e.g. generator keys-by-journey first, then retire
+  sub-paths, then the deploy/index rewire). *(seam: `generate-gallery.mjs` + `generate-previews-index.mjs` +
+  the gallery-deploy steps across ci.yml + alpenflight-proof-fanout.yml + the rebuild-previews-index composite)*
 
 
 - ~~**Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).**~~ **Shipped J-3 T-12**
