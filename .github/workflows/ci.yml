@@ -56,6 +56,18 @@ jobs:
       proof_spec: ${{ steps.proof_spec.outputs.spec }}
       proof_journey: ${{ steps.proof_spec.outputs.journey }}
       proof_is_baseline: ${{ steps.proof_spec.outputs.is_baseline }}
+      # J-6 T-02b — the journey-under-work's OWN mock-auth spec filter, derived
+      # off the integration branch name (see "Derive journey mock-e2e filter").
+      # The per-push `alpenflight-mock-e2e` job runs ONLY this path-filter (the
+      # journey's own `tests/<feature>/` specs); prior journeys' mock specs run
+      # in the FULL chromium suite nightly + at the §4 do-ship gate, never
+      # per-push, so an unrelated flaky mock spec can't red this journey's
+      # `required`. `mock_is_full` is 'true' when derivation fell back to the
+      # WHOLE chromium project (non-integration branch / no `mock_test:`
+      # frontmatter / underivable) — the FAIL-SAFE runs the full suite, never a
+      # no-spec run that Playwright would treat as "match nothing".
+      mock_filter: ${{ steps.mock_spec.outputs.filter }}
+      mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
     steps:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
@@ -214,6 +226,79 @@ jobs:
               emit "$BASELINE" "$jid" "true"; exit 0
               ;;
           esac
+
+      # ---------------------------------------------------------------------
+      # Derive the journey-under-work's mock-e2e spec filter (J-6 T-02b).
+      #
+      # MIRRORS the real-idp `proof_spec` step above, for the mock-auth half.
+      # PROBLEM (the pending _BOYSCOUT rider, J-5-held-hostage-by-articles-crud):
+      # the per-push `alpenflight-mock-e2e` job runs the WHOLE `chromium` project
+      # (ALL features' mock specs). One unrelated flaky mock spec then reds the
+      # `required` gate on a journey that touches none of it.
+      #
+      # DERIVATION (same path as proof_spec): read the journey FILE's
+      # `mock_test:` frontmatter off the integration branch name; its FIRST path
+      # token (a `tests/<feature>/` dir or a single spec), normalized relative to
+      # alpenflight/web/, becomes the Playwright positional filter the mock job
+      # passes to `--project=chromium`. The chromium project's own testMatch /
+      # testIgnore still apply on top of the filter, so an excluded spec under
+      # the dir stays excluded.
+      #   1. branch = github.head_ref (PR) || github.ref_name (push).
+      #   2. integration/J-NNN  →  journey id  (anything else → full suite).
+      #   3. docs/.../J-NNN-*.md  →  `mock_test:` value → first path token →
+      #      strip a leading alpenflight/web/ → assert it exists on disk.
+      # FAIL-SAFE: a non-integration branch, a missing journey file, no
+      # `mock_test:` frontmatter, or a filter that doesn't resolve on disk →
+      # emit an EMPTY filter + is_full=true, so the mock job runs the WHOLE
+      # chromium project (the pre-T-02b baseline). NEVER a no-spec run — an empty
+      # positional arg to `playwright test` means "run everything", which is
+      # exactly the fail-safe we want, but we make it explicit via is_full so the
+      # job logs which path it took.
+      - name: Derive journey mock-e2e filter
+        id: mock_spec
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          emit() { # $1 filter (may be empty)  $2 is_full
+            echo "filter=$1" >> "$GITHUB_OUTPUT"
+            echo "is_full=$2" >> "$GITHUB_OUTPUT"
+            echo "── mock-e2e filter: '${1:-<full chromium suite>}'  (is_full=$2) ──"
+          }
+          branch="${HEAD_REF:-${REF_NAME:-}}"
+          echo "branch under work: '${branch}'"
+          jid="$(printf '%s' "$branch" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
+          if [ -z "$jid" ]; then
+            echo "not an integration/J-NNN branch → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          if [ -z "$jf" ] || [ ! -f "$jf" ]; then
+            echo "no journey file for ${jid} → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          raw="$(grep -m1 -E '^mock_test:' "$jf" | sed -E 's/^mock_test:[[:space:]]*//' || true)"
+          if [ -z "$raw" ]; then
+            echo "${jid} has no mock_test: frontmatter → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          # First path token (stop at whitespace / '(' / ';' / '#' so trailing
+          # prose or a comment is dropped); strip a leading alpenflight/web/.
+          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:](;#].*$//' | sed -E 's#^alpenflight/web/##')"
+          echo "${jid} mock_test first token → '${filter}'"
+          if [ -z "$filter" ]; then
+            echo "empty mock_test token → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          # The filter must resolve to a real path under alpenflight/web/ (a
+          # tests/<feature>/ dir OR a single spec file). If it doesn't, fall back
+          # to the full suite rather than risk a no-spec run.
+          if [ -e "alpenflight/web/${filter}" ]; then
+            emit "$filter" "false"; exit 0
+          fi
+          echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
+          emit "" "true"; exit 0
 
 
   # ---------------------------------------------------------------------------
@@ -1741,6 +1826,20 @@ jobs:
   # Path-filtered on the same `next == 'true' && docs_only != 'true'` gate as the
   # other heavy jobs: a docs-only push skips it, it reports `skipped`, and the
   # `required` aggregator's skipped-to-success path keeps the gate green.
+  #
+  # SPEC-SCOPING (J-6 T-02b — mirrors J-5 T-14's real-idp scoping for the mock
+  # half). The per-push run is SCOPED to the JOURNEY-UNDER-WORK's own mock specs
+  # via `changes.outputs.mock_filter` (derived from the journey file's
+  # `mock_test:` frontmatter off the integration branch). So while a journey is
+  # in flight, ONLY its own `tests/<feature>/` mock specs gate `required` here —
+  # an unrelated flaky mock spec from a PRIOR journey can no longer red it
+  # (the J-5 `articles-crud` hostage case). The FULL chromium suite (all
+  # features) still runs NIGHTLY (`alpenflight-e2e.yml` on main-push, plus its
+  # own cron if any) + once at the §4 do-ship gate (e2e-driver's full chain) —
+  # the cross-journey mock regression is preserved, just not per-push.
+  # FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter /
+  # underivable filter → `mock_is_full=true` + empty filter → the WHOLE chromium
+  # project runs (the pre-T-02b baseline), never a no-spec run.
   # ---------------------------------------------------------------------------
   alpenflight-mock-e2e:
     name: alpenflight mock-auth e2e (Run Playwright)
@@ -1804,10 +1903,28 @@ jobs:
       # in CI (flake-mask off). A test failure fails the job (no
       # continue-on-error), which fails `required` — that is the whole point of
       # the fold.
+      #
+      # J-6 T-02b — pass the journey-under-work's mock filter (a `tests/<feature>/`
+      # dir or a single spec) as the Playwright positional arg so ONLY this
+      # journey's mock specs run per-push. An EMPTY filter (fail-safe /
+      # mock_is_full=true) means no positional arg → the WHOLE chromium project
+      # runs (the pre-T-02b baseline). The chromium project's testMatch /
+      # testIgnore still apply ON TOP of the filter.
       - name: Run Playwright
         working-directory: alpenflight/web
         timeout-minutes: 5
-        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+        env:
+          MOCK_FILTER: ${{ needs.changes.outputs.mock_filter }}
+          MOCK_IS_FULL: ${{ needs.changes.outputs.mock_is_full }}
+        run: |
+          set -euo pipefail
+          if [ "${MOCK_IS_FULL}" = 'true' ] || [ -z "${MOCK_FILTER:-}" ]; then
+            echo "running FULL chromium mock suite (fail-safe / no journey scope)"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+          else
+            echo "running journey-scoped mock specs: ${MOCK_FILTER}"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium "${MOCK_FILTER}"
+          fi
 
       # Surface the report as a workflow artifact on red so the failure is
       # diagnosable without the gh-pages publish (which stays in alpenflight-e2e.yml).

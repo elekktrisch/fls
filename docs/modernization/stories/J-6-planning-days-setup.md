@@ -22,6 +22,7 @@ screen: /planning (+ /planning/:id/edit|view, /planningsetup)   # replacing lega
 headless_pulled_in: PlanningDayNotificationJob (S-086) → real screen — assigning crew + the scheduled mail; asserted via the existing real-idp mailpit-client helper
 migration: PlanningDay + PlanningDayAssignment + PlanningDayAssignmentType (legacy PlanningDays / PlanningDayAssignments / PlanningDayAssignmentTypes) — schema V4 + mappers already authored, NOT bound/run
 parity_test: alpenflight/web/e2e/tests/real-idp/planning-migration-parity.spec.ts
+mock_test: alpenflight/web/e2e/tests/planning/   # journey-under-work's own mock-auth specs (T-02b: per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly)
 adr_refs: [0005, 0008, 0009, 0013, 0021, 0024]
 ---
 
@@ -229,9 +230,18 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   Scaffold the J-6 per-journey gallery page + link it from the persistent index NOW, so the proof window
   exists from the start and accumulates captures as screens land. Minimal slice of T-14 (full
   maintainability-panel re-arch stays T-14). *(generate-gallery.mjs J-6 page + index link)* [[feedback_proof_gallery_per_journey_one_bookmark]]
-- [ ] **T-02b — move prior journeys (J-0…J-5) per-push specs to mock-IdP (pulled forward — operator: T-02 should ALWAYS do this).**
+- [x] **T-02b — move prior journeys (J-0…J-5) per-push specs to mock-IdP (pulled forward — operator: T-02 should ALWAYS do this).**
   Scope the per-push gate so ONLY J-6 runs heavy (real-idp) + prior journeys run mock-IdP; full real-idp
   regression stays nightly + the §4 gate. This is T-15's content pulled to slot 2 — **T-15 retired into this.** *(ci.yml mock-e2e + real-idp spec selection)* [[feedback_dev_time_test_strategy]]
+  **Done:** real-idp `alpenflight-proof` already scoped per J-5 T-14 — verified it derives J-6's
+  `tests/real-idp/planning-migration-parity.spec.ts` (is_baseline=false), no fix needed. Mirrored it for
+  the mock half: added a `mock_test:` frontmatter field + a `changes`-job "Derive journey mock-e2e filter"
+  step; the `alpenflight-mock-e2e` "Run Playwright" step now passes the journey's `tests/planning/` filter
+  to `--project=chromium`, so per-push runs ONLY J-6's 11 planning mock specs (verified via `--list`).
+  Prior journeys (no `mock_test:`) + non-integration branches FAIL-SAFE to the full chromium suite; the full
+  cross-journey mock regression stays nightly (`alpenflight-e2e.yml` main-push) + the §4 gate. Fanout
+  workflow already triggers schedule + workflow_dispatch only (NOT push to `integration/**`) — already
+  off the per-push path, no change. `required` aggregator semantics unchanged (skipped→success).
 - [ ] **T-04 — PlanningDay CRUD resource.** DTOs (3 person ids + date + locationId + info + computed
   count + CanUpdate/CanDelete) / service / mapper / controllers: page, overview/future, GET :id,
   insert (409 dup), update (409 dup), delete (perm-gated ClubAdmin|creator). **+ explicit `operationId`s**
