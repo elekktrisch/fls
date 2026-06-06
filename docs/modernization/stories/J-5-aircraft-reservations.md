@@ -301,3 +301,21 @@ One seam each; commit directly to `integration/J-5`.
   real-idp reservations run now blocks merge. Operator accepted the tradeoff (a real-idp infra hiccup can
   block merges — mitigated by the per-journey scoping). Update the stale ci.yml derivation comments that
   still say "J-5 is a mock-auth journey → J-0 baseline" (gap-hunter nit). *(seam: ci.yml `required` needs + result loop)*
+
+### §4 gate — first fanout run reds (genuine regressions caught by the real chain)
+- [ ] **T-20 — Fix the `_test-fixture.sql` §10 reservation seed column name (fanout seed red).** The fanout
+  seed failed `Msg 207, Line 702: Invalid column name 'PilotPerson_PersonId'`. T-07's §10 AircraftReservations
+  INSERT used the **v1.0.1 EF6 shadow column** `PilotPerson_PersonId`, but v1.1 superseded it with
+  `[PilotPersonId]` (the final FLSTest schema — see the canonical insert `flsserver/database/FLSTest/3 insert/
+  4 or 5 Insert Test Data.sql:1129` + `DBUpdate_v1.1.sql:19,75`). Fix §10's column to `[PilotPersonId]`
+  (mirror the canonical insert's exact column list); audit §10 for any other stale column vs the final
+  schema; check the earlier `Msg 547` FK violations aren't a §10 dangling FK. (`_test-fixture.sql` is OUR
+  migration test fixture — editable; the upstream `4 or 5 Insert…` is read-only reference to mirror.)
+  *(seam: `flsserver/database/FLSTest/3 insert/_test-fixture.sql` §10)*
+- [ ] **T-21 — Fix the fanout gallery build step's Node (ESM `.mjs` red).** The fanout's "Build + link-check
+  proof gallery" step runs `node e2e/proof-gallery/generate-gallery.mjs` on **Node ~8** (stack trace
+  `vm.js`/`bootstrap_node.js`) → `SyntaxError: Unexpected token import`. The SAME generator runs fine in
+  `ci.yml` (modern node). Align the fanout step's node env to the ci.yml gallery step (add
+  `actions/setup-node@v4` node 20 before it, or invoke via the project toolchain). Investigate whether
+  T-12/T-13 regressed it or it's pre-existing-but-only-now-exercised (the per-journey emission may be the
+  first ESM-heavy use). *(seam: alpenflight-proof-fanout.yml gallery build step node setup)*
