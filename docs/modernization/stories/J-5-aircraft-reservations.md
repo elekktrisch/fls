@@ -823,3 +823,13 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
   calendar-render assertions) + not loosened — files a boyscout rider: make those 3 either navigate via the
   in-app new-button (no query, like the passing `create:` test) or `toHaveURL(/\/reservations\/new/)` so local
   and CI agree. *(seam: reservations-migration-parity.spec.ts calendar render/nav assertions)*
+
+### Local-first verification surfaced a CI-masked local red
+- [ ] **T-46 — Make the full `reservations-crud` spec locally green (gotoDe/toHaveURL cold-start mismatch).**
+  Local Playwright (T-43 + apk chromium) surfaced 3 tests (conflict/duration/delete) that fail DETERMINISTICALLY
+  locally but pass in CI: they `gotoDe(page, '/reservations/new')` (keeps `?lang=de`) then assert strict
+  `toHaveURL('/reservations/new')` — locally the cold-start `?lang=de` lingers in the URL → strict match fails;
+  CI's chromium cold-start resolves the locale without leaving the query. Fix so local + CI AGREE: navigate via
+  the in-app new-button (like the passing `create:` test) OR relax to `toHaveURL(/\/reservations\/new/)`. **Verify
+  the ENTIRE `reservations-crud` spec runs green locally** (`pnpm e2e --project=chromium reservations-crud`) —
+  the local-first DoD must hold for the whole spec, not just the 2 T-45 cases. *(seam: reservations-crud.spec.ts nav/url assertions)*
