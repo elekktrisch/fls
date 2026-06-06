@@ -2,8 +2,9 @@
 id: J-5
 title: Aircraft reservations
 epic: E-08
-status: in_progress
+status: done
 started_at: 2026-06-06
+done_at: 2026-06-06
 journey0: false
 carved: true
 depends_on: [J-1]
@@ -889,3 +890,16 @@ J-5's ~15 ci+fanout round-trips evidence this. Encode into the suite:
   remaining mocked-IdP is acceptable).
 - **Continuously update the journey proof page during development** (not just at the gate).
 - Pairs with the local-first fix (T-43: system chromium + `preflight` DoD) — see [[feedback_dev_time_test_strategy]].
+
+### §4 gate — PASSED (J-5 done)
+ci `required` GREEN (build + real-idp reservations proof + mock-e2e + dashboard/profile/realm) + fanout
+**25 passed/0 failed** + deployed-link-check GREEN + calendar day/week + paired legacy↔AlpenFlight list/form
+parity captures live. Final gap-hunter ×2 (post-calendar-redesign): **2/2 real:true, high confidence, no
+blockers** — calendar is real data-derivation + real placement math, conflict-409 still a real GiST probe on
+create+update, migration round-trip asserts row identity (remark + Schulung + block-by-id, not count/wrong-tenant),
+zero undeclared mocks on the real chain, tenancy gated + leakage-registered. **Mocked seams: NONE.**
+- [ ] **(rider, gap-hunter suspect — not a J-5 blocker) Assert the J-5 shots are PRESENT, don't tolerate absence.**
+  `alpenflight-proof-fanout.yml` `add_shot` silently skips a missing PNG; the deployed-link-check only validates
+  DECLARED shots — so a future PARTIAL-red create could silently drop the calendar/form/scheduler shots while the
+  gate stays green (benign on this 25/25 run since the create ran to completion). Add a guard asserting the 6 J-5
+  paired shots exist before deploy. Rides a future gallery-touch / do-retro. *(seam: fanout add_shot presence guard)*
