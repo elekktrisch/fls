@@ -27,6 +27,13 @@ import {
 
 import type {
   ClubDashboardResponse,
+  MeNotificationPrefsResponse,
+  MeNotificationPrefsUpdateRequest,
+  MePersonLicencesResponse,
+  MePersonLicencesUpdateRequest,
+  MePersonResponse,
+  MePersonUpdateRequest,
+  MeProfileUpdateRequest,
   MeResponse,
   SseEmitter,
   SystemDashboardResponse
@@ -80,6 +87,249 @@ type HttpClientObserveOptions = HttpClientOptions & {
 @Injectable({ providedIn: 'root' })
 export class MeService {
   private readonly http = inject(HttpClient);
+/**
+ * @summary Edit the caller's own Account self-fields (friendlyName, notificationEmail, phoneNumber, languageId). Caller resolved from the JWT — no :id. Username / clubId / keycloakSub are immutable; remarks (admin-only) is preserved. Returns the updated /me projection.
+ */
+ updateMyProfile<TData = MeResponse>(meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyProfile<TData = MeResponse>(meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyProfile<TData = MeResponse>(meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyProfile<TData = MeResponse>(
+    meProfileUpdateRequest: MeProfileUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/profile`,
+      meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/profile`,
+      meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/profile`,
+      meProfileUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Read the caller's own Person contact / address fields (plus the read-only name fields for display) so the Personal tab hydrates. Caller's Person resolved from the JWT → user → person_id — no :id. A caller with no linked Person gets 409.
+ */
+ getMyPerson<TData = MePersonResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ getMyPerson<TData = MePersonResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getMyPerson<TData = MePersonResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getMyPerson<TData = MePersonResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/person`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/person`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/person`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Edit the caller's own Person contact / address fields (address, zip/city/region, country, phones, private/business email, birthday). Caller's Person resolved from the JWT → user → person_id — no :id. Name fields are admin-only and preserved; a caller with no linked Person gets 409.
+ */
+ updateMyPerson<TData = MeResponse>(mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyPerson<TData = MeResponse>(mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyPerson<TData = MeResponse>(mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyPerson<TData = MeResponse>(
+    mePersonUpdateRequest: MePersonUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person`,
+      mePersonUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person`,
+      mePersonUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/person`,
+      mePersonUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Read the caller's own Person licence/medical fields so the Pilot tab hydrates. Caller's Person resolved from the JWT → user → person_id — no :id. A caller with no linked Person gets 409.
+ */
+ getMyLicences<TData = MePersonLicencesResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ getMyLicences<TData = MePersonLicencesResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getMyLicences<TData = MePersonLicencesResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getMyLicences<TData = MePersonLicencesResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/person/licences`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/person/licences`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/person/licences`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Edit the caller's own Person licence/medical fields. Caller's Person resolved from the JWT → user → person_id — no :id. Emits a person.licences_updated audit event with a readable before/after diff (FADP-sensitive provenance). A caller with no linked Person gets 409.
+ */
+ updateMyLicences<TData = MePersonLicencesResponse>(mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyLicences<TData = MePersonLicencesResponse>(mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyLicences<TData = MePersonLicencesResponse>(mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyLicences<TData = MePersonLicencesResponse>(
+    mePersonLicencesUpdateRequest: MePersonLicencesUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person/licences`,
+      mePersonLicencesUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/person/licences`,
+      mePersonLicencesUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/person/licences`,
+      mePersonLicencesUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Read the caller's own per-club notification preferences so the Notifications tab hydrates. Caller's Person + club resolved from the JWT → user → person_id / club_id — no :id. A caller with no linked Person, or no membership in the current club, gets 409.
+ */
+ getMyNotificationPrefs<TData = MeNotificationPrefsResponse>( options?: HttpClientBodyOptions): Observable<TData>;
+ getMyNotificationPrefs<TData = MeNotificationPrefsResponse>( options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ getMyNotificationPrefs<TData = MeNotificationPrefsResponse>( options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  getMyNotificationPrefs<TData = MeNotificationPrefsResponse>(
+     options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.get<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.get<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.get<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Edit the caller's own per-club notification preferences. Caller's Person + club resolved from the JWT → user → person_id / club_id — no :id. Changes ONLY the three toggles; admin-only membership fields (memberNumber / memberState / roles) stay untouched. Emits an audit event. A caller with no linked Person, or no membership in the current club, gets 409.
+ */
+ updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  updateMyNotificationPrefs<TData = MeNotificationPrefsResponse>(
+    meNotificationPrefsUpdateRequest: MeNotificationPrefsUpdateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.patch<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,
+      meNotificationPrefsUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.patch<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,
+      meNotificationPrefsUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.patch<TData>(
+      `/api/v1/me/club-membership/notification-prefs`,
+      meNotificationPrefsUpdateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
 /**
  * @summary Authenticated-principal projection (id, personId, clubId, roles, firstName, lastName, email, username). personId is null for sysadmins / unmapped federated users.
  */

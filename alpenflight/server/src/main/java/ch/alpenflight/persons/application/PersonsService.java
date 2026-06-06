@@ -14,10 +14,12 @@ import ch.alpenflight.persons.application.PersonDtos.PersonUpdateRequest;
 import ch.alpenflight.persons.domain.Person;
 import ch.alpenflight.persons.domain.PersonClub;
 import ch.alpenflight.persons.domain.PersonNotFoundException;
+import ch.alpenflight.persons.domain.PersonNotificationPrefs;
 import ch.alpenflight.persons.domain.PersonRepository;
 import ch.alpenflight.platform.id.PersonId;
 import ch.alpenflight.platform.tenancy.ClubTenantIdentifierResolver;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -57,6 +59,18 @@ public class PersonsService {
 
     private static final String AUDIT_PERSON = "Person";
     private static final String AUDIT_PERSON_CLUB = "PersonClub";
+    // Distinct audit entity type for the licence/medical self-edit (J-4 T-08).
+    // Unlike AUDIT_PERSON (which is in audit.redaction.deny-all → fully
+    // redacted), "PersonLicences" carries an explicit allow-list so the
+    // before/after diff is READABLE by a sysadmin (AC4) — the FADP-sensitive
+    // provenance the Pilot tab needs. Medical-field hashing is deferred (S-182).
+    private static final String AUDIT_PERSON_LICENCES = "PersonLicences";
+    // Distinct audit entity type for the notification-prefs self-edit (J-4
+    // T-10). The three booleans are non-sensitive operational flags, so this
+    // type carries an explicit allow-list (unlike the deny-all Person) and the
+    // before/after diff reads verbatim. Distinct from "PersonClub" so the diff
+    // is the lean 3-field prefs shape, not the whole membership row.
+    private static final String AUDIT_PERSON_CLUB_NOTIFICATION_PREFS = "PersonClubNotificationPrefs";
     private static final int LOOKUP_RESULT_CAP = 5;
 
     private final PersonRepository persons;
@@ -131,6 +145,223 @@ public class PersonsService {
         auditTrail.record(AuditAction.UPDATE,
                 AuditedTarget.updated(AUDIT_PERSON, id.value(), beforeSnapshot, saved));
         return toResponse(saved);
+    }
+
+    /**
+     * Person-contact self-edit (J-4 T-06). The caller edits their OWN Person's
+     * contact / address fields, resolved from the JWT → User → {@code person_id}
+     * (the {@code personId} arg is the caller's own linked Person, NEVER an id
+     * from the request body) — so cross-principal mutation is structurally
+     * impossible. Updates only the contact / address fields; the name fields
+     * (firstname / lastname / midname / companyName) are NOT on the command and
+     * are preserved unchanged (rename stays admin-only). {@code spotLink} and
+     * {@code enableAddress} are likewise read from the existing aggregate and
+     * passed back through {@link Person#updateContact} unchanged.
+     *
+     * <p>This load is by PK and intentionally cross-tenant (the caller's own
+     * Person may have its membership in a different tenant than the resolved
+     * one) — but it carries no IDOR risk because the id is the caller's own,
+     * resolved from their JWT, not a request parameter.
+     *
+     * @throws PersonNotFoundException if the {@code personId} resolves to no
+     *     active Person row.
+     */
+    /**
+     * Read the caller's OWN contact / address shape (J-4 T-18) so the Personal
+     * tab (T-07) hydrates with real values. Resolved from the JWT → User →
+     * {@code person_id}; the {@code personId} arg is the caller's own linked
+     * Person, never a request parameter — no IDOR risk, no {@code :id}.
+     * Read-only, cross-tenant by PK (the caller's own Person may have its
+     * membership in another tenant). Returns the editable contact fields plus
+     * the read-only name fields for display (rename stays admin-only).
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row.
+     */
+    @Transactional(readOnly = true)
+    public SelfContactView getOwnContact(UUID personId) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        return SelfContactView.of(p);
+    }
+
+    public void updateOwnContact(UUID personId, SelfContactUpdate cmd) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        // Snapshot the contact fields BEFORE mutating. A lean contact-only
+        // snapshot (not toResponse) avoids the cross-tenant membership-count +
+        // member-state lookups toResponse triggers on the self-edit hot path —
+        // and Person is in audit deny-all anyway, so the diff redacts to
+        // "[redacted]" regardless of which snapshot shape we hand it.
+        ContactSnapshot before = ContactSnapshot.of(p);
+        p.updateContact(
+                cmd.addressLine1(), cmd.addressLine2(), cmd.zip(), cmd.city(), cmd.region(),
+                cmd.countryId(),
+                cmd.privatePhone(), cmd.mobilePhone(), cmd.businessPhone(), cmd.faxNumber(),
+                cmd.emailPrivate(), cmd.emailBusiness(), cmd.preferMailToBusinessMail(),
+                cmd.birthday(),
+                // Preserve the non-contact fields the self-edit surface never sets.
+                p.getSpotLink(), p.isEnableAddress());
+        Person saved = persistPerson(p);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_PERSON, personId, before, ContactSnapshot.of(saved)));
+    }
+
+    /**
+     * Lean audit snapshot of the contact / address fields for the self-edit
+     * path — projects only what {@link #updateOwnContact} can mutate, avoiding
+     * the membership-count / member-state-name lookups {@link #toResponse}
+     * makes. Person is in the {@code audit.redaction.deny-all} policy (S-027),
+     * so these values redact to {@code [redacted]} in the trail; the snapshot
+     * still gives the redacting serializer a non-aliased before/after pair.
+     */
+    private record ContactSnapshot(
+            @Nullable String addressLine1,
+            @Nullable String addressLine2,
+            @Nullable String zip,
+            @Nullable String city,
+            @Nullable String region,
+            @Nullable UUID countryId,
+            @Nullable String privatePhone,
+            @Nullable String mobilePhone,
+            @Nullable String businessPhone,
+            @Nullable String faxNumber,
+            @Nullable String emailPrivate,
+            @Nullable String emailBusiness,
+            boolean preferMailToBusinessMail,
+            @Nullable LocalDate birthday) {
+
+        static ContactSnapshot of(Person p) {
+            return new ContactSnapshot(
+                    p.getAddressLine1(), p.getAddressLine2(), p.getZip(), p.getCity(), p.getRegion(),
+                    p.getCountryId(),
+                    p.getPrivatePhone(), p.getMobilePhone(), p.getBusinessPhone(), p.getFaxNumber(),
+                    p.getEmailPrivate(), p.getEmailBusiness(), p.isPreferMailToBusinessMail(),
+                    p.getBirthday());
+        }
+    }
+
+    /**
+     * Read the caller's OWN licence/medical shape (J-4 T-08) so the Pilot tab
+     * (T-09) hydrates. Resolved from the JWT → User → {@code person_id}; the
+     * {@code personId} arg is the caller's own linked Person, never a request
+     * parameter — no IDOR risk, no {@code :id}. Read-only, cross-tenant by PK
+     * (the caller's own Person may have its membership in another tenant).
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row.
+     */
+    @Transactional(readOnly = true)
+    public SelfLicencesView getOwnLicences(UUID personId) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        return SelfLicencesView.of(p);
+    }
+
+    /**
+     * Person licence/medical self-edit (J-4 T-08, the FADP-sensitive Pilot tab).
+     * The caller edits their OWN Person's licence flags, licence number, medical
+     * / instructor / part-M expiry dates and glider start-permission flags,
+     * resolved from the JWT → User → {@code person_id} (the {@code personId} arg
+     * is the caller's own linked Person, NEVER an id from the request body) — so
+     * cross-principal mutation is structurally impossible. Contact / name /
+     * membership fields are NOT on the command and are preserved unchanged.
+     *
+     * <p>Emits a {@code person.licences_updated} audit event (AC4) under the
+     * {@code PersonLicences} entity type — which has an explicit allow-list, so
+     * the before/after diff is READABLE by a sysadmin (unlike the deny-all
+     * {@code Person} type). The snapshot is a lean, Keycloak-free
+     * {@link SelfLicencesView} taken BEFORE the mutation, so before/after are
+     * distinct object references and the diff is non-empty.
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row.
+     */
+    public void updateOwnLicences(UUID personId, SelfLicencesUpdate cmd) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        SelfLicencesView before = SelfLicencesView.of(p);
+        p.updateLicences(
+                cmd.motorPilot(), cmd.towPilot(), cmd.gliderInstructor(), cmd.gliderPilot(),
+                cmd.gliderTrainee(), cmd.gliderPax(), cmd.tmg(), cmd.winchOperator(),
+                cmd.motorInstructor(), cmd.partM(),
+                cmd.licenceNumber(),
+                cmd.medicalClass1ExpireDate(), cmd.medicalClass2ExpireDate(),
+                cmd.medicalLaplExpireDate(),
+                cmd.gliderInstructorLicenceExpireDate(), cmd.motorInstructorLicenceExpireDate(),
+                cmd.partMLicenceExpireDate(),
+                cmd.gliderTowingStartPermission(), cmd.gliderSelfStartPermission(),
+                cmd.gliderWinchStartPermission(),
+                cmd.receiveOwnedAircraftStatisticReports());
+        Person saved = persistPerson(p);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_PERSON_LICENCES, personId, before,
+                        SelfLicencesView.of(saved)));
+    }
+
+    /**
+     * Read the caller's OWN per-club notification preferences (J-4 T-10) so the
+     * Notifications tab (T-11) hydrates. The {@code personId} is the caller's
+     * own linked Person (resolved from the JWT → User → {@code person_id}, never
+     * a request parameter — no {@code :id}, no IDOR); {@code clubId} is the
+     * caller's CURRENT tenant/club. Read-only; resolves the alive membership in
+     * that club.
+     *
+     * @throws PersonNotFoundException if the {@code personId} resolves to no
+     *     active Person row, OR the caller has no alive membership in
+     *     {@code clubId} (→ 409 at the edge — the no-membership banner case).
+     */
+    @Transactional(readOnly = true)
+    public SelfNotificationPrefsView getOwnNotificationPrefs(UUID personId, UUID clubId) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        PersonClub pc = aliveMembershipInOrThrow(p, clubId);
+        return SelfNotificationPrefsView.of(pc);
+    }
+
+    /**
+     * Per-club notification-prefs self-edit (J-4 T-10, the Notifications tab).
+     * The caller edits ONLY the three notification booleans of their OWN
+     * caller-tenant {@link PersonClub}, via the focused
+     * {@link Person#updateNotificationPrefs} mutator — the admin-only membership
+     * identity fields (memberNumber / memberState / role flags / isActive) are
+     * NOT on the command and stay untouched. {@code personId} is the caller's
+     * own linked Person (JWT-resolved, never a request id → no cross-principal
+     * reach); {@code clubId} is the caller's current tenant/club.
+     *
+     * <p>Emits an {@code AuditAction.UPDATE} audit event under the
+     * {@code PersonClubNotificationPrefs} entity type — which carries an
+     * explicit allow-list, so the before/after diff is readable. The snapshot is
+     * a lean {@link SelfNotificationPrefsView} taken BEFORE the mutation, so
+     * before/after are distinct object references and the diff is non-empty.
+     *
+     * @throws PersonNotFoundException if {@code personId} resolves to no active
+     *     Person row, OR the caller has no alive membership in {@code clubId}
+     *     (→ 409 at the edge).
+     */
+    public void updateOwnNotificationPrefs(UUID personId, UUID clubId, SelfNotificationPrefsUpdate cmd) {
+        Person p = persons.findActiveById(personId)
+                .orElseThrow(() -> new PersonNotFoundException(PersonId.of(personId)));
+        PersonClub before = aliveMembershipInOrThrow(p, clubId);
+        SelfNotificationPrefsView beforeSnapshot = SelfNotificationPrefsView.of(before);
+        PersonClub pc = p.updateNotificationPrefs(clubId, new PersonNotificationPrefs(
+                cmd.receiveFlightReports(),
+                cmd.receiveAircraftReservationNotifications(),
+                cmd.receivePlanningDayRoleReminder()));
+        persistPerson(p);
+        UUID pcId = requirePersonClubId(pc);
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_PERSON_CLUB_NOTIFICATION_PREFS, pcId,
+                        beforeSnapshot, SelfNotificationPrefsView.of(pc)));
+    }
+
+    /** Resolve the caller's alive PersonClub in {@code clubId} or throw (→ 409). */
+    private static PersonClub aliveMembershipInOrThrow(Person p, UUID clubId) {
+        return p.getActivePersonClubs().stream()
+                .filter(pc -> clubId.equals(pc.getClubId()))
+                .findFirst()
+                .orElseThrow(() -> new PersonNotFoundException(
+                        "Person has no alive PersonClub in club " + clubId));
     }
 
     public void softDeletePerson(PersonId id, @Nullable UUID userId) {

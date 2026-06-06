@@ -1,4 +1,8 @@
-import { resolveInitialLang } from './lang-resolver';
+import {
+  hasExplicitLangOverride,
+  localeForLanguageCode,
+  resolveInitialLang,
+} from './lang-resolver';
 
 describe('resolveInitialLang', () => {
   it('honors a valid ?lang= query param over everything else', () => {
@@ -59,5 +63,57 @@ describe('resolveInitialLang', () => {
         navigatorLanguage: 'it-CH',
       }),
     ).toBe('de');
+  });
+});
+
+describe('hasExplicitLangOverride', () => {
+  it('is true for a supported ?lang= value', () => {
+    expect(hasExplicitLangOverride('?lang=fr')).toBe(true);
+  });
+
+  it('is true regardless of case', () => {
+    expect(hasExplicitLangOverride('?lang=EN')).toBe(true);
+  });
+
+  it('is false for an unsupported ?lang= value', () => {
+    expect(hasExplicitLangOverride('?lang=ja')).toBe(false);
+  });
+
+  it('is false when no ?lang= is present', () => {
+    expect(hasExplicitLangOverride('?foo=bar')).toBe(false);
+  });
+
+  it('is false for an empty / null search', () => {
+    expect(hasExplicitLangOverride('')).toBe(false);
+    expect(hasExplicitLangOverride(null)).toBe(false);
+    expect(hasExplicitLangOverride(undefined)).toBe(false);
+  });
+
+  it('honors an overridden availableLangs', () => {
+    expect(hasExplicitLangOverride('?lang=it', ['de', 'fr'])).toBe(false);
+  });
+});
+
+describe('localeForLanguageCode', () => {
+  it('maps an exact supported code', () => {
+    expect(localeForLanguageCode('fr')).toBe('fr');
+  });
+
+  it('lowercases before matching', () => {
+    expect(localeForLanguageCode('EN')).toBe('en');
+  });
+
+  it('falls back to the base lang for a region-tagged code (de-CH → de)', () => {
+    expect(localeForLanguageCode('de-CH')).toBe('de');
+  });
+
+  it('returns null for an unsupported code (rm)', () => {
+    expect(localeForLanguageCode('rm')).toBeNull();
+  });
+
+  it('returns null for null / undefined / empty', () => {
+    expect(localeForLanguageCode(null)).toBeNull();
+    expect(localeForLanguageCode(undefined)).toBeNull();
+    expect(localeForLanguageCode('')).toBeNull();
   });
 });

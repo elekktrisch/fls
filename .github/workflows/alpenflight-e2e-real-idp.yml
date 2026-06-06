@@ -1,10 +1,25 @@
 name: alpenflight e2e real-idp
 
-# Nightly + manual-dispatch run of the real-idp Playwright project: full
-# register + login + locale + Google-redirect smoke against a live local
-# Keycloak + Mailpit + alpenflight backend. NOT a PR gate — the mock-auth
-# suite (`alpenflight-e2e.yml`) stays the gate; real-idp's cross-process
-# flakiness must not gate feature work.
+# Nightly + manual-dispatch run of the FULL real-idp Playwright project: register
+# + login + locale + Google-redirect smoke PLUS the cross-journey migration-parity
+# regression — all against a live local Keycloak + Mailpit + alpenflight backend.
+# NOT a PR gate — the mock-auth suite (`alpenflight-e2e.yml`) + the per-push
+# scoped proofs in `ci.yml` stay the gates; real-idp's cross-process flakiness
+# must not gate feature work.
+#
+# PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05 Q1). This nightly
+# suite is now the HOME of the full cross-journey migration-parity regression.
+# `ci.yml`'s per-push `alpenflight-proof` job used to run the J-1
+# `aircraft-migration-parity.spec.ts` + J-2 `flight-migration-parity.spec.ts`
+# on every push and gate `required` — but the known aircraft-parity
+# cross-process flake intermittently red-ed the gate on journeys touching no
+# aircraft. Per the operator's rider ("per-push runs the current journey's spec,
+# the full regression nightly") those specs are NO LONGER on the per-push path;
+# they run here, in this full `--project=real-idp` run, which already globs
+# `tests/real-idp/**/*.spec.ts` (so aircraft + flight + the J-0 Locations
+# isolation spec are all covered without an explicit spec list). The DATASOURCE_*
+# env on the Playwright step below carries the parity specs' Gradle seeder
+# shell-outs to the backend's Postgres (they self-seed in their beforeAll).
 #
 # Stack on the runner:
 #   alpenflight-infra (mailpit) + fls-e2e (mssql; not actually used by the
@@ -148,11 +163,34 @@ jobs:
           tail -n 200 alpenflight/server/backend.log >&2 || true
           exit 1
 
-      - name: Run Playwright real-idp project
+      # Full real-idp project — globs tests/real-idp/**/*.spec.ts. This is where
+      # the cross-journey migration-parity regression (J-1 aircraft + J-2 flight,
+      # plus the J-0 Locations isolation spec) runs after J-4 T-21+T-22 moved it
+      # off the per-push gate. DATASOURCE_* is exported so those specs' beforeAll
+      # Gradle seeder shell-outs (seedAircraftParityBundle / seedFlightParityBundle)
+      # reach the same Postgres the backend uses (synth bundle mode — J1/J2_REAL_*
+      # unset → the full legacy→export half stays the fan-out workflow's job).
+      #
+      # `--ignore-snapshots`-style scope note: the J-4 `tests/profile/` spec also
+      # matches the `real-idp` project's testMatch, but it asserts against the
+      # `@Profile("showcase")` pilot1 Person — which this CLEAN-seeded nightly
+      # stack does NOT load. It has its own showcase-seeded gating job
+      # (`alpenflight-profile-proof` in ci.yml), so we EXCLUDE it here via an
+      # explicit positive spec list (the real-idp/ dir) rather than the bare
+      # `--project` glob, so a clean-seed run can't red on a showcase-only spec.
+      - name: Run Playwright real-idp project (full cross-journey regression)
         id: pw
         working-directory: alpenflight/web
-        timeout-minutes: 12
-        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=real-idp
+        timeout-minutes: 15
+        env:
+          DATASOURCE_URL: jdbc:postgresql://localhost:5432/alpenflight
+          DATASOURCE_USER: alpenflight
+          DATASOURCE_PASSWORD: alpenflight
+        run: |
+          pnpm exec playwright test \
+            --config=e2e/playwright.config.ts \
+            --project=real-idp \
+            e2e/tests/real-idp/
 
       - name: Collect logs on failure
         if: failure()

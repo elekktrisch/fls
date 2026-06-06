@@ -27,6 +27,23 @@
  * from tenant-scoped HTTP endpoints). Cross-tenant Person ops live on
  * {@code /api/v1/admin/persons/**} — deferred until a cutover consumer
  * demands them.
+ *
+ * <p>Declared an {@link org.springframework.modulith.ApplicationModule#type()
+ * OPEN} Spring Modulith module (matching the sibling business modules
+ * {@code users} / {@code clubs} / {@code flights}) so the {@code me} module's
+ * caller-scoped self-edit endpoints (J-4 {@code /api/v1/me/person},
+ * {@code /me/person/licences}, {@code /me/club-membership/notification-prefs})
+ * may call {@code persons.application.PersonsService} and consume its self-edit
+ * request / view DTOs ({@code SelfContactUpdate}, {@code SelfLicencesView},
+ * {@code SelfNotificationPrefsUpdate} / {@code SelfNotificationPrefsView}) plus
+ * {@link ch.alpenflight.persons.domain.PersonNotFoundException} — exactly the
+ * same mechanism that already allows {@code me}&rarr;{@code users.application}
+ * (the OPEN {@code users} module, J-3 T-10 / J-4 T-04). The dependency
+ * direction is {@code me}&rarr;{@code persons}; persons knows nothing of any
+ * consumer, and the normal admin read/write path stays the
+ * {@code persons.application} service + REST controllers.
  */
+@org.springframework.modulith.ApplicationModule(
+        type = org.springframework.modulith.ApplicationModule.Type.OPEN)
 @org.jspecify.annotations.NullMarked
 package ch.alpenflight.persons;

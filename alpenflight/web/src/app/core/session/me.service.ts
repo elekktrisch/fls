@@ -19,6 +19,11 @@ export interface MeResponse {
   lastName: string | null;
   email: string | null;
   username: string | null;
+  // BCP-47 code of the user's persisted `t_user.language_id` (e.g. `de`,
+  // `fr`). Lets cold-start honor the saved language preference without a
+  // second round-trip — see SessionStore.loadMe + core/i18n. Null when no
+  // user row matches the JWT sub.
+  languageCode: string | null;
 }
 
 /**

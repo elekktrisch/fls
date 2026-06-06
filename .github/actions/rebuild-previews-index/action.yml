@@ -1,0 +1,76 @@
+name: Rebuild proof-previews index
+description: >-
+  J-4 T-24 — regenerate the persistent, bookmarkable proof-previews landing page
+  (alpenflight/previews/index.html) from the CURRENT gh-pages tree, then deploy
+  ONLY that one file. Checks out gh-pages, scans alpenflight/proof-preview/<branch>/
+  for active branch sub-galleries (root / dashboard / profile / legacy-parity),
+  full-regenerates the index, and pushes just alpenflight/previews/ back with
+  keep_files:true. Because the index is rebuilt from a fresh scan every time, the
+  shared page is correct under last-writer-wins even when concurrent per-branch
+  deploys race (they touch disjoint proof-preview/<branch>/ dirs).
+
+  Call this AFTER each per-branch gallery deploy step. Fail-soft: a missing
+  gh-pages branch or a push race is a warning, never a job-failing error — the
+  index is a convenience entry point, not a proof gate.
+
+inputs:
+  github_token:
+    description: Token with contents:write to push the rebuilt index to gh-pages.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Rebuild + deploy previews index
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -uo pipefail
+        WORK="$(mktemp -d)"
+        # --- check out the CURRENT gh-pages tree (shallow) -------------------
+        git init -q "$WORK/gh-pages"
+        (
+          cd "$WORK/gh-pages"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if ! git fetch -q --depth 50 origin gh-pages; then
+            echo "::warning::gh-pages branch not found — no previews to index yet (skipping rebuild)."
+            exit 7
+          fi
+          git checkout -q -b gh-pages FETCH_HEAD
+        ) || { code=$?; [ "$code" = "7" ] && exit 0 || exit 0; }
+
+        if [ ! -d "$WORK/gh-pages/alpenflight/proof-preview" ]; then
+          echo "::warning::no alpenflight/proof-preview/ on gh-pages yet — nothing to index."
+          exit 0
+        fi
+
+        # --- regenerate the index from the on-disk scan (git-mtime mode) -----
+        # The generator is dependency-free Node core; the runner already has Node.
+        node "${GITHUB_ACTION_PATH}/../../../alpenflight/web/e2e/proof-gallery/generate-previews-index.mjs" \
+          --gh-pages-root "$WORK/gh-pages" --git \
+          || { echo "::warning::previews-index generation failed — leaving existing index untouched."; exit 0; }
+
+        # --- deploy ONLY alpenflight/previews/ back to gh-pages -------------
+        # Stage the single generated file into a clean publish dir so peaceiris
+        # (destination_dir + keep_files:true) writes ONLY alpenflight/previews/
+        # and never touches the per-branch galleries or the canonical proof.
+        STAGE="$WORK/publish"
+        mkdir -p "$STAGE"
+        cp "$WORK/gh-pages/alpenflight/previews/index.html" "$STAGE/index.html"
+        echo "staged previews index for deploy:"
+        ls -l "$STAGE"
+        # Export the staging dir for the deploy step below.
+        echo "PREVIEWS_PUBLISH_DIR=$STAGE" >> "$GITHUB_ENV"
+
+    - name: Deploy previews index to gh-pages
+      if: ${{ env.PREVIEWS_PUBLISH_DIR != '' }}
+      uses: peaceiris/actions-gh-pages@v4
+      with:
+        github_token: ${{ inputs.github_token }}
+        publish_dir: ${{ env.PREVIEWS_PUBLISH_DIR }}
+        destination_dir: alpenflight/previews
+        publish_branch: gh-pages
+        keep_files: true
+        enable_jekyll: false
+        commit_message: "rebuild proof-previews index (${{ github.ref_name }} ${{ github.sha }})"

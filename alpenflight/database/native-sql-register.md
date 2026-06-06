@@ -91,7 +91,7 @@ This register is the gate.
 ### `tenancy-showcase-seed-deterministic-ids` — `On-demand showcase demo seed with deterministic ids`
 
 - **Caller:** `src/main/java/ch/alpenflight/tenancy/showcase/ShowcaseSeeder.java`
-- **Tenant-scoped tables touched:** t_location, t_flight
+- **Tenant-scoped tables touched:** t_location, t_flight, t_person_club
 - **Justification:** the showcase seed (J-3) needs *fixed* row ids so the e2e
   display spec + admin-dashboard tiles can assert against known rows
   (`LOCATION_C1_HOME`, the per-state flight matrix, …). The Location + Flight
@@ -105,15 +105,21 @@ This register is the gate.
   getters, then carry the deterministic id in an idempotent
   `ON CONFLICT (id) DO NOTHING` INSERT. The seeder is showcase-only
   (`@Profile("showcase")`), never on the IT bootstrap path, and never serves a
-  request — it is a curated demo loader.
+  request — it is a curated demo loader. (J-4 T-14:
+  `insertPilot1PersonClub()` extends the same chosen-id pattern to
+  `t_person_club` — `pilot1`'s deterministic club-1 membership row carries the
+  notification-pref values the `/profile` Notifications tab renders +
+  round-trips, and must reuse a fixed id (`PERSON_CLUB_PILOT1`) so the e2e
+  profile spec can assert against the known membership.)
 - **Tenancy gate:** every INSERT/UPDATE sets the tenant column explicitly —
-  `t_location.club_id` and `t_flight.operating_club_id` are parameter-bound
-  literals (never caller-controlled string interpolation), and the whole
-  location + flight seed runs inside `Tenants.runAs(clubId, ...)` so the
-  effective-tenant write-context matches the inserted rows (defence in depth).
-  This does NOT bypass tenant scoping — it sets the tenant column rather than
-  relying on the `@TenantId` discriminator, which the chosen-id INSERT path
-  can't engage.
+  `t_location.club_id`, `t_flight.operating_club_id` and `t_person_club.club_id`
+  are parameter-bound literals (never caller-controlled string interpolation).
+  The location + flight seed additionally runs inside `Tenants.runAs(clubId, ...)`
+  so its effective-tenant write-context matches the inserted rows (defence in
+  depth); the `t_person_club` membership row carries `CLUB_1` as the bound
+  `club_id` parameter directly. This does NOT bypass tenant scoping — it sets the
+  tenant column rather than relying on the `@TenantId` discriminator, which the
+  chosen-id INSERT path can't engage.
 - **Reviewer:** auto-registered with J-3 T-03c; security-reviewer panel
   (ship-time gate) re-confirms.
 - **Approved:** 2026-06-04.

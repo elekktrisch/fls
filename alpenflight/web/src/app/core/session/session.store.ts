@@ -1,8 +1,19 @@
-import { computed, inject } from '@angular/core';
-import { patchState, signalStore, withComputed, withMethods, withState } from '@ngrx/signals';
+import { DestroyRef, computed, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  patchState,
+  signalStore,
+  withComputed,
+  withHooks,
+  withMethods,
+  withState,
+} from '@ngrx/signals';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
 import { EMPTY, catchError, pipe, switchMap, tap } from 'rxjs';
 
+import { LocaleService } from '@shared/ui/locale';
+
+import { hasExplicitLangOverride, localeForLanguageCode } from '../i18n';
 import { MUTATION_BUS } from '../mutation-bus/mutation-bus';
 import { ReferenceDataStore } from '../reference-data/reference-data.store';
 
@@ -80,6 +91,7 @@ export const SessionStore = signalStore(
       bus = inject(MUTATION_BUS),
       refData = inject(ReferenceDataStore),
       me = inject(MeService),
+      locale = inject(LocaleService),
     ) => {
       const loadMe = rxMethod<void>(
         pipe(
@@ -89,6 +101,22 @@ export const SessionStore = signalStore(
                 const current = store.authenticatedUser();
                 if (!current) {
                   return;
+                }
+                // Cold-start locale precedence (J-4 T-20): the app-initializer
+                // already ran `LocaleService.set(?lang= → navigator → de)`
+                // synchronously at bootstrap. Now that `/me` resolved, an
+                // authenticated user's PERSISTED `languageCode` takes
+                // precedence over the navigator/default fallback — so a saved
+                // language survives reload/next login. An explicit `?lang=`
+                // override always wins (operator-pinned), so it is NOT
+                // overridden here; an unmappable code (e.g. `rm`) leaves the
+                // cold-start locale in place.
+                const urlSearch = typeof window !== 'undefined' ? window.location.search : null;
+                if (!hasExplicitLangOverride(urlSearch)) {
+                  const persisted = localeForLanguageCode(response.languageCode);
+                  if (persisted !== null && persisted !== locale.current()) {
+                    locale.set(persisted);
+                  }
                 }
                 // /me is the source of truth for {personId, clubId,
                 // firstName, lastName, email, username, id} post-auth. JWT
@@ -162,6 +190,22 @@ export const SessionStore = signalStore(
       };
     },
   ),
+  withHooks({
+    onInit(store) {
+      const bus = inject(MUTATION_BUS);
+      const destroyRef = inject(DestroyRef);
+      // The /profile Account self-edit (J-4) emits `profile.updated` after a
+      // successful PATCH /api/v1/me/profile. Re-read /me so the nav avatar +
+      // session-backed consumers reflect the new friendlyName / email /
+      // language without a page reload. Cross-store coordination via the bus
+      // (no direct AccountStore→SessionStore injection).
+      bus.pipe(takeUntilDestroyed(destroyRef)).subscribe((evt) => {
+        if (evt.kind === 'profile.updated') {
+          store.loadMe();
+        }
+      });
+    },
+  }),
 );
 
 function sessionStatusIsLoading(status: SessionStatus): boolean {

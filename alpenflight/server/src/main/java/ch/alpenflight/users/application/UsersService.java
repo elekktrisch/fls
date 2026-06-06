@@ -235,6 +235,86 @@ public class UsersService {
         return after;
     }
 
+    /**
+     * Account self-edit (J-4 T-04). The caller edits their OWN User row,
+     * resolved from the JWT {@code sub} via {@code keycloak_sub} — never from
+     * an id in the request, so cross-principal mutation is structurally
+     * impossible. Updates only the self-fields (friendlyName, notificationEmail,
+     * phoneNumber, languageId); {@code remarks} (admin-only) is read from the
+     * existing row and passed back through {@link User#updateProfile} unchanged,
+     * and identity-binding fields (username / clubId / keycloakSub) are not on
+     * the parameter list. No Keycloak round-trip and no role delta — this
+     * surface cannot touch roles.
+     *
+     * <p>Returns {@code void}: no Keycloak round-trip and no role read — the
+     * caller's {@code me} controller re-projects the persisted state through
+     * {@code MeService} (the same projection {@code GET /me} serves).
+     *
+     * @throws IllegalArgumentException if the caller resolves to no active user
+     *     row, or {@code languageId} is not a known language.
+     */
+    public void updateOwnProfile(@Nullable Jwt callerJwt, SelfProfileUpdate cmd) {
+        UUID sub = callerSubOrThrow(callerJwt);
+        User u = users.findActiveByKeycloakSub(sub).orElseThrow(() ->
+                new IllegalArgumentException("No active user row for the authenticated principal"));
+        if (!users.languageExists(cmd.languageId())) {
+            throw new IllegalArgumentException("Unknown languageId: " + cmd.languageId());
+        }
+        // Snapshot WITHOUT a Keycloak round-trip: this surface cannot touch
+        // roles, so the audit diff carries the empty role set on both sides —
+        // a `currentRoles(sub)` read here would be a needless KC call on the
+        // self-edit hot path (and would couple the self-edit to KC reachability).
+        UserResponse before = selfEditSnapshot(u);
+        // Preserve the admin-only remarks: the self-edit surface never sets it.
+        u.updateProfile(cmd.friendlyName(), cmd.notificationEmail(),
+                cmd.phoneNumber(), u.getRemarks(), cmd.languageId());
+        User saved = users.save(u);
+        users.flush();
+        // Audit the self-edit on the User aggregate the caller owns. Target id
+        // is the caller's own row (resolved from the JWT sub, not a request id),
+        // so the forensic trail attributes the mutation to the principal who
+        // made it. Same UPDATE-on-"User" shape as the admin update() path.
+        auditTrail.record(AuditAction.UPDATE,
+                AuditedTarget.updated(AUDIT_USER, requireId(saved), before, selfEditSnapshot(saved)));
+    }
+
+    /**
+     * Audit snapshot for the self-edit path — projects the User's mutable
+     * self-fields with an empty role set (the self-edit surface cannot mutate
+     * roles, so they never enter the before/after diff) and so avoids the
+     * Keycloak round-trip {@link #toResponse} makes.
+     */
+    private UserResponse selfEditSnapshot(User u) {
+        return new UserResponse(
+                UserId.of(requireId(u)),
+                u.getClubId(),
+                u.getUsername(),
+                u.getFriendlyName(),
+                u.getNotificationEmail(),
+                u.getPhoneNumber(),
+                u.getRemarks(),
+                u.getLanguageId(),
+                u.getPersonId(),
+                List.of(),
+                /*enabled=*/ u.isActive(),
+                /*invitePending=*/ false);
+    }
+
+    private static UUID callerSubOrThrow(@Nullable Jwt jwt) {
+        if (jwt == null) {
+            throw new IllegalArgumentException("No authenticated principal");
+        }
+        String sub = jwt.getSubject();
+        if (sub == null || sub.isBlank()) {
+            throw new IllegalArgumentException("Authenticated principal has no subject");
+        }
+        try {
+            return UUID.fromString(sub);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Authenticated principal subject is not a UUID");
+        }
+    }
+
     public void softDelete(UserId id, @Nullable UUID callerUserId, @Nullable Jwt callerJwt) {
         User u = loadInCurrentTenantOrThrow(id);
         UUID rowId = requireId(u);

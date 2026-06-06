@@ -200,6 +200,15 @@ public class ShowcaseSeeder {
     /** {@code pilot-c2}'s Person — linked to its {@code t_user}. */
     private static final UUID PERSON_PILOT_C2 =
             UUID.fromString("019e30c3-2c00-7601-8000-000000000602");
+    /**
+     * {@code pilot1}'s club-1 membership ({@code t_person_club}) — carries the J-4
+     * notification-pref values the {@code /profile} Notifications tab renders +
+     * round-trips. (J-4 T-14: this membership lives on pilot1's REAL flights-PIC
+     * person, not a V30 orphan, so the J-3 last-flight card and the J-4 profile
+     * tabs both resolve the same person.)
+     */
+    private static final UUID PERSON_CLUB_PILOT1 =
+            UUID.fromString("019e30c3-2c00-7701-8000-000000000701");
 
     /** {@code pilot1}'s {@code t_user} id (V8 seed) — gets {@code person_id} linked here. */
     private static final UUID USER_PILOT1 =
@@ -446,12 +455,30 @@ public class ShowcaseSeeder {
     // -------------------------------------------------------------------------
 
     private void seedPersonsAndLinks() {
-        insertPerson(PERSON_PILOT1, "One", "Pilot");
+        // pilot1's Person is the SAME one the 8 club-1 flights are crewed against
+        // (PERSON_PILOT1, person band …7601…0601). J-4 (T-14) enriches it with the
+        // full self-edit field set the /profile tabs render (contact/address +
+        // licence/medical) so BOTH surfaces resolve one person: the J-3 dashboard
+        // last-flight card (filters GET /flights?personId=PERSON_PILOT1) AND the
+        // J-4 profile Personal/Pilot/Notifications tabs. V30 no longer creates a
+        // separate orphan person + relinks pilot1 (that broke the linkage — the
+        // last-flight card went empty). pilot-c2's person stays minimal (J-3 only
+        // needs its crew linkage; J-4 drives pilot1 only).
+        insertPilot1Person();
         insertPerson(PERSON_PILOT_C2, "Two-Club", "Pilot");
+        // pilot1's club-1 membership with the J-4 notification-pref values
+        // (flightReports=true, reservations=false, clubNews/planning-reminder=true).
+        insertPilot1PersonClub();
         // Link the person onto the existing t_user (idempotent — only sets it
         // when still null, so a re-run is a no-op and we never clobber a real link).
         linkUserPerson(USER_PILOT1, PERSON_PILOT1);
         linkUserPerson(USER_PILOT_C2, PERSON_PILOT_C2);
+        // pilot1's mutable Account-tab self-field that V8 doesn't seed
+        // (friendly_name / notification_email / language_id come from V8). The
+        // /profile Account tab renders + round-trips phone_number.
+        jdbc.update(
+                "UPDATE t_user SET phone_number = ? WHERE id = ?::uuid AND phone_number IS NULL",
+                "+41 79 000 00 01", USER_PILOT1.toString());
     }
 
     private void insertPerson(UUID id, String lastname, String firstname) {
@@ -461,6 +488,62 @@ public class ShowcaseSeeder {
                 ON CONFLICT (id) DO NOTHING
                 """,
                 id.toString(), lastname, firstname, COUNTRY_CH.toString());
+    }
+
+    /**
+     * pilot1's fully-populated Person (J-4 T-14). Carries the contact/address +
+     * licence/medical fields the /profile Personal + Pilot tabs render. Field
+     * values match the J-4 task contract (T-02): has_glider_pilot_licence=true,
+     * licence_number=CH-GLD-0001, medical_class2_expire_date=2027-09-30.
+     */
+    private void insertPilot1Person() {
+        jdbc.update("""
+                INSERT INTO t_person (
+                    id, lastname, firstname,
+                    address_line1, zip, city, region, country_id,
+                    private_phone, mobile_phone, business_phone,
+                    email_private, email_business, prefer_mail_to_business_mail,
+                    birthday, enable_address,
+                    has_glider_pilot_licence, licence_number, medical_class2_expire_date
+                ) VALUES (
+                    ?::uuid, 'One', 'Pilot',
+                    'Flugplatzstrasse 1', '3000', 'Bern', 'BE', ?::uuid,
+                    '+41 31 000 00 01', '+41 79 000 00 01', '+41 31 000 00 02',
+                    'pilot1.private@example.com', 'pilot1.business@example.com', false,
+                    DATE '1985-06-15', true,
+                    true, 'CH-GLD-0001', DATE '2027-09-30'
+                )
+                ON CONFLICT (id) DO NOTHING
+                """,
+                PERSON_PILOT1.toString(), COUNTRY_CH.toString());
+    }
+
+    /**
+     * pilot1's club-1 membership with the J-4 notification-pref values (the
+     * /profile Notifications tab edits these). member_state_id stays NULL — no
+     * t_member_state rows are seeded for seed-club-1, and the FK would reject a
+     * dangling reference; member_number carries the membership-identity value.
+     */
+    private void insertPilot1PersonClub() {
+        jdbc.update("""
+                INSERT INTO t_person_club (
+                    id, person_id, club_id, member_number,
+                    is_glider_pilot,
+                    receive_flight_reports,
+                    receive_aircraft_reservation_notifications,
+                    receive_planning_day_role_reminder,
+                    is_active
+                ) VALUES (
+                    ?::uuid, ?::uuid, ?::uuid, 'M-0001',
+                    true,
+                    true,   -- receive_flight_reports
+                    false,  -- receive_aircraft_reservation_notifications
+                    true,   -- receive_planning_day_role_reminder
+                    true
+                )
+                ON CONFLICT (id) DO NOTHING
+                """,
+                PERSON_CLUB_PILOT1.toString(), PERSON_PILOT1.toString(), CLUB_1.toString());
     }
 
     private void linkUserPerson(UUID userId, UUID personId) {

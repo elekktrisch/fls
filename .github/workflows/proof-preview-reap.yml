@@ -38,6 +38,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
+      # J-4 T-24 — check out the repo so the `rebuild-previews-index` composite
+      # action (and the index generator it runs) is available after the reap.
+      - uses: actions/checkout@v4
+
       - name: Derive sanitized preview subpath
         id: preview
         env:
@@ -144,3 +148,15 @@ jobs:
           else
             echo "::warning::push to gh-pages failed (likely a fork PR with no write token) — skipping reap."
           fi
+
+      # J-4 T-24 — after the branch's proof-preview/<branch>/ dir is removed,
+      # rebuild the persistent previews index so the closed branch DROPS OFF the
+      # listing. The composite does its own fresh gh-pages checkout (post-reap), so
+      # it re-scans the now-smaller tree and last-writer-wins keeps the index
+      # correct. Runs only when gh-pages exists (nothing to re-index otherwise).
+      # Fail-soft inside the composite — the index is an entry point, not a gate.
+      - name: Rebuild persistent previews index (drop closed branch)
+        if: ${{ steps.ghpages.outputs.exists == 'true' }}
+        uses: ./.github/actions/rebuild-previews-index
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}

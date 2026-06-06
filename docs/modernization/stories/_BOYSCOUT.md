@@ -12,7 +12,26 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
-## Pending (filed by /do-retro 2026-06-04, J-2 window)
+## Pending (filed by /do-ship 2026-06-05, J-4 window)
+
+- **Legacy `/profile` walkthrough video doesn't stage in the fanout `legacy-parity` gallery (J-4 done-bar
+  loose end).** The legacy parity spec `e2e/tests/profile/profile-parity-J4.spec.ts` now PASSES (accordion-
+  expand fix) + the 8 paired screenshots render, but the staging `find /tmp/fls-e2e-results -path
+  '*profile-parity-J4*' -name '*.webm'` finds no video → `profile-parity-J4.webm` not declared. The J-0c/J-1/J-2
+  legacy specs DO stage videos on pass, so it's a per-`profile`-project video-retention/output-dir quirk, not
+  pass-vs-fail. Done-bar was met by the paired screenshots ("judgeable side-by-side"); add the video on the next
+  fanout-touching task. *(seam: top-level e2e `profile` project video config / the fanout video-find path)*
+
+- **Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).** Each
+  `timeout NNN ./gradlew test` that gets SIGKILLed leaks an `alpenflight-pg-test-*` container + ~1 GB volume
+  because `PostgresTestContainerLifecycle`'s cleanup is a JVM **shutdown hook** that never fires on a kill.
+  Reclaimed ~10 GB across the window via `docker rm -f alpenflight-pg-test-* && docker volume/image prune`.
+  Durable fix: add a **pre-start sweep** to `PostgresTestContainerLifecycle.start()` (reap stale
+  `alpenflight-pg-test-*` before starting — reaps a leaked one on the next run regardless of how the prior
+  died) AND a settings.json **Stop hook** that prunes after each session/worker. Snapshot-regen throwaway PGs
+  are no longer needed now the remote DB is reachable again (use `DATASOURCE_*`). *(seam:
+  PostgresTestContainerLifecycle pre-start sweep + a cleanup hook)* — see [[project_docker_disk_leak_orphaned_testcontainers]].
+
 
 - ~~**Make "Run Playwright" part of the required `ci` gate (operator, J-2 retro).**~~ **Shipped J-3 T-12**
   — folded the mock-auth chromium suite into `ci.yml` as the `alpenflight-mock-e2e` ("Run Playwright")
@@ -95,6 +114,18 @@ _Scan note: no e2e specs carry `@helper`/`covered-by` tags yet → no helper-pru
   set explicit `operationId`s on the `me`-dashboard endpoints (and ideally project-wide) so orval emits
   named methods, not positional `getN`. *(seam: backend operationId annotations + orval config + the few
   `meService.getN()` call sites)* — fix-forward on the next web-touching journey.
+
+## Pending (filed by /do-retro 2026-06-05, J-3 window)
+
+- **Scope the clean-seed `alpenflight-proof` job to the journey-under-work's spec (operator ask, J-3
+  retro).** Today `ci.yml`'s `alpenflight-proof` re-runs J-0+J-1+J-2(+…) real-idp specs on EVERY push —
+  slow, expensive, and it lets an unrelated prior-journey flake red the current journey's gate (J-3:
+  the J-1 aircraft retry-flake blocked J-3, which never touched aircraft). Make the per-push proof run
+  only the **current journey's** spec(s) (parameterize the spec list off the integration branch / a
+  journey marker), and move the **full cross-journey regression** to a **gate-only / nightly** run
+  (`alpenflight-e2e-real-idp.yml` already hosts a nightly full suite — point the regression there). Pairs
+  with the [[J-1 aircraft flake]] rider (lighter + scoped proof also stops that flake gating other
+  journeys). *(seam: ci.yml alpenflight-proof spec selection + the nightly full-suite trigger)*
 
 ## Pending (filed by /do-ship 2026-06-05, J-3 window)
 

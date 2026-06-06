@@ -58,7 +58,12 @@ export default defineConfig({
     // Keycloak / Mailpit / backend. Default `pnpm e2e` target.
     {
       name: 'chromium',
-      testMatch: 'tests/!(real-idp)/**/*.spec.ts',
+      // Everything outside `real-idp/` EXCEPT `profile/` — the profile spec
+      // (J-4 `self-edit.spec.ts`) drives the real Keycloak redirect login as a
+      // real PILOT principal, so it belongs to the `real-idp` project below.
+      // `tests/profile/` would otherwise match `!(real-idp)` and try to run on
+      // the mock-auth SPA (no KC form → the landing-sign-in click hangs).
+      testMatch: ['tests/!(real-idp|profile)/**/*.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: MOCK_BASE_URL,
@@ -94,7 +99,12 @@ export default defineConfig({
     // mock-auth, so retry posture diverges deliberately.
     {
       name: 'real-idp',
-      testMatch: 'tests/real-idp/**/*.spec.ts',
+      // `real-idp/**` plus the J-4 profile self-edit spec, which lives at the
+      // journey-pinned `tests/profile/` path (parity_test) but needs the live
+      // Keycloak + backend stack (real PILOT redirect login). Both share this
+      // project's real-idp config (REAL_IDP_BASE_URL, `video: 'on'`, single
+      // worker, the real-idp-setup dependency).
+      testMatch: ['tests/real-idp/**/*.spec.ts', 'tests/profile/**/*.spec.ts'],
       dependencies: ['real-idp-setup'],
       use: {
         ...devices['Desktop Chrome'],

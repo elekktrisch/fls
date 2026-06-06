@@ -65,6 +65,15 @@ public interface UserRepository {
      */
     long countAllActive();
 
+    /**
+     * True iff a {@code t_language} row with this id exists. Lets the
+     * application reject an unknown {@code languageId} with a clean 400 rather
+     * than letting the {@code fk_user_language_id} FK fail at flush (which
+     * would surface as a 500). The language table is a small static reference
+     * set (V2 seed).
+     */
+    boolean languageExists(UUID languageId);
+
     User save(User user);
 
     void flush();

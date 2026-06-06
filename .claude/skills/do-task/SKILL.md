@@ -96,8 +96,12 @@ round later (J-1 T-10: `aircraft`→`users` internal-type dep, caught at the gat
 Commit **directly to `integration/J-NNN`**, per work-package (subject `#N: <task
 summary>` / `J-NNN T-NN: …`). Don't push past red; don't `--no-verify` /
 force-push. Tick `T-NN` in the journey's `## Tasks` checklist (one commit may
-include the tick). If you opened nothing, `/do-ship` handles the draft PR; if a
-PR exists, push and let CI run.
+include the tick). **Then `git push` — always, as the last step of the task.** The
+branch already carries a PR + CI; a commit you don't push is stranded locally and
+makes CI (and the manager) test stale state (J-3: two tasks sat local-only,
+burning a confused diagnosis loop). The only reason to skip the push is a red local
+build — then you're not done. (`/do-ship` still opens the draft PR after the first
+green backend task if none exists; that doesn't relieve you of pushing your commit.)
 
 **Format + lint the touched files before you commit** — run the project formatter in
 **write** mode then verify, over the **full glob** you changed (e.g. `prettier --write`

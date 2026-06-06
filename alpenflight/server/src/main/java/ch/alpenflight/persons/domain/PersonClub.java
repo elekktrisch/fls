@@ -185,6 +185,32 @@ public class PersonClub {
         this.active = newActive;
     }
 
+    /**
+     * Focused notification-prefs self-edit (J-4 T-10, the Notifications tab).
+     * Changes ONLY the three notification booleans
+     * ({@link #receiveFlightReports},
+     * {@link #receiveAircraftReservationNotifications},
+     * {@link #receivePlanningDayRoleReminder}); the admin-only membership
+     * identity fields — {@link #memberNumber}, {@link #memberStateId}, the role
+     * flags ({@code motorPilot} … {@code motorInstructor}) and {@link #active}
+     * — are deliberately left untouched. Unlike {@link #applyMembership} (which
+     * replaces the WHOLE membership shape, driven by the admin
+     * {@code updateClubMembership} flow), this is the narrow business rule the
+     * caller may apply to their own membership.
+     *
+     * <p>Package-private: only {@link Person#updateNotificationPrefs} drives it,
+     * mirroring how {@code applyMembership} is reached only via the aggregate
+     * root.
+     */
+    void updateNotificationPrefs(PersonNotificationPrefs prefs) {
+        if (prefs == null) {
+            throw new IllegalArgumentException("prefs must not be null");
+        }
+        this.receiveFlightReports = prefs.receiveFlightReports();
+        this.receiveAircraftReservationNotifications = prefs.receiveAircraftReservationNotifications();
+        this.receivePlanningDayRoleReminder = prefs.receivePlanningDayRoleReminder();
+    }
+
     void softDelete(@Nullable UUID userId, Instant at) {
         if (this.deletedOn == null) {
             this.deletedOn = at;

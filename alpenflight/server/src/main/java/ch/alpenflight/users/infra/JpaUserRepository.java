@@ -50,4 +50,11 @@ public interface JpaUserRepository extends JpaRepository<User, UUID>, UserReposi
     @Override
     @Query("select count(u) from User u where u.deletedOn is null")
     long countAllActive();
+
+    @Override
+    // Native: no Language entity is mapped (the language seed is a static
+    // reference table, read elsewhere via JDBC — see LanguageCodeLookup).
+    @Query(value = "select exists(select 1 from t_language where id = :languageId)",
+            nativeQuery = true)
+    boolean languageExists(@Param("languageId") UUID languageId);
 }

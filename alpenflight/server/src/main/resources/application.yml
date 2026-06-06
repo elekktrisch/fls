@@ -216,6 +216,47 @@ audit:
           - active
           - deletedOn
           - deletedByUserId
+      PersonLicences:
+        # J-4 T-08 (AC4) — the `person.licences_updated` self-edit audit. This
+        # entity type is the SelfLicencesView snapshot, NOT the Person @Entity
+        # (which stays in deny-all). The Pilot tab is FADP-sensitive, so the
+        # journey requires a READABLE before/after diff for a sysadmin: the
+        # licence flags + licence number + start-permission flags emit verbatim.
+        # The medical-expiry dates ride verbatim too FOR NOW — the medical-field
+        # PII-redaction policy (which dates emitted vs hashed) is explicitly
+        # DEFERRED per S-182's open questions; revisit when that policy lands.
+        allow:
+          - hasMotorPilotLicence
+          - hasTowPilotLicence
+          - hasGliderInstructorLicence
+          - hasGliderPilotLicence
+          - hasGliderTraineeLicence
+          - hasGliderPaxLicence
+          - hasTmgLicence
+          - hasWinchOperatorLicence
+          - hasMotorInstructorLicence
+          - hasPartMLicence
+          - licenceNumber
+          - medicalClass1ExpireDate
+          - medicalClass2ExpireDate
+          - medicalLaplExpireDate
+          - gliderInstructorLicenceExpireDate
+          - motorInstructorLicenceExpireDate
+          - partMLicenceExpireDate
+          - hasGliderTowingStartPermission
+          - hasGliderSelfStartPermission
+          - hasGliderWinchStartPermission
+          - receiveOwnedAircraftStatisticReports
+      PersonClubNotificationPrefs:
+        # J-4 T-10 — the notification-prefs self-edit audit (Notifications tab).
+        # This entity type is the lean SelfNotificationPrefsView snapshot (NOT
+        # the PersonClub @Entity). The three booleans are non-sensitive
+        # operational flags, so the before/after diff emits verbatim for a
+        # readable trail.
+        allow:
+          - receiveFlightReports
+          - receiveAircraftReservationNotifications
+          - receivePlanningDayRoleReminder
       User:
         # S-052 — Email + friendlyName + phone are PII and omitted; the audit
         # row carries them as `[redacted]`. The id-shaped + tenant-shaped

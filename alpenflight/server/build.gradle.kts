@@ -486,5 +486,24 @@ val seedShowcase by tasks.registering(JavaExec::class) {
     args = listOf(
         "--spring.profiles.active=dev,showcase",
         "--alpenflight.showcase.exit-after-seed=true",
+        // Bind the web server to an EPHEMERAL port (--server.port=0) so this task
+        // never collides with port 8080 when it runs ALONGSIDE the already-running
+        // backend in the fan-out's seed-after-gating-specs ordering
+        // (alpenflight-proof-fanout.yml step 6b, run 27035833678: "Port 8080 was
+        // already in use" → the seed crashed before the runner fired → the J-4
+        // /profile capture + its 4 gallery PNGs were skipped).
+        //
+        // We deliberately KEEP the servlet web context. The seed is driven by
+        // ShowcaseSeedRunner (an ApplicationRunner that fires on app-ready, commits
+        // the dataset, then System.exit(0)) and never serves a request — but
+        // SecurityConfig.defaultFilterChain requires HttpSecurity, which only the
+        // servlet web context provides. An earlier fix used
+        // --spring.main.web-application-type=none to dodge the port collision; that
+        // dropped the servlet context and broke bean wiring
+        // (UnsatisfiedDependencyException: no HttpSecurity for 'defaultFilterChain',
+        // run 27039051676) before the runner could fire. An ephemeral random port
+        // boots Tomcat harmlessly, seeds, and exits 0 — and stays correct in ci.yml's
+        // seed-BEFORE-backend ordering too (a throwaway port there is a no-op).
+        "--server.port=0",
     )
 }
