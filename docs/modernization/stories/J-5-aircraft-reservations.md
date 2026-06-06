@@ -90,11 +90,14 @@ gate, not their own journey ([[feedback_journey_is_a_60_40_sprint]]).
 - **Proof-gallery per-journey re-arch — FIRST slice only** (substantial pure tech-debt, split across
   2-3 journeys' budgets): e.g. make the gallery generator **key by `journey`** (the sidecars already
   carry the field) without yet retiring the per-proof-type sub-paths. [[feedback_proof_gallery_per_journey_one_bookmark]]
-- **Fallow maintainability pass** (filed by this carve): commit `alpenflight/web/.fallowrc.json`
-  (honest score 52 D→70 B), and build the new reservation `*-edit.page.ts` WITHOUT replicating the
-  flagged `formToUpdateRequest`/`finalSubmit`/`errorPatch` complexity — extract the shared form↔request
-  helper so the new page lands low-CRAP. Non-reservation hotspots ride their own next-touch journey.
-  [[reference_fallow_maintainability_analyzer]]
+- **Maintainability pass** (filed by this carve; maintainability = complexity + duplication + dead
+  code per operator): commit `alpenflight/web/.fallowrc.json` (honest score 52 D→70 B); build the new
+  reservation `*-edit.page.ts` WITHOUT replicating the flagged `formToUpdateRequest`/`finalSubmit`/
+  `errorPatch` complexity (extract the shared helper, land low-CRAP); add **PMD+CPD** to
+  `alpenflight/server` (the backend's missing complexity/dup/dead-code axis — reservation aggregate is
+  the first target); and render a **per-journey Maintainability panel** on the J-5 gallery page (fallow
+  `ci` changed-files envelope + the pmd/cpd report). Non-reservation hotspots ride their own next-touch
+  journey. [[reference_fallow_maintainability_analyzer]] [[feedback_maintainability_includes_dupes_and_deadcode]]
 - Minor: e2e prettier/tsc-strict normalization on touched specs only.
 
 **Assumptions made:**

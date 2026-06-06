@@ -12,15 +12,20 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
-## Pending (filed by /do-plan 2026-06-06, J-5 carve — `fallow` maintainability pass)
+## Pending (filed by /do-plan 2026-06-06, J-5 carve — maintainability tooling)
 
-Ran `npx fallow@latest health` (deterministic TS/JS code-intelligence) on `alpenflight/web`.
+**Maintainability = complexity + duplication + dead code** (operator, 2026-06-06 —
+[[feedback_maintainability_includes_dupes_and_deadcode]]): run fallow's **full default**
+(`dead-code` + `dupes` + `health`), not just `health`, and report/track all three.
+
+Ran `npx fallow@latest` (full default; deterministic TS/JS code-intelligence) on `alpenflight/web`.
 Raw score **52 D** was misleading — fallow scanned `node_modules` + a stray `node_modules.windows`
 tree (reported **2371** unused deps vs **41** declared) and counted the orval-generated client in
-duplication (**20.8%**). With `node_modules.windows` + `src/app/api/generated` + specs excluded the
-honest score is **70 B**: maintainability index **92 (good)**, avg cyclomatic **2.2** / p90 **4**,
-dead files **1.1%**, duplication **6.3%**, **6** real unused deps. The rewrite is NOT in trouble —
-fallow surfaces a tight, real hotspot short-list + needs a committed config to stop crying wolf.
+duplication (**20.8%**). With `node_modules.windows` + `src/app/api/generated` excluded the honest
+read across all three axes is: **complexity** MI **92 (good)** but **87** high-complexity fns;
+**duplication 11.7%** (192 clone groups, 83 files); **dead code** small — **3** unused files, **1**
+unused dep + **5** unused devDeps, **1** unresolved import. NOT in trouble — a tight, real hotspot
+short-list + needs a committed config to stop crying wolf.
 
 - **Commit `alpenflight/web/.fallowrc.json` so the score is honest (operator: commit config).** Add
   `ignorePatterns: ["**/node_modules.windows/**", "src/app/api/generated/**", "dist/**", "coverage/**"]`
@@ -41,8 +46,36 @@ fallow surfaces a tight, real hotspot short-list + needs a committed config to s
   aircraft/flights/users hotspots as each is touched). The non-J-5 hotspots (aircraft/users/persons edit
   pages) ride their own next-touch journey, not J-5. *(seam: `*-edit.page.ts` form-mapping helper extraction
   + the per-feature store `errorPatch`)*
-  Minor, same budget: drop the **6 real unused deps** fallow lists once the config lands (`fallow dead-code`
-  to enumerate). Not worth `fallow fix` (dead files only 1.1%).
+  Minor, same budget: drop the **3 unused files + 6 unused deps + 1 unresolved import** fallow lists once
+  the config lands (`fallow dead-code` enumerates). Not worth `fallow fix` (dead files only 1.1%).
+
+- **Java maintainability tool for `alpenflight/server` — add PMD + CPD (+ SpotBugs) (operator: "similar
+  tool for Java").** The backend already covers the *architecture* axis (Spring Modulith
+  `ApplicationModulesTest` + ArchUnit boundary rules), but has **no** complexity / duplication / dead-code
+  analysis — the other three fallow axes. Closest deterministic-CLI Java analog (CI-friendly, gradle
+  plugins): **PMD** (cyclomatic/cognitive complexity rules + unused private code) + **CPD** (PMD's
+  copy-paste detector, the duplication axis) + optionally **SpotBugs** (dead stores / bug patterns from
+  bytecode). Concrete baseline today (jscpd proxy, `--min-lines 8`): **5.57% duplicated lines, 101 clones
+  across 434 files** — modest, worth tracking not firefighting. Recommend gradle `pmd` + a `cpdCheck` task
+  wired into `check` with a baseline so it ratchets, NOT a hard fail on existing debt. (SonarQube is the
+  fuller dashboard but heavier / server-hosted — defer unless the operator wants the dashboard.) Rides the
+  next backend-touching journey's ≤40% budget (J-5 builds the reservation aggregate — a natural first
+  PMD/CPD target). *(seam: `alpenflight/server/build.gradle.kts` pmd+cpd plugin + baseline + `check` wiring)*
+  — see [[reference_fallow_maintainability_analyzer]].
+
+- **Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
+  to the proof gallery for each journey page").** Extends the gallery per-journey re-arch rider above (the
+  index → one page per journey). Each journey page gains a **Maintainability** section rendering the
+  journey's *delta* + repo snapshot across the three axes: **frontend** via fallow's changed-files envelope
+  for the journey's `integration/J-NNN` branch (`fallow ci`/`audit` emits a PR/MR JSON envelope = exactly
+  the complexity/dupes/dead-code introduced by the journey's diff) + the snapshot (MI, dup%, dead-code);
+  **backend** via the PMD/CPD (+SpotBugs) report on the changed Java. The gallery deploy step runs
+  `fallow ci --format json` + the gradle pmd/cpd XML, and `generate-gallery.mjs` renders an HTML panel
+  (green/amber/red on the delta, link to full report). So each journey's page shows not just "the screen
+  works" but "the journey didn't rot maintainability". Project-code/CI work → rides a journey's ≤40% budget
+  *with* the gallery re-arch (it's the same generator + deploy seam). *(seam: `generate-gallery.mjs`
+  maintainability panel + ci.yml/fanout `fallow ci` + pmd/cpd report-emit steps)* — see
+  [[feedback_proof_gallery_per_journey_one_bookmark]], [[feedback_maintainability_includes_dupes_and_deadcode]].
 
 ## Pending (filed by /do-ship 2026-06-05, J-4 window)
 
