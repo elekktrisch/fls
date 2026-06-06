@@ -354,6 +354,33 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   beforeAll-seed didn't populate aircraft/person/location for the clean realm), a `reservation-type-select`
   selector mismatch vs the real DOM, or the post-create list/scheduler render assertion. Fix to green (raise a
   measured timeout only if the cause is genuinely slow, not to mask a hang). *(seam: real-idp reservations spec create flow / masterdata seed)*
+  **ESCALATED (T-23 diagnosis — root cause is a BACKEND DTO bug, outside the e2e lane):** NOT a hang, NOT an
+  empty picker, NOT a selector mismatch. The `error-context.md` page snapshot shows the form fully populated
+  (aircraft HB-RAGL, type Allgemein, pilot, location, 2026-09-01 10:00–11:00) with an inline alert
+  `Http failure response for .../api/v1/aircraft-reservations: 400 Bad Request` and the Save button disabled —
+  the create POST 400d, so the "renders in the list" assertion never resolved and the test hit the 45s budget.
+  Trace network (`7/9-trace.network` → resource sha1) confirms the POST body:
+  `{"aircraftId":"ac-c822…","pilotPersonId":"pn-a813…","locationId":"loc-2ed0…","reservationTypeId":"019e30c3-…"}`
+  → `400 {"error":"Bad Request"}`. ROOT CAUSE: the masterdata pickers serialize their `id` as the TYPED-ID
+  family (`AircraftPickerItem.id` = `^ac-…`, `PersonListItem.id` = `^pn-…`, `LocationListItem.id` = `^loc-…`
+  per the generated model patterns), and the edit form binds the picker id straight into the create body — but
+  `AircraftReservationDtos.AircraftReservationCreateRequest`/`UpdateRequest` declare those three FKs as plain
+  `java.util.UUID` (T-05). `TypedIdJacksonModule` only registers the typed-id classes, NOT plain `UUID`, so
+  Jackson can't parse `"ac-…"` into a `UUID` → 400. FLIGHTS (J-2, same pickers) work precisely because
+  `FlightCreateRequest.aircraftId` is typed `AircraftId` (generated `^ac-…` pattern) + `personId` is `PersonId`
+  — reservations are the lone outlier. (`7 did not run` in the run = the serial group aborted on this first
+  failure; the overlap-409/duration-422/all-day/cross-tenant/delete tests never executed but would 400
+  identically — they post the same `ac-`/`pn-`/`loc-` ids via the REST helper.) FIX (backend + client regen,
+  NOT e2e): change the three FK fields on `AircraftReservationCreateRequest`/`UpdateRequest` (and align
+  `AircraftReservationDetail`/`AircraftReservationListItem` + the service's `requireNonNull(...getAircraftId())`
+  + the mapper + the ControllerIT) to the typed ids `AircraftId`/`PersonId`/`LocationId` (matching flights),
+  then regenerate the OpenAPI snapshot + orval client. The store/form `string` types are unchanged (the form
+  already binds the prefixed id correctly). A pure-e2e fix is impossible without faking the seam (rewriting the
+  request body to strip prefixes would defeat the @TenantId/conflictsWith/duration live-chain the spec exists
+  to prove — explicitly forbidden by the spec header). Escalated rather than authored blind: it is a Java +
+  generated-client change that overlaps T-22's concurrent Java edits and cannot be locally verified here
+  (no JVM/Playwright). Suggest re-scoping as a BACKEND task (typed-id FKs on the reservation request DTOs +
+  client regen); the `:188` spec then passes unchanged.
 - [x] **T-24 — Make the fanout gh-pages deploy + index rebuild survive a partial-red parity run (operator: "the
   proof index is not updating; I'd expect to see the green specs"; J-2 T-42 rule recurrence).** In the last
   fanout the gallery BUILD succeeded (T-21 node fix) + 15 specs passed, but the three deploy steps
