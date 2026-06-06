@@ -334,3 +334,23 @@ One seam each; commit directly to `integration/J-5`.
   (`legacy-web-build` keeps its own Node 8 for the webpack build). YAML validated with js-yaml + step order
   asserted (re-pin before maintainability/gallery/rebuild). Re-dispatched fanout must confirm the gallery step
   no longer throws `Unexpected token import`.
+
+### §4 gate — second fanout run reds (chain now reaches real specs: 15 passed, 3 failed)
+T-20/T-21 cleared the seed + gallery-node reds; the chain now runs the real Playwright specs. Two distinct
+J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SAME bundle-ingest 500 as T-22):
+- [ ] **T-22 — Fix the reservation bundle-ingest FK violation (sqlstate 23503).** The migration bundle ingest
+  now 500s (`Database error during ingest [sqlstate=23503]` = Postgres FK violation) because the bundle carries
+  the new `AIRCRAFT_RESERVATION` + `AIRCRAFT_RESERVATION_TYPE` entities (T-07 bindings). Export succeeded
+  (AIRCRAFT_RESERVATION_TYPE 1 row, FLIGHT_TYPE 17 rows). A reservation FK isn't satisfied at insert — most
+  likely the ingest **topological ordering** (reservation/type inserted before its FK parents:
+  aircraft/person/location/aircraft_reservation_type/flight_type/club) OR a fan-out key-resolution gap for one
+  cross-tenant FK (`aircraft_id`/`pilot_person_id`) OR `flight_type_id` referencing a FLIGHT_TYPE that isn't an
+  ingested consumer entity. Reproduce locally via the migration-tool ingest IT (bundle→Postgres, T-02 harness)
+  to get the exact constraint, fix the ordering/resolution. This 500 also reds the J-0c `fan-out:133` + the
+  J-5 migrated-read `:603` (no bundle → no migrated clubs/admins provisioned). *(seam: migration-tool ingest ordering/FK resolution)*
+- [ ] **T-23 — Fix the clean-seed UI type-picker create timeout (`:188`, 45s).** J-5's clean-seed real-chain
+  `[happy] create through the UI type-picker` hung 45s. Independent of the bundle (clean-seed). Diagnose the
+  hang (download the run's `test-results/…/error-context.md` + trace): likely an empty picker (masterdata
+  beforeAll-seed didn't populate aircraft/person/location for the clean realm), a `reservation-type-select`
+  selector mismatch vs the real DOM, or the post-create list/scheduler render assertion. Fix to green (raise a
+  measured timeout only if the cause is genuinely slow, not to mask a hang). *(seam: real-idp reservations spec create flow / masterdata seed)*
