@@ -280,3 +280,15 @@ One seam each; commit directly to `integration/J-5`.
   spec's create to drive the UI type-picker (proving the full clean-seed UI create end-to-end). Keep the
   type-create-API itself out of scope (deferred — a clubadmin masterdata screen is its own future journey).
   *(seam: clean-seed dev seed / two-club fixture + the real-idp spec's create flow)*
+
+### §4 gate — gap-hunter findings (2/3 voted not-yet-vertical; domain confirmed honest)
+- [ ] **T-18 — Fix the migrated-data round-trip to read the migrated tenant (gap-hunter blocker B).** The
+  migrated-data block in `reservations-migration-parity.spec.ts` reads as `clubadmin4`/seed-club-1, but the
+  migrated legacy reservation is tenant-stamped on the **legacy TestClub** (CLUB is FULL_PORT non-fanout,
+  keeps its legacy UUID `0FA7B76F-…`) → invisible to the seed-club-1 reader, so `totalRows >= 1` passes on
+  clean-seed residue, NOT the migrated row (the T-07 round-trip isn't proven). Fix: read via the migrated
+  tenant (the J-0c `loginAsMigratedAdmin(fixture.clubA)` pattern) + assert the migrated reservation's
+  IDENTIFYING field (the unique remark `'Cross-tenant timed reservation (fixture)'` / immat HB-3999 / the
+  migrated type), not just a count. Also correct the V31 dev-seed comment (its "seed-club-1 never exists in
+  prod" rationale is factually wrong — V5 inserts seed-club-1 unconditionally; it's the same accepted
+  dev-seed-in-prod debt as V8/V26/V29/V30, so fix the *justification*, keep the row). *(seam: real-idp spec migrated block + V31 comment)*
