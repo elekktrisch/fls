@@ -1,4 +1,11 @@
-import { test, expect, type Browser, type BrowserContext, type TestInfo } from '@playwright/test';
+import {
+  test,
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 
 import {
   loginAsClubAdmin,
@@ -55,9 +62,61 @@ import { selectAfOption } from '../_helpers/af-select';
  * OPTIONAL on the backend request). The MIGRATED-DATA half proves the type
  * renders end to end from a real legacy reservation too. The type-CREATE API
  * itself stays out of scope (deferred masterdata screen).
+ *
+ * ── CALENDAR redesign (J-5 T-41) — render assertions move to the calendar ────
+ * `/reservations` is now a CALENDAR (day + week view), not a paged table; the
+ * separate `/reservation-scheduler` REDIRECTS to it (T-39). The load-bearing
+ * REST assertions are UNCHANGED (overlap→409 + self-exclude, duration→422,
+ * all-day full-day span, cross-tenant-open 201, migrated round-trip by remark +
+ * type). What changes here is the UI RENDER proof: the created/migrated row no
+ * longer renders as a table `reservations-row-<id>` — it renders as a day-view
+ * BLOCK (`reservation-scheduler-block-<id>`) inside its aircraft lane
+ * (`reservation-scheduler-lane-<aircraftId>`). The calendar's day view only
+ * shows reservations that START ON the selected day (defaults to TODAY), so the
+ * UI-rendered cases are dated to TODAY (and the migrated read navigates the week
+ * picker to the migrated reservation's day, derived from its `start`).
  */
 
 const RESERVATIONS = '/api/v1/aircraft-reservations';
+
+/** `YYYY-MM-DD` of today (local) — the calendar's default day view. */
+function todayKey(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+/** A timed `<date>T<hh:mm>:00Z` instant on `dateKey` (UTC wire format). */
+function instant(dateKey: string, hhmm: string): string {
+  return `${dateKey}T${hhmm}:00Z`;
+}
+
+/** The day-view block for a reservation, scoped to its aircraft lane. */
+function dayBlock(page: Page, aircraftId: string, reservationId: string) {
+  return page
+    .getByTestId(`reservation-scheduler-lane-${aircraftId}`)
+    .getByTestId(`reservation-scheduler-block-${reservationId}`);
+}
+
+/**
+ * Navigate the calendar's week day-picker to the day `dateKey` (`YYYY-MM-DD`)
+ * and select it, so the day view shows reservations starting on that day. The
+ * picker renders only the current week's seven days, so we shift weeks
+ * (next/prev) until the target day's pill is present, then click it. Bounded so
+ * a wrong date can't loop forever.
+ */
+async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
+  const pill = page.getByTestId(`reservations-daypicker-${dateKey}`);
+  const todayMs = new Date(`${todayKey()}T00:00:00`).getTime();
+  const targetMs = new Date(`${dateKey}T00:00:00`).getTime();
+  const direction = targetMs >= todayMs ? 'next' : 'prev';
+  for (let i = 0; i < 60 && (await pill.count()) === 0; i++) {
+    await page.getByTestId(`reservations-${direction}-week`).click();
+  }
+  await expect(pill, `the day-picker must reach ${dateKey}`).toBeVisible();
+  await pill.click();
+}
 
 async function newRecordedContext(
   browser: Browser,
@@ -71,6 +130,7 @@ async function newRecordedContext(
 interface ReservationListRow {
   id: string;
   aircraftId: string;
+  start: string;
   reservationTypeName?: string | null;
   remarks?: string | null;
 }
@@ -200,8 +260,8 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       // after this inherit the locale (no query needed).
       await page.goto('/reservations?lang=de');
       await expect(page.locator('h1')).toContainText('Reservationen');
-      await expect(page.getByTestId('reservations-table')).toBeVisible();
-      const baseline = await page.locator('[data-testid^="reservations-row-"]').count();
+      // The calendar (day view) is the primary screen now (T-39) — not a table.
+      await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
 
       // Drive the FULL clean-seed UI create: new-form → pick aircraft / the
       // V31-seeded TYPE / pilot / location from the real <af-select>s → fill the
@@ -224,7 +284,10 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       await selectAfOption(page, 'reservation-type-select', reservationTypeId);
       await selectAfOption(page, 'reservation-pilot-select', masterdata.pilotPersonId);
       await selectAfOption(page, 'reservation-location-select', masterdata.locationId);
-      await page.getByTestId('reservation-date').locator('input').fill('2026-09-01');
+      // Date the reservation to TODAY so it lands on the calendar's default day
+      // view (the day view only shows reservations starting on the selected day).
+      const today = todayKey();
+      await page.getByTestId('reservation-date').locator('input').fill(today);
       await page.getByTestId('reservation-start-time').locator('input').fill('10:00');
       await page.getByTestId('reservation-end-time').locator('input').fill('11:00');
 
@@ -259,38 +322,40 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       );
       createdIds.push(id);
 
-      // On bus-success the SPA returns to the list.
+      // On bus-success the SPA returns to the /reservations calendar.
       await expect(page).toHaveURL('/reservations');
 
-      // It renders in the UI list (the screen wires to the live backend). The
-      // immat is decorated client-side from the aircraft picker.
-      const row = page.getByTestId(`reservations-row-${id}`);
-      await expect(row, 'the created reservation renders in the list').toBeVisible();
-      await expect(page.getByTestId(`reservations-immat-${id}`)).toHaveText(
-        masterdata.managedImmat,
-      );
-      await expect(page.getByTestId(`reservations-allday-${id}`)).toHaveText('Zeitfenster');
-      // DELTA assert (residue-proof on the shared seed-club-1 tenant).
-      await expect(page.locator('[data-testid^="reservations-row-"]')).toHaveCount(baseline + 1);
-
-      // Scheduler lane×time: the reservation lands in ITS aircraft lane at a
-      // time-derived offset (10:00 of a 24h window ≈ 41.6% from the left).
-      await page.goto('/reservation-scheduler');
-      await expect(page.getByTestId('reservation-scheduler')).toBeVisible();
+      // It renders on the calendar DAY view as a time-placed block in ITS
+      // aircraft lane (lane×time placement; the screen wires to the live
+      // backend). The lane label is the immat, decorated from the aircraft
+      // picker; the today-dated reservation shows on the default day view.
+      await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
       const lane = page.getByTestId(`reservation-scheduler-lane-${masterdata.managedAircraftId}`);
       await expect(lane).toBeVisible();
-      const block = lane.getByTestId(`reservation-scheduler-block-${id}`);
-      await expect(block, 'the reservation block is in its aircraft lane').toBeVisible();
+      await expect(lane).toContainText(masterdata.managedImmat);
+      const block = dayBlock(page, masterdata.managedAircraftId, id);
+      await expect(block, 'the created reservation renders as a day-view block').toBeVisible();
+      await expect(block).toContainText('10:00');
+      // Timed placement: a positive, sub-100 left offset (a full-day band is 0%);
+      // the exact % depends on the runner TZ over the 08–20 window, so we assert
+      // the meaningful invariant — placed inside the day, not full-width.
       const left = await block.evaluate((el) => (el as HTMLElement).style.left);
-      const leftPct = Number.parseFloat(left);
-      expect(leftPct, '10:00 of a 24h window ≈ 41.6% from the lane left edge').toBeGreaterThan(40);
-      expect(leftPct).toBeLessThan(43);
+      const leftPct = Number.parseFloat(/([\d.]+)%/.exec(left)?.[1] ?? 'NaN');
+      expect(leftPct, 'a timed block carries a positive sub-100 left offset').toBeGreaterThan(0);
+      expect(leftPct).toBeLessThan(100);
 
+      // PARITY SHOT: the AlpenFlight /reservations calendar DAY view, populated
+      // (the day grid with the created reservation placed in its lane). This is
+      // the "list" pair the fanout stages against the legacy reservation table —
+      // legacy table ↔ AlpenFlight calendar is the legitimate before/after.
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-reservations-list.png`,
         fullPage: true,
       });
-      await page.goto('/reservation-scheduler');
+      // PARITY SHOT: the calendar WEEK view (aircraft×day matrix) — the second
+      // distinctive calendar surface, paired against the legacy scheduler grid.
+      await page.getByTestId('reservations-view-week').click();
+      await expect(page.getByTestId('reservations-week-grid')).toBeVisible();
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-reservation-scheduler.png`,
         fullPage: true,
@@ -302,9 +367,9 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         caption:
           'J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft ' +
           'reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, ' +
-          'pilot and location from the real dropdowns — and it renders in the /reservations list and ' +
-          'in the right aircraft lane on the /reservation-scheduler at its time offset (full ' +
-          'clean-seed UI create→type-picker chain, real backend round-trip)',
+          'pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR ' +
+          'day view as a time-placed block in the right aircraft lane (full clean-seed UI ' +
+          'create→type-picker chain, real backend round-trip)',
         acTag: 'happy',
       });
     }
@@ -425,13 +490,15 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
     try {
       await loginAsReservationAdmin(page);
 
+      // All-day, dated TODAY so it lands on the calendar's default day view.
+      const today = todayKey();
       const id = await createReservation(ctx, adminBearer, createdIds, {
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
         reservationTypeId,
-        start: '2026-09-04T00:00:00Z',
-        end: '2026-09-04T00:00:00Z',
+        start: instant(today, '00:00'),
+        end: instant(today, '00:00'),
         isAllDay: true,
       });
 
@@ -443,22 +510,22 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       const d = (await detail.json()) as { isAllDay: boolean };
       expect(d.isAllDay, 'the reservation is stored all-day').toBe(true);
 
-      // The list cell shows the all-day marker; the scheduler renders a full
-      // (100%) band — the all-day full-day-band contract (T-10 placement).
-      await page.goto('/reservations');
-      await expect(page.getByTestId(`reservations-allday-${id}`)).toHaveText('Ganztägig');
-      await page.goto('/reservation-scheduler');
-      const block = page.getByTestId(`reservation-scheduler-block-${id}`);
+      // On the calendar day view the all-day reservation renders as a FULL-WIDTH
+      // band in its aircraft lane (placement widthPct 100 → `calc(100% - 4px)`) —
+      // the all-day full-day-band contract (T-10 placement).
+      await page.goto('/reservations?lang=de');
+      await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+      const block = dayBlock(page, masterdata.managedAircraftId, id);
       await expect(block).toBeVisible();
       const width = await block.evaluate((el) => (el as HTMLElement).style.width);
-      expect(width, 'an all-day reservation is a full-width band').toBe('100%');
+      expect(width, 'an all-day reservation is a full-width band').toContain('100%');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-5',
         caption:
           'J-5 · all-day reservation · an all-day reservation stores the full-day span and renders ' +
-          'as a full-width band on the /reservation-scheduler (real backend)',
+          'as a full-width band on the /reservations calendar day view (real backend)',
         acTag: 'happy',
       });
     }
@@ -475,13 +542,15 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
       // The foreign aircraft is managed by club B (created by club B's admin in
       // beforeAll). seed-club-1's admin reserves it — legacy-open: NO charter
       // gate, the reservation succeeds (201), stamped with the operating club.
+      // Dated TODAY so the cross-tenant block renders on the default day view.
+      const today = todayKey();
       const id = await createReservation(ctx, adminBearer, createdIds, {
         aircraftId: masterdata.foreignAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
         reservationTypeId,
-        start: '2026-09-05T09:00:00Z',
-        end: '2026-09-05T10:00:00Z',
+        start: instant(today, '09:00'),
+        end: instant(today, '10:00'),
         isAllDay: false,
         remarks: 'cross-tenant legacy-open',
       });
@@ -500,11 +569,15 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         masterdata.foreignAircraftId,
       );
 
-      // It renders in the operating club's list under the foreign immat.
-      await page.goto('/reservations');
-      await expect(page.getByTestId(`reservations-immat-${id}`)).toHaveText(
-        masterdata.foreignImmat,
-      );
+      // It renders on the operating club's calendar day view: the foreign-managed
+      // aircraft gets its own lane (labelled by the foreign immat) with the
+      // cross-tenant reservation placed in it — the render proof of the open rule.
+      await page.goto('/reservations?lang=de');
+      await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+      const lane = page.getByTestId(`reservation-scheduler-lane-${masterdata.foreignAircraftId}`);
+      await expect(lane).toBeVisible();
+      await expect(lane).toContainText(masterdata.foreignImmat);
+      await expect(dayBlock(page, masterdata.foreignAircraftId, id)).toBeVisible();
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -526,15 +599,17 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
     try {
       await loginAsReservationAdmin(page);
 
-      // Book 16:00–17:00, confirm an overlapping 16:30–16:45 is blocked (409),
-      // then delete the first and confirm the SAME overlapping create now succeeds.
+      // Book 16:00–17:00 TODAY, confirm an overlapping 16:30–16:45 is blocked
+      // (409), then delete the first and confirm the SAME overlapping create now
+      // succeeds. Dated TODAY so the first block renders on the default day view.
+      const today = todayKey();
       const firstId = await createReservation(ctx, adminBearer, createdIds, {
         aircraftId: masterdata.managedAircraftId,
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
         reservationTypeId,
-        start: '2026-09-06T16:00:00Z',
-        end: '2026-09-06T17:00:00Z',
+        start: instant(today, '16:00'),
+        end: instant(today, '17:00'),
         isAllDay: false,
       });
 
@@ -545,20 +620,26 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
           pilotPersonId: masterdata.pilotPersonId,
           locationId: masterdata.locationId,
           reservationTypeId,
-          start: '2026-09-06T16:30:00Z',
-          end: '2026-09-06T16:45:00Z',
+          start: instant(today, '16:30'),
+          end: instant(today, '16:45'),
           isAllDay: false,
         },
       });
       expect(blocked.status(), 'the slot is occupied → overlapping create 409s').toBe(409);
 
-      // Delete the first reservation via the UI list kebab → confirm dialog.
-      await page.goto('/reservations');
-      await expect(page.getByTestId(`reservations-row-${firstId}`)).toBeVisible();
-      page.once('dialog', (dialog) => dialog.accept());
-      await page.getByTestId(`reservations-kebab-${firstId}`).click();
-      await page.getByTestId(`reservations-delete-${firstId}`).click();
-      await expect(page.getByTestId(`reservations-row-${firstId}`)).toHaveCount(0);
+      // Confirm the first reservation's block is on the calendar day view, then
+      // delete it via the REAL REST API (the calendar-first design has no UI
+      // delete affordance — delete is REST-driven; the soft-delete excludes it
+      // from the conflict probe + subsequent reads). Re-render → block is gone.
+      await page.goto('/reservations?lang=de');
+      await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+      await expect(dayBlock(page, masterdata.managedAircraftId, firstId)).toBeVisible();
+      const del = await ctx.request.delete(`${RESERVATIONS}/${firstId}`, {
+        headers: { authorization: adminBearer },
+      });
+      expect(del.status(), 'the reservation soft-deletes (204)').toBe(204);
+      await page.goto('/reservations?lang=de');
+      await expect(dayBlock(page, masterdata.managedAircraftId, firstId)).toHaveCount(0);
 
       // The freed slot now ACCEPTS the previously-blocked overlapping booking.
       const freed = await createReservation(ctx, adminBearer, createdIds, {
@@ -566,8 +647,8 @@ test.describe('Aircraft reservations — clean-seed real chain (real-idp)', () =
         pilotPersonId: masterdata.pilotPersonId,
         locationId: masterdata.locationId,
         reservationTypeId,
-        start: '2026-09-06T16:30:00Z',
-        end: '2026-09-06T16:45:00Z',
+        start: instant(today, '16:30'),
+        end: instant(today, '16:45'),
         isAllDay: false,
       });
       expect(freed, 'the freed slot accepts a new overlapping reservation').toBeTruthy();
@@ -672,14 +753,19 @@ test.describe('Aircraft reservations — migrated legacy reservation renders (re
         'the migrated reservation carries its migrated type name (Schulung)',
       ).toBe(MIGRATED_RESERVATION_TYPE_NAME);
 
-      // It renders in the UI list as the migrated TestClub admin (the screen
-      // wires to the migrated data). Identify the row by the migrated id, not
-      // "first row", so a residual row can't satisfy the assertion.
-      await page.goto('/reservations');
-      await expect(page.getByTestId('reservations-table')).toBeVisible();
+      // It renders on the calendar as the migrated TestClub admin (the screen
+      // wires to the migrated data). The migrated reservation is dated ~+7 days
+      // from the fanout's wall-clock, so navigate the week day-picker to its day
+      // (derived from the migrated row's `start`) and assert the migrated block
+      // renders in its aircraft lane. Identify the block by the migrated id, not
+      // "first block", so a residual reservation can't satisfy the assertion.
+      const migratedDayKey = migrated!.start.slice(0, 10);
+      await page.goto('/reservations?lang=de');
+      await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+      await selectCalendarDay(page, migratedDayKey);
       await expect(
-        page.getByTestId(`reservations-row-${migrated!.id}`),
-        'the identified migrated reservation row renders in the list',
+        dayBlock(page, migrated!.aircraftId, migrated!.id),
+        'the identified migrated reservation renders as a day-view block in its lane',
       ).toBeVisible();
 
       await page.screenshot({
@@ -692,9 +778,9 @@ test.describe('Aircraft reservations — migrated legacy reservation renders (re
         journey: 'J-5',
         caption:
           'J-5 · migrated reservation · a real legacy aircraft reservation, exported + migrated ' +
-          "through the live chain, renders in the migrated TestClub's /reservations list under its " +
-          'unique fixture remark + migrated Schulung type (full legacy→export→migrate→Keycloak→UI ' +
-          'chain, read via the migrated FULL_PORT tenant)',
+          "through the live chain, renders on the migrated TestClub's /reservations CALENDAR (the " +
+          'day-view block in its aircraft lane) under its unique fixture remark + migrated Schulung ' +
+          'type (full legacy→export→migrate→Keycloak→UI chain, read via the migrated FULL_PORT tenant)',
         acTag: 'happy',
       });
     }

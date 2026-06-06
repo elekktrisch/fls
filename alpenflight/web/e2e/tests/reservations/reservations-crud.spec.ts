@@ -3,8 +3,8 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 import { selectAfOption } from '../_helpers/af-select';
 
 /**
- * Aircraft-reservation CRUD + conflict shape — J-5 INNER-LOOP spec (T-16,
- * thickened from the T-01 stub).
+ * Aircraft-reservation CRUD + conflict shape — J-5 INNER-LOOP spec (T-41,
+ * reworked from the T-16 table spec for the CALENDAR redesign T-39/T-40).
  *
  * Mock-auth fidelity: a mocked SYSTEM_ADMINISTRATOR principal (so the mutation
  * affordances render) + every `/api/v1/*` call intercepted via `page.route` — no
@@ -13,23 +13,31 @@ import { selectAfOption } from '../_helpers/af-select';
  * pins the screen behaviour fast in the inner loop with REAL assertions on the
  * domain semantics the oracle requires.
  *
- * Reconciled from the T-01 stub against the SHIPPED screens (T-08 list, T-09
- * edit, T-10 scheduler) + the shipped wire contract:
- *   - reservation `id` is a PLAIN UUID (NOT `res-` prefixed) — the stub's
- *     `res-…` fixtures + `res-` id regex are corrected here.
- *   - picker sources are `/persons` + `/locations` (op `listPersons` /
- *     `listLocations`), NOT the non-existent `/persons/picker` /
- *     `/locations/picker` the stub mocked; aircraft is `/aircraft/picker`.
- *   - the list item field is `isAllDay` (not `isAllDayReservation`); the edit
- *     form drives `<af-select>` (helper `selectAfOption` by VALUE) + `<af-input>`
- *     date/time (`.locator('input')`), NOT the stub's bare `nz-select` + label.
- *   - cross-module labels (immatriculation / pilot / location) are decorated
- *     client-side from the picker label maps (ADR 0023, the store's `immatById`
- *     etc.) — the list row resolves the FK id to its picker label, so the mock
- *     pickers' ids MUST match the reservation rows' FK ids.
+ * ── CALENDAR redesign (T-39/T-40) — what this rewrite drives ─────────────────
+ * `/reservations` is no longer a paged table; it is a CALENDAR:
+ *   - DAY view = aircraft×hour grid (local 08–20 business window), reusing the
+ *     T-10 scheduler placement. Each aircraft is a lane
+ *     (`reservation-scheduler-lane-<aircraftId>`); each reservation STARTING ON
+ *     the selected day is a time-placed block
+ *     (`reservation-scheduler-block-<id>`). All-day → a full-width band.
+ *   - WEEK view = aircraft×day matrix (`reservations-week-grid`, per-cell
+ *     `reservations-week-cell-<aircraftId>-<YYYY-MM-DD>`).
+ *   - day/week toggle (`reservations-view-day` / `reservations-view-week`) + a
+ *     week day-picker (`reservations-daypicker-<YYYY-MM-DD>`, prev/next week).
+ * `/reservation-scheduler` now REDIRECTS to `/reservations`. The paged table +
+ * its `reservations-row-/immat-/allday-` testids are GONE — render assertions
+ * moved to the calendar block in the right lane.
  *
- * Columns the list table commits to (legacy `reservations-table.html` parity):
- *   immatriculation, start, end, pilot, location, type, all-day.
+ * The store STILL calls the paged + picker endpoints (`pageAircraftReservations`,
+ * `listAircraftForPicker`, `listPersons`, `listLocations`,
+ * `listAircraftReservationTypes`) and the calendar is a pure derivation over the
+ * loaded entities — so the route mocks below are unchanged; we just assert the
+ * calendar render, not a table.
+ *
+ * The day view only shows reservations that START ON the selected day, and the
+ * calendar defaults to TODAY. So the mock reservations are dated to TODAY (at
+ * fixed business-hours) — TZ-robust (no week-shifting to a far-future date) and
+ * deterministic (the seed always lands on the default day view).
  */
 
 // ── ids (plain UUIDv7-shaped fixtures — NO `res-`/`ac-`/… external prefixes;
@@ -45,8 +53,8 @@ const CLUB_B_ID = '019e30c3-2c00-7001-8000-000000000002';
 
 // Aircraft: one same-tenant glider, one OTHER-tenant glider (cross-tenant AC).
 // These ids are what the reservation rows carry as `aircraftId` AND what the
-// `/aircraft/picker` payload carries as `id` — they MUST match so the list
-// immatriculation cell + the scheduler lane resolve.
+// `/aircraft/picker` payload carries as `id` — they MUST match so the day-view
+// lane label (immatriculation) + placement resolve.
 const AC_SAME = '019e30c3-2c00-7001-8000-00000000a001';
 const AC_OTHER = '019e30c3-2c00-7001-8000-00000000a002';
 
@@ -58,6 +66,23 @@ const TYPE_FLIGHT_ID = '019e30c3-2c00-7001-8000-0000000000d1';
 const TYPE_MAINT_ID = '019e30c3-2c00-7001-8000-0000000000d2';
 
 const SEED_RESERVATION_ID = '019e30c3-2c00-7001-8000-000000000e01';
+
+// ── TODAY (local) — the calendar's default day view. All mock reservations are
+//    dated to today so they render on the default day grid without week-shifting
+//    (the day view only shows reservations that START ON the selected day). The
+//    date string the form's <af-input type=date> expects is `YYYY-MM-DD`.
+function localToday(): { key: string; iso: (hhmm: string) => string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const key = `${y}-${m}-${d}`;
+  // The form serializes `<date>T<time>:00Z` (UTC); the calendar places by LOCAL
+  // hour. Within a single TZ-consistent runner this round-trips to the chosen
+  // wall-clock hour, which is all the placement assertion needs (offset > 0).
+  return { key, iso: (hhmm: string) => `${key}T${hhmm}:00Z` };
+}
+const TODAY = localToday();
 
 // ── mock shapes (new-API wire shape, camelCase fields) ──────────────────────
 interface MockReservationType {
@@ -109,10 +134,9 @@ const mockPersonsPicker = [{ id: PILOT_ID, firstname: 'Anna', lastname: 'Pilot',
 
 const mockLocationsPicker = [{ id: LOCATION_ID, locationName: 'Bern-Belp', icaoCode: 'LSZB' }];
 
-// A pre-existing TIMED reservation on the same-tenant aircraft (10:00–11:00),
-// the row every conflict/edit/delete AC probes against. 10:00 of a 24h day is
-// 41.6̄% of the window — the scheduler placement assertion below pins exactly
-// that offset (the T-10 `placeBlock` helper).
+// A pre-existing TIMED reservation on the same-tenant aircraft (TODAY 10:00–11:00),
+// the block every conflict/edit/delete AC probes against. It starts on today, so
+// it renders on the default day view in the AC_SAME lane.
 const seedReservation: MockReservation = {
   id: SEED_RESERVATION_ID,
   operatingClubId: CLUB_A_ID,
@@ -122,8 +146,8 @@ const seedReservation: MockReservation = {
   reservationTypeId: TYPE_FLIGHT_ID,
   reservationTypeName: 'Flight',
   isAllDay: false,
-  start: '2026-07-01T10:00:00Z',
-  end: '2026-07-01T11:00:00Z',
+  start: TODAY.iso('10:00'),
+  end: TODAY.iso('11:00'),
 };
 
 // ── half-open overlap (the conflict rule the backend owns in T-03/T-04) ─────
@@ -180,11 +204,11 @@ async function stubReferenceData(page: Page): Promise<void> {
       ]),
     }),
   );
-  // Picker reference data the edit form's selects load + the list decorates
-  // labels from. RECONCILED routes (T-01 mocked non-existent /picker variants):
+  // Picker reference data the edit form's selects load + the calendar decorates
+  // lane labels / pilot names from:
   //   aircraft → /aircraft/picker (op listAircraftForPicker)
-  //   persons  → /persons          (op listPersons — NOT /persons/picker)
-  //   locations→ /locations        (op listLocations — NOT /locations/picker)
+  //   persons  → /persons          (op listPersons)
+  //   locations→ /locations        (op listLocations)
   await page.route('**/api/v1/aircraft/picker**', (route) =>
     route.fulfill({
       status: 200,
@@ -251,9 +275,9 @@ function toDetail(r: MockReservation) {
 
 /**
  * Stub backend for the reservation resource. Holds a mutable list so a created
- * reservation appears in the next list/scheduler read, a conflicting create is
- * rejected 409, an end≤start timed create is rejected 422, and an edit/delete
- * frees the slot.
+ * reservation appears in the next paged read (→ the calendar re-derives), a
+ * conflicting create is rejected 409, an end≤start timed create is rejected 422,
+ * and a delete frees the slot.
  *
  * Routes (new kebab-case REST):
  *   POST   /api/v1/aircraft-reservations/page/{start}/{size}  → SPA paged envelope
@@ -269,7 +293,7 @@ function setupReservationBackend(reservations: MockReservation[]) {
     const url = new URL(req.url());
     const method = req.method();
     const path = url.pathname;
-    // PLAIN-UUID id segment (T-01's `res-…` regex corrected).
+    // PLAIN-UUID id segment (reservation ids are raw UUIDs).
     const idMatch = path.match(/^\/api\/v1\/aircraft-reservations\/([0-9a-f-]{36})$/);
     const pageMatch = path.match(/^\/api\/v1\/aircraft-reservations\/page\/(\d+)\/(\d+)$/);
 
@@ -399,14 +423,34 @@ async function wireReservations(page: Page, reservations: MockReservation[]): Pr
  * assertions are German. The cold-start chain is `?lang=` → navigator.language →
  * `de` (web/CLAUDE.md §8b); the mock chromium runner's navigator.language is
  * `en`, so we pin `?lang=de` EXPLICITLY (it wins the cold-start) — matching the
- * real-idp reservations spec, whose runner already resolves to German. Only the
- * cold-start `page.goto` needs it; subsequent in-app router navs keep the
- * in-memory locale. The `toHaveURL` assertions run after an in-app click (a fresh
- * router path with no query), so the `?lang=de` query never leaks into them.
+ * real-idp reservations spec. Only the cold-start `page.goto` needs it;
+ * subsequent in-app router navs keep the in-memory locale. The `toHaveURL`
+ * assertions run after an in-app click (a fresh router path with no query), so
+ * the `?lang=de` query never leaks into them.
  */
 async function gotoDe(page: Page, path: string): Promise<void> {
   const sep = path.includes('?') ? '&' : '?';
-  await gotoDe(page, `${path}${sep}lang=de`);
+  await page.goto(`${path}${sep}lang=de`);
+}
+
+/** The day-view block for a reservation, scoped to its aircraft lane. */
+function dayBlock(page: Page, aircraftId: string, reservationId: string) {
+  return page
+    .getByTestId(`reservation-scheduler-lane-${aircraftId}`)
+    .getByTestId(`reservation-scheduler-block-${reservationId}`);
+}
+
+/** Parse the leftPct out of the day block's `calc(<n>% + 2px)` left style. */
+async function blockLeftPct(
+  page: Page,
+  aircraftId: string,
+  reservationId: string,
+): Promise<number> {
+  const left = await dayBlock(page, aircraftId, reservationId).evaluate(
+    (el) => (el as HTMLElement).style.left,
+  );
+  const m = /([\d.]+)%/.exec(left);
+  return m ? Number.parseFloat(m[1]!) : Number.NaN;
 }
 
 /** Fill the timed/all-day shared fields on the create/edit form. */
@@ -422,10 +466,11 @@ function saveError(page: Page) {
   return page.getByTestId('reservation-save-error').getByTestId('af-page-error');
 }
 
-// ── inner-loop suite — drives the SHIPPED screens with full assertions ──────
+// ── inner-loop suite — drives the SHIPPED calendar screens with full assertions
 test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
-  // ── AC: list renders the paged table with the seven columns ──────────────
-  test('list: paged table renders the seeded reservation with all seven columns', async ({
+  // ── AC: the calendar day view renders the seeded reservation as a placed
+  //    block in its aircraft lane (lane×time placement) ──────────────────────
+  test('calendar (day view): the seeded reservation renders as a placed block in its aircraft lane', async ({
     page,
   }) => {
     await wireReservations(page, [{ ...seedReservation }]);
@@ -433,46 +478,42 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await gotoDe(page, '/reservations');
 
     await expect(page.locator('h1')).toContainText('Reservationen');
-    await expect(page.getByTestId('reservations-table')).toBeVisible();
+    // Day view is the default; its grid + the day/week toggle render.
+    await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+    await expect(page.getByTestId('reservations-view-toggle')).toBeVisible();
 
-    const row = page.getByTestId(`reservations-row-${SEED_RESERVATION_ID}`);
-    await expect(row).toBeVisible();
+    // The aircraft lane for the seed exists + is labelled by its immatriculation
+    // (decorated client-side from the picker label map, ADR 0023).
+    const lane = page.getByTestId(`reservation-scheduler-lane-${AC_SAME}`);
+    await expect(lane).toBeVisible();
+    await expect(lane).toContainText('HB-SAME');
 
-    // Seven committed columns — REAL values (immat/pilot/location decorated
-    // client-side from the picker label maps, ADR 0023; type from the row).
-    await expect(page.getByTestId(`reservations-immat-${SEED_RESERVATION_ID}`)).toHaveText(
-      'HB-SAME',
-    );
-    await expect(page.getByTestId(`reservations-start-${SEED_RESERVATION_ID}`)).toContainText(
-      '01.07.2026 10:00',
-    );
-    await expect(page.getByTestId(`reservations-end-${SEED_RESERVATION_ID}`)).toContainText(
-      '01.07.2026 11:00',
-    );
-    await expect(page.getByTestId(`reservations-pilot-${SEED_RESERVATION_ID}`)).toHaveText(
-      'Anna Pilot',
-    );
-    await expect(page.getByTestId(`reservations-location-${SEED_RESERVATION_ID}`)).toHaveText(
-      'Bern-Belp',
-    );
-    await expect(page.getByTestId(`reservations-type-${SEED_RESERVATION_ID}`)).toHaveText('Flight');
-    // Timed row → the all-day cell shows "Zeitfenster" (timed), not "Ganztägig".
-    await expect(page.getByTestId(`reservations-allday-${SEED_RESERVATION_ID}`)).toHaveText(
-      'Zeitfenster',
-    );
+    // The reservation is a time-placed block INSIDE that lane (lane×placement).
+    const block = dayBlock(page, AC_SAME, SEED_RESERVATION_ID);
+    await expect(block).toBeVisible();
+    // Block carries the pilot label + its time window (decorated).
+    await expect(block).toContainText('Anna Pilot');
+    await expect(block).toContainText('10:00');
+
+    // Timed placement: a non-zero, sub-100 left offset (a full-day band would be
+    // 0%). The exact % depends on the runner TZ over the 08–20 window, so we
+    // assert the meaningful invariant — placed inside the day, not full-width.
+    const leftPct = await blockLeftPct(page, AC_SAME, SEED_RESERVATION_ID);
+    expect(leftPct, 'a timed block carries a positive sub-100 left offset').toBeGreaterThan(0);
+    expect(leftPct).toBeLessThan(100);
 
     await page.screenshot({
-      path: 'screenshots/reservations/01-list-populated.png',
+      path: 'screenshots/reservations/01-calendar-day.png',
       fullPage: true,
     });
   });
 
-  // ── AC[happy]: paged list envelope shape ─────────────────────────────────
-  test('list: the paged read sends + receives the SPA envelope shape', async ({ page }) => {
+  // ── AC[happy]: the store sends + receives the SPA paged envelope ──────────
+  test('calendar: the paged read sends + receives the SPA envelope shape', async ({ page }) => {
     await wireReservations(page, [{ ...seedReservation }]);
 
     // Capture the paged read so the envelope shape is asserted on the wire
-    // (totalRows + pageStart + pageSize + items[]), not just the rendered rows.
+    // (totalRows + pageStart + pageSize + items[]), not just the rendered block.
     const paged = page.waitForResponse(
       (r) =>
         r.request().method() === 'POST' &&
@@ -497,8 +538,47 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     expect(reqBody.sorting?.start).toBe('asc');
   });
 
-  // ── AC[happy]: create a TIMED reservation → row with all columns ─────────
-  test('create: a timed reservation persists and appears in the list with all columns', async ({
+  // ── AC: the day/week toggle + day-picker drive the views ─────────────────
+  test('calendar: the day/week toggle and the week day-picker switch views', async ({ page }) => {
+    await wireReservations(page, [{ ...seedReservation }]);
+
+    await gotoDe(page, '/reservations');
+    // Default = day view.
+    await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+    await expect(page.getByTestId('reservations-week-grid')).toHaveCount(0);
+
+    // Toggle to the WEEK view (aircraft×day matrix). The seed's aircraft lane +
+    // its today cell (with a count) render in the week grid.
+    await page.getByTestId('reservations-view-week').click();
+    await expect(page.getByTestId('reservations-week-grid')).toBeVisible();
+    await expect(page.getByTestId('reservations-day-grid')).toHaveCount(0);
+    const weekCell = page.getByTestId(`reservations-week-cell-${AC_SAME}-${TODAY.key}`);
+    await expect(weekCell).toBeVisible();
+    // The today cell shows the count (1 reservation) + reserved hours.
+    await expect(weekCell).toContainText('1');
+    await page.screenshot({
+      path: 'screenshots/reservations/06-calendar-week.png',
+      fullPage: true,
+    });
+
+    // Clicking a week cell opens that day in the DAY view (the calendar focuses
+    // the selected day) — back to the day grid with the block placed.
+    await weekCell.click();
+    await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+    await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toBeVisible();
+
+    // The day-picker keeps the day selectable directly (today's pill).
+    await page.getByTestId('reservations-view-week').click();
+    await expect(page.getByTestId('reservations-week-grid')).toBeVisible();
+    await page.getByTestId(`reservations-daypicker-${TODAY.key}`).click();
+    // Selecting a day-picker pill stays on the week view (it re-selects the day);
+    // toggling back to day shows the seed's block again.
+    await page.getByTestId('reservations-view-day').click();
+    await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toBeVisible();
+  });
+
+  // ── AC[happy]: create a TIMED reservation → it renders as a day-view block ─
+  test('create: a timed reservation persists and appears as a placed block in the day view', async ({
     page,
   }) => {
     await wireReservations(page, []);
@@ -508,7 +588,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(page).toHaveURL('/reservations/new');
 
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-02');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('14:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('15:00');
 
@@ -520,26 +600,30 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
         r.status() === 201,
     );
     await page.getByTestId('reservation-save-button').click();
-    await created;
+    const createdResp = await created;
+    const id = new URL(createdResp.headers()['location']!, 'http://localhost').pathname
+      .split('/')
+      .pop()!;
 
     await expect(page).toHaveURL('/reservations');
-    const row = page.locator('[data-testid^="reservations-immat-"]').filter({ hasText: 'HB-SAME' });
-    await expect(row).toBeVisible();
-    // The created row carries the full column set (timed → "Zeitfenster").
-    const rowId = (await page
-      .locator('[data-testid^="reservations-row-"]')
-      .filter({ hasText: 'HB-SAME' })
-      .getAttribute('data-testid'))!.replace(/^reservations-row-/, '');
-    await expect(page.getByTestId(`reservations-start-${rowId}`)).toContainText('02.07.2026 14:00');
-    await expect(page.getByTestId(`reservations-allday-${rowId}`)).toHaveText('Zeitfenster');
+    // The created reservation renders as a block in its aircraft lane on the day
+    // view (the table `reservations-row-*` is GONE — calendar block is the proof).
+    const block = dayBlock(page, AC_SAME, id);
+    await expect(block).toBeVisible();
+    await expect(block).toContainText('14:00');
+    // Timed placement: a 14:00 block is offset to the RIGHT of a 10:00 block
+    // (proves the time→offset math), still inside the day.
+    const leftPct = await blockLeftPct(page, AC_SAME, id);
+    expect(leftPct, 'a 14:00 block is offset right of the lane start').toBeGreaterThan(0);
+    expect(leftPct).toBeLessThan(100);
     await page.screenshot({
       path: 'screenshots/reservations/02-timed-created.png',
       fullPage: true,
     });
   });
 
-  // ── AC[happy]: ALL-DAY reservation renders as a full-day band ────────────
-  test('create: an all-day reservation hides the time fields and renders as a full-day band', async ({
+  // ── AC[happy]: ALL-DAY reservation renders as a full-width band ───────────
+  test('create: an all-day reservation hides the time fields and renders as a full-width day band', async ({
     page,
   }) => {
     await wireReservations(page, []);
@@ -547,7 +631,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await gotoDe(page, '/reservations/new');
 
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-03');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     // Toggling all-day hides the start/end time inputs (full-day span) so the
     // form's required-time validators don't gate the save.
     await page.getByTestId('reservation-allday-toggle').check();
@@ -570,29 +654,26 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
       end: string;
     };
     expect(sent.isAllDay).toBe(true);
-    expect(sent.start).toBe('2026-07-03T00:00:00Z');
-    expect(sent.end).toBe('2026-07-03T00:00:00Z');
+    expect(sent.start).toBe(`${TODAY.key}T00:00:00Z`);
+    expect(sent.end).toBe(`${TODAY.key}T00:00:00Z`);
+    const id = new URL(createdRes.headers()['location']!, 'http://localhost').pathname
+      .split('/')
+      .pop()!;
 
     await expect(page).toHaveURL('/reservations');
-    const rowId = (await page
-      .locator('[data-testid^="reservations-row-"]')
-      .filter({ hasText: 'HB-SAME' })
-      .getAttribute('data-testid'))!.replace(/^reservations-row-/, '');
-    // The all-day cell renders the "Ganztägig" band marker (NOT "Zeitfenster").
-    await expect(page.getByTestId(`reservations-allday-${rowId}`)).toHaveText('Ganztägig');
-
-    // Full-day band on the SCHEDULER: an all-day block spans the whole lane.
-    await gotoDe(page, '/reservation-scheduler');
-    const block = page.getByTestId(`reservation-scheduler-block-${rowId}`);
+    // Full-day band on the day view: an all-day block spans the whole lane
+    // (placement leftPct 0, widthPct 100 → `calc(0% + 2px)` / `calc(100% - 4px)`).
+    const block = dayBlock(page, AC_SAME, id);
     await expect(block).toBeVisible();
-    await expect(block).toHaveCSS('width', /.+/);
+    const leftPct = await blockLeftPct(page, AC_SAME, id);
+    expect(leftPct, 'an all-day band starts at the lane left edge (0%)').toBe(0);
     const width = await block.evaluate((el) => (el as HTMLElement).style.width);
-    expect(width, 'an all-day reservation is a full-width band').toBe('100%');
+    expect(width, 'an all-day reservation is a full-width band').toContain('100%');
     await page.screenshot({ path: 'screenshots/reservations/03-allday-band.png', fullPage: true });
   });
 
   // ── AC[key-error]: conflict→409 + edit-in-place does NOT self-conflict ───
-  test('conflict: an overlapping create is rejected 409 inline; editing the existing row does NOT self-conflict', async ({
+  test('conflict: an overlapping create is rejected 409 inline; editing the existing block does NOT self-conflict', async ({
     page,
   }) => {
     await wireReservations(page, [{ ...seedReservation }]);
@@ -600,7 +681,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     // Try to book the SAME aircraft 10:30–10:45 — overlaps the 10:00–11:00 seed.
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:45');
 
@@ -619,9 +700,12 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(page).toHaveURL('/reservations/new');
     await page.screenshot({ path: 'screenshots/reservations/04-conflict-409.png', fullPage: true });
 
-    // Editing the EXISTING overlapping row (self-exclude) → no conflict, saves
-    // and navigates back to the list (the row is excluded from its own probe).
-    await gotoDe(page, `/reservations/${SEED_RESERVATION_ID}/edit`);
+    // Editing the EXISTING overlapping reservation (self-exclude) → no conflict.
+    // The calendar opens the edit form by CLICKING the day-view block (the block
+    // is a button → /reservations/:id/edit), proving the block→edit affordance.
+    await gotoDe(page, '/reservations');
+    await dayBlock(page, AC_SAME, SEED_RESERVATION_ID).click();
+    await expect(page).toHaveURL(`/reservations/${SEED_RESERVATION_ID}/edit`);
     await expect(page.getByTestId('reservation-edit-form')).toBeVisible();
     await page.getByTestId('reservation-end-time').locator('input').fill('11:30');
     const updated = page.waitForResponse(
@@ -644,7 +728,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
 
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-05');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('15:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('14:00');
 
@@ -662,8 +746,12 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(page).toHaveURL('/reservations/new');
   });
 
-  // ── AC[happy]: edit moves time / delete frees the slot ───────────────────
-  test('edit/delete: deleting a reservation frees the slot so a new overlapping create then succeeds', async ({
+  // ── AC[happy]: delete frees the slot so a new overlapping create succeeds ──
+  // The calendar has no delete affordance (delete is not a UI list action in the
+  // calendar-first design); the delete-frees domain proof drives the DELETE via
+  // the (mocked) REST API — intercepted by the same route handler the UI uses —
+  // then re-renders the calendar to confirm the block is gone and the slot frees.
+  test('delete: deleting a reservation frees the slot so a new overlapping create then succeeds', async ({
     page,
   }) => {
     await wireReservations(page, [{ ...seedReservation }]);
@@ -672,7 +760,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     // is occupied before the delete frees it).
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:45');
     const blocked = page.waitForResponse(
@@ -685,17 +773,20 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await blocked;
     await expect(saveError(page)).toBeVisible();
 
-    // Delete the seed via the list kebab → confirm dialog.
+    // Confirm the seed block is on the day view, then delete via the REST API
+    // (the mock route handler removes it from subsequent reads — soft-delete).
     await gotoDe(page, '/reservations');
-    page.once('dialog', (d) => d.accept());
-    await page.getByTestId(`reservations-kebab-${SEED_RESERVATION_ID}`).click();
-    await page.getByTestId(`reservations-delete-${SEED_RESERVATION_ID}`).click();
-    await expect(page.getByTestId(`reservations-row-${SEED_RESERVATION_ID}`)).toHaveCount(0);
+    await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toBeVisible();
+    const del = await page.request.delete(`/api/v1/aircraft-reservations/${SEED_RESERVATION_ID}`);
+    expect(del.status()).toBe(204);
+    // Re-render the calendar — the deleted block is gone from the day grid.
+    await gotoDe(page, '/reservations');
+    await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toHaveCount(0);
 
     // The freed 10:00–11:00 slot now ACCEPTS the same overlapping booking (201).
     await gotoDe(page, '/reservations/new');
     await fillReservationCommon(page, AC_SAME);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-01');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('10:30');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:45');
     const created = page.waitForResponse(
@@ -722,7 +813,7 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     // picker offers it and the create succeeds (no tenant/charter rejection),
     // stamped with the operating club.
     await fillReservationCommon(page, AC_OTHER);
-    await page.getByTestId('reservation-date').locator('input').fill('2026-07-04');
+    await page.getByTestId('reservation-date').locator('input').fill(TODAY.key);
     await page.getByTestId('reservation-start-time').locator('input').fill('09:00');
     await page.getByTestId('reservation-end-time').locator('input').fill('10:00');
     const created = page.waitForResponse(
@@ -732,45 +823,32 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
         r.status() === 201,
     );
     await page.getByTestId('reservation-save-button').click();
-    await created;
+    const createdResp = await created;
+    const id = new URL(createdResp.headers()['location']!, 'http://localhost').pathname
+      .split('/')
+      .pop()!;
 
     await expect(page).toHaveURL('/reservations');
     await expect(saveError(page)).toHaveCount(0);
-    await expect(
-      page.locator('[data-testid^="reservations-immat-"]').filter({ hasText: 'HB-OTHR' }),
-    ).toBeVisible();
+    // The foreign-managed aircraft gets its own lane on the day view, with the
+    // cross-tenant reservation placed in it — the render proof of the open rule.
+    const lane = page.getByTestId(`reservation-scheduler-lane-${AC_OTHER}`);
+    await expect(lane).toBeVisible();
+    await expect(lane).toContainText('HB-OTHR');
+    await expect(dayBlock(page, AC_OTHER, id)).toBeVisible();
   });
 
-  // ── AC[happy]: scheduler shows the reservation in the right lane×time ─────
-  test('scheduler: a reservation appears in its aircraft lane at the time-derived offset', async ({
+  // ── AC: /reservation-scheduler redirects to the calendar (T-39) ──────────
+  test('redirect: /reservation-scheduler redirects to the /reservations calendar', async ({
     page,
   }) => {
     await wireReservations(page, [{ ...seedReservation }]);
 
     await gotoDe(page, '/reservation-scheduler');
-
-    await expect(page.getByTestId('reservation-scheduler')).toBeVisible();
-    // The aircraft lane for the seed's aircraft exists + is labelled by immat.
-    const lane = page.getByTestId(`reservation-scheduler-lane-${AC_SAME}`);
-    await expect(lane).toBeVisible();
-    await expect(lane).toContainText('HB-SAME');
-
-    // The reservation block is rendered inside THAT lane (lane×placement).
-    const block = lane.getByTestId(`reservation-scheduler-block-${SEED_RESERVATION_ID}`);
-    await expect(block).toBeVisible();
-
-    // Time-derived offset: 10:00 of a 24h window = 10/24 ≈ 41.6̄% left; the 1h
-    // duration ≈ 1/24 ≈ 4.16% width (the T-10 `placeBlock` math). Assert the
-    // inline-style left% lands in the expected band (the placement helper writes
-    // `left: <pct>%`), so the block is at the right time, not just present.
-    const left = await block.evaluate((el) => (el as HTMLElement).style.left);
-    const leftPct = Number.parseFloat(left);
-    expect(left, 'block carries a left% offset').toMatch(/%$/);
-    expect(leftPct, '10:00 of a 24h window ≈ 41.6% from the lane left edge').toBeGreaterThan(40);
-    expect(leftPct).toBeLessThan(43);
-    await page.screenshot({
-      path: 'screenshots/reservations/05-scheduler-lane-time.png',
-      fullPage: true,
-    });
+    // The standalone scheduler route is folded into the calendar — it redirects.
+    await expect(page).toHaveURL('/reservations');
+    await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+    // The day view IS the old scheduler grid: the seed block is placed in its lane.
+    await expect(dayBlock(page, AC_SAME, SEED_RESERVATION_ID)).toBeVisible();
   });
 });

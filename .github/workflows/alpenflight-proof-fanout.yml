@@ -926,33 +926,38 @@ jobs:
           add_shot "$SHOT" "alpenflight-profile-notifications.png" "J-4" "alpenflight" "Notifications tab" \
             "AlpenFlight: /profile → Notifications tab (real PILOT pilot1) — the 3 caller-tenant notification-preference toggles via PATCH /api/v1/me/club-membership/notification-prefs; admin-only membership fields (member number/state/roles) are NOT on this tab"
 
-          # ----- J-5 T-16 — reservation parity SCREENSHOTS (legacy + AlpenFlight)
-          # J-5 pairs THREE views (the load-bearing list + form, plus the
-          # distinctive scheduler grid):
-          #   view=list      : legacy reservation table ↔ AlpenFlight /reservations
-          #                    list (populated, all 7 columns).
+          # ----- J-5 reservation parity SCREENSHOTS (legacy + AlpenFlight)
+          # The calendar redesign (T-39/T-40) consolidated AlpenFlight's table +
+          # separate scheduler into ONE calendar; the legacy side keeps its three
+          # distinct screens. The pairing is a legitimate legacy→AlpenFlight
+          # before/after (T-41):
+          #   view=list      : legacy reservation TABLE ↔ AlpenFlight /reservations
+          #                    CALENDAR day view (the table's replacement).
           #   view=form      : legacy reservation edit form ↔ AlpenFlight's
-          #                    reservation edit form.
+          #                    (restyled) reservation edit form.
           #   view=scheduler : legacy reservation-scheduler SVG grid ↔ AlpenFlight's
-          #                    /reservation-scheduler lane×time grid.
+          #                    CALENDAR week view (aircraft×day matrix — the
+          #                    scheduler grid's replacement; the calendar day view
+          #                    IS the old scheduler, so the week view is the
+          #                    distinct second calendar surface, no duplicate).
           # Legacy PNGs land under /tmp/fls-e2e-results (the reservations-parity-J5
           # spec); AlpenFlight PNGs under alpenflight/web/test-results (the
           # reservations-migration-parity spec), all fullPage on POPULATED surfaces
-          # (J-1 T-22 lesson — the AlpenFlight list shows a created row, not "No
-          # Data"). The legacy scheduler shot is best-effort (slow grid); a missing
-          # PNG just drops that one entry (add_shot no-ops what it can't find).
+          # (J-1 T-22 lesson — the AlpenFlight calendar shows a placed reservation,
+          # not "Keine Daten"). The legacy scheduler shot is best-effort (slow
+          # grid); a missing PNG just drops that one entry (add_shot no-ops it).
           add_shot "/tmp/fls-e2e-results" "legacy-reservation-list.png" "J-5" "legacy" "list" \
-            "Legacy flsweb: the seeded reservation list (Date · Start/End · Location · Immatriculation · Pilot · 2nd crew · Reservation type · Remarks) — the legacy reservation columns to eyeball against AlpenFlight's /reservations list"
+            "Legacy flsweb: the seeded reservation list (Date · Start/End · Location · Immatriculation · Pilot · 2nd crew · Reservation type · Remarks) — the legacy reservation table, paired before/after against AlpenFlight's /reservations calendar day view"
           add_shot "/tmp/fls-e2e-results" "legacy-reservation-form.png" "J-5" "legacy" "form" \
             "Legacy flsweb: one reservation's edit form (aircraft, pilot, 2nd crew, location, start/end, all-day, reservation type, remarks) — paired against AlpenFlight's reservation edit form"
           add_shot "/tmp/fls-e2e-results" "legacy-reservation-scheduler.png" "J-5" "legacy" "scheduler" \
-            "Legacy flsweb: the reservation-scheduler SVG grid (aircraft rows × time-slot columns) — paired against AlpenFlight's /reservation-scheduler lane×time grid"
+            "Legacy flsweb: the reservation-scheduler SVG grid (aircraft rows × time-slot columns) — paired against AlpenFlight's calendar week view (aircraft×day matrix), the consolidated scheduler replacement"
           add_shot "alpenflight/web/test-results" "alpenflight-reservations-list.png" "J-5" "alpenflight" "list" \
-            "AlpenFlight: the /reservations list with a created reservation (immatriculation · start · end · pilot · location · type · all-day — full legacy column parity), decorated client-side from the picker label maps"
+            "AlpenFlight: the /reservations CALENDAR day view (aircraft×hour grid 08–20) with a created reservation placed as a time-block in its aircraft lane — the calendar-first replacement for the legacy reservation table, decorated client-side from the picker label maps"
           add_shot "alpenflight/web/test-results" "alpenflight-reservation-form.png" "J-5" "alpenflight" "form" \
             "AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form"
           add_shot "alpenflight/web/test-results" "alpenflight-reservation-scheduler.png" "J-5" "alpenflight" "scheduler" \
-            "AlpenFlight: the /reservation-scheduler — a created reservation placed in its aircraft lane at a time-derived horizontal offset (read-only lane×time placement; legacy's drag-create heaviest seam is deliberately not carried forward)"
+            "AlpenFlight: the /reservations CALENDAR week view (aircraft×day matrix — per-cell count · hours · progress bar), the consolidated replacement for the legacy reservation-scheduler grid (the calendar day view is the old lane×time scheduler; this week view is the distinct second surface)"
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

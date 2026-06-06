@@ -707,9 +707,42 @@ backend (paged/future API) + edit form. Skip the METAR/weather strip (no weather
 - [x] **T-40 — Restyle the reservation edit form to the reference.** Match the reference/`screenshots/flights-form.png`
   visual (field grouping, af-form controls, button shapes, spacing, sentence-case labels, inline error style) +
   the token set. Keep the T-09 low-CRAP structure + the conflict-409/422 inline handling. *(seam: reservation-edit.page.ts + tokens)*
-- [ ] **T-41 — Re-green e2e + parity captures for the calendar.** The inner-loop `reservations-crud.spec.ts` + the
+- [x] **T-41 — Re-green e2e + parity captures for the calendar.** The inner-loop `reservations-crud.spec.ts` + the
   real-idp `reservations-migration-parity.spec.ts` assert the TABLE (`reservations-row-<id>`) + the separate
   scheduler — rework selectors/flow to drive the new calendar (day/week, blocks) + the form, KEEPING the load-bearing
   assertions (conflict→409, all-day, cross-tenant-open, migrated render). Update the parity-screenshot captures (the
   "list" shot becomes the calendar day/week view) + add_shot labels. Re-run the gate to green (ci required + fanout
   25/25 + deployed-link-check + the 6 paired screenshots now calendar+form). *(seam: both reservations specs + fanout captures)*
+  **Done (≤8 files):** (1) MOCK-AUTH `reservations-crud.spec.ts` fully reworked for the calendar — drives the DAY
+  view (block in `reservation-scheduler-lane-<ac>`/`reservation-scheduler-block-<id>`), the day/week toggle +
+  week day-picker + `reservations-week-cell-<ac>-<date>`, all-day = full-width band (placement `calc(0% + 2px)` /
+  `calc(100% - 4px)`, asserted via leftPct=0 + width contains 100%), `/reservation-scheduler`→`/reservations`
+  redirect, block→edit click, and create/conflict-409/duration-422/cross-tenant. Mock reservations dated to TODAY
+  (the day view only shows reservations starting on the selected day; calendar defaults to today) → TZ-robust, no
+  week-shifting. Route mocks UNCHANGED (the store still calls the paged + picker endpoints; the calendar is a pure
+  derivation). KEPT `?lang=de` + the German assertions (`Reservationen`). Delete-frees drives the DELETE via the
+  mocked REST route (the calendar-first design dropped the table kebab) then re-renders → block gone. Screenshots:
+  `01-calendar-day`, `02-timed-created`, `03-allday-band`, `04-conflict-409`, `06-calendar-week`. (2) REAL-IDP
+  `reservations-migration-parity.spec.ts` — every load-bearing REST assertion UNCHANGED (overlap→409 + self-exclude,
+  duration→422, all-day full-day span, cross-tenant-open 201, migrated round-trip by remark + Schulung type); UI
+  RENDER moved from the table to the calendar day-view block in the right lane. Clean-seed create dated TODAY (UI
+  type-picker create→day-view block, T-17/T-25 flow kept); all-day/cross-tenant/delete-frees dated TODAY; delete
+  drives REST DELETE (no UI kebab) → block disappears from the day view. Migrated read navigates the week day-picker
+  to the migrated reservation's day (derived from its `start`, +7d from fanout wall-clock) via a bounded
+  next/prev-week walk, then asserts the migrated block by id in its aircraft lane. The "list" screenshot is now the
+  calendar DAY view; the "scheduler" screenshot is now the calendar WEEK view (the day view IS the old scheduler →
+  the week view is the distinct second surface, no redundant duplicate). Form screenshot (T-38) kept. (3) FANOUT
+  `alpenflight-proof-fanout.yml` J-5 add_shot block relabelled: legacy table ↔ AlpenFlight calendar day view
+  (view=list), legacy scheduler grid ↔ AlpenFlight calendar week view (view=scheduler), form pair unchanged — the 6
+  paired shots still stage. (4) No separate scheduler spec existed to prune; the legacy capture spec
+  (`e2e/tests/reservations/reservations-parity-J5.spec.ts`, legacy suite) correctly keeps the legacy
+  `/reservation-scheduler` (legacy unchanged). Local: `prettier --write` on the full `e2e/**/*.{ts,json}` glob
+  (both specs clean on `--check`); `tsc -p e2e/tsconfig.json` 0 errors on BOTH touched specs (the 30 pre-existing
+  strict errors in 7 unrelated files are unchanged — none introduced); fanout YAML parses (js-yaml). Playwright
+  unrunnable here (chrome musl + real-idp stack) — authored against the shipped T-39 calendar component
+  (`reservations-calendar.page.ts`) + T-40 edit form + the placement/model helpers (exact testids/DOM/`calc()`
+  styles read from source). **CI must confirm:** `alpenflight-mock-e2e` green incl. the reworked
+  reservations-crud; the real-idp clean-seed proof green; fanout 25-ish passed (incl. migrated read); the
+  deployed-link-check green; the 6 paired screenshots now calendar+form. `articles-crud.spec.ts:265` remains a
+  PRE-EXISTING flake unrelated to J-5 (zero article files touched on this branch; boyscout candidate for a future
+  masterdata-touch journey — not fixed here).
