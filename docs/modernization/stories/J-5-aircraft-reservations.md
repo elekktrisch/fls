@@ -426,7 +426,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
   Clears the `:188` create + the 7 cascaded clean-seed cases. *(seam: reservation request/response DTOs + mapper + ControllerIT + openapi/orval regen)*
 
 ### §4 gate — third run reds (fanout 18 passed/2 failed; ci build broke)
-- [ ] **T-26 — Fix the `compileNullawayDemoJava` build regression (T-11 PMD wiring).** `ci alpenflight build`
+- [x] **T-26 — Fix the `compileNullawayDemoJava` build regression (T-11 PMD wiring).** `ci alpenflight build`
   fails: `:compileNullawayDemoJava FAILED` (the deliberately-broken negative-test demo source set). The
   `nullawayDemo` (+ `archDemo`) source set is intentionally NOT wired into `check`/`build` (only its
   expect-failure verification task compiles it). T-11's `pmd` plugin auto-creates a `pmd<SourceSet>` task per

@@ -355,6 +355,36 @@ tasks.withType<org.gradle.api.plugins.quality.Pmd>().configureEach {
     }
 }
 
+// J-5 T-26: fully DETACH pmd from the non-main demo/test source sets so their
+// `compile<SourceSet>Java` is NOT pulled into `check`/`build`.
+//
+// The PMD plugin auto-creates a `pmd<SourceSet>` task for EVERY source set
+// (pmdTest, pmdArchDemo, pmdNullawayDemo) and wires ALL of them into `check` via
+// a single opaque `AbstractCodeQualityPlugin` callable in `check.dependsOn`.
+// Disabling the task ACTION above (`enabled = false`) is not enough: a Pmd task's
+// `classpath` points at its source set's output, which carries an IMPLICIT task
+// dependency on `compile<SourceSet>Java` — so even a disabled pmd task still pulls
+// its compile into the graph. That dragged `compileNullawayDemoJava`, the
+// DELIBERATELY-broken negative-test demo (AC3 expect-failure source), into
+// `check`/`build` and red-ed the build.
+//
+// Fix: strip the code-quality plugin's auto-wired pmd callable out of
+// `check.dependsOn` entirely (it's the entry whose class lives under
+// `org.gradle.api.plugins.quality`), then re-add ONLY `pmdMain` explicitly. The
+// demo/test pmd tasks — and therefore their compiles — are no longer reachable
+// from `check`/`build`. `pmdMain` (the real maintainability report) stays wired;
+// the nullawayDemo is compiled ONLY by the standalone
+// `verifyNullAwayFailsOnViolation` expect-failure task (AC3 still enforced).
+// `cpdRatchet` / `cpdCheck` (the duplication gate) are untouched.
+tasks.named("check") {
+    setDependsOn(
+        dependsOn.filterNot { dep ->
+            dep.javaClass.name.startsWith("org.gradle.api.plugins.quality")
+        },
+    )
+    dependsOn("pmdMain")
+}
+
 // CPD = PMD's copy-paste detector (the duplication axis). minimumTokenCount is
 // the sensitivity knob; 50 tokens ≈ jscpd's --min-lines 8 proxy used for the
 // 5.57% baseline number in the rider. Scan ONLY production Java.
