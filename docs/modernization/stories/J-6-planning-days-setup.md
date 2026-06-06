@@ -212,7 +212,7 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
 
 ≥60% feature (T-01…T-11, T-16) · ≤40% tech-debt riders (T-12, T-14, T-15). Sequential on `integration/J-6`.
 
-- [ ] **T-01 — spec stub.** Author both specs' structure + selectors + flow: mock inner-loop
+- [x] **T-01 — spec stub.** Author both specs' structure + selectors + flow: mock inner-loop
   `e2e/tests/planning/planning-crud.spec.ts` (+ setup-wizard) and the real-idp parity skeleton
   `e2e/tests/real-idp/planning-migration-parity.spec.ts`. Thin assertions; commits the screen shape. *(spec seam)*
 - [ ] **T-02 — PlanningDay aggregate.** `ch.alpenflight.planning`: `PlanningDay` aggregate (date,
