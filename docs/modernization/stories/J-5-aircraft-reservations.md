@@ -646,3 +646,19 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   the `legacy-parity/` href + added a T-37 regression guard ("a stale parent-level page is never linked" → PENDING);
   7/7 unit tests green. No link weakened. The live deploy goes green on the NEXT index rebuild (the rebuild-previews-index
   composite regenerates with the new probe path). *(seam: generate-previews-index.mjs branch-source probe path)*
+
+### Operator: parity screenshots still missing (done-bar: paired legacy↔AlpenFlight list+form)
+- [ ] **T-38 — Complete the J-5 paired parity screenshots (list+form).** The deployed J-5 gallery page shows
+  only `legacy-reservation-list` + `alpenflight-reservations-list` + `alpenflight-reservation-scheduler` — the
+  **FORM pair is entirely absent**, failing the legacy-replacing-screen done-bar (paired legacy↔AlpenFlight
+  list+form). Root: (a) the real-idp spec (`reservations-migration-parity.spec.ts`) screenshots only list (:273)
+  + scheduler (:278) — it **never captures the AlpenFlight reservation EDIT FORM**; (b) the fanout staging
+  (`alpenflight-proof-fanout.yml` ~950) has add_shot for alpenflight list + scheduler but **no
+  `alpenflight-reservation-form`**; (c) the legacy `legacy-reservation-form.png`/`-scheduler.png` add_shots
+  (~946/948) exist but NO-OP'd on deploy (only legacy-list appeared) — the legacy form/scheduler captures aren't
+  reliably produced/found. Fix: capture `alpenflight-reservation-form.png` in the spec (navigate the create/edit
+  form, screenshot before deep asserts — survive partial red), add its `add_shot` (J-5/alpenflight/form), and make
+  the legacy form+scheduler captures reliable so all are staged. Also the persistent index currently links the
+  stale screenshot-less `J-5/` — T-37's `legacy-parity/` probe fixes that on the next rebuild; verify the index
+  lands on the page WITH the screenshots. Done = the J-5 gallery page shows the paired legacy↔AlpenFlight
+  list AND form (+ scheduler) screenshots. *(seam: real-idp reservations spec form-capture + fanout add_shot + legacy capture reliability)*
