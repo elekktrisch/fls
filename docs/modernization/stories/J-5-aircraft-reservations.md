@@ -271,3 +271,12 @@ One seam each; commit directly to `integration/J-5`.
   screenshots sidecar declarations under journey J-5). RESERVATION-TYPE GAP surfaced (no type-create
   API → clean-seed UI form's required type dropdown is empty; mutations drive the real REST API, list +
   scheduler drive the UI) — reported, not papered over. *(seam: e2e specs + fanout wiring)*
+- [ ] **T-17 — Clean-seed default reservation-type (done-bar: full UI create on clean seed).** Surfaced by
+  T-16: `t_aircraft_reservation_type` is tenant-scoped + migration-populated only (no create API), so a
+  clean realm club has zero types → the edit form's required type dropdown is empty → the full UI
+  create→type-picker flow can't run on clean seed (only on migrated data). Add a **dev/test-seed default
+  `AircraftReservationType`** for the clean-seed test club(s) (mirror how the J-0/J-1 dev seeds populate
+  tenant reference rows — a Flyway dev-seed or the two-club fixture seeder), then switch the real-idp gate
+  spec's create to drive the UI type-picker (proving the full clean-seed UI create end-to-end). Keep the
+  type-create-API itself out of scope (deferred — a clubadmin masterdata screen is its own future journey).
+  *(seam: clean-seed dev seed / two-club fixture + the real-idp spec's create flow)*
