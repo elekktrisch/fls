@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -29,7 +29,32 @@ async function loadGenerator(): Promise<{
     legacyVideoDir?: string;
     screenshotsDir?: string;
     renderNav?: boolean;
-  }) => { html: string; roadmap: string[]; proofs: { journey: string }[]; shots: unknown[] };
+    perJourney?: boolean;
+    journeyUnderWork?: string;
+  }) => {
+    html: string;
+    roadmap: string[];
+    proofs: { journey: string }[];
+    shots: unknown[];
+    journeyPages: { journey: string; outFile: string }[];
+  };
+  parsePmd: (xml: string | null) => { total: number; complexity: number; deadCode: number } | null;
+  parseCpd: (xml: string | null) => { groups: number; dupPct: number | null } | null;
+  parseFallowAudit: (json: unknown) => {
+    verdict: string;
+    deadIntroduced: number;
+    complexityIntroduced: number;
+    duplicationIntroduced: number;
+  } | null;
+  maintainabilityRollup: (m: {
+    audit: {
+      verdict: string;
+      deadIntroduced: number;
+      complexityIntroduced: number;
+      duplicationIntroduced: number;
+    } | null;
+    showDelta: boolean;
+  }) => { level: string; label: string };
 }> {
   return import(pathToFileURL(GENERATOR).href);
 }
@@ -456,7 +481,9 @@ describe('generateGallery — journey accordion (T-44)', () => {
   ];
 
   /** Stand up a report (J-0 video) + J-2 screenshots against ACCORDION_ORDER. */
-  function buildGallery(generateGallery: any) {
+  function buildGallery(
+    generateGallery: Awaited<ReturnType<typeof loadGenerator>>['generateGallery'],
+  ) {
     const dir = mkdtempSync(resolve(tmpdir(), 'gallery-accordion-'));
     const orderPath = resolve(dir, '_ORDER.md');
     writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
@@ -525,5 +552,262 @@ describe('generateGallery — journey accordion (T-44)', () => {
     expect(j2Block).toContain('screenshots/alpenflight-flights-list.png');
     // Summary count reflects the content.
     expect(j2Block).toContain('2 screenshots');
+  });
+});
+
+/**
+ * T-13a — per-journey gallery pages + the Maintainability panel.
+ *
+ * The operator re-arch: instead of (or in addition to) one all-journeys page,
+ * the generator emits ONE self-contained page PER journey-with-content at
+ * `<outDir>/J-<n>/index.html`, each rendering that journey's videos + paired
+ * screenshots (shared media referenced via `../`) + a Maintainability panel read
+ * from `<outDir>/maintainability/`'s 4 T-12 artifacts. The panel is fail-soft —
+ * any of the 4 files may be ABSENT (the T-12 producer is `continue-on-error`).
+ */
+
+/** Read a written file from disk (the per-journey page emit is a side effect). */
+function readOut(outDir: string, ...segs: string[]): string {
+  return readFileSync(resolve(outDir, ...segs), 'utf8');
+}
+
+/** Write the 4 maintainability artifacts into `<outDir>/maintainability/`. */
+function writeMaint(
+  outDir: string,
+  files: Partial<
+    Record<'fallow-audit.json' | 'fallow-health.json' | 'pmd-main.xml' | 'cpd-check.xml', string>
+  >,
+): void {
+  const dir = resolve(outDir, 'maintainability');
+  mkdirSync(dir, { recursive: true });
+  for (const [name, body] of Object.entries(files)) writeFileSync(resolve(dir, name), body!);
+}
+
+const SAMPLE_AUDIT = JSON.stringify({
+  verdict: 'fail',
+  attribution: {
+    dead_code_introduced: 0,
+    complexity_introduced: 5,
+    duplication_introduced: 16,
+  },
+});
+const SAMPLE_HEALTH = JSON.stringify({
+  health_score: { score: 71.1, grade: 'B' },
+  vital_signs: { maintainability_avg: 92, duplication_pct: 6.1, dead_file_pct: 1.1 },
+});
+const SAMPLE_PMD =
+  '<pmd><file name="A.java">' +
+  '<violation rule="CyclomaticComplexity">x</violation>' +
+  '<violation rule="ExcessiveParameterList">y</violation>' +
+  '<violation rule="UnusedPrivateField">z</violation>' +
+  '</file></pmd>';
+const SAMPLE_CPD =
+  '<pmd-cpd>' +
+  '<file path="A.java" totalNumberOfTokens="1000"/>' +
+  '<file path="B.java" totalNumberOfTokens="1000"/>' +
+  '<duplication lines="20" tokens="40"><file/></duplication>' +
+  '<duplication lines="10" tokens="20"><file/></duplication>' +
+  '</pmd-cpd>';
+
+describe('parse helpers (T-13a) — fail-soft artifact parsing', () => {
+  it('parsePmd counts total + complexity + dead-code by rule', async () => {
+    const { parsePmd } = await loadGenerator();
+    expect(parsePmd(SAMPLE_PMD)).toEqual({ total: 3, complexity: 2, deadCode: 1 });
+  });
+
+  it('parseCpd computes a duplication % (dup-tokens / total-tokens) + group count', async () => {
+    const { parseCpd } = await loadGenerator();
+    const cpd = parseCpd(SAMPLE_CPD);
+    expect(cpd?.groups).toBe(2);
+    // (40 + 20) / (1000 + 1000) = 3.0%
+    expect(cpd?.dupPct).toBeCloseTo(3.0, 5);
+  });
+
+  it('every parser returns null on absent/empty input (never throws)', async () => {
+    const { parsePmd, parseCpd, parseFallowAudit } = await loadGenerator();
+    expect(parsePmd(null)).toBeNull();
+    expect(parseCpd(null)).toBeNull();
+    expect(parseFallowAudit(null)).toBeNull();
+    expect(parseFallowAudit({})).toEqual({
+      verdict: 'unknown',
+      deadIntroduced: 0,
+      complexityIntroduced: 0,
+      duplicationIntroduced: 0,
+    });
+  });
+
+  it('maintainabilityRollup is red on a fail verdict, green on no-delta, neutral without delta', async () => {
+    const { maintainabilityRollup } = await loadGenerator();
+    const fail = {
+      verdict: 'fail',
+      deadIntroduced: 0,
+      complexityIntroduced: 5,
+      duplicationIntroduced: 16,
+    };
+    const clean = {
+      verdict: 'pass',
+      deadIntroduced: 0,
+      complexityIntroduced: 0,
+      duplicationIntroduced: 0,
+    };
+    expect(maintainabilityRollup({ audit: fail, showDelta: true }).level).toBe('red');
+    expect(maintainabilityRollup({ audit: clean, showDelta: true }).level).toBe('green');
+    // showDelta=false (not the journey-under-work) → snapshot-only, regardless of audit.
+    expect(maintainabilityRollup({ audit: fail, showDelta: false }).level).toBe('neutral');
+    // No audit at all → neutral.
+    expect(maintainabilityRollup({ audit: null, showDelta: true }).level).toBe('neutral');
+  });
+});
+
+describe('generateGallery — per-journey pages (T-13a)', () => {
+  /** A report with one green proof for J-0 + J-2 screenshots, against a roadmap. */
+  function buildPerJourney(
+    generateGallery: Awaited<ReturnType<typeof loadGenerator>>['generateGallery'],
+    opts: { writeMaint?: boolean; journeyUnderWork?: string } = {},
+  ) {
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-perj-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const screenshotsDir = makeShotDir(dir, [
+      {
+        journey: 'J-2',
+        side: 'legacy',
+        view: 'list',
+        file: 'legacy-flight-list.png',
+        caption: 'Legacy: flight list',
+      },
+      {
+        journey: 'J-2',
+        side: 'alpenflight',
+        view: 'list',
+        file: 'alpenflight-flights-list.png',
+        caption: 'AlpenFlight: flights list',
+      },
+    ]);
+    const outDir = resolve(dir, 'out');
+    if (opts.writeMaint) {
+      mkdirSync(outDir, { recursive: true });
+      writeMaint(outDir, {
+        'fallow-audit.json': SAMPLE_AUDIT,
+        'fallow-health.json': SAMPLE_HEALTH,
+        'pmd-main.xml': SAMPLE_PMD,
+        'cpd-check.xml': SAMPLE_CPD,
+      });
+    }
+    const result = generateGallery({
+      reportPath,
+      outDir,
+      orderPath,
+      screenshotsDir,
+      renderNav: false,
+      journeyUnderWork: opts.journeyUnderWork,
+    });
+    return { outDir, result };
+  }
+
+  it('emits one page per journey-WITH-content (J-0 video, J-2 screenshots); pending journeys get NO page', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { outDir, result } = buildPerJourney(generateGallery);
+
+    expect(result.journeyPages.map((p) => p.journey).sort()).toEqual(['J-0', 'J-2']);
+    // The all-journeys index.html is STILL written (additive, not replaced).
+    expect(existsSync(resolve(outDir, 'index.html'))).toBe(true);
+    // Each emitted page exists at <outDir>/J-<n>/index.html.
+    expect(existsSync(resolve(outDir, 'J-0', 'index.html'))).toBe(true);
+    expect(existsSync(resolve(outDir, 'J-2', 'index.html'))).toBe(true);
+    // J-0c + J-1 are pending (no content) → no per-journey page emitted.
+    expect(existsSync(resolve(outDir, 'J-0c', 'index.html'))).toBe(false);
+    expect(existsSync(resolve(outDir, 'J-1', 'index.html'))).toBe(false);
+  });
+
+  it('per-journey page renders the journey content with shared media referenced via ../', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { outDir } = buildPerJourney(generateGallery);
+
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('<video controls');
+    // Shared media lives at the out-root; the per-journey page is one dir down.
+    expect(j0).toContain('../videos/j0-tenant.webm');
+    expect(j0).toContain('>J-0 — proof</h1>');
+
+    const j2 = readOut(outDir, 'J-2', 'index.html');
+    expect(j2).toContain('parity-screenshots');
+    expect(j2).toContain('../screenshots/legacy-flight-list.png');
+    expect(j2).toContain('../screenshots/alpenflight-flights-list.png');
+  });
+
+  it('renders the Maintainability panel from a sample dir — red roll-up + delta on the journey-under-work', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { outDir } = buildPerJourney(generateGallery, {
+      writeMaint: true,
+      journeyUnderWork: 'J-0',
+    });
+
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('class="maintainability"');
+    // Fail verdict + 21 introduced → red pill.
+    expect(j0).toContain('<span class="status failure">');
+    expect(j0).toContain('FE delta (this journey vs main)');
+    // Snapshot numbers from fallow-health.
+    expect(j0).toContain('score <strong>71.1</strong> (B)');
+    // BE PMD: 3 violations (2 complexity, 1 dead-code).
+    expect(j0).toContain('<strong>3</strong> violations');
+    // BE CPD: 3.0% duplicated.
+    expect(j0).toContain('3.0%');
+
+    // J-2 is NOT the journey-under-work → snapshot only, no false delta.
+    const j2 = readOut(outDir, 'J-2', 'index.html');
+    expect(j2).toContain('historical per-journey delta not reconstructable');
+    expect(j2).toContain('<span class="status neutral">'); // snapshot-only pill
+  });
+
+  it('Maintainability panel is fail-soft — absent artifacts render "no data", never throws', async () => {
+    const { generateGallery } = await loadGenerator();
+    // No writeMaint → the maintainability dir does not exist.
+    const { outDir } = buildPerJourney(generateGallery, { journeyUnderWork: 'J-0' });
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('class="maintainability"');
+    expect(j0).toContain('no data');
+  });
+
+  it('tolerates a PARTIAL maintainability dir — only PMD present, the other 3 absent', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-partial-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const outDir = resolve(dir, 'out');
+    mkdirSync(outDir, { recursive: true });
+    writeMaint(outDir, { 'pmd-main.xml': SAMPLE_PMD }); // only one of the 4
+
+    expect(() =>
+      generateGallery({ reportPath, outDir, orderPath, renderNav: false, journeyUnderWork: 'J-0' }),
+    ).not.toThrow();
+
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('<strong>3</strong> violations'); // PMD parsed
+    expect(j0).toContain('no fallow health data'); // health absent → graceful
+  });
+
+  it('--no-per-journey (perJourney:false) emits ONLY the all-journeys page', async () => {
+    const { generateGallery } = await loadGenerator();
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-nopj-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, ACCORDION_ORDER, 'utf8');
+    const { reportPath } = singleProofReport(dir);
+    const outDir = resolve(dir, 'out');
+
+    const result = generateGallery({
+      reportPath,
+      outDir,
+      orderPath,
+      renderNav: false,
+      perJourney: false,
+    } as Parameters<typeof generateGallery>[0]);
+
+    expect(result.journeyPages).toEqual([]);
+    expect(existsSync(resolve(outDir, 'index.html'))).toBe(true);
+    expect(existsSync(resolve(outDir, 'J-0', 'index.html'))).toBe(false);
   });
 });

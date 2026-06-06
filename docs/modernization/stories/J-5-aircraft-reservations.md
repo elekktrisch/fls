@@ -205,10 +205,20 @@ One seam each; commit directly to `integration/J-5`.
   the all-in-one paths become SOURCES the per-journey pages read, not destinations;
   (c) **Maintainability panel** on each per-journey page (green/amber/red on that journey's fallow +
   pmd/cpd delta from T-12, link to full report). **Pre-split per the sizing gate into T-13a/T-13b:**
-- [ ] **T-13a — per-journey gallery pages + Maintainability panel.** `generate-gallery.mjs` emits ONE
+- [x] **T-13a — per-journey gallery pages + Maintainability panel.** `generate-gallery.mjs` emits ONE
   page per `journey` (keyed by the existing `journey` sidecar field) to a stable per-journey path +
   renders the Maintainability panel reading T-12's 4 artifacts from `public/alpenflight/proof/maintainability/`
   (tolerate any absent — fail-soft). *(seam: generate-gallery.mjs)*
+  OUTPUT PATH SCHEME (for T-13b): per-journey pages at `<out-root>/J-<n>/index.html` (e.g.
+  `public/alpenflight/proof/J-5/index.html`), emitted only for journeys-WITH-content (video or
+  screenshot); pending journeys get no page. Shared media stays at the out-root (`<out>/videos/`,
+  `<out>/screenshots/`) and pages reference it via `../`. The all-journeys `<out>/index.html` is still
+  written (additive). PANEL: green/amber/red roll-up driven by the FE fallow-audit DELTA on the
+  journey-under-work page (green = nothing introduced, amber = something introduced, red = audit
+  verdict `fail`); other pages show `neutral`/"snapshot only" (historical per-journey delta isn't
+  reconstructable). Snapshot rows (FE health score/grade/MI/dup%, BE PMD violation+complexity+dead-code
+  counts, BE CPD dup%) render on every page; any absent artifact → "—"/"no data", never throws. New
+  CLI flags: `--no-per-journey`, `--journey-under-work J-N`.
 - [ ] **T-13b — persistent J-0…J-5 index.** `generate-previews-index.mjs` lists JOURNEYS (not active
   branches), each → its per-journey page, surviving PR close — source J-0…J-4 retroactively from the
   persistent `alpenflight/proof/legacy-parity/` all-journeys archive. The all-in-one per-proof-type paths
