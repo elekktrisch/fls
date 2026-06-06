@@ -440,6 +440,57 @@ function dayBlock(page: Page, aircraftId: string, reservationId: string) {
     .getByTestId(`reservation-scheduler-block-${reservationId}`);
 }
 
+/**
+ * Navigate the calendar's week day-picker to the day `dateKey` (`YYYY-MM-DD`) and
+ * select it, so the day view shows reservations starting on that day. The picker
+ * renders only the SELECTED day's Monday→Sunday week, so we shift weeks
+ * (next/prev) until the target's pill is present, then click it.
+ *
+ * The naive "click while count===0" loop OVERSHOOTS: Playwright clicks faster
+ * than Angular re-renders the picker, so `count()` still reads 0 after the target
+ * week is shown and the loop clicks past it (and the target pill then disappears
+ * again — the J-5 T-45 fanout red `:721`). Fix: after EACH shift, wait for the
+ * picker to actually re-render to a NEW week (a different first-pill key) before
+ * re-checking — so each click is observed before the next, no race, no overshoot.
+ * Mirrors the real-idp spec helper (shared calendar DOM). No `waitForTimeout`.
+ */
+async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
+  const pill = page.getByTestId(`reservations-daypicker-${dateKey}`);
+  const todayMs = new Date(`${TODAY.key}T00:00:00`).getTime();
+  const targetMs = new Date(`${dateKey}T00:00:00`).getTime();
+  const direction = targetMs >= todayMs ? 'next' : 'prev';
+  // The picker's seven pills carry `data-testid="reservations-daypicker-<key>"`;
+  // the first pill's key identifies the rendered week.
+  const firstPillKey = async (): Promise<string | null> => {
+    const first = page.locator('[data-testid^="reservations-daypicker-"]').first();
+    if ((await first.count()) === 0) return null;
+    return (
+      (await first.getAttribute('data-testid'))?.replace('reservations-daypicker-', '') ?? null
+    );
+  };
+  for (let i = 0; i < 60 && (await pill.count()) === 0; i++) {
+    const before = await firstPillKey();
+    await page.getByTestId(`reservations-${direction}-week`).click();
+    // Gate on the picker re-rendering to a different week before re-checking,
+    // so we never click past the target while the DOM still shows the old week.
+    await expect
+      .poll(async () => firstPillKey(), { message: 'the day-picker must shift to a new week' })
+      .not.toBe(before);
+  }
+  await expect(pill, `the day-picker must reach ${dateKey}`).toBeVisible();
+  await pill.click();
+}
+
+/** `YYYY-MM-DD` `days` days from local today (the picker-nav target day). */
+function dayKeyFromToday(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Parse the leftPct out of the day block's `calc(<n>% + 2px)` left style. */
 async function blockLeftPct(
   page: Page,
@@ -836,6 +887,83 @@ test.describe('J-5 aircraft reservations (mock-auth inner loop)', () => {
     await expect(lane).toBeVisible();
     await expect(lane).toContainText('HB-OTHR');
     await expect(dayBlock(page, AC_OTHER, id)).toBeVisible();
+  });
+
+  // ── AC[happy]: an all-day reservation on a FUTURE day renders as a full-day
+  //    band — reached via the week day-picker nav (proves the same shared
+  //    calendar DOM the real-idp `:485` all-day + `:721` migrated nav rely on,
+  //    locally; J-5 T-45). The all-day reservation is dated to a distinct future
+  //    day (not today) so it can't collide with a same-day timed booking on the
+  //    same aircraft — exactly the collision that red-ed the real-idp `:485`
+  //    create (an all-day full-day span overlaps any same-aircraft timed row). ──
+  test('calendar: an all-day reservation on a future day renders as a full-width band (day-picker nav)', async ({
+    page,
+  }) => {
+    const futureKey = dayKeyFromToday(7);
+    const ALLDAY_ID = '019e30c3-2c00-7001-8000-000000000f01';
+    const allDay: MockReservation = {
+      id: ALLDAY_ID,
+      operatingClubId: CLUB_A_ID,
+      aircraftId: AC_SAME,
+      pilotPersonId: PILOT_ID,
+      locationId: LOCATION_ID,
+      reservationTypeId: TYPE_FLIGHT_ID,
+      reservationTypeName: 'Flight',
+      isAllDay: true,
+      // All-day normalises to the full-day span [date 00:00, date+1 00:00) — the
+      // list item carries the day's midnight start (the real backend's shape).
+      start: `${futureKey}T00:00:00Z`,
+      end: `${futureKey}T00:00:00Z`,
+    };
+    await wireReservations(page, [allDay]);
+
+    await gotoDe(page, '/reservations');
+    await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+
+    // Navigate the week day-picker forward to the all-day reservation's day.
+    await selectCalendarDay(page, futureKey);
+
+    // It renders as a FULL-WIDTH band in its aircraft lane (placement leftPct 0,
+    // widthPct 100 → `calc(0% + 2px)` / `calc(100% - 4px)`).
+    const block = dayBlock(page, AC_SAME, ALLDAY_ID);
+    await expect(block).toBeVisible();
+    const leftPct = await blockLeftPct(page, AC_SAME, ALLDAY_ID);
+    expect(leftPct, 'an all-day band starts at the lane left edge (0%)').toBe(0);
+    const width = await block.evaluate((el) => (el as HTMLElement).style.width);
+    expect(width, 'an all-day reservation is a full-width band').toContain('100%');
+  });
+
+  // ── AC: the week day-picker navigates to a future timed reservation's day and
+  //    shows its block — proves the `selectCalendarDay` nav helper does not
+  //    overshoot (the real-idp `:721` migrated-render nav, locally). ───────────
+  test('calendar: the week day-picker navigates to a future timed reservation and shows its block', async ({
+    page,
+  }) => {
+    const futureKey = dayKeyFromToday(10);
+    const FUTURE_ID = '019e30c3-2c00-7001-8000-000000000f02';
+    const future: MockReservation = {
+      id: FUTURE_ID,
+      operatingClubId: CLUB_A_ID,
+      aircraftId: AC_SAME,
+      pilotPersonId: PILOT_ID,
+      locationId: LOCATION_ID,
+      reservationTypeId: TYPE_FLIGHT_ID,
+      reservationTypeName: 'Flight',
+      isAllDay: false,
+      start: `${futureKey}T13:00:00Z`,
+      end: `${futureKey}T14:00:00Z`,
+    };
+    await wireReservations(page, [future]);
+
+    await gotoDe(page, '/reservations');
+    await expect(page.getByTestId('reservations-day-grid')).toBeVisible();
+    // The future reservation is NOT on today's default day view.
+    await expect(dayBlock(page, AC_SAME, FUTURE_ID)).toHaveCount(0);
+
+    // Navigate the week picker to its day (multiple week-shifts) — must land
+    // exactly on the target day, not overshoot.
+    await selectCalendarDay(page, futureKey);
+    await expect(dayBlock(page, AC_SAME, FUTURE_ID)).toBeVisible();
   });
 
   // ── AC: /reservation-scheduler redirects to the calendar (T-39) ──────────

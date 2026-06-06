@@ -780,7 +780,7 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
   of serial layer-by-layer discovery. Defer unless the round-trips persist after T-43. *(seam: ci.yml job parallelism/aggregation)*
 
 ### §4 gate — calendar-redesign fanout (21 passed / 2 failed; deployed-link-check GREEN)
-- [ ] **T-45 — Fix the 2 calendar-render real-idp assertions (T-41 rewrite vs T-39 actual render).**
+- [x] **T-45 — Fix the 2 calendar-render real-idp assertions (T-41 rewrite vs T-39 actual render).**
   `reservations-migration-parity.spec.ts` 2 fails: (1) `:485` `[happy] all-day reservation … renders as a
   full-day band` — the day-view all-day band assertion doesn't match the calendar's actual all-day block
   render; (2) `:721` `[happy] migrated reservation renders under its migrated TestClub tenant` — the week
@@ -790,3 +790,36 @@ the baseline test, the GitHub expression-length limit js-yaml can't see, calenda
   `reservations-calendar.page.ts` for the all-day block markup + the day-picker date keying). **Verify LOCALLY**
   via `pnpm e2e` (T-43 + the operator's `apk add chromium` enable this) before pushing — this IS the round-trip
   case. *(seam: reservations-migration-parity.spec.ts calendar render/nav assertions)*
+  **Done (locally verified, 2 files):** Downloaded the fanout error-contexts — NEITHER was a render-selector
+  mismatch; both were data/nav bugs from T-41 dating everything to TODAY. (1) `:485` was NOT a band-assertion
+  fail at all — the all-day CREATE returned **409**: an all-day reservation normalises to the full-day span
+  `[date 00:00, date+1 00:00)` (`AircraftReservation.reschedule`), so on `managedAircraftId` TODAY it OVERLAPS
+  the timed 10:00–11:00 TODAY reservation the first happy-create test leaves in seed-club-1 (deleted only in
+  afterAll). FIX: date the all-day reservation to a DISTINCT future day (`dayKeyFromToday(7)`, no other booking
+  on that aircraft) → clean 201; navigate the week day-picker to that day, then assert the band (block visible +
+  `left` contains `0%` + `width` contains `100%` — the placement contract). (2) `:721` was the `selectCalendarDay`
+  week-nav OVERSHOOTING: the old "click while `count===0`" loop clicked faster than Angular re-rendered the
+  picker, so `count()` still read 0 after the target week was shown and it clicked PAST 06-13 (the pill then
+  vanished → "day-picker must reach 2026-06-13" timeout). FIX: after each shift, `expect.poll` until the first
+  pill's key changes (the picker re-rendered to a NEW week) before re-checking — every click observed before the
+  next, no race. **LOCAL PROOF (system chromium `/usr/lib/chromium/chromium`, T-43):** authored 2 mock-auth
+  proving tests in `reservations-crud.spec.ts` on the IDENTICAL shared calendar DOM — `calendar: an all-day
+  reservation on a future day renders as a full-width band (day-picker nav)` (proves the all-day band shape +
+  the +7d nav) and `calendar: the week day-picker navigates to a future timed reservation and shows its block`
+  (proves the hardened nav doesn't overshoot). Ran `pnpm e2e --project=chromium reservations-crud` locally =
+  the 2 new tests + the 7 other calendar/CRUD tests **9 passed**. Then applied the same hardened
+  `selectCalendarDay` + the all-day +7d-day fix to the real-idp spec; every REST/load-bearing assertion
+  (409 + self-exclude, 422, cross-tenant-open 201, migrated read by remark + Schulung type) UNCHANGED; `?lang=de`
+  kept. `prettier --write` on the `e2e/**/*.{ts,json}` glob (both touched specs clean on `--check`); `tsc -p
+  e2e/tsconfig.json` = 0 errors in BOTH touched files (the ~30 pre-existing strict errors in 7 unrelated files
+  unchanged — none introduced). CI gate still confirms `:485`/`:721` directly against the real stack (real-idp).
+  **PRE-EXISTING LOCAL-ONLY finding (NOT T-45, do NOT paper over):** running `reservations-crud` locally surfaced
+  3 reds — `conflict`/`duration`/`delete` — that fail DETERMINISTICALLY on the committed spec WITHOUT my changes
+  too (`git stash` confirmed). Cause: those tests `gotoDe(page, '/reservations/new')` COLD (keeps `?lang=de`)
+  then assert `toHaveURL('/reservations/new')` (strict full-URL match) — the lingering cold-start `?lang=de`
+  fails the match LOCALLY. They are CI-GREEN (`alpenflight-mock-e2e` passed on the latest ci run) because CI's
+  chromium cold-start resolves the locale path without leaving the query (navigator.language / auth-redirect
+  timing differs). Surfaced only now that T-43 enabled local Playwright. Out of T-45 scope (these are not the 2
+  calendar-render assertions) + not loosened — files a boyscout rider: make those 3 either navigate via the
+  in-app new-button (no query, like the passing `create:` test) or `toHaveURL(/\/reservations\/new/)` so local
+  and CI agree. *(seam: reservations-migration-parity.spec.ts calendar render/nav assertions)*
