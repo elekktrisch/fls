@@ -2,7 +2,8 @@
 id: J-5
 title: Aircraft reservations
 epic: E-08
-status: todo
+status: in_progress
+started_at: 2026-06-06
 journey0: false
 carved: true
 depends_on: [J-1]
