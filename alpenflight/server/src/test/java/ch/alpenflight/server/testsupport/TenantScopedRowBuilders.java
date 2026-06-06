@@ -8,6 +8,8 @@ import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.persons.domain.PersonClub;
+import ch.alpenflight.planning.domain.PlanningDay;
+import ch.alpenflight.planning.domain.PlanningDayAssignmentType;
 import ch.alpenflight.reservations.domain.AircraftReservation;
 import ch.alpenflight.reservations.domain.AircraftReservationType;
 import java.time.Instant;
@@ -47,30 +49,38 @@ public final class TenantScopedRowBuilders {
         return BUILDERS.keySet();
     }
 
-    private static final Map<Class<?>, Function<SweepFixtureContext, ?>> BUILDERS = Map.of(
-            MemberState.class, ctx -> new MemberState(uniqueName("MS")),
-            Location.class, LocationSweepFactory::build,
-            Flight.class, FlightSweepFactory::build,
-            FlightType.class, FlightTypeSweepFactory::build,
-            Article.class, ArticleSweepFactory::build,
+    private static final Map<Class<?>, Function<SweepFixtureContext, ?>> BUILDERS = Map.ofEntries(
+            Map.entry(MemberState.class, ctx -> new MemberState(uniqueName("MS"))),
+            Map.entry(Location.class, LocationSweepFactory::build),
+            Map.entry(Flight.class, FlightSweepFactory::build),
+            Map.entry(FlightType.class, FlightTypeSweepFactory::build),
+            Map.entry(Article.class, ArticleSweepFactory::build),
             // PersonClub is aggregate-internal under the cross-tenant Person
             // root; CascadeType.PERSIST on PersonClub.person makes
             // `save(personClub)` cascade-insert the parent Person at flush.
-            PersonClub.class, PersonClubSweepFactory::build,
+            Map.entry(PersonClub.class, PersonClubSweepFactory::build),
             // J-5 reservation aggregates. AircraftReservationType is a plain
             // tenant-scoped lookup; AircraftReservation seeds its five non-tenant
             // FKs (aircraft/person/location/type) so only operating_club_id fails
             // fail-closed under NO_TENANT (see AircraftReservationSweepFactory).
-            AircraftReservationType.class, AircraftReservationTypeSweepFactory::build,
-            AircraftReservation.class, AircraftReservationSweepFactory::build,
+            Map.entry(AircraftReservationType.class, AircraftReservationTypeSweepFactory::build),
+            Map.entry(AircraftReservation.class, AircraftReservationSweepFactory::build),
+            // J-6 planning aggregates. PlanningDayAssignmentType is a plain
+            // tenant-scoped lookup; PlanningDay seeds its one non-tenant FK
+            // (location) so only operating_club_id fails fail-closed under
+            // NO_TENANT (see PlanningDay*SweepFactory). PlanningDayAssignment is
+            // an aggregate-internal child WITHOUT @TenantId (FlightCrew/V7
+            // pattern) — deliberately NOT a sweep participant.
+            Map.entry(PlanningDayAssignmentType.class, PlanningDayAssignmentTypeSweepFactory::build),
+            Map.entry(PlanningDay.class, PlanningDaySweepFactory::build),
             // Save bypasses the AuditTrailService / listener so the sweep
             // exercises Hibernate's @TenantId resolver directly — same
             // discriminator-filter contract as the other tenant-scoped rows.
-            MutationAuditEvent.class, ctx -> MutationAuditEvent.builder()
+            Map.entry(MutationAuditEvent.class, ctx -> MutationAuditEvent.builder()
                     .action(AuditAction.CREATE)
                     .targetEntityType("LeakageSweep")
                     .occurredAt(Instant.now())
-                    .build()
+                    .build())
     );
 
     private static String uniqueName(String label) {

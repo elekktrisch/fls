@@ -218,7 +218,7 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
 - [x] **T-02 — PlanningDay aggregate.** `ch.alpenflight.planning`: `PlanningDay` aggregate (date,
   location, info, child assignments), `PlanningDayAssignment`, `PlanningDayAssignmentType` lookup,
   `PlanningRole` resolution by well-known name; dup + range invariants as domain methods (ADR-0022 §2). + JPA mapping. *(aggregate seam)*
-- [ ] **T-03 — JpaPlanningDayRepository.** Paged future-days query, `overview/future`, computed
+- [x] **T-03 — JpaPlanningDayRepository.** Paged future-days query, `overview/future`, computed
   per-day reservation count (join `t_aircraft_reservation` by club+date+location), dedup-aware save. *(repo seam)*
   **T-02 carry-over (mirrors J-5 T-03→T-29):** `PlanningDay` + `PlanningDayAssignmentType` bear `@TenantId`,
   so the catalog-driven `LeakageSweepIT` + `TenantSweepFloorAndPinTest.every_discovered_entity_has_a_registered_row_builder`

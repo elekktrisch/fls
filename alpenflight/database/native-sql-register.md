@@ -162,6 +162,35 @@ This register is the gate.
   form (loses the GiST index but stays tenant-filtered) if production query
   plans show the index is unnecessary at per-club reservation counts.
 
+### `planning-day-reservation-count` — `Per-planning-day aircraft-reservation count`
+
+- **Caller:** `src/main/java/ch/alpenflight/planning/infra/PlanningDayPersistenceProbeImpl.java`
+- **Tenant-scoped tables touched:** t_aircraft_reservation
+- **Justification:** the legacy `NumberOfAircraftReservations` is a *computed*
+  count (never stored — J-6 behavior oracle): the number of non-deleted
+  aircraft reservations for the caller's club whose `date(reservation_start)`
+  equals the planning day's pure-`DATE` `planning_date` at the same location.
+  The `date(timestamptz)` cast against a pure DATE has no JPQL form, and the
+  count reads the cross-module `t_aircraft_reservation` table — querying the
+  `reservations` `AircraftReservation` entity from `planning.infra` JPQL would
+  couple the two modules' persistence. Native SQL keeps the planning aggregate
+  decoupled and expresses the date cast directly; it is a read-only count
+  feeding the planning list/edit projection.
+- **Tenancy gate:** explicit `operating_club_id = :tenantId` predicate — the
+  tenant id is resolved from `ClubTenantIdentifierResolver` (same JWT →
+  `Tenants.runAs` carrier precedence the JPA path uses) and parameter-bound,
+  never caller-controlled string interpolation. Hibernate's `@TenantId`
+  discriminator does not apply to native SQL, so the predicate is the explicit
+  tenant gate. Soft-deleted reservations excluded (`deleted_on IS NULL`).
+- **Reviewer:** auto-registered with J-6 T-03; security-reviewer panel
+  (ship-time gate) re-confirms.
+- **Approved:** 2026-06-06.
+- **Expires:** 2027-06-06
+- **Remove when:** the planning module gains a read-model / projection that
+  carries the per-day reservation count without crossing into the reservations
+  table, OR a shared cross-module count port is introduced so `planning` reads
+  the figure through the `reservations` domain API instead of native SQL.
+
 When you need to add one:
 
 1. Open a PR that updates this file with the entry below filled in.
