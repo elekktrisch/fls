@@ -252,7 +252,8 @@ class MigrationBundleParityRoundTripIT extends PostgresIntegrationTest {
      * {@code aircraft_reservation_type_id}) and left the REAL columns
      * ({@code operating_club_id}, {@code pilot_person_id},
      * {@code reservation_type_id}) carrying their verbatim legacy GUIDs — which
-     * then FK-violate ({@code fk_arvt_operating_club_id} / {@code fk_arv_*}) at
+     * then FK-violate ({@code fk_aircraft_reservation_type_operating_club_id} /
+     * {@code fk_aircraft_reservation_*}, renamed from the V4 abbreviations in V32) at
      * INSERT. The fix is the mappers' {@code foreignKeyColumns()} overrides;
      * with them, every FK rewrites to the new-stack id and the ingest is green.
      *

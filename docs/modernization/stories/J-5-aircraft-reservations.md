@@ -500,7 +500,7 @@ J-5 reds remain (the J-0c `fan-out:133` Location failure is collateral of the SA
 ### §4 gate — fifth run (fanout fully GREEN 25/25; ci build red on LeakageSweepIT)
 Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index deployed). ci heavy lane RAN
 (`alpenflight proof real-idp clean-seed` = SUCCESS — the required reservations proof passes); only `alpenflight build` red.
-- [ ] **T-29 — Register the tenant-scoped reservation aggregates with the leakage guard (`LeakageSweepIT`).**
+- [x] **T-29 — Register the tenant-scoped reservation aggregates with the leakage guard (`LeakageSweepIT`).**
   T-26 unblocked the server compile, so the full test suite now runs and `LeakageSweepIT` fails: it enumerates
   every `@TenantId` aggregate and asserts each has (a) a row-builder in `TenantScopedRowBuilders` and (b) an
   exposed Spring Data `JpaRepository`. `AircraftReservation` (needs the row-builder) + `AircraftReservationType`

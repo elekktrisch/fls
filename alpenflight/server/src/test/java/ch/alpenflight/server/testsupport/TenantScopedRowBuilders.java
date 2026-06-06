@@ -8,6 +8,8 @@ import ch.alpenflight.flights.domain.Flight;
 import ch.alpenflight.flighttypes.domain.FlightType;
 import ch.alpenflight.locations.domain.Location;
 import ch.alpenflight.persons.domain.PersonClub;
+import ch.alpenflight.reservations.domain.AircraftReservation;
+import ch.alpenflight.reservations.domain.AircraftReservationType;
 import java.time.Instant;
 import java.util.Map;
 import java.util.function.Function;
@@ -55,6 +57,12 @@ public final class TenantScopedRowBuilders {
             // root; CascadeType.PERSIST on PersonClub.person makes
             // `save(personClub)` cascade-insert the parent Person at flush.
             PersonClub.class, PersonClubSweepFactory::build,
+            // J-5 reservation aggregates. AircraftReservationType is a plain
+            // tenant-scoped lookup; AircraftReservation seeds its five non-tenant
+            // FKs (aircraft/person/location/type) so only operating_club_id fails
+            // fail-closed under NO_TENANT (see AircraftReservationSweepFactory).
+            AircraftReservationType.class, AircraftReservationTypeSweepFactory::build,
+            AircraftReservation.class, AircraftReservationSweepFactory::build,
             // Save bypasses the AuditTrailService / listener so the sweep
             // exercises Hibernate's @TenantId resolver directly — same
             // discriminator-filter contract as the other tenant-scoped rows.
