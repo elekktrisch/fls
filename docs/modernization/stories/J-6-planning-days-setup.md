@@ -242,10 +242,21 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   cross-journey mock regression stays nightly (`alpenflight-e2e.yml` main-push) + the §4 gate. Fanout
   workflow already triggers schedule + workflow_dispatch only (NOT push to `integration/**`) — already
   off the per-push path, no change. `required` aggregator semantics unchanged (skipped→success).
-- [ ] **T-04 — PlanningDay CRUD resource.** DTOs (3 person ids + date + locationId + info + computed
+- [x] **T-04 — PlanningDay CRUD resource.** DTOs (3 person ids + date + locationId + info + computed
   count + CanUpdate/CanDelete) / service / mapper / controllers: page, overview/future, GET :id,
   insert (409 dup), update (409 dup), delete (perm-gated ClubAdmin|creator). **+ explicit `operationId`s**
   on every endpoint (orval-stability rider). *(resource seam)*
+  **Done:** `/api/v1/planning-days` resource (kebab-case, real verbs — J-5 idiom, NOT the legacy
+  X-HTTP-Method-Override tunnel). 6 endpoints, all with explicit `operationId`s (pagePlanningDays,
+  listFuturePlanningDays, getPlanningDay, createPlanningDay, updatePlanningDay, deletePlanningDay).
+  Detail DTO carries the 3 nullable typed person ids (instructor/towingPilot/flightOperator) over the
+  generic assignment rows (role↔type-name resolution in the service), planningDate/locationId/info, the
+  computed `numberOfAircraftReservations` (T-03 count), + canUpdate/canDeleteRecord. 409 on dup
+  (club,date,location) via the T-03 catchable conflict → web 409; update/delete gated ClubAdmin-OR-creator
+  in the service (→ 403, surfaced by Spring Security's ExceptionTranslationFilter); cross-tenant GET 404.
+  Added `createdByUserId` (mapped, updatable=false) to PlanningDay + a `PlanningDayAssignmentTypeRepository`
+  domain port (ADR-0023 layering). `PlanningDaysControllerIT` (4 cases) green; whole `./gradlew test` green;
+  PMD/CPD clean; OpenAPI snapshot + orval client regenerated (planning-days client ready for T-07/T-08).
 - [ ] **T-05 — rule-expand endpoint.** `POST /planningdays/create/rule` — weekday expansion over a
   bounded range, skip-existing idempotent, empty-flags→empty, returns created overviews. *(endpoint seam)*
 - [ ] **T-06 — clean-seed planning data.** Dev-seed Flyway: 3 assignment types/club + sample planning

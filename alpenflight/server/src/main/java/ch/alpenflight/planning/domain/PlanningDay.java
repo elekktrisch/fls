@@ -80,6 +80,9 @@ public class PlanningDay {
     @Column(name = "info")
     private @Nullable String info;
 
+    @Column(name = "created_by_user_id", updatable = false)
+    private @Nullable UUID createdByUserId;
+
     @Column(name = "deleted_on")
     private @Nullable Instant deletedOn;
 
@@ -236,6 +239,21 @@ public class PlanningDay {
         return new DedupKey(requireClub(),
                 Objects.requireNonNull(planningDate, "planningDate not set"),
                 Objects.requireNonNull(locationId, "locationId not set"));
+    }
+
+    /**
+     * Stamps the internal {@code user.id} that created this day, used by the
+     * permission gate ({@code ClubAdministrator} OR record creator may
+     * update/delete — legacy {@code PlanningDayService.cs:407-425}). Set once at
+     * creation by the service; the column is {@code updatable = false}.
+     */
+    public void recordCreatedBy(@Nullable UUID userId) {
+        this.createdByUserId = userId;
+    }
+
+    /** The internal {@code user.id} that created this day, or {@code null}. */
+    public @Nullable UUID getCreatedByUserId() {
+        return createdByUserId;
     }
 
     public void softDelete(@Nullable UUID userId, Clock clock) {
