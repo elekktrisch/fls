@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.89.0",
-  "elapsed_ms": 336,
+  "elapsed_ms": 357,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -430,11 +430,11 @@
     {
       "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
       "name": "<component>",
-      "line": 365,
+      "line": 394,
       "col": 20,
       "cyclomatic": 19,
       "cognitive": 30,
-      "line_count": 198,
+      "line_count": 227,
       "param_count": 0,
       "exceeded": "cognitive",
       "severity": "high",
@@ -640,6 +640,42 @@
           "description": "Suppress with an inline comment above the function declaration",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/reservations/calendar/reservations-calendar.page.ts",
+      "name": "<template>",
+      "line": 70,
+      "col": 0,
+      "cyclomatic": 17,
+      "cognitive": 38,
+      "line_count": 259,
+      "param_count": 0,
+      "exceeded": "cognitive_crap",
+      "severity": "critical",
+      "crap": 306.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `<template>` to reduce template complexity (simplify control flow and bindings)",
+          "note": "Consider splitting complex template branches into smaller components or simpler bindings"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
         }
       ]
     },
@@ -902,7 +938,7 @@
       "col": 0,
       "cyclomatic": 14,
       "cognitive": 25,
-      "line_count": 184,
+      "line_count": 213,
       "param_count": 0,
       "exceeded": "cognitive_crap",
       "severity": "critical",
@@ -2326,7 +2362,7 @@
     {
       "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
       "name": "onSubmit",
-      "line": 365,
+      "line": 394,
       "col": 20,
       "cyclomatic": 5,
       "cognitive": 5,
@@ -2654,36 +2690,6 @@
       ]
     },
     {
-      "path": "src/app/features/reservations/list/reservations-list.page.ts",
-      "name": "<template>",
-      "line": 28,
-      "col": 0,
-      "cyclomatic": 5,
-      "cognitive": 5,
-      "line_count": 117,
-      "param_count": 0,
-      "exceeded": "crap",
-      "severity": "moderate",
-      "crap": 30.0,
-      "coverage_tier": "none",
-      "coverage_source": "estimated",
-      "actions": [
-        {
-          "type": "add-tests",
-          "auto_fixable": false,
-          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
-          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
-        },
-        {
-          "type": "suppress-line",
-          "auto_fixable": false,
-          "description": "Suppress with an inline comment above the Angular decorator",
-          "comment": "// fallow-ignore-next-line complexity",
-          "placement": "above-angular-decorator"
-        }
-      ]
-    },
-    {
       "path": "src/app/shared/ui/organisms/af-autocomplete/af-autocomplete.component.ts",
       "name": "onSelect",
       "line": 151,
@@ -2894,36 +2900,6 @@
       ]
     },
     {
-      "path": "src/app/features/reservations/scheduler/reservation-scheduler.page.ts",
-      "name": "<template>",
-      "line": 46,
-      "col": 0,
-      "cyclomatic": 5,
-      "cognitive": 5,
-      "line_count": 68,
-      "param_count": 0,
-      "exceeded": "crap",
-      "severity": "moderate",
-      "crap": 30.0,
-      "coverage_tier": "none",
-      "coverage_source": "estimated",
-      "actions": [
-        {
-          "type": "add-tests",
-          "auto_fixable": false,
-          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
-          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
-        },
-        {
-          "type": "suppress-line",
-          "auto_fixable": false,
-          "description": "Suppress with an inline comment above the Angular decorator",
-          "comment": "// fallow-ignore-next-line complexity",
-          "placement": "above-angular-decorator"
-        }
-      ]
-    },
-    {
       "path": "src/app/features/locations/edit/locations-edit.page.ts",
       "name": "onSubmit",
       "line": 459,
@@ -2956,18 +2932,18 @@
   ],
   "summary": {
     "files_analyzed": 190,
-    "functions_analyzed": 1280,
-    "functions_above_threshold": 92,
+    "functions_analyzed": 1299,
+    "functions_above_threshold": 91,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
     "files_scored": 144,
-    "average_maintainability": 92.0,
+    "average_maintainability": 92.1,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
-    "severity_critical_count": 31,
+    "severity_critical_count": 32,
     "severity_high_count": 23,
-    "severity_moderate_count": 38
+    "severity_moderate_count": 36
   },
   "vital_signs": {
     "dead_file_pct": 1.1,
@@ -2975,10 +2951,10 @@
     "avg_cyclomatic": 2.2,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 6.1,
+    "duplication_pct": 6.0,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.0,
+    "maintainability_avg": 92.1,
     "maintainability_low_pct": 0.7,
     "unused_dep_count": 6,
     "unused_deps_per_k_files": 31.6,
@@ -2986,34 +2962,34 @@
     "circular_deps_per_k_files": 0.0,
     "counts": {
       "total_files": 190,
-      "total_exports": 374,
+      "total_exports": 388,
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1330,
-      "total_lines": 22911,
+      "total_lines": 23276,
       "files_scored": 144,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 86.1,
-      "medium_risk": 6.6,
+      "low_risk": 86.3,
+      "medium_risk": 6.5,
       "high_risk": 3.5,
-      "very_high_risk": 3.8
+      "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 38.3,
+    "functions_over_60_loc_per_k": 37.0,
     "unit_interfacing_profile": {
-      "low_risk": 97.0,
-      "medium_risk": 2.7,
+      "low_risk": 96.9,
+      "medium_risk": 2.8,
       "high_risk": 0.2,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 6,
     "coupling_high_pct": 1.4,
-    "total_loc": 22911
+    "total_loc": 23276
   },
   "health_score": {
     "formula_version": 2,
-    "score": 71.1,
+    "score": 71.2,
     "grade": "B",
     "penalties": {
       "dead_files": 0.2,
@@ -3026,7 +3002,7 @@
       "circular_deps": 0.0,
       "unit_size": 10.0,
       "coupling": 0.7,
-      "duplication": 1.1
+      "duplication": 1.0
     }
   },
   "file_scores": [
@@ -3085,6 +3061,20 @@
       "lines": 522,
       "crap_max": 306.0,
       "crap_above_threshold": 4
+    },
+    {
+      "path": "src/app/features/reservations/calendar/reservations-calendar.page.ts",
+      "fan_in": 1,
+      "fan_out": 9,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.1,
+      "maintainability_index": 87.8,
+      "total_cyclomatic": 45,
+      "total_cognitive": 45,
+      "function_count": 22,
+      "lines": 458,
+      "crap_max": 306.0,
+      "crap_above_threshold": 1
     },
     {
       "path": "src/app/features/flights/list/flights-list.page.ts",
@@ -3161,12 +3151,12 @@
       "fan_in": 1,
       "fan_out": 11,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.13,
-      "maintainability_index": 86.2,
+      "complexity_density": 0.12,
+      "maintainability_index": 86.5,
       "total_cyclomatic": 56,
       "total_cognitive": 48,
       "function_count": 23,
-      "lines": 446,
+      "lines": 475,
       "crap_max": 210.0,
       "crap_above_threshold": 2
     },
@@ -3521,20 +3511,6 @@
       "crap_above_threshold": 1
     },
     {
-      "path": "src/app/features/reservations/list/reservations-list.page.ts",
-      "fan_in": 1,
-      "fan_out": 8,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.09,
-      "maintainability_index": 88.5,
-      "total_cyclomatic": 18,
-      "total_cognitive": 12,
-      "function_count": 7,
-      "lines": 198,
-      "crap_max": 30.0,
-      "crap_above_threshold": 1
-    },
-    {
       "path": "src/app/features/profile/profile-shell.page.ts",
       "fan_in": 1,
       "fan_out": 10,
@@ -3573,20 +3549,6 @@
       "total_cognitive": 7,
       "function_count": 3,
       "lines": 162,
-      "crap_max": 30.0,
-      "crap_above_threshold": 1
-    },
-    {
-      "path": "src/app/features/reservations/scheduler/reservation-scheduler.page.ts",
-      "fan_in": 1,
-      "fan_out": 5,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.08,
-      "maintainability_index": 90.4,
-      "total_cyclomatic": 13,
-      "total_cognitive": 7,
-      "function_count": 7,
-      "lines": 155,
       "crap_max": 30.0,
       "crap_above_threshold": 1
     },
@@ -3830,7 +3792,7 @@
     },
     {
       "path": "src/app/features/reservations/reservations.store.ts",
-      "fan_in": 4,
+      "fan_in": 3,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
@@ -4417,20 +4379,6 @@
       "crap_above_threshold": 0
     },
     {
-      "path": "src/app/features/reservations/reservations.routes.ts",
-      "fan_in": 1,
-      "fan_out": 4,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.17,
-      "maintainability_index": 88.8,
-      "total_cyclomatic": 8,
-      "total_cognitive": 0,
-      "function_count": 8,
-      "lines": 47,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
       "path": "src/app/features/flights/flights.routes.ts",
       "fan_in": 1,
       "fan_out": 3,
@@ -4441,6 +4389,20 @@
       "total_cognitive": 0,
       "function_count": 8,
       "lines": 34,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/features/reservations/reservations.routes.ts",
+      "fan_in": 1,
+      "fan_out": 3,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.13,
+      "maintainability_index": 90.7,
+      "total_cyclomatic": 6,
+      "total_cognitive": 0,
+      "function_count": 6,
+      "lines": 48,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4605,10 +4567,10 @@
       "dead_code_ratio": 0.0,
       "complexity_density": 0.06,
       "maintainability_index": 98.2,
-      "total_cyclomatic": 5,
+      "total_cyclomatic": 6,
       "total_cognitive": 2,
-      "function_count": 3,
-      "lines": 80,
+      "function_count": 4,
+      "lines": 99,
       "crap_max": 3.0,
       "crap_above_threshold": 0
     },
@@ -4865,6 +4827,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reservations/calendar/reservations-calendar.model.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.1,
+      "maintainability_index": 97.0,
+      "total_cyclomatic": 14,
+      "total_cognitive": 2,
+      "function_count": 12,
+      "lines": 134,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/core/network-status/network-status.store.ts",
       "fan_in": 0,
       "fan_out": 0,
@@ -4944,7 +4920,7 @@
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 70,
+      "lines": 76,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -5074,6 +5050,12 @@
       "line_count": 275
     },
     {
+      "path": "src/app/features/reservations/calendar/reservations-calendar.page.ts",
+      "name": "<template>",
+      "line": 70,
+      "line_count": 259
+    },
+    {
       "path": "src/app/features/flights/flight.store.ts",
       "name": "<arrow>",
       "line": 161,
@@ -5092,6 +5074,12 @@
       "line_count": 242
     },
     {
+      "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
+      "name": "<template>",
+      "line": 70,
+      "line_count": 213
+    },
+    {
       "path": "src/app/features/flight-types/edit/flight-types-edit.page.ts",
       "name": "<template>",
       "line": 57,
@@ -5108,12 +5096,6 @@
       "name": "<template>",
       "line": 68,
       "line_count": 197
-    },
-    {
-      "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
-      "name": "<template>",
-      "line": 70,
-      "line_count": 184
     },
     {
       "path": "src/app/features/aircraft/list/aircraft-list.page.ts",
@@ -5161,12 +5143,6 @@
       "path": "src/app/features/locations/list/locations-list.page.ts",
       "name": "<template>",
       "line": 17,
-      "line_count": 117
-    },
-    {
-      "path": "src/app/features/reservations/list/reservations-list.page.ts",
-      "name": "<template>",
-      "line": 28,
       "line_count": 117
     },
     {
@@ -5314,12 +5290,6 @@
       "line_count": 69
     },
     {
-      "path": "src/app/features/reservations/scheduler/reservation-scheduler.page.ts",
-      "name": "<template>",
-      "line": 46,
-      "line_count": 68
-    },
-    {
       "path": "src/app/features/profile/profile-notifications.tab.ts",
       "name": "<template>",
       "line": 41,
@@ -5348,6 +5318,54 @@
       "name": "openStream",
       "line": 154,
       "line_count": 61
+    }
+  ],
+  "targets": [
+    {
+      "path": "src/app/features/reservations/calendar/reservations-calendar.page.ts",
+      "priority": 13.7,
+      "efficiency": 6.9,
+      "recommendation": "Extract <template> (cognitive: 38) in 458-LOC file into smaller functions",
+      "category": "extract_complex_functions",
+      "effort": "medium",
+      "confidence": "high",
+      "factors": [
+        {
+          "metric": "fan_out",
+          "value": 9.0,
+          "threshold": 9.0,
+          "detail": "imports 9 modules"
+        },
+        {
+          "metric": "cognitive_complexity",
+          "value": 38.0,
+          "threshold": 30.0,
+          "detail": "<template> has cognitive complexity 38"
+        }
+      ],
+      "evidence": {
+        "complex_functions": [
+          {
+            "name": "<template>",
+            "line": 70,
+            "cognitive": 38
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "apply-refactoring",
+          "auto_fixable": false,
+          "description": "Extract <template> (cognitive: 38) in 458-LOC file into smaller functions",
+          "category": "extract_complex_functions"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress the underlying complexity finding",
+          "comment": "// fallow-ignore-next-line complexity"
+        }
+      ]
     }
   ],
   "target_thresholds": {
