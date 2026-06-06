@@ -30,6 +30,21 @@ genuinely new vertical feature scope.
   (c) the retro branch is rebased/refreshed onto `main` at carve time. Encode the chosen rule in both
   SKILL.md files so this stops recurring. [[project_do_plan_carve_base_after_squash_merge]]
 
+- **📋 Standardize the first two do-ship task slots (operator flag, J-6 ship 2026-06-06).** Two things
+  should be *invariant* T-slots in `/do-ship`'s default decomposition, not ad-hoc late riders:
+  - **T-01 always sets up the journey proof page** — scaffold the per-journey gallery page + link it from
+    the persistent index at the very first task, so the operator's glanceable window exists from the start
+    and accumulates captures as screens land (today the proof/gallery work drifts to a late task — J-5 had
+    it at T-13, this journey carved it at T-14). Pairs with do-ship §4 "surface the gallery EARLY."
+    [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+  - **T-02 always moves the previous journeys' specs from heavy (real-idp) proof to mocked-IdP** — so the
+    per-push gate runs ONLY the journey-under-work heavy + prior journeys mock-IdP, from the second task
+    onward (not held hostage by an unrelated heavy spec, and not deferred to a late CI rider — J-5 carved
+    this as T-14/T-15-ish). Codifies [[feedback_dev_time_test_strategy]] as a fixed slot.
+  Encode both as standing steps in `/do-ship` (§2 default decomposition) + `/do-task` so every journey gets
+  them for free. (Applied retroactively to J-6: pulled forward as T-01b proof-page scaffold + T-02b prior-
+  journeys→mock-IdP, run before the feature backend continues.)
+
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
 - **Scope the per-push `alpenflight-mock-e2e` gate to the journey-under-work (dev-time test strategy).** Today it runs ALL features’ mock specs, so one unrelated flaky spec reds an unrelated journey’s `required` (J-5 held hostage by `articles-crud`). Mirror what J-3 T-14 did for the real-idp `alpenflight-proof`: per-push runs only the journey-under-work’s spec(s); skip/quarantine unrelated; prior journeys may run mock-IdP. Full mock suite at the §4 gate + nightly. *(seam: ci.yml mock-e2e spec selection + nightly)* [[feedback_dev_time_test_strategy]]

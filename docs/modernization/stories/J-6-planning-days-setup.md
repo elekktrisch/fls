@@ -225,6 +225,13 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   go RED until each has a Spring Data `JpaRepository` + a `TenantScopedRowBuilders` entry (and `Map.of`→`Map.ofEntries`,
   now at the 10-entry cap). Register both here when the repos land. `PlanningDayAssignment` is an aggregate-internal
   child WITHOUT `@TenantId` (FlightCrew/V7 pattern) — deliberately NOT a sweep participant.
+- [ ] **T-01b — journey proof-page scaffold (pulled forward — operator: T-01 should ALWAYS do this).**
+  Scaffold the J-6 per-journey gallery page + link it from the persistent index NOW, so the proof window
+  exists from the start and accumulates captures as screens land. Minimal slice of T-14 (full
+  maintainability-panel re-arch stays T-14). *(generate-gallery.mjs J-6 page + index link)* [[feedback_proof_gallery_per_journey_one_bookmark]]
+- [ ] **T-02b — move prior journeys (J-0…J-5) per-push specs to mock-IdP (pulled forward — operator: T-02 should ALWAYS do this).**
+  Scope the per-push gate so ONLY J-6 runs heavy (real-idp) + prior journeys run mock-IdP; full real-idp
+  regression stays nightly + the §4 gate. This is T-15's content pulled to slot 2 — **T-15 retired into this.** *(ci.yml mock-e2e + real-idp spec selection)* [[feedback_dev_time_test_strategy]]
 - [ ] **T-04 — PlanningDay CRUD resource.** DTOs (3 person ids + date + locationId + info + computed
   count + CanUpdate/CanDelete) / service / mapper / controllers: page, overview/future, GET :id,
   insert (409 dup), update (409 dup), delete (perm-gated ClubAdmin|creator). **+ explicit `operationId`s**
@@ -247,8 +254,7 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
 - [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
   check so a missing binding / dropped column fails fast before the ~20-min fanout. *(migration-tool seam)* [[verify_infra_is_run_not_just_authored]]
-- [ ] **T-14 — per-journey gallery page + Maintainability panel (gallery re-arch slice, ≤40%).** This
-  journey's slice of the gallery re-arch: generator keys-by-journey for J-6 + the FE-fallow/BE-PMD/CPD delta panel. *(generate-gallery.mjs + emit steps)*
-- [ ] **T-15 — scope per-push `alpenflight-mock-e2e` to the journey-under-work (rider).** Mirror J-5 T-14's
-  real-idp scoping for mock-e2e; full mock suite at the §4 gate + nightly. *(ci.yml mock-e2e selection)* [[feedback_dev_time_test_strategy]]
+- [ ] **T-14 — per-journey gallery Maintainability panel (gallery re-arch slice, ≤40%).** Remainder after
+  the T-01b scaffold: the FE-fallow/BE-PMD/CPD delta panel on the J-6 page. *(generate-gallery.mjs + emit steps)*
+- [x] ~~**T-15** — scope per-push mock-e2e~~ **(retired → pulled forward into T-02b).**
 - [ ] **T-16 — thicken specs to full real assertions** from the oracle; run the §4 gate via `e2e-driver`. *(spec seam)*
