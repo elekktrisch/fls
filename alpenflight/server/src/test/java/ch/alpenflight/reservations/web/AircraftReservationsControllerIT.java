@@ -60,8 +60,15 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
         // Pre-clean (ADR 0021): reservations FK to aircraft (RESTRICT), so they
         // must go before the aircraft rows seeded under this club are cleared.
+        // CLUB_ID is the V31 dev-seed club, so the type pre-clean MUST exclude the
+        // seed-band `Allgemein` row (`019e30c3-…`): deleting it would erase the V31
+        // dev-seed in the SHARED Testcontainers DB and red ReservationsBaselineIT's
+        // `…only_the_dev_seed_present` (J-5 T-34). This IT only ever creates its own
+        // random-UUID `Flight` type, so scoping the delete to non-seed-band rows is
+        // exact (cleans this IT's rows, leaves the V31 seed intact).
         jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id = ?::uuid", CLUB_ID);
-        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid", CLUB_ID);
+        jdbc.update("DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = ?::uuid "
+                + "AND id::text NOT LIKE '019e30c3-%'", CLUB_ID);
         jdbc.update("DELETE FROM t_aircraft WHERE managing_club_id = ?::uuid "
                 + "AND immatriculation LIKE 'HB-RV%'", CLUB_ID);
 

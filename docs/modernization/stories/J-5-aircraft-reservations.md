@@ -554,7 +554,16 @@ Fanout = 25 passed/0 failed (clean-seed + migrated round-trip + gallery/index de
   FAIL the gate on a 404 — so a deployed dead link can never ship green again. *(seam: proof-gallery-links.spec.ts + fanout post-deploy link-check step)*
 
 ### §4 gate — seventh run (fanout AlpenFlight specs GREEN 25/25; T-33 deployed-check CAUGHT 3 live dead links; baseline test fragile)
-- [ ] **T-34 — Make `ReservationsBaselineIntegrationTest.aircraft_reservation_type_only_the_dev_seed_present` isolation-robust.**
+- [x] **T-34 — Make `ReservationsBaselineIntegrationTest.aircraft_reservation_type_only_the_dev_seed_present` isolation-robust.**
+  **Done:** root cause = `AircraftReservationsControllerIT.@BeforeEach` (line ~64) did an over-broad
+  `DELETE FROM t_aircraft_reservation_type WHERE operating_club_id = CLUB_ID` where `CLUB_ID` is the SAME
+  club as the V31 dev-seed (`019e30c3-2c00-7001-8000-000000000001`) — so in the SHARED Testcontainers DB it
+  erased the V31 `Allgemein` seed-band row, leaving the baseline test's seed-band query with `actual: []`.
+  Fix: scoped that pre-clean to `AND id::text NOT LIKE '019e30c3-%'` (the IT only ever creates its own
+  random-UUID `Flight` type → exact scope; V31 seed survives). `MigrationBundleParityRoundTripIT` cleanup is
+  already scoped to its own minted clubs (safe). The sibling `t_aircraft_reservation` assertions in the
+  baseline test are schema-shape only (no row-count) — no parallel fragility. Full `./gradlew test` (server,
+  shared container) green.
   Full-suite run shows `actual: []` — the V31 `Allgemein` dev-seed row is GONE when this test runs: a sibling
   reservation IT (LeakageSweep `AircraftReservationTypeSweepFactory`, the round-trip ingest, or a controller IT)
   mutates/cleans `t_aircraft_reservation_type` in the SHARED Testcontainers DB, so the row's presence is
