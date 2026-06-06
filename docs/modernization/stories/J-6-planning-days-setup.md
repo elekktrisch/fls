@@ -271,8 +271,25 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   actually created (skipped not included), mirroring legacy `List<PlanningDayOverview>`. 3 new domain unit
   tests + 3 new ITs (weekend-2wk→4 days + idempotent re-run→0; empty-flags→empty+nothing; over-cap→422).
   Whole `./gradlew test` green; PMD/CPD clean; arch-guards green; OpenAPI snapshot + orval client regenerated.
-- [ ] **T-06 — clean-seed planning data.** Dev-seed Flyway: 3 assignment types/club + sample planning
+- [x] **T-06 — clean-seed planning data.** Dev-seed Flyway: 3 assignment types/club + sample planning
   days so the screen + spec have data clean-seed. *(migration seam)*
+  **Done:** `V34__dev_planning_seed.sql` — for seed-club-1 (the clean-seed dev club J-0…J-5 seed): 2
+  locations (Bern-Belp `…c001` / Thun `…c002`), 3 crew persons (`…00b1/b2/b3`), the 3 well-known
+  assignment types `Segelflugleiter`/`Schlepppilot`/`Fluglehrer` (`…00d1/d2/d3`; canonical German names
+  the `PlanningRole` resolver matches case-insensitively → FLIGHT_OPERATOR/TOWING_PILOT/INSTRUCTOR), and
+  2 sample FUTURE days (`CURRENT_DATE + N`): a fully-crewed weekday day (`…0e01`, 3 assignment rows
+  `…0f01–f03`) + a bare next-Saturday weekend day (`…0e02`) so `/planning` renders non-empty + the
+  weekend flag has a row. All ids in the `019e30c3-…7001-…` seed band (same band as the mock-spec
+  fixtures), idempotent `ON CONFLICT (id) DO NOTHING`, inert-in-prod via @TenantId (sibling V8/V26/…/V31
+  posture — no Flyway profile split). `required_nr_of_assignments` seeded 1 (dead this journey).
+  **Isolation (J-5 T-34/T-30 lesson):** scoped `PlanningDaysControllerIT`'s seed-club-1 planning-day
+  pre-clean + exact-count query `AND id::text NOT LIKE '019e30c3-%'` (spare the seed band, de-brittle
+  the 4/0 counts); de-brittled `ReservationsBaselineIntegrationTest.planning_day_assignment_type_*` from
+  an absolute `assertTableEmpty` to a seed-band `containsExactly` of the 3 V34 rows; gave Thun a
+  non-colliding icao (`LSPL`, not `LSZW`) so `ShowcaseSeederIT`'s cross-club icao pre-clean doesn't
+  FK-trip on the seed's weekend day. Smoke: new `PlanningDevSeedIT` (Flyway migrate green + the
+  future-list endpoint renders both seeded days, weekday crew resolved, weekend bare — seed-band scoped,
+  no absolute count). Whole `./gradlew test` green locally (1139 tests).
 - [ ] **T-07 — SPA planning list page.** `/planning` list + store + route + orval client; future-days,
   Sat/Sun flag, new/edit/view/delete actions. *(component-route seam)*
 - [ ] **T-08 — SPA planning edit page.** `/planning/:id/edit|view`: date, location, 3 person pickers,

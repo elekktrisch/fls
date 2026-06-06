@@ -79,11 +79,15 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
                 .claim("realm_access", Map.of("roles", List.of("CLUB_ADMINISTRATOR"))));
 
         // Clean this IT's own rows (RESTRICT FK to Location). Scope to the IT's
-        // non-seed-band assignment types + the IT location so the V31 dev-seed
-        // stays intact in the shared Testcontainers DB.
-        jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id = ?::uuid", CLUB.toString());
+        // non-seed-band rows so the V31 reservation-type + V34 planning dev-seeds
+        // stay intact in the shared Testcontainers DB (J-5 T-34 lesson — an
+        // over-broad pre-clean wiped the V31 seed). The `019e30c3-%` band holds
+        // every dev-seed row; this IT's own rows carry random UUIDs.
+        jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id = ?::uuid "
+                + "AND id::text NOT LIKE '019e30c3-%'", CLUB.toString());
         jdbc.update("DELETE FROM t_planning_day_assignment_type WHERE operating_club_id = ?::uuid "
-                + "AND assignment_type_name IN ('fluglehrer','schlepppilot','segelflugleiter')",
+                + "AND assignment_type_name IN ('fluglehrer','schlepppilot','segelflugleiter') "
+                + "AND id::text NOT LIKE '019e30c3-%'",
                 CLUB.toString());
         jdbc.update("DELETE FROM t_location WHERE club_id = ?::uuid AND location_name LIKE 'PLN-IT-%'",
                 CLUB.toString());
@@ -286,8 +290,12 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     }
 
     private long countPlanningDays() {
+        // Count only this IT's own (random-UUID) days — exclude the V34 dev-seed
+        // planning days in the `019e30c3-%` band so the exact-count assertions
+        // (4 / 0) hold on the shared container (J-5 T-30 de-brittle lesson).
         Long n = jdbc.queryForObject(
-                "SELECT count(*) FROM t_planning_day WHERE operating_club_id = ?::uuid AND deleted_on IS NULL",
+                "SELECT count(*) FROM t_planning_day WHERE operating_club_id = ?::uuid "
+                + "AND deleted_on IS NULL AND id::text NOT LIKE '019e30c3-%'",
                 Long.class, CLUB.toString());
         return n == null ? 0L : n;
     }
