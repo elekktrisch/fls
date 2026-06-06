@@ -144,7 +144,7 @@ One seam each; commit directly to `integration/J-5`.
 - [x] **T-01 — Spec stub.** Author `alpenflight/web/e2e/tests/reservations/reservations-crud.spec.ts`:
   structure + selectors + flow steps (list, create, edit, delete, conflict-409, all-day, cross-tenant,
   scheduler lane×time) with thin assertions. Commits the screen shape. *(seam: e2e spec)*
-- [ ] **T-02 — Testcontainers harness hardening (rider).** `PostgresTestContainerLifecycle` pre-start
+- [x] **T-02 — Testcontainers harness hardening (rider).** `PostgresTestContainerLifecycle` pre-start
   sweep of stale `alpenflight-pg-test-*` + raise the 60s readiness cap + a settings.json Stop hook —
   so backend workers self-verify ITs locally. *(seam: PostgresTestContainerLifecycle + settings.json hook)*
 - [ ] **T-03 — `AircraftReservation` aggregate + `AircraftReservationType`.** Domain entity + factory +

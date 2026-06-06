@@ -87,18 +87,15 @@ short-list + needs a committed config to stop crying wolf.
   pass-vs-fail. Done-bar was met by the paired screenshots ("judgeable side-by-side"); add the video on the next
   fanout-touching task. *(seam: top-level e2e `profile` project video config / the fanout video-find path)*
 
-- **Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).** Each
-  `timeout NNN ./gradlew test` that gets SIGKILLed leaks an `alpenflight-pg-test-*` container + ~1 GB volume
-  because `PostgresTestContainerLifecycle`'s cleanup is a JVM **shutdown hook** that never fires on a kill.
-  Reclaimed ~10 GB across the window via `docker rm -f alpenflight-pg-test-* && docker volume/image prune`.
-  Durable fix (**operator approved at /do-retro: "fix local self-verify"**): (1) add a **pre-start sweep** to
-  `PostgresTestContainerLifecycle.start()` (reap stale `alpenflight-pg-test-*` before starting — reaps a leaked
-  one on the next run regardless of how the prior died); (2) **raise the 60s readiness cap** (it was timing out
-  under load, so workers couldn't self-verify ITs locally → forced CI round-trips); (3) a settings.json **Stop
-  hook** that prunes orphaned `alpenflight-pg-test-*` + dangling volumes after each session. Goal: workers
-  reliably run their IT + the arch-guards locally, no leak. Snapshot-regen throwaway PGs are no longer needed
-  now the remote DB is reachable (use `DATASOURCE_*`). *(seam: PostgresTestContainerLifecycle pre-start sweep +
-  readiness-cap + a cleanup hook)* — see [[project_docker_disk_leak_orphaned_testcontainers]].
+- ~~**Docker disk leak — orphaned Testcontainers PG fills the LXC box (operator flagged twice, J-4).**~~
+  **Shipped J-5 T-02.** `PostgresTestContainerLifecycle.start()` now runs a **pre-start sweep** that
+  `docker rm -f -v`s stale `alpenflight-pg-test-*` containers + their volumes (concurrency-safe: only reaps
+  containers older than a 60s age guard, never a sibling run's booting container; containers now carry a
+  `ch.alpenflight.test=pg` label for precise targeting); the **readiness cap was raised 60s → 120s** so
+  workers can self-verify ITs locally under load; and a fail-soft **settings.json Stop hook**
+  (`.claude/settings.json` → `.claude/hooks/prune-test-containers.sh`) prunes orphaned `alpenflight-pg-test-*`
+  + dangling volumes at session end. Verified via the `PostgresIntegrationTestSmokeIT` (lifecycle brings up a
+  container, Flyway migrates, container reaped cleanly). — see [[project_docker_disk_leak_orphaned_testcontainers]].
 
 ## Pending (filed by /do-retro 2026-06-06, J-4 window)
 
