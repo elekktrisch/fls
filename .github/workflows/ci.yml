@@ -45,10 +45,14 @@ jobs:
       # J-5 T-14 — the journey-under-work's real-idp proof spec, derived off the
       # integration branch name (see the "Derive journey proof spec" step). The
       # per-push `alpenflight-proof` job runs ONLY this spec; `proof_is_baseline`
-      # is 'true' when it resolved to the J-0 Locations baseline (either the
-      # branch is not an integration/J-NNN branch, the journey has no real-idp
-      # parity spec — e.g. a mock-auth journey like J-5 — or derivation failed:
-      # the FAIL-SAFE always runs a known-good real-chain proof, never nothing).
+      # is 'true' when it resolved to the J-0 Locations baseline (the branch is
+      # not an integration/J-NNN branch, the journey's `parity_test:` is not a
+      # clean-seed `tests/real-idp/` spec — e.g. a showcase-seeded J-4
+      # `tests/profile/` spec, which has its own gating job — or derivation
+      # failed: the FAIL-SAFE always runs a known-good real-chain proof, never
+      # nothing). NOTE J-5's `parity_test:` IS a `tests/real-idp/` spec
+      # (`reservations-migration-parity.spec.ts`), so on `integration/J-5` this
+      # resolves to that spec with `is_baseline=false` — not the baseline.
       proof_spec: ${{ steps.proof_spec.outputs.spec }}
       proof_journey: ${{ steps.proof_spec.outputs.journey }}
       proof_is_baseline: ${{ steps.proof_spec.outputs.is_baseline }}
@@ -140,14 +144,17 @@ jobs:
       #      take its FIRST path token, normalize to a path relative to
       #      alpenflight/web/ (so it's runnable from that working-directory).
       #   4. Only specs UNDER tests/real-idp/ are runnable by the CLEAN-SEED
-      #      `alpenflight-proof` job (they self-seed in beforeAll). A mock-auth
-      #      parity spec (e.g. J-5's tests/reservations/…, which runs in the
-      #      `alpenflight-mock-e2e` gate instead), a showcase-seeded
-      #      tests/profile/ spec (J-4 — own showcase-seeded gating job), or an
-      #      underivable branch → FALL BACK to the journey-agnostic J-0 Locations
-      #      baseline (`is_baseline=true`). FAIL-SAFE: always a known-good
-      #      real-chain proof, NEVER nothing — the baseline keeps the J-0
-      #      captions the preview live-link-check greps for.
+      #      `alpenflight-proof` job (they self-seed in beforeAll). J-5's
+      #      `parity_test:` IS such a spec (real-idp
+      #      `reservations-migration-parity.spec.ts`), so `integration/J-5`
+      #      derives that spec, is_baseline=false — it gates `required` (T-19).
+      #      A `parity_test:` that is NOT a clean-seed real-idp spec — a
+      #      showcase-seeded tests/profile/ spec (J-4 — own showcase-seeded
+      #      gating job), a mock-auth-only tests/… spec that runs in
+      #      `alpenflight-mock-e2e`, or an underivable branch → FALL BACK to the
+      #      journey-agnostic J-0 Locations baseline (`is_baseline=true`).
+      #      FAIL-SAFE: always a known-good real-chain proof, NEVER nothing — the
+      #      baseline keeps the J-0 captions the preview live-link-check greps for.
       - name: Derive journey proof spec
         id: proof_spec
         env:
@@ -355,23 +362,30 @@ jobs:
   # PROOF-SCOPING — two riders, one mechanism.
   # ----------------------------------------------------------------------------
   # This job used to ALSO run the J-1 aircraft + J-2 flight migration-parity
-  # specs AND gate `required`. The known J-1 `aircraft-migration-parity.spec.ts`
-  # cross-process flake then intermittently RED-ed the per-push `required` gate
-  # on journeys that touch no aircraft at all (e.g. J-4 /profile).
+  # specs. The known J-1 `aircraft-migration-parity.spec.ts` cross-process flake
+  # then intermittently RED-ed the per-push `required` gate on journeys that
+  # touch no aircraft at all (e.g. J-4 /profile).
   #
   #   • J-4 T-21+T-22 (operator Q1 2026-06-05): the aircraft + flight parity
   #     specs MOVED to the nightly real-idp suite (`alpenflight-e2e-real-idp.yml`,
-  #     full `--project=real-idp` run), and this job is NO LONGER in the
-  #     `required` aggregator's `needs` (see `required` below).
+  #     full `--project=real-idp` run), and this job was temporarily DROPPED from
+  #     the `required` aggregator's `needs` to stop the flake red-ing unrelated
+  #     journeys.
   #   • J-5 T-14 (J-3 retro): the per-push spec is DERIVED off the integration
   #     branch name, so during a journey's build-up this runs THAT journey's
-  #     real-idp spec only — not a fixed prior journey's, and not all of them. A
-  #     mock-auth journey (J-5's parity spec runs in `alpenflight-mock-e2e`) or a
-  #     non-integration branch falls back to the journey-agnostic J-0 Locations
+  #     real-idp spec only — not a fixed prior journey's, and not all of them.
+  #   • J-5 T-19 (operator decision 2026-06-06): with the proof now scoped to the
+  #     journey-under-work's OWN spec (T-14) and the aircraft flake fixed (T-15),
+  #     this job is BACK in the `required` aggregator's `needs` — a red real-idp
+  #     run for the journey in flight BLOCKS merge again (see `required` below).
+  #     A `parity_test:` that is NOT a clean-seed real-idp spec — a showcase
+  #     `tests/profile/` spec (J-4, own gating job), a mock-auth-only spec, or a
+  #     non-integration branch — falls back to the journey-agnostic J-0 Locations
   #     baseline (`proof_is_baseline`), so the J-0 proof gallery + the per-PR
   #     preview live-link-check (which greps for the J-0 Locations captions) keep
   #     working on the baseline path, AND `alpenflight-dashboard-proof` can still
-  #     chain after it.
+  #     chain after it. (J-5 itself derives its real-idp
+  #     `reservations-migration-parity.spec.ts`, is_baseline=false.)
   #
   # The FULL cross-journey regression runs NIGHTLY (`alpenflight-e2e-real-idp.yml`,
   # full `--project=real-idp`) + once at the §4 do-ship gate (e2e-driver's full
@@ -574,14 +588,22 @@ jobs:
       #   • J-5 T-14 (J-3 retro): the per-push spec is now DERIVED off the
       #     integration branch (`changes` job → `proof_spec`), so during a
       #     journey's build-up this runs THAT journey's real-idp spec, not a
-      #     fixed prior journey's. A mock-auth journey (e.g. J-5, whose parity
-      #     spec runs in `alpenflight-mock-e2e`) or a non-integration branch
-      #     falls back to the stable J-0 Locations baseline (`proof_is_baseline`),
-      #     so this job still proves the real Keycloak→@TenantId→Postgres vertical
-      #     and emits the J-0 captions the per-PR preview live-link-check greps
-      #     for. The full cross-journey regression runs NIGHTLY (the real-idp
-      #     workflow) + at the §4 do-ship gate (e2e-driver's full chain) —
-      #     deliberately NOT on every push.
+      #     fixed prior journey's. A `parity_test:` that is NOT a clean-seed
+      #     real-idp spec (a showcase `tests/profile/` spec — J-4, own gating job;
+      #     a mock-auth-only spec) or a non-integration branch falls back to the
+      #     stable J-0 Locations baseline (`proof_is_baseline`), so this job still
+      #     proves the real Keycloak→@TenantId→Postgres vertical and emits the J-0
+      #     captions the per-PR preview live-link-check greps for. J-5 itself
+      #     derives its real-idp `reservations-migration-parity.spec.ts`
+      #     (is_baseline=false). The full cross-journey regression runs NIGHTLY
+      #     (the real-idp workflow) + at the §4 do-ship gate (e2e-driver's full
+      #     chain) — deliberately NOT on every push.
+      #   • J-5 T-19 (operator decision 2026-06-06): this single-spec run now GATES
+      #     `required` again — a failed Playwright assertion here exits the step
+      #     non-zero (`set -euo pipefail`; no `|| true`/continue-on-error/always()
+      #     on THIS step) → the job fails → `needs.alpenflight-proof.result` is
+      #     `failure` → the aggregator reds. The fail-soft maintainability +
+      #     gallery steps run AFTER and cannot mask this step's failure.
       #
       # Single spec → single proof-manifest → the gallery still publishes one
       # proof video per push.
@@ -1806,26 +1828,32 @@ jobs:
   # docs-only PRs skip the next lane, that job reports `skipped`, aggregator
   # is green).
   #
-  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05). The per-push
-  # required proof was re-scoped from "the cross-journey J-0/J-1/J-2 regression"
-  # to "the current journey's spec":
-  #   - Q1: `alpenflight-proof` (which ran the J-1 aircraft + J-2 flight parity
-  #     specs, whose known aircraft flake intermittently red-ed `required` on
-  #     unrelated journeys) was DROPPED from `needs`. Those parity specs now run
-  #     nightly (`alpenflight-e2e-real-idp.yml`); `alpenflight-proof` still runs
-  #     per-push (J-0 Locations isolation, for the gallery) but no longer gates.
-  #   - Q2: `alpenflight-profile-proof` (J-4's showcase `/profile` self-edit
-  #     spec) was ADDED to `needs` so the profile UI proof gates the merge. The
-  #     J-3 dashboard display job (`alpenflight-dashboard-proof`) stays NON-
-  #     blocking (the visual showcase + gallery), so J-4's gate isn't coupled to
-  #     J-3's `start-dashboard.spec.ts`.
+  # PROOF-SCOPING (J-4 T-21+T-22, operator decision 2026-06-05; J-5 T-14/T-19).
+  # The per-push required proof is the CURRENT journey's real-idp spec, not the
+  # old cross-journey J-0/J-1/J-2 regression:
+  #   - `alpenflight-proof` GATES `required` (J-5 T-19, operator decision
+  #     2026-06-06 — re-added after a 2026-06-05 drop). It used to run the J-1
+  #     aircraft + J-2 flight parity specs, whose known aircraft flake red-ed
+  #     `required` on unrelated journeys, so it was dropped from `needs` on
+  #     2026-06-05. T-14 (the job now runs only the JOURNEY-UNDER-WORK's own
+  #     real-idp spec, derived in `changes` → `proof_spec`) + T-15 (fixed the
+  #     aircraft flake) removed that reason, so the real chain gates again: a red
+  #     real-idp run for the journey in flight now BLOCKS merge. The full
+  #     cross-journey regression stays nightly (`alpenflight-e2e-real-idp.yml`).
+  #   - `alpenflight-profile-proof` (J-4's showcase `/profile` self-edit spec)
+  #     also gates the merge. The J-3 dashboard display job
+  #     (`alpenflight-dashboard-proof`) stays NON-blocking (the visual showcase +
+  #     gallery), so the gate isn't coupled to `start-dashboard.spec.ts`.
+  # `alpenflight-proof`'s `if:` guard is identical to next-build /
+  # next-auth-realm-shape (`next == 'true' && docs_only != 'true'`), and
   # `alpenflight-profile-proof` `needs:` the (non-required) dashboard-proof for
   # runner serialisation only; on a docs-only push the whole heavy chain skips →
-  # both report `skipped` → the skipped-to-success path below keeps the gate green.
+  # all three report `skipped` → the skipped-to-success path below keeps the gate
+  # green (the `success|skipped)` case).
   # ---------------------------------------------------------------------------
   required:
     name: required
-    needs: [changes, next-build, next-auth-realm-shape, alpenflight-profile-proof, alpenflight-mock-e2e]
+    needs: [changes, next-build, next-auth-realm-shape, alpenflight-proof, alpenflight-profile-proof, alpenflight-mock-e2e]
     if: always()
     runs-on: ubuntu-22.04
     timeout-minutes: 3
@@ -1835,6 +1863,7 @@ jobs:
           R_CHANGES: ${{ needs.changes.result }}
           R_NEXT: ${{ needs.next-build.result }}
           R_AUTH: ${{ needs.next-auth-realm-shape.result }}
+          R_PROOF: ${{ needs.alpenflight-proof.result }}
           R_PROFILE_PROOF: ${{ needs.alpenflight-profile-proof.result }}
           R_MOCK_E2E: ${{ needs.alpenflight-mock-e2e.result }}
         run: |
@@ -1843,6 +1872,7 @@ jobs:
               "changes:$R_CHANGES" \
               "alpenflight-build:$R_NEXT" \
               "alpenflight-auth-realm-shape:$R_AUTH" \
+              "alpenflight-proof:$R_PROOF" \
               "alpenflight-profile-proof:$R_PROFILE_PROOF" \
               "alpenflight-mock-e2e:$R_MOCK_E2E" ; do
             name="${pair%%:*}"
