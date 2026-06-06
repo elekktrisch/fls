@@ -322,6 +322,16 @@ const fr: Translations = {
     },
     title: 'Profil',
   },
+  reservations: {
+    allDay: 'Toute la journée',
+    delete: 'Supprimer',
+    deleteConfirm: 'Supprimer la réservation pour « {{immatriculation}} » ? Action irréversible.',
+    edit: 'Modifier',
+    new: 'Nouvelle réservation',
+    rowActions: 'Actions de réservation',
+    timed: 'Créneau',
+    title: 'Réservations',
+  },
   publicStub: {
     back: 'Retour à la page d’accueil',
     body: 'La réservation publique est en préparation. En attendant, contactez directement votre club.',

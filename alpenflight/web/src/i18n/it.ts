@@ -320,6 +320,16 @@ const it: Translations = {
     },
     title: 'Profilo',
   },
+  reservations: {
+    allDay: 'Tutto il giorno',
+    delete: 'Elimina',
+    deleteConfirm: 'Eliminare la prenotazione per «{{immatriculation}}»? Operazione irreversibile.',
+    edit: 'Modifica',
+    new: 'Nuova prenotazione',
+    rowActions: 'Azioni prenotazione',
+    timed: 'Fascia oraria',
+    title: 'Prenotazioni',
+  },
   publicStub: {
     back: 'Torna alla pagina iniziale',
     body: 'La prenotazione pubblica è in arrivo. Nel frattempo, contatta direttamente il tuo club.',

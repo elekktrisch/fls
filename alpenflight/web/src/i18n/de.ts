@@ -325,6 +325,17 @@ const de = {
     },
     title: 'Profil',
   },
+  reservations: {
+    allDay: 'Ganztägig',
+    delete: 'Löschen',
+    deleteConfirm:
+      'Reservation für «{{immatriculation}}» löschen? Dies kann nicht rückgängig gemacht werden.',
+    edit: 'Bearbeiten',
+    new: 'Neue Reservation',
+    rowActions: 'Aktionen für Reservation',
+    timed: 'Zeitfenster',
+    title: 'Reservationen',
+  },
   publicStub: {
     back: 'Zurück zur Startseite',
     body: 'Die öffentliche Buchung ist in Vorbereitung. Bei Fragen wende dich direkt an deinen Verein.',

@@ -50,6 +50,11 @@ export const routes: Routes = [
     loadChildren: () => import('@features/aircraft/aircraft.routes').then((m) => m.AIRCRAFT_ROUTES),
   },
   {
+    path: 'reservations',
+    loadChildren: () =>
+      import('@features/reservations/reservations.routes').then((m) => m.RESERVATIONS_ROUTES),
+  },
+  {
     // Motor flights ("air movements") are unified into this same /flights list
     // (a Flight with a motor aircraft + no tow) — legacy's separate
     // /airmovements screen is NOT carried forward (J-2 T-36 / S-064).

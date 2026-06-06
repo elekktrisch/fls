@@ -2229,6 +2229,51 @@
         }
       }
     },
+    "/api/v1/aircraft-reservations/page/{start}/{size}" : {
+      "post" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Paged aircraft-reservation list (SPA-compat page shape). Body carries optional sorting (`start: asc|desc`) + a basic date-range search filter.",
+        "operationId" : "pageAircraftReservations",
+        "parameters" : [ {
+          "name" : "start",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "size",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AircraftReservationPageRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "One page of list rows + totalRows.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftReservationPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/deployments/{id}/lifecycle" : {
       "post" : {
         "tags" : [ "Admin Deployments" ],
@@ -3012,6 +3057,59 @@
                   "type" : "array",
                   "items" : {
                     "$ref" : "#/components/schemas/AircraftStateResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/aircraft-reservations/future" : {
+      "get" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Future reservations (start ≥ now), tenant-scoped, sorted by start — the scheduler/table default view.",
+        "operationId" : "listFutureAircraftReservations",
+        "responses" : {
+          "200" : {
+            "description" : "Future list rows, sorted by start asc.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AircraftReservationListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/aircraft-reservations/day/{date}" : {
+      "get" : {
+        "tags" : [ "Aircraft reservations" ],
+        "summary" : "Reservations overlapping the given UTC day, tenant-scoped, sorted by start.",
+        "operationId" : "listAircraftReservationsForDay",
+        "parameters" : [ {
+          "name" : "date",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "List rows overlapping the day, sorted by start asc.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/AircraftReservationListItem"
                   }
                 }
               }
@@ -5730,6 +5828,113 @@
           }
         },
         "required" : [ "aircraftId", "end", "isAllDay", "locationId", "pilotPersonId", "start" ]
+      },
+      "AircraftReservationPageRequest" : {
+        "type" : "object",
+        "description" : "Legacy PageableSearchFilter-shaped paged-list request (sorting + basic filter).",
+        "properties" : {
+          "sorting" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Column→direction map; only `start: asc|desc` is honoured (default asc)."
+          },
+          "searchFilter" : {
+            "$ref" : "#/components/schemas/AircraftReservationSearchFilter"
+          }
+        }
+      },
+      "AircraftReservationSearchFilter" : {
+        "type" : "object",
+        "description" : "Basic paged-list filter — date-range narrowing on the reservation start (J-5 scope).",
+        "properties" : {
+          "from" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "to" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "AircraftReservationListItem" : {
+        "type" : "object",
+        "description" : "Aircraft-reservation list row (FK ids + same-module type name; SPA decorates the rest).",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "aircraftId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "start" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "end" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "isAllDay" : {
+            "type" : "boolean"
+          },
+          "pilotPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "secondCrewPersonId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "locationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reservationTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reservationTypeName" : {
+            "type" : "string"
+          },
+          "flightTypeId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "remarks" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "aircraftId", "end", "id", "isAllDay", "locationId", "pilotPersonId", "start" ]
+      },
+      "AircraftReservationPage" : {
+        "type" : "object",
+        "description" : "Paged aircraft-reservation list envelope (SPA-compat page shape).",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AircraftReservationListItem"
+            }
+          },
+          "pageStart" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "pageSize" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalRows" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "items", "pageSize", "pageStart", "totalRows" ]
       },
       "LifecycleTransitionRequest" : {
         "type" : "object",

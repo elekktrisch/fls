@@ -315,6 +315,16 @@ const en: Translations = {
     },
     title: 'Profile',
   },
+  reservations: {
+    allDay: 'All day',
+    delete: 'Delete',
+    deleteConfirm: 'Delete reservation for "{{immatriculation}}"? This cannot be undone.',
+    edit: 'Edit',
+    new: 'New reservation',
+    rowActions: 'Reservation actions',
+    timed: 'Timed',
+    title: 'Reservations',
+  },
   publicStub: {
     back: 'Back to the landing page',
     body: 'Public booking is on the way. In the meantime, contact your club directly.',
