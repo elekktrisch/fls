@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>211/merge</code> &middot; 2026-06-07T02:22:38.836Z
+      assertion it proves. Generated on <code>211/merge</code> &middot; 2026-06-07T02:42:40.116Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -169,7 +169,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </div>
 
       </details>
-      <details class="journey" open>
+      <details class="journey">
         <summary>
           <span class="summary-head"><span class="summary-jid">J-1</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 4 screenshots</span></span>
           <span class="summary-caption">Legacy flsweb: the seeded aircraft list (Immatriculation · Model · Competition sign · Manufacturer · Seats) —…</span>
@@ -236,12 +236,30 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
-      <details class="journey pending-journey">
+      <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status pending">pending</span></span>
-          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
+          <span class="summary-head"><span class="summary-jid">J-6</span> <span class="status success">4 proofs</span><span class="summary-counts">4 videos · 0 screenshots</span></span>
+          <span class="summary-caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instruc…</span>
         </summary>
-        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-d93f67899d34da5ed4a00b76d634616eeaeea19c.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-c83cd73188423056a011e12bc2e61e1666887f3c.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-eadeed62d1977849e00aac996c3c006a39760787.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the planning-day edit screen lists that day’s aircraft reservations inline (the J-5 AircraftReservation read-side joined by club + date + location)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-4a0986bce0cd7eb85e6f098571b3ca501086fc09.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
+        </figure>
+        </div>
+
       </details>
       <details class="journey pending-journey">
         <summary>
