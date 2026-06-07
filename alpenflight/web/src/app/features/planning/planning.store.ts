@@ -175,6 +175,12 @@ export const PlanningStore = signalStore(
         clearSaveError(): void {
           patchState(store, { saveError: null });
         },
+        // Empty the inline per-day reservations panel — used by the edit page
+        // when date or location is cleared (the panel keys on date+location,
+        // T-08c, so an incomplete key shows nothing rather than stale rows).
+        clearDayReservations(): void {
+          patchState(store, { dayReservations: [] });
+        },
         // Edit-page: blank create form — no detail, no inline error, empty panel.
         selectNew(): void {
           patchState(store, {

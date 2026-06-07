@@ -361,6 +361,32 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   + util are ready for any future flat reservation list; calendar adoption is not a fit, not a follow-up debt.
   Local DoD: tsc ✓, eslint ✓ (molecule import rules ok), prettier ✓, ng test 395 ✓, ng build (prod) ✓, planning
   mock specs 12✓/2 fixme, J-5 reservations-crud 12✓ — no regression.
+- [x] **T-08c — show the inline reservations list AS SOON AS date+location is selected, not gated on save
+  (operator directive — a deliberate improvement over legacy).** Key the inline panel on **date + location**,
+  NOT a saved planning-day id. *(component reactivity seam)*
+  **Done:** removed the `!isCreate()` saved-day gate on the inline reservations panel (`planning-edit.page.ts`).
+  The panel + its fetch now derive from the form's **date + location** fields. Bridged the two fields to a signal
+  via `toSignal(form.valueChanges …)` — `map(getRawValue → {date, locationId})` + `debounceTime(200)` +
+  `distinctUntilChanged` (so per-keystroke date typing settles before fetching); `getRawValue()` reads disabled
+  controls so VIEW mode keys correctly, and the key falls back to `store.selectedDetail()` because patching a
+  *disabled* (view) form suppresses `valueChanges`. A `showReservations` computed gates the panel (`date !== '' &&
+  locationId !== ''`); an `effect` calls `store.loadDayReservations({date, locationId})` whenever both are set and
+  `store.clearDayReservations()` (new store method) when either is cleared — the `switchMap` rxMethod cancels the
+  prior fetch on each (date, location) change. Removed the detail-effect's direct `loadDayReservations` call (the
+  patch re-emits valueChanges → the single reactive path fires). `newReservation()` now reads the live form
+  (`getRawValue`) not `selectedDetail`, so the "new reservation" pre-seed works in CREATE mode too. Net behavior:
+  picking date + location on a NEW (unsaved) day loads + shows that date+location's reservations immediately (the
+  J-5 `aircraft-reservations day/{date}` join filtered to the location — store-owned, §4); switching location
+  re-fetches reactively; empty state when none; saved-day behavior unchanged (no regression). **Spec/proof:** added
+  a `planning-crud.spec.ts` case — on `/planning/new/edit` the panel is absent until date+location are picked, then
+  the seeded day's reservation row appears (UNSAVED day), switching to a location with none shows the empty state,
+  and "new reservation" pre-seeds the picked date+location. Rewrote the real-idp parity inline-reservations case to
+  capture the gallery `alpenflight-planning-form.png` on the CREATE form with the populated inline list shown on
+  date-select (operator's intended UX, pairs against the legacy saved-day table) + still asserts the saved-day form
+  shows the same list (no regression). **Local DoD:** `pnpm preflight:web` ALL GREEN (lint ✓, tsc ✓, ng build ✓,
+  api-drift ✓, gallery ✓, full mock e2e 111✓/2 skip incl. the new create-mode date-select case); planning-crud
+  mock spec 7✓/1 fixme; planning store vitest green (clearDayReservations). Panel verified to show on date-select
+  in create mode locally (musl chromium). *(operator directive — improvement over legacy)*
 - [x] **T-09 — SPA setup wizard.** `/planningsetup` multi-step (StartDate/EndDate/7 weekday checks/location)
   → POST create/rule → back to list. *(component-route seam)*
   **Done:** `features/planning/setup/planning-setup.page.ts` — single-step form (legacy parity: `planning-setup.html`

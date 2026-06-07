@@ -378,7 +378,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test('[happy] the saved-day edit form shows the POPULATED inline AircraftReservations list (J-5 join) — the gallery form parity shot', async ({
+  test('[happy] the inline AircraftReservations list appears on date+location SELECT (create mode, pre-save) AND on a saved day (J-5 join) — the gallery form parity shot', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -386,19 +386,17 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     try {
       await loginAsReservationAdmin(page);
 
-      // Create a planning day on the seeded location, then SEED A REAL J-5
-      // reservation on that day's EXACT date + location (via the real
-      // reservations create API — no mocking) so the inline per-day reservations
-      // panel renders ≥1 `<af-reservation-row>`. The J-5 read-side join is
-      // `listAircraftReservationsForDay(date)` filtered to the day's location
-      // (planning.store.ts:210-223), so the reservation MUST be on the day's
-      // exact date + location to surface — that day+location alignment is the
-      // load-bearing bit (legacy PlanningDayEditController.js:96-104).
+      // SEED A REAL J-5 reservation on a chosen date + the seeded location (via
+      // the real reservations create API — no mocking) so the inline per-day
+      // reservations panel renders ≥1 `<af-reservation-row>`. The J-5 read-side
+      // join is `listAircraftReservationsForDay(date)` filtered to the location
+      // (planning.store.ts), so the panel keys on that EXACT date + location —
+      // NOT a saved planning-day id (T-08c improvement over legacy's saved-day
+      // gate, legacy PlanningDayEditController.js:96-104). We seed the
+      // reservation alone (no planning day needed to make the panel surface) to
+      // prove the panel appears on a NEW, UNSAVED day the moment date+location
+      // are picked.
       const planningDate = dayKeyFromToday(13);
-      const id = await createPlanningDay(ctx, adminBearer, createdIds, {
-        planningDate,
-        locationId: masterdata.locationId,
-      });
       const reservationId = await seedReservationOnPlanningDay(ctx.request, adminBearer, {
         planningDate,
         locationId: masterdata.locationId,
@@ -408,63 +406,77 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       });
       createdReservationIds.push(reservationId);
 
-      // Open the SAVED day's edit form (mirrors the legacy saved-day
-      // `/planning/:id/edit` form, which renders its inline reservations table).
-      await page.goto(`/planning/${id}/edit?lang=de`);
+      // CREATE MODE (the operator's intended UX, T-08c): open a BLANK new-day
+      // form, pick the date + location, and the inline panel loads that
+      // date+location's reservations reactively — NO save, no planning-day id.
+      await page.goto('/planning/new/edit?lang=de');
+      await expect(page.getByTestId('planning-edit-form')).toBeVisible();
+      await page.getByTestId('planning-date').locator('input').fill(planningDate);
+      await selectAfOption(
+        page,
+        'planning-location-select',
+        masterdata.locationId,
+        masterdata.locationName,
+      );
+
       const panel = page.getByTestId('planning-reservations-panel');
-      await expect(panel, 'the inline per-day reservations panel renders (J-5 join)').toBeVisible();
-      await expect(page.getByTestId('planning-reservations-list')).toBeVisible();
-      // The "new reservation" affordance pre-seeds J-5's create form with this
-      // day's date + location (legacy PlanningDayEditController.js:128-132).
+      await expect(
+        panel,
+        'the inline per-day reservations panel renders on date+location select (create mode, pre-save)',
+      ).toBeVisible();
       await expect(panel.getByTestId('planning-new-reservation-button')).toBeVisible();
 
       // CAPTURE-AFTER-DATA-LOADED, CAPTURE-BEFORE-DEEP-ASSERT (J-5 rule): wait for
-      // the seeded reservation's row to be visible (the list is POPULATED), then
-      // take the gallery `form` parity shot BEFORE the deeper row-content asserts,
-      // so a partial red still produces a populated-list shot to pair with legacy.
+      // the seeded reservation's row to be visible (the list is POPULATED) on the
+      // UNSAVED create form, then take the gallery `form` parity shot BEFORE the
+      // deeper row-content asserts, so a partial red still produces a
+      // populated-list shot to pair with legacy.
       const seededRow = page.getByTestId(`planning-reservation-${reservationId}`);
       await expect(
         seededRow,
-        'the seeded reservation renders as an <af-reservation-row> in the inline list',
+        'the seeded reservation renders as an <af-reservation-row> in the inline list (create mode)',
       ).toBeVisible();
-      // GALLERY FORM PARITY SHOT (side=alpenflight, view=form): the saved-day edit
-      // form with the populated inline reservations list — pairs against the
-      // legacy saved-day edit form's inline reservations table (T-16 done-bar:
-      // the form view shows the list on BOTH sides).
+      // GALLERY FORM PARITY SHOT (side=alpenflight, view=form): the CREATE form
+      // with the populated inline reservations list shown on date-select —
+      // pairs against the legacy saved-day edit form's inline reservations table
+      // (the form view shows the list on BOTH sides; AlpenFlight shows it sooner,
+      // the deliberate improvement).
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-planning-form.png`,
         fullPage: true,
       });
-      // The dedicated panel-only shot (optional second paired view) — same state.
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-planning-reservations-panel.png`,
         fullPage: true,
       });
-
-      // Deeper asserts AFTER the shot: the inline list is POPULATED (≥1 row) and
-      // OUR seeded reservation is one of them, carrying its aircraft
-      // immatriculation (the feature resolves the label and passes it to the
-      // row — af-reservation-row). DELTA/presence, never an absolute count: this
-      // run created a UNIQUELY-tagged location, but `listAircraftReservationsForDay`
-      // is a UTC-day window so a prior retry's same-day+location reservation (the
-      // afterAll cleanup is best-effort on the never-truncated seed-club-1 tenant)
-      // can co-reside — the load-bearing proof is that OUR row surfaces, not that
-      // it is the only one (mirrors J-5's "delta-assert, never absolutes").
-      await expect(
-        page.locator('[data-testid^="planning-reservation-"]').first(),
-        'the inline per-day reservations list is populated (≥1 row)',
-      ).toBeVisible();
       await expect(seededRow).toContainText(masterdata.aircraftImmat);
+
+      // DON'T REGRESS SAVED-DAY behavior: create the day on that same
+      // date+location, open its SAVED edit form, and assert the SAME inline list
+      // surfaces (the read-side join is unchanged for a saved day).
+      const id = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate,
+        locationId: masterdata.locationId,
+      });
+      await page.goto(`/planning/${id}/edit?lang=de`);
+      await expect(
+        page.getByTestId('planning-reservations-panel'),
+        'a SAVED day still shows its inline reservations (no regression)',
+      ).toBeVisible();
+      await expect(
+        page.getByTestId(`planning-reservation-${reservationId}`),
+        'the saved-day edit form lists the same reservation inline (delta/presence)',
+      ).toBeVisible();
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-6',
         caption:
-          'J-6 · planning · the SAVED planning-day edit form lists that day’s aircraft reservations ' +
-          'inline, POPULATED — a real J-5 AircraftReservation seeded on the day’s exact date + ' +
-          'location surfaces through the read-side join (club + date + location) as an ' +
-          '<af-reservation-row>; pairs against the legacy saved-day edit form’s inline reservations ' +
-          'table (form-view parity)',
+          'J-6 · planning · the inline AircraftReservations list appears the moment a date + ' +
+          'location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation ' +
+          'seeded on that exact date + location surfaces through the read-side join (club + date + ' +
+          'location) as an <af-reservation-row>, NO save required (the deliberate improvement over ' +
+          'legacy’s saved-day gate); the same list also shows on the saved day’s edit form',
         acTag: 'happy',
       });
     }

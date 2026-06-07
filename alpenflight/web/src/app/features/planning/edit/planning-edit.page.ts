@@ -17,6 +17,7 @@ import {
 } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
+import { debounceTime, distinctUntilChanged, map } from 'rxjs';
 
 import type {
   PlanningDayCreateRequest,
@@ -71,6 +72,15 @@ type PlanningForm = FormGroup<{
  * bespoke copy); each row links into J-5's reservation editor; "new
  * reservation" pre-seeds date + location into J-5's create form (legacy
  * `PlanningDayEditController.js:96-104,128-132`).
+ *
+ * The panel is keyed on **date + location**, NOT a saved planning-day id (the
+ * deliberate improvement over legacy's `id==='new' → []` gate, T-08c). It loads
+ * + renders reactively whenever the form's `planningDate` AND `locationId` are
+ * both set — in CREATE mode (a new day, before save) and EDIT mode alike — so
+ * the operator sees that date+location's reservations the moment they pick them,
+ * no save required. The read is the J-5 `aircraft-reservations day/{date}` join
+ * filtered to the location; the store owns the call (§4 — no HTTP in components),
+ * bridged off the form's value changes (a debounced `toSignal`).
  */
 @Component({
   selector: 'af-planning-edit',
@@ -232,8 +242,11 @@ type PlanningForm = FormGroup<{
             </div>
           </form>
 
-          <!-- Per-day reservations (J-5 read-side join) — only for a saved day. -->
-          @if (!isCreate()) {
+          <!--
+            Per-day reservations (J-5 read-side join) — keyed on date + location
+            (T-08c), shown the moment both are picked, no save required.
+          -->
+          @if (showReservations()) {
             <section
               class="flex flex-col gap-2 mt-8 pt-4 border-t border-slate-200"
               data-testid="planning-reservations-panel"
@@ -307,6 +320,37 @@ export class PlanningEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
+  // The reservations panel is keyed on date + location (T-08c), not the saved
+  // day id. Bridge the two form fields to a signal (debounced — typing a date
+  // emits per keystroke) so the panel render-gate + the store fetch both derive
+  // from the live form, in create AND edit mode. `getRawValue()` reads disabled
+  // controls too, so a VIEW-mode (read-only) day still keys correctly. The
+  // loaded-detail key is merged in as a fallback: patching a disabled (view)
+  // form does not re-emit `valueChanges`, so seed the key from `selectedDetail`
+  // when it lands — either source completing the (date, location) pair shows
+  // the panel.
+  private readonly liveFormKey = toSignal(
+    this.form.valueChanges.pipe(
+      map(() => this.form.getRawValue()),
+      map((v) => ({ date: v.planningDate, locationId: v.locationId })),
+      debounceTime(200),
+      distinctUntilChanged((a, b) => a.date === b.date && a.locationId === b.locationId),
+    ),
+    { initialValue: { date: '', locationId: '' } },
+  );
+  protected readonly formKey = computed(() => {
+    const live = this.liveFormKey();
+    if (live.date !== '' && live.locationId !== '') return live;
+    // Fall back to the loaded detail (view-mode patch suppresses valueChanges).
+    const detail = this.store.selectedDetail();
+    if (detail) return { date: detail.planningDate, locationId: detail.locationId };
+    return live;
+  });
+  protected readonly showReservations = computed(() => {
+    const { date, locationId } = this.formKey();
+    return date !== '' && locationId !== '';
+  });
+
   protected readonly locationOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.store.locations().map((l) => ({ value: l.id, label: l.locationName })),
   );
@@ -340,12 +384,24 @@ export class PlanningEditPage {
     effect(() => {
       const detail = this.store.selectedDetail();
       if (!detail) return;
+      // Patching the form re-emits valueChanges → the date+location bridge picks
+      // up the loaded day's key and the reservations load fires from there (the
+      // single reactive path below), so an edit-mode day shows its reservations
+      // the same way a create-mode date pick does — no separate load call.
       this.form.patchValue(detailToFormValue(detail));
-      // Load that day's reservations (J-5 read-side) for the inline panel.
-      this.store.loadDayReservations({
-        date: detail.planningDate,
-        locationId: detail.locationId,
-      });
+    });
+
+    // Reactive inline-reservations load (T-08c): whenever date + location are
+    // BOTH set — create mode (new day, pre-save) or edit mode — (re)fetch that
+    // date+location's reservations (the J-5 `day/{date}` join, store-owned).
+    // Keyed on (date, location), debounced upstream; no saved-day id required.
+    effect(() => {
+      const { date, locationId } = this.formKey();
+      if (date === '' || locationId === '') {
+        this.store.clearDayReservations();
+        return;
+      }
+      this.store.loadDayReservations({ date, locationId });
     });
 
     const destroyRef = inject(DestroyRef);
@@ -380,12 +436,16 @@ export class PlanningEditPage {
     }
   }
 
-  /** Pre-seed J-5's reservation create form with this day's date + location. */
+  /**
+   * Pre-seed J-5's reservation create form with this day's date + location.
+   * Reads the live form (not the saved detail) so it works in create mode too —
+   * the panel renders the moment date+location are picked (T-08c).
+   */
   protected newReservation(): void {
-    const detail = this.store.selectedDetail();
-    if (!detail) return;
+    const { planningDate: date, locationId } = this.form.getRawValue();
+    if (date === '' || locationId === '') return;
     void this.router.navigate(['/reservations', 'new'], {
-      queryParams: { date: detail.planningDate, locationId: detail.locationId },
+      queryParams: { date, locationId },
     });
   }
 

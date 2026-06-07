@@ -556,6 +556,49 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     );
   });
 
+  // ── AC[happy]: the inline reservations panel keys on date+location (T-08c) —
+  //    it renders on a NEW day the moment date+location are picked, no save ─────
+  test('create: the inline reservations list appears on date+location select, before save', async ({
+    page,
+  }) => {
+    await wirePlanning(page, [{ ...seedDay }]);
+
+    await gotoDe(page, '/planning/new/edit');
+    await expect(page.getByTestId('planning-edit-form')).toBeVisible();
+
+    // On a blank create form (no date, no location) the panel is hidden — it
+    // keys on date+location, NOT a saved day id (the deliberate improvement over
+    // legacy's saved-day gate).
+    await expect(page.getByTestId('planning-reservations-panel')).toHaveCount(0);
+
+    // Pick the SEED DAY's date + location (a NEW day, never saved). The panel
+    // appears and loads that date+location's reservations from the J-5 join —
+    // surfacing the seed day's reservation even though THIS day is unsaved.
+    await page.getByTestId('planning-date').locator('input').fill(SEED_DAY_KEY);
+    await selectAfOption(page, 'planning-location-select', LOCATION_BERN_ID);
+
+    const panel = page.getByTestId('planning-reservations-panel');
+    await expect(panel).toBeVisible();
+    const resvRow = panel.getByTestId(`planning-reservation-${SEED_DAY_RESERVATION_ID}`);
+    await expect(resvRow).toBeVisible();
+    await page.screenshot({
+      path: 'screenshots/planning/04-reservations-on-date-select.png',
+      fullPage: true,
+    });
+
+    // Switch the location to one with no reservations on that date → the panel
+    // re-fetches reactively (keyed on date+location) and shows the empty state.
+    await selectAfOption(page, 'planning-location-select', LOCATION_THUN_ID);
+    await expect(panel.getByTestId('planning-reservations-empty')).toBeVisible();
+
+    // "New reservation" pre-seeds J-5's create form with the picked date +
+    // location — works in create mode (reads the live form, not a saved detail).
+    await panel.getByTestId('planning-new-reservation-button').locator('button').click();
+    await expect(page).toHaveURL(
+      new RegExp(`/reservations/new\\?.*date=${SEED_DAY_KEY}.*locationId=${LOCATION_THUN_ID}`),
+    );
+  });
+
   // ── AC[key-error]: a duplicate (date, location) is rejected 409 inline ───────
   test('duplicate: a second day with the same (date, location) is rejected 409 inline', async ({
     page,
