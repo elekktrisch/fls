@@ -531,3 +531,13 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   the T-01b scaffold: the FE-fallow/BE-PMD/CPD delta panel on the J-6 page. *(generate-gallery.mjs + emit steps)*
 - [x] ~~**T-15** — scope per-push mock-e2e~~ **(retired → pulled forward into T-02b).**
 - [ ] **T-16 — thicken specs to full real assertions** from the oracle; run the §4 gate via `e2e-driver`. *(spec seam)*
+  - [x] **legacy↔AlpenFlight planning parity shots (operator priority, 2026-06-07).** Authored the LEGACY
+    planning parity spec `e2e/tests/planning/planning-parity-J6.spec.ts` (mirrors `reservations-parity-J5.spec.ts`):
+    drives the legacy flsweb `/planning` future-days list + one day's `/planning/:id/edit` form + the
+    `/planningsetup` wizard as `testclubadmin`, captures `legacy-planning-{list,form,setup}.png` + the parity
+    video. Wired the fanout (`alpenflight-proof-fanout.yml`): new step 2f runs the legacy spec (`--project=planning`,
+    `if: always()` + `continue-on-error`), added `planning-migration-parity.spec.ts` to the step-6 AlpenFlight
+    real-idp invocation (produces the `alpenflight-planning-{list,form,setup-form}.png` shots), declared the J-6
+    legacy video in the `legacy-video.json` sidecar + the 3 legacy + 3 AlpenFlight `add_shot` pairs (side×view
+    list/form/setup) into `screenshots.json`. Triggered the fanout for `integration/J-6` — its run deploys the
+    paired shots onto the deployed J-6 page (`…/proof-preview/integration-J-6/legacy-parity/J-6/`). *(e2e-driver, parity capture)* [[feedback_proof_in_gallery_not_chat]]

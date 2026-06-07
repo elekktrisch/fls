@@ -450,6 +450,38 @@ jobs:
             tests/reservations/reservations-parity-J5.spec.ts
 
       # ========================================================================
+      # 2f. J-6 T-13/T-16 — legacy PLANNING parity spec. Read-only walkthrough of
+      #     the seeded future-days list + one planning day's edit form + the
+      #     setup-wizard form in the flsweb UI; records the legacy planning parity
+      #     video + writes the legacy-planning-{list,form,setup}.png screenshots.
+      #     The SAME legacy stack (already up) + the SAME deterministic FLSTest
+      #     seed the J-0c/J-1/J-2/J-5 specs used — "4 or 5 Insert Test Data.sql"
+      #     seeds a GETDATE()+1 planning day with crew assignments + remarks, so
+      #     the future-days list is populated; no extra seeding, runs on this one
+      #     fanout run alongside T-04 + the others. Paired side-by-side with J-6's
+      #     AlpenFlight planning videos + shots (journey: J-6) in the gallery via
+      #     the legacy-video sidecar (step 7b) + screenshots.json (step 7).
+      #     Non-blocking parity aid; AlpenFlight green is the gate.
+      # ========================================================================
+      - name: Run J-6 T-13 legacy planning parity spec (records legacy video)
+        id: legacy-pw-planning
+        # NON-BLOCKING parity aid (operator: AlpenFlight green is the gate). Same
+        # contract as the J-1/J-2/J-4/J-5 steps above: `if: always()` (runs even
+        # after a prior failure) AND `continue-on-error: true` (its own failure
+        # neither fails the job nor cascade-skips the unguarded downstream gate
+        # steps — incl. the real alpenflight-export producer-SELECT validation
+        # that proves the T-11 PlanningDay bindings, + the AlpenFlight parity
+        # specs).
+        if: always()
+        continue-on-error: true
+        working-directory: e2e
+        timeout-minutes: 12
+        run: |
+          npx playwright test \
+            --project=planning \
+            tests/planning/planning-parity-J6.spec.ts
+
+      # ========================================================================
       # 3. ALPENFLIGHT STACK — Postgres + Keycloak + Mailpit + backend + SPA.
       #    (reuses ci.yml's alpenflight-proof bring-up shape)
       #    The alpenflight_shared network is created EARLIER (before "Start
@@ -689,7 +721,8 @@ jobs:
             e2e/tests/real-idp/fan-out-migration-parity.spec.ts \
             e2e/tests/real-idp/aircraft-migration-parity.spec.ts \
             e2e/tests/real-idp/flight-migration-parity.spec.ts \
-            e2e/tests/real-idp/reservations-migration-parity.spec.ts
+            e2e/tests/real-idp/reservations-migration-parity.spec.ts \
+            e2e/tests/real-idp/planning-migration-parity.spec.ts
 
       # ========================================================================
       # 6b. J-4 T-12 — AlpenFlight /profile parity SHOTS are NOT re-captured here.
@@ -740,6 +773,8 @@ jobs:
           PROF_WEBM="$(find /tmp/fls-e2e-results -path '*profile-parity-J4*' -name '*.webm' | head -1 || true)"
           # J-5 — legacy reservation list+form(+scheduler) parity video (T-16).
           RESV_WEBM="$(find /tmp/fls-e2e-results -path '*reservations-parity-J5*' -name '*.webm' | head -1 || true)"
+          # J-6 — legacy planning list+form+setup-wizard parity video (T-13/T-16).
+          PLAN_WEBM="$(find /tmp/fls-e2e-results -path '*planning-parity-J6*' -name '*.webm' | head -1 || true)"
           # J-4 — the AlpenFlight /profile VIDEO is NOT captured in this fanout
           # (T-12: seedShowcase collides with this run's migrated data). The
           # AlpenFlight /profile half is represented by the 4 PAIRED SCREENSHOTS
@@ -782,6 +817,13 @@ jobs:
             VIDEOS="$VIDEOS{\"journey\":\"J-5\",\"file\":\"reservations-parity-J5.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_RESV")},"
           else
             echo "No J-5 reservation .webm found under /tmp/fls-e2e-results."
+          fi
+          if [ -n "$PLAN_WEBM" ]; then
+            cp "$PLAN_WEBM" "$STAGE/planning-parity-J6.webm"
+            CAP_PLAN="Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) + one planning day's edit form (date · location · remarks · the 3 crew selectizes · the inline per-day reservations table) + the setup wizard (start/end range · 7 weekday checkboxes · location) — the legacy field set to eyeball against AlpenFlight's /planning list + edit form + /planningsetup wizard"
+            VIDEOS="$VIDEOS{\"journey\":\"J-6\",\"file\":\"planning-parity-J6.webm\",\"acTag\":\"happy\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$CAP_PLAN")},"
+          else
+            echo "No J-6 planning .webm found under /tmp/fls-e2e-results."
           fi
           # NOTE — the AlpenFlight /profile VIDEO is intentionally NOT declared in
           # this LEGACY-video sidecar: the sidecar flags every entry `legacy:true`
@@ -958,6 +1000,39 @@ jobs:
             "AlpenFlight: the /reservations/new create/edit form, fully populated (aircraft · reservation type · pilot · location · date · start/end · all-day) — the reservation field set to eyeball side-by-side against the legacy reservation edit form"
           add_shot "alpenflight/web/test-results" "alpenflight-reservation-scheduler.png" "J-5" "alpenflight" "scheduler" \
             "AlpenFlight: the /reservations CALENDAR week view (aircraft×day matrix — per-cell count · hours · progress bar), the consolidated replacement for the legacy reservation-scheduler grid (the calendar day view is the old lane×time scheduler; this week view is the distinct second surface)"
+
+          # ----- J-6 T-13/T-16 — planning parity SCREENSHOTS (legacy + AlpenFlight)
+          # J-6 (planning days + setup) carries DATA MIGRATION (T-11 wired the
+          # PlanningDay bindings + a green real round-trip), so its parity is a
+          # legitimate legacy→AlpenFlight before/after across THREE planning
+          # surfaces — the gallery pairs THREE views per the J-6 screen contract:
+          #   view=list  : legacy /planning future-days TABLE ↔ AlpenFlight
+          #                /planning future-days list (same column intent).
+          #   view=form  : legacy /planning/:id/edit form (date · location ·
+          #                remarks · 3 crew selectizes · inline reservations) ↔
+          #                AlpenFlight planning-day edit form.
+          #   view=setup : legacy /planningsetup wizard (range · 7 weekday
+          #                checkboxes · location) ↔ AlpenFlight /planningsetup
+          #                wizard.
+          # Legacy PNGs land under /tmp/fls-e2e-results (the planning-parity-J6
+          # spec); AlpenFlight PNGs under alpenflight/web/test-results (the
+          # planning-migration-parity spec, now in the step-6 invocation), all
+          # fullPage on POPULATED surfaces (J-1 T-22 lesson — the list shows the
+          # V34 seed days + a created row, not "Keine Daten"). The legacy form +
+          # setup shots are best-effort (slow legacy picker fetches); a missing PNG
+          # just drops that one entry (add_shot no-ops it).
+          add_shot "/tmp/fls-e2e-results" "legacy-planning-list.png" "J-6" "legacy" "list" \
+            "Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) — the legacy planning table, paired before/after against AlpenFlight's /planning future-days list"
+          add_shot "/tmp/fls-e2e-results" "legacy-planning-form.png" "J-6" "legacy" "form" \
+            "Legacy flsweb: one planning day's edit form (date · location selectize · remarks · towing-pilot / flight-operator / instructor selectizes · the inline per-day reservations table) — paired against AlpenFlight's planning-day edit form"
+          add_shot "/tmp/fls-e2e-results" "legacy-planning-setup.png" "J-6" "legacy" "setup" \
+            "Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard"
+          add_shot "alpenflight/web/test-results" "alpenflight-planning-list.png" "J-6" "alpenflight" "list" \
+            "AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) with the V34 seed days + a created row — the future-days list to eyeball against the legacy planning table"
+          add_shot "alpenflight/web/test-results" "alpenflight-planning-form.png" "J-6" "alpenflight" "form" \
+            "AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form"
+          add_shot "alpenflight/web/test-results" "alpenflight-planning-setup-form.png" "J-6" "alpenflight" "setup" \
+            "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
 
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
