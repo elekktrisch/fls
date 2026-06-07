@@ -4,10 +4,18 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { AircraftReservationsService } from '@api/generated/aircraft-reservations/aircraft-reservations.service';
+import { AircraftService } from '@api/generated/aircraft/aircraft.service';
 import { LocationsService } from '@api/generated/locations/locations.service';
 import { PersonsService } from '@api/generated/persons/persons.service';
 import { PlanningDaysService } from '@api/generated/planning-days/planning-days.service';
-import type { LocationListItem, PersonListItem, PlanningDayDetail } from '@api/generated/model';
+import type {
+  AircraftReservationListItem,
+  LocationListItem,
+  PersonListItem,
+  PlanningDayCreateRequest,
+  PlanningDayDetail,
+} from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
 import { PlanningStore } from './planning.store';
@@ -50,18 +58,30 @@ const persons: PersonListItem[] = [
 interface ApiStubs {
   future: () => Observable<PlanningDayDetail[]>;
   remove: (id: string) => Observable<void>;
+  detail: (id: string) => Observable<PlanningDayDetail>;
+  create: (req: PlanningDayCreateRequest) => Observable<PlanningDayDetail>;
+  update: (id: string, req: PlanningDayCreateRequest) => Observable<PlanningDayDetail>;
+  dayReservations: (date: string) => Observable<AircraftReservationListItem[]>;
 }
 
 function planningServiceStub(stubs: Partial<ApiStubs>): PlanningDaysService {
   const api = {
     listFuturePlanningDays: (() => (stubs.future ?? (() => of([seedDay])))()) as never,
+    getPlanningDay: ((id: string) => (stubs.detail ?? (() => of(seedDay)))(id)) as never,
+    createPlanningDay: ((req: PlanningDayCreateRequest) =>
+      (stubs.create ?? (() => of(seedDay)))(req)) as never,
+    updatePlanningDay: ((id: string, req: PlanningDayCreateRequest) =>
+      (stubs.update ?? (() => of(seedDay)))(id, req)) as never,
     deletePlanningDay: ((id: string) =>
       (stubs.remove ?? (() => of(undefined as unknown as void)))(id)) as never,
   };
   return api as unknown as PlanningDaysService;
 }
 
-function configure(planning: PlanningDaysService): Subject<MutationEvent> {
+function configure(
+  planning: PlanningDaysService,
+  stubs: Partial<ApiStubs> = {},
+): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
   TestBed.configureTestingModule({
     providers: [
@@ -70,6 +90,17 @@ function configure(planning: PlanningDaysService): Subject<MutationEvent> {
       { provide: PlanningDaysService, useValue: planning },
       { provide: LocationsService, useValue: { listLocations: () => of(locations) } as never },
       { provide: PersonsService, useValue: { listPersons: () => of(persons) } as never },
+      {
+        provide: AircraftService,
+        useValue: { listAircraftForPicker: () => of([]) } as never,
+      },
+      {
+        provide: AircraftReservationsService,
+        useValue: {
+          listAircraftReservationsForDay: ((date: string) =>
+            (stubs.dayReservations ?? (() => of([])))(date)) as never,
+        } as never,
+      },
     ],
   });
   return bus;
@@ -152,5 +183,83 @@ describe('PlanningStore', () => {
     expect(store.entities().length).toBe(1);
     bus.next({ kind: 'session.logout' });
     expect(store.entities().length).toBe(0);
+  });
+
+  // ── edit-page methods (T-08) ────────────────────────────────────────────────
+
+  it('loadDetail populates selectedDetail for the edit form', () => {
+    configure(planningServiceStub({ detail: () => of(seedDay) }));
+    const store = TestBed.inject(PlanningStore);
+    store.loadDetail(DAY_ID);
+    expect(store.selectedDetail()).toEqual(seedDay);
+    expect(store.isLoadingDetail()).toBe(false);
+  });
+
+  it('selectNew clears the detail + save error for a blank create form', () => {
+    configure(planningServiceStub({}));
+    const store = TestBed.inject(PlanningStore);
+    store.loadDetail(DAY_ID);
+    expect(store.selectedDetail()).not.toBeNull();
+    store.selectNew();
+    expect(store.selectedDetail()).toBeNull();
+    expect(store.saveError()).toBeNull();
+  });
+
+  it('create emits planningDay.created on the bus and refetches', () => {
+    const events: MutationEvent[] = [];
+    let futureCalls = 0;
+    const bus = configure(
+      planningServiceStub({
+        future: () => {
+          futureCalls += 1;
+          return of([seedDay]);
+        },
+        create: () => of(seedDay),
+      }),
+    );
+    bus.subscribe((e) => events.push(e));
+    const store = TestBed.inject(PlanningStore);
+    const before = futureCalls;
+    store.create({ planningDate: '2026-07-05', locationId: LOCATION_ID });
+    expect(events).toContainEqual({ kind: 'planningDay.created', id: DAY_ID });
+    expect(futureCalls).toBeGreaterThan(before);
+  });
+
+  it('update emits planningDay.updated on the bus and refetches', () => {
+    const events: MutationEvent[] = [];
+    const bus = configure(planningServiceStub({ update: () => of(seedDay) }));
+    bus.subscribe((e) => events.push(e));
+    const store = TestBed.inject(PlanningStore);
+    store.update({ id: DAY_ID, req: { planningDate: '2026-07-05', locationId: LOCATION_ID } });
+    expect(events).toContainEqual({ kind: 'planningDay.updated', id: DAY_ID });
+  });
+
+  it('surfaces the duplicate-(date,location) 409 inline via the shared key map', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      statusText: 'Conflict',
+      error: { key: 'planning.day.duplicate' },
+    });
+    configure(planningServiceStub({ create: () => throwError(() => err) }));
+    const store = TestBed.inject(PlanningStore);
+    store.create({ planningDate: '2026-07-05', locationId: LOCATION_ID });
+    expect(store.saveError()).toBe('A planning day already exists for this date and location.');
+  });
+
+  it('loadDayReservations filters the J-5 day read to the day location', () => {
+    const here: AircraftReservationListItem = {
+      id: 'r1',
+      aircraftId: 'ac-1',
+      start: '2026-07-04T10:00:00Z',
+      end: '2026-07-04T11:00:00Z',
+      isAllDay: false,
+      pilotPersonId: INSTRUCTOR_ID,
+      locationId: LOCATION_ID,
+    };
+    const elsewhere: AircraftReservationListItem = { ...here, id: 'r2', locationId: 'loc-other' };
+    configure(planningServiceStub({}), { dayReservations: () => of([here, elsewhere]) });
+    const store = TestBed.inject(PlanningStore);
+    store.loadDayReservations({ date: '2026-07-04', locationId: LOCATION_ID });
+    expect(store.dayReservations().map((r) => r.id)).toEqual(['r1']);
   });
 });

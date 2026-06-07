@@ -319,9 +319,29 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   delete-confirm→DELETE→leaves-list) GREEN locally against system chromium (3 passed). The shared
   `planning-crud.spec.ts` stays `test.fixme` (its POST-page + edit-form contract is T-08/T-09/T-16's to un-fixme).
   Preflight green LOCALLY: lint ✓, tsc ✓, `ng test` 382 ✓, `ng build` production ✓ (planning-list-page chunk emitted).
-- [ ] **T-08 — SPA planning edit page.** `/planning/:id/edit|view`: date, location, 3 person pickers,
+- [x] **T-08 — SPA planning edit page.** `/planning/:id/edit|view`: date, location, 3 person pickers,
   remarks; **reuse J-5's extracted form↔request + errorPatch helper (low-CRAP rider)**; per-day
   reservations inline (J-5 rows) + link to reservation editor + "new reservation" preseed. *(component-route seam)*
+  **Done:** `features/planning/edit/planning-edit.page.ts` (route `/planning/new/:mode` + `/planning/:id/:mode`,
+  `:mode` gates edit-vs-view). Typed reactive `FormGroup` on J-5's reservation edit-form idiom: date picker
+  (`planningDate`), location select, 3 crew pickers (instructor/towpilot/flightop → the 3 nullable person-id DTO
+  fields, leading blank = clear-role), remarks (`info`). **Low-CRAP rider honored:** the form→request mapping is a
+  SINGLE `withOptionals` pass from `@shared/util/form` (empty crew/info pruned → backend clears the role) + the
+  store maps the 409 via the shared `mapApiSaveError` key table — NOT the flagged `formToUpdateRequest`/`finalSubmit`/
+  `errorPatch` cascade. Save (create→`createPlanningDay` / update→`updatePlanningDay`), Cancel (→/planning), Delete
+  gated on `canDeleteRecord` (the list-page kebab confirm — same store). Dup (date,location) **409 surfaces inline**
+  via `store.saveError()`; nav only on the mutation-bus success event (no nav-evicts-body race) — mirrors J-5.
+  **Inline per-day reservations:** no planning-day-scoped reservation read exists, so reuse J-5's `day/{date}` list
+  filtered to the day's location client-side; each row links to `/reservations/:id/edit`; "New reservation" pre-seeds
+  date+location query params into J-5's create form (legacy `PlanningDayEditController.js:96-104,128-132`).
+  Store extended with `loadDetail`/`selectNew`/`create`/`update`/`loadDayReservations`/`clearSaveError`; aircraft
+  immat decoration loads on its OWN best-effort stream so a picker failure can't blank the load-bearing location/crew
+  selects. `planning.form.*` i18n added to all 4 locales. **Tests:** +6 store vitest cases (loadDetail/selectNew/
+  create-bus/update-bus/409-inline/day-filter) — `planning.store.spec.ts` 12 ✓; un-fixme'd the planning-crud spec's
+  create/edit/inline-reservations/409-inline/delete cases (corrected the T-01 stub mocks to the real kebab
+  `/api/v1/planning-days` + `planningDate`/`info`/`canUpdateRecord` wire shape) — 5 passed LOCALLY (musl chromium),
+  2 list-only cases stay fixme (Setup-button needs `/planningsetup` T-09; page-POST envelope is T-16). Local DoD
+  green: tsc ✓, lint ✓, ng build (mock-auth) ✓, full vitest 388 ✓, gallery scripts 63 ✓.
 - [ ] **T-09 — SPA setup wizard.** `/planningsetup` multi-step (StartDate/EndDate/7 weekday checks/location)
   → POST create/rule → back to list. *(component-route seam)*
 - [ ] **T-10 — PlanningDayNotificationJob + templates + run-now affordance.** Job (imminent day+1 →

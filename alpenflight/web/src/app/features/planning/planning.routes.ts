@@ -10,8 +10,18 @@ export const PLANNING_ROUTES: Routes = [
     data: { showNavBar: true },
     loadComponent: () => import('./list/planning-list.page').then((m) => m.PlanningListPage),
   },
-  // `new/edit` + `:id/edit` + `:id/view` are owned by the edit page (T-08).
-  // Declared here so the list page's New / edit / view links already resolve to
-  // the contract the route table carries; until T-08 lands they 404-fallback in
-  // the app. The list page is the T-07 deliverable.
+  // `new/edit` + `:id/edit` + `:id/view` — the create/edit/view page (J-6 T-08).
+  // The `:mode` segment gates editable-vs-read-only; create has no `:id`.
+  {
+    path: 'new/:mode',
+    canActivate: [tenantRequiredGuard],
+    data: { showNavBar: true },
+    loadComponent: () => import('./edit/planning-edit.page').then((m) => m.PlanningEditPage),
+  },
+  {
+    path: ':id/:mode',
+    canActivate: [tenantRequiredGuard],
+    data: { showNavBar: true },
+    loadComponent: () => import('./edit/planning-edit.page').then((m) => m.PlanningEditPage),
+  },
 ];

@@ -91,6 +91,11 @@ const SEED_DAY_KEY = dayKeyFromToday(3);
 const WEEKEND_DAY_KEY = nextSaturdayKey();
 
 // ── mock shapes (new-API wire shape, camelCase fields) ──────────────────────
+//
+// T-08: the real resource (T-04) is kebab-case `/api/v1/planning-days` with
+// real verbs + the `planningDate` / `info` / `canUpdateRecord` field names; the
+// detail carries the 3 nullable typed person ids. This mock matches THAT wire
+// contract (the T-01 stub predated the resource decision).
 interface MockPlanningDay {
   id: string;
   operatingClubId: string;
@@ -129,33 +134,25 @@ const seedDay: MockPlanningDay = {
   numberOfAircraftReservations: 1,
 };
 
-/** Project a planning day onto the paged list-item wire shape. */
-function toListItem(d: MockPlanningDay) {
-  return {
-    id: d.id,
-    date: d.date,
-    locationId: d.locationId,
-    instructorPersonId: d.instructorPersonId,
-    towingPilotPersonId: d.towingPilotPersonId,
-    flightOperatorPersonId: d.flightOperatorPersonId,
-    numberOfAircraftReservations: d.numberOfAircraftReservations,
-  };
-}
-
-/** Project a planning day onto the detail wire shape (GET /{id}). */
+/**
+ * Project a planning day onto the detail/overview wire shape — the resource
+ * (T-04) serves the SAME `PlanningDayDetail` projection for the future-list
+ * (`overview/future`), the paged list, and `GET /{id}`. Field names match the
+ * orval client: `planningDate`, `info`, `canUpdateRecord` / `canDeleteRecord`.
+ */
 function toDetail(d: MockPlanningDay) {
   return {
     id: d.id,
     operatingClubId: d.operatingClubId,
-    date: d.date,
+    planningDate: d.date,
     locationId: d.locationId,
     instructorPersonId: d.instructorPersonId,
     towingPilotPersonId: d.towingPilotPersonId,
     flightOperatorPersonId: d.flightOperatorPersonId,
-    remarks: d.remarks,
+    info: d.remarks,
     numberOfAircraftReservations: d.numberOfAircraftReservations,
-    canUpdate: true,
-    canDelete: true,
+    canUpdateRecord: true,
+    canDeleteRecord: true,
   };
 }
 
@@ -174,10 +171,29 @@ async function stubReferenceData(page: Page): Promise<void> {
       body: JSON.stringify(mockPersonsPicker),
     }),
   );
-  // The per-day inline reservations list (J-5 join) is loaded from this endpoint.
-  await page.route('**/api/v1/aircraft-reservations/planningday/**', (route) => {
+  // Aircraft picker — decorates the inline per-day reservation rows with the
+  // immatriculation (best-effort label, loaded on its own stream).
+  await page.route('**/api/v1/aircraft/picker', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: '019e30c3-2c00-7001-8000-00000000a001',
+          immatriculation: 'HB-3001',
+          aircraftTypeId: '019e30c3-2c00-7001-8000-0000000000a0',
+          isTowingAircraft: false,
+        },
+      ]),
+    }),
+  );
+  // The inline per-day reservations panel reuses the J-5 read-side
+  // (`GET /aircraft-reservations/day/{date}`); the edit page filters the result
+  // to the day's location client-side. The seed day's date returns one row at
+  // the seed location; any other date returns none.
+  await page.route('**/api/v1/aircraft-reservations/day/**', (route) => {
     const path = new URL(route.request().url()).pathname;
-    const matchesSeed = path.endsWith(`/${SEED_DAY_ID}`);
+    const matchesSeed = path.endsWith(`/${SEED_DAY_KEY}`);
     route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -190,6 +206,8 @@ async function stubReferenceData(page: Page): Promise<void> {
                 start: `${SEED_DAY_KEY}T10:00:00Z`,
                 end: `${SEED_DAY_KEY}T11:00:00Z`,
                 isAllDay: false,
+                pilotPersonId: INSTRUCTOR_ID,
+                locationId: LOCATION_BERN_ID,
               },
             ]
           : [],
@@ -198,39 +216,74 @@ async function stubReferenceData(page: Page): Promise<void> {
   });
 }
 
+/** A request body off the create/update wire (the orval `planningDate`/`info` shape). */
+interface PlanningWriteBody {
+  planningDate: string;
+  locationId: string;
+  instructorPersonId?: string;
+  towingPilotPersonId?: string;
+  flightOperatorPersonId?: string;
+  info?: string;
+}
+
+/** Lift a write body onto the mutable mock-day shape (the spec keys on `date`/`remarks`). */
+function bodyToDay(
+  body: PlanningWriteBody,
+): Omit<MockPlanningDay, 'id' | 'operatingClubId' | 'numberOfAircraftReservations'> {
+  return {
+    date: body.planningDate,
+    locationId: body.locationId,
+    instructorPersonId: body.instructorPersonId,
+    towingPilotPersonId: body.towingPilotPersonId,
+    flightOperatorPersonId: body.flightOperatorPersonId,
+    remarks: body.info,
+  };
+}
+
 /**
  * Stub backend for the planning-day resource. Holds a mutable list so a created
- * day appears in the next paged read, a duplicate (date, location) is rejected
- * 409, an update persists crew, and a delete drops the day.
+ * day appears in the next future-list read, a duplicate (date, location) is
+ * rejected 409, an update persists crew, and a delete drops the day.
  *
- * Routes (new kebab-/path-case REST):
- *   POST   /api/v1/planningdays/page/{start}/{size}  → SPA paged envelope
- *   GET    /api/v1/planningdays/{id}                 → detail
- *   POST   /api/v1/planningdays                      → create (201 | 409)
- *   PUT    /api/v1/planningdays/{id}                 → update (200 | 409)
- *   DELETE /api/v1/planningdays/{id}                 → delete (204)
+ * Routes — the real kebab-case REST resource (T-04, real verbs):
+ *   GET    /api/v1/planning-days/overview/future  → PlanningDayDetail[]
+ *   POST   /api/v1/planning-days/page/{start}/{size}  → SPA paged envelope
+ *   GET    /api/v1/planning-days/{id}             → detail
+ *   POST   /api/v1/planning-days                  → create (201 | 409)
+ *   PUT    /api/v1/planning-days/{id}             → update (200 | 409)
+ *   DELETE /api/v1/planning-days/{id}             → delete (204)
  */
 function setupPlanningBackend(days: MockPlanningDay[]) {
   let nextId = 1000;
   const isDuplicate = (date: string, locationId: string, exceptId?: string): boolean =>
     days.some((d) => d.id !== exceptId && d.date === date && d.locationId === locationId);
+  const futureDays = (): MockPlanningDay[] =>
+    days.filter((d) => d.date >= dayKeyFromToday(0)).sort((a, b) => a.date.localeCompare(b.date));
 
   return async (route: Route) => {
     const req = route.request();
     const url = new URL(req.url());
     const method = req.method();
     const path = url.pathname;
-    const idMatch = path.match(/^\/api\/v1\/planningdays\/([0-9a-f-]{36})$/);
-    const pageMatch = path.match(/^\/api\/v1\/planningdays\/page\/(\d+)\/(\d+)$/);
+    const idMatch = path.match(/^\/api\/v1\/planning-days\/([0-9a-f-]{36})$/);
+    const pageMatch = path.match(/^\/api\/v1\/planning-days\/page\/(\d+)\/(\d+)$/);
+
+    // Future-days list (overview/future) — the list page's primary read.
+    if (method === 'GET' && path === '/api/v1/planning-days/overview/future') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(futureDays().map(toDetail)),
+      });
+      return;
+    }
 
     // Paged future-days list — SPA envelope {items, pageStart, pageSize, totalRows}.
     if (method === 'POST' && pageMatch) {
       const start = Number(pageMatch[1]);
       const size = Number(pageMatch[2]);
-      const future = days
-        .filter((d) => d.date >= dayKeyFromToday(0))
-        .sort((a, b) => a.date.localeCompare(b.date));
-      const items = future.slice(start, start + size).map(toListItem);
+      const future = futureDays();
+      const items = future.slice(start, start + size).map(toDetail);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -254,11 +307,8 @@ function setupPlanningBackend(days: MockPlanningDay[]) {
       return;
     }
 
-    if (method === 'POST' && path === '/api/v1/planningdays') {
-      const body = req.postDataJSON() as Omit<
-        MockPlanningDay,
-        'id' | 'operatingClubId' | 'numberOfAircraftReservations'
-      >;
+    if (method === 'POST' && path === '/api/v1/planning-days') {
+      const body = bodyToDay(req.postDataJSON() as PlanningWriteBody);
       if (isDuplicate(body.date, body.locationId)) {
         await route.fulfill({
           status: 409,
@@ -277,17 +327,14 @@ function setupPlanningBackend(days: MockPlanningDay[]) {
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
-        headers: { Location: `/api/v1/planningdays/${created.id}` },
+        headers: { Location: `/api/v1/planning-days/${created.id}` },
         body: JSON.stringify(toDetail(created)),
       });
       return;
     }
 
     if (method === 'PUT' && idMatch) {
-      const body = req.postDataJSON() as Omit<
-        MockPlanningDay,
-        'id' | 'operatingClubId' | 'numberOfAircraftReservations'
-      >;
+      const body = bodyToDay(req.postDataJSON() as PlanningWriteBody);
       const idx = days.findIndex((d) => d.id === idMatch[1]);
       if (idx === -1) {
         await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
@@ -329,7 +376,7 @@ function setupPlanningBackend(days: MockPlanningDay[]) {
 
 async function wirePlanning(page: Page, days: MockPlanningDay[]): Promise<void> {
   await stubReferenceData(page);
-  await page.route('**/api/v1/planningdays**', setupPlanningBackend(days));
+  await page.route('**/api/v1/planning-days**', setupPlanningBackend(days));
 }
 
 /**
@@ -360,10 +407,13 @@ async function fillCrew(page: Page): Promise<void> {
   await selectAfOption(page, 'planning-flightop-select', FLIGHTOP_ID);
 }
 
-// ── inner-loop suite — drives the (not-yet-built) /planning screens ──────────
-// Every page-driving case is `test.fixme`: the screen + backend land in
-// T-07/T-08; T-16 un-fixmes + thickens these from the oracle. The structure
-// (selectors + flow + thin asserts) is the T-01 deliverable.
+// ── inner-loop suite — drives the /planning screens ──────────────────────────
+// T-07 landed the list, T-08 the create/edit/view page. The edit + create +
+// delete + 409-inline + inline-reservations cases are un-fixme'd here (they
+// drive the real kebab-case resource via `page.route` mocks). The two list-only
+// cases stay fixme: the Setup-button case depends on the `/planningsetup` route
+// (T-09) and the page-POST envelope case on the paged read (the list page reads
+// `overview/future`, not the page POST) — both un-fixme at T-09/T-16.
 test.describe('J-6 planning days (mock-auth inner loop)', () => {
   // ── AC: the future-days list renders the seed day with crew + #reservations,
   //    a weekend row is flagged, and the Setup button routes to the wizard ─────
@@ -426,26 +476,23 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
   });
 
   // ── AC[happy]: create a planning day → it appears in the list ───────────────
-  test.fixme('create: a new planning day persists and appears in the future-days list', async ({
+  test('create: a new planning day persists and appears in the future-days list', async ({
     page,
   }) => {
     await wirePlanning(page, []);
 
     await gotoDe(page, '/planning');
     await page.getByTestId('planning-new-button').locator('button').click();
-    await expect(page).toHaveURL('/planning/new');
+    await expect(page).toHaveURL('/planning/new/edit');
 
     await page.getByTestId('planning-date').locator('input').fill(dayKeyFromToday(5));
     await fillCrew(page);
-    await page
-      .getByTestId('planning-remarks')
-      .locator('textarea')
-      .fill('Created in the inner loop');
+    await page.getByTestId('planning-remarks').locator('input').fill('Created in the inner loop');
 
     const created = page.waitForResponse(
       (r) =>
         r.request().method() === 'POST' &&
-        new URL(r.url()).pathname === '/api/v1/planningdays' &&
+        new URL(r.url()).pathname === '/api/v1/planning-days' &&
         r.status() === 201,
     );
     await page.getByTestId('planning-save-button').click();
@@ -460,9 +507,7 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
   });
 
   // ── AC[happy]: edit a day's crew → it persists on reopen ────────────────────
-  test.fixme('edit: changing the crew assignments persists and reflects on reopen', async ({
-    page,
-  }) => {
+  test('edit: changing the crew assignments persists and reflects on reopen', async ({ page }) => {
     await wirePlanning(page, [{ ...seedDay }]);
 
     await gotoDe(page, `/planning/${SEED_DAY_ID}/edit`);
@@ -473,7 +518,7 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     const updated = page.waitForResponse(
       (r) =>
         r.request().method() === 'PUT' &&
-        new URL(r.url()).pathname === `/api/v1/planningdays/${SEED_DAY_ID}` &&
+        new URL(r.url()).pathname === `/api/v1/planning-days/${SEED_DAY_ID}` &&
         r.status() === 200,
     );
     await page.getByTestId('planning-save-button').click();
@@ -486,7 +531,7 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
   });
 
   // ── AC[happy]: the edit screen lists that day's reservations inline (J-5 join)
-  test.fixme('edit: the per-day reservations list renders inline with view/edit + new-reservation links', async ({
+  test('edit: the per-day reservations list renders inline with view/edit + new-reservation links', async ({
     page,
   }) => {
     await wirePlanning(page, [{ ...seedDay }]);
@@ -501,17 +546,23 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await expect(
       resvRow.getByTestId(`planning-reservation-edit-${SEED_DAY_RESERVATION_ID}`),
     ).toHaveAttribute('href', `/reservations/${SEED_DAY_RESERVATION_ID}/edit`);
-    // "New reservation" pre-seeds the day's date + location into J-5's create form.
+    // "New reservation" navigates to J-5's create form pre-seeding the day's
+    // date + location as query params (the J-5 edit page reads them — legacy
+    // `PlanningDayEditController.js:128-132` parity).
     await expect(panel.getByTestId('planning-new-reservation-button')).toBeVisible();
+    await panel.getByTestId('planning-new-reservation-button').locator('button').click();
+    await expect(page).toHaveURL(
+      new RegExp(`/reservations/new\\?.*date=${SEED_DAY_KEY}.*locationId=${LOCATION_BERN_ID}`),
+    );
   });
 
   // ── AC[key-error]: a duplicate (date, location) is rejected 409 inline ───────
-  test.fixme('duplicate: a second day with the same (date, location) is rejected 409 inline', async ({
+  test('duplicate: a second day with the same (date, location) is rejected 409 inline', async ({
     page,
   }) => {
     await wirePlanning(page, [{ ...seedDay }]);
 
-    await gotoDe(page, '/planning/new');
+    await gotoDe(page, '/planning/new/edit');
     // Same date + location as the seed day → V4 ux_pln_club_date_loc → 409.
     await page.getByTestId('planning-date').locator('input').fill(SEED_DAY_KEY);
     await fillCrew(page); // location defaults/selects to Bern, same as the seed
@@ -519,7 +570,7 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     const conflict = page.waitForResponse(
       (r) =>
         r.request().method() === 'POST' &&
-        new URL(r.url()).pathname === '/api/v1/planningdays' &&
+        new URL(r.url()).pathname === '/api/v1/planning-days' &&
         r.status() === 409,
     );
     await page.getByTestId('planning-save-button').click();
@@ -528,12 +579,12 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await expect(saveError(page)).toBeVisible();
     // Stayed on the create form (no nav on error); tolerate the cold-start
     // `?lang=de` query the gotoDe helper leaves on the first nav (J-5 T-46).
-    await expect(page).toHaveURL(/\/planning\/new(\?|$)/);
+    await expect(page).toHaveURL(/\/planning\/new\/edit(\?|$)/);
     await page.screenshot({ path: 'screenshots/planning/03-duplicate-409.png', fullPage: true });
   });
 
   // ── AC[key-error]: delete a day → cascade + it leaves the list ──────────────
-  test.fixme('delete: deleting a planning day cascades its assignments and removes it from the list', async ({
+  test('delete: deleting a planning day cascades its assignments and removes it from the list', async ({
     page,
   }) => {
     await wirePlanning(page, [{ ...seedDay }]);
@@ -541,14 +592,17 @@ test.describe('J-6 planning days (mock-auth inner loop)', () => {
     await gotoDe(page, '/planning');
     await expect(planningRow(page, SEED_DAY_ID)).toBeVisible();
 
-    // Delete via the row action; confirm the day leaves the list.
+    // Delete via the row's kebab → Delete → confirm dialog; the day leaves the
+    // list. The kebab menu renders into a CDK-overlay portal, so open it first,
+    // then the `planning-delete-<id>` item is page-level (not row-nested).
     const deleted = page.waitForResponse(
       (r) =>
         r.request().method() === 'DELETE' &&
-        new URL(r.url()).pathname === `/api/v1/planningdays/${SEED_DAY_ID}` &&
+        new URL(r.url()).pathname === `/api/v1/planning-days/${SEED_DAY_ID}` &&
         r.status() === 204,
     );
-    await planningRow(page, SEED_DAY_ID).getByTestId(`planning-delete-${SEED_DAY_ID}`).click();
+    await page.getByTestId(`planning-kebab-${SEED_DAY_ID}`).click();
+    await page.getByTestId(`planning-delete-${SEED_DAY_ID}`).click();
     await page.getByTestId('planning-delete-confirm').click();
     await deleted;
     await expect(planningRow(page, SEED_DAY_ID)).toHaveCount(0);
