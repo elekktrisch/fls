@@ -539,5 +539,13 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
     `if: always()` + `continue-on-error`), added `planning-migration-parity.spec.ts` to the step-6 AlpenFlight
     real-idp invocation (produces the `alpenflight-planning-{list,form,setup-form}.png` shots), declared the J-6
     legacy video in the `legacy-video.json` sidecar + the 3 legacy + 3 AlpenFlight `add_shot` pairs (side×view
-    list/form/setup) into `screenshots.json`. Triggered the fanout for `integration/J-6` — its run deploys the
-    paired shots onto the deployed J-6 page (`…/proof-preview/integration-J-6/legacy-parity/J-6/`). *(e2e-driver, parity capture)* [[feedback_proof_in_gallery_not_chat]]
+    list/form/setup) into `screenshots.json`. **Fanout RAN (run 27084983585, branch HEAD 78387a85):** the
+    legacy planning parity spec PASSED (1 passed, video + 3 legacy PNGs captured), the AlpenFlight planning
+    clean-seed cases PASSED (among the 25 passed), the gallery + branch-preview deploy + deployed-link-check all
+    GREEN (the `!cancelled()` path survived an UNRELATED step-6 red — the pre-existing J-0c real-bundle ingest
+    `sqlstate=23505` + its dependent J-5 migrated-reservation read, mirrored on the SAME-minute `main` cron
+    fanout, NOT introduced here; same family as the branch's pre-existing `ExportCommandSmokeTest` build red).
+    **LIVE + verified:** all 6 paired planning shots return 200 at
+    `…/proof-preview/integration-J-6/legacy-parity/J-6/` (legacy + AlpenFlight × list/form/setup), the page
+    renders the 3 paired view rows + the legacy parity video, and the persistent bookmark
+    `…/alpenflight/previews/index.html` surfaces `…/legacy-parity/J-6/` (freshest-wins, T-13b). *(e2e-driver, parity capture)* [[feedback_proof_in_gallery_not_chat]]
