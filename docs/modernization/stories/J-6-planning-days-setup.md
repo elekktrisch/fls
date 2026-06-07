@@ -403,11 +403,30 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   **Audit:** added `sendPlanningDayInfoMailTo` + `usePlanningDayWithoutReservations` to the Club audit-redaction
   allow-list (club config, not member PII) — `AuditRedactionCoverageTest`. No controller → no OpenAPI/orval change.
   Whole `./gradlew check` GREEN (1151 tests, pmd/cpdRatchet/arch-guards/OpenApiSnapshot all green). T-10c consumes these.
-- [ ] **T-10c — PlanningDayNotificationJob + run-now affordance.** `@Scheduled @LifecycleStateFilter` job (day+1
+- [x] **T-10c — PlanningDayNotificationJob + run-now affordance.** `@Scheduled @LifecycleStateFilter` job (day+1
   club-addr ok/cancel via reservation-existence + club flag; day+7 assignee fan-out, skip-blank); template/recipient
   selection in domain/service; tenant-scoped repo queries (days dated +1 / +7); guarded+audited
   `POST /api/v1/planning-days/notifications/run` (dev/test profile + ClubAdmin); `PlanningDayNotificationJobIT`
   (asserts vs the T-10a captured outbox). **Chain: T-10a → T-10b → T-10c.** *(job + affordance seam)*
+  **Done:** `PlanningDayNotificationJob` (`planning.application`, `@Scheduled` daily + `@LifecycleStateFilter({ACTIVE})`
+  — per-club tenant-scoped via the existing aspect, NOT `@UnscopedScheduledJob`). `runForCurrentClub()` is the per-club
+  body the aspect re-enters AND the run-now affordance calls; it runs both exact-date passes (`LocalDate ==` semantics):
+  imminent=today+1 → for an opted-in club (`Club.wantsPlanningDayNotifications()`) one mail per day to
+  `Club.getPlanningDayInfoMailTo()`, `planningday-ok` vs `planningday-cancel` chosen by `Club.shouldSendPlanningDayOk(hasReservation)`
+  (T-10b, hasReservation = T-03 `countReservationsForDay > 0`); week-ahead=today+7 → for every assigned person (all 3 roles)
+  a `planningday-assignment-notification` to `Person.emailForCommunication()`, skip-blank (legacy per-person opt-out ignored
+  — parity). Template/recipient SELECTION lives in the job/`Club` aggregate, not SQL (ADR-0022 §2); rendered via T-10a's
+  `TemplatedMailService` + T-10b's `PlanningEmailModels`. New tenant-scoped JPQL `PlanningDayRepository.findActiveByDate(date)`
+  (full aggregates dated exactly == date, soft-delete + `@TenantId` filtered — no new native SQL). Guarded run-now:
+  `POST /api/v1/planning-days/notifications/run` (`PlanningNotificationController`, operationId `runPlanningDayNotifications`,
+  `@Profile({"dev","test"})` + `@Hidden` + `@PreAuthorize hasRole(CLUB_ADMINISTRATOR)`); triggers the job for the current
+  club, emits `AuditAction.PLANNING_NOTIFICATIONS_RUN` (non-PII `RunSummary` snapshot → `ControllerAuditCoverageTest` green
+  transitively). **Boyscout:** added `Person.emailForCommunication()` (parity with legacy `EmailAddressForCommunication`,
+  ADR-0022 §2 — prefers business/private per flag, falls back when blank). **Tests:** `PlanningDayNotificationJobIT` (3
+  cases — both passes ok/cancel/assignment to the right recipients+tokens; cancel-vs-ok by the club reservation-less flag;
+  run-now ClubAdmin 200 / PILOT 403 / tenant-scoped) asserting the T-10a captured outbox. **DoD:** `./gradlew check` GREEN
+  (full suite + pmd + cpdRatchet + arch guards + OpenApiSnapshot); OpenAPI snapshot + orval client regenerated (only the new
+  `PLANNING_NOTIFICATIONS_RUN` audit-enum value — the run-now route is `@Hidden`, correctly absent from the client).
   > **OVERFLOW (2026-06-07, do-task, before any code/commit)** — 4 seams / ~15 files / 8+ new, well over
   > the do-task caps (1 seam, ≤8 touched, ≤5 new). Root cause: **ADR-0013 email infra was decided but NEVER
   > built** — there is *no* `spring-boot-starter-mail`/Thymeleaf dep, *no* `spring.mail` config, *no* mail

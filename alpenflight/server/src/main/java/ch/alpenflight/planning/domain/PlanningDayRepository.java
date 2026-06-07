@@ -79,6 +79,17 @@ public interface PlanningDayRepository {
     List<ListRow> findFutureListRows(LocalDate asOf);
 
     /**
+     * Every non-deleted planning day in the caller's tenant dated <em>exactly</em>
+     * {@code planningDate}, loaded as full aggregates (with their crew
+     * assignments) — the input the notification job's two exact-date passes need
+     * (J-6 T-10c). The imminent pass calls this with {@code today + 1}, the
+     * week-ahead pass with {@code today + 7} (legacy {@code
+     * PlanningDayNotificationJob.cs} exact-equality on {@code .Date}).
+     * Tenant-scoped via {@code @TenantId}; sorted by id for determinism.
+     */
+    List<PlanningDay> findActiveByDate(LocalDate planningDate);
+
+    /**
      * The legacy {@code NumberOfAircraftReservations}: count of non-deleted
      * aircraft reservations for the caller's tenant whose
      * {@code date(reservation_start)} equals {@code planningDate} at

@@ -512,6 +512,22 @@ public class Person {
         return preferMailToBusinessMail;
     }
 
+    /**
+     * The address this person should be mailed at — parity with legacy
+     * {@code Person.EmailAddressForCommunication}
+     * ({@code FLS.Server.Data/DbEntities/Person.cs:205-228}). Honours
+     * {@link #isPreferMailToBusinessMail()} but falls back to the other address
+     * when the preferred one is blank, so a person with only one address on file
+     * is still reachable. Returns {@code null} when neither address is set (the
+     * caller skips a blank recipient — J-6 notification job).
+     */
+    public @Nullable String emailForCommunication() {
+        if (preferMailToBusinessMail) {
+            return blankToNull(emailBusiness) != null ? emailBusiness : blankToNull(emailPrivate);
+        }
+        return blankToNull(emailPrivate) != null ? emailPrivate : blankToNull(emailBusiness);
+    }
+
     public @Nullable LocalDate getBirthday() {
         return birthday;
     }

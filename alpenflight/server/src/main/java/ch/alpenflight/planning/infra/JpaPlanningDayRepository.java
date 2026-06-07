@@ -93,4 +93,16 @@ public interface JpaPlanningDayRepository
     @Override
     @Query(FUTURE_SELECT + "order by d.planningDate asc, d.id asc")
     List<ListRow> findFutureListRows(@Param("asOf") LocalDate asOf);
+
+    /**
+     * Full aggregates dated exactly {@code planningDate} (J-6 T-10c notification
+     * passes). Tenant-implicit ({@code @TenantId}) + soft-delete filtered; the
+     * crew assignments load lazily through the returned aggregate's accessor
+     * under the same open transaction the job body runs in.
+     */
+    @Override
+    @Query("select d from PlanningDay d "
+            + "where d.deletedOn is null and d.planningDate = :planningDate "
+            + "order by d.id asc")
+    List<PlanningDay> findActiveByDate(@Param("planningDate") LocalDate planningDate);
 }
