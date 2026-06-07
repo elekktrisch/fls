@@ -172,16 +172,56 @@ public class AircraftReservation {
             throw new IllegalArgumentException("end must not be null");
         }
         this.allDay = isAllDay;
+        EffectiveSpan span = effectiveSpan(start, end, isAllDay);
+        this.reservationStart = span.start();
+        this.reservationEnd = span.end();
+        validateDuration();
+    }
+
+    /**
+     * The effective {@code [start, end)} span a candidate reservation occupies —
+     * the SAME normalisation {@link #reschedule} applies before persisting. For a
+     * timed reservation the bounds are verbatim; for all-day the span is the full
+     * UTC day {@code [date 00:00, date+1 00:00)} derived from {@code start}'s
+     * calendar date. Owned on the aggregate (ADR 0022) so the non-mutating
+     * overlap pre-check (J-6b validate path) and the save path share one rule
+     * instead of re-deriving the span.
+     *
+     * <p>Returns the raw span without the {@code end > start} duration guard so a
+     * caller can decide whether to reject (save) or surface (validate); call
+     * {@link EffectiveSpan#isValidDuration()} to apply the same check
+     * {@link #validateDuration} enforces.
+     */
+    public static EffectiveSpan effectiveSpan(Instant start, Instant end, boolean isAllDay) {
+        if (start == null) {
+            throw new IllegalArgumentException("start must not be null");
+        }
+        if (end == null) {
+            throw new IllegalArgumentException("end must not be null");
+        }
         if (isAllDay) {
             Instant dayStart = start.atZone(ZoneOffset.UTC).toLocalDate()
                     .atStartOfDay(ZoneOffset.UTC).toInstant();
-            this.reservationStart = dayStart;
-            this.reservationEnd = dayStart.plus(java.time.Duration.ofDays(1));
-        } else {
-            this.reservationStart = start;
-            this.reservationEnd = end;
+            return new EffectiveSpan(dayStart, dayStart.plus(java.time.Duration.ofDays(1)));
         }
-        validateDuration();
+        return new EffectiveSpan(start, end);
+    }
+
+    /**
+     * The normalised effective span of a candidate reservation (see
+     * {@link #effectiveSpan}). {@code start} is inclusive, {@code end} exclusive
+     * (half-open) — the same convention {@link #conflictsWith} compares on.
+     */
+    public record EffectiveSpan(Instant start, Instant end) {
+
+        /**
+         * Mirrors {@link #validateDuration}: a span is valid only when its end is
+         * strictly after its start (the empty-range degenerate {@code start ==
+         * end} is invalid). All-day spans are always valid by construction.
+         */
+        public boolean isValidDuration() {
+            return end.isAfter(start);
+        }
     }
 
     public void changeType(@Nullable UUID newReservationTypeId, @Nullable UUID newFlightTypeId) {

@@ -11,7 +11,10 @@ import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftR
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationPageRequest;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationTypeListItem;
 import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationUpdateRequest;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.AircraftReservationValidateRequest;
+import ch.alpenflight.reservations.application.AircraftReservationDtos.ReservationValidationResult;
 import ch.alpenflight.reservations.domain.AircraftReservation;
+import ch.alpenflight.reservations.domain.AircraftReservation.EffectiveSpan;
 import ch.alpenflight.reservations.domain.AircraftReservationNotFoundException;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository;
 import ch.alpenflight.reservations.domain.AircraftReservationRepository.Range;
@@ -203,6 +206,41 @@ public class AircraftReservationsService {
         return reservations.findActiveTypeListItems().stream()
                 .map(AircraftReservationMapper::toTypeListItem)
                 .toList();
+    }
+
+    /**
+     * Non-mutating overlap pre-check (J-6b T-04). Runs the SAME aircraft-slot
+     * overlap probe ({@link AircraftReservationRepository#existsActiveConflict})
+     * the save path uses ({@link #rejectIfConflicting}) over the candidate slot,
+     * but persists nothing and raises nothing — it returns a field-level
+     * {@link ReservationValidationResult} the FE surfaces inline while editing.
+     * The effective span is normalised by the aggregate's
+     * {@link AircraftReservation#effectiveSpan} so all-day vs timed compose
+     * exactly as on save (ADR 0022 — the rule stays on the aggregate). An edit
+     * passes its own id as {@code excludeReservationId} so it is not flagged
+     * against itself. Tenant-scoped: {@code existsActiveConflict} carries the
+     * {@code @TenantId} predicate, so another club's booking never conflicts.
+     *
+     * <p>A degenerate candidate span ({@code end ≤ start} on a timed slot) is
+     * reported as a {@code start}-field invalid rather than throwing — the FE
+     * surfaces it inline like any other field error (the save path's 422 is for
+     * the mutating call; the pre-check stays a 200 outcome).
+     */
+    @Transactional(readOnly = true)
+    public ReservationValidationResult validateOverlap(AircraftReservationValidateRequest req) {
+        EffectiveSpan span = AircraftReservation.effectiveSpan(
+                req.start(), req.end(), req.isAllDay());
+        if (!span.isValidDuration()) {
+            return ReservationValidationResult.failed(
+                    "start", "Reservation end must be after start.");
+        }
+        Range window = new Range(span.start(), span.end());
+        if (reservations.existsActiveConflict(
+                req.aircraftId().value(), window, req.excludeReservationId())) {
+            return ReservationValidationResult.failed(
+                    "start", "This aircraft is already reserved for an overlapping time.");
+        }
+        return ReservationValidationResult.passed();
     }
 
     private void rejectIfConflicting(AircraftReservation r, @Nullable UUID excludeId) {
