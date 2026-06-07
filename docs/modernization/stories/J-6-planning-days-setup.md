@@ -621,6 +621,29 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   rider. *(generate-gallery.mjs + ci.yml/fanout `--journey-under-work` wiring)*
 - [x] ~~**T-15** — scope per-push mock-e2e~~ **(retired → pulled forward into T-02b).**
 - [ ] **T-16 — thicken specs to full real assertions** from the oracle; run the §4 gate via `e2e-driver`. *(spec seam)*
+  - [x] **thicken the 6 real-idp fixme cases to full real assertions (§4 done-gate, 2026-06-07).** Un-fixme'd
+    every remaining `test.fixme` in `tests/real-idp/planning-migration-parity.spec.ts` → ALL 10 cases now run
+    FULLY REAL (no mocks; Mocked-seams list EMPTY). (1) **duplicate (date,location) → 409** (`planning.day.duplicate`,
+    V4 ux_pln_club_date_loc) PLUS the **rule-wizard skip-existing idempotent** half (the "6th" verification: a
+    bulk-create over a window including the already-created Saturday SKIPS it — not in the created list, no 409).
+    (2) **delete-cascade through the UI** (kebab→confirm→204; day leaves the list; detail 404s; re-creating the
+    freed (date,location) 201s — proving the row + its 3 assignments are truly gone) PLUS a **real low-priv PILOT
+    403 authz probe** (`provisionSeedClubPilot` — neither admin nor creator → forbidden, day intact; mock-admin
+    would hide this [[project_real_idp_real_roles_catches_authz_gaps]]). (3) **cross-tenant 404** driven by a REAL
+    second club B admin (`provisionTwoClubs`): club A reads its own day 200, club B reads it 404 (@TenantId on
+    operating_club_id, V4). (4) **notification → mailpit**: a day+1 (with a real J-5 reservation → planningday-ok)
+    + a day+7 (3 crew assigned) → fired the guarded `POST /api/v1/planning-days/notifications/run` (dev-profile +
+    ClubAdmin); asserted mailpit receives the imminent CLUB-address mail (V34 now seeds seed-club-1's
+    `send_planning_day_info_mail_to`) + the 3 week-ahead per-assignee mails (crew persons now seeded with
+    unique-per-run private emails so each `to:` match is unambiguous). (5) **migrated-parity read**: the migrated
+    TestClub admin pages its migrated days, finds the legacy 'Test3' day (+100 fixture), asserts its Location FK
+    resolves to the migrated club's OWN replica (a 200 GET as the migrated admin), and the row renders on
+    `/planning`. The gallery `form` shot stays the POPULATED date-selected inline `<af-reservation-row>` list
+    (T-08c). Delta/presence asserts on the shared seed-club-1 tenant + afterAll cleanup (J-5 discipline); PILOT +
+    club-B disposed in afterAll. Fixtures: extended `planning-parity-fixture.ts` (crew emails, PILOT provisioning,
+    `SEED_CLUB_NOTIFICATION_ADDRESS`); V34 dev seed opts seed-club-1 into notifications. Local DoD: tsc clean (my
+    files), eslint clean, prettier-written over `e2e/**`, all 10 cases `--list`-discovered, 0 fixme. Live green +
+    deployed-gallery verification is the §4 fanout (stack is local-blocked on the musl box). *(e2e-driver, real assertions)*
   - [x] **legacy↔AlpenFlight planning parity shots (operator priority, 2026-06-07).** Authored the LEGACY
     planning parity spec `e2e/tests/planning/planning-parity-J6.spec.ts` (mirrors `reservations-parity-J5.spec.ts`):
     drives the legacy flsweb `/planning` future-days list + one day's `/planning/:id/edit` form + the
