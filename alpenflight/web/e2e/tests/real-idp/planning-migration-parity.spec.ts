@@ -9,20 +9,27 @@ import {
   SEED_CLUB_A_ID,
   type MigratedClubAdmin,
 } from './_helpers/reservation-parity-fixture';
+import {
+  seedPlanningMasterdata,
+  type PlanningMasterdata,
+} from './_helpers/planning-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 import { waitForMessage } from './_helpers/mailpit-client';
 import { selectAfOption } from '../_helpers/af-select';
 
 /**
  * J-6 planning-days real chain (live Keycloak auth + real Spring backend + real
- * Postgres) — the journey's `parity_test`. SPEC SKELETON ONLY (T-01).
+ * Postgres) — the journey's `parity_test`.
  *
- * SPEC STUB. This file commits the real-idp parity SHAPE — the flow steps +
- * selectors + thin assertions — before the backend (`ch.alpenflight.planning`),
- * the SPA `/planning` screens, the `PlanningDayNotificationJob`, and the
- * migration `MapperLegacyBindings` wiring exist. Every case is `test.fixme`
- * (parsed + typechecked, NOT run); T-16 thickens these to full real assertions
- * from the behavior oracle + runs the §4 gate via `e2e-driver`.
+ * T-13 (capture pull-forward, operator priority): the clean-seed HAPPY PATH is
+ * now un-fixme'd and runs FULLY REAL against the real-idp stack — it drives the
+ * real `/planning` screens (list render of the V34 seed days · create a day with
+ * date + location + 3-role crew + remarks · edit crew · the inline J-5
+ * reservations panel · the setup wizard's weekday bulk-create) and captures the
+ * screenshots + pass-video the J-6 gallery page renders. The HARDER cases stay
+ * `test.fixme` for T-16 (duplicate-409, delete-cascade, tenant-isolation 404,
+ * the notification-job→mailpit assertion, and the migrated-parity read) — they
+ * are NOT load-bearing for getting J-6 screens onto the deployed gallery.
  *
  * Mirrors the J-5 reservation real-idp discipline
  * (`reservations-migration-parity.spec.ts`):
@@ -64,7 +71,7 @@ import { selectAfOption } from '../_helpers/af-select';
  *     fan-out-resolved own-club location) the migrated-read case matches on.
  */
 
-const PLANNINGDAYS = '/api/v1/planningdays';
+const PLANNINGDAYS = '/api/v1/planning-days';
 
 /** `YYYY-MM-DD` `days` days from local today (planning days are future days). */
 function dayKeyFromToday(days: number): string {
@@ -95,14 +102,15 @@ interface PlanningDayListRow {
   numberOfAircraftReservations: number;
 }
 
-/** A planning-day create/update request body (3 nullable person ids — oracle). */
+/** A planning-day create/update request body (3 nullable person ids — oracle).
+ *  Wire field names match the orval client: `planningDate` / `info`. */
 interface PlanningDayRequest {
-  date: string;
+  planningDate: string;
   locationId: string;
   instructorPersonId?: string;
   towingPilotPersonId?: string;
   flightOperatorPersonId?: string;
-  remarks?: string;
+  info?: string;
 }
 
 /**
@@ -147,17 +155,21 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   let baseURL: string;
   /** clubadmin4's Bearer (seed-club-1, the operating/@TenantId club). */
   let adminBearer: string;
+  /** A fresh location + 3 pickable crew persons (seed-club-1) for create/edit. */
+  let masterdata: PlanningMasterdata;
   /** Every planning-day id this group created in seed-club-1 — deleted in afterAll. */
   const createdIds: string[] = [];
   let cleanupCtx: BrowserContext;
 
-  test.beforeAll(async ({ browser }, testInfo) => {
+  test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdIds.length = 0;
     adminBearer = await captureReservationAdminBearer(browser, baseURL);
-    // STUB (T-04+): seed planning masterdata (location + 3 crew persons with
-    // memberships) here via the ship-time planning-parity-fixture; capture a
-    // low-privilege PILOT principal for the authz-gated delete/update case.
+    // Seed (as clubadmin4, through the REAL create APIs) a fresh location + 3
+    // crew persons WITH a seed-club-1 membership so the create/edit form's 3
+    // crew <af-select>s offer them (the V34 seed persons carry no membership →
+    // not pickable). The PILOT-vs-creator authz delete/update probe stays T-16.
+    masterdata = await seedPlanningMasterdata(request, adminBearer);
     cleanupCtx = await browser.newContext({ baseURL });
   });
 
@@ -174,7 +186,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     await cleanupCtx?.close();
   });
 
-  test.fixme('[happy] create a planning day through the UI (date + location + 3-role crew + remarks) → it renders in the future-days list', async ({
+  test('[happy] create a planning day through the UI (date + location + 3-role crew + remarks) → it renders in the future-days list', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -182,48 +194,94 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     try {
       await loginAsReservationAdmin(page);
 
-      // Baseline list count BEFORE the create → DELTA, not an absolute. Pin the
+      // The future-days list renders the V34 clean-seed days (the weekday
+      // full-crew day + the next-Saturday weekend day, Sat/Sun flagged). Pin the
       // German cold-start locale (the primary market + the gallery locale).
       await page.goto('/planning?lang=de');
       await expect(page.locator('h1')).toContainText('Planung');
       await expect(page.getByTestId('planning-list')).toBeVisible();
+      // At least one V34 seed weekend row is present and flagged (Sat/Sun).
+      await expect(
+        page.locator('[data-testid^="planning-row-"][data-weekend="true"]').first(),
+        'the V34 weekend seed day renders flagged on the future-days list',
+      ).toBeVisible();
 
       await page.getByTestId('planning-new-button').locator('button').click();
-      await expect(page).toHaveURL('/planning/new');
+      await expect(page).toHaveURL('/planning/new/edit');
 
-      // STUB: the seeded location + 3 crew person ids come from the ship-time
-      // planning-parity-fixture; pick them from the real <af-select>s.
+      // Drive the FULL clean-seed UI create: date + the fresh seeded location +
+      // all 3 crew roles from the real <af-select>s + remarks. The fresh location
+      // keeps this create off the V34 seed days' (date, location) so it is a
+      // clean 201, never a duplicate-409.
       await page.getByTestId('planning-date').locator('input').fill(dayKeyFromToday(5));
-      // await selectAfOption(page, 'planning-location-select', masterdata.locationId);
-      // await selectAfOption(page, 'planning-instructor-select', masterdata.instructorId);
-      // await selectAfOption(page, 'planning-towpilot-select', masterdata.towPilotId);
-      // await selectAfOption(page, 'planning-flightop-select', masterdata.flightOpId);
-      await page.getByTestId('planning-remarks').locator('textarea').fill('J-6 real-chain day');
+      // Pass a search term per pick: seed-club-1 is never truncated, so prior
+      // runs accumulate locations/persons and nz-select virtualises a long list
+      // — type the unique seeded name so the target option renders (J-5 T-27).
+      await selectAfOption(
+        page,
+        'planning-location-select',
+        masterdata.locationId,
+        masterdata.locationName,
+      );
+      await selectAfOption(
+        page,
+        'planning-instructor-select',
+        masterdata.instructorId,
+        masterdata.instructorName,
+      );
+      await selectAfOption(
+        page,
+        'planning-towpilot-select',
+        masterdata.towPilotId,
+        masterdata.towPilotName,
+      );
+      await selectAfOption(
+        page,
+        'planning-flightop-select',
+        masterdata.flightOpId,
+        masterdata.flightOpName,
+      );
+      await page.getByTestId('planning-remarks').locator('input').fill('J-6 real-chain day');
 
       // PARITY SHOT (legacy planning edit form ↔ AlpenFlight) — capture the
-      // populated form BEFORE save (capture-before-assert).
+      // populated form BEFORE save (capture-before-assert: a partial red still
+      // produces the form shot the fanout pairs against the legacy form).
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-planning-form.png`,
         fullPage: true,
       });
 
+      // Read the created id off the 201 Location header (the SPA navigates on
+      // bus-success → Chrome evicts the POST body). Track it for afterAll
+      // cleanup BEFORE asserting so a later failure still cleans the row.
       const createdResp = page.waitForResponse(
         (r) =>
           r.request().method() === 'POST' &&
-          new URL(r.url()).pathname === '/api/v1/planningdays' &&
+          new URL(r.url()).pathname === '/api/v1/planning-days' &&
           r.status() === 201,
       );
       await page.getByTestId('planning-save-button').click();
       const resp = await createdResp;
       const location = resp.headers()['location'];
+      expect(location, 'create must return a 201 Location header').toBeTruthy();
       const id = new URL(location!, 'http://localhost').pathname.split('/').pop() ?? '';
-      expect(id).toMatch(/^[0-9a-f-]{36}$/);
+      expect(id, `Location "${location}" must end in a planning-day UUID`).toMatch(
+        /^[0-9a-f-]{36}$/,
+      );
       createdIds.push(id);
 
+      // On bus-success the SPA returns to the /planning list; the created day
+      // renders in its row with its location + the 3 crew display names.
       await expect(page).toHaveURL('/planning');
-      await expect(page.getByTestId(`planning-row-${id}`)).toBeVisible();
+      const row = page.getByTestId(`planning-row-${id}`);
+      await expect(row, 'the created planning day renders in the future-days list').toBeVisible();
+      await expect(row).toContainText(masterdata.locationName);
+      await expect(row).toContainText(masterdata.instructorName);
+      await expect(row).toContainText(masterdata.towPilotName);
+      await expect(row).toContainText(masterdata.flightOpName);
 
-      // PARITY SHOT: the populated /planning list (legacy planning table ↔ list).
+      // PARITY SHOT: the populated /planning list (legacy planning table ↔ list)
+      // — at least the V34 seed days + this created row (≥3 rows, every column).
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-planning-list.png`,
         fullPage: true,
@@ -241,18 +299,46 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test.fixme('[happy] editing a planning day’s crew persists and reflects on reopen', async ({
+  test('[happy] editing a planning day’s crew persists and reflects on reopen', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsReservationAdmin(page);
-      // STUB: create a day via createPlanningDay, open its edit form, reassign a
-      // role via selectAfOption(page, 'planning-instructor-select', …), save,
-      // reopen, assert the change persisted (real PUT round-trip).
-      expect(createPlanningDay).toBeTruthy();
-      expect(selectAfOption).toBeTruthy();
+
+      // Create a bare day (no instructor) via the real API, then drive the edit
+      // form to ASSIGN the instructor crew role, save (real PUT), reopen, and
+      // assert the change persisted (the picker shows the assigned name).
+      const id = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: dayKeyFromToday(11),
+        locationId: masterdata.locationId,
+      });
+
+      await page.goto(`/planning/${id}/edit?lang=de`);
+      await expect(page.getByTestId('planning-edit-form')).toBeVisible();
+      await selectAfOption(
+        page,
+        'planning-instructor-select',
+        masterdata.instructorId,
+        masterdata.instructorName,
+      );
+
+      const updated = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'PUT' &&
+          new URL(r.url()).pathname === `${PLANNINGDAYS}/${id}` &&
+          r.status() === 200,
+      );
+      await page.getByTestId('planning-save-button').click();
+      await updated;
+      await expect(page).toHaveURL('/planning');
+
+      // Reopen — the instructor assignment persisted on the real round-trip.
+      await page.goto(`/planning/${id}/edit?lang=de`);
+      await expect(page.getByTestId('planning-instructor-select')).toContainText(
+        masterdata.instructorName,
+      );
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -265,16 +351,36 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test.fixme('[happy] the edit screen shows that day’s AircraftReservations inline (J-5 join)', async ({
+  test('[happy] the edit screen shows the per-day AircraftReservations panel inline (J-5 join)', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsReservationAdmin(page);
-      // STUB: create a day + a reservation on it (J-5 API), open the edit form,
-      // assert the inline `planning-reservations-panel` lists the reservation
-      // and links to /reservations/:id/edit.
+
+      // Create a day, open its edit form, and assert the inline reservations
+      // panel renders (the J-5 read-side join, queried live by day+location).
+      // The day has no reservation yet, so the panel shows its empty state — the
+      // load-bearing proof here is that the J-5 join wiring RENDERS on the
+      // planning edit screen (a populated-reservation assertion stays T-16).
+      const id = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: dayKeyFromToday(13),
+        locationId: masterdata.locationId,
+      });
+
+      await page.goto(`/planning/${id}/edit?lang=de`);
+      const panel = page.getByTestId('planning-reservations-panel');
+      await expect(panel, 'the inline per-day reservations panel renders (J-5 join)').toBeVisible();
+      await expect(page.getByTestId('planning-reservations-list')).toBeVisible();
+      // The "new reservation" affordance pre-seeds J-5's create form with this
+      // day's date + location (legacy PlanningDayEditController.js:128-132).
+      await expect(panel.getByTestId('planning-new-reservation-button')).toBeVisible();
+
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-planning-reservations-panel.png`,
+        fullPage: true,
+      });
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
@@ -292,17 +398,17 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   }) => {
     const ctx = await browser.newContext({ baseURL });
     try {
-      // STUB: create a day, then POST a second with the SAME (date, location) →
+      // T-16: create a day, then POST a second with the SAME (date, location) →
       // 409 (V4 ux_pln_club_date_loc). The rule-wizard variant skips idempotently.
       const dupDate = dayKeyFromToday(9);
       const first = await createPlanningDay(ctx, adminBearer, createdIds, {
-        date: dupDate,
-        locationId: '00000000-0000-0000-0000-000000000000', // STUB: real seeded location
+        planningDate: dupDate,
+        locationId: masterdata.locationId,
       });
       expect(first).toBeTruthy();
       const dup = await ctx.request.post(PLANNINGDAYS, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
-        data: { date: dupDate, locationId: '00000000-0000-0000-0000-000000000000' },
+        data: { planningDate: dupDate, locationId: masterdata.locationId },
       });
       expect(dup.status(), 'a duplicate (date, location) must 409').toBe(409);
       const body = (await dup.json()) as { key?: string };
@@ -312,18 +418,67 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test.fixme('[happy] the setup wizard bulk-creates days across a range filtered by weekday', async ({
+  test('[happy] the setup wizard bulk-creates days across a range filtered by weekday', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsReservationAdmin(page);
-      // STUB: drive /planningsetup — start/end + Sat+Sun + location → generate.
-      // Track every created id for cleanup (re-GET the list to collect them);
-      // assert the created days are all Sat/Sun and appear on /planning.
+
+      // A future window at the fresh seeded location (the wizard defaults Sat+Sun
+      // ticked). Picking the fresh location keeps every generated (date,
+      // location) off the V34 seed days, so the bulk-create yields a clean
+      // non-empty result (no idempotent skips on a fresh tenant window).
+      const start = dayKeyFromToday(20);
+      const end = dayKeyFromToday(34);
+
       await page.goto('/planningsetup?lang=de');
       await expect(page.getByTestId('planning-setup-form')).toBeVisible();
+      await page.getByTestId('planning-setup-start').locator('input').fill(start);
+      await page.getByTestId('planning-setup-end').locator('input').fill(end);
+      // Sat+Sun are default-ticked (PlanningDaySetupController.js:8-10); select
+      // the fresh seeded location explicitly (overrides the first-location
+      // default). Search by the unique seeded name (virtualised long list, J-5 T-27).
+      await selectAfOption(
+        page,
+        'planning-setup-location-select',
+        masterdata.locationId,
+        masterdata.locationName,
+      );
+
+      // PARITY SHOT: the populated setup wizard form (range + weekdays + location)
+      // BEFORE generate (capture-before-assert).
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-planning-setup-form.png`,
+        fullPage: true,
+      });
+
+      const generated = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === `${PLANNINGDAYS}/create/rule` &&
+          r.status() === 201,
+      );
+      await page.getByTestId('planning-setup-generate-button').click();
+      const genResp = await generated;
+      // The backend returns the days actually created — every one a Sat/Sun in
+      // the window at the fresh location. Track them for afterAll cleanup.
+      const created = (await genResp.json()) as { id: string; planningDate: string }[];
+      expect(created.length, 'the wizard bulk-created at least one weekend day').toBeGreaterThan(0);
+      for (const d of created) {
+        createdIds.push(d.id);
+        const dow = new Date(`${d.planningDate}T00:00:00`).getDay();
+        expect(dow === 0 || dow === 6, `generated day ${d.planningDate} is a Sat/Sun`).toBe(true);
+      }
+
+      // On bus-success the wizard routes back to /planning where the generated
+      // days appear; assert the first generated day renders in the list.
+      await expect(page).toHaveURL('/planning');
+      await expect(
+        page.getByTestId(`planning-row-${created[0]!.id}`),
+        'a wizard-generated day renders in the future-days list',
+      ).toBeVisible();
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {

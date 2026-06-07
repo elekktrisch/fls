@@ -456,11 +456,24 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   >   notifications/run` run-now affordance (dev/test-profile + ClubAdmin gate, audited); `PlanningDayNotificationJobIT`
   >   (ok-vs-cancel day+1, assignee day+7) asserting against the captured outbox from T-10a. *(job + affordance seam)*
   > Chain: **T-10a → T-10b → T-10c** (10c depends on both). No code committed for T-10. Returning overflow to the manager.
-- [ ] **T-13 — pull J-6 proof captures forward (operator priority, 2026-06-07).** Thicken the real-idp parity
-  spec's **clean-seed happy path** (list renders seeded days, create a planning day, edit crew, setup wizard)
-  so it runs GREEN against the real-idp stack + captures screenshots/video that DEPLOY to the J-6 gallery page
-  (currently empty — all-fixme). Add paired legacy↔AlpenFlight list/form shots where the harness allows. Goal:
-  the operator can click the J-6 page and SEE the screens. Full assertion-thickening + migrated-parity stays T-16. *(e2e-driver, capture+deploy)* [[feedback_surface_proof_early_on_repeated_failure]]
+- [x] **T-13 — pull J-6 proof captures forward (operator priority, 2026-06-07).** Un-fixme'd the real-idp parity
+  spec's **clean-seed happy path** — 4 cases now run FULLY REAL against the real-idp stack as `clubadmin4`
+  (ClubAdmin, real roles, no mock-auth): list renders the V34 seed days (weekend flagged) · create a day
+  (date + fresh-seeded location + 3-role crew + remarks → renders in the list with crew names) · edit-crew
+  persists on reopen (real PUT) · the inline J-5 reservations panel renders · the setup wizard bulk-creates
+  weekend days. New `planning-parity-fixture.ts` seeds (as clubadmin4, through the REAL APIs) a fresh location
+  + 3 crew persons WITH a seed-club-1 membership (the V34 seed persons carry no membership → not pickable).
+  Each case captures screenshots (`alpenflight-planning-{list,form,reservations-panel,setup-form}.png`,
+  capture-before-assert) + a `proofVideo({ journey: 'J-6' })` pass-video → the gallery generator emits the J-6
+  per-journey page with `<video>` blocks (verified locally: synthetic-manifest → J-6 page renders the caption
+  + video + is index-linked). Deployed preview: `…/proof-preview/integration-J-6/J-6/`. HARDER cases stay
+  `test.fixme` for T-16 (duplicate-409, delete-cascade, tenant-isolation 404, notification-job→mailpit,
+  migrated-parity read). PAIRED legacy↔AlpenFlight shots DEFERRED to T-16: the side×view `screenshots.json`
+  sidecar is staged by the heavy fanout (`alpenflight-proof-fanout.yml`), not the per-push proof job — per-push
+  the J-6 page renders the AlpenFlight pass-VIDEOS (which drive the real screens), which is the visible result.
+  Local DoD: tsc clean (my files) · eslint clean · prettier-written over `e2e/**` · gallery generator renders
+  a J-6 page from a J-6 manifest. The real-idp run itself executes in the per-push `alpenflight-proof` CI job
+  (no local `docker compose` plugin on this box → stack bring-up local-blocked). *(e2e-driver, capture+deploy)* [[feedback_surface_proof_early_on_repeated_failure]]
 - [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
 - [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
