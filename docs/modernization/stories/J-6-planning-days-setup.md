@@ -2,8 +2,9 @@
 id: J-6
 title: Planning days + setup
 epic: E-08
-status: in_progress
+status: done
 started_at: 2026-06-06
+done_at: 2026-06-07
 journey0: false
 carved: true
 depends_on: [J-5, J-2]
