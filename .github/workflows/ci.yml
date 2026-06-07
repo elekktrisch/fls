@@ -813,6 +813,21 @@ jobs:
               echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
             fi
           }
+          # add_af_only: stage just the FRESH AF PNG for ONE view with NO legacy
+          # pairing — used for GREENFIELD screens (no legacy parity, e.g. the
+          # J-6b reservations Day/Week calendar). The generator renders a single
+          # AlpenFlight figure (the other pairing slot is simply absent).
+          # $1 journey $2 feature $3 view $4 AF filename $5 AF-caption.
+          add_af_only() {
+            local jrn="$1" feat="$2" view="$3" affile="$4" acap="$5"
+            local asrc; asrc="$(find "$AF_RESULTS" -name "$affile" 2>/dev/null | head -1 || true)"
+            if [ -n "$asrc" ]; then
+              cp "$asrc" "$SHOT/$affile"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"alpenflight\",\"view\":\"$view\",\"file\":\"$affile\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$acap")},"
+            else
+              echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
+            fi
+          }
           # ----- J-6 planning (list/form/setup — view keys match the fanout) ---
           if [ "${PROOF_JOURNEY:-}" = "J-6" ]; then
             add_pair "J-6" "planning" "list" "list.png" "alpenflight-planning-list.png" \
@@ -824,6 +839,27 @@ jobs:
             add_pair "J-6" "planning" "setup" "setup.png" "alpenflight-planning-setup-form.png" \
               "Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard" \
               "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
+          fi
+          # ----- J-6b reservations & planning hardening + inline validation ----
+          # The Day/Week CALENDAR is GREENFIELD (no legacy parity per the oracle)
+          # → AlpenFlight-only shots. The edit FORMS pair against legacy where a
+          # committed legacy ref exists (planning form ref is committed; the
+          # reservation form + inline-validation refs are captured at T-17 — until
+          # then add_pair degrades to the AF side only). Filenames must match the
+          # PNGs the J-6b proof spec writes to test-results/.
+          if [ "${PROOF_JOURNEY:-}" = "J-6b" ]; then
+            add_af_only "J-6b" "reservations" "calendar-day" \
+              "alpenflight-reservations-calendar-day.png" \
+              "AlpenFlight (greenfield, no legacy parity): the /reservations DAY view — the aircraft×hour calendar with the Day/Week toggle (selected button legible) + a DD.MM.YYYY period label"
+            add_af_only "J-6b" "reservations" "calendar-week" \
+              "alpenflight-reservations-calendar-week.png" \
+              "AlpenFlight (greenfield, no legacy parity): the /reservations WEEK view — the aircraft×day matrix, paging by weeks with a DD.MM.YYYY – DD.MM.YYYY range label"
+            add_pair "J-6b" "planning" "form" "form.png" "alpenflight-planning-edit-form.png" \
+              "Legacy flsweb: one planning day's edit form (date · location · remarks · crew selectizes · the inline per-day reservations table)" \
+              "AlpenFlight: the planning-day edit form hardened — read-only renders all fields disabled with an Edit toggle, dates render DD.MM.YYYY, and inline validation surfaces per-field errors while typing"
+            add_pair "J-6b" "reservations" "form" "form.png" "alpenflight-reservation-edit-form.png" \
+              "Legacy flsweb: one aircraft reservation's edit form (date · type · pilot · aircraft · location · times)" \
+              "AlpenFlight: the reservation edit form hardened — required-while-typing inline validation + async overlap pre-check, DD.MM.YYYY dates, Cancel returns to the originating planning day"
           fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \

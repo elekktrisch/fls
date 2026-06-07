@@ -56,6 +56,15 @@ gallery's pairing anymore (the refs are here).
 | feature | journey | source | captured |
 | --- | --- | --- | --- |
 | `planning` | J-6 | legacy `flsweb` planning future-days list + one day's edit form + the `/planningsetup` wizard (`planning-parity-J6.spec.ts`) | 1280×800 full-page PNGs; list 33KB · form 44KB · setup 19KB |
+| `reservations` | J-6b | legacy `flsweb` aircraft-reservation edit form (`reservations/form.png`) — for the reservation-edit hardening pairing. PENDING capture at T-17 (the Day/Week calendar is greenfield → AlpenFlight-only, no legacy ref). | — (captured at T-17) |
 
 When a future journey lands its legacy refs here, add a row above with its
 provenance so the "captured once" lineage stays auditable.
+
+**J-6b note (T-01):** the planning-edit hardening reuses the committed
+`planning/form.png` ref (the field set is unchanged — only read-only/edit-mode +
+DD.MM.YYYY + inline validation are hardened on it). The reservation-edit
+`reservations/form.png` ref is captured at T-17 (the per-push gallery's `add_pair`
+degrades to the AlpenFlight side until it lands). The reservations Day/Week
+CALENDAR is greenfield UX (no legacy parity per `J-6b-oracle.md` §Reservations) →
+AlpenFlight-only shots, never paired.
