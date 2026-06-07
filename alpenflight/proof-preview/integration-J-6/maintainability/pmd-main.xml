@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-07T01:33:24.872">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-07T02:22:34.054">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/application/AircraftsService.java">
 <violation beginline="73" endline="80" begincolumn="28" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.application" class="AircraftsService" method="AircraftsService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
@@ -179,7 +179,7 @@ The method 'hashLookupKey(PersonLookupRequest)' has a cyclomatic complexity of 1
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/persons/domain/Person.java">
 <violation beginline="54" endline="54" begincolumn="14" endcolumn="20" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.persons.domain" class="Person" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
-The class 'Person' has a total cyclomatic complexity of 95 (highest 7).
+The class 'Person' has a total cyclomatic complexity of 99 (highest 7).
 </violation>
 <violation beginline="54" endline="54" begincolumn="14" endcolumn="20" rule="TooManyMethods" ruleset="Design" package="ch.alpenflight.persons.domain" class="Person" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#toomanymethods" priority="3">
 This class has too many methods, consider refactoring it.
@@ -192,6 +192,11 @@ Avoid long parameter lists (16 parameters - threshold is 8).
 </violation>
 <violation beginline="269" endline="289" begincolumn="31" endcolumn="80" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.persons.domain" class="Person" method="updateLicences" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (21 parameters - threshold is 8).
+</violation>
+</file>
+<file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/application/PlanningDayNotificationJob.java">
+<violation beginline="113" endline="122" begincolumn="38" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.planning.application" class="PlanningDayNotificationJob" method="PlanningDayNotificationJob" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
+Avoid long parameter lists (10 parameters - threshold is 8).
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/planning/domain/PlanningDay.java">
