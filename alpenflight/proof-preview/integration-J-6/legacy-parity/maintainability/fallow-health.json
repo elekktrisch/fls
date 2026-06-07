@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.89.0",
-  "elapsed_ms": 295,
+  "elapsed_ms": 353,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -574,11 +574,11 @@
     {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "<component>",
-      "line": 368,
+      "line": 424,
       "col": 20,
       "cyclomatic": 18,
       "cognitive": 27,
-      "line_count": 202,
+      "line_count": 205,
       "param_count": 0,
       "exceeded": "cognitive",
       "severity": "high",
@@ -1210,11 +1210,11 @@
     {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "<template>",
-      "line": 75,
+      "line": 85,
       "col": 0,
       "cyclomatic": 12,
       "cognitive": 21,
-      "line_count": 188,
+      "line_count": 191,
       "param_count": 0,
       "exceeded": "cognitive_crap",
       "severity": "critical",
@@ -2374,7 +2374,7 @@
     {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "onSubmit",
-      "line": 368,
+      "line": 424,
       "col": 20,
       "cyclomatic": 6,
       "cognitive": 6,
@@ -3094,7 +3094,7 @@
     {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "detailToFormValue",
-      "line": 397,
+      "line": 457,
       "col": 0,
       "cyclomatic": 5,
       "cognitive": 4,
@@ -3154,7 +3154,7 @@
   ],
   "summary": {
     "files_analyzed": 199,
-    "functions_analyzed": 1407,
+    "functions_analyzed": 1414,
     "functions_above_threshold": 98,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
@@ -3188,26 +3188,26 @@
       "dead_files": 2,
       "dead_exports": 1,
       "duplicated_lines": 1489,
-      "total_lines": 25181,
+      "total_lines": 25247,
       "files_scored": 151,
       "total_deps": 0
     },
     "unit_size_profile": {
       "low_risk": 86.4,
-      "medium_risk": 6.7,
+      "medium_risk": 6.6,
       "high_risk": 3.3,
       "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 37.0,
+    "functions_over_60_loc_per_k": 36.8,
     "unit_interfacing_profile": {
       "low_risk": 97.1,
-      "medium_risk": 2.6,
+      "medium_risk": 2.5,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 6,
     "coupling_high_pct": 1.3,
-    "total_loc": 25181
+    "total_loc": 25247
   },
   "health_score": {
     "formula_version": 2,
@@ -3429,12 +3429,12 @@
       "fan_in": 1,
       "fan_out": 13,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.12,
-      "maintainability_index": 85.8,
-      "total_cyclomatic": 53,
-      "total_cognitive": 44,
-      "function_count": 21,
-      "lines": 439,
+      "complexity_density": 0.13,
+      "maintainability_index": 85.5,
+      "total_cyclomatic": 67,
+      "total_cognitive": 52,
+      "function_count": 27,
+      "lines": 499,
       "crap_max": 156.0,
       "crap_above_threshold": 3
     },
@@ -4019,10 +4019,10 @@
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
       "maintainability_index": 90.8,
-      "total_cyclomatic": 56,
+      "total_cyclomatic": 57,
       "total_cognitive": 4,
-      "function_count": 47,
-      "lines": 344,
+      "function_count": 48,
+      "lines": 350,
       "crap_max": 17.6,
       "crap_above_threshold": 0
     },
@@ -5400,16 +5400,16 @@
       "line_count": 213
     },
     {
+      "path": "src/app/features/planning/planning.store.ts",
+      "name": "<arrow>",
+      "line": 94,
+      "line_count": 211
+    },
+    {
       "path": "src/app/features/flight-types/edit/flight-types-edit.page.ts",
       "name": "<template>",
       "line": 57,
       "line_count": 209
-    },
-    {
-      "path": "src/app/features/planning/planning.store.ts",
-      "name": "<arrow>",
-      "line": 94,
-      "line_count": 205
     },
     {
       "path": "src/app/features/planning/list/planning-list.page.ts",
@@ -5432,8 +5432,8 @@
     {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "<template>",
-      "line": 75,
-      "line_count": 188
+      "line": 85,
+      "line_count": 191
     },
     {
       "path": "src/app/features/aircraft/list/aircraft-list.page.ts",

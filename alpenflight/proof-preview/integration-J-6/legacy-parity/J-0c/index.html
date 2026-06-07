@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AlpenFlight proof — J-2</title>
+<title>AlpenFlight proof — J-0c</title>
 <style>
 :root {
   --bg: #f7f8fa; --surface: #ffffff; --surface-2: #eef1f4;
@@ -127,9 +127,9 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
 <body>
 <div class="container">
   <header>
-    <h1>J-2 — proof</h1>
+    <h1>J-0c — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-2</span> <span class="status success">8 proofs</span> <span class="summary-counts">8 videos · 4 screenshots</span>
+      <span class="summary-jid">J-0c</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 0 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
@@ -144,81 +144,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-23931520841b559901044611324b3afb3bf2ceb6.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · club admin logs in via real Keycloak, lists /flights, and creates a glider flight via the 3-step wizard with start-type AEROTOW — the paired tow is created and linked in the same save (glider.towFlightId → a distinct TOW row)</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-3e69869907e02a86fc80ba78732ef9a86f241695.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-A admin logs in via real Keycloak and sees its migrated Location under the random name</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-82cff7a64c9032c11d0ff767e49c678d0a4ff03a.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2 · motor flight · a motor flight (motor aircraft, no tow) is created via the unified /flights wizard and renders in the SAME /flights list with aircraft type &quot;Motor&quot; — legacy's separate /airmovements screen is NOT carried forward</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-ff45fc5205fee59c2b5cfc877e21018dd7fba59c.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-0c · fan-out migration · club-B admin sees its OWN copy of the migrated Location under the same name (distinct fanned-out row)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-d902db2817956709a28ea567cea6e694caa68902.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin edits a flight and the change persists across a reload (real backend round-trip)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-b21a1caa397ac11331e08cbc800497e46a43ed8c.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2 · flight logbook · the club admin deletes a flight (CLUB_ADMINISTRATOR gate) and it leaves the list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-1f3e0f2fca21af0098d1033df8cfdbe9f931dfba.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · tenant scope · a caller from a different club cannot read another tenant's flight (GET 404, structural @TenantId scope)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-811a3bb6ef740c7b53813b5ee6d7e3888246a657.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · optimistic concurrency · a stale PUT (old If-Match) returns 412 and opens the inline per-field keep-mine/keep-theirs conflict diff (no auto-retry; net-new affordance)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-4c2fff75c1a683f82de02ae196ef48e66903df18.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-2 · migrated flight · a real legacy Flight + FlightCrew, migrated through the live migration endpoint, renders in the owning club's /flights list under its immatriculation (crew + tow link; full legacy→migrate→Keycloak→UI chain)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ca511be1dcc712da82aff41b3dfb91b0cd54e7fb.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-2 · read-only state · a DeliveryBooked flight rejects edit + delete (4xx state gate; Locked stays editable per oracle #12). The Valid→Locked lock is LOCK_JOB-driven (proven at FlightTimeGateIT), so the e2e asserts the read-only consequence, not the transition.</span></figcaption>
+          <video controls preload="metadata" src="../videos/proof-video-0fd1086848d7f6ac33f37726616fe44f981e2c73.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-0c · cross-tenant 404 · club-A is denied club-B’s migrated Location (tenant isolation holds on migrated data)</span></figcaption>
         </figure>
         </div>
-        <div class="parity-screenshots">
-          <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
-        <div class="shot-pair">
-          <div class="shot-view-label">list</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-flights-list.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flights-list.png" alt="alpenflight list" loading="lazy"></a>
-            <figcaption>AlpenFlight: the unified /flights logbook — a created glider flight (AEROTOW) + its linked TOW row + a MOTOR row in ONE list (legacy's separate /airmovements screen is not carried forward)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">form</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-flights-wizard-tow.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flights-wizard-tow.png" alt="alpenflight form" loading="lazy"></a>
-            <figcaption>AlpenFlight: the 3-step create wizard at the populated TOW step (Launch → Glider → Tow) — the paired glider+tow create UX a single edit-form PNG hides; pair against the legacy two-column glider+tow form</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">wizard (glider step)</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-flights-wizard-glider.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-flights-wizard-glider.png" alt="alpenflight wizard (glider step)" loading="lazy"></a>
-            <figcaption>AlpenFlight: the create wizard's GLIDER step, populated — the full glider+tow wizard example (the Tow step follows; see view=form)</figcaption>
-          </figure>
-          </div>
-        </div>
-        <div class="shot-pair">
-          <div class="shot-view-label">motor</div>
-          <div class="shot-grid">
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-motor-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-motor-form.png" alt="alpenflight motor" loading="lazy"></a>
-            <figcaption>AlpenFlight: the UNIFIED /flights create wizard with a MOTOR aircraft selected + the tow step suppressed — motor flights live in the same logbook (no separate /airmovements route); pair against the legacy /airmovements screen</figcaption>
-          </figure>
-          </div>
-        </div>
-        </div>
+
         <section class="maintainability">
           <h4>Maintainability <span class="status neutral">snapshot only</span></h4>
           <table class="maint-table">
