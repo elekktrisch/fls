@@ -63,6 +63,21 @@ public interface PlanningDayRepository {
     boolean existsActiveForDay(LocalDate planningDate, UUID locationId);
 
     /**
+     * Whether the caller's tenant has a non-deleted planning day on
+     * {@code planningDate} at {@code locationId} <em>other than</em>
+     * {@code excludeId} — the same {@code (club, date, location)} dedup key
+     * {@code existsActiveForDay} checks, but excluding one day's own id so an
+     * <em>edit</em> re-validating its current (date, location) does not flag
+     * itself. Backs the non-mutating {@code …/validate} pre-check (J-6b T-05),
+     * letting the FE surface the {@code ux_pln_club_date_loc} 409 inline while
+     * editing before a save round-trip. Pass {@code null} for {@code excludeId} on
+     * a create check (no day to exclude). Tenant-scoped via {@code @TenantId}; a
+     * cross-tenant day at the same date/location is invisible.
+     */
+    boolean existsActiveForDayExcluding(LocalDate planningDate, UUID locationId,
+                                        @Nullable UUID excludeId);
+
+    /**
      * One page of future planning days ({@code planning_date >= asOf}) within
      * the caller's tenant, sorted {@code planning_date asc}, windowed to
      * {@code [pageStart, pageStart+pageSize)}. Backs {@code POST

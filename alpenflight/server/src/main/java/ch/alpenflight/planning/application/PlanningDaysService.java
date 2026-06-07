@@ -9,6 +9,8 @@ import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPage;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayPageRequest;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayRuleRequest;
 import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayUpdateRequest;
+import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayValidateRequest;
+import ch.alpenflight.planning.application.PlanningDayDtos.PlanningDayValidationResult;
 import ch.alpenflight.planning.domain.PlanningDay;
 import ch.alpenflight.planning.domain.PlanningDayAssignmentType;
 import ch.alpenflight.planning.domain.PlanningDayAssignmentTypeRepository;
@@ -108,6 +110,31 @@ public class PlanningDaysService {
     @Transactional(readOnly = true)
     public PlanningDayDetail getPlanningDay(UUID id) {
         return toDetail(loadOrThrow(id));
+    }
+
+    /**
+     * Non-mutating uniqueness pre-check (J-6b T-05). Runs the SAME
+     * {@code (club, date, location)} dedup probe the save path enforces (the J-6
+     * {@code ux_pln_club_date_loc} 409) over the candidate (date, location), but
+     * persists nothing and raises nothing — it returns a field-level
+     * {@link PlanningDayValidationResult} the FE surfaces inline while editing,
+     * before a save round-trip (NO new rule; reuses
+     * {@link PlanningDayRepository#existsActiveForDayExcluding}). An edit passes its
+     * own id as {@code excludePlanningDayId} so it is not flagged against itself.
+     * Tenant-scoped: the probe carries the {@code @TenantId} predicate, so another
+     * club's day at the same (date, location) never conflicts. The duplicate keys
+     * on date + location and surfaces on the {@code planningDate} field — the day's
+     * primary identity (the FE attaches the inline message there).
+     */
+    @Transactional(readOnly = true)
+    public PlanningDayValidationResult validateUniqueness(PlanningDayValidateRequest req) {
+        boolean duplicate = planningDays.existsActiveForDayExcluding(
+                req.planningDate(), req.locationId().value(), req.excludePlanningDayId());
+        if (duplicate) {
+            return PlanningDayValidationResult.failed(
+                    "planningDate", "A planning day already exists for this date and location.");
+        }
+        return PlanningDayValidationResult.passed();
     }
 
     public PlanningDayDetail createPlanningDay(PlanningDayCreateRequest req) {

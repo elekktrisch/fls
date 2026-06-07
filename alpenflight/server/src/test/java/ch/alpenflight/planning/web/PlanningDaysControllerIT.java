@@ -227,6 +227,75 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void validate_noDuplicate_returnsValid() {
+        ResponseEntity<String> res = post("/api/v1/planning-days/validate", validatePayload(DAY, null));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readJson(res).get("valid").asBoolean()).isTrue();
+    }
+
+    @Test
+    void validate_existingClubDateLocation_returnsInvalidWithField_andPersistsNothing() {
+        // A persisted day at (CLUB, DAY, location) …
+        ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY));
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // … a validate of the SAME (date, location) with no exclude → invalid,
+        // surfaced on planningDate, WITHOUT a save (count unchanged at 1).
+        ResponseEntity<String> res = post("/api/v1/planning-days/validate", validatePayload(DAY, null));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode result = readJson(res);
+        assertThat(result.get("valid").asBoolean()).isFalse();
+        assertThat(result.get("field").asText()).isEqualTo("planningDate");
+        assertThat(result.get("message").asText()).isNotBlank();
+        // Non-mutating: only the one persisted day exists.
+        assertThat(countPlanningDays()).isEqualTo(1);
+    }
+
+    @Test
+    void validate_editingOwnDay_isSelfExcluded_returnsValid() {
+        ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY));
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String ownId = readJson(created).get("id").asText();
+
+        // Re-validating its OWN (date, location) while excluding its own id must
+        // NOT self-conflict.
+        ResponseEntity<String> res = post("/api/v1/planning-days/validate",
+                validatePayload(DAY, ownId));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readJson(res).get("valid").asBoolean()).isTrue();
+    }
+
+    @Test
+    void validate_otherClubsDay_doesNotConflict_tenantScoped() {
+        // Provision a foil tenant (reusing CLUB's country + state), then a day at
+        // the SAME (date, location) under it. operating_club_id FKs t_club, so the
+        // foil club must exist first; location FKs t_location (CLUB's location,
+        // legacy-open cross-tenant catalog ref).
+        jdbc.update("""
+                INSERT INTO t_club (id, clubname, club_key, country_id, club_state_id,
+                        slug, public_registration_enabled)
+                SELECT ?::uuid, 'Foil Club', 'FOILP', country_id, club_state_id,
+                        'foil-club-pln-f1', false
+                FROM t_club WHERE id = ?::uuid
+                ON CONFLICT (id) DO NOTHING
+                """, OTHER_CLUB.toString(), CLUB.toString());
+        UUID otherDayId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO t_planning_day (id, operating_club_id, planning_date, location_id)
+                VALUES (?::uuid, ?::uuid, ?::date, ?::uuid)
+                """,
+                otherDayId.toString(), OTHER_CLUB.toString(), DAY.toString(), locationId.toString());
+
+        // The caller is CLUB; the other club's day is invisible to its
+        // tenant-scoped uniqueness probe → valid.
+        ResponseEntity<String> res = post("/api/v1/planning-days/validate", validatePayload(DAY, null));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(readJson(res).get("valid").asBoolean()).isTrue();
+
+        jdbc.update("DELETE FROM t_planning_day WHERE id = ?::uuid", otherDayId.toString());
+    }
+
+    @Test
     void get_crossTenant_returns404() {
         ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY));
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -249,6 +318,16 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
         m.put("towingPilotPersonId", "pn-" + towingPilotId);
         m.put("flightOperatorPersonId", "pn-" + flightOperatorId);
         m.put("info", "IT planning day");
+        return m;
+    }
+
+    private Map<String, Object> validatePayload(LocalDate day, @org.jspecify.annotations.Nullable String excludeId) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("planningDate", day.toString());
+        m.put("locationId", "loc-" + locationId);
+        if (excludeId != null) {
+            m.put("excludePlanningDayId", excludeId);
+        }
         return m;
     }
 
