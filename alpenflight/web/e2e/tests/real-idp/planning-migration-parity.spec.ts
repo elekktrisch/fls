@@ -3,6 +3,7 @@ import { test, expect, type Browser, type BrowserContext, type TestInfo } from '
 import {
   loginAsReservationAdmin,
   captureReservationAdminBearer,
+  fetchReservationTypeId,
   resolveMigratedTestClubAdmin,
   loginAsMigratedTestClubAdmin,
   useRealBundle,
@@ -11,6 +12,7 @@ import {
 } from './_helpers/reservation-parity-fixture';
 import {
   seedPlanningMasterdata,
+  seedReservationOnPlanningDay,
   type PlanningMasterdata,
 } from './_helpers/planning-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
@@ -155,25 +157,47 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   let baseURL: string;
   /** clubadmin4's Bearer (seed-club-1, the operating/@TenantId club). */
   let adminBearer: string;
-  /** A fresh location + 3 pickable crew persons (seed-club-1) for create/edit. */
+  /** A fresh location + 3 pickable crew persons + an aircraft (seed-club-1). */
   let masterdata: PlanningMasterdata;
+  /** The clean-seed default reservation type (V31 seed) the inline-panel reservation uses. */
+  let reservationTypeId: string;
   /** Every planning-day id this group created in seed-club-1 — deleted in afterAll. */
   const createdIds: string[] = [];
+  /** Every reservation id this group created in seed-club-1 — deleted in afterAll. */
+  const createdReservationIds: string[] = [];
   let cleanupCtx: BrowserContext;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdIds.length = 0;
+    createdReservationIds.length = 0;
     adminBearer = await captureReservationAdminBearer(browser, baseURL);
     // Seed (as clubadmin4, through the REAL create APIs) a fresh location + 3
     // crew persons WITH a seed-club-1 membership so the create/edit form's 3
     // crew <af-select>s offer them (the V34 seed persons carry no membership →
-    // not pickable). The PILOT-vs-creator authz delete/update probe stays T-16.
+    // not pickable) + a fresh aircraft for the inline-panel reservation. The
+    // PILOT-vs-creator authz delete/update probe stays T-16.
     masterdata = await seedPlanningMasterdata(request, adminBearer);
+    // The V31-seeded default reservation type — the inline-panel parity shot
+    // reserves the seeded aircraft on the captured planning day with this type.
+    reservationTypeId = await fetchReservationTypeId(request, adminBearer);
     cleanupCtx = await browser.newContext({ baseURL });
   });
 
   test.afterAll(async () => {
+    // Reservations FIRST (a reservation references no planning day, but delete it
+    // before its day so the shared seed-club-1 tenant is left fully clean).
+    for (const id of createdReservationIds) {
+      try {
+        await cleanupCtx.request.delete(`/api/v1/aircraft-reservations/${id}`, {
+          headers: { authorization: adminBearer },
+        });
+      } catch (err) {
+        console.warn(
+          `[J-6] afterAll cleanup: delete reservation ${id} failed (${(err as Error).message})`,
+        );
+      }
+    }
     for (const id of createdIds) {
       try {
         await cleanupCtx.request.delete(`${PLANNINGDAYS}/${id}`, {
@@ -243,11 +267,14 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       );
       await page.getByTestId('planning-remarks').locator('input').fill('J-6 real-chain day');
 
-      // PARITY SHOT (legacy planning edit form ↔ AlpenFlight) — capture the
-      // populated form BEFORE save (capture-before-assert: a partial red still
-      // produces the form shot the fanout pairs against the legacy form).
+      // DIAGNOSTIC (not the gallery-paired form shot): the populated CREATE form
+      // before save. The GALLERY `form` view (alpenflight-planning-form.png) is
+      // captured by the inline-reservations test below on a SAVED day so it shows
+      // the populated inline reservations list, mirroring the legacy saved-day
+      // edit form's inline reservations table (T-16 populated-list parity). This
+      // create-form shot keeps a record of the empty-day create field set.
       await page.screenshot({
-        path: `${testInfo.outputDir}/alpenflight-planning-form.png`,
+        path: `${testInfo.outputDir}/alpenflight-planning-create-form.png`,
         fullPage: true,
       });
 
@@ -351,7 +378,7 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test('[happy] the edit screen shows the per-day AircraftReservations panel inline (J-5 join)', async ({
+  test('[happy] the saved-day edit form shows the POPULATED inline AircraftReservations list (J-5 join) — the gallery form parity shot', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -359,16 +386,30 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     try {
       await loginAsReservationAdmin(page);
 
-      // Create a day, open its edit form, and assert the inline reservations
-      // panel renders (the J-5 read-side join, queried live by day+location).
-      // The day has no reservation yet, so the panel shows its empty state — the
-      // load-bearing proof here is that the J-5 join wiring RENDERS on the
-      // planning edit screen (a populated-reservation assertion stays T-16).
+      // Create a planning day on the seeded location, then SEED A REAL J-5
+      // reservation on that day's EXACT date + location (via the real
+      // reservations create API — no mocking) so the inline per-day reservations
+      // panel renders ≥1 `<af-reservation-row>`. The J-5 read-side join is
+      // `listAircraftReservationsForDay(date)` filtered to the day's location
+      // (planning.store.ts:210-223), so the reservation MUST be on the day's
+      // exact date + location to surface — that day+location alignment is the
+      // load-bearing bit (legacy PlanningDayEditController.js:96-104).
+      const planningDate = dayKeyFromToday(13);
       const id = await createPlanningDay(ctx, adminBearer, createdIds, {
-        planningDate: dayKeyFromToday(13),
+        planningDate,
         locationId: masterdata.locationId,
       });
+      const reservationId = await seedReservationOnPlanningDay(ctx.request, adminBearer, {
+        planningDate,
+        locationId: masterdata.locationId,
+        aircraftId: masterdata.aircraftId,
+        pilotPersonId: masterdata.instructorId,
+        reservationTypeId,
+      });
+      createdReservationIds.push(reservationId);
 
+      // Open the SAVED day's edit form (mirrors the legacy saved-day
+      // `/planning/:id/edit` form, which renders its inline reservations table).
       await page.goto(`/planning/${id}/edit?lang=de`);
       const panel = page.getByTestId('planning-reservations-panel');
       await expect(panel, 'the inline per-day reservations panel renders (J-5 join)').toBeVisible();
@@ -377,17 +418,47 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       // day's date + location (legacy PlanningDayEditController.js:128-132).
       await expect(panel.getByTestId('planning-new-reservation-button')).toBeVisible();
 
+      // CAPTURE-AFTER-DATA-LOADED, CAPTURE-BEFORE-DEEP-ASSERT (J-5 rule): wait for
+      // the seeded reservation's row to be visible (the list is POPULATED), then
+      // take the gallery `form` parity shot BEFORE the deeper row-content asserts,
+      // so a partial red still produces a populated-list shot to pair with legacy.
+      const seededRow = page.getByTestId(`planning-reservation-${reservationId}`);
+      await expect(
+        seededRow,
+        'the seeded reservation renders as an <af-reservation-row> in the inline list',
+      ).toBeVisible();
+      // GALLERY FORM PARITY SHOT (side=alpenflight, view=form): the saved-day edit
+      // form with the populated inline reservations list — pairs against the
+      // legacy saved-day edit form's inline reservations table (T-16 done-bar:
+      // the form view shows the list on BOTH sides).
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-planning-form.png`,
+        fullPage: true,
+      });
+      // The dedicated panel-only shot (optional second paired view) — same state.
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-planning-reservations-panel.png`,
         fullPage: true,
       });
+
+      // Deeper asserts AFTER the shot: exactly the seeded reservation surfaces,
+      // and the row carries its aircraft immatriculation (the feature resolves
+      // the label and passes it to the row — af-reservation-row).
+      await expect(
+        page.locator('[data-testid^="planning-reservation-"]'),
+        'exactly the one seeded reservation surfaces for this day+location',
+      ).toHaveCount(1);
+      await expect(seededRow).toContainText(masterdata.aircraftImmat);
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-6',
         caption:
-          'J-6 · planning · the planning-day edit screen lists that day’s aircraft reservations ' +
-          'inline (the J-5 AircraftReservation read-side joined by club + date + location)',
+          'J-6 · planning · the SAVED planning-day edit form lists that day’s aircraft reservations ' +
+          'inline, POPULATED — a real J-5 AircraftReservation seeded on the day’s exact date + ' +
+          'location surfaces through the read-side join (club + date + location) as an ' +
+          '<af-reservation-row>; pairs against the legacy saved-day edit form’s inline reservations ' +
+          'table (form-view parity)',
         acTag: 'happy',
       });
     }

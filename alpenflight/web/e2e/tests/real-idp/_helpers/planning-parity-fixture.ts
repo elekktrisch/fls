@@ -32,6 +32,7 @@ import { type APIRequestContext } from '@playwright/test';
 /** Canonical reference seeds (V2/V3) the create requests reference. */
 const CH_COUNTRY_ID = '019e2e15-2c00-74be-8000-0000000004be';
 const GRASS_RUNWAY_LOCATION_TYPE_ID = '019e2e15-2c00-72c9-8000-0000000032c9';
+const GLIDER_AIRCRAFT_TYPE_ID = '019e2e15-2c00-7af9-8000-000000002af9';
 
 function runId(): string {
   const id = process.env['E2E_RUN_ID'];
@@ -75,6 +76,14 @@ export interface PlanningMasterdata {
   /** `pn-<uuid>` flight-operator person (with a seed-club-1 membership → pickable). */
   flightOpId: string;
   flightOpName: string;
+  /**
+   * `ac-<uuid>` a fresh aircraft seed-club-1 manages + its immat — so the inline
+   * per-day reservations panel can be POPULATED with a real J-5 reservation on the
+   * captured planning day (T-16 populated-list parity shot). The aircraft is also
+   * run-tagged so a retry's re-seed never collides on the immat unique index.
+   */
+  aircraftId: string;
+  aircraftImmat: string;
 }
 
 /** Seed one crew person WITH a seed-club-1 membership (→ pickable in /persons). */
@@ -141,6 +150,22 @@ export async function seedPlanningMasterdata(
   });
   const flightOp = await seedCrewPerson(api, bearer, 'Frieda', `Flugleiter ${tag}`, {});
 
+  // A fresh aircraft seed-club-1 manages — the inline reservations panel's
+  // populated-list parity shot (T-16) reserves THIS aircraft on the captured
+  // planning day so ≥1 `<af-reservation-row>` renders.
+  const aircraftImmat = `HB-P${tag.slice(-3)}`;
+  const aircraft = await postJson(api, bearer, '/api/v1/aircraft', {
+    aircraftTypeId: GLIDER_AIRCRAFT_TYPE_ID,
+    immatriculation: aircraftImmat,
+    manufacturerName: 'Schleicher',
+    aircraftModel: 'ASK 21',
+    nrOfSeats: 2,
+    isTowingOrWinchRequired: false,
+    isTowingStartAllowed: false,
+    isWinchStartAllowed: false,
+    isTowingAircraft: false,
+  });
+
   return {
     locationId: String(location['id']),
     locationName: `J6 Planning Field ${tag}`,
@@ -150,5 +175,59 @@ export async function seedPlanningMasterdata(
     towPilotName: towPilot.name,
     flightOpId: flightOp.id,
     flightOpName: flightOp.name,
+    aircraftId: String(aircraft['id']),
+    aircraftImmat,
   };
+}
+
+/**
+ * Create a J-5 `AircraftReservation` on the GIVEN planning day's exact date +
+ * location through the REAL reservations create API (no mocking), so the planning
+ * edit screen's inline per-day reservations panel renders a POPULATED list (the
+ * J-5 read-side join is `listAircraftReservationsForDay(date)` filtered to
+ * `r.locationId === locationId` — `planning.store.ts:210-223`; the reservation
+ * MUST be on the day's exact date + location to surface). Reserves a midday UTC
+ * window (10:00–11:00Z) on `planningDate` so it overlaps that UTC day regardless
+ * of the runner's local zone. Returns the created reservation id so the caller
+ * tracks it for afterAll cleanup (the shared seed-club-1 tenant is never
+ * truncated).
+ *
+ * @param reservationTypeId the V31-seeded default type (read via
+ *   `fetchReservationTypeId` from the reservation fixture) — the create request's
+ *   `reservationTypeId`.
+ */
+export async function seedReservationOnPlanningDay(
+  api: APIRequestContext,
+  bearer: string,
+  args: {
+    planningDate: string;
+    locationId: string;
+    aircraftId: string;
+    pilotPersonId: string;
+    reservationTypeId: string;
+  },
+): Promise<string> {
+  const res = await api.post('/api/v1/aircraft-reservations', {
+    headers: { authorization: bearer, 'content-type': 'application/json' },
+    data: {
+      aircraftId: args.aircraftId,
+      pilotPersonId: args.pilotPersonId,
+      locationId: args.locationId,
+      reservationTypeId: args.reservationTypeId,
+      start: `${args.planningDate}T10:00:00Z`,
+      end: `${args.planningDate}T11:00:00Z`,
+      isAllDay: false,
+      remarks: 'J-6 inline-panel parity reservation',
+    },
+  });
+  if (res.status() !== 201) {
+    throw new Error(
+      `seedReservationOnPlanningDay: reservation create must 201 — got ${res.status()}: ${await res.text()}`,
+    );
+  }
+  const location = res.headers()['location'];
+  if (!location) {
+    throw new Error('seedReservationOnPlanningDay: create must return a 201 Location header');
+  }
+  return new URL(location, 'http://localhost').pathname.split('/').pop() ?? '';
 }

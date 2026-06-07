@@ -613,6 +613,29 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
     `…/proof-preview/integration-J-6/legacy-parity/J-6/` (legacy + AlpenFlight × list/form/setup), the page
     renders the 3 paired view rows + the legacy parity video, and the persistent bookmark
     `…/alpenflight/previews/index.html` surfaces `…/legacy-parity/J-6/` (freshest-wins, T-13b). *(e2e-driver, parity capture)* [[feedback_proof_in_gallery_not_chat]]
+  - [x] **POPULATED inline-reservations form parity shot (operator priority, 2026-06-07).** The earlier `form`
+    parity pair compared unlike things: legacy `legacy-planning-form.png` is a SEEDED saved-day `/planning/:id/edit`
+    showing the legacy inline per-day reservations TABLE, but AlpenFlight `alpenflight-planning-form.png` was the
+    CREATE form before save → NO reservations panel (it only renders for a saved day). Fixed both halves to the
+    same thing:
+    - **AlpenFlight**: extended `planning-parity-fixture.ts` to also seed a fresh aircraft + a new
+      `seedReservationOnPlanningDay()` helper that POSTs a real J-5 `AircraftReservation` (real reservations
+      create API, no mock) on the captured planning day's EXACT date + location (the read-side join filters
+      `listAircraftReservationsForDay(date)` to `r.locationId === locationId`, `planning.store.ts:210-223`, so the
+      day+location alignment is load-bearing). Rewrote the inline-reservations real-idp case
+      (`planning-migration-parity.spec.ts`) to create the day, seed the reservation, open the SAVED day's
+      `/planning/:id/edit`, assert ≥1 `planning-reservation-<id>` `<af-reservation-row>` is visible, then capture
+      `alpenflight-planning-form.png` (the gallery `form` shot) POPULATED — capture-after-data-loaded,
+      capture-before-deep-assert (J-5 rule). The create-form diagnostic moved to a non-paired
+      `alpenflight-planning-create-form.png`. Reservation ids tracked + DELETE-cleaned in `afterAll`.
+    - **Legacy**: NO change needed — `4 or 5 Insert Test Data.sql:1126-1132` already seeds an `AircraftReservation`
+      on `GETDATE()+1` at the SAME `@locationId` (LSZK) as the `Test`/`Test2` planning days, so the legacy saved-day
+      edit form's inline reservations table is already populated.
+    - **Verification**: mock-auth planning inner loop still green locally (6 passed); tsc clean on touched files;
+      `playwright --list` discovers the renamed case. The real-idp + legacy stacks (Keycloak/PG/Mono/MSSQL) don't
+      run on the musl dev box — the populated `form` pair's first live green + deployed-gallery verification is the
+      §4 gate fanout (same first-green caveat as the rest of T-16). *(e2e-driver, parity capture)*
+      [[feedback_proof_in_gallery_not_chat]]
   > **GATE BLOCKER — correction to the note above (manager, 2026-06-07):** the J-0c Location real-bundle
   > ingest `sqlstate=23505` (`fan-out-migration-parity.spec.ts:133`, masked `INGEST_INTERNAL_ERROR`) is **NOT
   > confirmed mirrored on main** — main's same-minute cron (27084966831) failed on an UNRELATED **gh-pages
