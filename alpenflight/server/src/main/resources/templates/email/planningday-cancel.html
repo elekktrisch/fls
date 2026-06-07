@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!--
+  J-6 T-10b (ADR 0013). Imminent (day+1) planning-day mail: the day is CANCELLED
+  because it has no reservation and the club does not allow reservation-less days
+  (Club.shouldSendPlanningDayOk == false). Sent to the club's notification address
+  (Club.SendPlanningDayInfoMailTo). Binds PlanningEmailModels.PlanningDayInfoModel
+  under `planningDay` (reservations is empty here). Ok variant: planningday-ok.html.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Flugbetriebstag abgesagt</title>
+  </head>
+  <body>
+    <h2>Flugbetriebstag abgesagt</h2>
+    <p>
+      Der Flugbetriebstag vom
+      <strong th:text="${#temporals.format(planningDay.date, 'dd.MM.yyyy')}">01.01.2026</strong>
+      in <strong th:text="${planningDay.locationName}">Bern-Belp</strong>
+      wird mangels Reservationen abgesagt.
+    </p>
+
+    <p th:if="${planningDay.remarks != null and !planningDay.remarks.isBlank()}">
+      <em th:text="${planningDay.remarks}">Bemerkungen</em>
+    </p>
+
+    <h3 th:if="${!planningDay.crew.isEmpty()}">Einteilung</h3>
+    <ul th:if="${!planningDay.crew.isEmpty()}">
+      <li th:each="line : ${planningDay.crew}">
+        <span th:text="${line.role}">Rolle</span>:
+        <span th:text="${line.personName}">Name</span>
+      </li>
+    </ul>
+  </body>
+</html>

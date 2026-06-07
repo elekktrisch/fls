@@ -51,6 +51,17 @@ public class Club {
     @Column(name = "public_registration_enabled", nullable = false)
     private boolean publicRegistrationEnabled;
 
+    // J-6 T-10b planning-notification fields (V35). The address the
+    // PlanningDayNotificationJob mails the imminent (day+1) status to; null /
+    // blank ⇒ the club opted out and the job skips it. The flag governs the
+    // ok-vs-cancel choice when a day has no reservation (see
+    // planningDayMailsAsOkWhenNoReservation / shouldSendPlanningDayOk below).
+    @Column(name = "send_planning_day_info_mail_to")
+    private @Nullable String sendPlanningDayInfoMailTo;
+
+    @Column(name = "use_planning_day_without_reservations", nullable = false)
+    private boolean usePlanningDayWithoutReservations;
+
     // V2 NOT NULL FKs that the walking-skeleton DTO does not surface. Mapped
     // so update operations don't null them; not exposed as setters.
     @Column(name = "country_id", nullable = false)
@@ -130,6 +141,22 @@ public class Club {
         this.clubStateId = newClubStateId;
     }
 
+    /**
+     * Sets the planning-notification recipient address(es). A null or blank
+     * value clears the opt-in — the notification job skips clubs without an
+     * address (see {@link #wantsPlanningDayNotifications()}). Stored normalized:
+     * blank collapses to null.
+     */
+    public void setPlanningDayInfoMailTo(@Nullable String addresses) {
+        this.sendPlanningDayInfoMailTo =
+                (addresses == null || addresses.isBlank()) ? null : addresses.strip();
+    }
+
+    /** Enables/disables sending the "takes place" mail for reservation-less days. */
+    public void setPlanningDayMailsAsOkWhenNoReservation(boolean value) {
+        this.usePlanningDayWithoutReservations = value;
+    }
+
     public void softDelete(Clock clock) {
         if (this.deletedOn == null) {
             this.deletedOn = Instant.now(clock);
@@ -188,5 +215,46 @@ public class Club {
 
     public boolean isDeleted() {
         return deletedOn != null;
+    }
+
+    // -- Planning-day notification rule (J-6 T-10b/T-10c, ADR 0022 §2) ----------
+
+    /** The club's planning-notification recipient address(es), or null if opted out. */
+    public @Nullable String getPlanningDayInfoMailTo() {
+        return sendPlanningDayInfoMailTo;
+    }
+
+    /**
+     * Whether the club opted into planning-day notifications — i.e. has a
+     * non-blank recipient address. The notification job (T-10c) only processes
+     * clubs for which this is true (legacy {@code PlanningDayNotificationJob.cs:53}).
+     */
+    public boolean wantsPlanningDayNotifications() {
+        return sendPlanningDayInfoMailTo != null && !sendPlanningDayInfoMailTo.isBlank();
+    }
+
+    /**
+     * Whether this club still treats a planning day that has NO aircraft
+     * reservation as "takes place" (legacy {@code ClubUsePlanningDayWith-
+     * outReservations}). Drives the ok-vs-cancel template choice via
+     * {@link #shouldSendPlanningDayOk(boolean)}.
+     */
+    public boolean planningDayMailsAsOkWhenNoReservation() {
+        return usePlanningDayWithoutReservations;
+    }
+
+    /**
+     * The ok-vs-cancel rule the notification job (T-10c) uses for an imminent
+     * (day+1) planning day: send the {@code planningday-ok} ("takes place")
+     * mail when the day has a reservation OR the club allows reservation-less
+     * days; otherwise send {@code planningday-cancel}. Mirrors legacy
+     * {@code PlanningDayNotificationJob.cs:75-94} — the rule lives on the
+     * aggregate, not the job (ADR 0022 §2).
+     *
+     * @param hasReservation whether the day has at least one aircraft reservation
+     * @return {@code true} ⇒ send {@code planningday-ok}; {@code false} ⇒ {@code planningday-cancel}
+     */
+    public boolean shouldSendPlanningDayOk(boolean hasReservation) {
+        return hasReservation || usePlanningDayWithoutReservations;
     }
 }

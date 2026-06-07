@@ -134,6 +134,13 @@ audit:
           - clubStateId
           - deploymentId
           - publicRegistrationEnabled
+          # J-6 T-10b planning-notification config. `sendPlanningDayInfoMailTo`
+          # is the club's operations notification address (club config, not a
+          # member's personal address — legacy Club.SendPlanningDayInfoMailTo);
+          # the flag governs the ok-vs-cancel rule. Both are club settings, safe
+          # to log verbatim.
+          - sendPlanningDayInfoMailTo
+          - usePlanningDayWithoutReservations
           - deletedOn
       Deployment:
         # S-137 lifecycle audit emission. The before/after snapshot is a

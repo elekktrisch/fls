@@ -61,4 +61,42 @@ class ClubDomainTest {
         club.disablePublicRegistration();
         assertThat(club.isPublicRegistrationEnabled()).isFalse();
     }
+
+    @Test
+    void planningDayOk_rule_sends_ok_when_day_has_a_reservation_regardless_of_flag() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        // flag false (default) — a reservation still means the day takes place.
+        assertThat(club.planningDayMailsAsOkWhenNoReservation()).isFalse();
+        assertThat(club.shouldSendPlanningDayOk(true)).isTrue();
+    }
+
+    @Test
+    void planningDayOk_rule_cancels_when_no_reservation_and_flag_false() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.shouldSendPlanningDayOk(false)).isFalse();
+    }
+
+    @Test
+    void planningDayOk_rule_sends_ok_when_flag_true_even_with_no_reservation() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        club.setPlanningDayMailsAsOkWhenNoReservation(true);
+        assertThat(club.planningDayMailsAsOkWhenNoReservation()).isTrue();
+        assertThat(club.shouldSendPlanningDayOk(false)).isTrue();
+        assertThat(club.shouldSendPlanningDayOk(true)).isTrue();
+    }
+
+    @Test
+    void planningNotification_optIn_tracks_a_nonBlank_recipient_address() {
+        Club club = Club.create("X", "x-club", "X", false, CH, ACTIVE, DEPLOYMENT);
+        assertThat(club.wantsPlanningDayNotifications()).isFalse();
+        assertThat(club.getPlanningDayInfoMailTo()).isNull();
+
+        club.setPlanningDayInfoMailTo("  ops@club.example  ");
+        assertThat(club.getPlanningDayInfoMailTo()).isEqualTo("ops@club.example");
+        assertThat(club.wantsPlanningDayNotifications()).isTrue();
+
+        club.setPlanningDayInfoMailTo("   ");
+        assertThat(club.getPlanningDayInfoMailTo()).isNull();
+        assertThat(club.wantsPlanningDayNotifications()).isFalse();
+    }
 }

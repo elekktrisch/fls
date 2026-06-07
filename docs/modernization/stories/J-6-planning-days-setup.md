@@ -385,9 +385,24 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   `./gradlew check` GREEN (1147 tests, ApplicationModulesTest + LayeringRulesTest accept the new platform.mail
   package, pmdMain + cpdRatchet clean). No controller → no OpenAPI/orval change. INFRA only; planning templates
   ride T-10b, the job rides T-10c.
-- [ ] **T-10b — Club notification fields + 3 templates.** Flyway `V35` adds `send_planning_day_info_mail_to`
+- [x] **T-10b — Club notification fields + 3 templates.** Flyway `V35` adds `send_planning_day_info_mail_to`
   + `use_planning_day_without_reservations` (structural); map on `Club` + the cancel-rule accessor (ADR-0022 §2);
   the 3 Thymeleaf templates `planningday-ok` / `planningday-cancel` / `planningday-assignment-notification`. *(club + templates seam)*
+  **Done:** `send_planning_day_info_mail_to` already existed (V2 S-014 baseline, `VARCHAR(250)`) — V35 adds ONLY the
+  genuinely-missing `use_planning_day_without_reservations BOOLEAN NOT NULL DEFAULT false`. Mapped both on `Club.java`
+  with the cancel-rule as a domain method (ADR-0022 §2): `shouldSendPlanningDayOk(hasReservation)` =
+  `hasReservation || usePlanningDayWithoutReservations` (mirrors `PlanningDayNotificationJob.cs:75-94`), plus
+  `planningDayMailsAsOkWhenNoReservation()`, `wantsPlanningDayNotifications()` (non-blank recipient = opt-in,
+  legacy `:53`), `setPlanningDayInfoMailTo` (blank→null normalize). 3 Thymeleaf templates under `templates/email/`
+  (`planningday-ok`/`planningday-cancel`/`planningday-assignment-notification`, German house style, `#temporals` dates),
+  bound by 2 small typed model records `PlanningEmailModels.{PlanningDayInfoModel,PlanningDayAssignmentModel}`
+  (field set per oracle `PlanningDayEmailBuildService.cs:81-90`), rendered via T-10a's `TemplatedMailService`.
+  **Tests:** `PlanningEmailTemplatesIT` (3 cases — renders each template via the real Thymeleaf engine →
+  captured-outbox asserts subject + date/location/person/crew/sender tokens) + 4 new `ClubDomainTest` cases
+  (ok-when-reservation / cancel-when-none+flag-false / ok-when-flag-true / opt-in tracks non-blank address).
+  **Audit:** added `sendPlanningDayInfoMailTo` + `usePlanningDayWithoutReservations` to the Club audit-redaction
+  allow-list (club config, not member PII) — `AuditRedactionCoverageTest`. No controller → no OpenAPI/orval change.
+  Whole `./gradlew check` GREEN (1151 tests, pmd/cpdRatchet/arch-guards/OpenApiSnapshot all green). T-10c consumes these.
 - [ ] **T-10c — PlanningDayNotificationJob + run-now affordance.** `@Scheduled @LifecycleStateFilter` job (day+1
   club-addr ok/cancel via reservation-existence + club flag; day+7 assignee fan-out, skip-blank); template/recipient
   selection in domain/service; tenant-scoped repo queries (days dated +1 / +7); guarded+audited
