@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>211/merge</code> &middot; 2026-06-07T15:09:31.691Z
+      assertion it proves. Generated on <code>211/merge</code> &middot; 2026-06-07T15:30:36.506Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -211,19 +211,19 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
         </summary>
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f0402205155d65ba726cec811fccc711b946a5ff.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-f812683ff26c81713dd21558bd989dc5d1eea08b.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-1acc0ccff8a0a33a9d4b87c4c42197f3eb4d1c61.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-768ead48231779f77f2189519f3d37f330bd2ccf.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-34a6fd23b7762120f6e375ed73204e81acff6b63.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the SAVED planning-day edit form lists that day’s aircraft reservations inline, POPULATED — a real J-5 AircraftReservation seeded on the day’s exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;; pairs against the legacy saved-day edit form’s inline reservations table (form-view parity)</span></figcaption>
+          <video controls preload="metadata" src="videos/proof-video-864f010e3fb287bd9cb8d36493959257bd65c9ae.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-eff49983cebc4f92ce6242302f3cea38f0219f6a.webm"></video>
+          <video controls preload="metadata" src="videos/proof-video-39f1878b494a1909ff4ede44d7cdf3b4d257a3cf.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
         </figure>
         </div>
