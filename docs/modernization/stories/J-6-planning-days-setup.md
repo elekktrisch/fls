@@ -575,3 +575,23 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   > re-run the fanout to test determinism; if deterministic, surface the masked constraint (server ingest
   > error logging) + fix the residue/idempotency or escalate to the J-0b item. §4 cannot go green until cleared.
   > [[project_synth_bundle_doesnt_validate_producer_select]]
+
+- [ ] **T-17 — unify the proof gallery to ONE source per journey (operator design, 2026-06-07).** Ends the
+  recurring "videos OR screenshots depending on which job deployed last" pain. Operator design: *legacy is
+  frozen → capture its screenshots ONCE and persist them; the in-flight dev loop pairs the fresh AlpenFlight
+  screens against the persistent legacy refs, so the dev page is ALWAYS complete; scope (not the page) differs
+  between in-flight dev and heavy nightly.* Concretely:
+  - **Commit the legacy reference screenshots as fixtures** (made once, in git, never reaped, intact through
+    the whole journey's dev). For J-6: commit the 3 already-captured legacy planning PNGs
+    (`legacy-planning-{list,form,setup}.png`) under a stable `e2e/.../legacy-reference/<feature>/` path. Establish
+    the pattern so future journeys capture-once-commit at T-01/T-13.
+  - **Per-push (dev) gallery pairs committed-legacy + fresh-AlpenFlight** → the per-push per-journey page
+    renders the paired legacy↔AlpenFlight screenshots (legacy from the committed ref, AF from the fresh
+    clean-seed capture) + the AF videos. Always complete, every push — no fanout dependency for the visual pairing.
+  - **One source per journey:** retire the per-push-vs-legacy-parity page divergence and **revert the
+    freshest-wins band-aid** (the T-13b `JOURNEY_PAGE_SOURCES` rank hack) — there's one per-journey page; scope
+    differs (dev = committed-legacy + fresh clean-seed AF; nightly = + the full migration chain). Optionally TWO
+    bookmarks (in-flight dev + heavy nightly), both carrying screenshots — only if it simplifies.
+  - The heavy fanout still owns the **migration round-trip proof** (the real legacy→migrate→AF data chain — the
+    done-bar), which is separate from the visual legacy↔AF screenshot pairing. *(e2e-driver; gallery generator +
+    committed legacy-ref fixtures + ci.yml per-push pairing + retire the band-aid; may split)* [[feedback_proof_gallery_per_journey_one_bookmark]] [[feedback_surface_proof_early_on_repeated_failure]]
