@@ -875,14 +875,40 @@ public final class MapperLegacyBindings {
                     // fan-out disambiguator: the (legacy_guid, club_id) composite resolve
                     // lands on the day's OWN-club Location replica (the AircraftReservation
                     // idiom, J-5). The (operating_club_id, planning_date, location_id) UNIQUE
-                    // partial (V4) corrects legacy's no-dedup bug — producer-side
-                    // dedupe-keep-first runs before any row reaches this mapper.
+                    // partial (V4 ux_pln_club_date_loc) corrects legacy's no-dedup bug.
+                    //
+                    // PRODUCER-SIDE DEDUPE-KEEP-FIRST (J-6 T-11b): the real legacy
+                    // PlanningDays table carries DUPLICATE (ClubId, Day, LocationId) rows
+                    // (no legacy UNIQUE constraint). PLANNING_DAY is NOT fan-out, so two
+                    // dup legacy rows resolve to the SAME provisioned club + the SAME
+                    // own-club Location replica — the 2nd INSERT then violates V4's
+                    // ux_pln_club_date_loc and the ingest fail-closes with sqlstate 23505
+                    // (the §4 fanout gate blocker). The mapper's Javadoc promises a
+                    // producer-side dedupe-keep-first BEFORE any row reaches it; this is
+                    // that dedupe. ROW_NUMBER() OVER (PARTITION BY the UNIQUE-partial key,
+                    // ORDER BY CreatedOn, PlanningDayId) keeps the deterministically-first
+                    // row per (ClubId, Day, LocationId) and drops the rest. Day is a pure
+                    // DATE, so two rows on the same day at different creation times still
+                    // collide on the V4 partial — partition on Day, matching the schema.
+                    // The dropped dups are recorded as PLANNING_DAY_DUPLICATE
+                    // (ProducerDropReconciliation) so they are visible, not silent.
+                    // ROW_NUMBER() OVER is T-SQL native (the live legacy MSSQL dialect).
                     PortPolicy.FULL_PORT,
                     """
                     SELECT PlanningDayId, ClubId, Day, LocationId, Remarks,
                            CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
                            DeletedOn, DeletedByUserId
-                    FROM PlanningDays
+                    FROM (
+                        SELECT PlanningDayId, ClubId, Day, LocationId, Remarks,
+                               CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                               DeletedOn, DeletedByUserId,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY ClubId, Day, LocationId
+                                   ORDER BY CreatedOn, PlanningDayId
+                               ) AS rn
+                        FROM PlanningDays
+                    ) deduped
+                    WHERE rn = 1
                     """,
                     "t_planning_day",
                     // Non-fan-out FULL_PORT: legacy_guid → id. 11 params match

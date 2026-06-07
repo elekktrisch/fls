@@ -526,7 +526,7 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   migration-seeded), the assignment resolves to the migrated `segelflugleiter` type (→ FLIGHT_OPERATOR), tenant
   isolation holds (club B empty). Whole `./gradlew check` GREEN on BOTH modules (migration-bundle: contract +
   binding tests; server: full suite + pmd + cpdRatchet + arch guards + MapperVsSchemaCompatibilityTest).
-- [ ] **T-11b — PlanningDay producer dedupe (23505 §4-gate fix, J-6-introduced by T-11).** The fanout blocker:
+- [x] **T-11b — PlanningDay producer dedupe (23505 §4-gate fix, J-6-introduced by T-11).** The fanout blocker:
   T-11's PLANNING_DAY producer SELECT ships WITHOUT the keep-first dedupe its own mapper Javadoc promises
   (`PlanningDayMapper.java:36-38`), so the legacy `PlanningDays` table's duplicate `(ClubId, Day, LocationId)`
   rows → two rows resolve to the same club + own-club location replica → 2nd INSERT violates `ux_pln_club_date_loc`
@@ -536,6 +536,26 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   real-bundle round-trip ingests green. Also verify the flagged adjacent issue: `PlanningDayAssignmentTypeMapper`
   emits a `legacy_guid` column with no schema column — confirm assignment-type ingest round-trips once 23505 clears.
   *(migration-bundle producer SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
+  **Done:** wrapped the `PLANNING_DAY` producer SELECT (`MapperLegacyBindings.java`) in the keep-first
+  `ROW_NUMBER() OVER (PARTITION BY ClubId, Day, LocationId ORDER BY CreatedOn, PlanningDayId) … WHERE rn=1`
+  derived table (the column list still projects every legacy column `PlanningDayMapper.writeNdjson` reads, so the
+  T-12 binding-coherence check stays green; `ROW_NUMBER() OVER` is T-SQL native). Registered the
+  `PLANNING_DAY_DUPLICATE` drop code in `ProducerDropReconciliation` (a per-row keep-first drop that folds into the
+  row-count equality — unlike the whole-bundle `ARTICLE_DUPLICATE_NUMBER` reject — so the dropped dups are visible
+  and parity reconciles legacy − drops). **Keep-first ENCODED behaviorally:** new `PlanningDayProducerDedupeIT`
+  (server) stands up a legacy-shaped `PlanningDays` staging table, seeds TWO dup `(club, day, location)` rows + one
+  distinct-location row, runs the REAL bound producer SELECT, and asserts EXACTLY the earlier-`CreatedOn` survivor +
+  the distinct row come back (the later dup dropped) — locking the dedupe so a regression reintroducing the 23505
+  fails at build, not at the ~20-min fanout. Plus a structural guard in `MapperLegacyBindingsTest` (the SELECT must
+  carry `ROW_NUMBER() OVER` / `PARTITION BY ClubId, Day, LocationId` / `ORDER BY CreatedOn, PlanningDayId` /
+  `WHERE rn = 1`). **Adjacent issue = FALSE ALARM:** the existing `PlanningDayMigrationRoundTripIT` already migrates
+  the 3 assignment types from real legacy data and asserts they land in `t_planning_day_assignment_type`; the
+  ingestor binds the mapper's emitted `legacy_guid` as the INSERT's `id` param (the non-fan-out `legacy_guid → id`
+  idiom), so assignment-type ingest round-trips fine — no `legacy_guid` schema column is needed. (Allow-listed the
+  legacy `PlanningDays` staging-table name in `FixtureTableNamingConventionTest` — the producer SELECT reads the
+  bare legacy name, so the IT's staging table must carry it verbatim.) `./gradlew check` GREEN on BOTH modules
+  (migration-bundle: contract + binding + reconciliation tests; server: full suite + pmd + cpdRatchet + arch guards
+  incl. the round-trip + new dedupe ITs). The real fanout is the ultimate proof (operator runs it at the §4 gate).
 - [x] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
   check so a missing binding / dropped column fails fast before the ~20-min fanout. *(migration-tool seam)* [[verify_infra_is_run_not_just_authored]]
   **Done:** new GENERIC registry-wide `MapperBindingContractTest` in `migration-bundle` (runs in `./gradlew check`),

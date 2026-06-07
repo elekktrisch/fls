@@ -875,6 +875,32 @@ class MapperLegacyBindingsTest {
     }
 
     @Test
+    void planningDaySelectDedupesKeepFirstOnTheV4UniquePartialKey() {
+        // J-6 T-11b: the real legacy PlanningDays has duplicate
+        // (ClubId, Day, LocationId) rows (no legacy UNIQUE), but V4's
+        // ux_pln_club_date_loc partial unique forbids them. PLANNING_DAY is NOT
+        // fan-out, so two dups resolve to the same club + own-club Location
+        // replica → the 2nd INSERT 23505s (the §4 fanout gate blocker). The
+        // producer SELECT must keep-first per the UNIQUE-partial key, ordered
+        // deterministically (CreatedOn, PlanningDayId), so only one row reaches
+        // the mapper. This pins the dedupe so a future edit can't drop it and
+        // silently reintroduce the 23505. (The behavioural keep-first proof —
+        // two seeded dups, one survivor — runs against real MSSQL in the parity
+        // oracle harness; the round-trip IT proves the deduped output ingests.)
+        String normalised = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY)
+                .toUpperCase(java.util.Locale.ROOT)
+                .replaceAll("\\s+", " ");
+        assertThat(normalised)
+                .as("PLANNING_DAY SELECT must keep-first per (ClubId, Day, LocationId) "
+                        + "via ROW_NUMBER() OVER — else duplicate legacy rows 23505 on "
+                        + "ux_pln_club_date_loc at ingest")
+                .contains("ROW_NUMBER() OVER")
+                .contains("PARTITION BY CLUBID, DAY, LOCATIONID")
+                .contains("ORDER BY CREATEDON, PLANNINGDAYID")
+                .contains("WHERE RN = 1");
+    }
+
+    @Test
     void planningDayConsumerInsertTargetsTPlanningDayWithOperatingClubId() {
         String insert = MapperLegacyBindings.insertForConsumer(EntityType.PLANNING_DAY);
         assertThat(insert)
