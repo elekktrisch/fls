@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AircraftReservationTypesService } from '@api/generated/aircraft-reservation-types/aircraft-reservation-types.service';
 import { AircraftReservationsService } from '@api/generated/aircraft-reservations/aircraft-reservations.service';
@@ -14,12 +14,14 @@ import type {
   AircraftReservationListItem,
   AircraftReservationPage,
   AircraftReservationTypeListItem,
+  AircraftReservationValidateRequest,
   LocationListItem,
   PersonListItem,
+  ReservationValidationResult,
 } from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
-import { ReservationsStore } from './reservations.store';
+import { ReservationsStore, overlapResultToErrors } from './reservations.store';
 
 const AC_ID = 'ac-019e30c3-2c00-7001-8000-00000000a001';
 const PILOT_ID = 'pn-019e30c3-2c00-7001-8000-0000000000p1';
@@ -78,6 +80,7 @@ const locations: LocationListItem[] = [
 interface ApiStubs {
   page: (start: number, size: number) => Observable<AircraftReservationPage>;
   remove: (id: string) => Observable<void>;
+  validate: (req: AircraftReservationValidateRequest) => Observable<ReservationValidationResult>;
 }
 
 function reservationsServiceStub(stubs: Partial<ApiStubs>): AircraftReservationsService {
@@ -86,9 +89,18 @@ function reservationsServiceStub(stubs: Partial<ApiStubs>): AircraftReservations
       (stubs.page ?? (() => of(seedPage)))(start, size)) as never,
     deleteAircraftReservation: ((id: string) =>
       (stubs.remove ?? (() => of(undefined as unknown as void)))(id)) as never,
+    validateAircraftReservationOverlap: ((req: AircraftReservationValidateRequest) =>
+      (stubs.validate ?? (() => of({ valid: true } as ReservationValidationResult)))(req)) as never,
   };
   return api as unknown as AircraftReservationsService;
 }
+
+const validateProbe: AircraftReservationValidateRequest = {
+  aircraftId: AC_ID,
+  start: '2026-07-01T10:00:00Z',
+  end: '2026-07-01T11:00:00Z',
+  isAllDay: false,
+};
 
 function configure(reservations: AircraftReservationsService): Subject<MutationEvent> {
   const bus = new Subject<MutationEvent>();
@@ -211,6 +223,51 @@ describe('ReservationsStore', () => {
     const callsBefore = offsets.length;
     bus.next({ kind: 'reservation.updated', reservationId: RES_ID });
     expect(offsets.length).toBeGreaterThan(callsBefore);
+  });
+
+  it('validateOverlap surfaces a failing result on the inline overlap selectors (T-06)', async () => {
+    vi.useFakeTimers();
+    try {
+      const fail: ReservationValidationResult = {
+        valid: false,
+        field: 'start',
+        message: 'aircraft.reservation.overlap',
+      };
+      configure(reservationsServiceStub({ validate: () => of(fail) }));
+      const store = TestBed.inject(ReservationsStore);
+      store.validateOverlap(validateProbe);
+      // The store debounces the probe ~200ms before calling the endpoint.
+      await vi.advanceTimersByTimeAsync(250);
+      expect(store.overlapValidating()).toBe(false);
+      expect(store.overlapMessage()).toBe('aircraft.reservation.overlap');
+      expect(store.overlapErrors()).toEqual({ overlap: 'aircraft.reservation.overlap' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('validateOverlap clears the inline error on a passing result (T-06)', async () => {
+    vi.useFakeTimers();
+    try {
+      configure(reservationsServiceStub({ validate: () => of({ valid: true }) }));
+      const store = TestBed.inject(ReservationsStore);
+      store.validateOverlap(validateProbe);
+      await vi.advanceTimersByTimeAsync(250);
+      expect(store.overlapMessage()).toBeNull();
+      expect(store.overlapErrors()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('overlapResultToErrors maps only a failing result to an inline slot', () => {
+    expect(overlapResultToErrors(null)).toBeNull();
+    expect(overlapResultToErrors({ valid: true })).toBeNull();
+    expect(overlapResultToErrors({ valid: false, field: 'start', message: 'msg' })).toEqual({
+      overlap: 'msg',
+    });
+    // A failing result with no message still flags the field (truthy slot).
+    expect(overlapResultToErrors({ valid: false })).toEqual({ overlap: true });
   });
 
   it('clears entities on session.logout', () => {

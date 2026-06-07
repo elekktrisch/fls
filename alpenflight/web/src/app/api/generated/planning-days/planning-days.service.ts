@@ -31,7 +31,9 @@ import type {
   PlanningDayPage,
   PlanningDayPageRequest,
   PlanningDayRuleRequest,
-  PlanningDayUpdateRequest
+  PlanningDayUpdateRequest,
+  PlanningDayValidateRequest,
+  PlanningDayValidationResult
 } from '../model';
 
 
@@ -219,6 +221,42 @@ export class PlanningDaysService {
     return this.http.post<TData>(
       `/api/v1/planning-days`,
       planningDayCreateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Pre-check a candidate (date, location) for a duplicate planning day (non-mutating). 200 with {valid,field,message} — surfaces the save-path 409 inline before save.
+ */
+ validatePlanningDayUniqueness<TData = PlanningDayValidationResult>(planningDayValidateRequest: PlanningDayValidateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ validatePlanningDayUniqueness<TData = PlanningDayValidationResult>(planningDayValidateRequest: PlanningDayValidateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ validatePlanningDayUniqueness<TData = PlanningDayValidationResult>(planningDayValidateRequest: PlanningDayValidateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  validatePlanningDayUniqueness<TData = PlanningDayValidationResult>(
+    planningDayValidateRequest: PlanningDayValidateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.post<TData>(
+      `/api/v1/planning-days/validate`,
+      planningDayValidateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.post<TData>(
+      `/api/v1/planning-days/validate`,
+      planningDayValidateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.post<TData>(
+      `/api/v1/planning-days/validate`,
+      planningDayValidateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }

@@ -31,7 +31,9 @@ import type {
   AircraftReservationListItem,
   AircraftReservationPage,
   AircraftReservationPageRequest,
-  AircraftReservationUpdateRequest
+  AircraftReservationUpdateRequest,
+  AircraftReservationValidateRequest,
+  ReservationValidationResult
 } from '../model';
 
 
@@ -219,6 +221,42 @@ export class AircraftReservationsService {
     return this.http.post<TData>(
       `/api/v1/aircraft-reservations`,
       aircraftReservationCreateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'body',
+      }
+    );
+  }
+/**
+ * @summary Pre-check a candidate aircraft slot for overlap (non-mutating). 200 with {valid,field,message} — surfaces the save-path conflict inline before save.
+ */
+ validateAircraftReservationOverlap<TData = ReservationValidationResult>(aircraftReservationValidateRequest: AircraftReservationValidateRequest, options?: HttpClientBodyOptions): Observable<TData>;
+ validateAircraftReservationOverlap<TData = ReservationValidationResult>(aircraftReservationValidateRequest: AircraftReservationValidateRequest, options?: HttpClientEventOptions): Observable<HttpEvent<TData>>;
+ validateAircraftReservationOverlap<TData = ReservationValidationResult>(aircraftReservationValidateRequest: AircraftReservationValidateRequest, options?: HttpClientResponseOptions): Observable<AngularHttpResponse<TData>>;
+  validateAircraftReservationOverlap<TData = ReservationValidationResult>(
+    aircraftReservationValidateRequest: AircraftReservationValidateRequest, options?: HttpClientObserveOptions): Observable<TData | HttpEvent<TData> | AngularHttpResponse<TData>> {
+    if (options?.observe === 'events') {
+      return this.http.post<TData>(
+      `/api/v1/aircraft-reservations/validate`,
+      aircraftReservationValidateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'events',
+      }
+    );
+    }
+
+    if (options?.observe === 'response') {
+      return this.http.post<TData>(
+      `/api/v1/aircraft-reservations/validate`,
+      aircraftReservationValidateRequest,{
+        ...(options as Omit<NonNullable<typeof options>, 'observe'>),
+        observe: 'response',
+      }
+    );
+    }
+
+    return this.http.post<TData>(
+      `/api/v1/aircraft-reservations/validate`,
+      aircraftReservationValidateRequest,{
         ...(options as Omit<NonNullable<typeof options>, 'observe'>),
         observe: 'body',
       }
