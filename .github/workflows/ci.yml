@@ -905,9 +905,20 @@ jobs:
             add_pair "J-6b" "planning" "form" "form.png" "alpenflight-planning-edit-form.png" \
               "Legacy flsweb: one planning day's edit form (date · location · remarks · crew selectizes · the inline per-day reservations table)" \
               "AlpenFlight: the planning-day edit form hardened — read-only renders all fields disabled with an Edit toggle, dates render DD.MM.YYYY, and inline validation surfaces per-field errors while typing"
-            add_pair "J-6b" "reservations" "form" "form.png" "alpenflight-reservation-edit-form.png" \
-              "Legacy flsweb: one aircraft reservation's edit form (date · type · pilot · aircraft · location · times)" \
-              "AlpenFlight: the reservation edit form hardened — required-while-typing inline validation + async overlap pre-check, DD.MM.YYYY dates, Cancel returns to the originating planning day"
+            # The ≥60% feature — inline validation — as an AF-only state shot
+            # (greenfield UX; legacy flsweb has no while-typing inline validation
+            # to pair against). The PNG the proof spec writes at the inline-validate
+            # assertion (reservations-planning-hardening.spec.ts ~L640).
+            add_af_only "J-6b" "planning" "inline-validate" \
+              "alpenflight-planning-inline-validate.png" \
+              "AlpenFlight (greenfield): the planning-day edit form mid-typing — the debounced inline per-field validation message surfaces under the field from the real validate endpoint (no full submit)"
+            # NOTE: the reservation-edit-form parity shot is DEFERRED (J-6b T-20):
+            # the reservation real-idp seeding is heavier (aircraft/type/pilot
+            # picker chain) and the planning inline-validate above already proves
+            # the FE→real-endpoint→real-rule→inline vertical. The proof spec does
+            # NOT write `alpenflight-reservation-edit-form.png`, so NO `add_pair`
+            # for it here — the page must never advertise a shot the run can't
+            # produce (would render a lone legacy figure / a dead pairing slot).
           fi
           if [ -n "$SHOTS" ]; then
             printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
