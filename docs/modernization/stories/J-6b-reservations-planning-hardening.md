@@ -22,7 +22,7 @@ acceptance:
   - "[happy] Planning → edit planning-day → open a reservation from the inline list → Cancel → returns to the planning-day edit form (not the /reservations overview)"
   # Cross-cutting platform polish
   - "[happy] date inputs + date display render DD.MM.YYYY"
-  - "[happy] clubadmin1 sees ≥1 row in each aggregate list (Persons non-empty) — seed coverage"
+  - "[happy] EVERY aggregate list has ≥1 row for EVERY testuser — enumerate all aggregates, seed any found empty (Persons was empty for clubadmin1; sweep the rest, not just the named example)"
   - "[happy] clubadmin1 opens the Users menu and the list renders (no 400 Bad Request)"
   - "[edge] clubadmin1 does NOT see a 'Clubs' nav entry"
 screen: /reservations + /planning (hardening of J-5/J-6) + the shared edit-form + nav shell
@@ -104,7 +104,7 @@ no near-term same-surface journey.
 - `shared/ui/organisms/af-date-picker/` + date display pipe — DD.MM.YYYY (one organism + the pipe).
 - Nav role-gating: wherever the `af-nav-bar` `items()` list is assembled (the app shell) — add `Reservations`, gate `Clubs` by role/tenant (ADR 0008). `af-nav-bar.component.ts` itself just renders `items()`; the gating is upstream.
 - Users list 400 for clubadmin1 — `features/users/` store/page query (likely a role/tenant param the clubadmin1 principal sends differently); diagnose at ship time, it may be backend.
-- Dev seed: the V-series `*_dev_*_seed.sql` — ≥1 row per aggregate per testuser (esp. seed-club-1 Persons).
+- Dev seed: the V-series `*_dev_*_seed.sql` — **full sweep**: enumerate every aggregate (Person, Aircraft, Location, Flight, AircraftReservation, PlanningDay, AccountingRuleFilter, Article, EmailTemplate, …) and ensure ≥1 row for EVERY testuser (clubadmin/clubadmin1/clubadmin2/pilot/…); Persons was the known-empty case but seed any aggregate found empty, not just Persons. The seam's DoD is "no testuser opens a list to an empty table for an aggregate they should own."
 
 **Pending _BOYSCOUT riders touching this surface** (so `/do-ship` folds them into the ≤40%):
 - *Cascade-delete asserted only indirectly* (J-6 T-16, "rides the next planning touch") — this IS a planning touch; add the assertion that a deleted day's assignments are excluded from reads.
