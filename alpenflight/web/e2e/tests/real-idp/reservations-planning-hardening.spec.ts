@@ -7,7 +7,16 @@ import {
   type TestInfo,
 } from '@playwright/test';
 
+import { selectAfOption } from '../_helpers/af-select';
 import { fillKcLogin } from './_helpers/kc-form';
+import {
+  loginAsReservationAdmin,
+  captureReservationAdminBearer,
+} from './_helpers/reservation-parity-fixture';
+import {
+  seedPlanningMasterdata,
+  type PlanningMasterdata,
+} from './_helpers/planning-parity-fixture';
 import { proofVideo } from './_helpers/proof-video';
 
 /**
@@ -34,6 +43,20 @@ import { proofVideo } from './_helpers/proof-video';
  *            LEGIBLY (dark ground + white text, not blacked-out) and a DD.MM.YYYY
  *            period label in day view / a DD.MM.YYYY – DD.MM.YYYY range in week
  *            view (AC5/AC6/AC10) — the greenfield calendar gallery shots.
+ *   [happy]  INLINE SERVER-SIDE VALIDATION (the journey's ≥60% feature, AC1/2/3) —
+ *            the LOAD-BEARING real-chain coverage (T-20). Every UI inner-loop spec
+ *            `page.route`-mocks `POST /planning-days/validate` with canned JSON, so
+ *            the FE→real-endpoint→real-rule→`{valid,field,message}`→inline-message
+ *            vertical was UNPROVEN — a wrong path / dropped `excludeId` / envelope
+ *            bug would ship green. Here: seed a REAL duplicate planning day, type
+ *            the same (date, location) into the REAL planning-edit form, and assert
+ *            the debounced `planning-date-server-error` surfaces from the REAL
+ *            `/validate` endpoint over the wire — asserting the REAL backend PROSE
+ *            (`PlanningDaysService`: "A planning day already exists for this date
+ *            and location.") the response carries, NOT the mock's canned i18n key
+ *            (gap-hunter C's key-vs-prose mismatch). Asserts it CLEARS on a free
+ *            date and that submit is blocked while the conflict stands. NO `@mocked:`
+ *            on this path — every seam is the real stack.
  *
  * Mirrors the J-5/J-6 real-idp discipline: warm in-app nav only (no
  * `clearCookies` — kills session restore [[project_real_idp_goto_reboot_renew_stall]]);
@@ -457,6 +480,204 @@ test.describe('J-6b planning read-only + edit-mode (real-idp)', () => {
           'disabled (not merely Save hidden — the operator’s #10 bug, the CVA setDisabledState ' +
           'no-op T-09 fixed); the Edit affordance flips it to edit mode (fields editable, Save ' +
           'returns) — driven against the real backend as clubadmin1',
+        acTag: 'happy',
+      });
+    }
+  });
+});
+
+// ===========================================================================
+// INLINE SERVER-SIDE VALIDATION (AC1/AC2/AC3) — the load-bearing real-chain gap
+// (T-20). The journey's ≥60% feature had ZERO real-chain coverage: every UI
+// inner-loop spec `page.route`-mocks `POST /planning-days/validate` with canned
+// `{valid:false}` JSON and asserts on the i18n KEY, so the FE→real-endpoint→
+// real-rule→`{valid,field,message}`→inline-message vertical was never proven.
+// Here it runs end-to-end real: a REAL duplicate planning day seeded through the
+// real create API, the REAL planning-edit form typed into, the REAL `/validate`
+// endpoint hit over the wire (real bearer / real probe / real envelope) and its
+// REAL PROSE message asserted (NOT the mock's canned key). NO mocks → no
+// `@mocked:` tag on this path.
+// ===========================================================================
+
+/** `YYYY-MM-DD`, `days` from local today (planning days are future days). */
+function dayKeyFromToday(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * The EXACT prose `PlanningDaysService.validate` returns in a `valid:false`
+ * result for a duplicate (club, date, location) — asserted over the wire as the
+ * proof the FE hit the REAL backend rule, not a canned i18n key. Mirror of
+ * `PlanningDaysService.java:135` (T-05). If the backend message changes, this
+ * assertion is the canary — update both together.
+ */
+const REAL_PLANNING_DUPLICATE_MESSAGE = 'A planning day already exists for this date and location.';
+
+test.describe('J-6b inline server-side validation — real chain (real-idp)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  let baseURL: string;
+  /** clubadmin4's Bearer (seed-club-1, the operating/@TenantId club). */
+  let adminBearer: string;
+  /** A fresh seed-club-1 location + crew the create/edit form pickers offer. */
+  let masterdata: PlanningMasterdata;
+  /** The date of the REAL planning day seeded as the duplicate target. */
+  let duplicateDate: string;
+  /** Every planning-day id this group created — deleted in afterAll. */
+  const createdIds: string[] = [];
+  let cleanupCtx: BrowserContext;
+
+  test.beforeAll(async ({ browser, request }, testInfo) => {
+    baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
+    createdIds.length = 0;
+    adminBearer = await captureReservationAdminBearer(browser, baseURL);
+    // Seed (as clubadmin4, through the REAL create APIs) a fresh seed-club-1
+    // location + crew so the planning-edit form's location picker offers the
+    // duplicate target's location.
+    masterdata = await seedPlanningMasterdata(request, adminBearer);
+
+    // Seed the REAL duplicate planning day: a single day at a fixed future date
+    // on the freshly-seeded location. Typing this SAME (date, location) into the
+    // create form below makes the REAL `…/validate` endpoint report the
+    // duplicate — the exact (club,date,location) uniqueness the save-path 409
+    // enforces (ux_pln_club_date_loc), surfaced inline pre-save.
+    duplicateDate = dayKeyFromToday(11);
+    const created = await request.post('/api/v1/planning-days', {
+      headers: { authorization: adminBearer, 'content-type': 'application/json' },
+      data: { planningDate: duplicateDate, locationId: masterdata.locationId },
+    });
+    expect(
+      created.status(),
+      `seeding the duplicate-target planning day must 201 — got ${created.status()}: ${await created.text()}`,
+    ).toBe(201);
+    const loc = created.headers()['location'];
+    expect(loc, 'seed create must return a 201 Location header').toBeTruthy();
+    const id = new URL(loc!, 'http://localhost').pathname.split('/').pop() ?? '';
+    expect(id, `Location "${loc}" must end in a planning-day UUID`).toMatch(/^[0-9a-f-]{36}$/);
+    createdIds.push(id);
+
+    cleanupCtx = await browser.newContext({ baseURL });
+  });
+
+  test.afterAll(async () => {
+    for (const id of createdIds) {
+      try {
+        await cleanupCtx.request.delete(`/api/v1/planning-days/${id}`, {
+          headers: { authorization: adminBearer },
+        });
+      } catch (err) {
+        console.warn(`[J-6b] afterAll cleanup: delete ${id} failed (${(err as Error).message})`);
+      }
+    }
+    await cleanupCtx?.close();
+  });
+
+  test('[happy] the planning-edit form server-validates (date, location) uniqueness against the REAL /validate endpoint — the real prose surfaces inline, clears on a free date, and blocks submit', async ({
+    browser,
+  }, testInfo) => {
+    const ctx = await newRecordedContext(browser, baseURL, testInfo);
+    const page = await ctx.newPage();
+    try {
+      await loginAsReservationAdmin(page);
+      await page.goto('/planning/new/edit?lang=de');
+      await expect(page.getByTestId('planning-edit-form')).toBeVisible();
+
+      // Arm a wire-level watch on the REAL validate POST BEFORE typing — the FE
+      // (planning.store.ts: validateUniqueness rxMethod, debounced ~200ms) calls
+      // `POST /api/v1/planning-days/validate` once date + location are both set.
+      // This is the whole point of the gap fix: the inline message must come from
+      // the REAL endpoint, not a `page.route` mock (there is none here).
+      const validateConflict = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === '/api/v1/planning-days/validate' &&
+          r.status() === 200,
+        { timeout: 15_000 },
+      );
+
+      // Type the SAME (date, location) as the seeded duplicate day → the REAL
+      // uniqueness rule reports a clash. Search the picker by the unique seeded
+      // name (seed-club-1 is never truncated → a long virtualised list).
+      await page.getByTestId('planning-date').locator('input').fill(duplicateDate);
+      await selectAfOption(
+        page,
+        'planning-location-select',
+        masterdata.locationId,
+        masterdata.locationName,
+      );
+
+      // WIRE PROOF: the REAL endpoint returned `valid:false` for the offending
+      // `planningDate` field, carrying the REAL backend PROSE (not the i18n key
+      // the mock canned — gap-hunter C). Asserting the prose proves the FE hit the
+      // real rule end-to-end with the right (club, date, location) probe.
+      const conflictResp = await validateConflict;
+      const conflictBody = (await conflictResp.json()) as {
+        valid: boolean;
+        field?: string;
+        message?: string;
+      };
+      expect(conflictBody.valid, 'the real /validate reports the duplicate as invalid').toBe(false);
+      expect(conflictBody.field, 'the offending field is planningDate').toBe('planningDate');
+      expect(
+        conflictBody.message,
+        'the real backend returns the duplicate PROSE (not the mock i18n key)',
+      ).toBe(REAL_PLANNING_DUPLICATE_MESSAGE);
+
+      // The debounced inline message surfaces on the date field from that REAL
+      // result — WITHOUT a save round-trip.
+      await expect(
+        page.getByTestId('planning-date-server-error'),
+        'the inline server-error surfaces from the REAL /validate result',
+      ).toBeVisible();
+
+      // CAPTURE the inline-validation gallery shot (the conflict standing).
+      await page.screenshot({
+        path: `${testInfo.outputDir}/alpenflight-planning-inline-validate.png`,
+        fullPage: true,
+      });
+
+      // Submit is BLOCKED while the conflict stands (the save-path 409 is the
+      // backstop; the inline pre-check disables Save earlier).
+      await expect(
+        page.getByTestId('planning-save-button').locator('button'),
+        'submit is blocked while the duplicate stands',
+      ).toBeDisabled();
+
+      // Change the date to a FREE one → the REAL endpoint now reports valid:true,
+      // the inline message CLEARS (debounced) and submit unblocks.
+      const validateFree = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'POST' &&
+          new URL(r.url()).pathname === '/api/v1/planning-days/validate' &&
+          r.status() === 200,
+        { timeout: 15_000 },
+      );
+      await page.getByTestId('planning-date').locator('input').fill(dayKeyFromToday(23));
+      const freeBody = (await (await validateFree).json()) as { valid: boolean };
+      expect(freeBody.valid, 'a free (date, location) validates clean against the real rule').toBe(
+        true,
+      );
+      await expect(
+        page.getByTestId('planning-date-server-error'),
+        'the inline server-error clears when the date becomes free',
+      ).toHaveCount(0);
+    } finally {
+      await ctx.close();
+      await proofVideo(page, testInfo, {
+        journey: 'J-6b',
+        caption:
+          'J-6b · inline validation (the ≥60% feature, AC1/2/3) · a club admin types a (date, ' +
+          'location) that duplicates a REAL seeded planning day into the planning-edit form — the ' +
+          'REAL POST /planning-days/validate endpoint reports the clash over the wire (real bearer, ' +
+          'real ux_pln_club_date_loc rule, real {valid,field,message} envelope carrying the backend ' +
+          'PROSE, not the mock i18n key) and its message surfaces inline on the date field WITHOUT a ' +
+          'save; changing to a free date clears it. The whole FE→real-endpoint→real-rule→inline ' +
+          'vertical, proven end-to-end (the mock inner-loop never hit a real endpoint)',
         acTag: 'happy',
       });
     }

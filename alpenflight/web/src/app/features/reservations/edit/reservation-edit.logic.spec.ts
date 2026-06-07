@@ -120,4 +120,16 @@ describe('reservation-edit cancel returnUrl (T-10)', () => {
     // A non-rooted relative value is rejected too.
     expect(sanitizeReturnUrl('planning/abc/edit')).toBe('/reservations');
   });
+
+  it('rejects a leading-slash + backslash open-redirect bypass (T-20 gap-hunter)', () => {
+    // `/\evil.com` starts with a single `/` and is not `//`, but browsers
+    // normalise `\` → `/`, so it resolves like the protocol-relative `//evil.com`
+    // — a known open-redirect bypass. The backslash (and any control char) must
+    // be rejected.
+    expect(sanitizeReturnUrl('/\\evil.example.com')).toBe('/reservations');
+    expect(sanitizeReturnUrl('/\\/evil.example.com')).toBe('/reservations');
+    expect(sanitizeReturnUrl('/planning\\..\\evil')).toBe('/reservations');
+    // A control char anywhere in the path is rejected too.
+    expect(sanitizeReturnUrl('/planning/\tabc')).toBe('/reservations');
+  });
 });

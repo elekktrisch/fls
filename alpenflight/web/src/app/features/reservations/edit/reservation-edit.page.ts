@@ -442,7 +442,8 @@ export class ReservationEditPage {
     });
 
     // Conditional Second-Crew validator — toggle `required` on the control as the
-    // derived condition flips (currently always false; see `secondCrewRequired`).
+    // derived condition flips (`secondCrewRequired`, live since T-18 exposed the
+    // driving instructor/seat flags on the picker projections).
     effect(() => {
       const ctl = this.form.controls.secondCrewPersonId;
       ctl.setValidators(this.secondCrewRequired() ? [Validators.required] : []);
@@ -542,9 +543,16 @@ export function sanitizeReturnUrl(raw: string | null | undefined): string {
   const fallback = '/reservations';
   if (raw === null || raw === undefined || raw === '') return fallback;
   // Must be a single rooted path, not a protocol-relative `//host` and not a
-  // scheme (`http:`, `javascript:`, …). `/foo` is internal; `//foo`, `http://`,
+  // scheme (`http:`, `javascript:`, ...). `/foo` is internal; `//foo`, `http://`,
   // `javascript:` are not.
   if (!raw.startsWith('/') || raw.startsWith('//')) return fallback;
+  // A backslash or control char right after the leading `/` is a known
+  // open-redirect bypass: browsers normalise `\\` to `/`, so `/\\evil.com`
+  // resolves like the protocol-relative `//evil.com`. Reject any backslash or
+  // C0/C1 control char anywhere in the path -- only a normal rooted internal
+  // path passes.
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\u0000-\u001f\u007f-\u009f]/.test(raw)) return fallback;
   return raw;
 }
 
