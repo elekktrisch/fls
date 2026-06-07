@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.89.0",
-  "elapsed_ms": 512,
+  "elapsed_ms": 605,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -365,6 +365,42 @@
       ]
     },
     {
+      "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
+      "name": "<component>",
+      "line": 367,
+      "col": 11,
+      "cyclomatic": 20,
+      "cognitive": 33,
+      "line_count": 231,
+      "param_count": 0,
+      "exceeded": "cognitive",
+      "severity": "high",
+      "component_rollup": {
+        "component": "reservation-edit.page",
+        "class_worst_function": "<arrow>",
+        "class_cyclomatic": 6,
+        "class_cognitive": 8,
+        "template_path": "src/app/features/reservations/edit/reservation-edit.page.ts",
+        "template_cyclomatic": 14,
+        "template_cognitive": 25
+      },
+      "actions": [
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `reservation-edit.page` to reduce component complexity (rolled-up cyclomatic 20 = 6 on `<arrow>` + 14 on the template)",
+          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-component-worst-method"
+        }
+      ]
+    },
+    {
       "path": "scripts/migrate-translations/transform.ts",
       "name": "mapLegacyToBundles",
       "line": 180,
@@ -416,42 +452,6 @@
           "type": "refactor-function",
           "auto_fixable": false,
           "description": "Refactor `clubs-edit.page` to reduce component complexity (rolled-up cyclomatic 19 = 9 on `<arrow>` + 10 on the template)",
-          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
-        },
-        {
-          "type": "suppress-line",
-          "auto_fixable": false,
-          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
-          "comment": "// fallow-ignore-next-line complexity",
-          "placement": "above-component-worst-method"
-        }
-      ]
-    },
-    {
-      "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
-      "name": "<component>",
-      "line": 394,
-      "col": 20,
-      "cyclomatic": 19,
-      "cognitive": 30,
-      "line_count": 227,
-      "param_count": 0,
-      "exceeded": "cognitive",
-      "severity": "high",
-      "component_rollup": {
-        "component": "reservation-edit.page",
-        "class_worst_function": "onSubmit",
-        "class_cyclomatic": 5,
-        "class_cognitive": 5,
-        "template_path": "src/app/features/reservations/edit/reservation-edit.page.ts",
-        "template_cyclomatic": 14,
-        "template_cognitive": 25
-      },
-      "actions": [
-        {
-          "type": "refactor-function",
-          "auto_fixable": false,
-          "description": "Refactor `reservation-edit.page` to reduce component complexity (rolled-up cyclomatic 19 = 5 on `onSubmit` + 14 on the template)",
           "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
         },
         {
@@ -568,6 +568,42 @@
           "description": "Suppress with an inline comment above the Angular decorator",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/planning/edit/planning-edit.page.ts",
+      "name": "<component>",
+      "line": 424,
+      "col": 20,
+      "cyclomatic": 18,
+      "cognitive": 27,
+      "line_count": 205,
+      "param_count": 0,
+      "exceeded": "cognitive",
+      "severity": "high",
+      "component_rollup": {
+        "component": "planning-edit.page",
+        "class_worst_function": "onSubmit",
+        "class_cyclomatic": 6,
+        "class_cognitive": 6,
+        "template_path": "src/app/features/planning/edit/planning-edit.page.ts",
+        "template_cyclomatic": 12,
+        "template_cognitive": 21
+      },
+      "actions": [
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `planning-edit.page` to reduce component complexity (rolled-up cyclomatic 18 = 6 on `onSubmit` + 12 on the template)",
+          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-component-worst-method"
         }
       ]
     },
@@ -1172,6 +1208,42 @@
       ]
     },
     {
+      "path": "src/app/features/planning/edit/planning-edit.page.ts",
+      "name": "<template>",
+      "line": 85,
+      "col": 0,
+      "cyclomatic": 12,
+      "cognitive": 21,
+      "line_count": 191,
+      "param_count": 0,
+      "exceeded": "cognitive_crap",
+      "severity": "critical",
+      "crap": 156.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `<template>` to reduce template complexity (simplify control flow and bindings)",
+          "note": "Consider splitting complex template branches into smaller components or simpler bindings"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/start/start.page.ts",
       "name": "routeLabel",
       "line": 204,
@@ -1456,7 +1528,7 @@
     {
       "path": "src/app/app.component.ts",
       "name": "userSummary",
-      "line": 62,
+      "line": 63,
       "col": 64,
       "cyclomatic": 10,
       "cognitive": 7,
@@ -1587,6 +1659,36 @@
       "cyclomatic": 9,
       "cognitive": 15,
       "line_count": 157,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 90.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/planning/list/planning-list.page.ts",
+      "name": "<template>",
+      "line": 33,
+      "col": 0,
+      "cyclomatic": 9,
+      "cognitive": 10,
+      "line_count": 200,
       "param_count": 0,
       "exceeded": "crap",
       "severity": "high",
@@ -2120,6 +2222,36 @@
       ]
     },
     {
+      "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
+      "name": "<arrow>",
+      "line": 367,
+      "col": 11,
+      "cyclomatic": 6,
+      "cognitive": 8,
+      "line_count": 18,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<arrow>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
       "name": "<arrow>",
       "line": 687,
@@ -2180,6 +2312,36 @@
       ]
     },
     {
+      "path": "src/app/features/planning/setup/planning-setup.page.ts",
+      "name": "<template>",
+      "line": 84,
+      "col": 0,
+      "cyclomatic": 6,
+      "cognitive": 5,
+      "line_count": 131,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "durationBlock",
       "line": 86,
@@ -2198,6 +2360,36 @@
           "type": "add-tests",
           "auto_fixable": false,
           "description": "Add test coverage for `durationBlock` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/planning/edit/planning-edit.page.ts",
+      "name": "onSubmit",
+      "line": 424,
+      "col": 20,
+      "cyclomatic": 6,
+      "cognitive": 6,
+      "line_count": 14,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `onSubmit` to lower its CRAP score (coverage reduces risk even without refactoring)",
           "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
         },
         {
@@ -2362,7 +2554,7 @@
     {
       "path": "src/app/features/reservations/edit/reservation-edit.page.ts",
       "name": "onSubmit",
-      "line": 394,
+      "line": 404,
       "col": 20,
       "cyclomatic": 5,
       "cognitive": 5,
@@ -2900,6 +3092,36 @@
       ]
     },
     {
+      "path": "src/app/features/planning/edit/planning-edit.page.ts",
+      "name": "detailToFormValue",
+      "line": 457,
+      "col": 0,
+      "cyclomatic": 5,
+      "cognitive": 4,
+      "line_count": 17,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `detailToFormValue` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/locations/edit/locations-edit.page.ts",
       "name": "onSubmit",
       "line": 459,
@@ -2931,78 +3153,78 @@
     }
   ],
   "summary": {
-    "files_analyzed": 190,
-    "functions_analyzed": 1299,
-    "functions_above_threshold": 91,
+    "files_analyzed": 199,
+    "functions_analyzed": 1414,
+    "functions_above_threshold": 98,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 144,
-    "average_maintainability": 92.1,
+    "files_scored": 151,
+    "average_maintainability": 92.0,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
-    "severity_critical_count": 32,
-    "severity_high_count": 23,
-    "severity_moderate_count": 36
+    "severity_critical_count": 33,
+    "severity_high_count": 25,
+    "severity_moderate_count": 40
   },
   "vital_signs": {
-    "dead_file_pct": 1.1,
-    "dead_export_pct": 0.3,
-    "avg_cyclomatic": 2.2,
+    "dead_file_pct": 1.0,
+    "dead_export_pct": 0.2,
+    "avg_cyclomatic": 2.1,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 6.0,
+    "duplication_pct": 6.2,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.1,
+    "maintainability_avg": 92.0,
     "maintainability_low_pct": 0.7,
     "unused_dep_count": 6,
-    "unused_deps_per_k_files": 31.6,
+    "unused_deps_per_k_files": 30.2,
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 190,
-      "total_exports": 388,
+      "total_files": 199,
+      "total_exports": 401,
       "dead_files": 2,
       "dead_exports": 1,
-      "duplicated_lines": 1330,
-      "total_lines": 23274,
-      "files_scored": 144,
+      "duplicated_lines": 1489,
+      "total_lines": 25247,
+      "files_scored": 151,
       "total_deps": 0
     },
     "unit_size_profile": {
-      "low_risk": 86.3,
-      "medium_risk": 6.5,
-      "high_risk": 3.5,
+      "low_risk": 86.4,
+      "medium_risk": 6.6,
+      "high_risk": 3.3,
       "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 37.0,
+    "functions_over_60_loc_per_k": 36.8,
     "unit_interfacing_profile": {
-      "low_risk": 96.9,
-      "medium_risk": 2.8,
-      "high_risk": 0.2,
+      "low_risk": 97.1,
+      "medium_risk": 2.5,
+      "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 6,
-    "coupling_high_pct": 1.4,
-    "total_loc": 23274
+    "coupling_high_pct": 1.3,
+    "total_loc": 25247
   },
   "health_score": {
     "formula_version": 2,
-    "score": 71.2,
+    "score": 71.8,
     "grade": "B",
     "penalties": {
       "dead_files": 0.2,
-      "dead_exports": 0.1,
+      "dead_exports": 0.0,
       "complexity": 0.0,
       "p90_complexity": 0.0,
       "maintainability": 1.0,
       "hotspots": 0.0,
-      "unused_deps": 15.8,
+      "unused_deps": 15.1,
       "circular_deps": 0.0,
       "unit_size": 10.0,
       "coupling": 0.7,
-      "duplication": 1.0
+      "duplication": 1.2
     }
   },
   "file_scores": [
@@ -3153,12 +3375,12 @@
       "dead_code_ratio": 0.0,
       "complexity_density": 0.12,
       "maintainability_index": 86.5,
-      "total_cyclomatic": 56,
-      "total_cognitive": 48,
+      "total_cyclomatic": 60,
+      "total_cognitive": 55,
       "function_count": 23,
-      "lines": 475,
+      "lines": 485,
       "crap_max": 210.0,
-      "crap_above_threshold": 2
+      "crap_above_threshold": 3
     },
     {
       "path": "src/app/features/users/users.store.ts",
@@ -3201,6 +3423,20 @@
       "lines": 249,
       "crap_max": 156.0,
       "crap_above_threshold": 5
+    },
+    {
+      "path": "src/app/features/planning/edit/planning-edit.page.ts",
+      "fan_in": 1,
+      "fan_out": 13,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.13,
+      "maintainability_index": 85.5,
+      "total_cyclomatic": 67,
+      "total_cognitive": 52,
+      "function_count": 27,
+      "lines": 499,
+      "crap_max": 156.0,
+      "crap_above_threshold": 3
     },
     {
       "path": "src/app/features/profile/profile-personal.tab.ts",
@@ -3254,7 +3490,7 @@
       "total_cyclomatic": 18,
       "total_cognitive": 11,
       "function_count": 5,
-      "lines": 85,
+      "lines": 86,
       "crap_max": 110.0,
       "crap_above_threshold": 1
     },
@@ -3298,6 +3534,20 @@
       "function_count": 2,
       "lines": 112,
       "crap_max": 110.0,
+      "crap_above_threshold": 1
+    },
+    {
+      "path": "src/app/features/planning/list/planning-list.page.ts",
+      "fan_in": 1,
+      "fan_out": 7,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.11,
+      "maintainability_index": 88.4,
+      "total_cyclomatic": 34,
+      "total_cognitive": 21,
+      "function_count": 13,
+      "lines": 320,
+      "crap_max": 90.0,
       "crap_above_threshold": 1
     },
     {
@@ -3470,7 +3720,7 @@
     },
     {
       "path": "src/app/core/session/session.store.ts",
-      "fan_in": 36,
+      "fan_in": 38,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.17,
@@ -3480,6 +3730,20 @@
       "function_count": 16,
       "lines": 214,
       "crap_max": 49.5,
+      "crap_above_threshold": 1
+    },
+    {
+      "path": "src/app/features/planning/setup/planning-setup.page.ts",
+      "fan_in": 1,
+      "fan_out": 10,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.06,
+      "maintainability_index": 88.6,
+      "total_cyclomatic": 20,
+      "total_cognitive": 11,
+      "function_count": 9,
+      "lines": 326,
+      "crap_max": 42.0,
       "crap_above_threshold": 1
     },
     {
@@ -3749,6 +4013,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/planning/planning.store.ts",
+      "fan_in": 4,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 90.8,
+      "total_cyclomatic": 57,
+      "total_cognitive": 4,
+      "function_count": 48,
+      "lines": 350,
+      "crap_max": 17.6,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/locations/locations.store.ts",
       "fan_in": 6,
       "fan_out": 1,
@@ -3989,14 +4267,14 @@
     {
       "path": "src/app/app.routes.ts",
       "fan_in": 2,
-      "fan_out": 18,
+      "fan_out": 19,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.37,
-      "maintainability_index": 77.1,
-      "total_cyclomatic": 38,
+      "maintainability_index": 76.9,
+      "total_cyclomatic": 42,
       "total_cognitive": 0,
-      "function_count": 38,
-      "lines": 102,
+      "function_count": 42,
+      "lines": 114,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4151,6 +4429,20 @@
       "total_cognitive": 1,
       "function_count": 2,
       "lines": 23,
+      "crap_max": 6.0,
+      "crap_above_threshold": 0
+    },
+    {
+      "path": "src/app/shared/ui/molecules/af-reservation-row/af-reservation-row.component.ts",
+      "fan_in": 1,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.06,
+      "maintainability_index": 95.4,
+      "total_cyclomatic": 5,
+      "total_cognitive": 1,
+      "function_count": 4,
+      "lines": 78,
       "crap_max": 6.0,
       "crap_above_threshold": 0
     },
@@ -4379,6 +4671,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/planning/planning.routes.ts",
+      "fan_in": 1,
+      "fan_out": 4,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.2,
+      "maintainability_index": 88.8,
+      "total_cyclomatic": 8,
+      "total_cognitive": 0,
+      "function_count": 8,
+      "lines": 40,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/flights/flights.routes.ts",
       "fan_in": 1,
       "fan_out": 3,
@@ -4561,6 +4867,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/shared/util/reservation/reservation-time.ts",
+      "fan_in": 2,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.15,
+      "maintainability_index": 97.0,
+      "total_cyclomatic": 5,
+      "total_cognitive": 2,
+      "function_count": 2,
+      "lines": 33,
+      "crap_max": 3.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/reservations/scheduler/reservation-scheduler.placement.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -4618,7 +4938,7 @@
     },
     {
       "path": "src/app/core/session/tenant-required.guard.ts",
-      "fan_in": 8,
+      "fan_in": 9,
       "fan_out": 2,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.09,
@@ -4920,7 +5240,7 @@
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 76,
+      "lines": 78,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4996,15 +5316,15 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 51,
+      "fan_in": 55,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
-      "maintainability_index": 99.5,
+      "maintainability_index": 99.4,
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 45,
+      "lines": 49,
       "crap_max": 1.2,
       "crap_above_threshold": 0
     },
@@ -5080,10 +5400,22 @@
       "line_count": 213
     },
     {
+      "path": "src/app/features/planning/planning.store.ts",
+      "name": "<arrow>",
+      "line": 94,
+      "line_count": 211
+    },
+    {
       "path": "src/app/features/flight-types/edit/flight-types-edit.page.ts",
       "name": "<template>",
       "line": 57,
       "line_count": 209
+    },
+    {
+      "path": "src/app/features/planning/list/planning-list.page.ts",
+      "name": "<template>",
+      "line": 33,
+      "line_count": 200
     },
     {
       "path": "src/app/features/profile/profile-personal.tab.ts",
@@ -5096,6 +5428,12 @@
       "name": "<template>",
       "line": 68,
       "line_count": 197
+    },
+    {
+      "path": "src/app/features/planning/edit/planning-edit.page.ts",
+      "name": "<template>",
+      "line": 85,
+      "line_count": 191
     },
     {
       "path": "src/app/features/aircraft/list/aircraft-list.page.ts",
@@ -5126,6 +5464,12 @@
       "name": "<template>",
       "line": 33,
       "line_count": 151
+    },
+    {
+      "path": "src/app/features/planning/setup/planning-setup.page.ts",
+      "name": "<template>",
+      "line": 84,
+      "line_count": 131
     },
     {
       "path": "src/app/features/users/edit/person-picker.component.ts",
