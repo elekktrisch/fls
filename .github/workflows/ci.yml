@@ -762,6 +762,79 @@ jobs:
           ls -l "$OUT" >&2 || true
           exit 0
 
+      # J-6 T-17b — stage the PER-PUSH parity screenshots: PAIR the COMMITTED
+      # legacy-reference PNGs (`e2e/legacy-reference/<feature>/<view>.png`, made
+      # once + in git per T-17a — legacy flsweb is frozen) against the FRESH
+      # clean-seed AlpenFlight PNGs this run's proof spec just wrote to
+      # test-results/. This gives the per-push per-journey page its full
+      # legacy↔AlpenFlight visual pairing WITHOUT any dependency on the heavy
+      # nightly fanout — closing the "videos OR screenshots, depending on which
+      # job deployed last" pain (operator design, 2026-06-07).
+      #
+      # The view keys (`list`/`form`/`setup`) + journey id MUST match the
+      # fanout's J-6 declarations (alpenflight-proof-fanout.yml ~L1024-1035) so
+      # the per-push page reads identically to the nightly page. AF filenames
+      # differ per view (`setup` → `…-setup-form.png`); the per-journey block
+      # below maps them.
+      #
+      # `if: always()` so a red proof assertion still stages whatever PNGs the
+      # spec wrote BEFORE its deep assertions — the gate signal is `steps.pw`,
+      # not the gallery. A missing legacy ref OR a missing AF PNG simply DROPS
+      # that one entry (add_pair no-ops it) so the page degrades gracefully —
+      # never a declared-but-absent PNG that would red the AC5 link-check.
+      - name: Stage per-push parity screenshots (committed-legacy + fresh-AF)
+        if: always()
+        env:
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+        run: |
+          SHOT="${{ github.workspace }}/perpush-screenshots"
+          mkdir -p "$SHOT"
+          REF_DIR="alpenflight/web/e2e/legacy-reference"
+          AF_RESULTS="alpenflight/web/test-results"
+          SHOTS=""
+          # add_pair: stage the committed legacy ref + the fresh AF PNG for ONE
+          # view, declaring both sides under the same journey/view so the
+          # generator pairs them. $1 journey $2 feature $3 view $4 legacy-ref
+          # filename $5 AF filename $6 legacy-caption $7 AF-caption.
+          add_pair() {
+            local jrn="$1" feat="$2" view="$3" lref="$4" affile="$5" lcap="$6" acap="$7"
+            local lsrc="$REF_DIR/$feat/$lref"
+            local asrc; asrc="$(find "$AF_RESULTS" -name "$affile" 2>/dev/null | head -1 || true)"
+            if [ -f "$lsrc" ]; then
+              cp "$lsrc" "$SHOT/legacy-${feat}-${view}.png"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"legacy\",\"view\":\"$view\",\"file\":\"legacy-${feat}-${view}.png\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$lcap")},"
+            else
+              echo "legacy ref $lsrc absent — skipping legacy ${feat}/${view}."
+            fi
+            if [ -n "$asrc" ]; then
+              cp "$asrc" "$SHOT/$affile"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"alpenflight\",\"view\":\"$view\",\"file\":\"$affile\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$acap")},"
+            else
+              echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
+            fi
+          }
+          # ----- J-6 planning (list/form/setup — view keys match the fanout) ---
+          if [ "${PROOF_JOURNEY:-}" = "J-6" ]; then
+            add_pair "J-6" "planning" "list" "list.png" "alpenflight-planning-list.png" \
+              "Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) — the legacy planning table, paired before/after against AlpenFlight's /planning future-days list" \
+              "AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) — the clean-seed future-days list to eyeball against the legacy planning table"
+            add_pair "J-6" "planning" "form" "form.png" "alpenflight-planning-form.png" \
+              "Legacy flsweb: one planning day's edit form (date · location selectize · remarks · towing-pilot / flight-operator / instructor selectizes · the inline per-day reservations table) — paired against AlpenFlight's planning-day edit form" \
+              "AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form"
+            add_pair "J-6" "planning" "setup" "setup.png" "alpenflight-planning-setup-form.png" \
+              "Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard" \
+              "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
+          fi
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged per-push parity screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No per-push parity pairs staged for ${PROOF_JOURNEY:-?} — gallery renders videos only."
+          fi
+
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;
       # on red there are no proof videos so it emits only pending rows. The
@@ -787,11 +860,22 @@ jobs:
           if [ -n "${PROOF_JOURNEY:-}" ]; then
             JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
           fi
+          # T-17b — per-push parity screenshots: feed the staged screenshots.json
+          # dir (committed-legacy + fresh-AF, paired by view) so the generator
+          # renders the legacy↔AlpenFlight `shot-pair`/`shot-grid` block on the
+          # per-journey page — same rendering the fanout page uses, but sourced
+          # per-push with no fanout dependency. Absent dir/sidecar = no-op.
+          SHOT="${{ github.workspace }}/perpush-screenshots"
+          SHOT_ARG=""
+          if [ -f "$SHOT/screenshots.json" ]; then
+            SHOT_ARG="--screenshots $SHOT"
+          fi
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
             --order ../../docs/modernization/stories/_ORDER.md \
-            $JUW_ARG
+            $JUW_ARG \
+            $SHOT_ARG
 
       # J-25 — compute the per-PR preview destination + clickable URL.
       # PR-only. Sanitize github.head_ref (the PR source branch, e.g.

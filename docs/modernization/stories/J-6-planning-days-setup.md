@@ -652,12 +652,20 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
       under `alpenflight/web/e2e/legacy-reference/planning/{list,form,setup}.png` + a README establishing the
       pattern (legacy frozen → capture once, commit, never reap; future journeys do this at T-01/T-13). Locally
       verified the PNGs are the real captures. Self-contained seam; carries the manager's T-17-add commit.
-    - [ ] **T-17b — per-push gallery pairs committed-legacy + fresh-AlpenFlight.** New `ci.yml` `alpenflight-proof`
-      staging step: stage the committed `legacy-reference/planning/*.png` + the fresh clean-seed AF
+    - [x] **T-17b — per-push gallery pairs committed-legacy + fresh-AlpenFlight.** New `ci.yml` `alpenflight-proof`
+      staging step ("Stage per-push parity screenshots (committed-legacy + fresh-AF)"): stages the committed
+      `legacy-reference/planning/{list,form,setup}.png` + the fresh clean-seed AF
       `alpenflight-planning-{list,form,setup-form}.png` (already written by `planning-migration-parity.spec.ts`)
-      into a `--screenshots` dir, write `screenshots.json` pairing them by view, pass `--screenshots` to the
-      per-push generator step. So every push → ONE complete per-journey page (videos + 6 paired screenshots), no
-      fanout dependency for the pairing. Lock the contract in `generate-gallery.spec.ts`.
+      into a `$WORKSPACE/perpush-screenshots` dir, writes `screenshots.json` pairing them by view
+      (`list`/`form`/`setup` — keys match the fanout's J-6 declarations), keyed on `PROOF_JOURNEY=J-6`, and the
+      gallery step now passes `--screenshots`. Per-journey block + graceful drop of any missing side (no AC5 red).
+      The generator already renders the paired `shot-pair`/`shot-grid` from a `--screenshots` sidecar (T-20/T-43),
+      so NO generator change was needed. Locked the pairing contract in `generate-gallery.spec.ts` (T-17b describe:
+      committed refs + fresh-AF + sidecar → J-6 page carries BOTH sides for list/form/setup; degrades to AF-alone
+      when a legacy ref is absent). Local end-to-end verify: ran the generator CLI with the real committed refs +
+      sample AF PNGs + a screenshots.json → emitted J-6 page references both legacy and AF imgs for all 3 views
+      (6 shot figures, 3 view labels). 38/38 gallery spec green; ci.yml YAML valid. *(T-17c next: retire the
+      previews-index freshest-wins band-aid + LIVE deploy-verify.)*
     - [ ] **T-17c — retire the index band-aid + deploy-verify on live gh-pages.** Revert the T-13b
       `JOURNEY_PAGE_SOURCES` rank-0/rank-1 + freshest-mtime tie-break in `generate-previews-index.mjs` (with one
       unified per-push page there's nothing to tie-break); collapse to one branch source; keep canonical/archive
