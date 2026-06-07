@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.89.0",
-  "elapsed_ms": 369,
+  "elapsed_ms": 364,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -2312,6 +2312,36 @@
       ]
     },
     {
+      "path": "src/app/features/planning/setup/planning-setup.page.ts",
+      "name": "<template>",
+      "line": 84,
+      "col": 0,
+      "cyclomatic": 6,
+      "cognitive": 5,
+      "line_count": 131,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 42.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flights/list/flights-list.page.ts",
       "name": "durationBlock",
       "line": 86,
@@ -3123,19 +3153,19 @@
     }
   ],
   "summary": {
-    "files_analyzed": 194,
-    "functions_analyzed": 1386,
-    "functions_above_threshold": 97,
+    "files_analyzed": 195,
+    "functions_analyzed": 1403,
+    "functions_above_threshold": 98,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 148,
-    "average_maintainability": 92.0,
+    "files_scored": 149,
+    "average_maintainability": 91.9,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
     "severity_critical_count": 33,
     "severity_high_count": 25,
-    "severity_moderate_count": 39
+    "severity_moderate_count": 40
   },
   "vital_signs": {
     "dead_file_pct": 1.0,
@@ -3146,20 +3176,20 @@
     "duplication_pct": 6.1,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.0,
+    "maintainability_avg": 91.9,
     "maintainability_low_pct": 0.7,
     "unused_dep_count": 6,
-    "unused_deps_per_k_files": 30.9,
+    "unused_deps_per_k_files": 30.8,
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 194,
-      "total_exports": 393,
+      "total_files": 195,
+      "total_exports": 395,
       "dead_files": 2,
       "dead_exports": 1,
-      "duplicated_lines": 1424,
-      "total_lines": 24622,
-      "files_scored": 148,
+      "duplicated_lines": 1456,
+      "total_lines": 25088,
+      "files_scored": 149,
       "total_deps": 0
     },
     "unit_size_profile": {
@@ -3168,20 +3198,20 @@
       "high_risk": 3.3,
       "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 36.8,
+    "functions_over_60_loc_per_k": 37.1,
     "unit_interfacing_profile": {
-      "low_risk": 97.0,
+      "low_risk": 97.1,
       "medium_risk": 2.6,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
     "p95_fan_in": 6,
-    "coupling_high_pct": 1.4,
-    "total_loc": 24622
+    "coupling_high_pct": 1.3,
+    "total_loc": 25088
   },
   "health_score": {
     "formula_version": 2,
-    "score": 71.4,
+    "score": 71.5,
     "grade": "B",
     "penalties": {
       "dead_files": 0.2,
@@ -3190,7 +3220,7 @@
       "p90_complexity": 0.0,
       "maintainability": 1.0,
       "hotspots": 0.0,
-      "unused_deps": 15.5,
+      "unused_deps": 15.4,
       "circular_deps": 0.0,
       "unit_size": 10.0,
       "coupling": 0.7,
@@ -3703,6 +3733,20 @@
       "crap_above_threshold": 1
     },
     {
+      "path": "src/app/features/planning/setup/planning-setup.page.ts",
+      "fan_in": 1,
+      "fan_out": 10,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.06,
+      "maintainability_index": 88.6,
+      "total_cyclomatic": 20,
+      "total_cognitive": 11,
+      "function_count": 9,
+      "lines": 326,
+      "crap_max": 42.0,
+      "crap_above_threshold": 1
+    },
+    {
       "path": "src/app/features/persons/list/persons-list.page.ts",
       "fan_in": 1,
       "fan_out": 7,
@@ -3969,6 +4013,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/planning/planning.store.ts",
+      "fan_in": 4,
+      "fan_out": 2,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 90.8,
+      "total_cyclomatic": 56,
+      "total_cognitive": 4,
+      "function_count": 47,
+      "lines": 344,
+      "crap_max": 17.6,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/locations/locations.store.ts",
       "fan_in": 6,
       "fan_out": 1,
@@ -4007,20 +4065,6 @@
       "total_cognitive": 11,
       "function_count": 27,
       "lines": 169,
-      "crap_max": 13.8,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/planning/planning.store.ts",
-      "fan_in": 3,
-      "fan_out": 2,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.16,
-      "maintainability_index": 90.8,
-      "total_cyclomatic": 51,
-      "total_cognitive": 4,
-      "function_count": 43,
-      "lines": 321,
       "crap_max": 13.8,
       "crap_above_threshold": 0
     },
@@ -4225,12 +4269,12 @@
       "fan_in": 2,
       "fan_out": 19,
       "dead_code_ratio": 0.0,
-      "complexity_density": 0.38,
-      "maintainability_index": 76.6,
-      "total_cyclomatic": 40,
+      "complexity_density": 0.37,
+      "maintainability_index": 76.9,
+      "total_cyclomatic": 42,
       "total_cognitive": 0,
-      "function_count": 40,
-      "lines": 106,
+      "function_count": 42,
+      "lines": 114,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -4613,6 +4657,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/planning/planning.routes.ts",
+      "fan_in": 1,
+      "fan_out": 4,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.2,
+      "maintainability_index": 88.8,
+      "total_cyclomatic": 8,
+      "total_cognitive": 0,
+      "function_count": 8,
+      "lines": 40,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/flights/flights.routes.ts",
       "fan_in": 1,
       "fan_out": 3,
@@ -4721,20 +4779,6 @@
       "total_cognitive": 0,
       "function_count": 6,
       "lines": 25,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/planning/planning.routes.ts",
-      "fan_in": 1,
-      "fan_out": 3,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.21,
-      "maintainability_index": 90.9,
-      "total_cyclomatic": 6,
-      "total_cognitive": 0,
-      "function_count": 6,
-      "lines": 28,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -5244,7 +5288,7 @@
     },
     {
       "path": "src/app/core/mutation-bus/mutation-bus.ts",
-      "fan_in": 54,
+      "fan_in": 55,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.02,
@@ -5252,7 +5296,7 @@
       "total_cyclomatic": 1,
       "total_cognitive": 0,
       "function_count": 1,
-      "lines": 48,
+      "lines": 49,
       "crap_max": 1.2,
       "crap_above_threshold": 0
     },
@@ -5334,6 +5378,12 @@
       "line_count": 209
     },
     {
+      "path": "src/app/features/planning/planning.store.ts",
+      "name": "<arrow>",
+      "line": 94,
+      "line_count": 205
+    },
+    {
       "path": "src/app/features/planning/edit/planning-edit.page.ts",
       "name": "<template>",
       "line": 73,
@@ -5356,12 +5406,6 @@
       "name": "<template>",
       "line": 68,
       "line_count": 197
-    },
-    {
-      "path": "src/app/features/planning/planning.store.ts",
-      "name": "<arrow>",
-      "line": 93,
-      "line_count": 184
     },
     {
       "path": "src/app/features/aircraft/list/aircraft-list.page.ts",
@@ -5392,6 +5436,12 @@
       "name": "<template>",
       "line": 33,
       "line_count": 151
+    },
+    {
+      "path": "src/app/features/planning/setup/planning-setup.page.ts",
+      "name": "<template>",
+      "line": 84,
+      "line_count": 131
     },
     {
       "path": "src/app/features/users/edit/person-picker.component.ts",
