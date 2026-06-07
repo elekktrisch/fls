@@ -256,6 +256,24 @@ type PlanningForm = FormGroup<{
               <af-button htmlType="button" (clicked)="router.navigateByUrl('/planning')">
                 {{ isView() ? t('back') : t('cancel') }}
               </af-button>
+              <!--
+                Read-only to edit affordance (T-09, operator #11). In VIEW mode
+                an editor (canMutate) gets an Edit button that navigates to the
+                same day's /edit route; mode=edit flips isView() false so the
+                form re-enables cleanly (the disable effect runs on the route
+                change) and Save returns. Navigation (not a local mode signal)
+                keeps isView()/canMutate() driven by the single route source.
+              -->
+              @if (isView() && canMutate() && editLink() !== null) {
+                <af-button
+                  type="primary"
+                  htmlType="button"
+                  (clicked)="router.navigateByUrl(editLink()!)"
+                  data-testid="planning-edit-toggle"
+                >
+                  {{ t('edit') }}
+                </af-button>
+              }
               @if (!isView() && canMutate()) {
                 <af-button
                   type="primary"
@@ -335,6 +353,9 @@ export class PlanningEditPage {
   protected readonly canMutate = computed(
     () => this.session.isClubAdmin() || this.session.isSystemAdmin(),
   );
+  // Read-only → edit target (T-09): the same day's `/edit` route, or null in
+  // create mode (no saved id to edit). Pure-derived so it's unit-testable.
+  protected readonly editLink = computed(() => planningEditLink(this.planningId()));
 
   protected readonly form: PlanningForm = this.fb.group({
     planningDate: this.fb.nonNullable.control('', [Validators.required]),
@@ -528,6 +549,17 @@ function detailToFormValue(d: PlanningDayDetail): Partial<{
     flightOperatorPersonId: d.flightOperatorPersonId ?? '',
     info: d.info ?? '',
   };
+}
+
+/**
+ * Read-only → edit navigation target for the planning-day at `id`: the same
+ * day's `:mode=edit` route, or `null` when there is no saved id (create mode —
+ * nothing to edit-toggle). Navigating flips the route `:mode` to `edit`, which
+ * drives `isView()` false → the disable effect re-enables the form (J-6b T-09).
+ * Pure → unit-tested without a `TestBed`.
+ */
+export function planningEditLink(id: string | null): string | null {
+  return id === null ? null : `/planning/${id}/edit`;
 }
 
 /**

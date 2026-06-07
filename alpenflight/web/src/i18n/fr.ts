@@ -255,6 +255,7 @@ const fr: Translations = {
       cancel: 'Annuler',
       date: 'Date',
       duplicate: 'Une journée de planification existe déjà pour cette date et ce lieu.',
+      edit: 'Modifier',
       flightOperator: 'Chef de piste',
       instructor: 'Instructeur',
       loading: 'Chargement de la journée de planification…',

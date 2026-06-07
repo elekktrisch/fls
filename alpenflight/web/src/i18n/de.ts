@@ -258,6 +258,7 @@ const de = {
       cancel: 'Abbrechen',
       date: 'Datum',
       duplicate: 'Für dieses Datum und diesen Standort existiert bereits ein Planungstag.',
+      edit: 'Bearbeiten',
       flightOperator: 'Segelflugleiter',
       instructor: 'Fluglehrer',
       loading: 'Planungstag wird geladen…',

@@ -253,6 +253,7 @@ const it: Translations = {
       cancel: 'Annulla',
       date: 'Data',
       duplicate: 'Esiste già una giornata di pianificazione per questa data e questo luogo.',
+      edit: 'Modifica',
       flightOperator: 'Capo campo',
       instructor: 'Istruttore',
       loading: 'Caricamento della giornata di pianificazione…',

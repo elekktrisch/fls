@@ -249,6 +249,7 @@ const en: Translations = {
       cancel: 'Cancel',
       date: 'Date',
       duplicate: 'A planning day already exists for this date and location.',
+      edit: 'Edit',
       flightOperator: 'Flight operator',
       instructor: 'Instructor',
       loading: 'Loading planning day…',

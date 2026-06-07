@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { uniquenessProbe } from './planning-edit.page';
+import { planningEditLink, uniquenessProbe } from './planning-edit.page';
 
 describe('uniquenessProbe (T-07 planning-day …/validate request builder)', () => {
   const DATE = '2026-07-04';
@@ -25,5 +25,16 @@ describe('uniquenessProbe (T-07 planning-day …/validate request builder)', () 
       locationId: LOCATION,
       excludePlanningDayId: editId,
     });
+  });
+});
+
+describe('planningEditLink (T-09 read-only → edit navigation target)', () => {
+  it('returns null in create mode (no saved id to edit)', () => {
+    expect(planningEditLink(null)).toBeNull();
+  });
+
+  it('builds the same day’s /edit route so view→edit flips :mode to edit', () => {
+    const id = '019e30c3-2c00-7001-8000-000000000e01';
+    expect(planningEditLink(id)).toBe(`/planning/${id}/edit`);
   });
 });

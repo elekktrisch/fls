@@ -2,10 +2,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  computed,
   forwardRef,
   inject,
   input,
   model,
+  signal,
   viewChild,
 } from '@angular/core';
 import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
@@ -40,7 +42,7 @@ import { NG_VALUE_ACCESSOR, type ControlValueAccessor } from '@angular/forms';
       [attr.autocomplete]="autocomplete()"
       [placeholder]="placeholder()"
       [readonly]="readonly()"
-      [disabled]="disabled()"
+      [disabled]="isDisabled()"
       [value]="value()"
       [attr.aria-invalid]="ariaInvalid() ? 'true' : null"
       [attr.aria-describedby]="ariaDescribedby()"
@@ -70,6 +72,16 @@ export class AfInputComponent implements ControlValueAccessor {
 
   readonly value = model<string>('');
 
+  /**
+   * CVA-driven disabled state (set by `form.disable()`/`enable()`), OR'd with the
+   * explicit `[disabled]` input. Reactive-Forms calls `setDisabledState` to
+   * reflect a disabled control onto the native element — a read-only form
+   * (`form.disable()`) MUST render its inputs non-editable, not just mark the
+   * control DISABLED (J-6b T-09: the planning view-mode read-only fix).
+   */
+  private readonly cvaDisabled = signal(false);
+  protected readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
+
   private onChange: (value: string) => void = () => undefined;
   protected onTouched: () => void = () => undefined;
 
@@ -82,8 +94,8 @@ export class AfInputComponent implements ControlValueAccessor {
   registerOnTouched(fn: () => void): void {
     this.onTouched = fn;
   }
-  setDisabledState(): void {
-    // The disabled input wins; CVA-driven disable is a no-op here.
+  setDisabledState(isDisabled: boolean): void {
+    this.cvaDisabled.set(isDisabled);
   }
 
   protected onInput(event: Event): void {
