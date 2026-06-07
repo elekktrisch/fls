@@ -25,6 +25,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-4 | Profile self-edit | E-06 | J-2 | S-182 | `Person` (self) | `profile/` → `/profile` |
 | J-5 | Aircraft reservations | E-08 | J-1 | S-068, S-069 | `AircraftReservation` | `reservations/` + `reservation-scheduler/` → `/reservations` |
 | J-6 | Planning days + setup | E-08 | J-5, J-2 | S-070, S-071, S-086 | `PlanningDay` | `planning/` → `/planning`, `/planningsetup` |
+| 🔨 **J-6b** | **Reservations & Planning hardening + inline form validation** | E-08 | J-5, J-6 | — (operator field-test polish) | N/A — hardens J-5/J-6 | `/reservations` + `/planning` polish + shared edit-form + nav shell |
 | J-7 | Flight reports | E-07/E-11 | J-2 | S-065, S-093, S-094, S-095, S-096 | N/A (read-side) | `reporting/` → `/flightreports` |
 | J-8 | Accounting rule filters | E-09 | J-1 | S-072 | `AccountingRuleFilter` | `masterdata/accountingRules/` → `/accountingrules` |
 | J-9 | Delivery creation test (rules-engine proof) | E-09 | J-8, J-2 | S-073, S-074, S-075, S-076, S-077, S-079, S-107 | N/A (harness) | `masterdata/deliveryCreationTests/` |
@@ -103,6 +104,7 @@ and the proven mapper pattern.
 - **J-4:** User edits own Person across Account/Personal/Pilot/Notifications tabs; changes persist and reflect on next login.
 - **J-5:** Reservation create rejects an overlapping aircraft slot; scheduler calendar renders the reservation in the right lane/time.
 - **J-6:** Planning day create with assigned instructor/tow-pilot/operator; per-day reservations inline; setup wizard seeds a day; notification email lands in mailpit.
+- **J-6b:** Edit form shows debounced (~200ms) inline per-field validation (client + a server validate endpoint); reservations Day/Week toggle selected-state legible + Week-mode pages by weeks with a date-range label; read-only planning-day is fully read-only with an Edit toggle; reservation Cancel from a planning-day returns to the planning-day form; dates render DD.MM.YYYY; clubadmin1 sees seeded rows + a working Users menu + no Clubs nav; Reservations nav entry present.
 - **J-7:** Pick a canned report → table renders; custom report builder filters; Excel download cell-matches the legacy fixture (parity harness green).
 - **J-8:** Create/edit an AccountingRuleFilter; list reflects it; filter-type dropdowns populate.
 - **J-9:** `generateExampleDelivery(flightId)` previews invoice items bit-equivalent to legacy for the corpus flight; a stored DeliveryCreationTest run passes.
