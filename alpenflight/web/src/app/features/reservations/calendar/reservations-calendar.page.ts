@@ -137,9 +137,9 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
                   [attr.aria-selected]="d.isSelected"
                   class="flex min-w-14 flex-col items-center gap-0.5 border-0 px-3 py-1.5 cursor-pointer not-first:border-l not-first:border-slate-300"
                   [class.bg-slate-900]="d.isSelected"
-                  [class.text-white]="d.isSelected"
+                  [class.!text-white]="d.isSelected"
                   [class.bg-white]="!d.isSelected"
-                  [class.text-slate-500]="!d.isSelected"
+                  [class.!text-slate-500]="!d.isSelected"
                   (click)="selectDay(d)"
                   [attr.data-testid]="'reservations-daypicker-' + d.key"
                 >
@@ -170,15 +170,21 @@ const MAINTENANCE_TYPES = new Set(['Maintenance', 'Wartung', 'Unterhalt']);
           <div class="flex border border-slate-300" data-testid="reservations-view-toggle">
             @for (v of views; track v) {
               <!-- Selected = design fg-bg + bg-text (screens-reservations.jsx:106-110):
-                   surface-fg (slate-900) ground + surface-bg (white) text, a legible
-                   active state, not an inverted "blacked-out" block (J-6b T-08 #2). -->
+                   surface-fg (slate-900) ground + white text, a legible active
+                   state, not an inverted "blacked-out" block (J-6b T-08 #2).
+                   The text color utility is IMPORTANT deliberately (J-6b T-17):
+                   ng-zorro's stylesheet is imported UNLAYERED (styles.css:2), so
+                   its global button color reset beats Tailwind's LAYERED text
+                   utilities and left the selected button dark-on-dark (the
+                   operator's #2 bug T-08 missed). The important utility wins the
+                   cascade over the unlayered antd reset, restoring legible text. -->
               <button
                 type="button"
                 class="border-0 px-3.5 py-1.5 text-xs font-medium capitalize cursor-pointer not-first:border-l not-first:border-slate-300"
                 [class.bg-slate-900]="view() === v"
-                [class.text-white]="view() === v"
+                [class.!text-white]="view() === v"
                 [class.bg-white]="view() !== v"
-                [class.text-slate-500]="view() !== v"
+                [class.!text-slate-500]="view() !== v"
                 [class.hover:bg-slate-50]="view() !== v"
                 (click)="view.set(v)"
                 [attr.aria-pressed]="view() === v"

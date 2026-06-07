@@ -114,12 +114,27 @@ function dayBlock(page: Page, aircraftId: string, reservationId: string) {
  * before the next — no race, no overshoot. Proven locally on the shared calendar
  * DOM via the mock-auth `reservations-crud` day-picker-nav test. No
  * `waitForTimeout` (gates on app/DOM state only).
+ *
+ * J-6b T-08/T-17: the pager granularity now follows the active VIEW — the
+ * week-pager testids (`reservations-{prev,next}-week`) ONLY exist in WEEK view;
+ * in the default DAY view the pager renders `reservations-{prev,next}-day`
+ * instead. So to shift across weeks we first switch to week view, step by weeks,
+ * pick the target pill, then return to the day view the assertions read (mirrors
+ * the mock `reservations-crud.spec.ts` helper T-08 fixed). Clicking
+ * `reservations-next-week` straight off the day view would target a non-existent
+ * button — the J-5 coupling this T-17 fix closes on the real-idp sibling.
  */
 async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
   const pill = page.getByTestId(`reservations-daypicker-${dateKey}`);
   const todayMs = new Date(`${todayKey()}T00:00:00`).getTime();
   const targetMs = new Date(`${dateKey}T00:00:00`).getTime();
   const direction = targetMs >= todayMs ? 'next' : 'prev';
+  // The week-pager only exists in week view; switch to it before stepping weeks.
+  const wasDay =
+    (await page.getByTestId('reservations-view-day').getAttribute('data-selected')) === 'true';
+  if ((await pill.count()) === 0 && wasDay) {
+    await page.getByTestId('reservations-view-week').click();
+  }
   // The first picker pill's key identifies the currently-rendered week.
   const firstPillKey = async (): Promise<string | null> => {
     const first = page.locator('[data-testid^="reservations-daypicker-"]').first();
@@ -137,6 +152,10 @@ async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
   }
   await expect(pill, `the day-picker must reach ${dateKey}`).toBeVisible();
   await pill.click();
+  // Restore the day view the all-day-band / future-block assertions rely on.
+  if (wasDay) {
+    await page.getByTestId('reservations-view-day').click();
+  }
 }
 
 /** `YYYY-MM-DD` `days` days from local today (a distinct day for UI render). */

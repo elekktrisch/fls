@@ -56,15 +56,26 @@ gallery's pairing anymore (the refs are here).
 | feature | journey | source | captured |
 | --- | --- | --- | --- |
 | `planning` | J-6 | legacy `flsweb` planning future-days list + one day's edit form + the `/planningsetup` wizard (`planning-parity-J6.spec.ts`) | 1280×800 full-page PNGs; list 33KB · form 44KB · setup 19KB |
-| `reservations` | J-6b | legacy `flsweb` aircraft-reservation edit form (`reservations/form.png`) — for the reservation-edit hardening pairing. PENDING capture at T-17 (the Day/Week calendar is greenfield → AlpenFlight-only, no legacy ref). | — (captured at T-17) |
+| `reservations` | J-6b | legacy `flsweb` aircraft-reservation edit form (`reservations/form.png`) — for the reservation-edit hardening pairing. NOT committed (the legacy Node-8 `flsweb` + MSSQL stack is unavailable locally; the heavy chain captures it at the CI fan-out, not in T-17's local budget). | — (deferred — AlpenFlight-only until a same-surface fanout run commits it) |
 
 When a future journey lands its legacy refs here, add a row above with its
 provenance so the "captured once" lineage stays auditable.
 
-**J-6b note (T-01):** the planning-edit hardening reuses the committed
-`planning/form.png` ref (the field set is unchanged — only read-only/edit-mode +
-DD.MM.YYYY + inline validation are hardened on it). The reservation-edit
-`reservations/form.png` ref is captured at T-17 (the per-push gallery's `add_pair`
-degrades to the AlpenFlight side until it lands). The reservations Day/Week
-CALENDAR is greenfield UX (no legacy parity per `J-6b-oracle.md` §Reservations) →
-AlpenFlight-only shots, never paired.
+**J-6b decision (T-17, legacy-pairing per screen):**
+- **planning-edit form** → PAIRED against the committed `planning/form.png` ref
+  (the field set is unchanged — only read-only/edit-mode + DD.MM.YYYY + inline
+  validation are hardened on it). The real-idp sibling captures
+  `alpenflight-planning-edit-form.png`; CI `add_pair` pairs the two.
+- **reservation-edit form** → AlpenFlight-only for now. The legacy
+  `reservations/form.png` ref could not be captured in T-17 (no local legacy
+  stack); the existing legacy `reservations-parity-J5.spec.ts` shoots the legacy
+  reservation edit form in the fan-out, so a future same-surface fanout run can
+  commit it here once. Until then CI's `add_pair` degrades to the AlpenFlight
+  side (or skips the whole pair when no AF reservation-edit shot is captured —
+  the J-6b real-idp sibling captures the calendar + planning form, not a
+  reservation-edit form, since seeding a pickable reservation for clubadmin1's
+  clean tenant is out of T-17's one-spec budget; the reservation-edit hardening
+  is fully proven in the mock inner-loop + the J-5 reservation real chain).
+- **reservations Day/Week CALENDAR** → greenfield UX (no legacy parity per
+  `J-6b-oracle.md` §Reservations) → AlpenFlight-only shots
+  (`alpenflight-reservations-calendar-day.png` / `-week.png`), never paired.

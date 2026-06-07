@@ -1,48 +1,30 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 
 /**
- * Planning-day READ-ONLY / EDIT-MODE + cancel-return nav — J-6b INNER-LOOP spec
- * STUB (T-01).
+ * Planning-day READ-ONLY / EDIT-MODE + reservation cancel-return nav — J-6b
+ * INNER-LOOP spec (T-17, thickened from the T-01 stub to full real assertions).
  *
- * SPEC SKELETON ONLY. This task (J-6b T-01) commits the *screen shape* — the
- * `data-testid` selectors + the flow steps + THIN assertions — for the J-6
- * planning-edit hardening. The page-driving cases are `test.fixme` (parsed +
- * typechecked, NOT run); they un-fixme as T-09 (read-only + Edit toggle) and
- * T-10 (reservation Cancel honours a returnUrl) land the behaviour, and T-17
- * thickens to the full real assertions. The mock route wiring is authored so
- * un-fixme is a per-test flip, not a rewrite. Mirrors the J-6 inner-loop
- * discipline (`planning-crud.spec.ts`).
+ * Mock-auth fidelity: the SYSTEM_ADMINISTRATOR + CLUB_ADMINISTRATOR mock
+ * principal (so the edit affordances render) + every `/api/v1/*` call
+ * intercepted via `page.route` — no live backend. The FULL real chain is the
+ * gate's job (`tests/real-idp/reservations-planning-hardening.spec.ts`); this
+ * spec pins the screen behaviour fast in the inner loop.
  *
- * Mock-auth fidelity (once un-fixme'd): the SYSTEM_ADMINISTRATOR +
- * CLUB_ADMINISTRATOR mock principal (so the edit affordances render) + every
- * `/api/v1/*` call intercepted via `page.route` — no live backend. The FULL real
- * chain is the gate's job; this spec pins the screen behaviour fast in the inner
- * loop.
- *
- * ── SCREEN SHAPE (from J-6b "Spec must assert" §Planning) ────────────────────
- *   READ-ONLY (T-09, items #10/#11) — opening a planning-day in VIEW mode
- *     (`/planning/:id/view`, the `:mode` route segment = `view`) renders EVERY
- *     field disabled/read-only — the
- *     assertion is that an input is non-editable, not merely that Save is absent.
- *     A read-only view exposes an `Edit` affordance (`planning-edit-toggle`) that
- *     flips the form to edit mode (fields editable, Save returns).
- *   CANCEL-RETURN (T-10, item #9) — from an EDIT planning-day, opening a
- *     reservation from the inline list (`<af-reservation-row>`) carries a
- *     `returnUrl=/planning/:id/edit`; the reservation-edit `Cancel`
- *     (`reservation-edit-cancel`) honours it and returns to the planning-day edit
- *     form — NOT `/reservations` (today the cancel handler hardcodes /reservations).
- *
- * Selectors reused from J-6 (`planning-crud.spec.ts`):
- *   `planning-edit-form`, `planning-date`, `planning-location-select`,
- *   `planning-reservations-panel`, `planning-reservation-<id>`,
- *   `planning-reservation-edit-<id>`, `planning-save-button`.
- * NEW for J-6b (land with the behaviour; named here so the shape is committed):
- *   `planning-edit-toggle`        (the read-only → edit affordance, T-09),
- *   `reservation-edit-cancel`     (the reservation-edit Cancel button, T-10).
+ * ── SCREEN SHAPE (J-6b "Spec must assert" §Planning) ─────────────────────────
+ *   READ-ONLY (T-09, items #10/#11) — `/planning/:id/view` renders EVERY field
+ *     disabled (the assertion is the field state, not merely Save absence — the
+ *     operator's #10 complaint), and exposes an `Edit` affordance
+ *     (`planning-edit-toggle`) that flips to `/planning/:id/edit` (fields
+ *     editable, Save returns).
+ *   CANCEL-RETURN (T-10, item #9) — from an EDIT planning-day, the inline
+ *     reservation row's open-link carries `returnUrl=/planning/:id/edit`; the
+ *     reservation-edit `Cancel` (`reservation-edit-cancel`) honours it and
+ *     returns to the planning-day edit form — NOT `/reservations`.
  */
 
 const CLUB_A_ID = '019e30c3-2c00-7001-8000-000000000001';
 const LOCATION_BERN_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
+const AC_ID = '019e30c3-2c00-7001-8000-00000000a001';
 const SEED_DAY_ID = '019e30c3-2c00-7001-8000-000000000e01';
 const SEED_DAY_RESERVATION_ID = '019e30c3-2c00-7001-8000-000000000f01';
 
@@ -69,12 +51,34 @@ const seedDay = {
   canDeleteRecord: true,
 };
 
-const mockLocations = [{ id: LOCATION_BERN_ID, locationName: 'Bern-Belp', isAirfield: true }];
+/** The inline per-day reservation the panel lists (the J-5 read-side join shape). */
+const dayReservation = {
+  id: SEED_DAY_RESERVATION_ID,
+  aircraftId: AC_ID,
+  start: `${SEED_DAY_KEY}T10:00:00Z`,
+  end: `${SEED_DAY_KEY}T12:00:00Z`,
+  isAllDay: false,
+  pilotPersonId: '019e30c3-2c00-7001-8000-0000000000b1',
+  locationId: LOCATION_BERN_ID,
+  reservationTypeId: '019e30c3-2c00-7001-8000-0000000000d1',
+  reservationTypeName: 'Flight',
+};
 
-/** Wire the planning-edit read endpoints the planning store loads on `:id`. */
+const mockLocations = [{ id: LOCATION_BERN_ID, locationName: 'Bern-Belp', isAirfield: true }];
+const mockAircraft = [{ id: AC_ID, immatriculation: 'HB-3210', isTowingAircraft: false }];
+
+/** Wire the planning-edit read endpoints + the inline per-day reservations join. */
 async function wirePlanningDay(page: Page): Promise<void> {
-  await page.route('**/api/v1/locations**', (route) => route.fulfill({ json: mockLocations }));
-  await page.route('**/api/v1/persons**', (route) => route.fulfill({ json: [] }));
+  await page.route('**/api/v1/locations', (route) => route.fulfill({ json: mockLocations }));
+  await page.route('**/api/v1/persons', (route) => route.fulfill({ json: [] }));
+  await page.route('**/api/v1/aircraft/picker**', (route) => route.fulfill({ json: mockAircraft }));
+  await page.route('**/api/v1/aircraft-reservation-types**', (route) =>
+    route.fulfill({ json: [] }),
+  );
+  // The (date, location) inline join the panel loads (T-08c).
+  await page.route('**/api/v1/aircraft-reservations/day/**', (route) =>
+    route.fulfill({ json: [dayReservation] }),
+  );
   await page.route(`**/api/v1/planning-days/${SEED_DAY_ID}`, (route) => {
     if (route.request().method() === 'GET') {
       route.fulfill({ json: seedDay });
@@ -91,54 +95,105 @@ async function gotoDe(page: Page, path: string): Promise<void> {
 
 // ── Read-only + Edit toggle (T-09, items #10/#11) ────────────────────────────
 test.describe('J-6b planning read-only + Edit toggle (mock-auth inner loop)', () => {
-  test.fixme('read-only view renders ALL fields disabled (not just Save hidden)', async ({
-    page,
-  }) => {
+  test('read-only view renders ALL fields disabled (not just Save hidden)', async ({ page }) => {
     await wirePlanningDay(page);
     await gotoDe(page, `/planning/${SEED_DAY_ID}/view`);
 
     await expect(page.getByTestId('planning-edit-form')).toBeVisible();
-    // An input is genuinely non-editable — the assertion is the field state, NOT
-    // merely the Save button absence (the operator's #10 complaint).
-    await expect(page.getByTestId('planning-date').locator('input')).toBeDisabled();
-    await expect(page.getByTestId('planning-save-button')).toHaveCount(0);
 
+    // CAPTURE-BEFORE-DEEP-ASSERT: the read-only day (a partial red still shoots).
     await page.screenshot({ path: 'screenshots/planning/05-readonly.png', fullPage: true });
+
+    // EVERY field is genuinely non-editable — the assertion is the field state
+    // (the operator's #10: form looked editable though `form.disable()` ran; the
+    // CVA `setDisabledState` no-op was the bug T-09 fixed). Assert the date input,
+    // the remarks input AND a select are all disabled, not merely Save absence.
+    await expect(page.getByTestId('planning-date').locator('input')).toBeDisabled();
+    await expect(page.getByTestId('planning-remarks').locator('input')).toBeDisabled();
+    await expect(
+      page.getByTestId('planning-location-select').locator('nz-select'),
+      'the location select renders disabled in read-only mode',
+    ).toHaveClass(/ant-select-disabled/);
+    // Save is gone in view mode (the operator saw ONLY this before — necessary
+    // but not sufficient; the fields above are the real read-only proof).
+    await expect(page.getByTestId('planning-save-button')).toHaveCount(0);
   });
 
-  test.fixme('Edit affordance flips read-only → edit mode (fields editable, Save returns)', async ({
+  test('Edit affordance flips read-only → edit mode (fields editable, Save returns)', async ({
     page,
   }) => {
     await wirePlanningDay(page);
     await gotoDe(page, `/planning/${SEED_DAY_ID}/view`);
 
-    await page.getByTestId('planning-edit-toggle').locator('button').click();
+    // The read-only view exposes an Edit button; clicking it routes to /edit.
+    const editToggle = page.getByTestId('planning-edit-toggle');
+    await expect(editToggle).toBeVisible();
+    await editToggle.locator('button').click();
+    await expect(page).toHaveURL(new RegExp(`/planning/${SEED_DAY_ID}/edit`));
 
-    // Now editable + Save returns.
+    // Now editable (the disable effect re-enables on the route flip) + Save returns.
     await expect(page.getByTestId('planning-date').locator('input')).toBeEnabled();
+    await expect(page.getByTestId('planning-remarks').locator('input')).toBeEnabled();
     await expect(page.getByTestId('planning-save-button')).toBeVisible();
+    // The Edit toggle is gone in edit mode (it is view-only).
+    await expect(page.getByTestId('planning-edit-toggle')).toHaveCount(0);
   });
 });
 
 // ── Reservation Cancel returns to the planning day (T-10, item #9) ───────────
 test.describe('J-6b reservation Cancel returns to planning (mock-auth inner loop)', () => {
-  test.fixme('edit planning-day → open inline reservation → Cancel returns to planning-day edit', async ({
+  test('edit planning-day → open inline reservation → Cancel returns to the planning-day edit form', async ({
     page,
   }) => {
     await wirePlanningDay(page);
-    await page.route(`**/api/v1/aircraft-reservations/${SEED_DAY_RESERVATION_ID}`, (route) =>
-      route.fulfill({ json: { id: SEED_DAY_RESERVATION_ID, operatingClubId: CLUB_A_ID } }),
+    // The reservation-edit form loads the opened reservation's detail (GET /{id}).
+    await page.route(
+      `**/api/v1/aircraft-reservations/${SEED_DAY_RESERVATION_ID}`,
+      (route: Route) => {
+        if (route.request().method() === 'GET') {
+          route.fulfill({
+            json: {
+              id: SEED_DAY_RESERVATION_ID,
+              operatingClubId: CLUB_A_ID,
+              aircraftId: AC_ID,
+              pilotPersonId: dayReservation.pilotPersonId,
+              locationId: LOCATION_BERN_ID,
+              reservationTypeId: dayReservation.reservationTypeId,
+              start: dayReservation.start,
+              end: dayReservation.end,
+              isAllDay: false,
+            },
+          });
+          return;
+        }
+        route.fallback();
+      },
     );
-    await gotoDe(page, `/planning/${SEED_DAY_ID}/edit`);
 
-    // Open a reservation from the inline list — the row's [openLink] carries a
-    // returnUrl=/planning/:id/edit (T-10 call-site).
+    await gotoDe(page, `/planning/${SEED_DAY_ID}/edit`);
+    await expect(page.getByTestId('planning-edit-form')).toBeVisible();
+
+    // The inline per-day reservations panel lists the day's reservation; its open
+    // link carries returnUrl=/planning/:id/edit (T-10 call-site).
     const panel = page.getByTestId('planning-reservations-panel');
-    await panel.getByTestId(`planning-reservation-edit-${SEED_DAY_RESERVATION_ID}`).click();
-    await expect(page).toHaveURL(/returnUrl=/);
+    await expect(panel).toBeVisible();
+    const openLink = panel.getByTestId(`planning-reservation-edit-${SEED_DAY_RESERVATION_ID}`);
+    await expect(openLink).toHaveAttribute(
+      'href',
+      `/reservations/${SEED_DAY_RESERVATION_ID}/edit?returnUrl=${encodeURIComponent(
+        `/planning/${SEED_DAY_ID}/edit`,
+      )}`,
+    );
+    await openLink.click();
+
+    // We are on the reservation editor, carrying the returnUrl query.
+    await expect(page).toHaveURL(
+      new RegExp(`/reservations/${SEED_DAY_RESERVATION_ID}/edit\\?returnUrl=`),
+    );
+    await expect(page.getByTestId('reservation-edit-form')).toBeVisible();
 
     // Cancel honours the returnUrl → back to the planning-day EDIT form
-    // (NOT /reservations, today's hardcoded target).
+    // (NOT /reservations, the pre-T-10 hardcoded target).
     await page.getByTestId('reservation-edit-cancel').locator('button').click();
     await expect(page).toHaveURL(new RegExp(`/planning/${SEED_DAY_ID}/edit`));
     await expect(page.getByTestId('planning-edit-form')).toBeVisible();
