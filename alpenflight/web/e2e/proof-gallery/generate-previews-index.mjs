@@ -93,33 +93,33 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * them), including a pre-T-32 J-0 page whose relative `../previews/` back-link 404s.
  * `subPath` is appended to `<base>/<branch>` for the on-disk probe + the href.
  */
-// `rank` orders the sources (lower = preferred). Branch-preview sources share
-// rank 0, so among the active branch's pages the FRESHEST (by mtime) wins —
-// see `locateJourneyPage`. Canonical (main) and the fan-out archive follow.
+// `rank` orders the sources (lower = preferred); `locateJourneyPage` picks the
+// lowest rank, breaking ties by freshest mtime.
 //
 // T-13b (operator, 2026-06-07): the branch source MUST probe BOTH branch
 // sub-locations, not just `legacy-parity/`:
-//   - `<branch>/J-<n>/`               ← the per-push `alpenflight-proof`
-//                                        (clean-seed real-idp) deploy. Runs on
-//                                        EVERY push, so it's what surfaces the
-//                                        journey-under-work between fanouts.
 //   - `<branch>/legacy-parity/J-<n>/` ← the fan-out (`alpenflight-proof-fanout.yml`)
-//                                        deploy. Nightly / dispatch only.
-// T-37 had narrowed the branch source to `legacy-parity/` ONLY (to dodge a stale
-// pre-T-32 parent-level J-0 page), which silently dropped the per-push clean-seed
-// per-journey page → the journey-under-work read as `pending` on the operator's
-// bookmark until a nightly fanout ran (J-6: gallery empty all day). Probing both +
-// picking the freshest mtime restores per-push surfacing without resurrecting a
-// stale page (an older deploy always loses the mtime tie-break).
+//                                        deploy. The RICHER page — paired
+//                                        legacy↔AlpenFlight screenshots + the
+//                                        AlpenFlight videos. Nightly / dispatch.
+//   - `<branch>/J-<n>/`               ← the per-push `alpenflight-proof`
+//                                        (clean-seed real-idp) deploy. THINNER —
+//                                        AlpenFlight videos only, NO legacy
+//                                        pairing. Runs on EVERY push.
+// T-37 had narrowed the branch source to `legacy-parity/` ONLY (dodging a stale
+// parent-level page), which silently dropped the per-push page → the
+// journey-under-work read `pending` until a nightly fanout ran. T-13b restored the
+// per-push probe.
+//
+// T-13b FOLLOW-UP (operator, 2026-06-07 — "parity screenshots missing"): the two
+// branch sources must NOT share a rank with a freshest-mtime tie-break. The
+// per-push deploy runs on EVERY push, so it is almost always FRESHER than the
+// occasional fan-out — so freshest-wins linked the THINNER videos-only page and
+// HID the paired legacy↔AlpenFlight screenshots the operator wants. Rank the
+// RICHER legacy-parity page ABOVE the bare per-push page: when both exist (J-6),
+// the bookmark links the paired-screenshot page; when only the per-push page
+// exists (no fan-out yet), it still surfaces (the T-13b goal) instead of pending.
 export const JOURNEY_PAGE_SOURCES = [
-  {
-    id: 'branch',
-    base: 'alpenflight/proof-preview',
-    needsBranch: true,
-    subPath: null,
-    label: 'branch preview',
-    rank: 0,
-  },
   {
     id: 'branch-parity',
     base: 'alpenflight/proof-preview',
@@ -128,13 +128,21 @@ export const JOURNEY_PAGE_SOURCES = [
     label: 'branch preview (legacy-parity)',
     rank: 0,
   },
-  { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published', rank: 1 },
+  {
+    id: 'branch',
+    base: 'alpenflight/proof-preview',
+    needsBranch: true,
+    subPath: null,
+    label: 'branch preview',
+    rank: 1,
+  },
+  { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published', rank: 2 },
   {
     id: 'archive',
     base: 'alpenflight/proof/legacy-parity',
     needsBranch: false,
     label: 'legacy-parity archive',
-    rank: 2,
+    rank: 3,
   },
 ];
 

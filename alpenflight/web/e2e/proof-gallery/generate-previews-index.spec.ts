@@ -181,12 +181,14 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     expect(j6.href).toBe(`../proof-preview/${branch}/J-6/`);
   });
 
-  it('picks the FRESHEST branch page when both per-push and fanout exist (T-13b)', async () => {
-    // Both rank-0 branch sources present: the parent-level per-push page and the
-    // legacy-parity fanout page. The freshest (by mtime) wins — so a newer fanout
-    // legacy-parity page supersedes an older per-push page, and a stale parent
-    // page never beats a newer legacy-parity one (the T-37 concern, handled by
-    // freshness rather than by hiding the parent level).
+  it('prefers the RICHER legacy-parity page over the per-push page EVEN WHEN per-push is fresher (T-13b follow-up)', async () => {
+    // The exact bug the operator hit ("parity screenshots missing"): the per-push
+    // clean-seed deploy runs on EVERY push, so it is almost always FRESHER than the
+    // occasional fan-out legacy-parity deploy. A freshest-mtime tie-break therefore
+    // linked the THINNER videos-only per-push page and HID the paired
+    // legacy↔AlpenFlight screenshots (which live only on the legacy-parity page).
+    // The legacy-parity page is ranked ABOVE the bare per-push page, so it wins even
+    // when the per-push page is the newer of the two.
     const { scanJourneys } = await loadGenerator();
     const { utimesSync } = await import('node:fs');
     const { root, orderPath } = makeRoot();
@@ -197,9 +199,9 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
       `alpenflight/proof-preview/${branch}/legacy-parity`,
       'J-6',
     );
-    // Make the legacy-parity (fanout) page the fresher of the two.
-    utimesSync(parent, new Date('2026-06-07T00:00:00Z'), new Date('2026-06-07T00:00:00Z'));
-    utimesSync(parity, new Date('2026-06-07T06:00:00Z'), new Date('2026-06-07T06:00:00Z'));
+    // Make the per-push (parent) page the FRESHER of the two — the real scenario.
+    utimesSync(parity, new Date('2026-06-07T00:00:00Z'), new Date('2026-06-07T00:00:00Z'));
+    utimesSync(parent, new Date('2026-06-07T07:00:00Z'), new Date('2026-06-07T07:00:00Z'));
 
     const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
     expect(j6.found).toBe(true);
