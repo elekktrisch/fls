@@ -549,3 +549,14 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
     `…/proof-preview/integration-J-6/legacy-parity/J-6/` (legacy + AlpenFlight × list/form/setup), the page
     renders the 3 paired view rows + the legacy parity video, and the persistent bookmark
     `…/alpenflight/previews/index.html` surfaces `…/legacy-parity/J-6/` (freshest-wins, T-13b). *(e2e-driver, parity capture)* [[feedback_proof_in_gallery_not_chat]]
+  > **GATE BLOCKER — correction to the note above (manager, 2026-06-07):** the J-0c Location real-bundle
+  > ingest `sqlstate=23505` (`fan-out-migration-parity.spec.ts:133`, masked `INGEST_INTERNAL_ERROR`) is **NOT
+  > confirmed mirrored on main** — main's same-minute cron (27084966831) failed on an UNRELATED **gh-pages
+  > push race** (`failed to push some refs`), not a 23505. And it is **NOT the same family as the
+  > `ExportCommandSmokeTest` red** (that was a real T-11 code regression — the bound-vs-registered entity set —
+  > now FIXED in `84c84de2`). The 23505 is in the SHARED J-0c Location chain (no planning code); most likely
+  > shared-real-idp-DB residue / ingest idempotency on the deployment id, surfaced now the fanout runs more
+  > specs. Overlaps the roadmapped J-0b "CLUB pgcopy ↔ seedClubLegacyIdMap" follow-up. **At the §4 gate:**
+  > re-run the fanout to test determinism; if deterministic, surface the masked constraint (server ingest
+  > error logging) + fix the residue/idempotency or escalate to the J-0b item. §4 cannot go green until cleared.
+  > [[project_synth_bundle_doesnt_validate_producer_select]]
