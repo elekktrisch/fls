@@ -238,6 +238,27 @@ const de = {
     tagline:
       'Lade die Handshake-Datei herunter und übergib sie der Export-App. Die Daten werden damit verschlüsselt, bevor sie unsere Server erreichen.',
   },
+  planning: {
+    cancel: 'Abbrechen',
+    col: {
+      date: 'Datum',
+      flightOperator: 'Segelflugleiter',
+      instructor: 'Fluglehrer',
+      location: 'Standort',
+      reservations: 'Reservationen',
+      towPilot: 'Schlepppilot',
+    },
+    delete: 'Löschen',
+    deleteConfirm: 'Planungstag vom {{date}} löschen? Dies kann nicht rückgängig gemacht werden.',
+    deleteTitle: 'Planungstag löschen',
+    edit: 'Bearbeiten',
+    empty: 'Keine zukünftigen Planungstage.',
+    new: 'Neuer Planungstag',
+    rowActions: 'Aktionen für Planungstag',
+    setup: 'Einrichten',
+    title: 'Planung',
+    view: 'Ansehen',
+  },
   profile: {
     account: {
       clubId: 'Verein',

@@ -234,6 +234,28 @@ const fr: Translations = {
     tagline:
       'Téléchargez le fichier de handshake et fournissez-le à l’outil d’export. Vos données sont chiffrées avant d’atteindre nos serveurs.',
   },
+  planning: {
+    cancel: 'Annuler',
+    col: {
+      date: 'Date',
+      flightOperator: 'Chef de piste',
+      instructor: 'Instructeur',
+      location: 'Site',
+      reservations: 'Réservations',
+      towPilot: 'Pilote remorqueur',
+    },
+    delete: 'Supprimer',
+    deleteConfirm:
+      'Supprimer la journée de planification du {{date}} ? Cette action est irréversible.',
+    deleteTitle: 'Supprimer la journée de planification',
+    edit: 'Modifier',
+    empty: 'Aucune journée de planification à venir.',
+    new: 'Nouvelle journée de planification',
+    rowActions: 'Actions pour la journée de planification',
+    setup: 'Configurer',
+    title: 'Planification',
+    view: 'Voir',
+  },
   profile: {
     account: {
       clubId: 'Club',

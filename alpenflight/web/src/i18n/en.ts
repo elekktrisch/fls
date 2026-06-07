@@ -229,6 +229,27 @@ const en: Translations = {
     tagline:
       'Download the handshake file and give it to the export tool. Your data is encrypted before it reaches our servers.',
   },
+  planning: {
+    cancel: 'Cancel',
+    col: {
+      date: 'Date',
+      flightOperator: 'Flight operator',
+      instructor: 'Instructor',
+      location: 'Location',
+      reservations: 'Reservations',
+      towPilot: 'Tow pilot',
+    },
+    delete: 'Delete',
+    deleteConfirm: 'Delete the planning day on {{date}}? This cannot be undone.',
+    deleteTitle: 'Delete planning day',
+    edit: 'Edit',
+    empty: 'No upcoming planning days.',
+    new: 'New planning day',
+    rowActions: 'Actions for planning day',
+    setup: 'Setup',
+    title: 'Planning',
+    view: 'View',
+  },
   profile: {
     account: {
       clubId: 'Club',

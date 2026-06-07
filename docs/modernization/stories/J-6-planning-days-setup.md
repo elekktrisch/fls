@@ -300,8 +300,25 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   residual planning clones (handler scaffolding / paged-DTO / JPA column block) are irreducible Spring/JPA
   structural boilerplate, documented in `config/pmd/cpd-baseline.txt`. `./gradlew check` green
   (`cpdRatchet measured=4767`, whole `test` suite green, arch guards accept the new `platform.web` import). *(server CPD/planning resource)*
-- [ ] **T-07 — SPA planning list page.** `/planning` list + store + route + orval client; future-days,
+- [x] **T-07 — SPA planning list page.** `/planning` list + store + route + orval client; future-days,
   Sat/Sun flag, new/edit/view/delete actions. *(component-route seam)*
+  **Done:** `features/planning/` (mirrors J-5 `features/reservations/`): `planning.routes.ts` (route `/planning`,
+  tenant-guarded, `showNavBar`), `planning.store.ts` (root-scoped Signal Store — `loadFuture` via the orval
+  `listFuturePlanningDays` GET `overview/future`, `delete` → `deletePlanningDay` + `planningDay.deleted` bus
+  event + refetch, decoration maps for location + crew names; **reuses the shared `mapApiSaveError` helper, NOT
+  the high-CRAP `errorPatch`** — low-CRAP rider), and `list/planning-list.page.ts` (paged future-days table:
+  date + DE weekday with Sat/Sun `data-weekend` flag + brand tint; location; 3 crew display names; computed
+  `numberOfAircraftReservations`; kebab row actions view/edit/delete gated on `canUpdateRecord`/`canDeleteRecord`;
+  delete → inline confirm dialog → store.delete; top actions New → `/planning/new/edit` + Setup → `/planningsetup`).
+  Wired exactly as J-5 `/reservations`: route registered in `app.routes.ts`, nav entry added to `TENANT_SECTIONS`
+  (`/planning`, calendar icon), admin-gated affordances (`isClubAdmin || isSystemAdmin`). Added 3 `planningDay.*`
+  mutation-bus events, `LucideEye` to the icon registry, and the `planning` i18n scope to all 4 locales (de source
+  + en/fr/it). No design oracle (J-6 Notes) — built to ADR-0024 tokens + J-5's list visual language.
+  **Tests:** `planning.store.spec.ts` (7 vitest cases — load/error/delete-bus/inline-error/refetch/logout-clear);
+  new `e2e/tests/planning/planning-list.spec.ts` (3 mock-auth cases — render+crew+count+weekend-flag / top-actions /
+  delete-confirm→DELETE→leaves-list) GREEN locally against system chromium (3 passed). The shared
+  `planning-crud.spec.ts` stays `test.fixme` (its POST-page + edit-form contract is T-08/T-09/T-16's to un-fixme).
+  Preflight green LOCALLY: lint ✓, tsc ✓, `ng test` 382 ✓, `ng build` production ✓ (planning-list-page chunk emitted).
 - [ ] **T-08 — SPA planning edit page.** `/planning/:id/edit|view`: date, location, 3 person pickers,
   remarks; **reuse J-5's extracted form↔request + errorPatch helper (low-CRAP rider)**; per-day
   reservations inline (J-5 rows) + link to reservation editor + "new reservation" preseed. *(component-route seam)*
