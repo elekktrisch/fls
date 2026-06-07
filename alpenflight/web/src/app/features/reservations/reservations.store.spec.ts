@@ -46,10 +46,18 @@ const seedPage: AircraftReservationPage = {
   totalRows: 1,
 };
 
-const types: AircraftReservationTypeListItem[] = [{ id: 'rt-1', name: 'Flight', active: true }];
+const types: AircraftReservationTypeListItem[] = [
+  { id: 'rt-1', name: 'Flight', active: true, instructorRequired: false },
+];
 
 const aircraftPicker: AircraftPickerItem[] = [
-  { id: AC_ID, immatriculation: 'HB-SAME', aircraftTypeId: 'gt-1', isTowingAircraft: false },
+  {
+    id: AC_ID,
+    immatriculation: 'HB-SAME',
+    aircraftTypeId: 'gt-1',
+    isTowingAircraft: false,
+    nrOfSeats: 1,
+  },
 ];
 
 const persons: PersonListItem[] = [

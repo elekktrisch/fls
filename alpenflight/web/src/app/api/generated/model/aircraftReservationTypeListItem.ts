@@ -13,4 +13,6 @@ export type AircraftReservationTypeListItem = {
   id: string;
   name: string;
   active: boolean;
+  /** Whether picking this type requires a Second-Crew person. AlpenFlight's reservation-type model carries only the single is_instructor_required flag; the legacy ObserverPilotOrInstructorRequired / IsPassengerRequired FlightType-derived flags are NOT modeled here, so this one boolean is the collapsed second-crew-required driver for the type lane (the aircraft NrOfSeats>1 driver rides the picker). */
+  instructorRequired: boolean;
 };

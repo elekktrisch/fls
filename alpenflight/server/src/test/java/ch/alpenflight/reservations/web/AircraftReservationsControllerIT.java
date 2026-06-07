@@ -257,6 +257,38 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
         assertThat(items.get(0).get("start").asText()).isEqualTo("2999-01-01T10:00:00Z");
     }
 
+    @Test
+    void typeListitems_carryInstructorRequired_drivingConditionalSecondCrew() {
+        // T-18: the type list projection must carry instructorRequired so the
+        // reservation form's conditional Second-Crew rule (required when the type
+        // requires a second crew member) can evaluate client-side. AlpenFlight's
+        // reservation-type model collapses legacy's three FlightType-derived flags
+        // into the single is_instructor_required column.
+        UUID instructorType = seedReservationType("Instruction", true);
+        UUID soloType = seedReservationType("Solo", false);
+
+        JsonNode items = readJson(get("/api/v1/aircraft-reservation-types"));
+        assertThat(items.isArray()).isTrue();
+
+        JsonNode instructor = findById(items, instructorType);
+        JsonNode solo = findById(items, soloType);
+        assertThat(instructor).as("the instructor-required type is listed").isNotNull();
+        assertThat(solo).as("the solo type is listed").isNotNull();
+        assertThat(instructor.has("instructorRequired")).isTrue();
+        assertThat(instructor.get("instructorRequired").asBoolean()).isTrue();
+        assertThat(solo.get("instructorRequired").asBoolean()).isFalse();
+    }
+
+    @org.jspecify.annotations.Nullable
+    private static JsonNode findById(JsonNode items, UUID id) {
+        for (JsonNode row : items) {
+            if (id.toString().equals(row.path("id").asText())) {
+                return row;
+            }
+        }
+        return null;
+    }
+
     // ----- payload + seed helpers -----
 
     private Map<String, Object> timedPayload(String startIso, String endIso) {
@@ -325,13 +357,17 @@ class AircraftReservationsControllerIT extends PostgresIntegrationTest {
     }
 
     private UUID seedReservationType() {
+        return seedReservationType("Flight", false);
+    }
+
+    private UUID seedReservationType(String name, boolean instructorRequired) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO t_aircraft_reservation_type (id, operating_club_id, reservation_type_name,
                         is_instructor_required, is_maintenance, is_active)
-                VALUES (?::uuid, ?::uuid, ?, false, false, true)
+                VALUES (?::uuid, ?::uuid, ?, ?, false, true)
                 """,
-                id.toString(), CLUB_ID, "Flight");
+                id.toString(), CLUB_ID, name, instructorRequired);
         return id;
     }
 

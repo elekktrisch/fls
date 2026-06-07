@@ -71,7 +71,12 @@ public final class AircraftDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftId id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String immatriculation,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AircraftTypeId aircraftTypeId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isTowingAircraft) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isTowingAircraft,
+            @Nullable
+                    @Schema(description = "Seat count — drives the conditional Second-Crew requirement"
+                            + " on the reservation form (required when nrOfSeats > 1). Nullable: an"
+                            + " aircraft may have an unknown seat count.")
+                    Integer nrOfSeats) {}
 
     @Schema(description = "Single state-history entry under an Aircraft.")
     public record AircraftStateHistoryEntryResponse(

@@ -46,7 +46,8 @@ public interface AircraftRepository {
     record PickerRow(UUID id,
                      String immatriculation,
                      UUID aircraftTypeId,
-                     boolean towingAircraft) {}
+                     boolean towingAircraft,
+                     @Nullable Integer nrOfSeats) {}
 
     List<ListRow> findAllActiveListRows();
 

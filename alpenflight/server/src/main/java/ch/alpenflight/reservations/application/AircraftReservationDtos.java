@@ -144,7 +144,16 @@ public final class AircraftReservationDtos {
     public record AircraftReservationTypeListItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean active) {}
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean active,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                            description = "Whether picking this type requires a Second-Crew person."
+                                    + " AlpenFlight's reservation-type model carries only the single"
+                                    + " is_instructor_required flag; the legacy"
+                                    + " ObserverPilotOrInstructorRequired / IsPassengerRequired"
+                                    + " FlightType-derived flags are NOT modeled here, so this one"
+                                    + " boolean is the collapsed second-crew-required driver for the"
+                                    + " type lane (the aircraft NrOfSeats>1 driver rides the picker).")
+                    boolean instructorRequired) {}
 
     /**
      * List-row projection for the paged list / future / day overview reads

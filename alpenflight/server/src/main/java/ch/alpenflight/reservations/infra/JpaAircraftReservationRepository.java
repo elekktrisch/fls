@@ -163,7 +163,7 @@ public interface JpaAircraftReservationRepository
 
     @Override
     @Query("select new ch.alpenflight.reservations.domain.AircraftReservationRepository$TypeListItem("
-            + "t.id, t.reservationTypeName, t.active) "
+            + "t.id, t.reservationTypeName, t.active, t.instructorRequired) "
             + "from AircraftReservationType t "
             + "where t.deletedOn is null "
             + "order by t.reservationTypeName asc")

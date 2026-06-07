@@ -77,7 +77,7 @@ public interface JpaAircraftRepository extends JpaRepository<Aircraft, UUID>, Ai
 
     @Override
     @Query("select new ch.alpenflight.aircraft.domain.AircraftRepository$PickerRow("
-            + "a.id, a.immatriculation, a.aircraftTypeId, a.towingAircraft) "
+            + "a.id, a.immatriculation, a.aircraftTypeId, a.towingAircraft, a.nrOfSeats) "
             + "from Aircraft a "
             + "where a.deletedOn is null "
             + "order by a.immatriculation asc")

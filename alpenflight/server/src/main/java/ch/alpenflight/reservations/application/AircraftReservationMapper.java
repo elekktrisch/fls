@@ -87,6 +87,7 @@ final class AircraftReservationMapper {
     }
 
     static AircraftReservationTypeListItem toTypeListItem(TypeListItem row) {
-        return new AircraftReservationTypeListItem(row.id(), row.name(), row.active());
+        return new AircraftReservationTypeListItem(
+                row.id(), row.name(), row.active(), row.instructorRequired());
     }
 }

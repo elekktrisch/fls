@@ -20,8 +20,10 @@ import { TranslocoDirective } from '@jsverse/transloco';
 import { map } from 'rxjs';
 
 import type {
+  AircraftPickerItem,
   AircraftReservationCreateRequest,
   AircraftReservationDetail,
+  AircraftReservationTypeListItem,
   AircraftReservationUpdateRequest,
   AircraftReservationValidateRequest,
 } from '@api/generated/model';
@@ -386,16 +388,24 @@ export class ReservationEditPage {
   });
   protected readonly endTimeErrors = liveFieldErrors(this.form.controls.endTime);
 
-  // Conditional Second-Crew (oracle: required when the type
-  // `IsInstructorRequired || ObserverPilotOrInstructorRequired ||
-  // IsPassengerRequired` or the aircraft `NrOfSeats > 1`). PARTIAL: those flags
-  // are NOT on the current `AircraftReservationTypeListItem` / `AircraftPickerItem`
-  // picker projections (only id/name/active and id/immat/type/towing). Exposing
-  // them needs a backend projection change — a SECOND seam, out of T-06's one-FE-
-  // seam scope. The conditional is wired here as a derived signal + dynamic
-  // validator so it flips on for free once the projections carry the flags;
-  // until then it evaluates false (never blocks). See report `@partial`.
-  protected readonly secondCrewRequired = computed(() => secondCrewRequiredFor());
+  // Conditional Second-Crew (oracle: required when the selected TYPE requires a
+  // second crew member OR the selected AIRCRAFT has `NrOfSeats > 1`). T-18 put
+  // `instructorRequired` on `AircraftReservationTypeListItem` (AlpenFlight
+  // collapses legacy's three FlightType flags into that one) + `nrOfSeats` on
+  // `AircraftPickerItem`, so this derived signal now reads the real picker data
+  // (T-06 wired the dynamic validator; this is the live driver). Re-derives when
+  // the type/aircraft selection changes or the pickers load.
+  protected readonly selectedType = computed<AircraftReservationTypeListItem | null>(
+    () =>
+      this.store.reservationTypes().find((t) => t.id === this.formValue().reservationTypeId) ??
+      null,
+  );
+  protected readonly selectedAircraft = computed<AircraftPickerItem | null>(
+    () => this.store.aircraftPicker().find((a) => a.id === this.formValue().aircraftId) ?? null,
+  );
+  protected readonly secondCrewRequired = computed(() =>
+    secondCrewRequiredFor(this.selectedType(), this.selectedAircraft()),
+  );
 
   protected readonly aircraftOptions = computed<readonly AfSelectOption<string>[]>(() =>
     this.store.aircraftPicker().map((a) => ({ value: a.id, label: a.immatriculation })),
@@ -640,19 +650,29 @@ export function overlapProbe(
 }
 
 /**
- * Conditional Second-Crew requirement (oracle: required when the reservation
- * type `IsInstructorRequired || ObserverPilotOrInstructorRequired ||
- * IsPassengerRequired` or the aircraft `NrOfSeats > 1`).
+ * Conditional Second-Crew requirement (oracle: required when the selected
+ * reservation TYPE requires a second crew member, OR the selected AIRCRAFT has
+ * `NrOfSeats > 1`).
  *
- * PARTIAL (T-06 `@partial`): the driving flags are NOT exposed on the current
- * `AircraftReservationTypeListItem` (id/name/active) or `AircraftPickerItem`
- * (id/immatriculation/type/towing) picker projections. Surfacing them is a
- * backend projection change — a second seam outside T-06's one-FE-seam scope —
- * so this evaluates `false` today (never blocks). The dynamic validator wiring
- * in the component flips it on for free once the projections carry the flags.
+ * Legacy drove the type leg off three FlightType-derived flags
+ * (`IsInstructorRequired || ObserverPilotOrInstructorRequired ||
+ * IsPassengerRequired`). AlpenFlight's reservation-type model COLLAPSES those
+ * into the single `instructorRequired` flag (`AircraftReservationType` carries
+ * only `is_instructor_required`), so the type leg here is that one boolean.
+ * T-18 exposed it on `AircraftReservationTypeListItem` + exposed `nrOfSeats` on
+ * `AircraftPickerItem`, so this now evaluates against real picker data (T-06
+ * wired the dynamic validator; this flips it live).
+ *
+ * Pure → unit-tested without a `TestBed`. `type`/`aircraft` are the currently
+ * selected picker items (or `null` when none / not yet loaded).
  */
-export function secondCrewRequiredFor(): boolean {
-  return false;
+export function secondCrewRequiredFor(
+  type: AircraftReservationTypeListItem | null,
+  aircraft: AircraftPickerItem | null,
+): boolean {
+  const typeRequiresCrew = type?.instructorRequired === true;
+  const multiSeat = (aircraft?.nrOfSeats ?? 0) > 1;
+  return typeRequiresCrew || multiSeat;
 }
 
 function isoDate(iso: string): string {

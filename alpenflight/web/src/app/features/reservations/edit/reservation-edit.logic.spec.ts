@@ -63,9 +63,38 @@ describe('reservation-edit overlap probe (T-06)', () => {
   });
 });
 
-describe('reservation-edit conditional second-crew (T-06 @partial)', () => {
-  it('is not required today — the driving type/aircraft flags are not on the picker projections', () => {
-    expect(secondCrewRequiredFor()).toBe(false);
+describe('reservation-edit conditional second-crew (T-18)', () => {
+  const plainType = { id: 't1', name: 'Solo', active: true, instructorRequired: false };
+  const instructorType = { id: 't2', name: 'Instruction', active: true, instructorRequired: true };
+  const singleSeat = {
+    id: AC_ID,
+    immatriculation: 'HB-1',
+    aircraftTypeId: 'at-1',
+    isTowingAircraft: false,
+    nrOfSeats: 1,
+  };
+  const multiSeat = { ...singleSeat, nrOfSeats: 2, immatriculation: 'HB-2' };
+
+  it('requires second-crew when the selected type requires an instructor', () => {
+    expect(secondCrewRequiredFor(instructorType, singleSeat)).toBe(true);
+  });
+
+  it('requires second-crew when the selected aircraft has more than one seat', () => {
+    expect(secondCrewRequiredFor(plainType, multiSeat)).toBe(true);
+  });
+
+  it('does not require second-crew for a non-instructor type on a single-seat aircraft', () => {
+    expect(secondCrewRequiredFor(plainType, singleSeat)).toBe(false);
+  });
+
+  it('does not require second-crew when nothing is selected yet (nulls)', () => {
+    expect(secondCrewRequiredFor(null, null)).toBe(false);
+  });
+
+  it('treats an unknown seat count (absent nrOfSeats) as single-seat', () => {
+    const { nrOfSeats: _omit, ...unknownSeats } = singleSeat;
+    void _omit;
+    expect(secondCrewRequiredFor(plainType, unknownSeats)).toBe(false);
   });
 });
 

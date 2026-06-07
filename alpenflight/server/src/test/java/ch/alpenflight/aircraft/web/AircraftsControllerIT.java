@@ -229,6 +229,27 @@ class AircraftsControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void picker_carriesNrOfSeats_drivingConditionalSecondCrew() {
+        // T-18: the picker projection must carry nrOfSeats so the reservation
+        // form's conditional Second-Crew rule (required when nrOfSeats > 1) can
+        // evaluate client-side. createPayload registers a 2-seat aircraft.
+        String imm = uniqueImmatriculation();
+        post("/api/v1/aircraft", createPayload(imm));
+
+        JsonNode body = readJson(get("/api/v1/aircraft/picker"));
+        JsonNode mine = null;
+        for (JsonNode row : body) {
+            if (imm.equals(row.path("immatriculation").asText())) {
+                mine = row;
+                break;
+            }
+        }
+        assertThat(mine).as("the just-registered aircraft is on the picker").isNotNull();
+        assertThat(mine.has("nrOfSeats")).isTrue();
+        assertThat(mine.get("nrOfSeats").asInt()).isEqualTo(2);
+    }
+
+    @Test
     void changeState_opensFirstStateAndShowsAsCurrent() {
         String imm = uniqueImmatriculation();
         ResponseEntity<String> created = post("/api/v1/aircraft", createPayload(imm));
