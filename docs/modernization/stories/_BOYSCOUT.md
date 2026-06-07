@@ -110,12 +110,15 @@ below. (4) **Paired shots only at the fanout** → resolved by the J-6 T-17 capt
   `WHERE DeletedOn IS NULL` to the dedupe inner source (+ extend `PlanningDayProducerDedupeIT` with a
   deleted-vs-live partition case) OR an explicit "legacy hard-deletes → safe" comment. *(seam:
   MapperLegacyBindings producer dedupe SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
-- **Cascade-delete asserted only indirectly (gap-hunter, J-6 T-16).** The `[key-error]` delete proves the
-  user-visible AC (day leaves the list, parent GET 404, freed slot re-creatable) but never asserts the 3
-  child `t_planning_day_assignment` rows are gone — and since delete is a soft-delete on the aggregate, the
-  V4 `ON DELETE CASCADE` FK never fires, so orphaned/leaked assignment rows wouldn't be caught. Add an
-  assertion that a deleted day's assignments are excluded from reads. Low-risk; rides the next planning touch.
-  *(seam: planning delete spec / assignment soft-delete reconcile)*
+- ~~**Cascade-delete asserted only indirectly (gap-hunter, J-6 T-16).**~~ **Shipped J-6b T-16.** Added
+  `PlanningDaysControllerIT.delete_excludesTheDaysAssignmentsFromEveryRead`: a day with 3 crew (→ 3
+  `t_planning_day_assignment` rows) is soft-deleted, then the IT asserts the read layer ALREADY excludes
+  them — GET → 404, the `overview/future` list omits the day, and re-creating the same (club,date,location)
+  yields a FRESH day owning its own 3 assignments. Confirmed NO leak (the rider's predicted bug did not
+  materialise): every read query filters `deleted_on IS NULL` at the PARENT (`findActiveById` /
+  `FUTURE_SELECT`), so a soft-deleted day is never loaded and its children — which physically remain
+  (`countAssignments(id)==3` post-delete, since soft-delete means the V4 `ON DELETE CASCADE` never fires) —
+  are unreachable through any read path. Test-only; `./gradlew check` green.
 
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 

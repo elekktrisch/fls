@@ -169,6 +169,55 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
     }
 
     @Test
+    void delete_excludesTheDaysAssignmentsFromEveryRead() {
+        // A day with all 3 crew slots → 3 child t_planning_day_assignment rows.
+        ResponseEntity<String> created = post("/api/v1/planning-days", fullCrewPayload(DAY));
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        UUID id = UUID.fromString(readJson(created).get("id").asText());
+        assertThat(countAssignments(id)).isEqualTo(3L);
+
+        // Soft-delete the day (admin-or-creator gate; admin here) → 204.
+        ResponseEntity<String> deleted = delete("/api/v1/planning-days/" + id, adminToken);
+        assertThat(deleted.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        // READ-LAYER EXCLUSION (the rider's assertion). Delete is a SOFT-delete on
+        // the aggregate root, so the V4 `ON DELETE CASCADE` FK never fires and the
+        // 3 assignment rows still physically exist — they MUST NOT be reachable
+        // through any read. The parent's `deleted_on IS NULL` filter (every read
+        // query) is what excludes them: a soft-deleted day is never loaded, so its
+        // assignments are never mapped into a detail/list response.
+
+        // (a) GET the deleted day → 404 (so its crew slots are never returned).
+        ResponseEntity<String> got = get("/api/v1/planning-days/" + id, adminToken);
+        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        // (b) The deleted day (and thus its assignments) is absent from the future
+        // list / overview reads — no leaked crew row decorates any surviving day.
+        assertThat(listFutureDayIds(adminToken)).doesNotContain(id.toString());
+
+        // (c) The 3 child rows are leaked NEITHER as live aggregate state — the
+        // re-created day must own a FRESH crew set, never inherit the dead rows.
+        // Re-creating the same (club, date, location) proves the partial unique
+        // index freed the slot AND that the new day's assignments are its own.
+        ResponseEntity<String> recreated = post("/api/v1/planning-days", fullCrewPayload(DAY));
+        assertThat(recreated.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        UUID newId = UUID.fromString(readJson(recreated).get("id").asText());
+        assertThat(newId).isNotEqualTo(id);
+        // The new day carries its own 3 assignments; the dead day's 3 still sit in
+        // the table but bind to the old (now-unreadable) parent id.
+        assertThat(countAssignments(newId)).isEqualTo(3L);
+        assertThat(countAssignments(id)).isEqualTo(3L); // orphaned-by-soft-delete, unreachable.
+
+        // The re-read of the live day exposes only its OWN crew, not the dead rows.
+        ResponseEntity<String> liveGot = get("/api/v1/planning-days/" + newId, adminToken);
+        assertThat(liveGot.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode liveDetail = readJson(liveGot);
+        assertThat(liveDetail.get("instructorPersonId").asText()).isEqualTo("pn-" + instructorId);
+        assertThat(liveDetail.get("towingPilotPersonId").asText()).isEqualTo("pn-" + towingPilotId);
+        assertThat(liveDetail.get("flightOperatorPersonId").asText()).isEqualTo("pn-" + flightOperatorId);
+    }
+
+    @Test
     void ruleExpand_weekendOverTwoWeeks_createsExpectedDays_andReRunSkipsExisting() {
         // First Saturday strictly after DAY's reference, so all created days are
         // future + distinct from the single-create tests' DAY.
@@ -377,6 +426,24 @@ class PlanningDaysControllerIT extends PostgresIntegrationTest {
                 + "AND deleted_on IS NULL AND id::text NOT LIKE '019e30c3-%'",
                 Long.class, CLUB.toString());
         return n == null ? 0L : n;
+    }
+
+    /** Raw count of child assignment rows for {@code dayId} (bypasses every read filter). */
+    private long countAssignments(UUID dayId) {
+        Long n = jdbc.queryForObject(
+                "SELECT count(*) FROM t_planning_day_assignment WHERE planning_day_id = ?::uuid",
+                Long.class, dayId.toString());
+        return n == null ? 0L : n;
+    }
+
+    /** The day ids the tenant's future-overview read returns (the read-side list path). */
+    private List<String> listFutureDayIds(String token) {
+        ResponseEntity<String> res = get("/api/v1/planning-days/overview/future", token);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode body = readJson(res);
+        List<String> ids = new java.util.ArrayList<>();
+        body.forEach(day -> ids.add(day.get("id").asText()));
+        return ids;
     }
 
     private String pilotToken(UUID sub) {
