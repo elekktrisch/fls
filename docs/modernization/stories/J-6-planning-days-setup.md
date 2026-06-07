@@ -625,7 +625,7 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   > error logging) + fix the residue/idempotency or escalate to the J-0b item. §4 cannot go green until cleared.
   > [[project_synth_bundle_doesnt_validate_producer_select]]
 
-- [ ] **T-17 — unify the proof gallery to ONE source per journey (operator design, 2026-06-07).** Ends the
+- [x] **T-17 — unify the proof gallery to ONE source per journey (operator design, 2026-06-07).** Ends the
   recurring "videos OR screenshots depending on which job deployed last" pain. Operator design: *legacy is
   frozen → capture its screenshots ONCE and persist them; the in-flight dev loop pairs the fresh AlpenFlight
   screens against the persistent legacy refs, so the dev page is ALWAYS complete; scope (not the page) differs
@@ -666,9 +666,18 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
       sample AF PNGs + a screenshots.json → emitted J-6 page references both legacy and AF imgs for all 3 views
       (6 shot figures, 3 view labels). 38/38 gallery spec green; ci.yml YAML valid. *(T-17c next: retire the
       previews-index freshest-wins band-aid + LIVE deploy-verify.)*
-    - [ ] **T-17c — retire the index band-aid + deploy-verify on live gh-pages.** Revert the T-13b
-      `JOURNEY_PAGE_SOURCES` rank-0/rank-1 + freshest-mtime tie-break in `generate-previews-index.mjs` (with one
-      unified per-push page there's nothing to tie-break); collapse to one branch source; keep canonical/archive
-      fallbacks. Lock in `generate-previews-index.spec.ts` (no freshest-wins). Then deploy-verify on the LIVE
-      gh-pages: curl the per-push J-6 page asserts BOTH videos + 6 paired legacy↔AF imgs resolve 200, and the
-      persistent `…/previews/index.html` bookmark links THAT page (the lesson: unit-green ≠ deployed-correct).
+    - [x] **T-17c — retire the index band-aid + deploy-verify on live gh-pages (DONE 2026-06-07).** Reverted the
+      T-13b `JOURNEY_PAGE_SOURCES` rank-0/rank-1 + freshest-mtime tie-break in `generate-previews-index.mjs`:
+      dropped the `branch-parity` (`<branch>/legacy-parity/`) sub-source + the candidates rank/mtime sort in
+      `locateJourneyPage` → ONE branch source (`proof-preview/<branch>/J-<n>/`, the now-complete per-push page),
+      FIRST-HIT-WINS, canonical/archive fallbacks intact, pending still link-free. Spec locked the new contract
+      (replaced the two band-aid tests with: per-push page is the single in-flight branch source + a
+      legacy-parity-only dir is NOT an index source → pending). 8/8 previews-index + 38/38 gallery specs green;
+      prettier-clean. **One bookmark** to the unified per-push page (operator priority); did NOT add the optional
+      second nightly bookmark — not trivially clean, and the single unified page is the stated priority.
+      **LIVE deploy-verify (run 27088191664, SHA 7d8db0e6):** bookmark
+      `https://elekktrisch.github.io/fls/alpenflight/previews/index.html` → 200; its J-6 row is a LIVE LINK
+      `href="../proof-preview/integration-J-6/J-6/"` (not pending). That page → 200 and references BOTH the 4
+      AlpenFlight videos AND the 6 paired legacy↔AlpenFlight screenshots (list/form/setup × legacy+AF) — every
+      `<img>`/`<source>` resolves 200 (13/13 links on the page clean, 0 broken; index itself 5/5 clean). Lesson
+      held: unit-green confirmed deployed-correct on the real gh-pages.
