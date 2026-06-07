@@ -133,7 +133,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-6</code> &middot; 2026-06-07T06:45:04.782Z
+      for this journey. Generated on <code>integration/J-6</code> &middot; 2026-06-07T07:29:58.252Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,23 +144,23 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-abd6d6f6342737921c6ff9a183f2cb855cdda19f.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-097103c80302f2cc7f5660be155179dabe0f3181.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · reservations · a club admin logs in via real Keycloak and creates a timed aircraft reservation THROUGH THE UI FORM — picking the aircraft, the clean-seed reservation type, pilot and location from the real dropdowns — and it renders on the /reservations CALENDAR day view as a time-placed block in the right aircraft lane (full clean-seed UI create→type-picker chain, real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-71ec7ee54f5a23a1ac8d34728661a7deedd07d05.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-ce77fa803f9a19f7a876066abdf6da1fa95c6c2c.webm"></video>
           <figcaption><span class="status failure">key-error</span><span class="caption">J-5 · reservation conflict · a second reservation overlapping an existing one on the SAME aircraft is rejected 409 (aircraft.reservation.overlap); an adjacent [) booking is admitted and an in-place edit does NOT self-conflict (real conflictsWith aggregate)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-6eb4277e6e8a8a45a3b3e8ad452c66ac0b7e923c.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-acad2ac0946d9ca45162b30be180506f3ce1b449.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · all-day reservation · an all-day reservation stores the full-day span and renders as a full-width band on the /reservations calendar day view (real backend)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-bd7ac1b2afe075f83414358d1e768be33a280323.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-f29f316d590ffa1abe9e786eb4df17d91f838263.webm"></video>
           <figcaption><span class="status pending">edge</span><span class="caption">J-5 · cross-tenant-open · an operating club reserves an aircraft MANAGED BY A DIFFERENT club with NO charter gate — the reservation succeeds (201), the aircraft FK crosses tenants freely, and the reservation is stamped with the operating club (legacy parity)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-ada4e95447ce19166c8f1c1ad9df2a566c613477.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-acb72cc9328883b8ca583c89c1a26977755d7590.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-5 · delete frees the slot · deleting a reservation soft-deletes it and frees its aircraft window — a previously-409d overlapping reservation then succeeds (real soft-delete excluded from the conflict probe)</span></figcaption>
         </figure>
         </div>
