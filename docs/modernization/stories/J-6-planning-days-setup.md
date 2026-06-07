@@ -595,3 +595,23 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   - The heavy fanout still owns the **migration round-trip proof** (the real legacy→migrate→AF data chain — the
     done-bar), which is separate from the visual legacy↔AF screenshot pairing. *(e2e-driver; gallery generator +
     committed legacy-ref fixtures + ci.yml per-push pairing + retire the band-aid; may split)* [[feedback_proof_gallery_per_journey_one_bookmark]] [[feedback_surface_proof_early_on_repeated_failure]]
+  - **SPLIT into 3 seams (do-task overflow, 2026-06-07).** T-17 genuinely exceeds one do-task seam (committed
+    fixtures + generator pairing + ci.yml per-push wiring + index band-aid revert + a LIVE-deploy verify that
+    needs a CI round-trip). Sub-seams:
+    - [x] **T-17a — commit legacy-ref fixtures + establish the capture-once-and-commit pattern.** Fetched the 3
+      real legacy flsweb planning PNGs from gh-pages (list 33KB · form 44KB · setup 19KB, 1280×800), committed
+      under `alpenflight/web/e2e/legacy-reference/planning/{list,form,setup}.png` + a README establishing the
+      pattern (legacy frozen → capture once, commit, never reap; future journeys do this at T-01/T-13). Locally
+      verified the PNGs are the real captures. Self-contained seam; carries the manager's T-17-add commit.
+    - [ ] **T-17b — per-push gallery pairs committed-legacy + fresh-AlpenFlight.** New `ci.yml` `alpenflight-proof`
+      staging step: stage the committed `legacy-reference/planning/*.png` + the fresh clean-seed AF
+      `alpenflight-planning-{list,form,setup-form}.png` (already written by `planning-migration-parity.spec.ts`)
+      into a `--screenshots` dir, write `screenshots.json` pairing them by view, pass `--screenshots` to the
+      per-push generator step. So every push → ONE complete per-journey page (videos + 6 paired screenshots), no
+      fanout dependency for the pairing. Lock the contract in `generate-gallery.spec.ts`.
+    - [ ] **T-17c — retire the index band-aid + deploy-verify on live gh-pages.** Revert the T-13b
+      `JOURNEY_PAGE_SOURCES` rank-0/rank-1 + freshest-mtime tie-break in `generate-previews-index.mjs` (with one
+      unified per-push page there's nothing to tie-break); collapse to one branch source; keep canonical/archive
+      fallbacks. Lock in `generate-previews-index.spec.ts` (no freshest-wins). Then deploy-verify on the LIVE
+      gh-pages: curl the per-push J-6 page asserts BOTH videos + 6 paired legacy↔AF imgs resolve 200, and the
+      persistent `…/previews/index.html` bookmark links THAT page (the lesson: unit-green ≠ deployed-correct).
