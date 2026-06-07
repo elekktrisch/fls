@@ -25,3 +25,15 @@ export const PLANNING_ROUTES: Routes = [
     loadComponent: () => import('./edit/planning-edit.page').then((m) => m.PlanningEditPage),
   },
 ];
+
+// `/planningsetup` — the bulk-setup wizard (J-6 T-09). A top-level route (the
+// list page's Setup button + legacy both use `/planningsetup`, not nested under
+// `/planning`), served lazily by this feature folder.
+export const PLANNING_SETUP_ROUTES: Routes = [
+  {
+    path: '',
+    canActivate: [tenantRequiredGuard],
+    data: { showNavBar: true },
+    loadComponent: () => import('./setup/planning-setup.page').then((m) => m.PlanningSetupPage),
+  },
+];

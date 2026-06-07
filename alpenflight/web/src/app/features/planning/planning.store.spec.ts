@@ -15,6 +15,7 @@ import type {
   PersonListItem,
   PlanningDayCreateRequest,
   PlanningDayDetail,
+  PlanningDayRuleRequest,
 } from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
@@ -61,6 +62,7 @@ interface ApiStubs {
   detail: (id: string) => Observable<PlanningDayDetail>;
   create: (req: PlanningDayCreateRequest) => Observable<PlanningDayDetail>;
   update: (id: string, req: PlanningDayCreateRequest) => Observable<PlanningDayDetail>;
+  bulk: (req: PlanningDayRuleRequest) => Observable<PlanningDayDetail[]>;
   dayReservations: (date: string) => Observable<AircraftReservationListItem[]>;
 }
 
@@ -74,6 +76,8 @@ function planningServiceStub(stubs: Partial<ApiStubs>): PlanningDaysService {
       (stubs.update ?? (() => of(seedDay)))(id, req)) as never,
     deletePlanningDay: ((id: string) =>
       (stubs.remove ?? (() => of(undefined as unknown as void)))(id)) as never,
+    bulkCreatePlanningDays: ((req: PlanningDayRuleRequest) =>
+      (stubs.bulk ?? (() => of([seedDay])))(req)) as never,
   };
   return api as unknown as PlanningDaysService;
 }
@@ -244,6 +248,56 @@ describe('PlanningStore', () => {
     const store = TestBed.inject(PlanningStore);
     store.create({ planningDate: '2026-07-05', locationId: LOCATION_ID });
     expect(store.saveError()).toBe('A planning day already exists for this date and location.');
+  });
+
+  // ── setup wizard (T-09) ─────────────────────────────────────────────────────
+
+  it('bulkCreate emits planningDay.bulkCreated with the created count and refetches', () => {
+    const events: MutationEvent[] = [];
+    let futureCalls = 0;
+    const bus = configure(
+      planningServiceStub({
+        future: () => {
+          futureCalls += 1;
+          return of([seedDay]);
+        },
+        bulk: () => of([seedDay, { ...seedDay, id: 'd2' }]),
+      }),
+    );
+    bus.subscribe((e) => events.push(e));
+    const store = TestBed.inject(PlanningStore);
+    const before = futureCalls;
+    store.bulkCreate({
+      startDate: '2026-07-01',
+      endDate: '2026-07-21',
+      locationId: LOCATION_ID,
+      everySaturday: true,
+      everySunday: true,
+    });
+    expect(events).toContainEqual({ kind: 'planningDay.bulkCreated', count: 2 });
+    expect(futureCalls).toBeGreaterThan(before);
+  });
+
+  it('bulkCreate reports a zero count for an empty rule result (no error)', () => {
+    const events: MutationEvent[] = [];
+    const bus = configure(planningServiceStub({ bulk: () => of([]) }));
+    bus.subscribe((e) => events.push(e));
+    const store = TestBed.inject(PlanningStore);
+    store.bulkCreate({ startDate: '2026-07-01', endDate: '2026-07-21', locationId: LOCATION_ID });
+    expect(events).toContainEqual({ kind: 'planningDay.bulkCreated', count: 0 });
+    expect(store.saveError()).toBeNull();
+  });
+
+  it('bulkCreate surfaces a 422 range error inline (shared mapApiSaveError)', () => {
+    const err = new HttpErrorResponse({
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      error: { message: 'Range too large.' },
+    });
+    configure(planningServiceStub({ bulk: () => throwError(() => err) }));
+    const store = TestBed.inject(PlanningStore);
+    store.bulkCreate({ startDate: '2026-07-01', endDate: '2030-07-21', locationId: LOCATION_ID });
+    expect(store.saveError()).toBe('Range too large.');
   });
 
   it('loadDayReservations filters the J-5 day read to the day location', () => {

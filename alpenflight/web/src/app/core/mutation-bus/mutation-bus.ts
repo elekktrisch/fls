@@ -39,7 +39,8 @@ export type MutationEvent =
   | { kind: 'reservation.deleted'; reservationId: string }
   | { kind: 'planningDay.created'; id: string }
   | { kind: 'planningDay.updated'; id: string }
-  | { kind: 'planningDay.deleted'; id: string };
+  | { kind: 'planningDay.deleted'; id: string }
+  | { kind: 'planningDay.bulkCreated'; count: number };
 
 export const MUTATION_BUS = new InjectionToken<Subject<MutationEvent>>('MUTATION_BUS', {
   providedIn: 'root',

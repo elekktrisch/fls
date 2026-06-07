@@ -26,6 +26,7 @@ import type {
   PersonListItem,
   PlanningDayCreateRequest,
   PlanningDayDetail,
+  PlanningDayRuleRequest,
   PlanningDayUpdateRequest,
 } from '@api/generated/model';
 import { mapApiSaveError } from '@shared/util/form';
@@ -238,6 +239,27 @@ export const PlanningStore = signalStore(
             ),
           ),
         ),
+        // Setup wizard (T-09): POST the weekday-expansion rule → the backend
+        // expands the range, skips existing days idempotently, bounds the range
+        // (T-05). Emits `planningDay.bulkCreated` (count = days actually created;
+        // skipped/empty → 0) so the wizard navigates back + the list refetches.
+        bulkCreate: rxMethod<PlanningDayRuleRequest>(
+          pipe(
+            tap(() => patchState(store, { saveError: null })),
+            switchMap((req) =>
+              planningApi.bulkCreatePlanningDays(req).pipe(
+                tapResponse({
+                  next: (created: PlanningDayDetail[]) => {
+                    loadFuture();
+                    bus.next({ kind: 'planningDay.bulkCreated', count: created.length });
+                  },
+                  error: (e: HttpErrorResponse) =>
+                    patchState(store, { saveError: mapApiSaveError(e, SAVE_ERROR_KEYS) }),
+                }),
+              ),
+            ),
+          ),
+        ),
         update: rxMethod<{ id: string; req: PlanningDayUpdateRequest }>(
           pipe(
             tap(() => patchState(store, { saveError: null })),
@@ -293,6 +315,7 @@ export const PlanningStore = signalStore(
           case 'planningDay.created':
           case 'planningDay.updated':
           case 'planningDay.deleted':
+          case 'planningDay.bulkCreated':
             store.loadFuture();
             break;
         }

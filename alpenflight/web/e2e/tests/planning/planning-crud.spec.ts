@@ -408,16 +408,16 @@ async function fillCrew(page: Page): Promise<void> {
 }
 
 // ── inner-loop suite — drives the /planning screens ──────────────────────────
-// T-07 landed the list, T-08 the create/edit/view page. The edit + create +
-// delete + 409-inline + inline-reservations cases are un-fixme'd here (they
-// drive the real kebab-case resource via `page.route` mocks). The two list-only
-// cases stay fixme: the Setup-button case depends on the `/planningsetup` route
-// (T-09) and the page-POST envelope case on the paged read (the list page reads
-// `overview/future`, not the page POST) — both un-fixme at T-09/T-16.
+// T-07 landed the list, T-08 the create/edit/view page, T-09 the setup wizard +
+// `/planningsetup` route. The edit + create + delete + 409-inline +
+// inline-reservations + list-render-with-Setup-button cases are un-fixme'd here
+// (they drive the real kebab-case resource via `page.route` mocks). The
+// page-POST envelope case stays fixme: the list page reads `overview/future`,
+// not the page POST — un-fixme at T-16.
 test.describe('J-6 planning days (mock-auth inner loop)', () => {
   // ── AC: the future-days list renders the seed day with crew + #reservations,
   //    a weekend row is flagged, and the Setup button routes to the wizard ─────
-  test.fixme('list: future planning days render with crew + reservation count; weekend rows are flagged', async ({
+  test('list: future planning days render with crew + reservation count; weekend rows are flagged', async ({
     page,
   }) => {
     const weekendDay: MockPlanningDay = {

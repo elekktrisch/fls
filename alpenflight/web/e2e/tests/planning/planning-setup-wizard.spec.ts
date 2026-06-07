@@ -16,7 +16,7 @@ import { selectAfOption } from '../_helpers/af-select';
  *   WIZARD `/planningsetup` — StartDate, EndDate, seven weekday checkboxes
  *     (Mon..Sun), location select (defaults to the club's HomebaseId), a
  *     "Generate Planning Days" button + cancel. POSTs
- *     `/api/v1/planningdays/create/rule` → the array of created day overviews,
+ *     `/api/v1/planning-days/create/rule` → the array of created day overviews,
  *     then routes back to `/planning`.
  *   Rule-expand semantics (oracle): inclusive date range, ONE day per matching
  *     weekday, same location, NO default crew; empty weekday flags → empty list,
@@ -75,7 +75,7 @@ function setupRuleBackend(existing: Set<string>) {
   return async (route: Route) => {
     const req = route.request();
     const url = new URL(req.url());
-    if (req.method() !== 'POST' || url.pathname !== '/api/v1/planningdays/create/rule') {
+    if (req.method() !== 'POST' || url.pathname !== '/api/v1/planning-days/create/rule') {
       await route.fallback();
       return;
     }
@@ -114,7 +114,17 @@ async function wireWizard(page: Page, existing = new Set<string>()): Promise<voi
       body: JSON.stringify(mockLocationsPicker),
     }),
   );
-  await page.route('**/api/v1/planningdays/create/rule', setupRuleBackend(existing));
+  // The shared planning store decorates the location + crew pickers from a
+  // `forkJoin(locations, persons)` — an unmocked `persons` 404 fails the whole
+  // join and blanks the (load-bearing) location select, so stub it (+ the
+  // best-effort aircraft picker) even though the wizard only renders locations.
+  await page.route('**/api/v1/persons', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.route('**/api/v1/aircraft/picker', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  );
+  await page.route('**/api/v1/planning-days/create/rule', setupRuleBackend(existing));
 }
 
 async function gotoDe(page: Page, path: string): Promise<void> {
@@ -129,11 +139,22 @@ async function checkWeekdays(page: Page, days: string[]): Promise<void> {
   }
 }
 
-// ── setup-wizard suite — drives the (not-yet-built) /planningsetup screen ─────
-// `test.fixme` until T-09 lands the wizard + T-16 thickens from the oracle.
+/** Clear every weekday checkbox (the wizard defaults Sat+Sun checked). */
+async function uncheckAllWeekdays(page: Page): Promise<void> {
+  for (const d of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) {
+    await page.getByTestId(`planning-setup-weekday-${d}`).locator('input').uncheck();
+  }
+}
+
+// ── setup-wizard suite — drives the /planningsetup screen ────────────────────
+// T-09 landed the wizard. The bulk-create / empty-flags / cancel cases are
+// un-fixme'd here (they drive the real kebab-case rule endpoint via `page.route`
+// mocks). The skip-existing-idempotent case stays fixme: it asserts BACKEND
+// behavior (the V4 unique correcting legacy's no-dedup) better proven by the
+// rule-expand IT + the §4 gate — T-16 un-fixmes it from the oracle.
 test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
   // ── AC[happy]: the wizard bulk-creates days across a range filtered by weekday
-  test.fixme('wizard: generating Sat+Sun across a range bulk-creates the matching days and routes back to the list', async ({
+  test('wizard: generating Sat+Sun across a range bulk-creates the matching days and routes back to the list', async ({
     page,
   }) => {
     await wireWizard(page);
@@ -151,7 +172,7 @@ test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
     const generated = page.waitForResponse(
       (r) =>
         r.request().method() === 'POST' &&
-        new URL(r.url()).pathname === '/api/v1/planningdays/create/rule' &&
+        new URL(r.url()).pathname === '/api/v1/planning-days/create/rule' &&
         r.status() === 201,
     );
     await page.getByTestId('planning-setup-generate-button').click();
@@ -177,12 +198,16 @@ test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
   });
 
   // ── AC[edge]: empty weekday flags → no days created, no error ───────────────
-  test.fixme('wizard: generating with no weekday checked creates zero days (no error)', async ({
+  test('wizard: generating with no weekday checked creates zero days (no error)', async ({
     page,
   }) => {
     await wireWizard(page);
 
     await gotoDe(page, '/planningsetup');
+    // The wizard defaults Sat+Sun checked (legacy parity,
+    // `PlanningDaySetupController.js:8-10`); uncheck every weekday so NO flag is
+    // set → the rule-expand returns an empty list (the edge under test).
+    await uncheckAllWeekdays(page);
     await page.getByTestId('planning-setup-start').locator('input').fill(dayKeyFromToday(1));
     await page.getByTestId('planning-setup-end').locator('input').fill(dayKeyFromToday(21));
     await selectAfOption(page, 'planning-setup-location-select', LOCATION_BERN_ID);
@@ -190,11 +215,14 @@ test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
     const generated = page.waitForResponse(
       (r) =>
         r.request().method() === 'POST' &&
-        new URL(r.url()).pathname === '/api/v1/planningdays/create/rule' &&
+        new URL(r.url()).pathname === '/api/v1/planning-days/create/rule' &&
         r.status() === 201,
     );
     await page.getByTestId('planning-setup-generate-button').click();
     const res = await generated;
+    const sentRule = res.request().postDataJSON() as RuleRequest;
+    expect(sentRule.everySaturday).toBe(false);
+    expect(sentRule.everySunday).toBe(false);
     const createdDays = (await res.json()) as unknown[];
     expect(createdDays).toHaveLength(0);
   });
@@ -215,7 +243,8 @@ test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
     await checkWeekdays(page, ['sat', 'sun']);
     await selectAfOption(page, 'planning-setup-location-select', LOCATION_BERN_ID);
     const first = page.waitForResponse(
-      (r) => new URL(r.url()).pathname === '/api/v1/planningdays/create/rule' && r.status() === 201,
+      (r) =>
+        new URL(r.url()).pathname === '/api/v1/planning-days/create/rule' && r.status() === 201,
     );
     await page.getByTestId('planning-setup-generate-button').click();
     const firstCount = ((await (await first).json()) as unknown[]).length;
@@ -228,7 +257,8 @@ test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
     await checkWeekdays(page, ['sat', 'sun']);
     await selectAfOption(page, 'planning-setup-location-select', LOCATION_BERN_ID);
     const second = page.waitForResponse(
-      (r) => new URL(r.url()).pathname === '/api/v1/planningdays/create/rule' && r.status() === 201,
+      (r) =>
+        new URL(r.url()).pathname === '/api/v1/planning-days/create/rule' && r.status() === 201,
     );
     await page.getByTestId('planning-setup-generate-button').click();
     const secondCount = ((await (await second).json()) as unknown[]).length;
@@ -236,9 +266,7 @@ test.describe('J-6 planning setup wizard (mock-auth inner loop)', () => {
   });
 
   // ── AC: cancel returns to the list without creating anything ────────────────
-  test.fixme('wizard: cancel returns to the planning list without generating days', async ({
-    page,
-  }) => {
+  test('wizard: cancel returns to the planning list without generating days', async ({ page }) => {
     await wireWizard(page);
 
     await gotoDe(page, '/planningsetup');

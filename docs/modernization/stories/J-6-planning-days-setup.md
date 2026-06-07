@@ -342,8 +342,27 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   `/api/v1/planning-days` + `planningDate`/`info`/`canUpdateRecord` wire shape) — 5 passed LOCALLY (musl chromium),
   2 list-only cases stay fixme (Setup-button needs `/planningsetup` T-09; page-POST envelope is T-16). Local DoD
   green: tsc ✓, lint ✓, ng build (mock-auth) ✓, full vitest 388 ✓, gallery scripts 63 ✓.
-- [ ] **T-09 — SPA setup wizard.** `/planningsetup` multi-step (StartDate/EndDate/7 weekday checks/location)
+- [x] **T-09 — SPA setup wizard.** `/planningsetup` multi-step (StartDate/EndDate/7 weekday checks/location)
   → POST create/rule → back to list. *(component-route seam)*
+  **Done:** `features/planning/setup/planning-setup.page.ts` — single-step form (legacy parity: `planning-setup.html`
+  is single-form; not under-built). Typed reactive `FormGroup` on the J-5/T-08 idiom: `startDate`/`endDate` range,
+  7 weekday checkboxes (**Sat+Sun default-ticked**, legacy `PlanningDaySetupController.js:8-17`), location select
+  (defaults to the first available location — the SPA tenant model carries no club `HomebaseId`), remarks. Submit →
+  store `bulkCreate` → orval `bulkCreatePlanningDays` (`POST /api/v1/planning-days/create/rule`) → on the
+  `planningDay.bulkCreated` bus event routes back to `/planning` (the created days appear; list refetches on the
+  bus). Cancel → `/planning`. **Low-CRAP rider honored:** request mapping is a single `withOptionals` pass from
+  `@shared/util/form` (the 7 flags always sent, only `info` pruned) + the store maps errors via the shared
+  `mapApiSaveError` — NOT the `errorPatch` cascade. Nav only on the bus success event (no nav-evicts-body race).
+  Registered `/planningsetup` as a top-level route (`PLANNING_SETUP_ROUTES` in `planning.routes.ts` + `app.routes.ts`);
+  the T-07 list Setup button already routed there. Added the `planningDay.bulkCreated` mutation-bus event +
+  `planning.setupWizard.*` i18n to all 4 locales. **Tests:** +3 store vitest cases (`planning.store.spec.ts` 15 ✓ —
+  bulkCreated count/refetch, empty→0 no-error, 422-range inline). Un-fixme'd the 3 setup-wizard mock cases
+  (Sat+Sun bulk-create, empty-flags→zero, cancel — corrected the T-01 stub to the real kebab `/api/v1/planning-days/
+  create/rule` + mocked persons/aircraft so the shared store's `forkJoin` decoration doesn't blank the location
+  select); skip-existing-idempotent stays fixme (backend behavior, T-16). Un-fixme'd the crud spec's
+  list-render-with-Setup-button case (now `/planningsetup` exists). Both planning mock specs GREEN locally (musl
+  chromium): setup-wizard 3✓/1 skip, crud 6✓/1 skip. Preflight green LOCALLY: lint ✓, tsc ✓, ng build ✓,
+  api-drift clean (FE-only), gallery vitest 63 ✓, link-check ✓.
 - [ ] **T-10 — PlanningDayNotificationJob + templates + run-now affordance.** Job (imminent day+1 →
   club addr ok/cancel; week-ahead day+7 → assignees), 3 templates (ADR-0009/0013), guarded test-env
   "run planning notifications now" trigger for the e2e. *(job seam — may overflow-split job/templates/affordance)*
