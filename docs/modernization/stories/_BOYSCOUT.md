@@ -69,6 +69,26 @@ genuinely new vertical feature scope.
   paired shots land with the first screens. At minimum the proof page should SAY "legacy pairing pending — runs at
   gate" rather than silently omitting it. [[feedback_demonstrable_proof_prefer_ui]] [[feedback_surface_proof_early_on_repeated_failure]]
 
+## Pending (filed by /do-ship 2026-06-07, J-6 gate — gap-hunter suspects)
+
+- **Producer dedupe is soft-delete-blind (gap-hunter, J-6 T-11b/T-16).** The PLANNING_DAY (and the
+  assignment FIRST_VALUE remap) producer SELECT partitions across ALL legacy `PlanningDays` rows with NO
+  `WHERE DeletedOn IS NULL` filter, but `ux_pln_club_date_loc` is PARTIAL (`WHERE deleted_on IS NULL`,
+  V4:303-305). If a `(Club,Day,Loc)` partition ever held an earlier-`CreatedOn` *deleted* row + a later
+  *live* row, `ROW_NUMBER ORDER BY CreatedOn` keeps the DELETED one → silently drops the live planning day
+  (the partial index would never have collided). **Neutralized for J-6**: legacy `PlanningDayService.cs:407`
+  HARD-deletes planning days, so `DeletedOn`/`IsDeleted` are vestigially never set — no soft-deleted days
+  exist to trigger it. **Fix before this dedupe pattern is copied to a SOFT-deleting table:** add
+  `WHERE DeletedOn IS NULL` to the dedupe inner source (+ extend `PlanningDayProducerDedupeIT` with a
+  deleted-vs-live partition case) OR an explicit "legacy hard-deletes → safe" comment. *(seam:
+  MapperLegacyBindings producer dedupe SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
+- **Cascade-delete asserted only indirectly (gap-hunter, J-6 T-16).** The `[key-error]` delete proves the
+  user-visible AC (day leaves the list, parent GET 404, freed slot re-creatable) but never asserts the 3
+  child `t_planning_day_assignment` rows are gone — and since delete is a soft-delete on the aggregate, the
+  V4 `ON DELETE CASCADE` FK never fires, so orphaned/leaked assignment rows wouldn't be caught. Add an
+  assertion that a deleted day's assignments are excluded from reads. Low-risk; rides the next planning touch.
+  *(seam: planning delete spec / assignment soft-delete reconcile)*
+
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
 - ~~**Scope the per-push `alpenflight-mock-e2e` gate to the journey-under-work (dev-time test strategy).**~~ **Shipped J-6 T-02b.** Mirrored J-5 T-14's real-idp scoping for the mock half: a new `mock_test:` journey-frontmatter field + a `changes`-job "Derive journey mock-e2e filter" step derives the journey-under-work's `tests/<feature>/` filter off the integration branch; the `alpenflight-mock-e2e` "Run Playwright" step passes it to `--project=chromium`, so per-push runs ONLY that journey's own mock specs (J-6 → its 11 `tests/planning/` specs, verified via `--list`). The J-5-articles-crud hostage case can no longer red an unrelated journey's `required`. FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter / underivable filter → `mock_is_full=true` → the FULL chromium suite runs (pre-T-02b baseline), never a no-spec run. Full cross-journey mock regression stays nightly (`alpenflight-e2e.yml` main-push) + the §4 do-ship gate. actionlint-clean. `required` aggregator unchanged (skipped→success). *(seam: ci.yml mock-e2e spec selection + journey `mock_test:` frontmatter)* [[feedback_dev_time_test_strategy]]
