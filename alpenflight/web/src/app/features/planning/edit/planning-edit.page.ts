@@ -15,11 +15,10 @@ import {
   Validators,
   type FormGroup,
 } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoDirective } from '@jsverse/transloco';
 
 import type {
-  AircraftReservationListItem,
   PlanningDayCreateRequest,
   PlanningDayDetail,
   PlanningDayUpdateRequest,
@@ -31,6 +30,7 @@ import { AfSelectComponent, type AfSelectOption } from '@ui/atoms/af-select';
 import { AfFormFieldComponent } from '@ui/molecules/af-form-field';
 import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
+import { AfReservationRowComponent } from '@ui/molecules/af-reservation-row';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 import { withOptionals } from '@shared/util/form';
 
@@ -66,9 +66,11 @@ type PlanningForm = FormGroup<{
  * the mutation-bus success event (the SPA-nav-evicts-response-body trap).
  *
  * The per-day reservations panel reuses the J-5 read-side (`day/{date}`,
- * filtered to the day's location) — each row links into J-5's reservation
- * editor; "new reservation" pre-seeds date + location into J-5's create form
- * (legacy `PlanningDayEditController.js:96-104,128-132`).
+ * filtered to the day's location) and renders each row through the shared
+ * `<af-reservation-row>` molecule (J-6 T-08b — one reservation-row UI, not a
+ * bespoke copy); each row links into J-5's reservation editor; "new
+ * reservation" pre-seeds date + location into J-5's create form (legacy
+ * `PlanningDayEditController.js:96-104,128-132`).
  */
 @Component({
   selector: 'af-planning-edit',
@@ -77,7 +79,6 @@ type PlanningForm = FormGroup<{
   host: { class: 'block' },
   imports: [
     ReactiveFormsModule,
-    RouterLink,
     AfFormFieldComponent,
     AfInputComponent,
     AfSelectComponent,
@@ -85,6 +86,7 @@ type PlanningForm = FormGroup<{
     AfIconComponent,
     AfPageComponent,
     AfPageHeaderComponent,
+    AfReservationRowComponent,
     AfPageErrorComponent,
     TranslocoDirective,
   ],
@@ -253,25 +255,13 @@ type PlanningForm = FormGroup<{
 
               <div class="border border-slate-200" data-testid="planning-reservations-list">
                 @for (r of store.dayReservations(); track r.id) {
-                  <div
-                    class="flex items-center justify-between border-b border-slate-200 last:border-b-0 px-3 py-2.5 text-sm hover:bg-slate-50"
-                    [attr.data-testid]="'planning-reservation-' + r.id"
-                  >
-                    <div class="flex items-center gap-3">
-                      <span class="tabular font-medium text-slate-900">{{ timeLabel(r) }}</span>
-                      <span class="text-slate-600">{{ immat(r.aircraftId) }}</span>
-                      @if (r.reservationTypeName) {
-                        <span class="text-xs text-slate-500">{{ r.reservationTypeName }}</span>
-                      }
-                    </div>
-                    <a
-                      class="text-brand-600 no-underline hover:text-brand-700"
-                      [routerLink]="['/reservations', r.id, 'edit']"
-                      [attr.data-testid]="'planning-reservation-edit-' + r.id"
-                    >
-                      {{ t('reservations.open') }}
-                    </a>
-                  </div>
+                  <af-reservation-row
+                    [reservation]="r"
+                    [aircraftLabel]="immat(r.aircraftId)"
+                    [openLink]="['/reservations', r.id, 'edit']"
+                    [openLabel]="t('reservations.open')"
+                    testIdPrefix="planning-reservation"
+                  />
                 }
                 @if (store.dayReservations().length === 0) {
                   <div
@@ -402,12 +392,6 @@ export class PlanningEditPage {
   protected immat(aircraftId: string): string {
     return this.store.immatById()[aircraftId] ?? aircraftId;
   }
-
-  /** `HH:mm–HH:mm`, or the all-day label, from the reservation's instants. */
-  protected timeLabel(r: AircraftReservationListItem): string {
-    if (r.isAllDay) return '00:00–24:00';
-    return `${isoTime(r.start)}–${isoTime(r.end)}`;
-  }
 }
 
 function detailToFormValue(d: PlanningDayDetail): Partial<{
@@ -451,10 +435,4 @@ function formToCreateRequest(
       info: v.info,
     },
   );
-}
-
-function isoTime(iso: string): string {
-  // `2026-07-01T10:00:00Z` → `10:00`.
-  const m = /T(\d{2}:\d{2})/.exec(iso);
-  return m?.[1] ?? '';
 }

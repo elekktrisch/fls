@@ -342,6 +342,25 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   `/api/v1/planning-days` + `planningDate`/`info`/`canUpdateRecord` wire shape) — 5 passed LOCALLY (musl chromium),
   2 list-only cases stay fixme (Setup-button needs `/planningsetup` T-09; page-POST envelope is T-16). Local DoD
   green: tsc ✓, lint ✓, ng build (mock-auth) ✓, full vitest 388 ✓, gallery scripts 63 ✓.
+- [x] **T-08b — reuse reservations infra in the planning-edit inline list (operator directive — de-dup, NOT a
+  bespoke copy).** Replace T-08's hand-rolled `planning-reservations-list` markup + local `timeLabel`/`isoTime`/
+  inline row with the existing reservations UI + infra. *(shared reservation-row + util seam)*
+  **Done:** Extracted a feature-agnostic shared molecule `@ui/molecules/af-reservation-row` (`<af-reservation-row>`)
+  rendering one reservation as a flat list row (time · aircraft immat · type · open-link), driven by the
+  `AircraftReservationListItem` shape; the feature passes the resolved immat (it owns the store label-map) + a
+  `testIdPrefix` so the spec's existing `planning-reservation-<id>` / `planning-reservation-edit-<id>` selectors
+  stay stable (no spec change needed). Promoted the duplicated time-formatting (`timeLabel`/`isoTime`) to a pure
+  `@shared/util/reservation` helper (`reservationTimeLabel`/`isoTime`) + 4 vitest cases. `planning-edit.page.ts` now
+  renders the inline panel through `<af-reservation-row>` — bespoke markup + local helpers removed. **Data infra
+  reuse:** the day's-reservations fetch already rides J-5's `aircraft-reservations day/{date}` endpoint + the
+  `AircraftReservationListItem` type (the planning store keeps its own `loadDayReservations` call — the
+  no-sibling-store-injection rule forbids the planning store injecting the reservations store; same endpoint/shape,
+  no parallel duplication). **J-5 calendar NOT refactored to share the row (deliberate):** the reservations
+  *calendar* renders positioned hour-blocks (time-placed `placeBlock` grid), not list rows — a list-row component
+  is the wrong shape for a grid block, and J-5 has no flat-list reservation rendering to consolidate. The shared row
+  + util are ready for any future flat reservation list; calendar adoption is not a fit, not a follow-up debt.
+  Local DoD: tsc ✓, eslint ✓ (molecule import rules ok), prettier ✓, ng test 395 ✓, ng build (prod) ✓, planning
+  mock specs 12✓/2 fixme, J-5 reservations-crud 12✓ — no regression.
 - [x] **T-09 — SPA setup wizard.** `/planningsetup` multi-step (StartDate/EndDate/7 weekday checks/location)
   → POST create/rule → back to list. *(component-route seam)*
   **Done:** `features/planning/setup/planning-setup.page.ts` — single-step form (legacy parity: `planning-setup.html`
