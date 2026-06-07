@@ -1,4 +1,18 @@
-import { type APIRequestContext } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+
+import { type APIRequestContext, type Browser, type Page, expect } from '@playwright/test';
+
+import { assignRealmRole, createUserWithAttributes, deleteUser } from './keycloak-admin';
+import { fillKcLogin } from './kc-form';
+import {
+  E2E_EMAIL_PREFIX,
+  E2E_EMAIL_SUFFIX,
+  E2E_CANNED_PASSWORD,
+  type TestUser,
+} from './test-user';
+
+/** seed-club-1 (V5 walking skeleton) — the @TenantId club every planning row is scoped to. */
+const SEED_CLUB_ID = '019e30c3-2c00-7001-8000-000000000001';
 
 /**
  * J-6 planning real-chain fixture — the clean-seed masterdata seeder for the
@@ -42,6 +56,16 @@ function runId(): string {
   return id;
 }
 
+/**
+ * seed-club-1's planning-day notification address — the recipient the imminent
+ * (day+1) pass of `PlanningDayNotificationJob` mails (`Club.getPlanningDayInfoMailTo`).
+ * Set on seed-club-1 by `V34__dev_planning_seed.sql` so the club opts in
+ * (`wantsPlanningDayNotifications` = a non-blank address). The T-16 notification
+ * real-idp case fires the guarded run-now affordance and asserts THIS address
+ * receives the `planningday-ok`/`-cancel` mail via mailpit. Must match the V34 seed.
+ */
+export const SEED_CLUB_NOTIFICATION_ADDRESS = 'flugbetrieb@seed-club-1.example';
+
 function shortTag(): string {
   return `${runId().slice(0, 3)}${Date.now().toString(36).slice(-4)}`.toUpperCase();
 }
@@ -70,12 +94,18 @@ export interface PlanningMasterdata {
   /** `pn-<uuid>` instructor person (with a seed-club-1 membership → pickable). */
   instructorId: string;
   instructorName: string;
+  /** Unique-per-run private email — the week-ahead (day+7) assignment-mail recipient. */
+  instructorEmail: string;
   /** `pn-<uuid>` tow-pilot person (with a seed-club-1 membership → pickable). */
   towPilotId: string;
   towPilotName: string;
+  /** Unique-per-run private email — the week-ahead (day+7) assignment-mail recipient. */
+  towPilotEmail: string;
   /** `pn-<uuid>` flight-operator person (with a seed-club-1 membership → pickable). */
   flightOpId: string;
   flightOpName: string;
+  /** Unique-per-run private email — the week-ahead (day+7) assignment-mail recipient. */
+  flightOpEmail: string;
   /**
    * `ac-<uuid>` a fresh aircraft seed-club-1 manages + its immat — so the inline
    * per-day reservations panel can be POPULATED with a real J-5 reservation on the
@@ -86,17 +116,25 @@ export interface PlanningMasterdata {
   aircraftImmat: string;
 }
 
-/** Seed one crew person WITH a seed-club-1 membership (→ pickable in /persons). */
+/**
+ * Seed one crew person WITH a seed-club-1 membership (→ pickable in /persons) and
+ * a UNIQUE-per-run private email. `Person.emailForCommunication()` returns the
+ * private email (`preferMailToBusinessMail=false`), so the week-ahead (day+7)
+ * notification pass mails this exact address — unique-per-run so the mailpit
+ * `to:` match is unambiguous (the mailpit-client fails loud on >1 match).
+ */
 async function seedCrewPerson(
   api: APIRequestContext,
   bearer: string,
   firstname: string,
   lastname: string,
+  email: string,
   flags: { isGliderInstructor?: boolean; isTowPilot?: boolean },
-): Promise<{ id: string; name: string }> {
+): Promise<{ id: string; name: string; email: string }> {
   const person = await postJson(api, bearer, '/api/v1/persons', {
     firstname,
     lastname,
+    emailPrivate: email,
     preferMailToBusinessMail: false,
     receiveOwnedAircraftStatisticReports: false,
     enableAddress: false,
@@ -115,7 +153,7 @@ async function seedCrewPerson(
       isActive: true,
     },
   });
-  return { id: String(person['id']), name: `${firstname} ${lastname}` };
+  return { id: String(person['id']), name: `${firstname} ${lastname}`, email };
 }
 
 /**
@@ -142,13 +180,31 @@ export async function seedPlanningMasterdata(
     isFastEntryRecord: false,
   });
 
-  const instructor = await seedCrewPerson(api, bearer, 'Ingrid', `Fluglehrer ${tag}`, {
-    isGliderInstructor: true,
-  });
-  const towPilot = await seedCrewPerson(api, bearer, 'Theo', `Schlepppilot ${tag}`, {
-    isTowPilot: true,
-  });
-  const flightOp = await seedCrewPerson(api, bearer, 'Frieda', `Flugleiter ${tag}`, {});
+  const lc = tag.toLowerCase();
+  const instructor = await seedCrewPerson(
+    api,
+    bearer,
+    'Ingrid',
+    `Fluglehrer ${tag}`,
+    `ingrid.${lc}@crew.example`,
+    { isGliderInstructor: true },
+  );
+  const towPilot = await seedCrewPerson(
+    api,
+    bearer,
+    'Theo',
+    `Schlepppilot ${tag}`,
+    `theo.${lc}@crew.example`,
+    { isTowPilot: true },
+  );
+  const flightOp = await seedCrewPerson(
+    api,
+    bearer,
+    'Frieda',
+    `Flugleiter ${tag}`,
+    `frieda.${lc}@crew.example`,
+    {},
+  );
 
   // A fresh aircraft seed-club-1 manages — the inline reservations panel's
   // populated-list parity shot (T-16) reserves THIS aircraft on the captured
@@ -171,10 +227,13 @@ export async function seedPlanningMasterdata(
     locationName: `J6 Planning Field ${tag}`,
     instructorId: instructor.id,
     instructorName: instructor.name,
+    instructorEmail: instructor.email,
     towPilotId: towPilot.id,
     towPilotName: towPilot.name,
+    towPilotEmail: towPilot.email,
     flightOpId: flightOp.id,
     flightOpName: flightOp.name,
+    flightOpEmail: flightOp.email,
     aircraftId: String(aircraft['id']),
     aircraftImmat,
   };
@@ -230,4 +289,93 @@ export async function seedReservationOnPlanningDay(
     throw new Error('seedReservationOnPlanningDay: create must return a 201 Location header');
   }
   return new URL(location, 'http://localhost').pathname.split('/').pop() ?? '';
+}
+
+// ===========================================================================
+// REAL LOW-PRIVILEGE PILOT — for the delete/update authz probe. The oracle:
+// delete/update is gated to `CLUB_ADMINISTRATOR` OR the record creator
+// (`PlanningDayService.cs:407-425`). The mock-admin principal is admin-everything
+// and HIDES this gate ([[project_real_idp_real_roles_catches_authz_gaps]]); a real
+// PILOT bound to seed-club-1 — neither admin NOR the day's creator — must be
+// FORBIDDEN (403) from deleting a clubadmin4-created day. Provisioned the
+// two-club-fixture way: a fresh `e2e-…@example.com` KC user (swept by teardown)
+// with the `clubId` attribute set to seed-club-1's UUID (the realm maps it to a
+// `clubId` claim the backend parses directly as the tenant) + the PILOT realm role.
+// ===========================================================================
+
+const PILOT_ROLE = 'PILOT';
+
+/** A loginable real PILOT bound to seed-club-1 (a low-privilege, non-admin principal). */
+export interface SeedClubPilot {
+  user: TestUser;
+  kcUserId: string;
+  /** Remove the KC user (call in afterAll). */
+  dispose: () => Promise<void>;
+}
+
+/**
+ * Provision a real PILOT (realm role `PILOT`, no admin) bound to seed-club-1, so
+ * the delete-authz probe drives a genuinely low-privilege principal. Disjoint
+ * per call (run-id + fresh nonce) so a co-located spec / retry never collides on
+ * `ux_user_username_lower_alive`.
+ */
+export async function provisionSeedClubPilot(): Promise<SeedClubPilot> {
+  const id = process.env['E2E_RUN_ID'];
+  if (!id) {
+    throw new Error('E2E_RUN_ID not set — real-idp-setup must run before provisioning the pilot');
+  }
+  const nonce = randomUUID().replace(/-/g, '').slice(0, 8);
+  const user: TestUser = {
+    email: `${E2E_EMAIL_PREFIX}${id}-j6-pilot-${nonce}${E2E_EMAIL_SUFFIX}`,
+    password: E2E_CANNED_PASSWORD,
+    firstName: 'E2e',
+    lastName: 'Pilot',
+  };
+  const kcUserId = await createUserWithAttributes(user, { clubId: [SEED_CLUB_ID] });
+  await assignRealmRole(kcUserId, PILOT_ROLE);
+  return {
+    user,
+    kcUserId,
+    dispose: async () => {
+      await deleteUser(kcUserId, user.email);
+    },
+  };
+}
+
+/**
+ * Log the PILOT in through the SPA + real Keycloak and capture the Bearer the
+ * OIDC interceptor attaches to its first `/api/v1/*` read — so the spec can issue
+ * a direct REST delete as the PILOT identity and assert the 403 authz gate.
+ */
+export async function captureSeedClubPilotBearer(
+  browser: Browser,
+  baseURL: string,
+  pilot: SeedClubPilot,
+): Promise<string> {
+  const context = await browser.newContext({ baseURL });
+  const page = await context.newPage();
+  try {
+    const bearerPromise = page.waitForRequest((req) => {
+      const auth = req.headers()['authorization'];
+      return req.url().includes('/api/v1/') && typeof auth === 'string' && /^Bearer /i.test(auth);
+    });
+    await loginAsSeedClubPilot(page, pilot);
+    // The planning list issues GET /api/v1/planning-days/overview/future, stamped
+    // by the interceptor with the PILOT's Bearer.
+    await page.goto('/planning');
+    const req = await bearerPromise;
+    return req.headers()['authorization']!;
+  } finally {
+    await context.close();
+  }
+}
+
+/** Drive the PILOT through the SPA login form (real Keycloak), landing authed. */
+export async function loginAsSeedClubPilot(page: Page, pilot: SeedClubPilot): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('landing-topbar-sign-in').click();
+  await page.waitForURL(/\/realms\/alpenflight\//);
+  await fillKcLogin(page, pilot.user.email, pilot.user.password);
+  await page.waitForURL((url) => !url.pathname.startsWith('/realms/'), { timeout: 30_000 });
+  await expect(page.getByTestId('landing-topbar-sign-in')).toHaveCount(0);
 }

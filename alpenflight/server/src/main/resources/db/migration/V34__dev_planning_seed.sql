@@ -46,6 +46,20 @@
 -- (always 1, never read — J-6 oracle); seeded as 1 only so JPA round-trips it.
 -- =============================================================================
 
+-- ── seed-club-1 opts in to planning-day notifications ───────────────────────
+-- Set the club's planning-day notification address (V35 column) so the
+-- imminent (day+1) pass of PlanningDayNotificationJob has a recipient — the
+-- T-16 notification real-idp case fires the guarded run-now affordance and
+-- asserts this club address receives the planningday-ok/cancel mail. Left
+-- `use_planning_day_without_reservations` at its V35 default (false) so the
+-- ok-vs-cancel rule is exercisable (ok when the day has a reservation, cancel
+-- when it does not). INERT in prod (same @TenantId isolation as the rest of
+-- this seed). Idempotent: only sets it when still unset on seed-club-1.
+UPDATE t_club
+   SET send_planning_day_info_mail_to = 'flugbetrieb@seed-club-1.example'
+ WHERE id = '019e30c3-2c00-7001-8000-000000000001'
+   AND send_planning_day_info_mail_to IS NULL;
+
 -- ── 2 locations for seed-club-1 (Bern-Belp + Thun) ──────────────────────────
 -- country = CH (V2 seed), type = GLIDER_AIRFIELD (V3 seed). club_id = seed-club-1.
 INSERT INTO t_location (id, club_id, location_name, country_id, location_type_id,

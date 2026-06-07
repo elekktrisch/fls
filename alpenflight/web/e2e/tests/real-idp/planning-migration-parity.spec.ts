@@ -7,31 +7,45 @@ import {
   resolveMigratedTestClubAdmin,
   loginAsMigratedTestClubAdmin,
   useRealBundle,
-  SEED_CLUB_A_ID,
   type MigratedClubAdmin,
 } from './_helpers/reservation-parity-fixture';
 import {
   seedPlanningMasterdata,
   seedReservationOnPlanningDay,
+  provisionSeedClubPilot,
+  captureSeedClubPilotBearer,
+  SEED_CLUB_NOTIFICATION_ADDRESS,
   type PlanningMasterdata,
+  type SeedClubPilot,
 } from './_helpers/planning-parity-fixture';
+import {
+  provisionTwoClubs,
+  loginAsClubAdmin,
+  type TwoClubFixture,
+} from './_helpers/two-club-fixture';
 import { proofVideo } from './_helpers/proof-video';
-import { waitForMessage } from './_helpers/mailpit-client';
+import { waitForMessage, purgeMailpit } from './_helpers/mailpit-client';
 import { selectAfOption } from '../_helpers/af-select';
 
 /**
  * J-6 planning-days real chain (live Keycloak auth + real Spring backend + real
  * Postgres) — the journey's `parity_test`.
  *
- * T-13 (capture pull-forward, operator priority): the clean-seed HAPPY PATH is
- * now un-fixme'd and runs FULLY REAL against the real-idp stack — it drives the
- * real `/planning` screens (list render of the V34 seed days · create a day with
- * date + location + 3-role crew + remarks · edit crew · the inline J-5
- * reservations panel · the setup wizard's weekday bulk-create) and captures the
- * screenshots + pass-video the J-6 gallery page renders. The HARDER cases stay
- * `test.fixme` for T-16 (duplicate-409, delete-cascade, tenant-isolation 404,
- * the notification-job→mailpit assertion, and the migrated-parity read) — they
- * are NOT load-bearing for getting J-6 screens onto the deployed gallery.
+ * T-16 (§4 done-gate): ALL cases now run FULLY REAL against the real-idp stack
+ * (no mocks). The clean-seed happy path drives the real `/planning` screens (list
+ * render of the V34 seed days · create a day with date + location + 3-role crew +
+ * remarks · edit crew · the inline J-5 reservations panel · the setup wizard's
+ * weekday bulk-create) and captures the screenshots + pass-video the J-6 gallery
+ * page renders. The thickened key-error / edge / email / migration cases (T-16):
+ *   - duplicate (date, location) → 409 + the rule-wizard skips existing idempotently;
+ *   - delete a day → its 3 assignments cascade + the day leaves the list, AND a
+ *     real low-privilege PILOT (non-admin, non-creator) is FORBIDDEN (403) — the
+ *     admin-or-creator gate, proven with a REAL low-priv principal (the mock-admin
+ *     would have hidden it, [[project_real_idp_real_roles_catches_authz_gaps]]);
+ *   - cross-tenant GET → 404 driven by a REAL second-club admin (club B);
+ *   - the notification job run-now → imminent (day+1, club address) + week-ahead
+ *     (day+7, each assigned crew member) mails land in mailpit;
+ *   - the migrated-parity read of a real legacy planning day (own-club location).
  *
  * Mirrors the J-5 reservation real-idp discipline
  * (`reservations-migration-parity.spec.ts`):
@@ -47,6 +61,15 @@ import { selectAfOption } from '../_helpers/af-select';
  *   - the migrated-data half rides the SAME real bundle the J-0c fan-out spec
  *     ingests; skips cleanly when the per-push synth gate ran (no real export).
  *
+ * ── REAL PRINCIPALS (no mock-admin) ──────────────────────────────────────────
+ *   - the delete/update authz probe drives a REAL low-privilege PILOT bound to
+ *     seed-club-1 (`provisionSeedClubPilot`) — neither admin nor the record
+ *     creator → 403; the mock-admin would hide this gate
+ *     ([[project_real_idp_real_roles_catches_authz_gaps]]);
+ *   - the cross-tenant 404 probe drives a REAL second club + admin (`provisionTwoClubs`);
+ *   - the notification case fires the guarded `POST .../notifications/run`
+ *     affordance (the J-15 jobs console is not built) + asserts mailpit.
+ *
  * ── WHAT THIS PROVES (J-6 acceptance, grounded in the behavior oracle) ───────
  *   [happy] create a planning day (date + location + 3-role crew + remarks)
  *     THROUGH THE UI → it renders in the future-days list.
@@ -60,17 +83,6 @@ import { selectAfOption } from '../_helpers/af-select';
  *     address) + week-ahead (day+7, each assigned person) mails land in mailpit.
  *   [migration/parity] a migrated planning day (assignments + fan-out-resolved
  *     location) renders for the migrated club admin, identity-matched to legacy.
- *
- * ── SHIP-TIME WIRING (T-04..T-11/T-16 fill these in) ─────────────────────────
- *   - a `planning-parity-fixture.ts` (sibling of `reservation-parity-fixture.ts`)
- *     seeds the planning masterdata (location + 3 crew persons with memberships)
- *     and a low-privilege PILOT principal (oracle: delete/update is ClubAdmin OR
- *     creator — drive a real low-priv principal so mock-admin doesn't hide the
- *     authz gap, [[project_real_idp_real_roles_catches_authz_gaps]]);
- *   - the "run planning notifications now" guarded test affordance (T-10) the
- *     email case triggers (the J-15 jobs console is not built);
- *   - the migrated-planning-day identifying fields (unique remark + the
- *     fan-out-resolved own-club location) the migrated-read case matches on.
  */
 
 const PLANNINGDAYS = '/api/v1/planning-days';
@@ -85,6 +97,24 @@ function dayKeyFromToday(days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * `YYYY-MM-DD` of the first Saturday at least `minDays` days from local today —
+ * used by the duplicate-409 + rule-wizard-skip case so the SAME date the wizard
+ * emits (it generates Sat/Sun only) is the one already created (the skip probe).
+ */
+function nextSaturdayFromToday(minDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + minDays);
+  // getDay(): Sat = 6 → advance to the next Saturday (or stay if already Sat).
+  while (d.getDay() !== 6) {
+    d.setDate(d.getDate() + 1);
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 async function newRecordedContext(
   browser: Browser,
   baseURL: string,
@@ -93,11 +123,12 @@ async function newRecordedContext(
   return browser.newContext({ baseURL, recordVideo: { dir: testInfo.outputDir } });
 }
 
-/** A row of the paged planning-day list envelope. */
+/** A row of the paged planning-day list envelope (the `PlanningDayDetail` shape). */
 interface PlanningDayListRow {
   id: string;
-  date: string;
+  planningDate: string;
   locationId: string;
+  info?: string | null;
   instructorPersonId?: string | null;
   towingPilotPersonId?: string | null;
   flightOperatorPersonId?: string | null;
@@ -118,11 +149,8 @@ interface PlanningDayRequest {
 /**
  * Create a planning day via the REAL REST API and return the created id (from
  * the 201 `Location` header — never the POST body). Tracks the id in `created`
- * so the group's `afterAll` can delete it (retry-isolation).
- *
- * STUB: kept here as the shape the fixme'd cases use; the masterdata it
- * references (location + crew person ids) is seeded by the ship-time
- * `planning-parity-fixture.ts` (T-04+).
+ * so the group's `afterAll` can delete it (retry-isolation). The masterdata it
+ * references (location + crew person ids) is seeded by `planning-parity-fixture.ts`.
  */
 async function createPlanningDay(
   ctx: BrowserContext,
@@ -166,12 +194,24 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
   /** Every reservation id this group created in seed-club-1 — deleted in afterAll. */
   const createdReservationIds: string[] = [];
   let cleanupCtx: BrowserContext;
+  /** A real low-privilege PILOT (seed-club-1) — the delete-authz 403 probe. */
+  let pilot: SeedClubPilot;
+  let pilotBearer: string;
+  /** A real second club + admin (club B) — the cross-tenant-404 probe. */
+  let twoClubs: TwoClubFixture;
 
   test.beforeAll(async ({ browser, request }, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
     createdIds.length = 0;
     createdReservationIds.length = 0;
     adminBearer = await captureReservationAdminBearer(browser, baseURL);
+    // A real low-privilege PILOT (seed-club-1) for the delete-authz 403 probe, and
+    // a real second club (B) + its admin for the cross-tenant-404 probe — driven
+    // through real Keycloak so neither the mock-admin nor a synthetic claim hides
+    // the role / tenant gate ([[project_real_idp_real_roles_catches_authz_gaps]]).
+    pilot = await provisionSeedClubPilot();
+    pilotBearer = await captureSeedClubPilotBearer(browser, baseURL, pilot);
+    twoClubs = await provisionTwoClubs(browser, baseURL, 'pln');
     // Seed (as clubadmin4, through the REAL create APIs) a fresh location + 3
     // crew persons WITH a seed-club-1 membership so the create/edit form's 3
     // crew <af-select>s offer them (the V34 seed persons carry no membership →
@@ -208,6 +248,8 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
       }
     }
     await cleanupCtx?.close();
+    await pilot?.dispose();
+    await twoClubs?.dispose();
   });
 
   test('[happy] create a planning day through the UI (date + location + 3-role crew + remarks) → it renders in the future-days list', async ({
@@ -482,26 +524,73 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test.fixme('[key-error] a duplicate (date, location) planning day is rejected 409', async ({
+  test('[key-error] a duplicate (date, location) planning day is rejected 409; the rule-wizard skips the existing day idempotently', async ({
     browser,
   }) => {
     const ctx = await browser.newContext({ baseURL });
     try {
-      // T-16: create a day, then POST a second with the SAME (date, location) →
-      // 409 (V4 ux_pln_club_date_loc). The rule-wizard variant skips idempotently.
-      const dupDate = dayKeyFromToday(9);
+      // Create a day, then POST a second with the SAME (date, location) → 409
+      // (V4 ux_pln_club_date_loc corrects legacy's no-dedup bug). Use a Saturday
+      // so the SAME day is reachable by the rule-wizard skip-existing probe below
+      // (the wizard only emits Sat/Sun in this window).
+      const dupDate = nextSaturdayFromToday(15);
       const first = await createPlanningDay(ctx, adminBearer, createdIds, {
         planningDate: dupDate,
         locationId: masterdata.locationId,
       });
       expect(first).toBeTruthy();
+
       const dup = await ctx.request.post(PLANNINGDAYS, {
         headers: { authorization: adminBearer, 'content-type': 'application/json' },
         data: { planningDate: dupDate, locationId: masterdata.locationId },
       });
-      expect(dup.status(), 'a duplicate (date, location) must 409').toBe(409);
+      expect(
+        dup.status(),
+        `a duplicate (date, location) must 409 — got ${dup.status()}: ${await dup.text()}`,
+      ).toBe(409);
       const body = (await dup.json()) as { key?: string };
       expect(body.key).toBe('planning.day.duplicate');
+
+      // RULE-WIZARD IDEMPOTENT SKIP (the oracle's second half): bulk-create over a
+      // window that INCLUDES the already-existing Saturday `dupDate`, at the same
+      // location. The existing (club, date, location) day is SKIPPED idempotently
+      // (no 409, no dupe); the response lists only the days actually created, and
+      // `dupDate` is NOT among them — proving skip-existing, not re-insert.
+      const ruleStart = dupDate; // inclusive — the existing Saturday itself
+      const ruleEnd = dayKeyFromToday(36); // a few weekends past it
+      const ruled = await ctx.request.post(`${PLANNINGDAYS}/create/rule`, {
+        headers: { authorization: adminBearer, 'content-type': 'application/json' },
+        data: {
+          startDate: ruleStart,
+          endDate: ruleEnd,
+          everyMonday: false,
+          everyTuesday: false,
+          everyWednesday: false,
+          everyThursday: false,
+          everyFriday: false,
+          everySaturday: true,
+          everySunday: false,
+          locationId: masterdata.locationId,
+        },
+      });
+      expect(
+        ruled.status(),
+        `the rule-wizard must 201 (skip-existing, not reject) — got ${ruled.status()}: ${await ruled.text()}`,
+      ).toBe(201);
+      const created = (await ruled.json()) as { id: string; planningDate: string }[];
+      for (const d of created) {
+        createdIds.push(d.id);
+      }
+      expect(
+        created.some((d) => d.planningDate === dupDate),
+        `the rule-wizard must SKIP the already-existing ${dupDate} (idempotent), not re-create it — ` +
+          `created ${JSON.stringify(created.map((d) => d.planningDate))}`,
+      ).toBe(false);
+      // It still creates the OTHER Saturdays in the window (it did not no-op wholesale).
+      expect(
+        created.length,
+        'the rule-wizard creates the remaining (non-existing) Saturdays in the window',
+      ).toBeGreaterThan(0);
     } finally {
       await ctx.close();
     }
@@ -581,66 +670,248 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
     }
   });
 
-  test.fixme('[key-error] deleting a planning day cascade-deletes its assignments and removes it from the list', async ({
+  test('[key-error] deleting a planning day cascade-deletes its assignments and removes it from the list; a non-admin non-creator PILOT is forbidden (403)', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsReservationAdmin(page);
-      // STUB: create a day with full crew, DELETE it via the real API (or the UI
-      // row action), assert it leaves the list AND its assignment rows are gone
-      // (fk_pda_planning_day_id ON DELETE CASCADE, V4). Drive the authz with the
-      // low-priv PILOT principal too (delete is ClubAdmin OR creator — oracle).
+
+      // Create a FULLY-CREWED day (3 assignment rows) via the real API as
+      // clubadmin4 (the creator), on a fresh future date at the seeded location.
+      const dayDate = dayKeyFromToday(17);
+      const id = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: dayDate,
+        locationId: masterdata.locationId,
+        instructorPersonId: masterdata.instructorId,
+        towingPilotPersonId: masterdata.towPilotId,
+        flightOperatorPersonId: masterdata.flightOpId,
+      });
+
+      // The detail confirms all 3 typed assignment rows exist before delete (the
+      // 3 nullable person ids project the generic assignment rows — oracle).
+      const before = await ctx.request.get(`${PLANNINGDAYS}/${id}`, {
+        headers: { authorization: adminBearer },
+      });
+      expect(before.status()).toBe(200);
+      const beforeBody = (await before.json()) as PlanningDayRequest;
+      expect(beforeBody.instructorPersonId, 'the day carries its instructor assignment').toBe(
+        masterdata.instructorId,
+      );
+      expect(beforeBody.towingPilotPersonId).toBe(masterdata.towPilotId);
+      expect(beforeBody.flightOperatorPersonId).toBe(masterdata.flightOpId);
+
+      // AUTHZ PROBE (real low-priv PILOT, not admin, not the creator): the delete
+      // is gated ClubAdmin-OR-creator, so the PILOT is FORBIDDEN (403) — and the
+      // day still exists afterwards (the gate held, no data lost). The mock-admin
+      // would have hidden this gap ([[project_real_idp_real_roles_catches_authz_gaps]]).
+      const forbidden = await ctx.request.delete(`${PLANNINGDAYS}/${id}`, {
+        headers: { authorization: pilotBearer },
+      });
+      expect(
+        forbidden.status(),
+        `a non-admin non-creator PILOT must be forbidden from deleting — got ${forbidden.status()}`,
+      ).toBe(403);
+      const stillThere = await ctx.request.get(`${PLANNINGDAYS}/${id}`, {
+        headers: { authorization: adminBearer },
+      });
+      expect(stillThere.status(), 'the forbidden delete left the day intact').toBe(200);
+
+      // HAPPY DELETE through the UI as clubadmin4 (the creator): open the list,
+      // kebab → delete → confirm → the row leaves the list. Mirrors the mock-spec
+      // delete flow (the kebab item is page-level, the confirm fires the DELETE).
+      await page.goto('/planning?lang=de');
+      await expect(page.getByTestId('planning-list')).toBeVisible();
+      const row = page.getByTestId(`planning-row-${id}`);
+      await expect(row, 'the crewed day renders in the list before delete').toBeVisible();
+
+      const deleted = page.waitForResponse(
+        (r) =>
+          r.request().method() === 'DELETE' &&
+          new URL(r.url()).pathname === `${PLANNINGDAYS}/${id}` &&
+          r.status() === 204,
+      );
+      await page.getByTestId(`planning-kebab-${id}`).click();
+      await page.getByTestId(`planning-delete-${id}`).click();
+      await page.getByTestId('planning-delete-confirm').click();
+      await deleted;
+
+      // The day leaves the future-days list (real soft-delete excluded from reads).
+      await expect(row, 'the deleted day no longer renders in the list').toHaveCount(0);
+
+      // The day + its 3 cascade-deleted assignments are gone — the detail 404s
+      // (the assignments cascaded with the parent; fk_pda_planning_day_id ON
+      // DELETE CASCADE, V4 — re-creating the SAME (date, location) now succeeds,
+      // not a 409, proving the row is truly gone, and the create tracks for cleanup).
+      const after = await ctx.request.get(`${PLANNINGDAYS}/${id}`, {
+        headers: { authorization: adminBearer },
+      });
+      expect(after.status(), 'the deleted planning day is no longer readable (404)').toBe(404);
+      const recreate = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: dayDate,
+        locationId: masterdata.locationId,
+      });
+      expect(
+        recreate,
+        'the freed (date, location) accepts a new day — the prior row truly deleted',
+      ).toBeTruthy();
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-6',
         caption:
-          'J-6 · planning · deleting a planning day cascade-deletes its crew assignments and the ' +
-          'day leaves the future-days list (V4 ON DELETE CASCADE)',
+          'J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew ' +
+          'assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real ' +
+          'low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) ' +
+          'from deleting it (the admin-or-creator gate, proven with a real low-priv principal)',
         acTag: 'key-error',
       });
     }
   });
 
-  test.fixme('[edge] tenant isolation: a planning day created by club A is not readable by club B (404)', async ({
+  test('[edge] tenant isolation: a planning day created by club A is not readable by club B (404)', async ({
     browser,
   }) => {
     const ctx = await browser.newContext({ baseURL });
     try {
-      // STUB: create a day as seed-club-1 (adminBearer), then GET it with club
-      // B's Bearer (provisionTwoClubs / a second club admin) → 404. The J-0/J-1/
-      // J-5 cross-tenant pattern (@TenantId-scoped on operating_club_id, V4).
-      expect(SEED_CLUB_A_ID).toBeTruthy();
+      // Create a day as seed-club-1 (clubadmin4 / adminBearer).
+      const id = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: dayKeyFromToday(19),
+        locationId: masterdata.locationId,
+      });
+
+      // Capture club B's admin Bearer through real Keycloak (a DIFFERENT tenant).
+      const bCtx = await browser.newContext({ baseURL });
+      const bPage = await bCtx.newPage();
+      let clubBBearer: string;
+      try {
+        const reqPromise = bPage.waitForRequest(
+          (req) =>
+            req.url().includes('/api/v1/') &&
+            typeof req.headers()['authorization'] === 'string' &&
+            /^Bearer /i.test(req.headers()['authorization']!),
+        );
+        await loginAsClubAdmin(bPage, twoClubs.clubB);
+        await bPage.goto('/planning');
+        clubBBearer = (await reqPromise).headers()['authorization']!;
+      } finally {
+        await bCtx.close();
+      }
+
+      // seed-club-1's admin reads it fine (the positive control — the id is valid).
+      const ownRead = await ctx.request.get(`${PLANNINGDAYS}/${id}`, {
+        headers: { authorization: adminBearer },
+      });
+      expect(ownRead.status(), 'the owning tenant reads its own day').toBe(200);
+
+      // Club B's admin CANNOT read seed-club-1's day — the read is @TenantId-scoped
+      // on operating_club_id (V4), so a cross-tenant GET 404s (NOT 403 — the row
+      // is invisible to the other tenant, not forbidden). The J-0/J-1/J-5 pattern.
+      const crossTenant = await ctx.request.get(`${PLANNINGDAYS}/${id}`, {
+        headers: { authorization: clubBBearer },
+      });
+      expect(
+        crossTenant.status(),
+        `club B must NOT read club A's planning day (cross-tenant 404) — got ${crossTenant.status()}`,
+      ).toBe(404);
     } finally {
       await ctx.close();
     }
   });
 
-  test.fixme('[happy/email] PlanningDayNotificationJob run-now → imminent (day+1, club address) + week-ahead (day+7, assigned crew) mails land in mailpit', async ({
+  test('[happy/email] PlanningDayNotificationJob run-now → imminent (day+1, club address) + week-ahead (day+7, assigned crew) mails land in mailpit', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
     const page = await ctx.newPage();
     try {
       await loginAsReservationAdmin(page);
-      // STUB (T-10): create a day+1 planning day (→ imminent club mail) and a
-      // day+7 planning day with assigned crew (→ week-ahead per-person mail),
-      // trigger the guarded "run planning notifications now" affordance, then
-      // assert via the mailpit-client:
-      //   - waitForMessage(clubNotificationAddress) → planningday-ok/cancel;
-      //   - waitForMessage(<each assigned person's email>) → planningday-assignment.
-      // Exact 7-day window + recipient set confirmed at ship time via legacy-oracle.
-      expect(waitForMessage).toBeTruthy();
+
+      // Clean slate so the per-recipient mailpit assertions are unambiguous (the
+      // mailpit-client fails loud on >1 match for an address). The club address is
+      // fixed (seed-club-1's V34 notification address), so a purge + creating
+      // EXACTLY ONE day+1 day keeps the imminent club mail a single match.
+      await purgeMailpit();
+
+      // IMMINENT (day+1): one planning day dated exactly tomorrow at the seeded
+      // location, WITH a real J-5 reservation on that day+location → the job
+      // chooses planningday-ok (takes place) and mails the CLUB address.
+      const imminentDate = dayKeyFromToday(1);
+      const imminentId = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: imminentDate,
+        locationId: masterdata.locationId,
+      });
+      const reservationId = await seedReservationOnPlanningDay(ctx.request, adminBearer, {
+        planningDate: imminentDate,
+        locationId: masterdata.locationId,
+        aircraftId: masterdata.aircraftId,
+        pilotPersonId: masterdata.instructorId,
+        reservationTypeId,
+      });
+      createdReservationIds.push(reservationId);
+
+      // WEEK-AHEAD (day+7): one planning day dated exactly +7 with all 3 crew
+      // assigned → each assigned person (unique-per-run email) gets a
+      // planningday-assignment-notification.
+      const weekAheadId = await createPlanningDay(ctx, adminBearer, createdIds, {
+        planningDate: dayKeyFromToday(7),
+        locationId: masterdata.locationId,
+        instructorPersonId: masterdata.instructorId,
+        towingPilotPersonId: masterdata.towPilotId,
+        flightOperatorPersonId: masterdata.flightOpId,
+      });
+      expect(imminentId && weekAheadId).toBeTruthy();
+
+      // Fire the guarded run-now affordance (dev/test profile + ClubAdmin) — the
+      // real job runs both exact-date passes for clubadmin4's own club. The J-15
+      // jobs console is not built, so this is the deterministic e2e trigger.
+      const run = await ctx.request.post(`${PLANNINGDAYS}/notifications/run`, {
+        headers: { authorization: adminBearer },
+      });
+      expect(
+        run.status(),
+        `run-now must 200 for a ClubAdmin — got ${run.status()}: ${await run.text()}`,
+      ).toBe(200);
+      const summary = (await run.json()) as {
+        imminentMailCount: number;
+        weekAheadMailCount: number;
+      };
+      // At least our imminent day + our 3 week-ahead assignees were mailed (delta —
+      // a co-located run could leave another day+1/+7, so assert >=, not ==).
+      expect(
+        summary.imminentMailCount,
+        'the imminent pass mailed ≥1 club mail',
+      ).toBeGreaterThanOrEqual(1);
+      expect(
+        summary.weekAheadMailCount,
+        'the week-ahead pass mailed the 3 assignees',
+      ).toBeGreaterThanOrEqual(3);
+
+      // IMMINENT mail landed at the CLUB address (planningday-ok — the day has a
+      // reservation). Exactly one because we purged + created exactly one day+1.
+      const clubMail = await waitForMessage(SEED_CLUB_NOTIFICATION_ADDRESS);
+      expect(
+        clubMail.Subject,
+        'the imminent club mail is the planningday-ok template (the day takes place)',
+      ).toBe('Flugbetriebstag findet statt');
+
+      // WEEK-AHEAD assignment mail landed at EACH assigned person's unique email.
+      const instructorMail = await waitForMessage(masterdata.instructorEmail);
+      expect(instructorMail.Subject).toBe('Erinnerung: Einteilung Flugbetriebstag');
+      const towPilotMail = await waitForMessage(masterdata.towPilotEmail);
+      expect(towPilotMail.Subject).toBe('Erinnerung: Einteilung Flugbetriebstag');
+      const flightOpMail = await waitForMessage(masterdata.flightOpEmail);
+      expect(flightOpMail.Subject).toBe('Erinnerung: Einteilung Flugbetriebstag');
     } finally {
       await ctx.close();
       await proofVideo(page, testInfo, {
         journey: 'J-6',
         caption:
-          'J-6 · planning notifications · running the PlanningDayNotificationJob mails the imminent ' +
-          '(day+1) planning-day status to the club’s notification address and a week-ahead (day+7) ' +
-          'reminder to each assigned crew member — both land in mailpit (real job + real SMTP)',
+          'J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded ' +
+          'run-now affordance) mails the imminent (day+1) planning-day status to the club’s ' +
+          'notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) ' +
+          'reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)',
         acTag: 'happy',
       });
     }
@@ -677,7 +948,7 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
     migratedBearer = resolved.bearer;
   });
 
-  test.fixme('[migration/parity] the migrated legacy planning day renders under its migrated TestClub tenant, identity-matched to legacy', async ({
+  test('[migration/parity] the migrated legacy planning day renders under its migrated TestClub tenant, identity-matched to legacy', async ({
     browser,
   }, testInfo) => {
     const ctx = await newRecordedContext(browser, baseURL, testInfo);
@@ -685,24 +956,54 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
     try {
       await loginAsMigratedTestClubAdmin(page, migratedAdmin);
 
-      // STUB (T-11/T-16): the T-11 legacy fixture seeds a planning day with
-      // assignments on the legacy TestClub; the real export → migrate carries it
-      // (PlanningDay is fan-out NO, but its Location FK fans out → the migrated
-      // day must point at its OWN club's Location replica via the
-      // (legacy_guid, club_id) ForeignKeyResolver). Assert the migrated day by
-      // its IDENTIFYING fields (unique date + the own-club location), not a count.
+      // The T-11 legacy fixture (`4 or 5 Insert Test Data.sql:1033-1122`) seeds 3
+      // planning days on the legacy TestClub with the unique remarks 'Test' /
+      // 'Test2' / 'Test3' (the last dated GETDATE()+100), each with crew
+      // assignments at the LSZK location. PlanningDay is fan-out NO, but its
+      // Location FK fans out → the migrated day must point at its OWN club's
+      // Location replica via the (legacy_guid, club_id) ForeignKeyResolver. Assert
+      // the migrated day by its IDENTIFYING legacy remark (the `info` field), not a
+      // bare count — distinguishing "the T-11 legacy day round-tripped" from "some
+      // other day exists". We key on 'Test3' (the +100 day): deterministically far
+      // future + untouched by the notification passes (+1/+7).
       const paged = await ctx.request.post(`${PLANNINGDAYS}/page/0/50`, {
         headers: { authorization: migratedBearer, 'content-type': 'application/json' },
-        data: { sorting: { date: 'asc' } },
+        data: { sorting: { planningDate: 'asc' } },
       });
       expect(paged.status(), 'the migrated TestClub can page its migrated planning days').toBe(200);
       const body = (await paged.json()) as { items: PlanningDayListRow[]; totalRows: number };
-      expect(body.totalRows).toBeGreaterThanOrEqual(1);
-      // STUB: match the migrated day by its fixture-identifying date + assert its
-      // locationId resolves to the migrated club's OWN Location replica.
 
+      const migrated = body.items.find((d) => d.info === 'Test3');
+      expect(
+        migrated,
+        `the migrated legacy planning day (remark "Test3") must be present for the migrated ` +
+          `TestClub — the T-11 legacy→export→migrate→render round-trip. Got ` +
+          `${body.items.length} row(s): ${JSON.stringify(body.items.map((d) => d.info))}`,
+      ).toBeTruthy();
+
+      // Its Location FK resolved to the migrated club's OWN-club Location replica
+      // (the J-0b own-club fan-out invariant): the locationId is present and
+      // resolves to an active location IN THE MIGRATED TENANT (a 200 read as the
+      // migrated admin) — a cross-club replica would 404 here. This is the
+      // load-bearing migrate-fidelity assertion (the day points at its own copy).
+      expect(migrated!.locationId, 'the migrated day carries a resolved location FK').toBeTruthy();
+      const ownLocation = await ctx.request.get(`/api/v1/locations/${migrated!.locationId}`, {
+        headers: { authorization: migratedBearer },
+      });
+      expect(
+        ownLocation.status(),
+        'the migrated day’s location resolves to the migrated club’s OWN Location replica (own-club FK)',
+      ).toBe(200);
+
+      // It renders on the migrated TestClub admin's /planning list (the screen
+      // wires to the migrated data). Identify the migrated row by its id — a
+      // residual day cannot satisfy this.
       await page.goto('/planning?lang=de');
       await expect(page.getByTestId('planning-list')).toBeVisible();
+      await expect(
+        page.getByTestId(`planning-row-${migrated!.id}`),
+        'the identified migrated planning day renders in the migrated tenant’s future-days list',
+      ).toBeVisible();
       await page.screenshot({
         path: `${testInfo.outputDir}/alpenflight-planning-migrated-list.png`,
         fullPage: true,
@@ -712,10 +1013,10 @@ test.describe('Planning days — migrated legacy planning day renders (real-idp)
       await proofVideo(page, testInfo, {
         journey: 'J-6',
         caption:
-          'J-6 · migrated planning day · a real legacy planning day (with crew assignments + a ' +
-          'fan-out-resolved own-club location), exported + migrated through the live chain, renders ' +
-          'on the migrated TestClub’s /planning list — identity-matched to legacy (full ' +
-          'legacy→export→migrate→Keycloak→UI chain, read via the migrated tenant)',
+          'J-6 · migrated planning day · a real legacy planning day (remark "Test3", with crew ' +
+          'assignments + a fan-out-resolved own-club location), exported + migrated through the live ' +
+          'chain, renders on the migrated TestClub’s /planning list — identity-matched to legacy and ' +
+          'pointing at its OWN club’s Location replica (full legacy→export→migrate→Keycloak→UI chain)',
         acTag: 'happy',
       });
     }
