@@ -441,13 +441,19 @@ test.describe('Planning days — clean-seed real chain (real-idp)', () => {
         fullPage: true,
       });
 
-      // Deeper asserts AFTER the shot: exactly the seeded reservation surfaces,
-      // and the row carries its aircraft immatriculation (the feature resolves
-      // the label and passes it to the row — af-reservation-row).
+      // Deeper asserts AFTER the shot: the inline list is POPULATED (≥1 row) and
+      // OUR seeded reservation is one of them, carrying its aircraft
+      // immatriculation (the feature resolves the label and passes it to the
+      // row — af-reservation-row). DELTA/presence, never an absolute count: this
+      // run created a UNIQUELY-tagged location, but `listAircraftReservationsForDay`
+      // is a UTC-day window so a prior retry's same-day+location reservation (the
+      // afterAll cleanup is best-effort on the never-truncated seed-club-1 tenant)
+      // can co-reside — the load-bearing proof is that OUR row surfaces, not that
+      // it is the only one (mirrors J-5's "delta-assert, never absolutes").
       await expect(
-        page.locator('[data-testid^="planning-reservation-"]'),
-        'exactly the one seeded reservation surfaces for this day+location',
-      ).toHaveCount(1);
+        page.locator('[data-testid^="planning-reservation-"]').first(),
+        'the inline per-day reservations list is populated (≥1 row)',
+      ).toBeVisible();
       await expect(seededRow).toContainText(masterdata.aircraftImmat);
     } finally {
       await ctx.close();
