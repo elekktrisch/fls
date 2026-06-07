@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   addDays,
+  formatDdMmYyyy,
   isInWeek,
   isoDate,
+  periodLabel,
   reservationHours,
   startOfWeek,
   startsOnDay,
+  stepDaysForView,
   weekCell,
   weekDays,
   type CalendarReservation,
@@ -104,6 +107,25 @@ describe('reservations calendar model', () => {
     ];
     const cell = weekCell(reservations, '2026-06-04');
     expect(cell.fillPct).toBe(100);
+  });
+
+  it('stepDaysForView steps one day in day-view, a whole week in week-view (T-08 #3)', () => {
+    expect(stepDaysForView('day')).toBe(1);
+    expect(stepDaysForView('week')).toBe(7);
+  });
+
+  it('formatDdMmYyyy zero-pads to DD.MM.YYYY (T-08 #3)', () => {
+    expect(formatDdMmYyyy('2026-06-04T09:00:00')).toBe('04.06.2026');
+    expect(formatDdMmYyyy('2026-12-31T23:30:00')).toBe('31.12.2026');
+    expect(formatDdMmYyyy('2026-01-01T00:00:00')).toBe('01.01.2026');
+  });
+
+  it('periodLabel is the single day in day-view, the week start–end range in week-view', () => {
+    // Thursday 2026-06-04 → its week is Mon 01 → Sun 07.
+    expect(periodLabel('day', '2026-06-04T15:00:00')).toBe('04.06.2026');
+    expect(periodLabel('week', '2026-06-04T15:00:00')).toBe('01.06.2026 – 07.06.2026');
+    // Any day in the week yields the same week range.
+    expect(periodLabel('week', '2026-06-07T23:00:00')).toBe('01.06.2026 – 07.06.2026');
   });
 
   it('isInWeek bounds the half-open week range', () => {

@@ -404,7 +404,9 @@ const de = {
     allDay: 'Ganztägig',
     calendar: {
       dayPicker: 'Tag wählen',
+      nextDay: 'Nächster Tag',
       nextWeek: 'Nächste Woche',
+      prevDay: 'Vorheriger Tag',
       prevWeek: 'Vorherige Woche',
       reservationsCount: '{{count}} Reservationen',
       today: 'Heute',

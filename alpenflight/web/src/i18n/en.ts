@@ -394,7 +394,9 @@ const en: Translations = {
     allDay: 'All day',
     calendar: {
       dayPicker: 'Pick day',
+      nextDay: 'Next day',
       nextWeek: 'Next week',
+      prevDay: 'Previous day',
       prevWeek: 'Previous week',
       reservationsCount: '{{count}} reservations',
       today: 'Today',

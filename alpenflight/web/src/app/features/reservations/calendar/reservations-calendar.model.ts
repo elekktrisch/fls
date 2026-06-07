@@ -98,6 +98,39 @@ export function isoDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Day-of-month-step the pager takes for a view: 1 calendar day, or a whole week. */
+export type CalendarView = 'day' | 'week';
+
+/**
+ * Pager granularity follows the active view (J-6b T-08 #3): day-view steps a
+ * single calendar day, week-view steps a whole week. The component multiplies
+ * by the direction (−1 prev / +1 next).
+ */
+export function stepDaysForView(view: CalendarView): number {
+  return view === 'week' ? 7 : 1;
+}
+
+/** `DD.MM.YYYY` for a local date — the project's display format (J-6b oracle). */
+export function formatDdMmYyyy(instant: string | number | Date): string {
+  const d = new Date(instant);
+  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}.${m}.${d.getFullYear()}`;
+}
+
+/**
+ * The view-aware period label (J-6b T-08 #3): the single day `DD.MM.YYYY` in
+ * day-view, the week's `DD.MM.YYYY – DD.MM.YYYY` start–end range in week-view
+ * (Monday→Sunday of the week containing `selected`). Replaces the old locale
+ * `3 Jan – 9 Jan` subtitle.
+ */
+export function periodLabel(view: CalendarView, selected: string | number | Date): string {
+  if (view === 'day') return formatDdMmYyyy(startOfDay(selected));
+  const monday = startOfWeek(selected);
+  const sunday = addDays(monday, 6);
+  return `${formatDdMmYyyy(monday)} – ${formatDdMmYyyy(sunday)}`;
+}
+
 /** True when `reservation` starts on the local day `dayKey` (`YYYY-MM-DD`). */
 export function startsOnDay(reservation: CalendarReservation, dayKey: string): boolean {
   return isoDate(startOfDay(reservation.start)) === dayKey;

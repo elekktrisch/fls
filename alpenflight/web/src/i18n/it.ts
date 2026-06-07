@@ -400,7 +400,9 @@ const it: Translations = {
     allDay: 'Tutto il giorno',
     calendar: {
       dayPicker: 'Scegli il giorno',
+      nextDay: 'Giorno successivo',
       nextWeek: 'Settimana successiva',
+      prevDay: 'Giorno precedente',
       prevWeek: 'Settimana precedente',
       reservationsCount: '{{count}} prenotazioni',
       today: 'Oggi',

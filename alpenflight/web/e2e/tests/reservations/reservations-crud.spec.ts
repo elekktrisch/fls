@@ -459,6 +459,15 @@ async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
   const todayMs = new Date(`${TODAY.key}T00:00:00`).getTime();
   const targetMs = new Date(`${dateKey}T00:00:00`).getTime();
   const direction = targetMs >= todayMs ? 'next' : 'prev';
+  // J-6b T-08: the pager granularity follows the active view — the WEEK pager
+  // (`reservations-{prev,next}-week`) only exists in week view; in day view the
+  // pager steps ±1 day. To shift across weeks we switch to week view, step by
+  // weeks, pick the target pill, then return to the day view the assertions read.
+  const wasDay =
+    (await page.getByTestId('reservations-view-day').getAttribute('data-selected')) === 'true';
+  if ((await pill.count()) === 0 && wasDay) {
+    await page.getByTestId('reservations-view-week').click();
+  }
   // The picker's seven pills carry `data-testid="reservations-daypicker-<key>"`;
   // the first pill's key identifies the rendered week.
   const firstPillKey = async (): Promise<string | null> => {
@@ -479,6 +488,10 @@ async function selectCalendarDay(page: Page, dateKey: string): Promise<void> {
   }
   await expect(pill, `the day-picker must reach ${dateKey}`).toBeVisible();
   await pill.click();
+  // Restore the day view the all-day-band / future-block assertions rely on.
+  if (wasDay) {
+    await page.getByTestId('reservations-view-day').click();
+  }
 }
 
 /** `YYYY-MM-DD` `days` days from local today (the picker-nav target day). */

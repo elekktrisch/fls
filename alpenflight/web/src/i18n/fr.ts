@@ -402,7 +402,9 @@ const fr: Translations = {
     allDay: 'Toute la journée',
     calendar: {
       dayPicker: 'Choisir le jour',
+      nextDay: 'Jour suivant',
       nextWeek: 'Semaine suivante',
+      prevDay: 'Jour précédent',
       prevWeek: 'Semaine précédente',
       reservationsCount: '{{count}} réservations',
       today: "Aujourd'hui",
