@@ -5,29 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 
 import { SessionStore } from './core/session/session.store';
 import { AfNavBarComponent, type NavItem, type UserSummary } from '@ui/organisms/af-nav-bar';
-
-// Tenant-scoped nav (require a managing club; hidden for sysadmin).
-const TENANT_SECTIONS: readonly NavItem[] = [
-  { path: '/flights', label: 'Flights', icon: 'plane' },
-  { path: '/planning', label: 'Planning', icon: 'calendar' },
-  { path: '/aircraft', label: 'Aircraft', icon: 'plane' },
-  { path: '/locations', label: 'Locations', icon: 'map-pin' },
-  { path: '/persons', label: 'Persons', icon: 'users' },
-  // Future sections (Flights, Reservations, Reports, Settings) land here as
-  // their feature stories ship — kept inline so the nav-bar's input surface
-  // stays a pure data shape.
-];
-
-// CLUB_ADMIN-only nav. Sysadmin has no `/api/v1/users/**` path; the entry
-// is hidden for them.
-const CLUB_ADMIN_SECTIONS: readonly NavItem[] = [
-  { path: '/users', label: 'Users', icon: 'shield' },
-];
-
-// Cross-cutting nav (available to every authenticated principal).
-const CROSS_CUTTING_SECTIONS: readonly NavItem[] = [
-  { path: '/clubs', label: 'Clubs', icon: 'plane' },
-];
+import { navSectionsFor } from './nav-sections';
 
 @Component({
   selector: 'af-root',
@@ -46,19 +24,18 @@ export class AppComponent {
   protected readonly session = inject(SessionStore);
 
   // Per S-159: sysadmin has no managing tenant (no clubId claim), so the
-  // tenant-scoped pages render empty. Hide those nav entries entirely for
-  // sysadmin; the remaining cross-cutting entries (Clubs today, sysadmin
-  // user mgmt later) are what they can actually act on.
-  protected readonly sections = computed<readonly NavItem[]>(() => {
-    if (this.session.isSystemAdmin()) {
-      return CROSS_CUTTING_SECTIONS;
-    }
-    const base = [...CROSS_CUTTING_SECTIONS, ...TENANT_SECTIONS];
-    if (this.session.isClubAdmin()) {
-      return [...base, ...CLUB_ADMIN_SECTIONS];
-    }
-    return base;
-  });
+  // tenant-scoped pages render empty — sysadmin gets the cross-tenant Clubs
+  // surface only. Club-admins + regular users get the tenant sections (and
+  // Users for club-admins); Clubs is sysadmin-only (J-6b operator decision —
+  // a deliberate divergence from legacy, which showed Clubs to everyone).
+  // Section assembly is a pure helper (`navSectionsFor`) so the per-role
+  // matrix is unit-testable without a TestBed.
+  protected readonly sections = computed<readonly NavItem[]>(() =>
+    navSectionsFor({
+      isSystemAdmin: this.session.isSystemAdmin(),
+      isClubAdmin: this.session.isClubAdmin(),
+    }),
+  );
 
   protected readonly userSummary = computed<UserSummary | null>(() => {
     const u = this.session.authenticatedUser();
