@@ -15,6 +15,8 @@ import { AfDatePickerComponent, type DateValue } from '@ui/organisms/af-date-pic
 import { AfDialogComponent } from '@ui/organisms/af-dialog';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
 
+import { isoDateFromLocal, localDateFromIso } from '@shared/util/date';
+
 import {
   FlightListItemAirState,
   FlightListItemFlightAircraftType,
@@ -58,13 +60,6 @@ const PROCESS_STATE_LABEL: Readonly<Record<ProcessState, string>> = {
   [FlightListItemProcessState.DELIVERY_BOOKED]: 'Delivery booked',
   [FlightListItemProcessState.EXCLUDED_FROM_DELIVERY_PROCESS]: 'Excluded',
 };
-
-function toIsoDate(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
 
 function formatLegacyDate(iso?: string): string {
   if (!iso || iso.length !== 10) return iso ?? '';
@@ -517,9 +512,15 @@ export class FlightsListPage {
   });
 
   protected readonly dateRangeValue = computed<DateValue>(() => {
-    const from = this.store.dateFrom();
-    const to = this.store.dateTo();
-    return from && to ? [new Date(from), new Date(to)] : null;
+    // Parse the stored ISO date-only strings as LOCAL midnight (not the
+    // `new Date('YYYY-MM-DD')` UTC-midnight default, which renders a day early
+    // in any negative-offset zone). Symmetric with the `isoDateFromLocal` write
+    // path below, so the range the picker displays is the range the store filters
+    // by — T-13: the picker drifted a day west of UTC and the model fell out of
+    // sync with the store's from/to.
+    const from = localDateFromIso(this.store.dateFrom());
+    const to = localDateFromIso(this.store.dateTo());
+    return from && to ? [from, to] : null;
   });
 
   protected readonly selectedAirState = computed<AirState | null>(() => {
@@ -583,7 +584,10 @@ export class FlightsListPage {
   protected onDateRangeChange(value: DateValue): void {
     // The range picker emits a [from,to] tuple or null on clear.
     if (Array.isArray(value)) {
-      this.store.setDateRange({ from: toIsoDate(value[0]), to: toIsoDate(value[1]) });
+      this.store.setDateRange({
+        from: isoDateFromLocal(value[0]),
+        to: isoDateFromLocal(value[1]),
+      });
     } else {
       this.store.setDateRange({ from: null, to: null });
     }

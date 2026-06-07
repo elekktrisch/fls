@@ -36,3 +36,37 @@ export function formatIsoDateDdMmYyyy(iso: string | null | undefined): string {
   if (!yyyy || !mm || !dd) return '';
   return `${dd}.${mm}.${yyyy}`;
 }
+
+/**
+ * Parse a `YYYY-MM-DD` (date-only) ISO string into a *local-midnight* `Date`.
+ *
+ * The `new Date('YYYY-MM-DD')` built-in parses date-only strings as **UTC**
+ * midnight; a control that renders via local calendar fields (e.g. ng-zorro's
+ * `nz-range-picker`) then shows the *previous* day west of UTC (J-6b T-13: the
+ * flights-list range picker displayed the picked range a day early in any
+ * negative-offset zone, and the picker's model drifted out of sync with the
+ * store's ISO `from`/`to`). Constructing from the `(y, m-1, d)` components binds
+ * the date to local midnight, so it round-trips symmetrically with
+ * `isoDateFromLocal` regardless of timezone. Returns `null` for an
+ * unparseable / non-10-char input.
+ */
+export function localDateFromIso(iso: string | null | undefined): Date | null {
+  if (!iso || iso.length !== 10) return null;
+  const [yyyy, mm, dd] = iso.split('-').map(Number);
+  if (!yyyy || !mm || !dd) return null;
+  const d = new Date(yyyy, mm - 1, dd);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Format a `Date` as a `YYYY-MM-DD` (date-only) ISO string from its *local*
+ * calendar fields — the inverse of `localDateFromIso`. Using local fields (not
+ * `toISOString`, which is UTC) keeps the round-trip timezone-symmetric: the day
+ * the user sees in a local-rendered picker is the day sent to the server.
+ */
+export function isoDateFromLocal(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}

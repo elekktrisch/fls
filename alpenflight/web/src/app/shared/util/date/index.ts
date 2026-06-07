@@ -1,1 +1,6 @@
-export { formatDdMmYyyy, formatIsoDateDdMmYyyy } from './format-date';
+export {
+  formatDdMmYyyy,
+  formatIsoDateDdMmYyyy,
+  isoDateFromLocal,
+  localDateFromIso,
+} from './format-date';
