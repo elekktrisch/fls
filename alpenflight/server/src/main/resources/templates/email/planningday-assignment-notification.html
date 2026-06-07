@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!--
+  J-6 T-10b (ADR 0013). Week-ahead (day+7) reminder to ONE assigned person that
+  they are on duty for an upcoming planning day. Sent to the assigned person's
+  email (all three roles get one). Binds
+  PlanningEmailModels.PlanningDayAssignmentModel under `assignment`. Field set
+  mirrors legacy PlanningDayEmailBuildService.cs:81-90.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Erinnerung Flugbetriebstag</title>
+  </head>
+  <body>
+    <h2>Erinnerung: Einteilung Flugbetriebstag</h2>
+    <p>Hallo <span th:text="${assignment.personName}">Name</span>,</p>
+    <p>
+      Du bist als <strong th:text="${assignment.assignmentTypeName}">Fluglehrer</strong>
+      für den Flugbetriebstag vom
+      <strong th:text="${#temporals.format(assignment.date, 'dd.MM.yyyy')}">01.01.2026</strong>
+      in <strong th:text="${assignment.locationName}">Bern-Belp</strong>
+      eingeteilt.
+    </p>
+
+    <p th:if="${assignment.remarks != null and !assignment.remarks.isBlank()}">
+      <em th:text="${assignment.remarks}">Bemerkungen</em>
+    </p>
+
+    <p>
+      <a th:href="${assignment.appUrl}" th:text="${assignment.appUrl}">https://app</a>
+    </p>
+
+    <p>
+      Freundliche Grüsse<br />
+      <span th:text="${assignment.senderName}">AlpenFlight</span>
+    </p>
+  </body>
+</html>

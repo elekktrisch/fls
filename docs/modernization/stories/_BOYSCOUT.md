@@ -12,6 +12,90 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Retro-process flags (for the NEXT /do-retro to adjudicate — not code riders)
+
+- **🔁 The retro→new-carve branch handoff is rough — 5th time running (operator flag, J-6 carve 2026-06-06).**
+  Every cycle, starting the next journey's `integration/J-NNN` off the `/do-retro` output is friction-y.
+  **This cycle's concrete failure:** J-5 was **squash-merged** to `main`, but `do-retro/J-5-window` had
+  branched off the *pre-squash* J-4 line and carried all ~83 redundant J-5 commits. `/do-plan`'s rule
+  ("base the carve on the unmerged retro branch so riders ride forward") then produced a J-6 branch with a
+  clean 11-file **net** diff but a junk 83-commit / 126-file **history** — the operator saw the inflated
+  file count. Fixed by hand (reset to `origin/main` + cherry-pick the retro's net commit + the carve).
+  **Root mismatch:** `/do-retro` lands its output on a branch off `main` *intending* it to ride the next
+  journey, but once that journey squash-merges, the retro branch becomes divergent history; `/do-plan`
+  still treats it as the live integration line. **For /do-retro to decide:** make the do-plan↔do-retro
+  branch handoff deterministic — e.g. (a) `/do-plan` Mode B auto-detects a squash-merged prior journey and
+  bases on `origin/main` + cherry-picks the retro's net commit (never branches off the stale retro branch);
+  and/or (b) `/do-retro` keeps its net output as a *single* commit easy to cherry-pick forward; and/or
+  (c) the retro branch is rebased/refreshed onto `main` at carve time. Encode the chosen rule in both
+  SKILL.md files so this stops recurring. [[project_do_plan_carve_base_after_squash_merge]]
+
+- **📋 Standardize the first two do-ship task slots (operator flag, J-6 ship 2026-06-06).** Two things
+  should be *invariant* T-slots in `/do-ship`'s default decomposition, not ad-hoc late riders:
+  - **T-01 always sets up the journey proof page** — scaffold the per-journey gallery page + link it from
+    the persistent index at the very first task, so the operator's glanceable window exists from the start
+    and accumulates captures as screens land (today the proof/gallery work drifts to a late task — J-5 had
+    it at T-13, this journey carved it at T-14). Pairs with do-ship §4 "surface the gallery EARLY."
+    [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+  - **T-02 always moves the previous journeys' specs from heavy (real-idp) proof to mocked-IdP** — so the
+    per-push gate runs ONLY the journey-under-work heavy + prior journeys mock-IdP, from the second task
+    onward (not held hostage by an unrelated heavy spec, and not deferred to a late CI rider — J-5 carved
+    this as T-14/T-15-ish). Codifies [[feedback_dev_time_test_strategy]] as a fixed slot.
+  Encode both as standing steps in `/do-ship` (§2 default decomposition) + `/do-task` so every journey gets
+  them for free. (Applied retroactively to J-6: pulled forward as T-01b proof-page scaffold + T-02b prior-
+  journeys→mock-IdP, run before the feature backend continues.)
+
+- **🔁 The proof-previews INDEX keeps regressing the operator's bookmark — fragile gallery plumbing (operator flag, J-6 ship 2026-06-07).**
+  The persistent index (`…/alpenflight/previews/index.html`) has now broken ≥3 distinct ways across journeys:
+  J-4 T-24 (per-active-branch only → showed just the open branch), T-37 (narrowed the branch probe to
+  `legacy-parity/` only → silently hid the per-push clean-seed per-journey page, so J-6 read `pending` on the
+  bookmark all day until T-13b), AND **canonical `proof/J-2…J-5/` 404** (only J-0/J-0c/J-1 were ever published
+  canonically → merged journeys aren't on the bookmark either). Each fix is a point patch; the path-matching
+  between three deploy schemes (per-push clean-seed `proof-preview/<b>/J-n/`, fanout
+  `proof-preview/<b>/legacy-parity/J-n/`, canonical `proof/J-n/`) is brittle and keeps drifting. **For /do-retro:**
+  (a) add an END-TO-END guard — after a per-push proof deploy, assert the journey-under-work is actually a LIVE
+  LINK on the DEPLOYED index (the unit test passed while the deployed page stayed `pending` because deploy-path
+  and probe-path drift independently); (b) backfill canonical `proof/J-2…J-5/` per-journey pages (gallery re-arch
+  debt, T-14 family); (c) consider collapsing the three deploy schemes to one convention so the probe can't drift.
+  [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+
+- **🖼️ Paired legacy↔AlpenFlight parity screenshots come ONLY from the nightly/dispatch FANOUT — missing per-push during dev (operator flag, J-6 ship 2026-06-07).**
+  "Surface proof early" is only half-met: per-push deploys the AlpenFlight pass-VIDEOS (real screens), but the
+  **paired legacy↔AlpenFlight side-by-side screenshots** (the done-bar demonstrability) are staged ONLY by the
+  heavy `alpenflight-proof-fanout.yml` (nightly + workflow_dispatch). So the operator opens the J-6 page mid-dev,
+  sees AlpenFlight videos but **no legacy pairing**, until the §4 gate. **For /do-retro:** make paired-legacy
+  capture available EARLIER — fold a cheap legacy-parity capture into the per-push proof for the journey-under-work,
+  OR make the standard proof-page slots (T-01b/T-13) explicitly author + trigger the legacy parity capture so the
+  paired shots land with the first screens. At minimum the proof page should SAY "legacy pairing pending — runs at
+  gate" rather than silently omitting it. [[feedback_demonstrable_proof_prefer_ui]] [[feedback_surface_proof_early_on_repeated_failure]]
+
+## Pending (filed by /do-ship 2026-06-07, J-6 gate — gap-hunter suspects)
+
+- **Producer dedupe is soft-delete-blind (gap-hunter, J-6 T-11b/T-16).** The PLANNING_DAY (and the
+  assignment FIRST_VALUE remap) producer SELECT partitions across ALL legacy `PlanningDays` rows with NO
+  `WHERE DeletedOn IS NULL` filter, but `ux_pln_club_date_loc` is PARTIAL (`WHERE deleted_on IS NULL`,
+  V4:303-305). If a `(Club,Day,Loc)` partition ever held an earlier-`CreatedOn` *deleted* row + a later
+  *live* row, `ROW_NUMBER ORDER BY CreatedOn` keeps the DELETED one → silently drops the live planning day
+  (the partial index would never have collided). **Neutralized for J-6**: legacy `PlanningDayService.cs:407`
+  HARD-deletes planning days, so `DeletedOn`/`IsDeleted` are vestigially never set — no soft-deleted days
+  exist to trigger it. **Fix before this dedupe pattern is copied to a SOFT-deleting table:** add
+  `WHERE DeletedOn IS NULL` to the dedupe inner source (+ extend `PlanningDayProducerDedupeIT` with a
+  deleted-vs-live partition case) OR an explicit "legacy hard-deletes → safe" comment. *(seam:
+  MapperLegacyBindings producer dedupe SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
+- **Cascade-delete asserted only indirectly (gap-hunter, J-6 T-16).** The `[key-error]` delete proves the
+  user-visible AC (day leaves the list, parent GET 404, freed slot re-creatable) but never asserts the 3
+  child `t_planning_day_assignment` rows are gone — and since delete is a soft-delete on the aggregate, the
+  V4 `ON DELETE CASCADE` FK never fires, so orphaned/leaked assignment rows wouldn't be caught. Add an
+  assertion that a deleted day's assignments are excluded from reads. Low-risk; rides the next planning touch.
+  *(seam: planning delete spec / assignment soft-delete reconcile)*
+
+## Pending (filed by /do-retro 2026-06-06, J-5 window)
+
+- ~~**Scope the per-push `alpenflight-mock-e2e` gate to the journey-under-work (dev-time test strategy).**~~ **Shipped J-6 T-02b.** Mirrored J-5 T-14's real-idp scoping for the mock half: a new `mock_test:` journey-frontmatter field + a `changes`-job "Derive journey mock-e2e filter" step derives the journey-under-work's `tests/<feature>/` filter off the integration branch; the `alpenflight-mock-e2e` "Run Playwright" step passes it to `--project=chromium`, so per-push runs ONLY that journey's own mock specs (J-6 → its 11 `tests/planning/` specs, verified via `--list`). The J-5-articles-crud hostage case can no longer red an unrelated journey's `required`. FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter / underivable filter → `mock_is_full=true` → the FULL chromium suite runs (pre-T-02b baseline), never a no-spec run. Full cross-journey mock regression stays nightly (`alpenflight-e2e.yml` main-push) + the §4 do-ship gate. actionlint-clean. `required` aggregator unchanged (skipped→success). *(seam: ci.yml mock-e2e spec selection + journey `mock_test:` frontmatter)* [[feedback_dev_time_test_strategy]]
+- **CI fail-aggregate (surface ALL reds in one run).** ci.yml stops at the first failing layer (build → server-test → web-lint → mock-e2e discovered serially across cycles). Run the independent checks as parallel jobs that all report, so one run shows every red at once. *(seam: ci.yml job parallelism/aggregation)*
+- **Assert the per-journey gallery shots are PRESENT, don’t tolerate absence.** `add_shot` silently skips a missing PNG + the deployed-link-check only validates DECLARED shots — a future partial-red capture could drop shots while the gate stays green. Add a guard asserting each journey’s expected paired shots exist before deploy. *(seam: alpenflight-proof-fanout.yml add_shot presence guard)*
+- ~~**Cheap early mapper-binding check for migration journeys.**~~ **Shipped J-6 T-12.** Generic, registry-wide build-time contract test `MapperBindingContractTest` in `migration-bundle` (runs in `check`): for EVERY `KnownMappers` mapper it asserts (1) binding-presence — the `EntityType` HAS a `MapperLegacyBindings` entry OR is in an explicit `KNOWN_UNBOUND` pending-set (PlanningDay trio listed there until T-11 wires them; a NEW unbound mapper not allowlisted → RED, the J-5 T-07 zero-binding class), with a hygiene test that `KNOWN_UNBOUND` shrinks (a now-bound entry left in the set → RED) and is honest (orphan entries → RED); (2) producer-SELECT ↔ mapper-reads coherence — every legacy column the mapper's `writeNdjson` reads (`source.getXxx("…")`, source-parsed) is projected by the bound SELECT, else export-abort/silent-NULL; (3) FULL_PORT carries a consumer INSERT targeting its table (SYSTEM_GLOBAL empty by contract); (4) bound mapper declares ≥1 column. **Static-only residual deferred to the real fanout** ([[project_synth_bundle_doesnt_validate_producer_select]]): whether a SELECTed column EXISTS in the live MSSQL FLSTest schema, and type-fidelity coercions — this test proves SELECT and mapper AGREE, not that either matches the real legacy DDL. *(seam: migration-bundle MapperLegacyBindings contract test)* [[verify_infra_is_run_not_just_authored]]
+
 ## Pending (filed by /do-plan 2026-06-06, J-5 carve — maintainability tooling)
 
 **Maintainability = complexity + duplication + dead code** (operator, 2026-06-06 —
@@ -72,19 +156,23 @@ short-list + needs a committed config to stop crying wolf.
   deferred (operator scope was complexity+dup+dead-code; PMD covers dead code). — see
   [[reference_fallow_maintainability_analyzer]].
 
-- **Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
-  to the proof gallery for each journey page").** Extends the gallery per-journey re-arch rider above (the
-  index → one page per journey). Each journey page gains a **Maintainability** section rendering the
-  journey's *delta* + repo snapshot across the three axes: **frontend** via fallow's changed-files envelope
-  for the journey's `integration/J-NNN` branch (`fallow ci`/`audit` emits a PR/MR JSON envelope = exactly
-  the complexity/dupes/dead-code introduced by the journey's diff) + the snapshot (MI, dup%, dead-code);
-  **backend** via the PMD/CPD (+SpotBugs) report on the changed Java. The gallery deploy step runs
-  `fallow ci --format json` + the gradle pmd/cpd XML, and `generate-gallery.mjs` renders an HTML panel
-  (green/amber/red on the delta, link to full report). So each journey's page shows not just "the screen
-  works" but "the journey didn't rot maintainability". Project-code/CI work → rides a journey's ≤40% budget
-  *with* the gallery re-arch (it's the same generator + deploy seam). *(seam: `generate-gallery.mjs`
-  maintainability panel + ci.yml/fanout `fallow ci` + pmd/cpd report-emit steps)* — see
-  [[feedback_proof_gallery_per_journey_one_bookmark]], [[feedback_maintainability_includes_dupes_and_deadcode]].
+- ~~**Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
+  to the proof gallery for each journey page").**~~ **Shipped J-6 T-14.** Each per-journey page now carries a
+  **Maintainability** section (`renderMaintainabilityPanel` in `generate-gallery.mjs`) rendering the journey's
+  *delta* + repo snapshot across the three axes: **frontend** via fallow's changed-files audit envelope
+  (`fallow audit --base origin/main` → `attribution.{complexity,duplication,dead_code}_introduced` + `verdict`)
+  + the repo snapshot (`fallow health` → MI, dup%, dead-file%); **backend** via the PMD (complexity + dead-code
+  violation counts by rule) and CPD (duplicated-token % + clone-group count) XML. Green/amber/red roll-up pill
+  driven by the FE delta (green = no new findings, amber = introduced >0, red = fail verdict); a non-journey-
+  under-work page shows the snapshot only (no false historical delta); absent artifacts degrade to "no data"
+  (fail-soft, never a crash/dead link). The panel renderer + parsers + the T-12 CI emit steps landed under the
+  J-5 carve (commit history); T-14 closed the wiring gap so the journey page reads its DELTA not "snapshot
+  only" — the per-push `ci.yml` + fanout gallery steps now pass `--journey-under-work` (the generator's
+  branch-name fallback can't derive the journey from a PR merge ref). A "Full maintainability reports →" link
+  targets the `maintainability/` dir (which carries an `index.html` so the dir URL serves 200 on gh-pages).
+  *(seam: `generate-gallery.mjs` maintainability panel + ci.yml/fanout `--journey-under-work` wiring + the T-12
+  fallow/pmd/cpd report-emit steps)* — see [[feedback_proof_gallery_per_journey_one_bookmark]],
+  [[feedback_maintainability_includes_dupes_and_deadcode]], [[reference_fallow_maintainability_analyzer]].
 
 ## Pending (filed by /do-ship 2026-06-05, J-4 window)
 

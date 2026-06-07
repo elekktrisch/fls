@@ -29,27 +29,26 @@ invent a parallel convention.
 
 ## Gate: parity videos, parallel CI, helper tags
 
-- **Paired videos + screenshots.** For a legacy-replacing screen, capture for UI-parity:
-  legacy `flsweb` + AlpenFlight real-chain **videos**, AND paired legacy↔AlpenFlight
-  **list+form screenshots** (declare via a sidecar the gallery pairs by `side`×`view`).
-  Capture the AlpenFlight list **populated** — create ≥3 rows showing every column (J-1
-  T-22: an empty "No Data" shot proves nothing). Reuse `e2e/` legacy specs; drive only if
-  none. Review aid, not pass/fail; greenfield → AlpenFlight-only. **No-migration screen**
-  (J-4 `/profile`): run the legacy capture in the fanout but do NOT re-seed showcase there
-  (collides with the migrated DB) — `curl` the AlpenFlight shots from the **per-push gallery**
-  + pair vs the fanout's legacy shots. Expand legacy accordions before shooting; anchor on a
-  unique element (bare `#username` matched the login form too — J-4).
+- **Paired videos + screenshots.** For a legacy-replacing screen capture, for UI-parity: legacy `flsweb` +
+  AlpenFlight real-chain **videos**, AND paired legacy↔AlpenFlight **list+form screenshots** (declare via a
+  sidecar the gallery pairs by `side`×`view`). Capture the AlpenFlight list **populated** (≥3 rows, every
+  column — an empty "No Data" shot proves nothing) + capture each shot BEFORE its deep assertions so a partial
+  red still produces it. Reuse `e2e/` legacy specs; drive only if none. Review aid, not pass/fail; greenfield →
+  AlpenFlight-only. **No-migration screen:** run the legacy capture in the fanout but do NOT re-seed showcase
+  there (collides with the migrated DB) — `curl` the AlpenFlight shots from the per-push gallery + pair vs the
+  fanout's legacy shots. Expand legacy accordions before shooting; anchor on a unique element.
 - **Two parallel jobs.** Own the journey-gate workflow under `.github/workflows/`:
   `alpenflight-proof` (required check; brings up legacy→seed→migrate→real,
   uploads the pass video) and `parity-legacy-video` (non-blocking; legacy
   FLS+`flsweb` drive on the same fixture, uploads the legacy video). Both seed
   independently from the **deterministic** fixture, so they run in parallel with
   no shared state.
-- **A proof the operator can't click isn't done.** Deploy the heavy-chain gallery to a
-  **journey-agnostic namespaced subpath** (`destination_dir`+`keep_files`, never
-  `publish_dir: public`; not a per-journey name — J-1 T-23 `j-0c` stale), branch-preview it
-  pre-merge, and **auto-post the gallery link as a sticky PR comment** (resolve the PR from
-  `github.ref_name` on dispatch; fail-soft). J-0c/J-1 hit reactive T-24/T-25/T-23/T-25.
+- **A proof the operator can't click isn't done.** Deploy the heavy-chain gallery to a **journey-agnostic
+  namespaced subpath** (`destination_dir`+`keep_files`, never `publish_dir: public`; not a per-journey name),
+  branch-preview it pre-merge, gate deploy on `!cancelled()` (survives a partial-red run), and **auto-post the
+  gallery link as a sticky PR comment** (resolve the PR from `github.ref_name`; fail-soft). After deploy, run
+  the **deployed-link-check** (browserless `request`-based crawl of the LIVE gallery — every link returns 200,
+  modelling gh-pages dir→`index.html` semantics) so a deployed dead link can't ship green.
 - **Helper tags.** An e2e case exercising *logic / an error case* (not
   UI↔backend↔DB wiring) is a **helper**: tag `@helper` + `covered-by:
   <IntegrationTest>`. NEVER tag the wiring/happy-path spec — it's irreplaceable.
@@ -66,11 +65,10 @@ invent a parallel convention.
   the real-stack spec. Reuse the J-0 Keycloak users; extend the realm seed only on identity.
 - **Migration journeys need a real-export run, not just synth.** Synth bundles use aliased
   columns and never hit the producer SELECT against the real legacy schema — dispatch the
-  real-export `fanout` before "done" (J-1 T-16: producer-column bugs hid behind synth green).
-  [[project_synth_bundle_doesnt_validate_producer_select]].
+  real-export `fanout` before "done". [[project_synth_bundle_doesnt_validate_producer_select]]
 - **Co-located migration-ingest specs need distinct principals.** Two specs POSTing a bundle
   in one Playwright invocation must ingest as DIFFERENT migration admins (own Keycloak user +
-  `t_user`) — same principal → `DEPLOYMENT_EXISTS 409` (J-1 T-17).
+  `t_user`) — same principal → `DEPLOYMENT_EXISTS 409`.
 - **Clean-seed and migrated runs are the same spec at two fidelities**; the gate runs both.
 
 ## How you work
@@ -79,8 +77,7 @@ invent a parallel convention.
   selectors, past flake fixes) over raw grep; `Grep`/`Glob` only with no MCP. Reuse fixtures
   (`e2e/fixtures.ts`, `*TestFixtures.java`, `LegacyExtractFixtureSeeder`) before writing new.
 - **Format before commit.** You commit specs directly — run `prettier --write` on touched TS
-  over the full `e2e/**/*.{ts,json}` glob (not `--check`), or a format-only red burns a whole
-  gate round (J-1 T-20/T-22 each did).
+  over the full `e2e/**/*.{ts,json}` glob (not `--check`), or a format-only red burns a whole gate round.
 - Flake-proof: explicit waits on app state, never `waitForTimeout`; respect zoneless rules.
   `trace: retain-on-failure` for debugging; gate specs retain **video on pass**.
 - Honor the wallclock budget: inner loop fast (mock/Testcontainers), heavy chain at the gate

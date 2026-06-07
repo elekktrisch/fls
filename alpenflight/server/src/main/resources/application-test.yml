@@ -53,6 +53,12 @@ spring:
 # which registers a @Primary Aead bean that overrides this one for the
 # duration of that Spring context.
 alpenflight:
+  # J-6 T-10a (ADR 0013): mail enabled so TemplatedMailService renders +
+  # dispatches; ITs `@Import(CapturedMailSender.class)` (a @Primary
+  # captured-outbox fake MailSender) so the dispatch is asserted deterministically
+  # WITHOUT a live SMTP — no testcontainer/mailpit required for the send-path ITs.
+  mail:
+    enabled: true
   migration:
     master-keyset:
       source: EPHEMERAL

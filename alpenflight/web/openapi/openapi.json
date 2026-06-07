@@ -23,6 +23,9 @@
     "name" : "Migration bundle ingest",
     "description" : "Encrypted-bundle upload + streaming decrypt + ingest pipeline (S-141)."
   }, {
+    "name" : "Planning days",
+    "description" : "Planning-day CRUD (tenant-scoped; 409 on duplicate club+date+location; update/delete gated to admin-or-creator)."
+  }, {
     "name" : "FlightTypes",
     "description" : "FlightType CRUD (per-club tenant-scoped masterdata)."
   }, {
@@ -199,6 +202,145 @@
           },
           "409" : {
             "description" : "Self-delete or last-admin refusal."
+          }
+        }
+      }
+    },
+    "/api/v1/planning-days/{id}" : {
+      "get" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Read a single planning day by id.",
+        "operationId" : "getPlanningDay",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Planning-day detail projection.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active planning day with that id in the tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Update a planning day (admin-or-creator). Duplicate (club, date, location) → 409.",
+        "operationId" : "updatePlanningDay",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningDayUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Updated.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "403" : {
+            "description" : "Caller is neither a club admin nor the record creator.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "No active planning day with that id in the tenant.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "Another day already occupies that club+date+location.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Planning date outside the sane range.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Soft-delete a planning day (admin-or-creator; cascades its crew assignments).",
+        "operationId" : "deletePlanningDay",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted."
+          },
+          "403" : {
+            "description" : "Caller is neither a club admin nor the record creator."
+          },
+          "404" : {
+            "description" : "No active planning day with that id in the tenant."
           }
         }
       }
@@ -1321,6 +1463,168 @@
           },
           "409" : {
             "description" : "User has no Keycloak identity attached."
+          }
+        }
+      }
+    },
+    "/api/v1/planning-days" : {
+      "post" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Create a planning day. Duplicate (club, date, location) → 409.",
+        "operationId" : "createPlanningDay",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningDayCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "409" : {
+            "description" : "A planning day already exists for that club+date+location.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Planning date outside the sane range.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning-days/page/{start}/{size}" : {
+      "post" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Paged future planning-day list (SPA-compat page shape). Body carries the optional `Day.From` date filter (default today) + sorting.",
+        "operationId" : "pagePlanningDays",
+        "parameters" : [ {
+          "name" : "start",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "size",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningDayPageRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "One page of detail rows + totalRows.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PlanningDayPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planning-days/create/rule" : {
+      "post" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Bulk-create planning days by weekday over an inclusive date range. Empty weekday flags → empty result; existing (club, date, location) days are skipped idempotently.",
+        "operationId" : "bulkCreatePlanningDays",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PlanningDayRuleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "The list of days actually created (may be empty).",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "Validation failed.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "The date range exceeds the sane span cap.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -2639,6 +2943,28 @@
         }
       }
     },
+    "/api/v1/planning-days/overview/future" : {
+      "get" : {
+        "tags" : [ "Planning days" ],
+        "summary" : "Future planning days (planning_date ≥ today), tenant-scoped, sorted by date — the overview/future view.",
+        "operationId" : "listFuturePlanningDays",
+        "responses" : {
+          "200" : {
+            "description" : "Future detail rows, sorted by planning_date asc.",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/PlanningDayDetail"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/migrations/{uploadId}/status" : {
       "get" : {
         "tags" : [ "Migration bundle ingest" ],
@@ -3205,7 +3531,7 @@
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN" ]
           }
         }, {
           "name" : "targetEntityType",
@@ -3353,6 +3679,94 @@
           }
         },
         "required" : [ "clubId", "enabled", "friendlyName", "id", "invitePending", "languageId", "notificationEmail", "roles", "username" ]
+      },
+      "PlanningDayUpdateRequest" : {
+        "type" : "object",
+        "description" : "Payload to update a planning day.",
+        "properties" : {
+          "planningDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "instructorPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "towingPilotPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightOperatorPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "info" : {
+            "type" : "string",
+            "maxLength" : 4000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "locationId", "planningDate" ]
+      },
+      "PlanningDayDetail" : {
+        "type" : "object",
+        "description" : "Planning-day detail / overview projection.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "operatingClubId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "planningDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "instructorPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "towingPilotPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightOperatorPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "info" : {
+            "type" : "string"
+          },
+          "numberOfAircraftReservations" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "canUpdateRecord" : {
+            "type" : "boolean"
+          },
+          "canDeleteRecord" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "canDeleteRecord", "canUpdateRecord", "id", "locationId", "numberOfAircraftReservations", "operatingClubId", "planningDate" ]
       },
       "LicenceFlags" : {
         "type" : "object",
@@ -5028,6 +5442,140 @@
           }
         },
         "required" : [ "friendlyName", "languageId", "notificationEmail", "roles", "username" ]
+      },
+      "PlanningDayCreateRequest" : {
+        "type" : "object",
+        "description" : "Payload to create a planning day.",
+        "properties" : {
+          "planningDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "instructorPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "towingPilotPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "flightOperatorPersonId" : {
+            "type" : "string",
+            "example" : "pn-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^pn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "info" : {
+            "type" : "string",
+            "maxLength" : 4000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "locationId", "planningDate" ]
+      },
+      "PlanningDayPageRequest" : {
+        "type" : "object",
+        "description" : "Legacy PageableSearchFilter-shaped paged-list request (Day.From filter + sorting).",
+        "properties" : {
+          "sorting" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Column→direction map; only `planningDate: asc|desc` honoured (default asc)."
+          },
+          "searchFilter" : {
+            "$ref" : "#/components/schemas/PlanningDaySearchFilter"
+          }
+        }
+      },
+      "PlanningDaySearchFilter" : {
+        "type" : "object",
+        "description" : "Basic paged-list filter — the legacy Day.From lower-bound date (J-6 scope).",
+        "properties" : {
+          "from" : {
+            "type" : "string",
+            "format" : "date",
+            "description" : "Lower-bound planning date (legacy `Day.From`); default today."
+          }
+        }
+      },
+      "PlanningDayPage" : {
+        "type" : "object",
+        "description" : "Paged planning-day list envelope (SPA-compat page shape).",
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PlanningDayDetail"
+            }
+          },
+          "pageStart" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "pageSize" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "totalRows" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "items", "pageSize", "pageStart", "totalRows" ]
+      },
+      "PlanningDayRuleRequest" : {
+        "type" : "object",
+        "description" : "Bulk weekday-expansion rule (inclusive range × selected weekdays at a location).",
+        "properties" : {
+          "startDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "endDate" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "everyMonday" : {
+            "type" : "boolean"
+          },
+          "everyTuesday" : {
+            "type" : "boolean"
+          },
+          "everyWednesday" : {
+            "type" : "boolean"
+          },
+          "everyThursday" : {
+            "type" : "boolean"
+          },
+          "everyFriday" : {
+            "type" : "boolean"
+          },
+          "everySaturday" : {
+            "type" : "boolean"
+          },
+          "everySunday" : {
+            "type" : "boolean"
+          },
+          "locationId" : {
+            "type" : "string",
+            "example" : "loc-019e30c3-2c00-7001-8000-000000000001",
+            "pattern" : "^loc-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "info" : {
+            "type" : "string",
+            "maxLength" : 4000,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "endDate", "locationId", "startDate" ]
       },
       "PersonCreateRequest" : {
         "type" : "object",
@@ -7307,7 +7855,7 @@
           },
           "action" : {
             "type" : "string",
-            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED" ]
+            "enum" : [ "CREATE", "UPDATE", "DELETE", "STATE_TRANSITION", "BULK_IMPORT", "LOOKUP_HIT", "LOOKUP_MISS", "MIGRATION_HANDSHAKE_ISSUED", "MIGRATION_HANDSHAKE_SUPERSEDED", "MIGRATION_HANDSHAKE_EXPIRED", "MIGRATION_INGEST_STARTED", "MIGRATION_INGEST_COMPLETED", "MIGRATION_INGEST_FAILED", "PLANNING_NOTIFICATIONS_RUN" ]
           },
           "targetEntityType" : {
             "type" : "string"

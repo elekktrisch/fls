@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 /**
- * J-5 T-13b — persistent JOURNEY-directory index spec.
+ * J-5 T-13b / J-6 T-17c — persistent JOURNEY-directory index spec.
  *
  * Locks the re-arch contract the operator asked for:
  *   - the index lists ALL roadmap journeys, in roadmap order (not active branches);
@@ -16,6 +16,13 @@ import { describe, expect, it } from 'vitest';
  *     it sources J-0…J-N from the persistent canonical + legacy-parity archive pages;
  *   - the all-in-one per-proof-type galleries are no longer the primary destinations
  *     (the per-journey pages are); a single full-archive link remains in the footer.
+ *
+ * T-17c (operator, 2026-06-07): ONE branch source per journey, no freshest-wins
+ * tie-break. T-17 made the per-push `alpenflight-proof` page complete on its own
+ * (paired committed-legacy↔fresh-AlpenFlight screenshots + AlpenFlight videos), so
+ * the in-flight bookmark links THAT page (`proof-preview/<branch>/J-<n>/`). The
+ * T-13b two-branch-source split + the rank tie-break are removed; the
+ * legacy-parity fanout dir is no longer an index source for the in-flight journey.
  *
  * Pure JS tooling: no DB, no browser. Loads the ESM generator via dynamic import().
  */
@@ -54,11 +61,13 @@ const ORDER_MD = `# roadmap
 | J-6 | Planning | E-08 |
 `;
 
-/** Write a per-journey page at <root>/<relBase>/<jid>/index.html. */
-function writeJourneyPage(root: string, relBase: string, jid: string) {
+/** Write a per-journey page at <root>/<relBase>/<jid>/index.html. Returns the file path. */
+function writeJourneyPage(root: string, relBase: string, jid: string): string {
   const dir = resolve(root, relBase, jid);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(resolve(dir, 'index.html'), `<!doctype html><title>${jid}</title>`, 'utf8');
+  const file = resolve(dir, 'index.html');
+  writeFileSync(file, `<!doctype html><title>${jid}</title>`, 'utf8');
+  return file;
 }
 
 function makeRoot(): { root: string; orderPath: string } {
@@ -147,36 +156,53 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
     const { root, orderPath } = makeRoot();
     const branch = 'integration-J-5';
     // J-5 page exists in BOTH the fresh branch preview and canonical → branch wins.
-    // T-37 — the fan-out deploys the branch-preview gallery to
-    // `proof-preview/<branch>/legacy-parity/` (destination_dir in
-    // alpenflight-proof-fanout.yml), so the per-journey page lives one level under
-    // the branch dir, NOT directly at `proof-preview/<branch>/J-<n>/`.
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-5');
+    // T-17c — the in-flight bookmark points at the per-push `alpenflight-proof`
+    // page at `proof-preview/<branch>/J-<n>/` (parent level), which is now COMPLETE
+    // on its own (paired committed-legacy↔fresh-AF screenshots + AF videos). The
+    // earlier `<branch>/legacy-parity/` sub-source was removed.
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-5');
     writeJourneyPage(root, 'alpenflight/proof', 'J-5');
 
     const j5 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-5')!;
     expect(j5.found).toBe(true);
     expect(j5.source).toBe('branch');
-    expect(j5.href).toBe(`../proof-preview/${branch}/legacy-parity/J-5/`);
+    expect(j5.href).toBe(`../proof-preview/${branch}/J-5/`);
   });
 
-  it('does NOT link a STALE page at the parent branch level (T-37 regression guard)', async () => {
-    // The fan-out deploys to `proof-preview/<branch>/legacy-parity/`; an OLDER
-    // deploy scheme wrote per-journey pages directly to `proof-preview/<branch>/`,
-    // and `keep_files:true` preserves those stale pages on gh-pages. The branch
-    // source must probe ONLY the current `legacy-parity/` location — never the
-    // parent — so a stale parent-level page (e.g. a pre-T-32 J-0 with a relative
-    // `../previews/` back-link that 404s) is never linked. With ONLY a stale parent
-    // page present (no legacy-parity, no canonical, no archive), the journey is
-    // PENDING, not a dead link.
+  it('links the per-push branch page — the single complete in-flight source (T-17c)', async () => {
+    // T-17c (operator, 2026-06-07): with T-17 the per-push `alpenflight-proof`
+    // (clean-seed real-idp) page at `proof-preview/<branch>/J-<n>/` is COMPLETE on
+    // its own — it pairs the committed legacy-reference screenshots with the fresh
+    // AlpenFlight captures AND carries the AlpenFlight videos, on EVERY push, with
+    // no fanout dependency. So it is THE branch source: one source per journey, no
+    // tie-break, no competing `legacy-parity` sub-source.
     const { scanJourneys } = await loadGenerator();
     const { root, orderPath } = makeRoot();
-    const branch = 'integration-J-5';
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-0'); // STALE parent-level page
+    const branch = 'integration-J-6';
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-6'); // per-push complete page
 
-    const j0 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-0')!;
-    expect(j0.found).toBe(false);
-    expect(j0.href).toBeUndefined();
+    const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
+    expect(j6.found).toBe(true);
+    expect(j6.source).toBe('branch');
+    expect(j6.href).toBe(`../proof-preview/${branch}/J-6/`);
+  });
+
+  it('does NOT treat the legacy-parity fanout dir as a branch index source (T-17c — band-aid removed)', async () => {
+    // T-17c: the band-aid that probed `<branch>/legacy-parity/` as a competing
+    // branch source (with a freshest-mtime tie-break) is GONE. The fanout still
+    // deploys its page to `proof-preview/<branch>/legacy-parity/J-<n>/` for the
+    // nightly/heavy scope, but the index does NOT source the in-flight bookmark
+    // from there — only from the complete per-push page at `<branch>/J-<n>/`. If
+    // ONLY the legacy-parity dir exists (no per-push page yet, no canonical/archive),
+    // the journey is pending — never linked to the fanout-only subdir.
+    const { scanJourneys } = await loadGenerator();
+    const { root, orderPath } = makeRoot();
+    const branch = 'integration-J-6';
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}/legacy-parity`, 'J-6');
+
+    const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
+    expect(j6.found).toBe(false);
+    expect(j6.href).toBeUndefined();
   });
 
   it('keeps a single full-archive link in the footer (per-proof-type galleries are no longer primary)', async () => {

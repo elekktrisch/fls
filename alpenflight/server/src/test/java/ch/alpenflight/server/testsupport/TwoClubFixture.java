@@ -73,6 +73,15 @@ public final class TwoClubFixture {
         // (idempotent) delete in the catalog loop.
         jdbc.update("DELETE FROM t_aircraft_reservation WHERE operating_club_id IN (?::uuid, ?::uuid)",
                 clubA.toString(), clubB.toString());
+        // Planning days hold a RESTRICT FK to Location; their assignment children
+        // hold a RESTRICT FK to the assignment-type lookup. Delete days up-front
+        // (CASCADE clears the assignment children) so the catalog loop's later
+        // t_location / t_planning_day_assignment_type deletes aren't blocked. The
+        // tenant-scoped day + type rows still get a second (idempotent) catalog
+        // delete; t_planning_day_assignment is an aggregate-internal child (no
+        // @TenantId) so it never appears in the catalog loop.
+        jdbc.update("DELETE FROM t_planning_day WHERE operating_club_id IN (?::uuid, ?::uuid)",
+                clubA.toString(), clubB.toString());
         // Aircraft is cross-tenant since S-058 (reverts S-159), so it's no longer
         // in the catalog loop below. But managing_club_id → club is ON DELETE
         // RESTRICT, so aircraft rows under the seed clubs would block

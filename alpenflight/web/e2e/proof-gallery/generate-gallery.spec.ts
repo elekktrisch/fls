@@ -31,6 +31,7 @@ async function loadGenerator(): Promise<{
     renderNav?: boolean;
     perJourney?: boolean;
     journeyUnderWork?: string;
+    branch?: string;
     siteBase?: string;
   }) => {
     html: string;
@@ -58,6 +59,16 @@ async function loadGenerator(): Promise<{
     } | null;
     showDelta: boolean;
   }) => { level: string; label: string };
+  parseArgs: (argv: string[]) => {
+    reportPath?: string;
+    outDir?: string;
+    orderPath?: string;
+    branch?: string;
+    journeyUnderWork?: string;
+    siteBase?: string;
+    renderNav?: boolean;
+    perJourney?: boolean;
+  };
 }> {
   return import(pathToFileURL(GENERATOR).href);
 }
@@ -666,7 +677,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
   /** A report with one green proof for J-0 + J-2 screenshots, against a roadmap. */
   function buildPerJourney(
     generateGallery: Awaited<ReturnType<typeof loadGenerator>>['generateGallery'],
-    opts: { writeMaint?: boolean; journeyUnderWork?: string } = {},
+    opts: { writeMaint?: boolean; journeyUnderWork?: string; branch?: string } = {},
   ) {
     const dir = mkdtempSync(resolve(tmpdir(), 'gallery-perj-'));
     const orderPath = resolve(dir, '_ORDER.md');
@@ -705,6 +716,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
       screenshotsDir,
       renderNav: false,
       journeyUnderWork: opts.journeyUnderWork,
+      ...(opts.branch ? { branch: opts.branch } : {}),
     });
     return { outDir, result };
   }
@@ -722,6 +734,36 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     // J-0c + J-1 are pending (no content) → no per-journey page emitted.
     expect(existsSync(resolve(outDir, 'J-0c', 'index.html'))).toBe(false);
     expect(existsSync(resolve(outDir, 'J-1', 'index.html'))).toBe(false);
+  });
+
+  // T-01b — operator standing rule: the journey-under-work's proof page must
+  // exist from the START (the first task scaffolds it) so the operator's
+  // glanceable proof window exists before any capture lands, then ACCUMULATES
+  // captures as later tasks' specs go green. So a journey-under-work with ZERO
+  // content still gets a per-journey "pending — awaiting captures" placeholder
+  // page (and the previews index links it). Other pending journeys still get no
+  // page (the index renders them as plain pending rows — no dead link).
+  it('emits a PENDING placeholder page for a content-less journey-under-work (T-01b scaffold)', async () => {
+    const { generateGallery } = await loadGenerator();
+    // J-1 is pending in ACCORDION_ORDER (no video, no screenshot) — name it the
+    // journey-under-work so the scaffold page is emitted even with no captures.
+    const { outDir, result } = buildPerJourney(generateGallery, { journeyUnderWork: 'J-1' });
+
+    // The journey-under-work gets a page despite zero content → it's listed.
+    expect(result.journeyPages.map((p) => p.journey).sort()).toEqual(['J-0', 'J-1', 'J-2']);
+    expect(existsSync(resolve(outDir, 'J-1', 'index.html'))).toBe(true);
+
+    const j1 = readOut(outDir, 'J-1', 'index.html');
+    // It renders the pending state (no video), not a broken/empty page.
+    expect(j1).toContain('>J-1 — proof</h1>');
+    expect(j1).toContain('No green proof yet');
+    expect(j1).toContain('<span class="status pending">pending</span>');
+    // The back-link to the persistent previews index is present (no dead link).
+    expect(j1).toContain('alpenflight/previews/');
+
+    // A DIFFERENT pending journey (J-0c) is NOT the journey-under-work → still
+    // no page (it stays a plain pending row in the index — no dead link).
+    expect(existsSync(resolve(outDir, 'J-0c', 'index.html'))).toBe(false);
   });
 
   it('per-journey page renders the journey content with shared media referenced via ../', async () => {
@@ -791,6 +833,49 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     const j0 = readOut(outDir, 'J-0', 'index.html');
     expect(j0).toContain('<strong>3</strong> violations'); // PMD parsed
     expect(j0).toContain('no fallow health data'); // health absent → graceful
+  });
+
+  // T-14 — the per-push CI gallery step must pass the journey id EXPLICITLY via
+  // `--journey-under-work` (sourced from the `changes` job's derived journey),
+  // because on a PR push GITHUB_REF_NAME is the merge ref (`<pr>/merge`), NOT
+  // `integration/J-NNN` — so the generator's branch-name fallback can't derive
+  // the journey, and the panel would degrade to "snapshot only" with no delta.
+  // These lock the CLI-arg → delta contract the CI wiring relies on.
+  it('--journey-under-work parses to journeyUnderWork (the CI flag the delta needs)', async () => {
+    const { parseArgs } = await loadGenerator();
+    const args = parseArgs(['--report', 'r.json', '--out', 'o', '--journey-under-work', 'J-6']);
+    expect(args.journeyUnderWork).toBe('J-6');
+  });
+
+  it('an explicit journeyUnderWork drives the FE delta even when the branch cannot (merge-ref)', async () => {
+    const { generateGallery } = await loadGenerator();
+    // Simulate the PR-push reality: a merge-ref branch from which journeyFromFile
+    // derives nothing, BUT the CI passes the derived journey id explicitly.
+    const { outDir } = buildPerJourney(generateGallery, {
+      writeMaint: true,
+      journeyUnderWork: 'J-0',
+      branch: '123/merge',
+    });
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    // Explicit journey-under-work → the FE delta renders (red roll-up), NOT the
+    // snapshot-only neutral fallback.
+    expect(j0).toContain('FE delta (this journey vs main)');
+    expect(j0).toContain('<span class="status failure">');
+    expect(j0).not.toContain('<span class="status neutral">');
+  });
+
+  it('without an explicit journey-under-work the panel degrades to snapshot-only (no false delta)', async () => {
+    const { generateGallery } = await loadGenerator();
+    // No journeyUnderWork + a merge-ref branch → nothing derivable → the J-0 page
+    // shows the repo snapshot, never a fabricated per-journey delta.
+    const { outDir } = buildPerJourney(generateGallery, {
+      writeMaint: true,
+      branch: '123/merge',
+    });
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('historical per-journey delta not reconstructable');
+    expect(j0).toContain('<span class="status neutral">');
+    expect(j0).not.toContain('FE delta (this journey vs main)');
   });
 
   it('--no-per-journey (perJourney:false) emits ONLY the all-journeys page', async () => {
@@ -991,5 +1076,156 @@ describe('generateGallery — all-journeys cross-section links resolve in deploy
     expect(navGalleryHref('/fls/alpenflight/proof/x/')).toBe('/fls/alpenflight/proof/x/');
     // External → unchanged.
     expect(navGalleryHref('https://example.test/g/')).toBe('https://example.test/g/');
+  });
+});
+
+/**
+ * T-17b — the PER-PUSH pairing contract. The in-flight dev gallery pairs the
+ * COMMITTED legacy-reference fixtures (`e2e/legacy-reference/<feature>/<view>.png`
+ * — made once + in git per T-17a, legacy frozen) against the FRESH clean-seed
+ * AlpenFlight PNGs the proof spec writes per push, declared in a per-push
+ * `screenshots.json`. This locks that, given those committed refs + fresh-AF
+ * PNGs + the sidecar, the generated per-journey J-6 page renders BOTH the legacy
+ * AND the AlpenFlight `<img>` for EACH view (list/form/setup) — and degrades
+ * gracefully (renders the AF side alone) when a legacy ref is absent.
+ *
+ * The fixtures are the REAL committed legacy refs (not synthetic 1×1s) so this
+ * spec also guards their continued presence: if a future change reaps them, the
+ * `existsSync` precondition fails loudly here.
+ */
+describe('generateGallery — per-push committed-legacy ↔ fresh-AF pairing (T-17b)', () => {
+  // The REAL committed legacy-reference fixtures (T-17a). Resolved from the spec
+  // dir up to e2e/legacy-reference/planning/.
+  const LEGACY_REF_DIR = resolve(__dirname, '..', 'legacy-reference', 'planning');
+  const VIEWS = ['list', 'form', 'setup'] as const;
+
+  // The per-push staging step (ci.yml T-17b) maps each view to:
+  //   legacy file name  ← copied from the committed ref under a stable name
+  //   AF file name      ← the fresh clean-seed capture the spec wrote
+  // setup's AF file is `…-setup-form.png` (the wizard form), the one view whose
+  // AF filename differs from its bare view key — mirror that mapping here.
+  const PLANNING = [
+    { view: 'list', legacy: 'legacy-planning-list.png', af: 'alpenflight-planning-list.png' },
+    { view: 'form', legacy: 'legacy-planning-form.png', af: 'alpenflight-planning-form.png' },
+    {
+      view: 'setup',
+      legacy: 'legacy-planning-setup.png',
+      af: 'alpenflight-planning-setup-form.png',
+    },
+  ] as const;
+
+  /**
+   * Stage a per-push `--screenshots` dir exactly as the ci.yml T-17b step does:
+   * copy each committed legacy ref + write a fresh-AF placeholder PNG, and
+   * declare every staged side in screenshots.json. `skipLegacyViews` omits the
+   * legacy ref for the listed views (to model a missing committed ref).
+   */
+  function stagePerPush(base: string, opts: { skipLegacyViews?: string[] } = {}): string {
+    const dir = mkdtempSync(resolve(base, 'perpush-'));
+    const decls: {
+      journey: string;
+      side: string;
+      view: string;
+      file: string;
+      caption: string;
+    }[] = [];
+    for (const { view, legacy, af } of PLANNING) {
+      if (!opts.skipLegacyViews?.includes(view)) {
+        // Copy the REAL committed legacy ref under its stable staged name.
+        const ref = resolve(LEGACY_REF_DIR, `${view}.png`);
+        expect(existsSync(ref), `committed legacy ref ${view}.png present (T-17a)`).toBe(true);
+        writeFileSync(resolve(dir, legacy), readFileSync(ref));
+        decls.push({
+          journey: 'J-6',
+          side: 'legacy',
+          view,
+          file: legacy,
+          caption: `Legacy flsweb: planning ${view}`,
+        });
+      }
+      // The fresh-AF side — a placeholder PNG (the real spec writes the captured
+      // screen; for the generator's copy/link-check a valid PNG is enough).
+      writeFileSync(resolve(dir, af), PNG_1X1);
+      decls.push({
+        journey: 'J-6',
+        side: 'alpenflight',
+        view,
+        file: af,
+        caption: `AlpenFlight: planning ${view}`,
+      });
+    }
+    writeFileSync(resolve(dir, 'screenshots.json'), JSON.stringify({ screenshots: decls }), 'utf8');
+    return dir;
+  }
+
+  const J6_ORDER = `# Journey roadmap
+
+| J | Title | Epic |
+|---|---|---|
+| J-0 | Locations CRUD | E-06 |
+| J-6 | Planning days + setup | E-08 |
+`;
+
+  function buildJ6(
+    generateGallery: Awaited<ReturnType<typeof loadGenerator>>['generateGallery'],
+    opts: { skipLegacyViews?: string[] } = {},
+  ): { outDir: string } {
+    const dir = mkdtempSync(resolve(tmpdir(), 'gallery-t17b-'));
+    const orderPath = resolve(dir, '_ORDER.md');
+    writeFileSync(orderPath, J6_ORDER, 'utf8');
+    const reportPath = resolve(dir, 'report.json');
+    writeFileSync(reportPath, JSON.stringify({ suites: [] }), 'utf8');
+    const screenshotsDir = stagePerPush(dir, opts);
+    const outDir = resolve(dir, 'out');
+    generateGallery({
+      reportPath,
+      outDir,
+      orderPath,
+      screenshotsDir,
+      renderNav: false,
+      journeyUnderWork: 'J-6',
+    });
+    return { outDir };
+  }
+
+  it('the per-push J-6 page pairs committed-legacy + fresh-AF for EACH of list/form/setup', async () => {
+    const { generateGallery } = await loadGenerator();
+    const { outDir } = buildJ6(generateGallery);
+
+    const j6 = readOut(outDir, 'J-6', 'index.html');
+    expect(j6).toContain('parity-screenshots');
+    for (const { view, legacy, af } of PLANNING) {
+      // BOTH sides render an <img> for this view…
+      const l = j6.indexOf(`../screenshots/${legacy}`);
+      const a = j6.indexOf(`../screenshots/${af}`);
+      expect(l, `legacy ${view} <img> present`).toBeGreaterThan(-1);
+      expect(a, `AlpenFlight ${view} <img> present`).toBeGreaterThan(-1);
+      // …and the legacy side renders LEFT of the AlpenFlight side (parity framing).
+      expect(l, `legacy ${view} left of AF`).toBeLessThan(a);
+      // …under a labelled shot-pair row keyed by the matching view.
+      expect(j6, `view "${view}" labelled row`).toContain(`class="shot-view-label">${view}</div>`);
+    }
+    // 3 views × 2 sides = 6 paired <img> in the parity block.
+    expect((j6.match(/class="shot /g) ?? []).length).toBe(6);
+  });
+
+  it('degrades gracefully when a committed legacy ref is missing — renders the AF side alone', async () => {
+    const { generateGallery } = await loadGenerator();
+    // Model a missing committed legacy ref for the `form` view (e.g. not yet
+    // captured for a future journey) — the page must still render, with the AF
+    // form side alone and BOTH sides for list + setup.
+    const { outDir } = buildJ6(generateGallery, { skipLegacyViews: ['form'] });
+
+    const j6 = readOut(outDir, 'J-6', 'index.html');
+    // form: AF side present, legacy side absent (graceful single-side render).
+    expect(j6).toContain('../screenshots/alpenflight-planning-form.png');
+    expect(j6).not.toContain('../screenshots/legacy-planning-form.png');
+    // list + setup: BOTH sides still pair.
+    expect(j6).toContain('../screenshots/legacy-planning-list.png');
+    expect(j6).toContain('../screenshots/alpenflight-planning-list.png');
+    expect(j6).toContain('../screenshots/legacy-planning-setup.png');
+    expect(j6).toContain('../screenshots/alpenflight-planning-setup-form.png');
+    // 5 staged sides (2 + 1 + 2) → 5 shot figures, no broken link, no throw.
+    expect((j6.match(/class="shot /g) ?? []).length).toBe(5);
   });
 });

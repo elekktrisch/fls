@@ -65,6 +65,18 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'planning',
+    loadChildren: () => import('@features/planning/planning.routes').then((m) => m.PLANNING_ROUTES),
+  },
+  {
+    // `/planningsetup` — the bulk-setup wizard (J-6 T-09), a top-level route
+    // (matches the list-page Setup button + legacy), served by the planning
+    // feature folder.
+    path: 'planningsetup',
+    loadChildren: () =>
+      import('@features/planning/planning.routes').then((m) => m.PLANNING_SETUP_ROUTES),
+  },
+  {
     // Motor flights ("air movements") are unified into this same /flights list
     // (a Flight with a motor aircraft + no tow) — legacy's separate
     // /airmovements screen is NOT carried forward (J-2 T-36 / S-064).

@@ -2,6 +2,7 @@ package ch.alpenflight.articles.web;
 
 import ch.alpenflight.articles.domain.ArticleNotFoundException;
 import ch.alpenflight.articles.domain.DuplicateArticleNumberException;
+import ch.alpenflight.platform.web.ProblemResponses;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -46,8 +47,6 @@ class ArticlesExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(ProblemDetail pd) {
-        return ResponseEntity.status(pd.getStatus())
-                .header("Content-Type", "application/problem+json")
-                .body(pd);
+        return ProblemResponses.problem(pd);
     }
 }

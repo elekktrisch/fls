@@ -58,5 +58,10 @@ public enum AuditAction {
     /** S-141 — bundle ingest rolled back. Emitted post-commit (audit
      *  failure does not roll back ingest); {@code after_state} carries
      *  uploadId + errorCode + phase. */
-    MIGRATION_INGEST_FAILED
+    MIGRATION_INGEST_FAILED,
+    /** J-6 S-086 — the planning-day notification job was triggered for a club
+     *  (the scheduled tick OR the guarded run-now affordance).
+     *  {@code after_state} carries a non-PII send summary (club id + the
+     *  imminent / week-ahead mail counts); {@code before_state} is null. */
+    PLANNING_NOTIFICATIONS_RUN
 }

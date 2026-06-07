@@ -446,12 +446,21 @@ test.describe('proof-gallery link integrity (T-31/T-33)', () => {
         relative(root, previewOut).split(/[\\/]/),
         'branch-preview layout under proof-preview/<branch>/legacy-parity',
       ).toEqual(['alpenflight', 'proof-preview', SANITIZED_BRANCH, 'legacy-parity']);
+      // Fixtures emit content pages for J-0 / J-0c / J-1; T-01b additionally
+      // emits a PENDING placeholder page for the journey-under-work (J-5 here)
+      // even with zero captures — the operator's "proof window exists from the
+      // start" scaffold. So J-5's per-journey page must be present + reachable
+      // (and dead-link-free) BEFORE any J-5 capture lands.
       const pageJourneys = canonicalPages.map((p) => p.journey).sort();
-      expect(pageJourneys, 'fixtures emit J-0 / J-0c / J-1 per-journey pages').toEqual([
-        'J-0',
-        'J-0c',
-        'J-1',
-      ]);
+      expect(
+        pageJourneys,
+        'fixtures emit J-0 / J-0c / J-1 content pages + the J-5 journey-under-work scaffold',
+      ).toEqual(['J-0', 'J-0c', 'J-1', 'J-5']);
+      // The J-5 scaffold is a genuine pending placeholder (no green proof yet),
+      // not a broken/empty page.
+      const j5Scaffold = canonicalPages.find((p) => p.journey === 'J-5');
+      expect(j5Scaffold, 'J-5 journey-under-work scaffold page emitted').toBeTruthy();
+      expect(readFileSync(j5Scaffold!.outFile, 'utf8')).toContain('No green proof yet');
 
       // ── Walk BOTH layouts + the persistent index ───────────────────────────
       // Seed with the index pages the operator opens AND each layout's pages, so

@@ -670,9 +670,36 @@ class ReservationsBaselineIntegrationTest {
         }
     }
 
+    /**
+     * V4 seeds ZERO assignment types structurally (per-club ref data — a migrated
+     * club brings its own, a clean-seed club is seeded by the V34 dev-seed). Same
+     * de-brittle as the reservation-type sibling above (J-5 T-30): scope to the
+     * seed band, asserting exactly the three V34 dev-seed rows
+     * (Segelflugleiter/Schlepppilot/Fluglehrer for seed-club-1) and no structural
+     * V4 seeding — random/faker-UUID rows other planning ITs leave in the shared
+     * container are ignored.
+     */
     @Test
-    void planning_day_assignment_type_NOT_seeded_in_migration() throws Exception {
-        assertTableEmpty("t_planning_day_assignment_type");
+    void planning_day_assignment_type_only_the_dev_seed_present() throws Exception {
+        try (Connection conn = dataSource.getConnection();
+                ResultSet rs = conn.createStatement().executeQuery(
+                        "SELECT id::text, operating_club_id::text, assignment_type_name "
+                                + "FROM t_planning_day_assignment_type "
+                                + "WHERE id::text LIKE '019e30c3-%' "
+                                + "ORDER BY id::text")) {
+            List<String> rows = new ArrayList<>();
+            while (rs.next()) {
+                rows.add(rs.getString(1) + "|" + rs.getString(2) + "|" + rs.getString(3));
+            }
+            String club = "019e30c3-2c00-7001-8000-000000000001";
+            assertThat(rows)
+                    .as("the ONLY seed-band t_planning_day_assignment_type rows are the V34 dev/test "
+                            + "seed (no structural V4 seeding); random-UUID rows from sibling ITs ignored")
+                    .containsExactly(
+                            "019e30c3-2c00-7001-8000-0000000000d1|" + club + "|Segelflugleiter",
+                            "019e30c3-2c00-7001-8000-0000000000d2|" + club + "|Schlepppilot",
+                            "019e30c3-2c00-7001-8000-0000000000d3|" + club + "|Fluglehrer");
+        }
     }
 
     // ============================================================================
@@ -991,17 +1018,6 @@ class ReservationsBaselineIntegrationTest {
                         .as("%s row code=%s must have canonical UUID", table, code)
                         .isEqualTo(expectedUuid);
             }
-        }
-    }
-
-    private void assertTableEmpty(String table) throws SQLException {
-        try (Connection conn = dataSource.getConnection();
-                ResultSet rs = conn.createStatement().executeQuery(
-                        "SELECT count(*) FROM " + table)) {
-            assertThat(rs.next()).isTrue();
-            assertThat(rs.getInt(1))
-                    .as("%s must NOT be seeded in V4 (per-club; operator creates via API)", table)
-                    .isEqualTo(0);
         }
     }
 

@@ -111,3 +111,23 @@ Chosen: **Option A — per-test unique `club_id` for tenant-scoped data, stable-
   - **Re-refine S-051** (DSAR cross-club erasure) — its test plan should use per-test Persons + cross-club PersonClubs under this rule. The DSAR cascade test is the canonical cross-tenant case.
   - **Re-refine S-058** (Flight validator port) — its parity tests under [ADR 0018](0018-domain-model-ddd-aggregates.md) need this isolation rule the moment they `INSERT` Flights into tenant-scoped tables.
   - **Re-refine S-024** (cross-tenant leakage CI) — its leakage-detection harness needs to know about test Clubs (so a test's writes to its own tenant don't false-positive as leakage). Add a "test Club allowlist" to S-024's scope.
+
+## Proposed amendment (do-retro J-5, 2026-06-06 — pending operator approval)
+
+J-5 surfaced a concrete gap this ADR should close: **shared-container cross-test pollution via tenant-scoped
+cleanup.** `AircraftReservationsControllerIT.@BeforeEach` did `DELETE FROM t_aircraft_reservation_type WHERE
+operating_club_id = <seed-club-1>` — which also deleted a DIFFERENT test's dev-seed row (the V31 `Allgemein`
+type) on the same shared club, so `ReservationsBaselineIntegrationTest` flaked depending on test order. It was
+green in CI by luck and only deterministically caught once local Playwright/whole-suite runs existed.
+
+Proposed rule additions:
+1. **A test's cleanup deletes only the rows IT created, not all rows of a shared tenant.** Scope cleanup by the
+   test's own ids / a per-test key prefix — never by a shared `club_id`/`operating_club_id` that fixtures or
+   dev-seeds also populate. (Tenant-scoped `DELETE WHERE club_id = <shared>` is the anti-pattern.)
+2. **Assertions over a shared-container table must filter to the rows under test** (by id / seed-band prefix),
+   never `containsExactly`/exact-count over the whole table — sibling tests legitimately leave rows.
+3. **Extend the S-024 ArchUnit/leakage neighbourhood** to flag a test `DELETE … WHERE <tenant-col> = …` that
+   isn't further narrowed by an id/prefix predicate (the cleanup-by-shared-tenant smell).
+
+Rationale: the existing per-test-Club + natural-key-prefix policy assumed each test owns its tenant; dev-seeds +
+fixtures share `seed-club-1`, so tenant-scoped cleanup is unsafe. Amend the policy to "own-rows-only" cleanup.

@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.accounting;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -59,6 +60,12 @@ public final class PlanningDayAssignmentTypeMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // operating_club_id is the @TenantId (off the convention club_id), J-6 T-11.
+        return List.of(new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB));
     }
 
     @Override

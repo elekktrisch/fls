@@ -58,7 +58,18 @@ class FixtureTableNamingConventionTest {
             "a", "b", "i",
             // English prose words that appear after FROM/JOIN/UPDATE in
             // assertion messages — none of these will ever be a table name.
-            "legacy", "scratch", "source", "target", "above", "below");
+            "legacy", "scratch", "source", "target", "above", "below",
+            // Legacy MSSQL source-table name a producer-SELECT dedupe IT stands
+            // up verbatim (J-6 T-11b PlanningDayProducerDedupeIT): the bound
+            // PLANNING_DAY producer SELECT reads `FROM PlanningDays`, so the
+            // staging table the IT seeds two duplicate rows into MUST carry that
+            // exact unprefixed legacy name — it is NOT a new-stack t_ table.
+            "planningdays",
+            // J-6 T-16: the PLANNING_DAY_ASSIGNMENT producer SELECT reads `FROM
+            // PlanningDayAssignments` (JOIN to PlanningDays + the kept-first remap);
+            // the assignment-remap IT seeds that staging table verbatim. Legacy
+            // source name, not a new-stack t_ table.
+            "planningdayassignments");
 
     /**
      * Narrowed to SQL-context-only patterns: {@code DELETE FROM} /

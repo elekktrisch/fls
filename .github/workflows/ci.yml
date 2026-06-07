@@ -56,6 +56,18 @@ jobs:
       proof_spec: ${{ steps.proof_spec.outputs.spec }}
       proof_journey: ${{ steps.proof_spec.outputs.journey }}
       proof_is_baseline: ${{ steps.proof_spec.outputs.is_baseline }}
+      # J-6 T-02b — the journey-under-work's OWN mock-auth spec filter, derived
+      # off the integration branch name (see "Derive journey mock-e2e filter").
+      # The per-push `alpenflight-mock-e2e` job runs ONLY this path-filter (the
+      # journey's own `tests/<feature>/` specs); prior journeys' mock specs run
+      # in the FULL chromium suite nightly + at the §4 do-ship gate, never
+      # per-push, so an unrelated flaky mock spec can't red this journey's
+      # `required`. `mock_is_full` is 'true' when derivation fell back to the
+      # WHOLE chromium project (non-integration branch / no `mock_test:`
+      # frontmatter / underivable) — the FAIL-SAFE runs the full suite, never a
+      # no-spec run that Playwright would treat as "match nothing".
+      mock_filter: ${{ steps.mock_spec.outputs.filter }}
+      mock_is_full: ${{ steps.mock_spec.outputs.is_full }}
     steps:
       # fetch-depth: 0 so the `incremental` step below can diff against the
       # PR/push "before" SHA (the parent of the pushed commits), which a
@@ -214,6 +226,79 @@ jobs:
               emit "$BASELINE" "$jid" "true"; exit 0
               ;;
           esac
+
+      # ---------------------------------------------------------------------
+      # Derive the journey-under-work's mock-e2e spec filter (J-6 T-02b).
+      #
+      # MIRRORS the real-idp `proof_spec` step above, for the mock-auth half.
+      # PROBLEM (the pending _BOYSCOUT rider, J-5-held-hostage-by-articles-crud):
+      # the per-push `alpenflight-mock-e2e` job runs the WHOLE `chromium` project
+      # (ALL features' mock specs). One unrelated flaky mock spec then reds the
+      # `required` gate on a journey that touches none of it.
+      #
+      # DERIVATION (same path as proof_spec): read the journey FILE's
+      # `mock_test:` frontmatter off the integration branch name; its FIRST path
+      # token (a `tests/<feature>/` dir or a single spec), normalized relative to
+      # alpenflight/web/, becomes the Playwright positional filter the mock job
+      # passes to `--project=chromium`. The chromium project's own testMatch /
+      # testIgnore still apply on top of the filter, so an excluded spec under
+      # the dir stays excluded.
+      #   1. branch = github.head_ref (PR) || github.ref_name (push).
+      #   2. integration/J-NNN  →  journey id  (anything else → full suite).
+      #   3. docs/.../J-NNN-*.md  →  `mock_test:` value → first path token →
+      #      strip a leading alpenflight/web/ → assert it exists on disk.
+      # FAIL-SAFE: a non-integration branch, a missing journey file, no
+      # `mock_test:` frontmatter, or a filter that doesn't resolve on disk →
+      # emit an EMPTY filter + is_full=true, so the mock job runs the WHOLE
+      # chromium project (the pre-T-02b baseline). NEVER a no-spec run — an empty
+      # positional arg to `playwright test` means "run everything", which is
+      # exactly the fail-safe we want, but we make it explicit via is_full so the
+      # job logs which path it took.
+      - name: Derive journey mock-e2e filter
+        id: mock_spec
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          emit() { # $1 filter (may be empty)  $2 is_full
+            echo "filter=$1" >> "$GITHUB_OUTPUT"
+            echo "is_full=$2" >> "$GITHUB_OUTPUT"
+            echo "── mock-e2e filter: '${1:-<full chromium suite>}'  (is_full=$2) ──"
+          }
+          branch="${HEAD_REF:-${REF_NAME:-}}"
+          echo "branch under work: '${branch}'"
+          jid="$(printf '%s' "$branch" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
+          if [ -z "$jid" ]; then
+            echo "not an integration/J-NNN branch → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          if [ -z "$jf" ] || [ ! -f "$jf" ]; then
+            echo "no journey file for ${jid} → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          raw="$(grep -m1 -E '^mock_test:' "$jf" | sed -E 's/^mock_test:[[:space:]]*//' || true)"
+          if [ -z "$raw" ]; then
+            echo "${jid} has no mock_test: frontmatter → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          # First path token (stop at whitespace / '(' / ';' / '#' so trailing
+          # prose or a comment is dropped); strip a leading alpenflight/web/.
+          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:](;#].*$//' | sed -E 's#^alpenflight/web/##')"
+          echo "${jid} mock_test first token → '${filter}'"
+          if [ -z "$filter" ]; then
+            echo "empty mock_test token → full chromium suite (fail-safe)"
+            emit "" "true"; exit 0
+          fi
+          # The filter must resolve to a real path under alpenflight/web/ (a
+          # tests/<feature>/ dir OR a single spec file). If it doesn't, fall back
+          # to the full suite rather than risk a no-spec run.
+          if [ -e "alpenflight/web/${filter}" ]; then
+            emit "$filter" "false"; exit 0
+          fi
+          echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
+          emit "" "true"; exit 0
 
 
   # ---------------------------------------------------------------------------
@@ -677,6 +762,79 @@ jobs:
           ls -l "$OUT" >&2 || true
           exit 0
 
+      # J-6 T-17b — stage the PER-PUSH parity screenshots: PAIR the COMMITTED
+      # legacy-reference PNGs (`e2e/legacy-reference/<feature>/<view>.png`, made
+      # once + in git per T-17a — legacy flsweb is frozen) against the FRESH
+      # clean-seed AlpenFlight PNGs this run's proof spec just wrote to
+      # test-results/. This gives the per-push per-journey page its full
+      # legacy↔AlpenFlight visual pairing WITHOUT any dependency on the heavy
+      # nightly fanout — closing the "videos OR screenshots, depending on which
+      # job deployed last" pain (operator design, 2026-06-07).
+      #
+      # The view keys (`list`/`form`/`setup`) + journey id MUST match the
+      # fanout's J-6 declarations (alpenflight-proof-fanout.yml ~L1024-1035) so
+      # the per-push page reads identically to the nightly page. AF filenames
+      # differ per view (`setup` → `…-setup-form.png`); the per-journey block
+      # below maps them.
+      #
+      # `if: always()` so a red proof assertion still stages whatever PNGs the
+      # spec wrote BEFORE its deep assertions — the gate signal is `steps.pw`,
+      # not the gallery. A missing legacy ref OR a missing AF PNG simply DROPS
+      # that one entry (add_pair no-ops it) so the page degrades gracefully —
+      # never a declared-but-absent PNG that would red the AC5 link-check.
+      - name: Stage per-push parity screenshots (committed-legacy + fresh-AF)
+        if: always()
+        env:
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
+        run: |
+          SHOT="${{ github.workspace }}/perpush-screenshots"
+          mkdir -p "$SHOT"
+          REF_DIR="alpenflight/web/e2e/legacy-reference"
+          AF_RESULTS="alpenflight/web/test-results"
+          SHOTS=""
+          # add_pair: stage the committed legacy ref + the fresh AF PNG for ONE
+          # view, declaring both sides under the same journey/view so the
+          # generator pairs them. $1 journey $2 feature $3 view $4 legacy-ref
+          # filename $5 AF filename $6 legacy-caption $7 AF-caption.
+          add_pair() {
+            local jrn="$1" feat="$2" view="$3" lref="$4" affile="$5" lcap="$6" acap="$7"
+            local lsrc="$REF_DIR/$feat/$lref"
+            local asrc; asrc="$(find "$AF_RESULTS" -name "$affile" 2>/dev/null | head -1 || true)"
+            if [ -f "$lsrc" ]; then
+              cp "$lsrc" "$SHOT/legacy-${feat}-${view}.png"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"legacy\",\"view\":\"$view\",\"file\":\"legacy-${feat}-${view}.png\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$lcap")},"
+            else
+              echo "legacy ref $lsrc absent — skipping legacy ${feat}/${view}."
+            fi
+            if [ -n "$asrc" ]; then
+              cp "$asrc" "$SHOT/$affile"
+              SHOTS="$SHOTS{\"journey\":\"$jrn\",\"side\":\"alpenflight\",\"view\":\"$view\",\"file\":\"$affile\",\"caption\":$(node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$acap")},"
+            else
+              echo "AF PNG $affile not found under $AF_RESULTS — skipping alpenflight ${feat}/${view} (spec likely red before capture)."
+            fi
+          }
+          # ----- J-6 planning (list/form/setup — view keys match the fanout) ---
+          if [ "${PROOF_JOURNEY:-}" = "J-6" ]; then
+            add_pair "J-6" "planning" "list" "list.png" "alpenflight-planning-list.png" \
+              "Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) — the legacy planning table, paired before/after against AlpenFlight's /planning future-days list" \
+              "AlpenFlight: the /planning future-days list (date · weekday · location · remarks · the 3 crew display names · reservation count, weekend rows flagged) — the clean-seed future-days list to eyeball against the legacy planning table"
+            add_pair "J-6" "planning" "form" "form.png" "alpenflight-planning-form.png" \
+              "Legacy flsweb: one planning day's edit form (date · location selectize · remarks · towing-pilot / flight-operator / instructor selectizes · the inline per-day reservations table) — paired against AlpenFlight's planning-day edit form" \
+              "AlpenFlight: the planning-day edit form, fully populated (date · location · instructor / tow-pilot / flight-operator pickers · remarks) — the planning-day field set to eyeball side-by-side against the legacy edit form"
+            add_pair "J-6" "planning" "setup" "setup.png" "alpenflight-planning-setup-form.png" \
+              "Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard" \
+              "AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form"
+          fi
+          if [ -n "$SHOTS" ]; then
+            printf '{ "screenshots": [ %s ] }' "${SHOTS%,}" \
+              | node -e 'const fs=require("fs");let s="";process.stdin.on("data",d=>s+=d).on("end",()=>fs.writeFileSync(process.argv[1],JSON.stringify(JSON.parse(s),null,2)))' "$SHOT/screenshots.json"
+            echo "Staged per-push parity screenshots + sidecar:"
+            ls -l "$SHOT/"
+            cat "$SHOT/screenshots.json"
+          else
+            echo "No per-push parity pairs staged for ${PROOF_JOURNEY:-?} — gallery renders videos only."
+          fi
+
       # J-24 — build + link-check the proof gallery from the run's manifest +
       # videos (test-results/). `always()` so it runs even when the spec is red;
       # on red there are no proof videos so it emits only pending rows. The
@@ -686,11 +844,38 @@ jobs:
         id: gallery
         if: always()
         working-directory: alpenflight/web
+        env:
+          # T-14 — the journey-under-work id (derived in the `changes` job's
+          # `proof_spec` step off the integration branch). Passed EXPLICITLY so
+          # the per-journey Maintainability panel renders THIS journey's FE
+          # fallow-audit DELTA (not just the repo snapshot): on a PR push
+          # GITHUB_REF_NAME is the merge ref (`<pr>/merge`), so the generator's
+          # branch-name fallback can't derive the journey — the panel would
+          # degrade to "snapshot only". Empty on a non-integration branch (the
+          # changes job emits the J-0 baseline journey then) — harmless, that
+          # page has no audit delta to show anyway.
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
         run: |
+          JUW_ARG=""
+          if [ -n "${PROOF_JOURNEY:-}" ]; then
+            JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
+          fi
+          # T-17b — per-push parity screenshots: feed the staged screenshots.json
+          # dir (committed-legacy + fresh-AF, paired by view) so the generator
+          # renders the legacy↔AlpenFlight `shot-pair`/`shot-grid` block on the
+          # per-journey page — same rendering the fanout page uses, but sourced
+          # per-push with no fanout dependency. Absent dir/sidecar = no-op.
+          SHOT="${{ github.workspace }}/perpush-screenshots"
+          SHOT_ARG=""
+          if [ -f "$SHOT/screenshots.json" ]; then
+            SHOT_ARG="--screenshots $SHOT"
+          fi
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md
+            --order ../../docs/modernization/stories/_ORDER.md \
+            $JUW_ARG \
+            $SHOT_ARG
 
       # J-25 — compute the per-PR preview destination + clickable URL.
       # PR-only. Sanitize github.head_ref (the PR source branch, e.g.
@@ -1741,6 +1926,20 @@ jobs:
   # Path-filtered on the same `next == 'true' && docs_only != 'true'` gate as the
   # other heavy jobs: a docs-only push skips it, it reports `skipped`, and the
   # `required` aggregator's skipped-to-success path keeps the gate green.
+  #
+  # SPEC-SCOPING (J-6 T-02b — mirrors J-5 T-14's real-idp scoping for the mock
+  # half). The per-push run is SCOPED to the JOURNEY-UNDER-WORK's own mock specs
+  # via `changes.outputs.mock_filter` (derived from the journey file's
+  # `mock_test:` frontmatter off the integration branch). So while a journey is
+  # in flight, ONLY its own `tests/<feature>/` mock specs gate `required` here —
+  # an unrelated flaky mock spec from a PRIOR journey can no longer red it
+  # (the J-5 `articles-crud` hostage case). The FULL chromium suite (all
+  # features) still runs NIGHTLY (`alpenflight-e2e.yml` on main-push, plus its
+  # own cron if any) + once at the §4 do-ship gate (e2e-driver's full chain) —
+  # the cross-journey mock regression is preserved, just not per-push.
+  # FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter /
+  # underivable filter → `mock_is_full=true` + empty filter → the WHOLE chromium
+  # project runs (the pre-T-02b baseline), never a no-spec run.
   # ---------------------------------------------------------------------------
   alpenflight-mock-e2e:
     name: alpenflight mock-auth e2e (Run Playwright)
@@ -1804,10 +2003,28 @@ jobs:
       # in CI (flake-mask off). A test failure fails the job (no
       # continue-on-error), which fails `required` — that is the whole point of
       # the fold.
+      #
+      # J-6 T-02b — pass the journey-under-work's mock filter (a `tests/<feature>/`
+      # dir or a single spec) as the Playwright positional arg so ONLY this
+      # journey's mock specs run per-push. An EMPTY filter (fail-safe /
+      # mock_is_full=true) means no positional arg → the WHOLE chromium project
+      # runs (the pre-T-02b baseline). The chromium project's testMatch /
+      # testIgnore still apply ON TOP of the filter.
       - name: Run Playwright
         working-directory: alpenflight/web
         timeout-minutes: 5
-        run: pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+        env:
+          MOCK_FILTER: ${{ needs.changes.outputs.mock_filter }}
+          MOCK_IS_FULL: ${{ needs.changes.outputs.mock_is_full }}
+        run: |
+          set -euo pipefail
+          if [ "${MOCK_IS_FULL}" = 'true' ] || [ -z "${MOCK_FILTER:-}" ]; then
+            echo "running FULL chromium mock suite (fail-safe / no journey scope)"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium
+          else
+            echo "running journey-scoped mock specs: ${MOCK_FILTER}"
+            pnpm exec playwright test --config=e2e/playwright.config.ts --project=chromium "${MOCK_FILTER}"
+          fi
 
       # Surface the report as a workflow artifact on red so the failure is
       # diagnosable without the gh-pages publish (which stays in alpenflight-e2e.yml).

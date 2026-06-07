@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.accounting;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -73,6 +74,20 @@ public final class PlanningDayAssignmentMapper implements Mapper {
                 EntityType.PLANNING_DAY,
                 EntityType.PERSON,
                 EntityType.PLANNING_DAY_ASSIGNMENT_TYPE);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // Off-convention FK columns (J-6 T-11) — none fan out. PLANNING_DAY uses
+        // the convention column planning_day_id (matches), so it is NOT declared
+        // here; the resolver derives it. assigned_person_id → PERSON and
+        // assignment_type_id → PLANNING_DAY_ASSIGNMENT_TYPE are off-convention, and
+        // operating_club_id → CLUB is the @TenantId (not the convention club_id).
+        return List.of(
+                new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(ASSIGNED_PERSON_ID, EntityType.PERSON),
+                new ForeignKeyColumn(
+                        ASSIGNMENT_TYPE_ID, EntityType.PLANNING_DAY_ASSIGNMENT_TYPE));
     }
 
     @Override

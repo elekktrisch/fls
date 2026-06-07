@@ -32,6 +32,9 @@ five screens; not a single atomic action.
   `Grep`/`Glob` only when no MCP is connected.
 - **Start from the screens, not the stories.** Enumerate the legacy screens /
   new SPA routes still to build. Each becomes a candidate journey.
+- **Match the design reference.** For each screen find `docs/modernization/design-reference/screens-<feature>.jsx`
+  (ADR-0024 pixel oracle) + put its STRUCTURE (e.g. calendar-vs-table, day/week) into "Spec must assert" — so
+  the journey is carved to the design, not built-then-redesigned. Say "no reference" if absent.
 - **Map stories onto journeys.** For each candidate, list which existing
   `todo` stories collapse into it (they "roll up" — their ACs and any
   refinement become inputs, not lost). A story may inform more than one
@@ -48,26 +51,16 @@ five screens; not a single atomic action.
   Never leave headless work as its own layer-slice.
 - **Sequence by value + dependency.** Order journeys by user-facing impact and
   what-unblocks-most. This is the thin roadmap that becomes the new `_ORDER`.
-- **Spot Journey-0.** The first journey must be the *thinnest* one that drags
-  the full proof chain (legacy-up → migrate → Keycloak → real Playwright) into
-  existence — pick an already-built, low-risk screen (e.g. Aircraft/Locations).
-  **Authored ≠ proven.** `implemented/` code + any CI/proof harness is unit-tested
-  at best and may never have run *end-to-end green*. Don't size Journey-0 as "the
-  chain mostly exists, just wire it" — assume it drags latent never-run gaps into
-  the light (J-0 found the migration fan-out unbuilt + 3 never-run real-idp CI
-  layers). Size it as *building* the chain. [[verify-infra-is-run-not-just-authored]]
-- **Note the migration contribution.** For each journey, name the legacy
-  entity/table it migrates so its per-journey mapper + seed can be scoped. Flag
-  greenfield/freemium journeys — migration is N/A. A unit-passing mapper is NOT a
-  working migrate (J-0's `LocationMapper` unit-passed, fan-out-collided live) —
-  migrate-fidelity is unproven until a real legacy→ingest round-trip runs green.
-- **Self-edit / CRUD journeys carry hidden seams — name them up front** (J-4 burned ~5
-  unplanned tasks): every mutating endpoint needs **its own audit event** (the audit guard
-  fails a PATCH that emits none — not just the "sensitive" one) + a **GET sibling** (PATCH-only
-  hydrates an empty form); a cross-module service call needs a **module-boundary** note (Modulith
-  OPEN / `@NamedInterface`); a new **showcase-seed** principal must not break a prior journey's
-  showcase proof (J-4's seed broke J-3's dashboard); a **no-migration** screen still owes paired
-  demonstrability via the legacy-video harness (not the export→migrate half).
+- **Journey-0** (shipped — historical): the thinnest journey that *builds* the whole proof chain
+  (legacy→migrate→Keycloak→real Playwright); sized as building it, not wiring, since authored ≠ proven.
+- **Note the migration contribution.** Name the legacy entity/table each journey migrates (scopes its
+  per-journey mapper + seed); flag greenfield = N/A. A unit-passing mapper is NOT a working migrate — fidelity
+  is unproven until a real legacy→ingest round-trip runs green. [[verify-infra-is-run-not-just-authored]]
+- **Self-edit/CRUD journeys carry hidden seams — name them up front:** every mutating endpoint needs its
+  **own audit event** + a **GET sibling** (PATCH-only hydrates an empty form); cross-module calls need a
+  **module-boundary** note (Modulith OPEN / `@NamedInterface`); a new **showcase-seed** principal must not
+  break a prior journey's proof; a **no-migration** screen still owes paired demonstrability via the
+  legacy-video harness; tenant-scoped aggregates need their **leakage-guard registration**.
 
 ## Output format
 
@@ -78,8 +71,9 @@ For each, in ship order:
 ### J-<n> — <screen/route name>   [Journey-0? | greenfield?]
 - Screen: <SPA route> replacing legacy <screen/path>.
 - Rolls up: S-NNN, S-MMM, ... (one-line why each).
+- Design ref: <`screens-<feature>.jsx` structure to match, or "none">.
 - Spec must assert: <2-5 bullets — the happy path + key error cases, from the
-  legacy behavior; cite where parity matters>.
+  legacy behavior + the design-ref structure; cite where parity matters>.
 - Headless pulled in: <capability → which screen/affordance, or "none">.
   <if a test-only affordance is invented, say so + why>.
 - Migration: <legacy entity/table, or "N/A — greenfield">.
@@ -94,8 +88,7 @@ migration lump: S-016/S-139/S-141/S-109 dissolve into per-journey mappers +
 Journey-0). List by ID so /do-plan can mark them rolled-up.
 ```
 
-Keep it tight. The operator should be able to skim the sequence and push back
-on grouping/order without reading the underlying stories.
+Keep it tight — the operator skims the sequence + pushes back on grouping/order without reading the stories.
 
 ## What you do not do
 

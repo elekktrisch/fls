@@ -368,6 +368,16 @@ export class ReservationEditPage {
       const id = this.reservationId();
       if (id === null) {
         this.store.selectNew();
+        // Create mode: pre-seed `date` + `locationId` from the query params the
+        // planning-day edit page's "New reservation" button passes (legacy
+        // `PlanningDayEditController.js:128-132` parity). Absent → no-op.
+        const params = this.route.snapshot.queryParamMap;
+        const seed: Partial<{ date: string; locationId: string }> = {};
+        const date = params.get('date');
+        const locationId = params.get('locationId');
+        if (date) seed.date = date;
+        if (locationId) seed.locationId = locationId;
+        if (date || locationId) this.form.patchValue(seed);
         return;
       }
       this.store.loadDetail(id);

@@ -3,6 +3,7 @@ id: S-070
 title: PlanningDay CRUD + per-day reservation listing
 epic: E-08
 status: todo
+rolled_up_into: J-6
 depends_on: [S-068, S-051]
 acceptance:
   - `PlanningDay` + `PlanningDayAssignment` entities ported, `@TenantId`'d.

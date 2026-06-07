@@ -18,6 +18,11 @@ it delivers no AlpenFlight functionality; if a debt item is too big for one jour
 split it across the next 2-3 journeys' budgets. A standalone journey is *only* genuinely new
 vertical AlpenFlight scope (a missing screen, or a re-carve of an oversized feature journey).
 
+**Budget for the unforeseen.** The gate always surfaces real work the carve can't see (hidden bugs, infra
+surprises, parity gaps). Carve with explicit slack: a journey's task count growing from gate-revealed work is
+expected + budgeted, not a re-carve trigger. Re-carve only when the journey's SHAPE is wrong, not when it
+merely surfaces more tasks. (Reading the design reference up-front removes the biggest *avoidable* surprise.)
+
 Read [ADR 0022](../../../docs/modernization/adrs/0022-modernization-primary-directives.md).
 Per directive 1: a journey body is *just enough to ship behavior* — ACs grounded
 in legacy code beat context paragraphs. Per [[feedback-derive-before-asking]]:
@@ -65,7 +70,11 @@ Deep-carve a single journey JIT, just before `/do-ship` needs it. `next` =
 the first roadmap journey whose `depends_on` are all done.
 
 1. Pull the journey's roll-up stories + their refinement; read the legacy
-   screen(s) it replaces. Also scan `docs/modernization/stories/_BOYSCOUT.md` for
+   screen(s) it replaces. **Read the design reference** `docs/modernization/design-reference/screens-<feature>.jsx`
+   (the ADR-0024 pixel oracle) for this screen — bake its STRUCTURE into the ACs + "Spec
+   must assert" so the screen is built to the design the FIRST time (avoids building one shape then
+   redesigning to another). If no reference screen exists, say so explicitly in the journey file.
+   Also scan `docs/modernization/stories/_BOYSCOUT.md` for
    pending riders that touch this journey's surface — note them in the journey file
    so `/do-ship` folds them into the task list (they ride forward, not as own stories).
 2. For the load-bearing behavior the implementer can't derive from code alone,

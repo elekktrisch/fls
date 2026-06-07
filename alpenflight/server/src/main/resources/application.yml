@@ -52,6 +52,26 @@ spring:
       # JEP 491 (Java 25) eliminated `synchronized` pinning. Re-audit when
       # S-018 ShedLock + S-022 @TenantId ThreadLocal propagation land.
       enabled: true
+  # J-6 T-10a (ADR 0013): email send-path. The base profile is the SAFE
+  # default — host/port point at a dev mailpit, but `alpenflight.mail.enabled`
+  # is FALSE so no message leaves the process unless a profile (dev/test) opts
+  # in. prod overrides host/port to a real relay env contract but keeps the
+  # enabled flag false until the relay-choice follow-up ships (ADR 0013
+  # deferred — never hardcode a real relay in the repo). The `alpenflight.mail.*`
+  # block (below `alpenflight:`) carries the app-side toggle + the from-address.
+  mail:
+    host: ${ALPENFLIGHT_MAIL_HOST:localhost}
+    port: ${ALPENFLIGHT_MAIL_PORT:1025}
+    # Mailpit accepts any/no auth; a real relay sets these via env. Empty =
+    # unauthenticated SMTP (the dev/test mailpit posture).
+    username: ${ALPENFLIGHT_MAIL_USERNAME:}
+    password: ${ALPENFLIGHT_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${ALPENFLIGHT_MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${ALPENFLIGHT_MAIL_SMTP_STARTTLS:false}
   security:
     oauth2:
       resourceserver:
@@ -114,6 +134,13 @@ audit:
           - clubStateId
           - deploymentId
           - publicRegistrationEnabled
+          # J-6 T-10b planning-notification config. `sendPlanningDayInfoMailTo`
+          # is the club's operations notification address (club config, not a
+          # member's personal address — legacy Club.SendPlanningDayInfoMailTo);
+          # the flag governs the ok-vs-cancel rule. Both are club settings, safe
+          # to log verbatim.
+          - sendPlanningDayInfoMailTo
+          - usePlanningDayWithoutReservations
           - deletedOn
       Deployment:
         # S-137 lifecycle audit emission. The before/after snapshot is a
@@ -541,6 +568,15 @@ audit:
 # deterministic keyset so local bootstrap + CI tests pass without
 # operator intervention.
 alpenflight:
+  # J-6 T-10a (ADR 0013): application-side mail toggle + sender identity. The
+  # `enabled` flag is the kill-switch the TemplatedMailService reads — false by
+  # default so a misconfigured prod (or any environment that forgot to opt in)
+  # never sends. dev/test flip it true (mailpit). The per-tenant/per-locale
+  # sender identity (noreply+{clubId}@…) is a deferred ADR-0013 follow-up; for
+  # now one static from-address.
+  mail:
+    enabled: ${ALPENFLIGHT_MAIL_ENABLED:false}
+    from: ${ALPENFLIGHT_MAIL_FROM:noreply@alpenflight.ch}
   migration:
     master-keyset:
       source: ${ALPENFLIGHT_MIGRATION_MASTER_KEYSET_SOURCE:INLINE}
@@ -584,6 +620,15 @@ management:
       exposure:
         include: health,info
         exclude: env,heapdump,threaddump,loggers,configprops,beans,shutdown
+  health:
+    # J-6 T-10a (ADR 0013): `spring.mail.host` activates Boot's mail health
+    # contributor, which opens a live SMTP connection on every /actuator/health
+    # poll. That flips health to 503 whenever the relay is unreachable (mailpit
+    # not up, or prod where mail is disabled) and is needless info-disclosure of
+    # the relay's reachability. The send-path's own `alpenflight.mail.enabled`
+    # kill-switch is the operability signal we want — not a health probe.
+    mail:
+      enabled: false
   endpoint:
     health:
       probes:

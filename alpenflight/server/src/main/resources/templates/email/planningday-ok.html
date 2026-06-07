@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!--
+  J-6 T-10b (ADR 0013). Imminent (day+1) planning-day mail: the day TAKES PLACE.
+  Sent to the club's notification address (Club.SendPlanningDayInfoMailTo) when
+  the day has a reservation OR the club allows reservation-less days
+  (Club.shouldSendPlanningDayOk). Binds PlanningEmailModels.PlanningDayInfoModel
+  under `planningDay`. Cancel variant: planningday-cancel.html.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Flugbetriebstag findet statt</title>
+  </head>
+  <body>
+    <h2>Flugbetriebstag findet statt</h2>
+    <p>
+      Der Flugbetriebstag vom
+      <strong th:text="${#temporals.format(planningDay.date, 'dd.MM.yyyy')}">01.01.2026</strong>
+      in <strong th:text="${planningDay.locationName}">Bern-Belp</strong>
+      findet statt.
+    </p>
+
+    <p th:if="${planningDay.remarks != null and !planningDay.remarks.isBlank()}">
+      <em th:text="${planningDay.remarks}">Bemerkungen</em>
+    </p>
+
+    <h3 th:if="${!planningDay.crew.isEmpty()}">Einteilung</h3>
+    <ul th:if="${!planningDay.crew.isEmpty()}">
+      <li th:each="line : ${planningDay.crew}">
+        <span th:text="${line.role}">Rolle</span>:
+        <span th:text="${line.personName}">Name</span>
+      </li>
+    </ul>
+
+    <h3 th:if="${!planningDay.reservations.isEmpty()}">Reservationen</h3>
+    <ul th:if="${!planningDay.reservations.isEmpty()}">
+      <li th:each="reservation : ${planningDay.reservations}" th:text="${reservation}">
+        Reservation
+      </li>
+    </ul>
+    <p th:if="${planningDay.reservations.isEmpty()}">Keine Reservationen.</p>
+  </body>
+</html>
