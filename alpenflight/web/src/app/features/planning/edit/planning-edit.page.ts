@@ -7,7 +7,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormBuilder,
   FormControl,
@@ -23,6 +23,7 @@ import type {
   PlanningDayCreateRequest,
   PlanningDayDetail,
   PlanningDayUpdateRequest,
+  PlanningDayValidateRequest,
 } from '@api/generated/model';
 import { AfButtonComponent } from '@ui/atoms/af-button';
 import { AfIconComponent } from '@ui/atoms/af-icon';
@@ -33,7 +34,7 @@ import { AfPageComponent } from '@ui/molecules/af-page';
 import { AfPageHeaderComponent } from '@ui/molecules/af-page-header';
 import { AfReservationRowComponent } from '@ui/molecules/af-reservation-row';
 import { AfPageErrorComponent } from '@ui/organisms/af-page-error';
-import { withOptionals } from '@shared/util/form';
+import { liveFieldErrors, withOptionals } from '@shared/util/form';
 
 import { MUTATION_BUS } from '../../../core/mutation-bus/mutation-bus';
 import { SessionStore } from '../../../core/session/session.store';
@@ -136,28 +137,54 @@ type PlanningForm = FormGroup<{
                 {{ t('sections.day') }}
               </h2>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <af-form-field
-                  [label]="t('date')"
-                  for="PlanningDate"
-                  [required]="true"
-                  [errors]="
-                    form.controls.planningDate.touched ? form.controls.planningDate.errors : null
-                  "
-                >
-                  <af-input
-                    inputId="PlanningDate"
-                    type="date"
-                    formControlName="planningDate"
-                    data-testid="planning-date"
-                  />
-                </af-form-field>
+                <div class="flex flex-col gap-1">
+                  <af-form-field
+                    [label]="t('date')"
+                    for="PlanningDate"
+                    [required]="true"
+                    [errors]="dateErrors()"
+                  >
+                    <af-input
+                      inputId="PlanningDate"
+                      type="date"
+                      formControlName="planningDate"
+                      data-testid="planning-date"
+                    />
+                  </af-form-field>
+
+                  <!--
+                    Async (date, location) uniqueness pre-check (T-07): the STORE
+                    calls the T-05 validate endpoint (debounced) when planningDate
+                    + locationId are set; its result surfaces inline here on the
+                    date field — the SAME J-6 ux_pln_club_date_loc uniqueness the
+                    save-path 409 enforces, shown earlier WITHOUT a save round-trip.
+                    The required-field message above uses the shared debounced
+                    liveFieldErrors; this is the async leg.
+                  -->
+                  @if (store.uniquenessValidating()) {
+                    <span
+                      class="block text-sm text-slate-500"
+                      data-testid="planning-date-validating"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {{ t('validating') }}
+                    </span>
+                  } @else if (store.uniquenessMessage() !== null) {
+                    <span
+                      class="block text-sm text-red-600"
+                      data-testid="planning-date-server-error"
+                      role="alert"
+                    >
+                      {{ t('duplicate') }}
+                    </span>
+                  }
+                </div>
                 <af-form-field
                   [label]="t('location')"
                   for="PlanningLocation"
                   [required]="true"
-                  [errors]="
-                    form.controls.locationId.touched ? form.controls.locationId.errors : null
-                  "
+                  [errors]="locationErrors()"
                 >
                   <af-select
                     inputId="PlanningLocation"
@@ -233,7 +260,7 @@ type PlanningForm = FormGroup<{
                 <af-button
                   type="primary"
                   htmlType="submit"
-                  [disabled]="form.invalid || saveSubmitted()"
+                  [disabled]="form.invalid || saveSubmitted() || store.uniquenessMessage() !== null"
                   data-testid="planning-save-button"
                 >
                   {{ t('save') }}
@@ -320,6 +347,20 @@ export class PlanningEditPage {
 
   protected readonly saveSubmitted = signal(false);
 
+  // Inline validation WHILE TYPING (T-07, via T-03 `liveFieldErrors`): the two
+  // required fields (Date + Location) show their client-side message debounced
+  // ~200ms and clear on valid — replacing the touched-only `[errors]="ctl.touched
+  // ? …"` wiring. Towing/operator/instructor stay OPTIONAL (oracle: no required).
+  // The date control also carries the async (date, location) uniqueness leg
+  // (T-05 `…/validate`), merged into the SAME inline slot via `liveFieldErrors`'s
+  // `asyncErrors$` hook; the dedicated `planning-date-server-error` element
+  // (template) carries the stable testid + the submit-block derive from the same
+  // store uniqueness signal.
+  protected readonly dateErrors = liveFieldErrors(this.form.controls.planningDate, {
+    asyncErrors$: toObservable(this.store.uniquenessErrors),
+  });
+  protected readonly locationErrors = liveFieldErrors(this.form.controls.locationId);
+
   // The reservations panel is keyed on date + location (T-08c), not the saved
   // day id. Bridge the two form fields to a signal (debounced — typing a date
   // emits per keystroke) so the panel render-gate + the store fetch both derive
@@ -404,6 +445,23 @@ export class PlanningEditPage {
       this.store.loadDayReservations({ date, locationId });
     });
 
+    // Async (date, location) uniqueness pre-check (T-07): when planningDate +
+    // locationId are BOTH set/changed, the STORE calls the T-05 `…/validate`
+    // endpoint (debounced in the store) — the SAME J-6 `ux_pln_club_date_loc`
+    // uniqueness the save path enforces, surfaced inline earlier on the date
+    // field. `excludePlanningDayId` self-excludes the edited day. No HttpClient
+    // here (CLAUDE.md §4). Keyed on the same debounced (date, location) signal
+    // the reservations panel uses; the store debounces the HTTP itself.
+    effect(() => {
+      const { date, locationId } = this.formKey();
+      const probe = uniquenessProbe(date, locationId, this.planningId());
+      if (!probe) {
+        this.store.clearUniquenessValidation();
+        return;
+      }
+      this.store.validateUniqueness(probe);
+    });
+
     const destroyRef = inject(DestroyRef);
     // Navigate only on the bus success event — a 409/422/403 leaves us on the
     // form with the inline error visible (no nav-evicts-response-body race).
@@ -470,6 +528,22 @@ function detailToFormValue(d: PlanningDayDetail): Partial<{
     flightOperatorPersonId: d.flightOperatorPersonId ?? '',
     info: d.info ?? '',
   };
+}
+
+/**
+ * Build the T-05 `…/validate` uniqueness-probe request, or `null` when the
+ * (date, location) key is not yet complete enough to probe. `editId` (the route
+ * `:id` on an edit) is sent as `excludePlanningDayId` so the planning day does
+ * not self-conflict on the uniqueness check. Pure → unit-tested without a
+ * `TestBed`.
+ */
+export function uniquenessProbe(
+  date: string,
+  locationId: string,
+  editId: string | null,
+): PlanningDayValidateRequest | null {
+  if (date === '' || locationId === '') return null;
+  return withOptionals({ planningDate: date, locationId }, { excludePlanningDayId: editId ?? '' });
 }
 
 /**

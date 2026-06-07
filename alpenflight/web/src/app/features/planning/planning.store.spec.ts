@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Observable, Subject, of, throwError } from 'rxjs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AircraftReservationsService } from '@api/generated/aircraft-reservations/aircraft-reservations.service';
 import { AircraftService } from '@api/generated/aircraft/aircraft.service';
@@ -16,10 +16,12 @@ import type {
   PlanningDayCreateRequest,
   PlanningDayDetail,
   PlanningDayRuleRequest,
+  PlanningDayValidateRequest,
+  PlanningDayValidationResult,
 } from '@api/generated/model';
 
 import { MUTATION_BUS, type MutationEvent } from '../../core/mutation-bus/mutation-bus';
-import { PlanningStore } from './planning.store';
+import { PlanningStore, uniquenessResultToErrors } from './planning.store';
 
 const DAY_ID = '019e30c3-2c00-7001-8000-000000000e01';
 const LOCATION_ID = 'loc-019e30c3-2c00-7001-8000-00000000c001';
@@ -64,6 +66,7 @@ interface ApiStubs {
   update: (id: string, req: PlanningDayCreateRequest) => Observable<PlanningDayDetail>;
   bulk: (req: PlanningDayRuleRequest) => Observable<PlanningDayDetail[]>;
   dayReservations: (date: string) => Observable<AircraftReservationListItem[]>;
+  validate: (req: PlanningDayValidateRequest) => Observable<PlanningDayValidationResult>;
 }
 
 function planningServiceStub(stubs: Partial<ApiStubs>): PlanningDaysService {
@@ -78,6 +81,8 @@ function planningServiceStub(stubs: Partial<ApiStubs>): PlanningDaysService {
       (stubs.remove ?? (() => of(undefined as unknown as void)))(id)) as never,
     bulkCreatePlanningDays: ((req: PlanningDayRuleRequest) =>
       (stubs.bulk ?? (() => of([seedDay])))(req)) as never,
+    validatePlanningDayUniqueness: ((req: PlanningDayValidateRequest) =>
+      (stubs.validate ?? (() => of({ valid: true })))(req)) as never,
   };
   return api as unknown as PlanningDaysService;
 }
@@ -315,5 +320,89 @@ describe('PlanningStore', () => {
     const store = TestBed.inject(PlanningStore);
     store.loadDayReservations({ date: '2026-07-04', locationId: LOCATION_ID });
     expect(store.dayReservations().map((r) => r.id)).toEqual(['r1']);
+  });
+
+  // ── inline (date, location) uniqueness pre-check (T-07) ──────────────────────
+
+  it('validateUniqueness (debounced) surfaces a duplicate inline on a valid:false result', () => {
+    vi.useFakeTimers();
+    try {
+      const dup: PlanningDayValidationResult = {
+        valid: false,
+        field: 'planningDate',
+        message: 'A planning day already exists for this date and location.',
+      };
+      configure(planningServiceStub({ validate: () => of(dup) }));
+      const store = TestBed.inject(PlanningStore);
+      store.validateUniqueness({ planningDate: '2026-07-04', locationId: LOCATION_ID });
+      // The debounce (200ms) gates the call; advancing past it runs the probe.
+      vi.advanceTimersByTime(250);
+      expect(store.uniquenessValidating()).toBe(false);
+      expect(store.uniquenessMessage()).toBe(
+        'A planning day already exists for this date and location.',
+      );
+      // The inline slot the date field merges via liveFieldErrors's asyncErrors$.
+      expect(store.uniquenessErrors()).toEqual({
+        duplicate: 'A planning day already exists for this date and location.',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('validateUniqueness clears the inline message on a valid:true result', () => {
+    vi.useFakeTimers();
+    try {
+      configure(planningServiceStub({ validate: () => of({ valid: true }) }));
+      const store = TestBed.inject(PlanningStore);
+      store.validateUniqueness({ planningDate: '2026-07-05', locationId: LOCATION_ID });
+      vi.advanceTimersByTime(250);
+      expect(store.uniquenessMessage()).toBeNull();
+      expect(store.uniquenessErrors()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('validateUniqueness clears inline state on a probe error (save-path 409 is the backstop)', () => {
+    vi.useFakeTimers();
+    try {
+      const err = new HttpErrorResponse({ status: 500, statusText: 'Server Error' });
+      configure(planningServiceStub({ validate: () => throwError(() => err) }));
+      const store = TestBed.inject(PlanningStore);
+      store.validateUniqueness({ planningDate: '2026-07-05', locationId: LOCATION_ID });
+      vi.advanceTimersByTime(250);
+      expect(store.uniquenessValidating()).toBe(false);
+      expect(store.uniquenessMessage()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clearUniquenessValidation resets the inline state (date/location cleared)', () => {
+    configure(planningServiceStub({}));
+    const store = TestBed.inject(PlanningStore);
+    store.clearUniquenessValidation();
+    expect(store.uniquenessValidating()).toBe(false);
+    expect(store.uniquenessResult()).toBeNull();
+    expect(store.uniquenessMessage()).toBeNull();
+  });
+});
+
+describe('uniquenessResultToErrors (T-07 pure mapper)', () => {
+  it('returns null for an absent or passing result', () => {
+    expect(uniquenessResultToErrors(null)).toBeNull();
+    expect(uniquenessResultToErrors(undefined)).toBeNull();
+    expect(uniquenessResultToErrors({ valid: true })).toBeNull();
+  });
+
+  it('keys a duplicate error (with the message) for a failing result', () => {
+    expect(uniquenessResultToErrors({ valid: false, message: 'dup' })).toEqual({
+      duplicate: 'dup',
+    });
+  });
+
+  it('falls back to a truthy slot when a failing result carries no message', () => {
+    expect(uniquenessResultToErrors({ valid: false })).toEqual({ duplicate: true });
   });
 });

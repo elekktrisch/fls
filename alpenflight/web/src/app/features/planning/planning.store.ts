@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { DestroyRef, computed, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import type { ValidationErrors } from '@angular/forms';
 import { tapResponse } from '@ngrx/operators';
 import {
   patchState,
@@ -12,7 +13,7 @@ import {
 } from '@ngrx/signals';
 import { setAllEntities, withEntities } from '@ngrx/signals/entities';
 import { rxMethod } from '@ngrx/signals/rxjs-interop';
-import { forkJoin, pipe, switchMap, tap } from 'rxjs';
+import { debounceTime, forkJoin, pipe, switchMap, tap } from 'rxjs';
 
 import { AircraftReservationsService } from '@api/generated/aircraft-reservations/aircraft-reservations.service';
 import { AircraftService } from '@api/generated/aircraft/aircraft.service';
@@ -28,6 +29,8 @@ import type {
   PlanningDayDetail,
   PlanningDayRuleRequest,
   PlanningDayUpdateRequest,
+  PlanningDayValidateRequest,
+  PlanningDayValidationResult,
 } from '@api/generated/model';
 import { mapApiSaveError } from '@shared/util/form';
 
@@ -65,6 +68,13 @@ interface PlanningExtraState {
   // Aircraft immatriculation map — decorates the inline per-day reservation
   // rows (the J-5 read-side carries only the aircraft FK id).
   immatById: Readonly<Record<string, string>>;
+  // Inline (date, location) uniqueness pre-check (J-6b T-07). The edit form's
+  // STORE owns the `…/validate` call (CLAUDE.md §4 — no HTTP in components);
+  // the result surfaces inline on the date field via `liveFieldErrors`'s
+  // `asyncErrors$` merge. `uniquenessValidating` drives the pending hint; a
+  // `valid:false` result becomes the inline server-error message.
+  uniquenessValidating: boolean;
+  uniquenessResult: PlanningDayValidationResult | null;
 }
 
 const initialExtra: PlanningExtraState = {
@@ -80,15 +90,28 @@ const initialExtra: PlanningExtraState = {
   locationNameById: {},
   personNameById: {},
   immatById: {},
+  uniquenessValidating: false,
+  uniquenessResult: null,
 };
 
 export const PlanningStore = signalStore(
   { providedIn: 'root' },
   withEntities<PlanningDayItem>(),
   withState<PlanningExtraState>(initialExtra),
-  withComputed(({ entities, loadError }) => ({
+  withComputed(({ entities, loadError, uniquenessResult }) => ({
     isEmpty: computed(() => entities().length === 0),
     hasError: computed(() => loadError() !== null),
+    // Inline uniqueness pre-check (T-07): a `valid:false` result becomes the
+    // `ValidationErrors` slot the edit form merges onto the date field via
+    // `liveFieldErrors`'s `asyncErrors$`. `null` when there is no duplicate (or
+    // no probe has run) so the inline message clears.
+    uniquenessErrors: computed<ValidationErrors | null>(() =>
+      uniquenessResultToErrors(uniquenessResult()),
+    ),
+    uniquenessMessage: computed<string | null>(() => {
+      const r = uniquenessResult();
+      return r && !r.valid ? (r.message ?? 'planning.day.duplicate') : null;
+    }),
   })),
   withMethods(
     (
@@ -175,6 +198,34 @@ export const PlanningStore = signalStore(
         clearSaveError(): void {
           patchState(store, { saveError: null });
         },
+        clearUniquenessValidation(): void {
+          patchState(store, { uniquenessValidating: false, uniquenessResult: null });
+        },
+        // Inline (date, location) uniqueness pre-check (T-07). The edit form
+        // fires this (debounced) when planningDate + locationId are set/changed;
+        // the SAME J-6 `ux_pln_club_date_loc` uniqueness the save path enforces,
+        // behind the non-mutating `…/validate` path (oracle: NO new rule).
+        // `excludePlanningDayId` self-excludes on an edit. The result feeds the
+        // inline `uniquenessErrors` / `uniquenessMessage` selectors — surfaced
+        // on the date field, no save round-trip.
+        validateUniqueness: rxMethod<PlanningDayValidateRequest>(
+          pipe(
+            debounceTime(200),
+            tap(() => patchState(store, { uniquenessValidating: true })),
+            switchMap((req) =>
+              planningApi.validatePlanningDayUniqueness(req).pipe(
+                tapResponse({
+                  next: (result: PlanningDayValidationResult) =>
+                    patchState(store, { uniquenessResult: result, uniquenessValidating: false }),
+                  error: () =>
+                    // A failed probe must not block the form — the save-path 409
+                    // stays the backstop. Clear the inline state on error.
+                    patchState(store, { uniquenessResult: null, uniquenessValidating: false }),
+                }),
+              ),
+            ),
+          ),
+        ),
         // Empty the inline per-day reservations panel — used by the edit page
         // when date or location is cleared (the panel keys on date+location,
         // T-08c, so an incomplete key shows nothing rather than stale rows).
@@ -187,6 +238,8 @@ export const PlanningStore = signalStore(
             selectedDetail: null,
             saveError: null,
             dayReservations: [],
+            uniquenessValidating: false,
+            uniquenessResult: null,
           });
         },
         loadDetail: rxMethod<string>(
@@ -329,6 +382,19 @@ export const PlanningStore = signalStore(
     },
   }),
 );
+
+/**
+ * Map a `…/validate` uniqueness result to the inline `ValidationErrors` slot the
+ * edit form merges onto the date field (T-07). A passing (or absent) result
+ * clears the slot; a failing one keys a `duplicate` error so `<af-field-errors>`
+ * renders the inline message. Pure — unit-tested without a `TestBed`.
+ */
+export function uniquenessResultToErrors(
+  result: PlanningDayValidationResult | null | undefined,
+): ValidationErrors | null {
+  if (!result || result.valid) return null;
+  return { duplicate: result.message ?? true };
+}
 
 function buildLocationNameMap(items: readonly LocationListItem[]): Record<string, string> {
   const map: Record<string, string> = {};
