@@ -54,11 +54,13 @@ const ORDER_MD = `# roadmap
 | J-6 | Planning | E-08 |
 `;
 
-/** Write a per-journey page at <root>/<relBase>/<jid>/index.html. */
-function writeJourneyPage(root: string, relBase: string, jid: string) {
+/** Write a per-journey page at <root>/<relBase>/<jid>/index.html. Returns the file path. */
+function writeJourneyPage(root: string, relBase: string, jid: string): string {
   const dir = resolve(root, relBase, jid);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(resolve(dir, 'index.html'), `<!doctype html><title>${jid}</title>`, 'utf8');
+  const file = resolve(dir, 'index.html');
+  writeFileSync(file, `<!doctype html><title>${jid}</title>`, 'utf8');
+  return file;
 }
 
 function makeRoot(): { root: string; orderPath: string } {
@@ -156,27 +158,53 @@ describe('generatePreviewsIndex — persistent JOURNEY directory (T-13b)', () =>
 
     const j5 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-5')!;
     expect(j5.found).toBe(true);
-    expect(j5.source).toBe('branch');
+    expect(j5.source).toBe('branch-parity');
     expect(j5.href).toBe(`../proof-preview/${branch}/legacy-parity/J-5/`);
   });
 
-  it('does NOT link a STALE page at the parent branch level (T-37 regression guard)', async () => {
-    // The fan-out deploys to `proof-preview/<branch>/legacy-parity/`; an OLDER
-    // deploy scheme wrote per-journey pages directly to `proof-preview/<branch>/`,
-    // and `keep_files:true` preserves those stale pages on gh-pages. The branch
-    // source must probe ONLY the current `legacy-parity/` location — never the
-    // parent — so a stale parent-level page (e.g. a pre-T-32 J-0 with a relative
-    // `../previews/` back-link that 404s) is never linked. With ONLY a stale parent
-    // page present (no legacy-parity, no canonical, no archive), the journey is
-    // PENDING, not a dead link.
+  it('surfaces the per-push clean-seed parent-level branch page (T-13b)', async () => {
+    // T-13b (operator, 2026-06-07): the per-push `alpenflight-proof` (clean-seed
+    // real-idp) job deploys the journey-under-work's per-journey page DIRECTLY to
+    // `proof-preview/<branch>/J-<n>/` (parent level), and runs on EVERY push — so
+    // it's what surfaces the active journey between nightly fanouts. T-37 had
+    // narrowed the branch source to `legacy-parity/` only, which left the
+    // journey-under-work PENDING on the operator's bookmark all day (J-6: empty
+    // gallery). The parent level MUST be probed.
     const { scanJourneys } = await loadGenerator();
     const { root, orderPath } = makeRoot();
-    const branch = 'integration-J-5';
-    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-0'); // STALE parent-level page
+    const branch = 'integration-J-6';
+    writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-6'); // per-push clean-seed page
 
-    const j0 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-0')!;
-    expect(j0.found).toBe(false);
-    expect(j0.href).toBeUndefined();
+    const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
+    expect(j6.found).toBe(true);
+    expect(j6.source).toBe('branch');
+    expect(j6.href).toBe(`../proof-preview/${branch}/J-6/`);
+  });
+
+  it('picks the FRESHEST branch page when both per-push and fanout exist (T-13b)', async () => {
+    // Both rank-0 branch sources present: the parent-level per-push page and the
+    // legacy-parity fanout page. The freshest (by mtime) wins — so a newer fanout
+    // legacy-parity page supersedes an older per-push page, and a stale parent
+    // page never beats a newer legacy-parity one (the T-37 concern, handled by
+    // freshness rather than by hiding the parent level).
+    const { scanJourneys } = await loadGenerator();
+    const { utimesSync } = await import('node:fs');
+    const { root, orderPath } = makeRoot();
+    const branch = 'integration-J-6';
+    const parent = writeJourneyPage(root, `alpenflight/proof-preview/${branch}`, 'J-6');
+    const parity = writeJourneyPage(
+      root,
+      `alpenflight/proof-preview/${branch}/legacy-parity`,
+      'J-6',
+    );
+    // Make the legacy-parity (fanout) page the fresher of the two.
+    utimesSync(parent, new Date('2026-06-07T00:00:00Z'), new Date('2026-06-07T00:00:00Z'));
+    utimesSync(parity, new Date('2026-06-07T06:00:00Z'), new Date('2026-06-07T06:00:00Z'));
+
+    const j6 = scanJourneys(root, { branch, orderPath }).find((j) => j.jid === 'J-6')!;
+    expect(j6.found).toBe(true);
+    expect(j6.source).toBe('branch-parity');
+    expect(j6.href).toBe(`../proof-preview/${branch}/legacy-parity/J-6/`);
   });
 
   it('keeps a single full-archive link in the footer (per-proof-type galleries are no longer primary)', async () => {

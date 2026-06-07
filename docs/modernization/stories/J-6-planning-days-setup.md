@@ -474,6 +474,17 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   Local DoD: tsc clean (my files) · eslint clean · prettier-written over `e2e/**` · gallery generator renders
   a J-6 page from a J-6 manifest. The real-idp run itself executes in the per-push `alpenflight-proof` CI job
   (no local `docker compose` plugin on this box → stack bring-up local-blocked). *(e2e-driver, capture+deploy)* [[feedback_surface_proof_early_on_repeated_failure]]
+- [x] **T-13b — previews-index didn't surface the per-push J-6 page (operator: "J-6 isn't on my bookmark").**
+  T-13 deployed the J-6 page to `proof-preview/integration-J-6/J-6/` (per-push clean-seed), but the
+  previews-index generator's branch probe (T-37) looked ONLY under `…/legacy-parity/J-<n>/` (the fanout's
+  nightly path) → J-6 read as `pending` on the persistent bookmark. Fixed `generate-previews-index.mjs` to
+  probe BOTH branch sub-locations (`<branch>/J-<n>/` per-push + `<branch>/legacy-parity/J-<n>/` fanout) and
+  pick the freshest by mtime (so a stale parent page never beats a newer fanout page — the T-37 concern,
+  now handled by freshness not by hiding the parent). Spec updated (8/8 green: parent-level surfaced +
+  freshness tie-break). *(generate-previews-index.mjs branch-source probe)* [[feedback_surface_proof_early_on_repeated_failure]]
+  > **Broader gap noted (NOT this task):** canonical `proof/J-2…J-5/` pages 404 — only J-0/J-0c/J-1 were
+  > ever published canonically, so merged journeys aren't on the bookmark either. The per-journey gallery
+  > re-arch (T-14 family) must backfill the canonical per-journey pages on merge-to-main. Flag for T-14/retro.
 - [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
 - [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column

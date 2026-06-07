@@ -93,20 +93,48 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * them), including a pre-T-32 J-0 page whose relative `../previews/` back-link 404s.
  * `subPath` is appended to `<base>/<branch>` for the on-disk probe + the href.
  */
+// `rank` orders the sources (lower = preferred). Branch-preview sources share
+// rank 0, so among the active branch's pages the FRESHEST (by mtime) wins —
+// see `locateJourneyPage`. Canonical (main) and the fan-out archive follow.
+//
+// T-13b (operator, 2026-06-07): the branch source MUST probe BOTH branch
+// sub-locations, not just `legacy-parity/`:
+//   - `<branch>/J-<n>/`               ← the per-push `alpenflight-proof`
+//                                        (clean-seed real-idp) deploy. Runs on
+//                                        EVERY push, so it's what surfaces the
+//                                        journey-under-work between fanouts.
+//   - `<branch>/legacy-parity/J-<n>/` ← the fan-out (`alpenflight-proof-fanout.yml`)
+//                                        deploy. Nightly / dispatch only.
+// T-37 had narrowed the branch source to `legacy-parity/` ONLY (to dodge a stale
+// pre-T-32 parent-level J-0 page), which silently dropped the per-push clean-seed
+// per-journey page → the journey-under-work read as `pending` on the operator's
+// bookmark until a nightly fanout ran (J-6: gallery empty all day). Probing both +
+// picking the freshest mtime restores per-push surfacing without resurrecting a
+// stale page (an older deploy always loses the mtime tie-break).
 export const JOURNEY_PAGE_SOURCES = [
   {
     id: 'branch',
     base: 'alpenflight/proof-preview',
     needsBranch: true,
-    subPath: 'legacy-parity',
+    subPath: null,
     label: 'branch preview',
+    rank: 0,
   },
-  { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published' },
+  {
+    id: 'branch-parity',
+    base: 'alpenflight/proof-preview',
+    needsBranch: true,
+    subPath: 'legacy-parity',
+    label: 'branch preview (legacy-parity)',
+    rank: 0,
+  },
+  { id: 'canonical', base: 'alpenflight/proof', needsBranch: false, label: 'published', rank: 1 },
   {
     id: 'archive',
     base: 'alpenflight/proof/legacy-parity',
     needsBranch: false,
     label: 'legacy-parity archive',
+    rank: 2,
   },
 ];
 
@@ -197,6 +225,13 @@ export function resolveRoadmap(orderPath) {
  */
 export function locateJourneyPage(ghPagesRoot, jid, { branch, git = false }) {
   const gitRoot = git ? resolve(ghPagesRoot) : undefined;
+  // Collect EVERY source that has a page on disk, then pick the winner by
+  // (rank asc, mtime desc): the preferred tier first, and within a tier the
+  // freshest deploy. This is what lets the two rank-0 branch sources
+  // (`<branch>/J-<n>/` per-push clean-seed + `<branch>/legacy-parity/J-<n>/`
+  // fanout) resolve to whichever ran most recently, instead of a fixed
+  // first-hit order that hid the per-push page (T-13b).
+  const candidates = [];
   for (const src of JOURNEY_PAGE_SOURCES) {
     if (src.needsBranch && !branch) continue;
     // On-disk base dir for this source: <base>[/<branch>][/<subPath>].
@@ -214,9 +249,24 @@ export function locateJourneyPage(ghPagesRoot, jid, { branch, git = false }) {
     if (src.subPath) relParts.push(src.subPath);
     relParts.push(jid);
     const rel = `${relParts.join('/')}/`;
-    return { found: true, href: `../${rel}`, source: src.id, label: src.label, updated };
+    candidates.push({
+      found: true,
+      href: `../${rel}`,
+      source: src.id,
+      label: src.label,
+      updated,
+      rank: src.rank ?? 99,
+    });
   }
-  return { found: false };
+  if (!candidates.length) return { found: false };
+  candidates.sort((a, b) => {
+    if (a.rank !== b.rank) return a.rank - b.rank;
+    const ta = a.updated ? a.updated.getTime() : 0;
+    const tb = b.updated ? b.updated.getTime() : 0;
+    return tb - ta; // freshest first
+  });
+  const { rank, ...winner } = candidates[0];
+  return winner;
 }
 
 /**
