@@ -364,10 +364,27 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   chromium): setup-wizard 3✓/1 skip, crud 6✓/1 skip. Preflight green LOCALLY: lint ✓, tsc ✓, ng build ✓,
   api-drift clean (FE-only), gallery vitest 63 ✓, link-check ✓.
 - [x] ~~**T-10** — PlanningDayNotificationJob + templates + run-now affordance~~ **(split → T-10a/b/c, auto-re-plan 2026-06-07).**
-- [ ] **T-10a — email infra (ADR-0013 build-out, the prerequisite seam).** First AlpenFlight email send-path:
+- [x] **T-10a — email infra (ADR-0013 build-out, the prerequisite seam).** First AlpenFlight email send-path:
   `spring-boot-starter-mail` + `-thymeleaf` deps; `spring.mail` config (dev/test→mailpit `localhost:1025`,
   prod→disabled/placeholder); a `MailSender` port + Thymeleaf `TemplatedMailService`; test-capture harness
   (GreenMail or captured-outbox fake) + a 1-template smoke IT. *(platform/email seam)* [[verify_infra_is_run_not_just_authored]]
+  **Done:** ADR-0013 Option A built (was Accepted-but-unbuilt). Deps `spring-boot-starter-mail` +
+  `-thymeleaf` (BOM-managed). Config: base `spring.mail` → `localhost:1025` (mailpit's SMTP, confirmed from
+  `docker-compose.yml:68-78`) + app-side `alpenflight.mail.{enabled,from}` kill-switch (default `enabled=false`
+  so a misconfigured/forgot-to-opt-in env never sends); dev+test flip `enabled=true` (mailpit), prod stays
+  disabled + documents the env contract (no relay hardcoded — relay choice is the deferred ADR-0013 follow-up).
+  New OPEN-module package `ch.alpenflight.platform.mail`: `MailSender` port + `MailMessage` value record +
+  `SmtpMailSender` adapter (JavaMailSender/MimeMessageHelper, honors the kill-switch as a no-op) +
+  `TemplatedMailService` build-service (renders `templates/email/<name>.html` via the autoconfigured Thymeleaf
+  engine → port). Smoke template `templates/email/smoke.html`. Test-capture: `CapturedMailSender` `@Primary`
+  fake outbox (no live SMTP / no mailpit needed for ITs). Tests: `TemplatedMailServiceIT` (3 cases — real Spring
+  engine render→outbox, multi-recipient, render-only) + `SmtpMailSenderUnitTest` (2 — enabled dispatches MIME,
+  disabled no-ops). **Boyscout:** disabled Boot's `mail` actuator health contributor
+  (`management.health.mail.enabled=false`) — `spring.mail.host` activated a live-SMTP probe that flipped
+  `/actuator/health` to 503 (broke ActuatorHealthIT / UsersJitFirstLoginIT / SecurityFilterChainIT). Whole
+  `./gradlew check` GREEN (1147 tests, ApplicationModulesTest + LayeringRulesTest accept the new platform.mail
+  package, pmdMain + cpdRatchet clean). No controller → no OpenAPI/orval change. INFRA only; planning templates
+  ride T-10b, the job rides T-10c.
 - [ ] **T-10b — Club notification fields + 3 templates.** Flyway `V35` adds `send_planning_day_info_mail_to`
   + `use_planning_day_without_reservations` (structural); map on `Club` + the cancel-rule accessor (ADR-0022 §2);
   the 3 Thymeleaf templates `planningday-ok` / `planningday-cancel` / `planningday-assignment-notification`. *(club + templates seam)*

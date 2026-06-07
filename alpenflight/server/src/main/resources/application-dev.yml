@@ -48,6 +48,11 @@ springdoc:
 # Operators wanting persistence across restarts override with the env-pinned
 # inline keyset per the runbook (tinkey create-keyset ... | base64).
 alpenflight:
+  # J-6 T-10a (ADR 0013): dev sends to the compose `mailpit` side-car (SMTP
+  # 1025; inbox UI on 8025). `bootRun` runs on the host, so the published
+  # loopback port from the base profile's localhost:1025 default is correct.
+  mail:
+    enabled: true
   migration:
     master-keyset:
       source: EPHEMERAL

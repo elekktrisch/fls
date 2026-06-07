@@ -120,6 +120,15 @@ dependencies {
     // S-020) and the @PreAuthorize predicates on controllers (S-026) are the
     // method-level gates.
     implementation("org.springframework.boot:spring-boot-starter-security")
+    // J-6 T-10a (ADR 0013): the AlpenFlight email send-path. `-mail` provides
+    // `JavaMailSender` + `MimeMessageHelper`; `-thymeleaf` provides the
+    // `TemplateEngine` that renders `templates/email/*.html` for the
+    // platform.mail `TemplatedMailService`. Both BOM-managed (no version pin).
+    // Dev/test send to mailpit (localhost:1025); prod stays disabled until the
+    // relay-choice follow-up ships (ADR 0013 deferred). INFRA only — the
+    // planning notification templates + job are T-10b / T-10c.
+    implementation("org.springframework.boot:spring-boot-starter-mail")
+    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     // Resource-server + jose modules bring `Jwt`, `JwtAuthenticationToken`,
     // and `JwtAuthenticationConverter`. JwtDecoderConfig consumes them to
     // validate incoming Bearer tokens against the configured issuer's JWKS.

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<!--
+  J-6 T-10a (ADR 0013) smoke template. Proves the Thymeleaf email render→send
+  seam end-to-end (TemplatedMailServiceIT). NOT a product template — the real
+  planning notification templates (planningday-ok / -cancel /
+  -assignment-notification) ship in T-10b.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AlpenFlight</title>
+  </head>
+  <body>
+    <p>AlpenFlight email send-path smoke test.</p>
+    <p>Hallo <span th:text="${name}">Name</span>.</p>
+  </body>
+</html>

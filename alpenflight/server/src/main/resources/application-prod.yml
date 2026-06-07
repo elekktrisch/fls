@@ -14,3 +14,15 @@ springdoc:
     enabled: false
   swagger-ui:
     enabled: false
+
+# J-6 T-10a (ADR 0013): production email stays DISABLED until the relay-choice
+# follow-up ships (self-hosted Postal vs. Postmark/Resend/Brevo — deferred to
+# deployment readiness). The base profile already defaults `alpenflight.mail.enabled`
+# to false; this re-pin makes the prod off-state explicit for ops-readers and
+# documents the env contract. To enable on a real install: set
+# ALPENFLIGHT_MAIL_ENABLED=true plus ALPENFLIGHT_MAIL_HOST / _PORT / _USERNAME /
+# _PASSWORD / _SMTP_AUTH / _SMTP_STARTTLS for the chosen relay. No relay is
+# hardcoded here (no-secret-in-repo).
+alpenflight:
+  mail:
+    enabled: ${ALPENFLIGHT_MAIL_ENABLED:false}
