@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-6 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-6</span> <span class="status success">5 proofs</span> <span class="summary-counts">5 videos · 6 screenshots</span>
+      <span class="summary-jid">J-6</span> <span class="status success">3 proofs</span> <span class="summary-counts">3 videos · 5 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>integration/J-6</code> &middot; 2026-06-07T07:29:58.252Z
+      for this journey. Generated on <code>integration/J-6</code> &middot; 2026-06-07T14:54:41.660Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -148,20 +148,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           <figcaption><span class="legacy-label">legacy parity</span><span class="status success">happy</span><span class="caption">Legacy flsweb: the seeded future-days list (Date · Weekday · Location · Remarks · Towing pilot · Flight operator · Instructor · #Reservations) + one planning day's edit form (date · location · remarks · the 3 crew selectizes · the inline per-day reservations table) + the setup wizard (start/end range · 7 weekday checkboxes · location) — the legacy field set to eyeball against AlpenFlight's /planning list + edit form + /planningsetup wizard</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-3599c7dd664b2f81f51c357119d13af3361cb9dd.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-76ddd06b56a120c05eb4fac27939e8b81f40654f.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-e9b26a03fb6143a6c714031fa9ec83e6a6da53c7.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-791fb802ce93dd027b5175d7028cf1bf3ced579a.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-98eefbb0148399b738e8a55c5420f2ecb89567cd.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the planning-day edit screen lists that day’s aircraft reservations inline (the J-5 AircraftReservation read-side joined by club + date + location)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-235f6052ccf4052cc4d9cb0f3b6c87e916dac780.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
@@ -204,11 +196,6 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <a href="../screenshots/legacy-planning-setup.png" target="_blank" rel="noopener"><img src="../screenshots/legacy-planning-setup.png" alt="legacy setup" loading="lazy"></a>
             <figcaption>Legacy flsweb: the /planningsetup wizard (start/end date range · seven weekday checkboxes · location selectize · Generate Planning Days) — paired against AlpenFlight's /planningsetup setup wizard</figcaption>
           </figure>
-          <figure class="shot shot-alpenflight">
-            <span class="shot-side">alpenflight</span>
-            <a href="../screenshots/alpenflight-planning-setup-form.png" target="_blank" rel="noopener"><img src="../screenshots/alpenflight-planning-setup-form.png" alt="alpenflight setup" loading="lazy"></a>
-            <figcaption>AlpenFlight: the /planningsetup wizard, populated (start/end range · Sat+Sun weekday filter · location) — the bulk-create wizard to eyeball against the legacy /planningsetup form</figcaption>
-          </figure>
           </div>
         </div>
         </div>
@@ -221,7 +208,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
           </tr>
           <tr>
             <th>FE snapshot (repo)</th>
-            <td>score <strong>71.5</strong> (B) · maintainability <strong>91.9</strong> · duplication <strong>6.1%</strong> · dead files <strong>1.0%</strong></td>
+            <td>score <strong>71.8</strong> (B) · maintainability <strong>92</strong> · duplication <strong>6.2%</strong> · dead files <strong>1.0%</strong></td>
           </tr>
           <tr>
             <th>BE complexity/dead-code (PMD)</th>
