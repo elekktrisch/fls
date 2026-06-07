@@ -487,8 +487,26 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   > re-arch (T-14 family) must backfill the canonical per-journey pages on merge-to-main. Flag for T-14/retro.
 - [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
-- [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
+- [x] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
   check so a missing binding / dropped column fails fast before the ~20-min fanout. *(migration-tool seam)* [[verify_infra_is_run_not_just_authored]]
+  **Done:** new GENERIC registry-wide `MapperBindingContractTest` in `migration-bundle` (runs in `./gradlew check`),
+  walking EVERY `KnownMappers` mapper (not just planning) so it guards every future migration journey. Asserts:
+  (1) **binding-presence** — each `EntityType` HAS a `MapperLegacyBindings` entry OR is in an explicit `KNOWN_UNBOUND`
+  pending-set; a NEW unbound mapper not allowlisted → RED with the mapper + entity named (the J-5 T-07 zero-binding
+  class, caught at build not at the fanout). The **3 PlanningDay entity types are in `KNOWN_UNBOUND`** with a
+  "remove when T-11 wires PlanningDay bindings" comment, so the build stays GREEN until T-11 (which empties them);
+  a hygiene test fails if a `KNOWN_UNBOUND` entry is actually bound (stops the pending-set rotting into silent
+  suppression) or names a non-existent mapper. (2) **producer-SELECT ↔ mapper-reads coherence** — every legacy
+  column the mapper's `writeNdjson` reads (`source.getXxx("…")`, source-parsed from the mapper `.java` — the only
+  place legacy names exist; `columns()` carries NEW-stack names) must appear in the bound SELECT, else
+  export-abort/silent-NULL. (3) FULL_PORT carries a consumer INSERT targeting its table; SYSTEM_GLOBAL's INSERT is
+  empty by contract. (4) bound mapper declares ≥1 column. **RED-first proven:** un-allowlisting PLANNING_DAY made
+  the presence test fail for the right reason. **Static residual deferred to the real fanout**
+  ([[project_synth_bundle_doesnt_validate_producer_select]]): whether a SELECTed column EXISTS in the live MSSQL
+  FLSTest schema + type-fidelity coercions — the static check proves SELECT and mapper AGREE, not that either
+  matches the real legacy DDL (that only T-11's nightly fanout validates). `./gradlew check` GREEN
+  (migration-bundle standalone build; the cpd/pmd ratchet lives on the server module, untouched — this is a
+  test-only add in migration-bundle). Cleared the `_BOYSCOUT.md` "Cheap early mapper-binding check" rider.
 - [ ] **T-14 — per-journey gallery Maintainability panel (gallery re-arch slice, ≤40%).** Remainder after
   the T-01b scaffold: the FE-fallow/BE-PMD/CPD delta panel on the J-6 page. *(generate-gallery.mjs + emit steps)*
 - [x] ~~**T-15** — scope per-push mock-e2e~~ **(retired → pulled forward into T-02b).**
