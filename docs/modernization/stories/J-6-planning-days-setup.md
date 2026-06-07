@@ -485,8 +485,28 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   > **Broader gap noted (NOT this task):** canonical `proof/J-2…J-5/` pages 404 — only J-0/J-0c/J-1 were
   > ever published canonically, so merged journeys aren't on the bookmark either. The per-journey gallery
   > re-arch (T-14 family) must backfill the canonical per-journey pages on merge-to-main. Flag for T-14/retro.
-- [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
+- [x] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
+  **Done:** wired all 3 `MapperLegacyBindings` entries (`PLANNING_DAY` / `PLANNING_DAY_ASSIGNMENT` /
+  `PLANNING_DAY_ASSIGNMENT_TYPE`), all FULL_PORT, producer SELECTs reconciled against the REAL legacy MSSQL
+  DDL (DBUpdate_v1.0.1). Two producer-SELECT catches the authored-but-unrun mappers hid
+  ([[project_synth_bundle_doesnt_validate_producer_select]]): (a) the type mapper reads `RequiredNrOfAssignments`
+  but the real column is `RequiredNrOfPlanningDayAssignments` (no EF `[Column]` rename) → projected
+  `AS RequiredNrOfAssignments`; (b) `PlanningDayAssignments` has NO own `ClubId` column → `operating_club_id`
+  denormalised by `JOIN PlanningDays … AS OperatingClubId`. Also fixed the fan-out FK wiring the unrun mappers
+  lacked: all 3 mappers now declare `foreignKeyColumns()` — `PlanningDayMapper` names `operating_club_id` as the
+  `location_id`→LOCATION fan-out disambiguator (PlanningDay carries no own `club_id`; mirrors
+  `AircraftReservationMapper`), plus the off-convention `operating_club_id`→CLUB / `assigned_person_id`→PERSON /
+  `assignment_type_id`→TYPE columns. Emptied the 3 PlanningDay entries from T-12's `KNOWN_UNBOUND` (now actively
+  guarded; the binding-coherence + FK-target-closure checks go green). Added per-entity binding assertions to
+  `MapperLegacyBindingsTest` (incl. the alias + JOIN catches). **Real round-trip proven:** new
+  `PlanningDayMigrationRoundTripIT` (server, mirrors `LocationMigrationRoundTripIT`) — hand-built bundle → REAL
+  server ingest pipeline: a shared legacy Location fans out to 2 club replicas, the migrated PlanningDay in club A
+  resolves `location_id` to club A's OWN replica (the J-0b own-club FK invariant), `planning_date` = legacy `Day`
+  (no tz shift), `info` = `Remarks`, the 3 well-known assignment types migrate from REAL legacy data (NOT
+  migration-seeded), the assignment resolves to the migrated `segelflugleiter` type (→ FLIGHT_OPERATOR), tenant
+  isolation holds (club B empty). Whole `./gradlew check` GREEN on BOTH modules (migration-bundle: contract +
+  binding tests; server: full suite + pmd + cpdRatchet + arch guards + MapperVsSchemaCompatibilityTest).
 - [x] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
   check so a missing binding / dropped column fails fast before the ~20-min fanout. *(migration-tool seam)* [[verify_infra_is_run_not_just_authored]]
   **Done:** new GENERIC registry-wide `MapperBindingContractTest` in `migration-bundle` (runs in `./gradlew check`),

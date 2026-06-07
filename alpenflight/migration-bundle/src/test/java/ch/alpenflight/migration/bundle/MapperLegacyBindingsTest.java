@@ -788,6 +788,150 @@ class MapperLegacyBindingsTest {
                 .contains("operating_club_id");
     }
 
+    // -------------------------------------------------------------------------
+    // PLANNING_DAY + PLANNING_DAY_ASSIGNMENT + PLANNING_DAY_ASSIGNMENT_TYPE
+    // (J-6 T-11). The 3 mappers + KnownMappers entries already existed (S-014
+    // baseline authoring, unit-tested) but were UNBOUND — MapperLegacyBindings.
+    // require() threw "No legacy binding registered", so the producer never
+    // emitted the planning streams and the round-trip was authored-but-unproven
+    // (verify_infra_is_run_not_just_authored). T-11 wires the producer SELECT
+    // (reconciled against the REAL legacy PlanningDays / PlanningDayAssignments /
+    // PlanningDayAssignmentTypes MSSQL schema, DBUpdate_v1.0.1 DDL) + the consumer
+    // INSERT; PlanningDayMigrationRoundTripIT (server) proves the fan-out-resolved
+    // location round-trip end to end.
+    //
+    // Producer-SELECT catches (project_synth_bundle_doesnt_validate_producer_select):
+    //  * the type mapper reads getInt("RequiredNrOfAssignments"), but the real
+    //    legacy column is RequiredNrOfPlanningDayAssignments (no [Column] rename on
+    //    the EF entity) — projected AS RequiredNrOfAssignments, else export abort.
+    //  * the assignment table has NO own ClubId column — operating_club_id is
+    //    denormalised by JOINing the parent PlanningDays and projecting its ClubId
+    //    AS OperatingClubId (the name the mapper reads).
+    // -------------------------------------------------------------------------
+
+    /** Every legacy {@code PlanningDays} column {@code PlanningDayMapper.writeNdjson} reads. */
+    private static final List<String> PLANNING_DAY_LEGACY_COLUMNS = List.of(
+            "PlanningDayId", "ClubId", "Day", "LocationId", "Remarks",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    /**
+     * Every legacy column {@code PlanningDayAssignmentMapper.writeNdjson} reads.
+     * {@code OperatingClubId} is the denormalised @TenantId — sourced producer-side
+     * by JOINing PlanningDays (the assignment table has no own ClubId), aliased on
+     * the cursor.
+     */
+    private static final List<String> PLANNING_DAY_ASSIGNMENT_LEGACY_COLUMNS = List.of(
+            "PlanningDayAssignmentId", "OperatingClubId", "AssignedPlanningDayId",
+            "AssignedPersonId", "AssignmentTypeId", "Remarks",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    /** Every legacy column {@code PlanningDayAssignmentTypeMapper.writeNdjson} reads. */
+    private static final List<String> PLANNING_DAY_ASSIGNMENT_TYPE_LEGACY_COLUMNS = List.of(
+            "PlanningDayAssignmentTypeId", "ClubId", "AssignmentTypeName",
+            "RequiredNrOfAssignments",
+            "CreatedOn", "CreatedByUserId", "ModifiedOn", "ModifiedByUserId",
+            "DeletedOn", "DeletedByUserId");
+
+    @Test
+    void planningDayTrioIsRegistered() {
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.PLANNING_DAY))
+                .as("PLANNING_DAY must be bound (J-6 T-11) so the planning register migrates")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.PLANNING_DAY_ASSIGNMENT))
+                .as("PLANNING_DAY_ASSIGNMENT must be bound — it is a "
+                        + "PlanningDayMapper aggregate child")
+                .isTrue();
+        assertThat(MapperLegacyBindings.isRegistered(EntityType.PLANNING_DAY_ASSIGNMENT_TYPE))
+                .as("PLANNING_DAY_ASSIGNMENT_TYPE must be bound — it is a "
+                        + "PlanningDayAssignmentMapper.foreignKeys() target")
+                .isTrue();
+    }
+
+    @Test
+    void planningDayTrioIsTenantScopedFullPort() {
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.PLANNING_DAY))
+                .as("PlanningDay is FULL_PORT, tenant-scoped via operating_club_id (V4)")
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.PLANNING_DAY_ASSIGNMENT))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+        assertThat(MapperLegacyBindings.portPolicy(EntityType.PLANNING_DAY_ASSIGNMENT_TYPE))
+                .isEqualTo(MapperLegacyBindings.PortPolicy.FULL_PORT);
+    }
+
+    @Test
+    void planningDaySelectProjectsEveryColumnTheMapperReads() {
+        String select = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY);
+        for (String legacyColumn : PLANNING_DAY_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("PlanningDayMapper.writeNdjson reads %s — the bound SELECT must "
+                            + "project it (else: silent NULL / export abort)", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy PlanningDays table")
+                .contains("PlanningDays");
+    }
+
+    @Test
+    void planningDayConsumerInsertTargetsTPlanningDayWithOperatingClubId() {
+        String insert = MapperLegacyBindings.insertForConsumer(EntityType.PLANNING_DAY);
+        assertThat(insert)
+                .as("PLANNING_DAY FULL_PORT consumer INSERT targets t_planning_day")
+                .contains("INSERT INTO t_planning_day");
+        assertThat(insert.toLowerCase(java.util.Locale.ROOT))
+                .as("t_planning_day is tenant-scoped via operating_club_id (V4)")
+                .contains("operating_club_id");
+    }
+
+    @Test
+    void planningDayAssignmentSelectDenormalisesOperatingClubIdByJoiningPlanningDays() {
+        String select =
+                MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT);
+        for (String legacyColumn : PLANNING_DAY_ASSIGNMENT_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("PlanningDayAssignmentMapper.writeNdjson reads %s — the bound "
+                            + "SELECT must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        String upper = select.toUpperCase(java.util.Locale.ROOT);
+        // The real legacy PlanningDayAssignments table has NO own ClubId column —
+        // operating_club_id is denormalised by JOINing PlanningDays and projecting
+        // its ClubId AS OperatingClubId (the name the mapper reads). A SELECT that
+        // tried to read PlanningDayAssignments.ClubId would abort the live export.
+        assertThat(upper)
+                .as("operating_club_id is sourced by JOINing the parent PlanningDays")
+                .contains("JOIN PLANNINGDAYS");
+        assertThat(upper)
+                .as("the parent's ClubId is aliased AS OperatingClubId on the cursor")
+                .contains("AS OPERATINGCLUBID");
+    }
+
+    @Test
+    void planningDayAssignmentTypeSelectAliasesTheRealRequiredNrColumn() {
+        String select =
+                MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT_TYPE);
+        for (String legacyColumn : PLANNING_DAY_ASSIGNMENT_TYPE_LEGACY_COLUMNS) {
+            assertThat(select)
+                    .as("PlanningDayAssignmentTypeMapper.writeNdjson reads %s — the bound "
+                            + "SELECT must project it", legacyColumn)
+                    .contains(legacyColumn);
+        }
+        assertThat(select)
+                .as("base table is the legacy PlanningDayAssignmentTypes table")
+                .contains("PlanningDayAssignmentTypes");
+        // The mapper reads getInt("RequiredNrOfAssignments"), but the real MSSQL
+        // column is RequiredNrOfPlanningDayAssignments (DBUpdate_v1.0.1 DDL; the EF
+        // entity property of that name, no [Column] rename). The SELECT must project
+        // the real column AS the short name the mapper reads — else the live export
+        // aborts on a non-existent RequiredNrOfAssignments column (the J-1 T-16
+        // producer-SELECT class).
+        assertThat(select)
+                .as("SELECT must project the real RequiredNrOfPlanningDayAssignments column")
+                .contains("RequiredNrOfPlanningDayAssignments AS RequiredNrOfAssignments");
+    }
+
     @Test
     void everyBoundMappersForeignKeyTargetsAreAlsoBound() {
         for (Mapper mapper : KnownMappers.all()) {

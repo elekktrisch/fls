@@ -817,6 +817,124 @@ public final class MapperLegacyBindings {
                             ?, ?, ?,
                             ?, ?, ?, ?,
                             ?, ?)
+                    """)),
+            entry(EntityType.PLANNING_DAY_ASSIGNMENT_TYPE, new Binding(
+                    // Tenant-scoped per-club reference (PlanningDayAssignmentTypeMapper,
+                    // J-6 T-11): legacy PlanningDayAssignmentTypes.PlanningDayAssignmentTypeId
+                    // → t_planning_day_assignment_type.id, ClubId → operating_club_id (the
+                    // @TenantId per V4). NOT fan-out — one legacy row → one row, legacy_guid
+                    // → id (like FLIGHT_TYPE / AIRCRAFT_RESERVATION_TYPE).
+                    //
+                    // Producer-SELECT reconciliation against the real legacy schema
+                    // (project_synth_bundle_doesnt_validate_producer_select): the mapper's
+                    // writeNdjson reads getInt("RequiredNrOfAssignments"), but the real
+                    // MSSQL column is RequiredNrOfPlanningDayAssignments (DBUpdate_v1.0.1
+                    // DDL; the EF PlanningDayAssignmentType.cs property of that name, no
+                    // [Column] rename). A SELECT naming the short form would abort the live
+                    // export on a non-existent column — so it is projected AS
+                    // RequiredNrOfAssignments (the name the mapper reads). The 3 well-known
+                    // types are per-club rows in the real legacy data (NOT migration-seeded,
+                    // oracle ClubService.cs:206-228) — they ride this stream verbatim.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT PlanningDayAssignmentTypeId, ClubId, AssignmentTypeName,
+                           RequiredNrOfPlanningDayAssignments AS RequiredNrOfAssignments,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM PlanningDayAssignmentTypes
+                    """,
+                    "t_planning_day_assignment_type",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 10 params match
+                    // PlanningDayAssignmentTypeMapper.columns() order.
+                    """
+                    INSERT INTO t_planning_day_assignment_type (
+                      id, operating_club_id, assignment_type_name,
+                      required_nr_of_assignments,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.PLANNING_DAY, new Binding(
+                    // Tenant-scoped planning-calendar aggregate root (PlanningDayMapper,
+                    // J-6 T-11): legacy PlanningDays.PlanningDayId → t_planning_day.id;
+                    // operating_club_id is the @TenantId per V4, set from the real legacy
+                    // PlanningDays.ClubId column. NOT fan-out — one legacy row → one row,
+                    // legacy_guid → id.
+                    //
+                    // Legacy column rename: Day → planning_date (the planned-for date, read
+                    // verbatim via getDate("Day") — pure DATE, no tz shift on migrate).
+                    // Remarks → info. Legacy ASP.NET artifacts (OwnerId/OwnershipType/
+                    // RecordState/IsDeleted) are NOT projected — dropped per the mapper.
+                    //
+                    // location_id → tenant-scoped LOCATION, which FANS OUT (one replica per
+                    // referencing club). PlanningDay carries no own club_id wire field, so
+                    // PlanningDayMapper.foreignKeyColumns() names operating_club_id as the
+                    // fan-out disambiguator: the (legacy_guid, club_id) composite resolve
+                    // lands on the day's OWN-club Location replica (the AircraftReservation
+                    // idiom, J-5). The (operating_club_id, planning_date, location_id) UNIQUE
+                    // partial (V4) corrects legacy's no-dedup bug — producer-side
+                    // dedupe-keep-first runs before any row reaches this mapper.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT PlanningDayId, ClubId, Day, LocationId, Remarks,
+                           CreatedOn, CreatedByUserId, ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM PlanningDays
+                    """,
+                    "t_planning_day",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 11 params match
+                    // PlanningDayMapper.columns() order.
+                    """
+                    INSERT INTO t_planning_day (
+                      id, operating_club_id, planning_date, location_id, info,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
+                    """)),
+            entry(EntityType.PLANNING_DAY_ASSIGNMENT, new Binding(
+                    // Tenant-scoped planning role assignment (PlanningDayAssignmentMapper,
+                    // J-6 T-11): legacy PlanningDayAssignments.PlanningDayAssignmentId →
+                    // t_planning_day_assignment.id. NOT fan-out — legacy_guid → id.
+                    //
+                    // Producer-side JOIN (the real legacy PlanningDayAssignments table has
+                    // NO own ClubId column — DBUpdate_v1.0.1 DDL): operating_club_id (the
+                    // denormalised @TenantId per V4) is sourced by JOINing the parent
+                    // PlanningDays and projecting its ClubId AS OperatingClubId, the name
+                    // the mapper's writeNdjson reads. assigned_person_id → cross-tenant
+                    // PERSON (Manifest TENANT_BYPASS_ALLOW_LIST); planning_day_id →
+                    // PLANNING_DAY; assignment_type_id → PLANNING_DAY_ASSIGNMENT_TYPE — all
+                    // resolved through their own id-maps. Remarks → info. Legacy ASP.NET
+                    // artifacts dropped.
+                    PortPolicy.FULL_PORT,
+                    """
+                    SELECT pda.PlanningDayAssignmentId,
+                           pd.ClubId AS OperatingClubId,
+                           pda.AssignedPlanningDayId, pda.AssignedPersonId,
+                           pda.AssignmentTypeId, pda.Remarks,
+                           pda.CreatedOn, pda.CreatedByUserId,
+                           pda.ModifiedOn, pda.ModifiedByUserId,
+                           pda.DeletedOn, pda.DeletedByUserId
+                    FROM PlanningDayAssignments pda
+                    JOIN PlanningDays pd ON pd.PlanningDayId = pda.AssignedPlanningDayId
+                    """,
+                    "t_planning_day_assignment",
+                    // Non-fan-out FULL_PORT: legacy_guid → id. 12 params match
+                    // PlanningDayAssignmentMapper.columns() order.
+                    """
+                    INSERT INTO t_planning_day_assignment (
+                      id, operating_club_id, planning_day_id,
+                      assigned_person_id, assignment_type_id, info,
+                      created_on, created_by_user_id, modified_on, modified_by_user_id,
+                      deleted_on, deleted_by_user_id)
+                    VALUES (?, ?, ?,
+                            ?, ?, ?,
+                            ?, ?, ?, ?,
+                            ?, ?)
                     """)));
 
     private MapperLegacyBindings() { }

@@ -88,14 +88,11 @@ class MapperBindingContractTest {
      * binding-presence test stays green (correct — now bound), and adding a
      * NEW unbound mapper without listing it here → RED.
      *
-     * <p>Empty this set as the bindings land. The PLANNING_DAY trio is wired by
-     * J-6 T-11 — remove those three the moment T-11 adds their bindings.
+     * <p>Empty this set as the bindings land. The PLANNING_DAY trio was wired by
+     * J-6 T-11 — those three are now bound + actively guarded (their entries
+     * removed here), and the round-trip is proven by {@code PlanningDayMigrationRoundTripIT}.
      */
     private static final Set<EntityType> KNOWN_UNBOUND = EnumSet.of(
-            // --- J-6 T-11 wires these three (remove on T-11) ---
-            EntityType.PLANNING_DAY,
-            EntityType.PLANNING_DAY_ASSIGNMENT_TYPE,
-            EntityType.PLANNING_DAY_ASSIGNMENT,
             // --- bound by their own future journeys (not J-6) ---
             EntityType.MEMBER_STATE,
             EntityType.PERSON_CATEGORY,

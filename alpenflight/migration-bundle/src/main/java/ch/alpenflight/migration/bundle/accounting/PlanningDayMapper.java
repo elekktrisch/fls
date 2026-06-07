@@ -2,6 +2,7 @@ package ch.alpenflight.migration.bundle.accounting;
 
 import ch.alpenflight.migration.bundle.Coercions;
 import ch.alpenflight.migration.bundle.EntityType;
+import ch.alpenflight.migration.bundle.ForeignKeyColumn;
 import ch.alpenflight.migration.bundle.Mapper;
 import ch.alpenflight.migration.bundle.ParityIgnore;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -77,6 +78,20 @@ public final class PlanningDayMapper implements Mapper {
     @Override
     public List<EntityType> foreignKeys() {
         return List.of(EntityType.CLUB, EntityType.LOCATION);
+    }
+
+    @Override
+    public List<ForeignKeyColumn> foreignKeyColumns() {
+        // Off-convention + fan-out FK columns (J-6 T-11):
+        //  * operating_club_id → CLUB (the @TenantId; not the convention club_id).
+        //  * location_id → LOCATION (fan-out target; the column name matches the
+        //    convention, but PlanningDay carries no own club_id wire field — the
+        //    fan-out disambiguator is this row's own operating_club_id, so the
+        //    composite (legacy_guid, club_id) resolve lands on the day's OWN-club
+        //    Location replica). Mirrors AircraftReservationMapper (J-5 T-07).
+        return List.of(
+                new ForeignKeyColumn(OPERATING_CLUB_ID, EntityType.CLUB),
+                new ForeignKeyColumn(LOCATION_ID, EntityType.LOCATION, OPERATING_CLUB_ID));
     }
 
     @Override
