@@ -363,9 +363,48 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   list-render-with-Setup-button case (now `/planningsetup` exists). Both planning mock specs GREEN locally (musl
   chromium): setup-wizard 3✓/1 skip, crud 6✓/1 skip. Preflight green LOCALLY: lint ✓, tsc ✓, ng build ✓,
   api-drift clean (FE-only), gallery vitest 63 ✓, link-check ✓.
-- [ ] **T-10 — PlanningDayNotificationJob + templates + run-now affordance.** Job (imminent day+1 →
-  club addr ok/cancel; week-ahead day+7 → assignees), 3 templates (ADR-0009/0013), guarded test-env
-  "run planning notifications now" trigger for the e2e. *(job seam — may overflow-split job/templates/affordance)*
+- [x] ~~**T-10** — PlanningDayNotificationJob + templates + run-now affordance~~ **(split → T-10a/b/c, auto-re-plan 2026-06-07).**
+- [ ] **T-10a — email infra (ADR-0013 build-out, the prerequisite seam).** First AlpenFlight email send-path:
+  `spring-boot-starter-mail` + `-thymeleaf` deps; `spring.mail` config (dev/test→mailpit `localhost:1025`,
+  prod→disabled/placeholder); a `MailSender` port + Thymeleaf `TemplatedMailService`; test-capture harness
+  (GreenMail or captured-outbox fake) + a 1-template smoke IT. *(platform/email seam)* [[verify_infra_is_run_not_just_authored]]
+- [ ] **T-10b — Club notification fields + 3 templates.** Flyway `V35` adds `send_planning_day_info_mail_to`
+  + `use_planning_day_without_reservations` (structural); map on `Club` + the cancel-rule accessor (ADR-0022 §2);
+  the 3 Thymeleaf templates `planningday-ok` / `planningday-cancel` / `planningday-assignment-notification`. *(club + templates seam)*
+- [ ] **T-10c — PlanningDayNotificationJob + run-now affordance.** `@Scheduled @LifecycleStateFilter` job (day+1
+  club-addr ok/cancel via reservation-existence + club flag; day+7 assignee fan-out, skip-blank); template/recipient
+  selection in domain/service; tenant-scoped repo queries (days dated +1 / +7); guarded+audited
+  `POST /api/v1/planning-days/notifications/run` (dev/test profile + ClubAdmin); `PlanningDayNotificationJobIT`
+  (asserts vs the T-10a captured outbox). **Chain: T-10a → T-10b → T-10c.** *(job + affordance seam)*
+  > **OVERFLOW (2026-06-07, do-task, before any code/commit)** — 4 seams / ~15 files / 8+ new, well over
+  > the do-task caps (1 seam, ≤8 touched, ≤5 new). Root cause: **ADR-0013 email infra was decided but NEVER
+  > built** — there is *no* `spring-boot-starter-mail`/Thymeleaf dep, *no* `spring.mail` config, *no* mail
+  > port/service, *no* `templates/email/` dir in `alpenflight/server` (confirmed: zero `JavaMailSender`/
+  > `MailSender`/`TemplateEngine`/`spring.mail` hits in src). The mailpit the real-idp `register.spec.ts`
+  > asserts is **Keycloak's** SMTP sink, not an AlpenFlight send path. ADR-0013's own follow-ups (add starter,
+  > scaffold `templates/email/`, wire mailpit into the *backend*, build the JavaMailSender test-capture
+  > harness) are unstarted. Also: the **recipient + flag fields don't exist on the Club aggregate** — no
+  > AlpenFlight equivalent of legacy `Club.SendPlanningDayInfoMailTo` nor `ClubUsePlanningDayWithoutReservations`
+  > (Club.java maps a narrow walking-skeleton column set). And the `@Scheduled` job must be tenant-scoped via
+  > `@LifecycleStateFilter` (ArchUnit-enforced — `ScheduledLifecycleFilterCoverageTest`), and the run-now
+  > controller must satisfy `ControllerAuditCoverageTest` (audit on every mutating endpoint). Suggest split:
+  > - **T-10a — email infra (ADR-0013 build-out, the prerequisite seam):** `spring-boot-starter-mail` +
+  >   `spring-boot-starter-thymeleaf` deps; `spring.mail` config in `application{,-dev,-test,-prod}.yml`
+  >   (dev/test → mailpit `localhost:1025`, prod → real relay placeholder/disabled); a `MailSender` domain
+  >   port + a Thymeleaf-backed `TemplatedMailService` (build-service pattern); test-capture harness
+  >   (GreenMail or a captured-outbox `MailSender` fake) + a 1-template smoke IT. *(platform/email seam)*
+  > - **T-10b — Club notification fields + 3 templates:** Flyway `V35` adds `send_planning_day_info_mail_to`
+  >   + `use_planning_day_without_reservations` columns (structural only); map them on `Club` + a domain
+  >   accessor for the planning-day-cancel rule (ADR-0022 §2 — rule on the aggregate); the 3 Thymeleaf
+  >   templates `planningday-ok`/`planningday-cancel`/`planningday-assignment-notification`. *(club + templates seam)*
+  > - **T-10c — PlanningDayNotificationJob + run-now affordance:** the `@Scheduled @LifecycleStateFilter`
+  >   job with the two passes (day+1 club-addr ok/cancel via the reservation-existence check + club flag;
+  >   day+7 assignee fan-out via Person emails, skip-blank); template/recipient selection in the
+  >   domain/service (not SQL); new repo queries (days dated exactly tomorrow / +7, tenant-scoped) on
+  >   `PlanningDayRepository`/`JpaPlanningDayRepository`; the guarded `POST /api/v1/planning-days/
+  >   notifications/run` run-now affordance (dev/test-profile + ClubAdmin gate, audited); `PlanningDayNotificationJobIT`
+  >   (ok-vs-cancel day+1, assignee day+7) asserting against the captured outbox from T-10a. *(job + affordance seam)*
+  > Chain: **T-10a → T-10b → T-10c** (10c depends on both). No code committed for T-10. Returning overflow to the manager.
 - [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
 - [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
