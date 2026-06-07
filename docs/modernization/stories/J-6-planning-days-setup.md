@@ -526,6 +526,16 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   migration-seeded), the assignment resolves to the migrated `segelflugleiter` type (→ FLIGHT_OPERATOR), tenant
   isolation holds (club B empty). Whole `./gradlew check` GREEN on BOTH modules (migration-bundle: contract +
   binding tests; server: full suite + pmd + cpdRatchet + arch guards + MapperVsSchemaCompatibilityTest).
+- [ ] **T-11b — PlanningDay producer dedupe (23505 §4-gate fix, J-6-introduced by T-11).** The fanout blocker:
+  T-11's PLANNING_DAY producer SELECT ships WITHOUT the keep-first dedupe its own mapper Javadoc promises
+  (`PlanningDayMapper.java:36-38`), so the legacy `PlanningDays` table's duplicate `(ClubId, Day, LocationId)`
+  rows → two rows resolve to the same club + own-club location replica → 2nd INSERT violates `ux_pln_club_date_loc`
+  (V4:303) → ingest 500 `sqlstate=23505` (`fan-out-migration-parity.spec.ts:133`). FIX: add
+  `ROW_NUMBER() OVER (PARTITION BY ClubId, Day, LocationId ORDER BY CreatedOn, PlanningDayId) … WHERE rn=1` to the
+  PLANNING_DAY binding (`MapperLegacyBindings.java:882`) + the `PLANNING_DAY_DUPLICATE` drop-warning; verify the
+  real-bundle round-trip ingests green. Also verify the flagged adjacent issue: `PlanningDayAssignmentTypeMapper`
+  emits a `legacy_guid` column with no schema column — confirm assignment-type ingest round-trips once 23505 clears.
+  *(migration-bundle producer SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
 - [x] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
   check so a missing binding / dropped column fails fast before the ~20-min fanout. *(migration-tool seam)* [[verify_infra_is_run_not_just_authored]]
   **Done:** new GENERIC registry-wide `MapperBindingContractTest` in `migration-bundle` (runs in `./gradlew check`),
