@@ -136,19 +136,23 @@ short-list + needs a committed config to stop crying wolf.
   deferred (operator scope was complexity+dup+dead-code; PMD covers dead code). — see
   [[reference_fallow_maintainability_analyzer]].
 
-- **Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
-  to the proof gallery for each journey page").** Extends the gallery per-journey re-arch rider above (the
-  index → one page per journey). Each journey page gains a **Maintainability** section rendering the
-  journey's *delta* + repo snapshot across the three axes: **frontend** via fallow's changed-files envelope
-  for the journey's `integration/J-NNN` branch (`fallow ci`/`audit` emits a PR/MR JSON envelope = exactly
-  the complexity/dupes/dead-code introduced by the journey's diff) + the snapshot (MI, dup%, dead-code);
-  **backend** via the PMD/CPD (+SpotBugs) report on the changed Java. The gallery deploy step runs
-  `fallow ci --format json` + the gradle pmd/cpd XML, and `generate-gallery.mjs` renders an HTML panel
-  (green/amber/red on the delta, link to full report). So each journey's page shows not just "the screen
-  works" but "the journey didn't rot maintainability". Project-code/CI work → rides a journey's ≤40% budget
-  *with* the gallery re-arch (it's the same generator + deploy seam). *(seam: `generate-gallery.mjs`
-  maintainability panel + ci.yml/fanout `fallow ci` + pmd/cpd report-emit steps)* — see
-  [[feedback_proof_gallery_per_journey_one_bookmark]], [[feedback_maintainability_includes_dupes_and_deadcode]].
+- ~~**Add a per-journey Maintainability panel to each proof-gallery journey page (operator: "add the reports
+  to the proof gallery for each journey page").**~~ **Shipped J-6 T-14.** Each per-journey page now carries a
+  **Maintainability** section (`renderMaintainabilityPanel` in `generate-gallery.mjs`) rendering the journey's
+  *delta* + repo snapshot across the three axes: **frontend** via fallow's changed-files audit envelope
+  (`fallow audit --base origin/main` → `attribution.{complexity,duplication,dead_code}_introduced` + `verdict`)
+  + the repo snapshot (`fallow health` → MI, dup%, dead-file%); **backend** via the PMD (complexity + dead-code
+  violation counts by rule) and CPD (duplicated-token % + clone-group count) XML. Green/amber/red roll-up pill
+  driven by the FE delta (green = no new findings, amber = introduced >0, red = fail verdict); a non-journey-
+  under-work page shows the snapshot only (no false historical delta); absent artifacts degrade to "no data"
+  (fail-soft, never a crash/dead link). The panel renderer + parsers + the T-12 CI emit steps landed under the
+  J-5 carve (commit history); T-14 closed the wiring gap so the journey page reads its DELTA not "snapshot
+  only" — the per-push `ci.yml` + fanout gallery steps now pass `--journey-under-work` (the generator's
+  branch-name fallback can't derive the journey from a PR merge ref). A "Full maintainability reports →" link
+  targets the `maintainability/` dir (which carries an `index.html` so the dir URL serves 200 on gh-pages).
+  *(seam: `generate-gallery.mjs` maintainability panel + ci.yml/fanout `--journey-under-work` wiring + the T-12
+  fallow/pmd/cpd report-emit steps)* — see [[feedback_proof_gallery_per_journey_one_bookmark]],
+  [[feedback_maintainability_includes_dupes_and_deadcode]], [[reference_fallow_maintainability_analyzer]].
 
 ## Pending (filed by /do-ship 2026-06-05, J-4 window)
 

@@ -771,11 +771,27 @@ jobs:
         id: gallery
         if: always()
         working-directory: alpenflight/web
+        env:
+          # T-14 — the journey-under-work id (derived in the `changes` job's
+          # `proof_spec` step off the integration branch). Passed EXPLICITLY so
+          # the per-journey Maintainability panel renders THIS journey's FE
+          # fallow-audit DELTA (not just the repo snapshot): on a PR push
+          # GITHUB_REF_NAME is the merge ref (`<pr>/merge`), so the generator's
+          # branch-name fallback can't derive the journey — the panel would
+          # degrade to "snapshot only". Empty on a non-integration branch (the
+          # changes job emits the J-0 baseline journey then) — harmless, that
+          # page has no audit delta to show anyway.
+          PROOF_JOURNEY: ${{ needs.changes.outputs.proof_journey }}
         run: |
+          JUW_ARG=""
+          if [ -n "${PROOF_JOURNEY:-}" ]; then
+            JUW_ARG="--journey-under-work ${PROOF_JOURNEY}"
+          fi
           node e2e/proof-gallery/generate-gallery.mjs \
             --report test-results/proof-manifest.json \
             --out ../../public/alpenflight/proof \
-            --order ../../docs/modernization/stories/_ORDER.md
+            --order ../../docs/modernization/stories/_ORDER.md \
+            $JUW_ARG
 
       # J-25 — compute the per-PR preview destination + clickable URL.
       # PR-only. Sanitize github.head_ref (the PR source branch, e.g.

@@ -31,6 +31,7 @@ async function loadGenerator(): Promise<{
     renderNav?: boolean;
     perJourney?: boolean;
     journeyUnderWork?: string;
+    branch?: string;
     siteBase?: string;
   }) => {
     html: string;
@@ -58,6 +59,16 @@ async function loadGenerator(): Promise<{
     } | null;
     showDelta: boolean;
   }) => { level: string; label: string };
+  parseArgs: (argv: string[]) => {
+    reportPath?: string;
+    outDir?: string;
+    orderPath?: string;
+    branch?: string;
+    journeyUnderWork?: string;
+    siteBase?: string;
+    renderNav?: boolean;
+    perJourney?: boolean;
+  };
 }> {
   return import(pathToFileURL(GENERATOR).href);
 }
@@ -666,7 +677,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
   /** A report with one green proof for J-0 + J-2 screenshots, against a roadmap. */
   function buildPerJourney(
     generateGallery: Awaited<ReturnType<typeof loadGenerator>>['generateGallery'],
-    opts: { writeMaint?: boolean; journeyUnderWork?: string } = {},
+    opts: { writeMaint?: boolean; journeyUnderWork?: string; branch?: string } = {},
   ) {
     const dir = mkdtempSync(resolve(tmpdir(), 'gallery-perj-'));
     const orderPath = resolve(dir, '_ORDER.md');
@@ -705,6 +716,7 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
       screenshotsDir,
       renderNav: false,
       journeyUnderWork: opts.journeyUnderWork,
+      ...(opts.branch ? { branch: opts.branch } : {}),
     });
     return { outDir, result };
   }
@@ -821,6 +833,49 @@ describe('generateGallery — per-journey pages (T-13a)', () => {
     const j0 = readOut(outDir, 'J-0', 'index.html');
     expect(j0).toContain('<strong>3</strong> violations'); // PMD parsed
     expect(j0).toContain('no fallow health data'); // health absent → graceful
+  });
+
+  // T-14 — the per-push CI gallery step must pass the journey id EXPLICITLY via
+  // `--journey-under-work` (sourced from the `changes` job's derived journey),
+  // because on a PR push GITHUB_REF_NAME is the merge ref (`<pr>/merge`), NOT
+  // `integration/J-NNN` — so the generator's branch-name fallback can't derive
+  // the journey, and the panel would degrade to "snapshot only" with no delta.
+  // These lock the CLI-arg → delta contract the CI wiring relies on.
+  it('--journey-under-work parses to journeyUnderWork (the CI flag the delta needs)', async () => {
+    const { parseArgs } = await loadGenerator();
+    const args = parseArgs(['--report', 'r.json', '--out', 'o', '--journey-under-work', 'J-6']);
+    expect(args.journeyUnderWork).toBe('J-6');
+  });
+
+  it('an explicit journeyUnderWork drives the FE delta even when the branch cannot (merge-ref)', async () => {
+    const { generateGallery } = await loadGenerator();
+    // Simulate the PR-push reality: a merge-ref branch from which journeyFromFile
+    // derives nothing, BUT the CI passes the derived journey id explicitly.
+    const { outDir } = buildPerJourney(generateGallery, {
+      writeMaint: true,
+      journeyUnderWork: 'J-0',
+      branch: '123/merge',
+    });
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    // Explicit journey-under-work → the FE delta renders (red roll-up), NOT the
+    // snapshot-only neutral fallback.
+    expect(j0).toContain('FE delta (this journey vs main)');
+    expect(j0).toContain('<span class="status failure">');
+    expect(j0).not.toContain('<span class="status neutral">');
+  });
+
+  it('without an explicit journey-under-work the panel degrades to snapshot-only (no false delta)', async () => {
+    const { generateGallery } = await loadGenerator();
+    // No journeyUnderWork + a merge-ref branch → nothing derivable → the J-0 page
+    // shows the repo snapshot, never a fabricated per-journey delta.
+    const { outDir } = buildPerJourney(generateGallery, {
+      writeMaint: true,
+      branch: '123/merge',
+    });
+    const j0 = readOut(outDir, 'J-0', 'index.html');
+    expect(j0).toContain('historical per-journey delta not reconstructable');
+    expect(j0).toContain('<span class="status neutral">');
+    expect(j0).not.toContain('FE delta (this journey vs main)');
   });
 
   it('--no-per-journey (perJourney:false) emits ONLY the all-journeys page', async () => {

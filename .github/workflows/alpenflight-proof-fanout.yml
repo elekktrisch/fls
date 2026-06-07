@@ -1104,6 +1104,8 @@ jobs:
         id: gallery
         if: always()
         working-directory: alpenflight/web
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           STAGE="${{ github.workspace }}/j0c-legacy-video"
           LEGACY_ARG=""
@@ -1118,6 +1120,18 @@ jobs:
           if [ -f "$SHOT/screenshots.json" ]; then
             SHOT_ARG="--screenshots $SHOT"
           fi
+          # T-14 — derive the journey-under-work id off the dispatched branch
+          # (`integration/J-NNN` → `J-NNN`) and pass it EXPLICITLY so the
+          # per-journey Maintainability panel renders this journey's FE
+          # fallow-audit DELTA, not just the repo snapshot. The fanout dispatches
+          # ON the integration branch, so github.ref_name IS `integration/J-NNN`
+          # here (no PR merge ref). A non-integration dispatch → empty → the
+          # generator's own fallback applies (snapshot only), harmless.
+          JUW_ARG=""
+          JID="$(printf '%s' "${REF_NAME:-}" | sed -nE 's#^integration/(J-[0-9]+[a-z]?)$#\1#p')"
+          if [ -n "$JID" ]; then
+            JUW_ARG="--journey-under-work ${JID}"
+          fi
           # --no-nav: this is the LEAF (per-run) fan-out gallery, deployed to a
           # namespaced subpath; the "per-run galleries" nav belongs only on the
           # canonical index (T-24), not on the gallery the nav points AT.
@@ -1127,7 +1141,8 @@ jobs:
             --order ../../docs/modernization/stories/_ORDER.md \
             --no-nav \
             $LEGACY_ARG \
-            $SHOT_ARG
+            $SHOT_ARG \
+            $JUW_ARG
 
       - name: Collect logs on failure
         if: failure()

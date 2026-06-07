@@ -527,8 +527,23 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   matches the real legacy DDL (that only T-11's nightly fanout validates). `./gradlew check` GREEN
   (migration-bundle standalone build; the cpd/pmd ratchet lives on the server module, untouched — this is a
   test-only add in migration-bundle). Cleared the `_BOYSCOUT.md` "Cheap early mapper-binding check" rider.
-- [ ] **T-14 — per-journey gallery Maintainability panel (gallery re-arch slice, ≤40%).** Remainder after
-  the T-01b scaffold: the FE-fallow/BE-PMD/CPD delta panel on the J-6 page. *(generate-gallery.mjs + emit steps)*
+- [x] **T-14 — per-journey gallery Maintainability panel (gallery re-arch slice, ≤40%).** Remainder after
+  the T-01b scaffold: the FE-fallow/BE-PMD/CPD delta panel on the J-6 page. The panel renderer + 4-artifact
+  parsers (`parseFallowAudit`/`parseFallowHealth`/`parsePmd`/`parseCpd` → `loadMaintainability` →
+  `renderMaintainabilityPanel`) and the T-12 CI emit steps (FE `fallow audit/health` JSON + BE PMD/CPD XML →
+  `public/alpenflight/proof/maintainability/{…}`) landed under the J-5 carve; T-14 closed the **wiring gap**
+  that left the J-6 page reading "snapshot only" instead of its delta: the per-push `ci.yml` gallery step + the
+  fanout gallery step now pass `--journey-under-work` (ci.yml: from the `changes` job's derived `proof_journey`;
+  fanout: derived off `integration/J-NNN` `github.ref_name`) — needed because on a PR push `GITHUB_REF_NAME`
+  is the merge ref, so the generator's branch-name fallback can't derive the journey. Verified locally: the J-6
+  page renders the FE delta (complexity 5 · duplication 16 · dead-code 0 · verdict fail → red "21 introduced
+  (fail)" pill) + the repo snapshot (score 71.1 B) + the BE PMD/CPD rows; a non-journey-under-work page (J-0)
+  shows the snapshot only ("historical per-journey delta not reconstructable", neutral pill) — no false delta;
+  absent artifacts → graceful "no data" (fail-soft, never a crash/dead link). Exported `parseArgs` + added 3
+  generator-spec cases (CLI-flag parse; explicit-journey drives the delta even on a merge-ref branch;
+  no-journey degrades to snapshot-only). `pnpm preflight:no-e2e` + the browserless link-integrity check GREEN;
+  actionlint clean on both workflows. Cleared the `_BOYSCOUT.md` "Add a per-journey Maintainability panel"
+  rider. *(generate-gallery.mjs + ci.yml/fanout `--journey-under-work` wiring)*
 - [x] ~~**T-15** — scope per-push mock-e2e~~ **(retired → pulled forward into T-02b).**
 - [ ] **T-16 — thicken specs to full real assertions** from the oracle; run the §4 gate via `e2e-driver`. *(spec seam)*
   - [x] **legacy↔AlpenFlight planning parity shots (operator priority, 2026-06-07).** Authored the LEGACY

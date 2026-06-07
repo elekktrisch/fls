@@ -1185,7 +1185,7 @@ ${items}
   return file;
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
