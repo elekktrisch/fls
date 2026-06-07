@@ -131,8 +131,21 @@ ON CONFLICT (id) DO NOTHING;
 
 -- ── flight (the Flights LIST) ────────────────────────────────────────────────
 -- One past glider flight on the seeded aircraft, crewed by Iris Instructor (V34
--- person ...b1). process_state NOT_PROCESSED (V2 ref), start/ldg at Bern-Belp
--- (V34 location ...c001), flight_aircraft_type_id = 1 (GLIDER legacy id).
+-- person ...b1). start/ldg at Bern-Belp (V34 location ...c001),
+-- flight_aircraft_type_id = 1 (GLIDER legacy id).
+--
+-- SEED-ISOLATION (J-6b T-21): process_state is VALID (V2 ref, legacy 30) — a
+-- NON-pending terminal state — NOT NotProcessed/Invalid. The J-3 dashboard's
+-- pending-validation tile counts exactly {NotProcessed, Invalid}
+-- (FlightsService#clubFlightCounts → countByProcessStateIdIn) for seed-club-1,
+-- and seed-club-1 is ALSO the deterministic showcase fixture club that
+-- start-dashboard.spec.ts asserts pending=4 on. A NotProcessed seed flight here
+-- leaked into that exact count (4 → 5). VALID keeps this row off the pending set
+-- while still populating the Flights LIST (T-14 AC #6 — the row still exists).
+-- today-flights is unaffected regardless: flight_date is CURRENT_DATE-7, not
+-- today. VALID needs no companion field — validated_on/locked_at stay NULL
+-- (both @Nullable; no DB CHECK ties state↔timestamp per ADR 0022 D2; the
+-- timestamp is only required on a runtime Valid→Locked transition, not at rest).
 INSERT INTO t_flight
     (id, operating_club_id, aircraft_id, flight_date,
      start_date_time, ldg_date_time, start_location_id, ldg_location_id,
@@ -151,7 +164,7 @@ VALUES
      '019e30c3-2c00-7001-8000-000000000f10',   -- the seeded flight type
      '019e2e15-2c00-7fa0-8000-000000000fa0',   -- Winch Launch (V2 start_type)
      false, false, false,
-     '019e2e15-2c00-7a98-8000-000000003a98',   -- NOT_PROCESSED (V2 process_state)
+     '019e2e15-2c00-7a9a-8000-000000003a9a',   -- VALID (V2 process_state, legacy 30) — non-pending; T-21
      1,                                         -- GLIDER (FlightAircraftType.legacyId)
      'Seed flight — glider')
 ON CONFLICT (id) DO NOTHING;
