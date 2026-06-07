@@ -283,22 +283,62 @@ jobs:
             echo "${jid} has no mock_test: frontmatter → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
-          # First path token (stop at whitespace / '(' / ';' / '#' so trailing
-          # prose or a comment is dropped); strip a leading alpenflight/web/.
-          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:](;#].*$//' | sed -E 's#^alpenflight/web/##')"
-          echo "${jid} mock_test first token → '${filter}'"
+          # Extract the filter token. Stop at whitespace / ';' / '#' so trailing
+          # prose or a comment is dropped — but DELIBERATELY keep '(' '|' ')': a
+          # journey whose own specs span SEVERAL feature dirs (J-6b:
+          # reservations/planning/forms) can't be a single dir without pulling
+          # prior journeys' specs in that dir, so its `mock_test:` is a Playwright
+          # positional REGEX (an alternation over its spec stems). Strip a leading
+          # alpenflight/web/ so the token is relative to that working-directory.
+          filter="$(printf '%s' "$raw" | sed -E 's/[[:space:];#].*$//' | sed -E 's#^alpenflight/web/##')"
+          echo "${jid} mock_test token → '${filter}'"
           if [ -z "$filter" ]; then
             echo "empty mock_test token → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
-          # The filter must resolve to a real path under alpenflight/web/ (a
-          # tests/<feature>/ dir OR a single spec file). If it doesn't, fall back
-          # to the full suite rather than risk a no-spec run.
-          if [ -e "alpenflight/web/${filter}" ]; then
-            emit "$filter" "false"; exit 0
-          fi
-          echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
-          emit "" "true"; exit 0
+          # VALIDATE the token resolves to real spec(s) under alpenflight/web/,
+          # else fall back to the full suite (never risk a no-spec run). Two shapes:
+          #   • PLAIN PATH (no regex metachars): a tests/<feature>/ dir OR a single
+          #     spec file — check it exists on disk directly (pre-J-6b behaviour).
+          #   • REGEX ALTERNATION (contains '(' or '|'): a Playwright positional
+          #     regex like `tests/(a/x|b/y|c/z)`. Decompose it into its literal
+          #     path stems and require EVERY stem to resolve on disk (a *.spec.ts
+          #     file or a prefix of one). The chromium project's testMatch still
+          #     applies on top, so the regex only narrows — it can't widen.
+          case "$filter" in
+            *'('*|*'|'*)
+              # Expand the alternation: drop the leading `prefix(`, the trailing
+              # `)`, split on '|', and re-prepend the prefix to each branch.
+              prefix="$(printf '%s' "$filter" | sed -E 's/\(.*$//')"
+              inner="$(printf '%s' "$filter" | sed -E 's/^[^(]*\(//; s/\)[^)]*$//')"
+              ok=1
+              IFS='|'
+              for branch in $inner; do
+                stem="${prefix}${branch}"
+                # A stem resolves if a *.spec.ts under alpenflight/web/ starts with
+                # it (the regex matches by path prefix, e.g. `…-hardening` → the
+                # `…-hardening.spec.ts` file). Match dir-or-file-prefix via glob.
+                if ! ls "alpenflight/web/${stem}"*.spec.ts >/dev/null 2>&1 \
+                   && [ ! -e "alpenflight/web/${stem}" ]; then
+                  echo "mock filter branch '${stem}' resolves to no spec on disk"
+                  ok=0
+                fi
+              done
+              unset IFS
+              if [ "$ok" = 1 ]; then
+                emit "$filter" "false"; exit 0
+              fi
+              echo "mock filter regex '${filter}' has an unresolved branch → full chromium suite (fail-safe)"
+              emit "" "true"; exit 0
+              ;;
+            *)
+              if [ -e "alpenflight/web/${filter}" ]; then
+                emit "$filter" "false"; exit 0
+              fi
+              echo "mock filter '${filter}' not found on disk → full chromium suite (fail-safe)"
+              emit "" "true"; exit 0
+              ;;
+          esac
 
 
   # ---------------------------------------------------------------------------

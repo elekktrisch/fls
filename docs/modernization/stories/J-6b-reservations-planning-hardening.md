@@ -31,6 +31,20 @@ screen: /reservations + /planning (hardening of J-5/J-6) + the shared edit-form 
 headless_pulled_in: server-side form-validate endpoint(s) → consumed by inline-validation UX on edit forms
 migration: N/A — no new entity; hardens shipped J-5 (AircraftReservation) / J-6 (PlanningDay). #6 is dev-seed, not a mapper.
 parity_test: alpenflight/web/e2e/tests/forms/inline-validation.spec.ts (+ reservations/ + planning/ hardening specs — see Notes)
+# T-02 per-push gate scope (read by ci.yml `changes` job, off `integration/J-6b`):
+#  • mock_test → the per-push `alpenflight-mock-e2e` filter. J-6b's OWN mock specs
+#    span THREE feature dirs (reservations/planning/forms), so this is a single
+#    Playwright positional REGEX (an alternation over the three J-6b spec stems),
+#    NOT a dir — a dir token would also pull prior journeys' specs in that dir
+#    (J-5 reservations-crud, J-6 planning-crud) and violate "ONLY J-6b's specs".
+#    The derive step (`Derive journey mock-e2e filter`) recognises a regex token
+#    by its alternation branches and validates each branch's path stem on disk.
+#  • parity_test (real-idp half) stays the mock `inline-validation.spec.ts` — J-6b
+#    authored NO real-idp spec yet (its real-idp siblings land at T-17, per the
+#    spec headers), so the `Derive journey proof spec` step correctly FALLS BACK
+#    to the J-0 Locations baseline (a known-good real-chain proof, never no-spec).
+#    Once T-17 adds a J-6b `tests/real-idp/…` spec, repoint parity_test at it.
+mock_test: alpenflight/web/e2e/tests/(reservations/reservations-hardening|planning/planning-hardening|forms/inline-validation)   # per-push mock-e2e runs ONLY J-6b's 3 specs (12 tests); prior journeys' mock specs run at the §4 gate + nightly
 adr_refs: [0022, 0024, 0008, 0006]
 ---
 
@@ -130,7 +144,7 @@ NOT authz (diagnose request-shape/BE). Day/Week calendar is greenfield (no legac
 Behavior oracle: `J-6b-oracle.md` (worker input; pruned at §5). FE seam map baked into scopes below.
 
 - [x] **T-01** — spec stub + scaffold the J-6b proof-gallery page. Author `e2e/tests/` J-6b spec skeleton (selectors + flow for: reservations nav+toggle+paging, planning readonly/edit, inline validation, date format, nav gating) with thin assertions; scaffold the per-journey gallery page linked from the persistent index. Calendar is greenfield (AlpenFlight-only shots); edit forms can pair legacy where a legacy ref exists.
-- [ ] **T-02** — scope the per-push gate to J-6b. Set the journey's `mock_test:`/`parity_test:` frontmatter so per-push runs ONLY J-6b specs heavy (real-idp) + prior journeys (J-5/J-6/…) mock-IdP. Infra exists (J-6 T-02b derive-filter) — just wire J-6b's frontmatter + confirm.
+- [x] **T-02** — scope the per-push gate to J-6b. Set the journey's `mock_test:`/`parity_test:` frontmatter so per-push runs ONLY J-6b specs heavy (real-idp) + prior journeys (J-5/J-6/…) mock-IdP. Infra exists (J-6 T-02b derive-filter) — just wire J-6b's frontmatter + confirm. **DONE:** `mock_test:` set to a Playwright regex alternation over J-6b's 3 spec stems (its specs span 3 feature dirs, so a single dir token would pull prior journeys' specs); the `Derive journey mock-e2e filter` step extended to recognise+validate a regex token by its alternation branches (single-path case unchanged, all fail-safes preserved). Verified locally: the derived filter resolves to exactly J-6b's 12 tests / 3 files, no prior-journey leakage. `parity_test:` (real-idp half) stays the mock spec → `Derive journey proof spec` correctly falls back to the J-0 Locations baseline (J-6b has no real-idp spec until T-17). actionlint-clean.
 - [ ] **T-03** — shared inline-validation infra. `<af-field-errors>` molecule + a shared util/directive renders per-field errors WHILE TYPING, debounced ~200ms (valueChanges debounce, not `updateOn:'blur'`/touched-only). Client-side trivial rules. One molecule + one util; reused by T-06/T-07 and adoptable by other forms later.
 - [ ] **T-04** — reservation `…/validate` endpoint (overlap pre-check). A non-mutating validate path on the Reservation aggregate that runs the EXISTING J-5 aircraft-slot overlap check (the save-time 409) and returns a field-level result. One backend endpoint + reservations aggregate validate method. NO new rule.
 - [ ] **T-05** — planning-day `…/validate` endpoint (uniqueness pre-check). Non-mutating validate path running the EXISTING J-6 (club,date,location) `ux_pln_club_date_loc` check, field-level result. One backend endpoint + planning aggregate validate method. NO new rule.
