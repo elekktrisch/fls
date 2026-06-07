@@ -189,7 +189,11 @@ jobs:
             echo "not an integration/J-NNN branch → J-0 Locations baseline (fail-safe)"
             emit "$BASELINE" "J-0" "true"; exit 0
           fi
-          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          # Select the actual JOURNEY file by its frontmatter `id:`, not by glob
+          # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
+          # also matches `${jid}-*.md` and would otherwise win `head -1`
+          # alphabetically, derailing the derivation.
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
             echo "no journey file for ${jid} → baseline (fail-safe)"
             emit "$BASELINE" "$jid" "true"; exit 0
@@ -198,7 +202,7 @@ jobs:
           # first whitespace, '(', or ';' (the value can carry prose / a second
           # path after a separator). Strip a leading alpenflight/web/ so the path
           # is relative to that working-directory.
-          raw="$(grep -m1 -E '^parity_test:' "$jf" | sed -E 's/^parity_test:[[:space:]]*//')"
+          raw="$(grep -m1 -E '^parity_test:' "$jf" | sed -E 's/^parity_test:[[:space:]]*//' || true)"
           spec="$(printf '%s' "$raw" | sed -E 's/[[:space:](;].*$//' | sed -E 's#^alpenflight/web/##')"
           echo "${jid} parity_test first token → '${spec}'"
           case "$spec" in
@@ -273,7 +277,11 @@ jobs:
             echo "not an integration/J-NNN branch → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
           fi
-          jf="$(ls docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
+          # Select the actual JOURNEY file by its frontmatter `id:`, not by glob
+          # order — a sibling scratch doc (e.g. J-6b-oracle.md, no frontmatter)
+          # also matches `${jid}-*.md` and would otherwise win `head -1`
+          # alphabetically, silently defeating this step's scoping.
+          jf="$(grep -lE "^id:[[:space:]]*${jid}([[:space:]]|$)" docs/modernization/stories/${jid}-*.md 2>/dev/null | head -1 || true)"
           if [ -z "$jf" ] || [ ! -f "$jf" ]; then
             echo "no journey file for ${jid} → full chromium suite (fail-safe)"
             emit "" "true"; exit 0
