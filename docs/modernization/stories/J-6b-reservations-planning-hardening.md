@@ -2,7 +2,8 @@
 id: J-6b
 title: Reservations & Planning hardening + inline form validation
 epic: E-08
-status: in_progress
+status: done
+done_at: 2026-06-07
 journey0: false
 carved: true
 started_at: 2026-06-07

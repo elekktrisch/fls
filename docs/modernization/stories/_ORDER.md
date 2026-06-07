@@ -25,7 +25,7 @@ carved JIT (Mode B, `/do-plan J-NNN`) just before `/do-ship` builds them.
 | J-4 | Profile self-edit | E-06 | J-2 | S-182 | `Person` (self) | `profile/` → `/profile` |
 | J-5 | Aircraft reservations | E-08 | J-1 | S-068, S-069 | `AircraftReservation` | `reservations/` + `reservation-scheduler/` → `/reservations` |
 | J-6 | Planning days + setup | E-08 | J-5, J-2 | S-070, S-071, S-086 | `PlanningDay` | `planning/` → `/planning`, `/planningsetup` |
-| 🔨 **J-6b** | **Reservations & Planning hardening + inline form validation** | E-08 | J-5, J-6 | — (operator field-test polish) | N/A — hardens J-5/J-6 | `/reservations` + `/planning` polish + shared edit-form + nav shell |
+| ✅ **J-6b** | **Reservations & Planning hardening + inline form validation** | E-08 | J-5, J-6 | — (operator field-test polish) | N/A — hardens J-5/J-6 | `/reservations` + `/planning` polish + shared edit-form + nav shell |
 | J-7 | Flight reports | E-07/E-11 | J-2 | S-065, S-093, S-094, S-095, S-096 | N/A (read-side) | `reporting/` → `/flightreports` |
 | J-8 | Accounting rule filters | E-09 | J-1 | S-072 | `AccountingRuleFilter` | `masterdata/accountingRules/` → `/accountingrules` |
 | J-9 | Delivery creation test (rules-engine proof) | E-09 | J-8, J-2 | S-073, S-074, S-075, S-076, S-077, S-079, S-107 | N/A (harness) | `masterdata/deliveryCreationTests/` |
