@@ -621,6 +621,21 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   rider. *(generate-gallery.mjs + ci.yml/fanout `--journey-under-work` wiring)*
 - [x] ~~**T-15** — scope per-push mock-e2e~~ **(retired → pulled forward into T-02b).**
 - [ ] **T-16 — thicken specs to full real assertions** from the oracle; run the §4 gate via `e2e-driver`. *(spec seam)*
+  - [x] **PlanningDayAssignment dropped-day remap (23503 §4-gate fix, surfaced by the fanout, 2026-06-07).**
+    T-11b's keep-first dedupe cleared the 23505, but the next fanout surfaced a DEEPER masked error:
+    `sqlstate=23503` (FK violation) in the J-0c ingest. ROOT CAUSE (diagnosed to file:line): the
+    `PLANNING_DAY` producer SELECT keeps-first per `(ClubId, Day, LocationId)` and DROPS duplicate legacy days,
+    but the `PLANNING_DAY_ASSIGNMENT` SELECT joined assignments to their RAW parent day — so an assignment of a
+    DROPPED day exported a `planning_day_id` with no parent row → `fk_pda_planning_day_id` 23503 at ingest. The
+    real FLSTest fixture triggers it exactly: 'Test' + 'Test2' are BOTH `(Club, GETDATE()+1, LSZK)` — one is
+    dropped, both carry assignments. FIX (`MapperLegacyBindings.java`): the assignment SELECT now REMAPS each
+    assignment's `planning_day_id` onto the SURVIVING (kept-first) day via `FIRST_VALUE(PlanningDayId) OVER
+    (PARTITION BY ClubId, Day, LocationId ORDER BY CreatedOn, PlanningDayId)` — the same keep-first ordering, so
+    every exported assignment points at a day that WILL exist post-dedupe (semantically lossless: the dropped
+    dup's crew attaches to the one kept day). Locked behaviorally: extended `PlanningDayProducerDedupeIT` with an
+    assignment-on-dropped-dup case (asserts the SELECT projects the survivor's id), a structural guard in
+    `MapperLegacyBindingsTest` (FIRST_VALUE remap present), allow-listed `PlanningDayAssignments` in
+    `FixtureTableNamingConventionTest`. `:migration-bundle:test` GREEN locally (binding + contract). *(migration-bundle producer SELECT)* [[project_synth_bundle_doesnt_validate_producer_select]]
   - [x] **thicken the 6 real-idp fixme cases to full real assertions (§4 done-gate, 2026-06-07).** Un-fixme'd
     every remaining `test.fixme` in `tests/real-idp/planning-migration-parity.spec.ts` → ALL 10 cases now run
     FULLY REAL (no mocks; Mocked-seams list EMPTY). (1) **duplicate (date,location) → 409** (`planning.day.duplicate`,

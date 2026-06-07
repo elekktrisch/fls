@@ -936,17 +936,44 @@ public final class MapperLegacyBindings {
                     // PLANNING_DAY; assignment_type_id → PLANNING_DAY_ASSIGNMENT_TYPE — all
                     // resolved through their own id-maps. Remarks → info. Legacy ASP.NET
                     // artifacts dropped.
+                    //
+                    // PARENT-DEDUPE REMAP (J-6 T-16, the 23503 fix): the PLANNING_DAY
+                    // producer above keeps-first per (ClubId, Day, LocationId) and DROPS the
+                    // duplicate legacy days, so a dropped day's GUID never lands in
+                    // t_planning_day. The real legacy FLSTest fixture has TWO planning days
+                    // ('Test'/'Test2') on the SAME (Club, GETDATE()+1, LSZK) — one is
+                    // dropped — yet BOTH carry assignments. Exporting an assignment whose
+                    // AssignedPlanningDayId is the dropped day would INSERT a
+                    // planning_day_id that has no parent row → fk_pda_planning_day_id
+                    // violation (sqlstate 23503, the masked INGEST_INTERNAL_ERROR the §4
+                    // fanout surfaced once 23505 cleared). So we REMAP each assignment's
+                    // planning_day_id onto the SURVIVING (kept-first) day for its parent's
+                    // (ClubId, Day, LocationId) — the same ROW_NUMBER() keep-first the
+                    // PLANNING_DAY SELECT uses — so every exported assignment points at a
+                    // day that WILL exist post-dedupe. Semantically lossless: the survivor
+                    // IS that (club, date, location) planning day; the dropped duplicate's
+                    // crew simply attaches to the one kept day.
                     PortPolicy.FULL_PORT,
                     """
                     SELECT pda.PlanningDayAssignmentId,
                            pd.ClubId AS OperatingClubId,
-                           pda.AssignedPlanningDayId, pda.AssignedPersonId,
+                           kept.KeptPlanningDayId AS AssignedPlanningDayId,
+                           pda.AssignedPersonId,
                            pda.AssignmentTypeId, pda.Remarks,
                            pda.CreatedOn, pda.CreatedByUserId,
                            pda.ModifiedOn, pda.ModifiedByUserId,
                            pda.DeletedOn, pda.DeletedByUserId
                     FROM PlanningDayAssignments pda
                     JOIN PlanningDays pd ON pd.PlanningDayId = pda.AssignedPlanningDayId
+                    JOIN (
+                        SELECT ClubId, Day, LocationId,
+                               FIRST_VALUE(PlanningDayId) OVER (
+                                   PARTITION BY ClubId, Day, LocationId
+                                   ORDER BY CreatedOn, PlanningDayId
+                               ) AS KeptPlanningDayId,
+                               PlanningDayId
+                        FROM PlanningDays
+                    ) kept ON kept.PlanningDayId = pda.AssignedPlanningDayId
                     """,
                     "t_planning_day_assignment",
                     // Non-fan-out FULL_PORT: legacy_guid → id. 12 params match

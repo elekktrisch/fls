@@ -45,6 +45,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * dialect-portable (the live legacy MSSQL T-SQL and this Postgres container
  * evaluate it identically); the round-trip ingest of the deduped output is
  * proven by {@link PlanningDayMigrationRoundTripIT}.
+ *
+ * <p><strong>J-6 T-16 — the 23503 follow-on.</strong> Once the dedupe cleared the
+ * 23505, the §4 fanout surfaced a DEEPER masked error: {@code sqlstate 23503}
+ * (FK violation). The real legacy FLSTest fixture has TWO planning days
+ * ('Test'/'Test2') on the SAME {@code (Club, GETDATE()+1, LSZK)} — one is dropped
+ * by the dedupe — yet BOTH carry assignments. An assignment of the DROPPED day
+ * would INSERT a {@code planning_day_id} with no parent row →
+ * {@code fk_pda_planning_day_id} violation. The {@code PLANNING_DAY_ASSIGNMENT}
+ * producer SELECT therefore REMAPS each assignment's {@code planning_day_id} onto
+ * the SURVIVING (kept-first) day for its parent's {@code (ClubId, Day, LocationId)}.
+ * The second test here seeds an assignment on the dropped dup and asserts the
+ * producer SELECT projects the SURVIVOR's id — locking the remap behaviourally so
+ * a regression can't silently reintroduce the 23503.
  */
 @Tag("slow")
 class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
@@ -96,6 +109,7 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
 
     @AfterEach
     void dropStagingTable() {
+        jdbc.execute("DROP TABLE IF EXISTS PlanningDayAssignments");
         jdbc.execute("DROP TABLE IF EXISTS PlanningDays");
     }
 
@@ -127,6 +141,65 @@ class PlanningDayProducerDedupeIT extends PostgresIntegrationTest {
         assertThat(survivorsForDupKey)
                 .as("exactly one survivor for the duplicated (ClubId, Day, LocationId) key")
                 .isEqualTo(1L);
+    }
+
+    @Test
+    void assignmentSelectRemapsAssignmentsOfDroppedDaysOntoTheKeptFirstSurvivor() {
+        // A legacy-shaped PlanningDayAssignments staging table (no own ClubId — the
+        // real DBUpdate_v1.0.1 DDL; operating_club_id is JOIN-denormalised). Seed
+        // TWO assignments: one on the kept-first survivor, one on the DROPPED later
+        // dup. The producer SELECT must project BOTH with planning_day_id ==
+        // the SURVIVOR's id (the dropped day's assignment is remapped) — so neither
+        // FK-violates fk_pda_planning_day_id at ingest.
+        jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS PlanningDayAssignments (
+                    PlanningDayAssignmentId UUID PRIMARY KEY,
+                    AssignedPlanningDayId   UUID NOT NULL,
+                    AssignedPersonId        UUID,
+                    AssignmentTypeId        UUID,
+                    Remarks                 TEXT,
+                    CreatedOn               TIMESTAMP NOT NULL,
+                    CreatedByUserId         UUID,
+                    ModifiedOn              TIMESTAMP,
+                    ModifiedByUserId        UUID,
+                    DeletedOn               TIMESTAMP,
+                    DeletedByUserId         UUID
+                )
+                """);
+        jdbc.update("DELETE FROM PlanningDayAssignments");
+        UUID onSurvivor = UUID.randomUUID();
+        UUID onDroppedDup = UUID.randomUUID();
+        insertAssignment(onSurvivor, dupKeepFirstId);
+        insertAssignment(onDroppedDup, dupLaterId);
+
+        String select = MapperLegacyBindings.selectForProducer(EntityType.PLANNING_DAY_ASSIGNMENT);
+        List<Map<String, Object>> rows = jdbc.queryForList(select);
+
+        assertThat(rows)
+                .as("both assignments are exported (none dropped) — the dropped-day "
+                        + "assignment is REMAPPED, not discarded")
+                .hasSize(2);
+        for (Map<String, Object> row : rows) {
+            UUID assignmentId = UUID.fromString(row.get("planningdayassignmentid").toString());
+            UUID parentDay = UUID.fromString(row.get("assignedplanningdayid").toString());
+            assertThat(parentDay)
+                    .as("assignment %s must point at the kept-first survivor day "
+                            + "(not the dropped dup %s) — else fk_pda_planning_day_id "
+                            + "23503s at ingest", assignmentId, dupLaterId)
+                    .isEqualTo(dupKeepFirstId);
+        }
+    }
+
+    private void insertAssignment(UUID id, UUID planningDayId) {
+        jdbc.update("""
+                INSERT INTO PlanningDayAssignments
+                    (PlanningDayAssignmentId, AssignedPlanningDayId, AssignedPersonId,
+                     AssignmentTypeId, Remarks, CreatedOn, CreatedByUserId,
+                     ModifiedOn, ModifiedByUserId, DeletedOn, DeletedByUserId)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL)
+                """,
+                id, planningDayId, UUID.randomUUID(), UUID.randomUUID(), "crew",
+                Timestamp.valueOf("2020-01-01 08:00:00"));
     }
 
     private void insertRow(UUID id, UUID location, Timestamp createdOn, String remarks) {

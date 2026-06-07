@@ -932,6 +932,22 @@ class MapperLegacyBindingsTest {
         assertThat(upper)
                 .as("the parent's ClubId is aliased AS OperatingClubId on the cursor")
                 .contains("AS OPERATINGCLUBID");
+        // J-6 T-16 (the 23503 fix): the PLANNING_DAY SELECT keeps-first per
+        // (ClubId, Day, LocationId) and DROPS duplicate days, so an assignment of a
+        // dropped day would FK-violate (fk_pda_planning_day_id, 23503) at ingest.
+        // The assignment SELECT must REMAP planning_day_id onto the SURVIVING
+        // (kept-first) day for its parent's (ClubId, Day, LocationId) — the same
+        // FIRST_VALUE/ROW_NUMBER keep-first ordering — so every exported assignment
+        // points at a day that WILL exist post-dedupe. Pin it so a future edit can't
+        // drop the remap and silently reintroduce the 23503.
+        assertThat(upper.replaceAll("\\s+", " "))
+                .as("the assignment SELECT remaps planning_day_id onto the kept-first "
+                        + "survivor per (ClubId, Day, LocationId) — else a dropped-day "
+                        + "assignment FK-violates (23503) at ingest")
+                .contains("FIRST_VALUE(PLANNINGDAYID) OVER")
+                .contains("PARTITION BY CLUBID, DAY, LOCATIONID")
+                .contains("ORDER BY CREATEDON, PLANNINGDAYID")
+                .contains("AS ASSIGNEDPLANNINGDAYID");
     }
 
     @Test
