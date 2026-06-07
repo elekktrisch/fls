@@ -2,9 +2,10 @@
 id: J-6b
 title: Reservations & Planning hardening + inline form validation
 epic: E-08
-status: todo
+status: in_progress
 journey0: false
 carved: true
+started_at: 2026-06-07
 depends_on: [J-5, J-6]
 rolls_up: []   # operator field-test polish, not horizontal S-stories
 acceptance:
@@ -22,7 +23,8 @@ acceptance:
   - "[happy] Planning → edit planning-day → open a reservation from the inline list → Cancel → returns to the planning-day edit form (not the /reservations overview)"
   # Cross-cutting platform polish
   - "[happy] date inputs + date display render DD.MM.YYYY"
-  - "[happy] EVERY aggregate list has ≥1 row for EVERY testuser — enumerate all aggregates, seed any found empty (Persons was empty for clubadmin1; sweep the rest, not just the named example)"
+  - "[happy] the flights-list date-range picker works — selecting a from–to range filters the list (operator: currently broken)"
+  - "[happy] EVERY aggregate list has ≥1 row for EVERY testuser — found EMPIRICALLY: seed the dev DB, then run a SELECT count per aggregate-table per testuser/club to find the actual empties, seed those (don't hand-enumerate; let the SELECTs tell the truth)"
   - "[happy] clubadmin1 opens the Users menu and the list renders (no 400 Bad Request)"
   - "[edge] clubadmin1 does NOT see a 'Clubs' nav entry"
 screen: /reservations + /planning (hardening of J-5/J-6) + the shared edit-form + nav shell
@@ -104,14 +106,45 @@ no near-term same-surface journey.
 - `shared/ui/organisms/af-date-picker/` + date display pipe — DD.MM.YYYY (one organism + the pipe).
 - Nav role-gating: wherever the `af-nav-bar` `items()` list is assembled (the app shell) — add `Reservations`, gate `Clubs` by role/tenant (ADR 0008). `af-nav-bar.component.ts` itself just renders `items()`; the gating is upstream.
 - Users list 400 for clubadmin1 — `features/users/` store/page query (likely a role/tenant param the clubadmin1 principal sends differently); diagnose at ship time, it may be backend.
-- Dev seed: the V-series `*_dev_*_seed.sql` — **full sweep**: enumerate every aggregate (Person, Aircraft, Location, Flight, AircraftReservation, PlanningDay, AccountingRuleFilter, Article, EmailTemplate, …) and ensure ≥1 row for EVERY testuser (clubadmin/clubadmin1/clubadmin2/pilot/…); Persons was the known-empty case but seed any aggregate found empty, not just Persons. The seam's DoD is "no testuser opens a list to an empty table for an aggregate they should own."
+- Dev seed: the V-series `*_dev_*_seed.sql` — **empirical full sweep, NOT analytical enumeration** (operator
+  2026-06-07): boot the dev DB with the current seed, then run a `SELECT count(*) … GROUP BY club/owner` per
+  aggregate table for each testuser/club (one query loop over `information_schema` t_* tables or an explicit
+  per-table sweep) — let the SELECTs report which (testuser × aggregate) cells are empty, then add seed rows
+  for exactly those. Persons-for-clubadmin1 was the one symptom the operator saw; the truth of the rest comes
+  from the counts, not a guessed list. DoD: re-run the count sweep → zero empty cells for any aggregate a
+  testuser should own.
 
 **Pending _BOYSCOUT riders touching this surface** (so `/do-ship` folds them into the ≤40%):
 - *Cascade-delete asserted only indirectly* (J-6 T-16, "rides the next planning touch") — this IS a planning touch; add the assertion that a deleted day's assignments are excluded from reads.
 - *Producer dedupe soft-delete-blind* (J-6 T-11b/T-16) — only if a task touches the PlanningDay producer SELECT; this journey nominally doesn't, so likely defer (note, don't force).
 - Generic infra riders available for the ≤40% fill (operator/`/do-ship` choose): structural post-deploy proof-gallery guard, un-mask migration-ingest constraint in dev/test, CI fail-aggregate, per-journey gallery shot-presence guard.
 
-**Sacred cows / open calls for ship-time `legacy-oracle`:** exact set of server-validated
-rules per form (which fields are async-validated in legacy vs purely client); whether
-clubadmin1's Users-400 is an authz scope bug or a missing query param; the legacy date
-format confirmation (DD.MM.YYYY is the DE/CH convention, but confirm the picker + display).
+**Sacred cows / open calls for ship-time `legacy-oracle`:** RESOLVED — see `J-6b-oracle.md`.
+Key: legacy has no async server validators; the server-validate endpoint pre-checks AlpenFlight's
+EXISTING J-5 overlap-409 + J-6 uniqueness constraints inline (no new rule). DD.MM.YYYY confirmed
+hardcoded in legacy. Clubs-hide is a NEW operator decision (legacy shows it to all). Users-400 is
+NOT authz (diagnose request-shape/BE). Day/Week calendar is greenfield (no legacy parity).
+
+## Tasks
+
+Behavior oracle: `J-6b-oracle.md` (worker input; pruned at §5). FE seam map baked into scopes below.
+
+- [ ] **T-01** — spec stub + scaffold the J-6b proof-gallery page. Author `e2e/tests/` J-6b spec skeleton (selectors + flow for: reservations nav+toggle+paging, planning readonly/edit, inline validation, date format, nav gating) with thin assertions; scaffold the per-journey gallery page linked from the persistent index. Calendar is greenfield (AlpenFlight-only shots); edit forms can pair legacy where a legacy ref exists.
+- [ ] **T-02** — scope the per-push gate to J-6b. Set the journey's `mock_test:`/`parity_test:` frontmatter so per-push runs ONLY J-6b specs heavy (real-idp) + prior journeys (J-5/J-6/…) mock-IdP. Infra exists (J-6 T-02b derive-filter) — just wire J-6b's frontmatter + confirm.
+- [ ] **T-03** — shared inline-validation infra. `<af-field-errors>` molecule + a shared util/directive renders per-field errors WHILE TYPING, debounced ~200ms (valueChanges debounce, not `updateOn:'blur'`/touched-only). Client-side trivial rules. One molecule + one util; reused by T-06/T-07 and adoptable by other forms later.
+- [ ] **T-04** — reservation `…/validate` endpoint (overlap pre-check). A non-mutating validate path on the Reservation aggregate that runs the EXISTING J-5 aircraft-slot overlap check (the save-time 409) and returns a field-level result. One backend endpoint + reservations aggregate validate method. NO new rule.
+- [ ] **T-05** — planning-day `…/validate` endpoint (uniqueness pre-check). Non-mutating validate path running the EXISTING J-6 (club,date,location) `ux_pln_club_date_loc` check, field-level result. One backend endpoint + planning aggregate validate method. NO new rule.
+- [ ] **T-06** — reservation-edit adopts inline validation. Client `required` on Date/Type/Pilot/Aircraft/Location + conditional Second-Crew (per oracle) while-typing via T-03; async overlap-validate via T-04 surfaced inline. `reservations/edit/reservation-edit.page.ts`.
+- [ ] **T-07** — planning-edit adopts inline validation. Client `required` on Date/Location while-typing via T-03; async uniqueness-validate via T-05 inline. `planning/edit/planning-edit.page.ts`.
+- [ ] **T-08** — reservations calendar: toggle + pager + label (items #2,#3). `reservations/calendar/reservations-calendar.page.ts`: (a) reproduce the "blacked-out" selected toggle on the deployed page, align selected styling to ADR-0024/design (legible); (b) pager granularity follows view — DAY view steps ±1 day, WEEK view steps ±7 (today `shiftWeek` always steps 7); (c) period label follows view + formats DD.MM.YYYY (day) / DD.MM.YYYY – DD.MM.YYYY (week) (today `weekSubtitle` is locale `3 Jan – 9 Jan`). One component.
+- [ ] **T-09** — planning read-only + Edit toggle (items #10,#11). `planning/edit/planning-edit.page.ts`: the operator saw an editable read-only form though `form.disable()` runs on `isView()` — reproduce + find why (route never enters view-mode? disabled styling invisible? a control ignoring `disable`?); ensure ALL fields are visibly read-only AND add an "Edit" affordance to switch view→edit. One component.
+- [ ] **T-10** — reservation Cancel returns to planning day (item #9). `reservations/edit/reservation-edit.page.ts` Cancel honors a `returnUrl` query param (today hardcodes `/reservations`); the planning inline `<af-reservation-row>` `[openLink]` passes `returnUrl=/planning/:id/edit`. One component + the call-site.
+- [ ] **T-11** — nav gating (items #1,#8). `app.component.ts`: add `{ path:'/reservations', label:'Reservations', icon:'calendar' }` to `TENANT_SECTIONS`; make `/clubs` sysadmin-only (remove from the non-sysadmin `base` so club-admins don't see it). One component.
+- [ ] **T-12** — date format DD.MM.YYYY (item #5). `shared/ui/organisms/af-date-picker` set `dd.MM.yyyy` on single + range pickers; align date display pipes to `dd.MM.yyyy` across touched templates. One organism + pipes.
+- [ ] **T-13** — flights-list date-range picker fix (item #12, NEW). `features/flights/list/` — the date-range picker doesn't filter; diagnose (likely the `date-value-bridge` range model / af-date-picker range mode) + fix so a from–to range filters the list. Shares the af-date-picker organism with T-12 — order after it. One component/seam.
+- [ ] **T-14** — dev-seed empirical sweep (item #6). Boot dev DB with current seed, run a `SELECT count(*)` sweep per `t_*` aggregate per testuser/club, seed exactly the empty cells (Persons-for-clubadmin1 was the symptom). New V-series `*_dev_*_seed.sql`. DoD: re-run sweep → zero empty cells.
+- [ ] **T-15** — users-list 400 for club-admin (item #7). `features/users/` — diagnose the 400 for clubadmin1 (NOT authz per oracle; request-shape or BE query); fix so the list loads. May span FE param + backend; escalate only if a contract change is needed.
+- [ ] **T-16** — planning cascade-delete assertion (rider, _BOYSCOUT J-6 T-16). Assert a deleted planning-day's `t_planning_day_assignment` rows are excluded from reads (the [key-error] delete proves the day leaves the list but never that assignments are gone). Spec/IT assertion.
+- [ ] **T-17** — thicken the J-6b spec to full real assertions (all 14 ACs) + finalize gallery pairing + capture/commit any legacy reference shots for the edit forms. Final task.
+
+**Riders cleared from `_BOYSCOUT.md` by this journey:** cascade-delete assertion (→T-16). Producer-dedupe-soft-delete-blind stays (no producer-SELECT touch here). Generic infra riders (gallery guard, un-mask constraint, CI fail-aggregate, shot-presence guard) NOT pulled — defer to a journey that naturally touches that infra.
