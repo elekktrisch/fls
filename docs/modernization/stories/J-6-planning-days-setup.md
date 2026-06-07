@@ -456,6 +456,11 @@ Grounded in `flsserver/` (cited). Load-bearing facts the tasks build against:
   >   notifications/run` run-now affordance (dev/test-profile + ClubAdmin gate, audited); `PlanningDayNotificationJobIT`
   >   (ok-vs-cancel day+1, assignee day+7) asserting against the captured outbox from T-10a. *(job + affordance seam)*
   > Chain: **T-10a → T-10b → T-10c** (10c depends on both). No code committed for T-10. Returning overflow to the manager.
+- [ ] **T-13 — pull J-6 proof captures forward (operator priority, 2026-06-07).** Thicken the real-idp parity
+  spec's **clean-seed happy path** (list renders seeded days, create a planning day, edit crew, setup wizard)
+  so it runs GREEN against the real-idp stack + captures screenshots/video that DEPLOY to the J-6 gallery page
+  (currently empty — all-fixme). Add paired legacy↔AlpenFlight list/form shots where the harness allows. Goal:
+  the operator can click the J-6 page and SEE the screens. Full assertion-thickening + migrated-parity stays T-16. *(e2e-driver, capture+deploy)* [[feedback_surface_proof_early_on_repeated_failure]]
 - [ ] **T-11 — wire migration bindings + real round-trip.** `MapperLegacyBindings` for the 3 PlanningDay
   mappers + producer SELECT; legacy seed for the fanout; prove the real export round-trip. *(migration seam)*
 - [ ] **T-12 — early mapper-binding contract check (rider).** Build-time binding-presence + producer-SELECT-column
