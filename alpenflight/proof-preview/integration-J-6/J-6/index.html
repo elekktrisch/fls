@@ -129,11 +129,11 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <header>
     <h1>J-6 — proof</h1>
     <p class="meta">
-      <span class="summary-jid">J-6</span> <span class="status success">4 proofs</span> <span class="summary-counts">4 videos · 6 screenshots</span>
+      <span class="summary-jid">J-6</span> <span class="status success">6 proofs</span> <span class="summary-counts">6 videos · 6 screenshots</span>
     </p>
     <p class="meta">
       Green <code>real-idp</code> proof pass-videos + paired legacy &harr; AlpenFlight screenshots
-      for this journey. Generated on <code>211/merge</code> &middot; 2026-06-07T15:30:36.508Z
+      for this journey. Generated on <code>211/merge</code> &middot; 2026-06-07T16:08:37.660Z
     </p>
     <p class="meta back-link" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a> &middot;
@@ -144,20 +144,28 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   <section class="journey-page">
         <div class="proofs">
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-f812683ff26c81713dd21558bd989dc5d1eea08b.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-4f267b53bed1fe04f2de62d08969195d1de9b92f.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · a club admin logs in via real Keycloak and creates a planning day (date · location · instructor / tow-pilot / flight-operator · remarks) THROUGH THE UI — it renders in the /planning future-days list (real backend round-trip)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-768ead48231779f77f2189519f3d37f330bd2ccf.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-e4bb40fbff756390e3a389498d50266c3b87aa56.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · editing a planning day’s crew assignments persists and reflects on reopen (real PUT round-trip over the generic typed-assignment rows)</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-864f010e3fb287bd9cb8d36493959257bd65c9ae.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-0c80137fe8b0993e33f74e0f91edcde16ddf191f.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning · the inline AircraftReservations list appears the moment a date + location are picked on a NEW (unsaved) planning day — a real J-5 AircraftReservation seeded on that exact date + location surfaces through the read-side join (club + date + location) as an &lt;af-reservation-row&gt;, NO save required (the deliberate improvement over legacy’s saved-day gate); the same list also shows on the saved day’s edit form</span></figcaption>
         </figure>
         <figure class="proof">
-          <video controls preload="metadata" src="../videos/proof-video-39f1878b494a1909ff4ede44d7cdf3b4d257a3cf.webm"></video>
+          <video controls preload="metadata" src="../videos/proof-video-3c61980da5920ef351c84c505c2a2bbe497062b4.webm"></video>
           <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning setup · the wizard bulk-creates planning days across a date range filtered by weekday (every Sat+Sun between start/end) at a location; the created days appear in the /planning list (real rule-expand endpoint)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-96183507993b40bf81dbe2ed6220047c355bd1ec.webm"></video>
+          <figcaption><span class="status failure">key-error</span><span class="caption">J-6 · planning · deleting a planning day (kebab → confirm) cascade-deletes its 3 crew assignments and the day leaves the future-days list (V4 ON DELETE CASCADE); a real low-privilege PILOT — neither club admin nor the record creator — is FORBIDDEN (403) from deleting it (the admin-or-creator gate, proven with a real low-priv principal)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="../videos/proof-video-b3d9e9f653d1fdc8c35bc41f5291c88a2835c36a.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6 · planning notifications · running the PlanningDayNotificationJob (the guarded run-now affordance) mails the imminent (day+1) planning-day status to the club’s notification address (planningday-ok, the day has a reservation) and a week-ahead (day+7) reminder to each of the 3 assigned crew members — all land in mailpit (real job, real SMTP)</span></figcaption>
         </figure>
         </div>
         <div class="parity-screenshots">
