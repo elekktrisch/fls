@@ -45,6 +45,30 @@ genuinely new vertical feature scope.
   them for free. (Applied retroactively to J-6: pulled forward as T-01b proof-page scaffold + T-02b prior-
   journeys→mock-IdP, run before the feature backend continues.)
 
+- **🔁 The proof-previews INDEX keeps regressing the operator's bookmark — fragile gallery plumbing (operator flag, J-6 ship 2026-06-07).**
+  The persistent index (`…/alpenflight/previews/index.html`) has now broken ≥3 distinct ways across journeys:
+  J-4 T-24 (per-active-branch only → showed just the open branch), T-37 (narrowed the branch probe to
+  `legacy-parity/` only → silently hid the per-push clean-seed per-journey page, so J-6 read `pending` on the
+  bookmark all day until T-13b), AND **canonical `proof/J-2…J-5/` 404** (only J-0/J-0c/J-1 were ever published
+  canonically → merged journeys aren't on the bookmark either). Each fix is a point patch; the path-matching
+  between three deploy schemes (per-push clean-seed `proof-preview/<b>/J-n/`, fanout
+  `proof-preview/<b>/legacy-parity/J-n/`, canonical `proof/J-n/`) is brittle and keeps drifting. **For /do-retro:**
+  (a) add an END-TO-END guard — after a per-push proof deploy, assert the journey-under-work is actually a LIVE
+  LINK on the DEPLOYED index (the unit test passed while the deployed page stayed `pending` because deploy-path
+  and probe-path drift independently); (b) backfill canonical `proof/J-2…J-5/` per-journey pages (gallery re-arch
+  debt, T-14 family); (c) consider collapsing the three deploy schemes to one convention so the probe can't drift.
+  [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+
+- **🖼️ Paired legacy↔AlpenFlight parity screenshots come ONLY from the nightly/dispatch FANOUT — missing per-push during dev (operator flag, J-6 ship 2026-06-07).**
+  "Surface proof early" is only half-met: per-push deploys the AlpenFlight pass-VIDEOS (real screens), but the
+  **paired legacy↔AlpenFlight side-by-side screenshots** (the done-bar demonstrability) are staged ONLY by the
+  heavy `alpenflight-proof-fanout.yml` (nightly + workflow_dispatch). So the operator opens the J-6 page mid-dev,
+  sees AlpenFlight videos but **no legacy pairing**, until the §4 gate. **For /do-retro:** make paired-legacy
+  capture available EARLIER — fold a cheap legacy-parity capture into the per-push proof for the journey-under-work,
+  OR make the standard proof-page slots (T-01b/T-13) explicitly author + trigger the legacy parity capture so the
+  paired shots land with the first screens. At minimum the proof page should SAY "legacy pairing pending — runs at
+  gate" rather than silently omitting it. [[feedback_demonstrable_proof_prefer_ui]] [[feedback_surface_proof_early_on_repeated_failure]]
+
 ## Pending (filed by /do-retro 2026-06-06, J-5 window)
 
 - ~~**Scope the per-push `alpenflight-mock-e2e` gate to the journey-under-work (dev-time test strategy).**~~ **Shipped J-6 T-02b.** Mirrored J-5 T-14's real-idp scoping for the mock half: a new `mock_test:` journey-frontmatter field + a `changes`-job "Derive journey mock-e2e filter" step derives the journey-under-work's `tests/<feature>/` filter off the integration branch; the `alpenflight-mock-e2e` "Run Playwright" step passes it to `--project=chromium`, so per-push runs ONLY that journey's own mock specs (J-6 → its 11 `tests/planning/` specs, verified via `--list`). The J-5-articles-crud hostage case can no longer red an unrelated journey's `required`. FAIL-SAFE: a non-integration branch / no `mock_test:` frontmatter / underivable filter → `mock_is_full=true` → the FULL chromium suite runs (pre-T-02b baseline), never a no-spec run. Full cross-journey mock regression stays nightly (`alpenflight-e2e.yml` main-push) + the §4 do-ship gate. actionlint-clean. `required` aggregator unchanged (skipped→success). *(seam: ci.yml mock-e2e spec selection + journey `mock_test:` frontmatter)* [[feedback_dev_time_test_strategy]]
