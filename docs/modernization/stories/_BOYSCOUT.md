@@ -12,7 +12,17 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
-## Retro-process flags (for the NEXT /do-retro to adjudicate — not code riders)
+## Retro-process flags
+
+**✅ Adjudicated + encoded by /do-retro (J-6 window, 2026-06-07)** — the four flags below were resolved this
+retro; kept for trace. (1) **Squash-merge branch handoff** → encoded in `/do-plan` §4 (squash-merge guard:
+base on `origin/main` + cherry-pick the retro's net commit). (2) **T-01/T-02 standard slots** → encoded in
+`/do-ship` §2 default decomposition (T-01 scaffolds the proof page; T-02 moves prior journeys to mock-IdP).
+(3) **Proof-index fragility + verify-the-deployed-artifact** → encoded in `/do-ship` §4 (ONE-source gallery
+model) + `e2e-driver` (verify the DEPLOYED page, never the unit test) + the structural post-deploy guard rider
+below. (4) **Paired shots only at the fanout** → resolved by the J-6 T-17 capture-legacy-once-and-commit model
+(now the standard in `/do-ship` §4 + `e2e-driver`). The original flag text follows.
+
 
 - **🔁 The retro→new-carve branch handoff is rough — 5th time running (operator flag, J-6 carve 2026-06-06).**
   Every cycle, starting the next journey's `integration/J-NNN` off the `/do-retro` output is friction-y.
@@ -68,6 +78,24 @@ genuinely new vertical feature scope.
   OR make the standard proof-page slots (T-01b/T-13) explicitly author + trigger the legacy parity capture so the
   paired shots land with the first screens. At minimum the proof page should SAY "legacy pairing pending — runs at
   gate" rather than silently omitting it. [[feedback_demonstrable_proof_prefer_ui]] [[feedback_surface_proof_early_on_repeated_failure]]
+
+## Pending (filed by /do-retro 2026-06-07, J-6 window)
+
+- **Structural post-deploy proof-gallery guard (operator grill, J-6 retro).** CI machinery, not procedure:
+  after the per-push proof deploys, a job asserts the **journey-under-work's bookmark row is a LIVE LINK** AND
+  **every declared asset (videos + paired screenshots) resolves 200 on the DEPLOYED page** — fails the proof
+  job otherwise. The unit/generator tests passed ~4× this journey while the deployed page was wrong (wrong probe
+  path, freshest-wins linking the thinner page); a procedure rule kept failing, so this must be structural.
+  *(seam: a new deployed-gallery-guard step/spec the proof + fanout jobs run post-deploy — extends the existing
+  `proof-gallery-links` deployed-link-check to also assert the journey-under-work page is linked + complete)*
+  [[feedback_surface_proof_early_on_repeated_failure]] [[feedback_proof_gallery_per_journey_one_bookmark]]
+- **Un-mask the migration-ingest constraint in dev/test (operator grill, J-6 retro).** The bundle-ingest path
+  catches the JDBC `SQLException` and returns only `{"detail":"Database error during ingest [sqlstate=23505]",
+  "errorCode":"INGEST_INTERNAL_ERROR"}` — the real constraint name (`ux_pln_club_date_loc`, the FK name) is
+  buried in the server log. In dev/test profiles, include the constraint name in the error body/detail so a
+  fanout red is diagnosable without server-log archaeology (J-6 23505/23503 each cost a log-dig). Keep prod
+  masked. *(seam: MigrationBundleIngestService catch → dev/test constraint-name surfacing)*
+  [[project_synth_bundle_doesnt_validate_producer_select]]
 
 ## Pending (filed by /do-ship 2026-06-07, J-6 gate — gap-hunter suspects)
 
