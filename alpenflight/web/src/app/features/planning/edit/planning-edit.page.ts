@@ -317,6 +317,7 @@ type PlanningForm = FormGroup<{
                     [reservation]="r"
                     [aircraftLabel]="immat(r.aircraftId)"
                     [openLink]="['/reservations', r.id, 'edit']"
+                    [openQueryParams]="reservationReturnParams()"
                     [openLabel]="t('reservations.open')"
                     testIdPrefix="planning-reservation"
                   />
@@ -356,6 +357,15 @@ export class PlanningEditPage {
   // Read-only → edit target (T-09): the same day's `/edit` route, or null in
   // create mode (no saved id to edit). Pure-derived so it's unit-testable.
   protected readonly editLink = computed(() => planningEditLink(this.planningId()));
+  // Query params handed to the inline reservation rows' open-link (T-10): a
+  // `returnUrl` pointing at THIS planning-day's current url (view OR edit), so
+  // the reservation editor's Cancel returns the user exactly here, not to the
+  // /reservations overview. `null` in create mode (no saved id, no day url to
+  // return to). Pure-derived → unit-testable via `planningDayLink`.
+  protected readonly reservationReturnParams = computed<Record<string, string> | null>(() => {
+    const returnUrl = planningDayLink(this.planningId(), this.mode());
+    return returnUrl === null ? null : { returnUrl };
+  });
 
   protected readonly form: PlanningForm = this.fb.group({
     planningDate: this.fb.nonNullable.control('', [Validators.required]),
@@ -560,6 +570,17 @@ function detailToFormValue(d: PlanningDayDetail): Partial<{
  */
 export function planningEditLink(id: string | null): string | null {
   return id === null ? null : `/planning/${id}/edit`;
+}
+
+/**
+ * The planning-day route URL for `id` in the given `:mode` (`view`/`edit`) — the
+ * page the user is currently on. Handed to the inline reservation rows as a
+ * `returnUrl` so the reservation editor's Cancel returns exactly here (J-6b
+ * T-10). `null` in create mode (no saved id → no day url to return to). Pure →
+ * unit-tested without a `TestBed`.
+ */
+export function planningDayLink(id: string | null, mode: string): string | null {
+  return id === null ? null : `/planning/${id}/${mode}`;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { planningEditLink, uniquenessProbe } from './planning-edit.page';
+import { planningDayLink, planningEditLink, uniquenessProbe } from './planning-edit.page';
 
 describe('uniquenessProbe (T-07 planning-day …/validate request builder)', () => {
   const DATE = '2026-07-04';
@@ -36,5 +36,19 @@ describe('planningEditLink (T-09 read-only → edit navigation target)', () => {
   it('builds the same day’s /edit route so view→edit flips :mode to edit', () => {
     const id = '019e30c3-2c00-7001-8000-000000000e01';
     expect(planningEditLink(id)).toBe(`/planning/${id}/edit`);
+  });
+});
+
+describe('planningDayLink (T-10 reservation cancel returnUrl)', () => {
+  const id = '019e30c3-2c00-7001-8000-000000000e01';
+
+  it('returns null in create mode (no saved id → no day url to return to)', () => {
+    expect(planningDayLink(null, 'edit')).toBeNull();
+    expect(planningDayLink(null, 'view')).toBeNull();
+  });
+
+  it('builds the current day url for the active mode (edit or view)', () => {
+    expect(planningDayLink(id, 'edit')).toBe(`/planning/${id}/edit`);
+    expect(planningDayLink(id, 'view')).toBe(`/planning/${id}/view`);
   });
 });

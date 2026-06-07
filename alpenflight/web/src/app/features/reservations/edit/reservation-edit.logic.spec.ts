@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { overlapProbe, secondCrewRequiredFor } from './reservation-edit.page';
+import { overlapProbe, sanitizeReturnUrl, secondCrewRequiredFor } from './reservation-edit.page';
 
 const AC_ID = 'ac-019e30c3-2c00-7001-8000-00000000a001';
 const RES_ID = 'res-019e30c3-2c00-7001-8000-000000000001';
@@ -66,5 +66,29 @@ describe('reservation-edit overlap probe (T-06)', () => {
 describe('reservation-edit conditional second-crew (T-06 @partial)', () => {
   it('is not required today — the driving type/aircraft flags are not on the picker projections', () => {
     expect(secondCrewRequiredFor()).toBe(false);
+  });
+});
+
+describe('reservation-edit cancel returnUrl (T-10)', () => {
+  it('uses a valid internal planning-day path', () => {
+    expect(sanitizeReturnUrl('/planning/abc-123/edit')).toBe('/planning/abc-123/edit');
+    expect(sanitizeReturnUrl('/planning/abc-123/view')).toBe('/planning/abc-123/view');
+  });
+
+  it('falls back to /reservations when the param is absent or empty', () => {
+    expect(sanitizeReturnUrl(null)).toBe('/reservations');
+    expect(sanitizeReturnUrl(undefined)).toBe('/reservations');
+    expect(sanitizeReturnUrl('')).toBe('/reservations');
+  });
+
+  it('rejects external / off-app targets (no open redirect)', () => {
+    // Protocol-relative `//host` would navigate off-app.
+    expect(sanitizeReturnUrl('//evil.example.com/phish')).toBe('/reservations');
+    // Absolute external URL.
+    expect(sanitizeReturnUrl('https://evil.example.com')).toBe('/reservations');
+    // Scheme-bearing / javascript: payloads are not rooted paths.
+    expect(sanitizeReturnUrl('javascript:alert(1)')).toBe('/reservations');
+    // A non-rooted relative value is rejected too.
+    expect(sanitizeReturnUrl('planning/abc/edit')).toBe('/reservations');
   });
 });

@@ -301,7 +301,11 @@ type ReservationForm = FormGroup<{
             </section>
 
             <div class="flex gap-2 justify-end pt-4 border-t border-slate-200">
-              <af-button htmlType="button" (clicked)="router.navigateByUrl('/reservations')">
+              <af-button
+                htmlType="button"
+                (clicked)="onCancel()"
+                data-testid="reservation-edit-cancel"
+              >
                 {{ t('cancel') }}
               </af-button>
               @if (canMutate()) {
@@ -502,6 +506,36 @@ export class ReservationEditPage {
       this.store.update({ id, req: formToRequest(this.form) });
     }
   }
+
+  /**
+   * Cancel returns to where the user came from: when the planning inline list
+   * opened this reservation it passed `?returnUrl=/planning/:id/<mode>` (J-6b
+   * T-10), so Cancel goes back to that exact planning-day form. Standalone edit
+   * (no returnUrl) keeps the original `/reservations` overview target. The
+   * returnUrl is sanitized to an internal same-app path — an absent/external/
+   * protocol-relative value falls back to `/reservations` (no open-redirect).
+   */
+  protected onCancel(): void {
+    const target = sanitizeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'));
+    void this.router.navigateByUrl(target);
+  }
+}
+
+/**
+ * Resolve a Cancel target from an optional `returnUrl` query param. Accepts only
+ * an internal, same-app absolute path (`/planning/…`); rejects anything that
+ * could navigate off-app — an external URL, a protocol-relative `//host`, or a
+ * non-rooted value — and falls back to `/reservations`. Pure → unit-tested
+ * without a `TestBed`.
+ */
+export function sanitizeReturnUrl(raw: string | null | undefined): string {
+  const fallback = '/reservations';
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  // Must be a single rooted path, not a protocol-relative `//host` and not a
+  // scheme (`http:`, `javascript:`, …). `/foo` is internal; `//foo`, `http://`,
+  // `javascript:` are not.
+  if (!raw.startsWith('/') || raw.startsWith('//')) return fallback;
+  return raw;
 }
 
 function detailToFormValue(d: AircraftReservationDetail): Partial<{
