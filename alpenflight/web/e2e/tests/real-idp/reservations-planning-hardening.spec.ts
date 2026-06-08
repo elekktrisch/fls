@@ -233,6 +233,16 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
     try {
       await loginAs(page, CLUB_ADMIN1);
 
+      // WARM in-app nav, NOT a cold goto: land on the already-loaded app shell
+      // first, then CLICK the Users nav entry the way an operator does. A cold
+      // `page.goto('/users')` mid-session can stall the OIDC reboot/renew so the
+      // in-flight GET fires WITHOUT a valid token → a redirect/non-200 that masks
+      // the real backend behaviour ([[project_real_idp_goto_reboot_renew_stall]]).
+      // clubadmin1 is a CLUB_ADMINISTRATOR, so the Users section renders.
+      await page.goto('/start?lang=de');
+      const usersNav = page.getByTestId('af-nav-section-/users');
+      await expect(usersNav, 'a club admin sees the Users nav entry').toBeVisible();
+
       // Watch the real GET /api/v1/users response — the T-15 AC: it must NOT 400
       // for the exact dev clubadmin1 principal (symbolic clubId claim → t_user
       // lookup; the V8 seed restored the row that was the menu-broken symptom).
@@ -240,13 +250,19 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
         (r) => r.request().method() === 'GET' && new URL(r.url()).pathname === '/api/v1/users',
         { timeout: 15_000 },
       );
-      await page.goto('/users?lang=de');
+      await usersNav.click();
+      await expect(page).toHaveURL(/\/users(\?|$)/);
       const resp = await usersResp;
+
+      // Read the body AT RESPONSE TIME (guarded): once the SPA settles on the new
+      // route the captured response body is evicted, so a deferred `await
+      // resp.text()` in the assertion message throws "No data found for resource"
+      // and MASKS the status ([[project_spa_nav_evicts_post_response_body]]). Capture
+      // it now, only when non-200, and never let an eviction throw.
+      const diagBody = resp.ok() ? 'ok' : await resp.text().catch(() => '<evicted>');
       expect(
         resp.status(),
-        `GET /api/v1/users must render for clubadmin1, not 400 — got ${resp.status()}: ${
-          resp.status() === 200 ? 'ok' : await resp.text()
-        }`,
+        `GET /api/v1/users must render for clubadmin1, not 400 — got ${resp.status()}: ${diagBody}`,
       ).toBe(200);
 
       // The list (or a populated table) renders — there is no error banner and at
