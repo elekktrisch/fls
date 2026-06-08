@@ -6,6 +6,7 @@ import ch.alpenflight.platform.keycloak.KeycloakAdminTokenSupplier;
 import ch.alpenflight.platform.keycloak.RedactingRestClientInterceptor;
 import ch.alpenflight.users.domain.UserDirectoryException;
 import ch.alpenflight.users.domain.UserDirectoryPort;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.net.URI;
 import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -140,7 +141,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
                     .uri(uri)
                     .retrieve()
                     .body(String.class);
-            return readListOf(body, UserDirectoryRow.class);
+            return readListOf(body, UserWire.class).stream().map(UserWire::toRow).toList();
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
                     "Keycloak users list (status " + e.getStatusCode().value() + ")", e);
@@ -154,7 +155,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
                     .uri(props.adminBase() + "/roles/" + roleName + "/users")
                     .retrieve()
                     .body(String.class);
-            return readListOf(body, UserDirectoryRow.class);
+            return readListOf(body, UserWire.class).stream().map(UserWire::toRow).toList();
         } catch (HttpStatusCodeException e) {
             if (e.getStatusCode().value() == 404) {
                 // Role unknown in this realm → no members. Treat as empty.
@@ -172,7 +173,7 @@ public class KeycloakAdminClient implements UserDirectoryPort {
                     .uri(props.adminBase() + "/users/" + sub + "/role-mappings/realm")
                     .retrieve()
                     .body(String.class);
-            return readListOf(body, RealmRoleRef.class);
+            return readListOf(body, RealmRoleWire.class).stream().map(RealmRoleWire::toRef).toList();
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
                     "Keycloak read role-mappings (status " + e.getStatusCode().value() + ")", e);
@@ -189,8 +190,10 @@ public class KeycloakAdminClient implements UserDirectoryPort {
                     .uri(props.adminBase() + "/roles")
                     .retrieve()
                     .body(String.class);
-            List<RealmRoleRef> all = readListOf(body, RealmRoleRef.class);
-            return all.stream().filter(r -> names.contains(r.name())).toList();
+            return readListOf(body, RealmRoleWire.class).stream()
+                    .filter(r -> names.contains(r.name()))
+                    .map(RealmRoleWire::toRef)
+                    .toList();
         } catch (HttpStatusCodeException e) {
             throw new UserDirectoryException(
                     "Keycloak list realm roles (status " + e.getStatusCode().value() + ")", e);
@@ -282,6 +285,51 @@ public class KeycloakAdminClient implements UserDirectoryPort {
         } catch (Exception e) {
             throw new UserDirectoryException(
                     "Keycloak admin: malformed JSON list for " + type.getSimpleName(), e);
+        }
+    }
+
+    /**
+     * Adapter-local wire projection over Keycloak's {@code RoleRepresentation}.
+     *
+     * <p>{@code @JsonIgnoreProperties(ignoreUnknown = true)} is load-bearing:
+     * the injected Spring {@code ObjectMapper} runs with
+     * {@code spring.jackson.deserialization.fail-on-unknown-properties: true}
+     * (strict DTO boundary, see {@code application.yml}). Keycloak 26.5.7's real
+     * {@code GET /users/{id}/role-mappings/realm} returns an ARRAY of full
+     * {@code RoleRepresentation} objects carrying {@code description},
+     * {@code composite}, {@code clientRole}, {@code containerId},
+     * {@code attributes}. Deserialising those straight into the annotation-free
+     * domain {@link RealmRoleRef} blew up as {@code UnrecognizedPropertyException}
+     * and the adapter mislabelled it "malformed JSON list for RealmRoleRef" → 502
+     * (J-6b §4 gate; operator #7 "Users menu 400"). Pin tolerance on the wire DTO
+     * so the directory contract is independent of the global wire-boundary policy
+     * and the domain port stays Jackson-free (see {@link UserDirectoryPort}).
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record RealmRoleWire(@Nullable String id, String name, @Nullable String description) {
+        RealmRoleRef toRef() {
+            return new RealmRoleRef(id, name, description);
+        }
+    }
+
+    /**
+     * Adapter-local wire projection over Keycloak's {@code UserRepresentation}.
+     * Same rationale as {@link RealmRoleWire}: KC user-list responses carry far
+     * more than {id, username, email, enabled, requiredActions, createdTimestamp}
+     * ({@code totp}, {@code disableableCredentialTypes}, {@code notBefore},
+     * {@code access}, {@code attributes}, …). Tolerate the extras here so a future
+     * KC field add can't re-trip the same latent 502 on the users list.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record UserWire(
+            UUID id,
+            @Nullable String username,
+            @Nullable String email,
+            @Nullable Boolean enabled,
+            @Nullable List<String> requiredActions,
+            @Nullable Long createdTimestamp) {
+        UserDirectoryRow toRow() {
+            return new UserDirectoryRow(id, username, email, enabled, requiredActions, createdTimestamp);
         }
     }
 }
