@@ -129,7 +129,7 @@ test.describe('J-6b nav role-gating (real-idp)', () => {
   test.describe.configure({ mode: 'serial' });
 
   let baseURL: string;
-  test.beforeAll((_fixtures, testInfo) => {
+  test.beforeAll(async ({}, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
   });
 
@@ -221,7 +221,7 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
   test.describe.configure({ mode: 'serial' });
 
   let baseURL: string;
-  test.beforeAll((_fixtures, testInfo) => {
+  test.beforeAll(async ({}, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
   });
 
@@ -332,7 +332,7 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
 // ===========================================================================
 test.describe('J-6b reservations calendar (real-idp)', () => {
   let baseURL: string;
-  test.beforeAll((_fixtures, testInfo) => {
+  test.beforeAll(async ({}, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
   });
 
@@ -417,7 +417,7 @@ test.describe('J-6b reservations calendar (real-idp)', () => {
 // ===========================================================================
 test.describe('J-6b planning read-only + edit-mode (real-idp)', () => {
   let baseURL: string;
-  test.beforeAll((_fixtures, testInfo) => {
+  test.beforeAll(async ({}, testInfo) => {
     baseURL = testInfo.project.use.baseURL ?? 'http://localhost:4201';
   });
 
