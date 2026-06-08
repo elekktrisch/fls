@@ -267,7 +267,10 @@ test.describe('J-6b clubadmin1 reads render (real-idp)', () => {
 
       // The list (or a populated table) renders — there is no error banner and at
       // least one user row is present (clubadmin1 itself is a seeded user).
-      await expect(page.getByTestId('users-error')).toHaveCount(0);
+      // NB: <af-page-error data-testid="users-error"> is ALWAYS in the DOM (host
+      // hidden + inner alert absent when message is null); assert the inner alert
+      // (testid "af-page-error", rendered only when loadError is set) is absent.
+      await expect(page.getByTestId('af-page-error')).toHaveCount(0);
       await expect(
         page.locator('[data-testid^="user-row-"]').first(),
         'the Users list renders ≥1 user row for clubadmin1 (no 400, no empty)',
