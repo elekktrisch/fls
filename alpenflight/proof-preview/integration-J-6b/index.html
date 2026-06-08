@@ -130,7 +130,7 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
     <h1>AlpenFlight proof gallery</h1>
     <p class="meta">
       Each video is a green <code>real-idp</code> proof pass-video, captioned with the
-      assertion it proves. Generated on <code>213/merge</code> &middot; 2026-06-07T23:31:28.236Z
+      assertion it proves. Generated on <code>213/merge</code> &middot; 2026-06-08T01:57:44.649Z
     </p>
     <p class="meta" style="margin-top:.5rem;">
       <a href="/fls/alpenflight/previews/">&larr; all journeys (previews index)</a>
@@ -142,26 +142,12 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
   </header>
 
   <section>
-      <details class="journey">
+      <details class="journey pending-journey">
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status success">3 proofs</span><span class="summary-counts">3 videos · 0 screenshots</span></span>
-          <span class="summary-caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span>
+          <span class="summary-head"><span class="summary-jid">J-0</span> <span class="status pending">pending</span></span>
+          <span class="summary-caption">No green proof yet — not shipped a captioned pass-video.</span>
         </summary>
-        <div class="proofs">
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-0f174f2897e224e9152b83ce4710fad56c994200.webm"></video>
-          <figcaption><span class="status success">happy</span><span class="caption">J-0 · tenant isolation · club A admin creates a Location and sees it in club A's list</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-5abbbbef89228f83edb2e0244a2944bea1acfd41.webm"></video>
-          <figcaption><span class="status failure">key-error</span><span class="caption">J-0 · cross-tenant 404 · club B is denied club A's Location (404 not 403)</span></figcaption>
-        </figure>
-        <figure class="proof">
-          <video controls preload="metadata" src="videos/proof-video-f61c49a719408579644e91ce5d6fd41ec46186af.webm"></video>
-          <figcaption><span class="status pending">edge</span><span class="caption">J-0 · per-club ICAO · the same ICAO is creatable independently in club B</span></figcaption>
-        </figure>
-        </div>
-
+        <p>No green proof yet — this journey has not shipped a captioned pass-video.</p>
       </details>
       <details class="journey pending-journey">
         <summary>
@@ -227,11 +213,61 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
       </details>
       <details class="journey" open>
         <summary>
-          <span class="summary-head"><span class="summary-jid">J-6b</span> <span class="status success">parity screenshots</span><span class="summary-counts">0 videos · 1 screenshot</span></span>
-          <span class="summary-caption">Legacy flsweb: one planning day's edit form (date · location · remarks · crew selectizes · the inline per-day…</span>
+          <span class="summary-head"><span class="summary-jid">J-6b</span> <span class="status success">7 proofs</span><span class="summary-counts">7 videos · 5 screenshots</span></span>
+          <span class="summary-caption">J-6b · nav · a real CLUB_ADMINISTRATOR (clubadmin1) logs in via real Keycloak — the nav shows the new Reserva…</span>
         </summary>
+        <div class="proofs">
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-9693dd893f809ce70aa044ea3aeee5f7ab250183.webm"></video>
+          <figcaption><span class="status pending">edge</span><span class="caption">J-6b · nav · a real CLUB_ADMINISTRATOR (clubadmin1) logs in via real Keycloak — the nav shows the new Reservations entry (routes to the /reservations Day/Week calendar) and Users, but does NOT show Clubs (the new operator decision to make /clubs sysadmin-only; the mock admin-everything principal would have hidden this role gate)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-2204623a7df992675b49fb511216b4948570f603.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6b · nav · a real SYSTEM_ADMINISTRATOR sees the Clubs nav entry — the positive control proving the Clubs hide for a club admin is role-gated, not a blanket removal</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-926e8b68da3b17dca3e97f86e21945f5ac6d7448.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6b · users · clubadmin1 opens the Users menu and the list renders (GET /api/v1/users → 200, ≥1 row) — the T-15 AC: no 400 for the exact dev principal (the menu-broken symptom was the missing tenant row, restored by the V8 seed)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-a565032c79bb6e22594cc5a38e83e62237158938.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6b · seed · clubadmin1’s club has ≥1 row in every user-facing aggregate list — the Persons list (the operator’s reported empty, restored by the V36 dev seed) renders a row, and the Aircraft aggregate read returns ≥1 (the empirical-sweep DoD: zero empty cells for any aggregate a testuser should own)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-26ca5df1a584b5893c1c30bbc94b686f80d2080a.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6b · reservations calendar (greenfield, no legacy parity) · the /reservations Day/Week calendar renders the selected toggle LEGIBLY (dark ground + white text, not the blacked-out bug) with a DD.MM.YYYY period label in day view and a DD.MM.YYYY – DD.MM.YYYY range that pages by weeks in week view (real Keycloak + backend)</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-ca09dd8004071401a0cc3b7b4da8b27ba622f7c4.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6b · planning · a seeded planning day opens in READ-ONLY mode with EVERY field disabled (not merely Save hidden — the operator’s #10 bug, the CVA setDisabledState no-op T-09 fixed); the Edit affordance flips it to edit mode (fields editable, Save returns) — driven against the real backend as clubadmin1</span></figcaption>
+        </figure>
+        <figure class="proof">
+          <video controls preload="metadata" src="videos/proof-video-f12be78c07fff4b9c707120f44ba7057427a7065.webm"></video>
+          <figcaption><span class="status success">happy</span><span class="caption">J-6b · inline validation (the ≥60% feature, AC1/2/3) · a club admin types a (date, location) that duplicates a REAL seeded planning day into the planning-edit form — the REAL POST /planning-days/validate endpoint reports the clash over the wire (real bearer, real ux_pln_club_date_loc rule, real {valid,field,message} envelope carrying the backend PROSE, not the mock i18n key) and its message surfaces inline on the date field WITHOUT a save; changing to a free date clears it. The whole FE→real-endpoint→real-rule→inline vertical, proven end-to-end (the mock inner-loop never hit a real endpoint)</span></figcaption>
+        </figure>
+        </div>
         <div class="parity-screenshots">
           <h4>Legacy &harr; AlpenFlight parity screenshots</h4>
+        <div class="shot-pair">
+          <div class="shot-view-label">calendar-day</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-reservations-calendar-day.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-reservations-calendar-day.png" alt="alpenflight calendar-day" loading="lazy"></a>
+            <figcaption>AlpenFlight (greenfield, no legacy parity): the /reservations DAY view — the aircraft×hour calendar with the Day/Week toggle (selected button legible) + a DD.MM.YYYY period label</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">calendar-week</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-reservations-calendar-week.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-reservations-calendar-week.png" alt="alpenflight calendar-week" loading="lazy"></a>
+            <figcaption>AlpenFlight (greenfield, no legacy parity): the /reservations WEEK view — the aircraft×day matrix, paging by weeks with a DD.MM.YYYY – DD.MM.YYYY range label</figcaption>
+          </figure>
+          </div>
+        </div>
         <div class="shot-pair">
           <div class="shot-view-label">form</div>
           <div class="shot-grid">
@@ -239,6 +275,21 @@ footer { margin-top: 3rem; color: var(--muted); font-size: .85em; }
             <span class="shot-side">legacy</span>
             <a href="screenshots/legacy-planning-form.png" target="_blank" rel="noopener"><img src="screenshots/legacy-planning-form.png" alt="legacy form" loading="lazy"></a>
             <figcaption>Legacy flsweb: one planning day's edit form (date · location · remarks · crew selectizes · the inline per-day reservations table)</figcaption>
+          </figure>
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-planning-edit-form.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-planning-edit-form.png" alt="alpenflight form" loading="lazy"></a>
+            <figcaption>AlpenFlight: the planning-day edit form hardened — read-only renders all fields disabled with an Edit toggle, dates render DD.MM.YYYY, and inline validation surfaces per-field errors while typing</figcaption>
+          </figure>
+          </div>
+        </div>
+        <div class="shot-pair">
+          <div class="shot-view-label">inline-validate</div>
+          <div class="shot-grid">
+          <figure class="shot shot-alpenflight">
+            <span class="shot-side">alpenflight</span>
+            <a href="screenshots/alpenflight-planning-inline-validate.png" target="_blank" rel="noopener"><img src="screenshots/alpenflight-planning-inline-validate.png" alt="alpenflight inline-validate" loading="lazy"></a>
+            <figcaption>AlpenFlight (greenfield): the planning-day edit form mid-typing — the debounced inline per-field validation message surfaces under the field from the real validate endpoint (no full submit)</figcaption>
           </figure>
           </div>
         </div>

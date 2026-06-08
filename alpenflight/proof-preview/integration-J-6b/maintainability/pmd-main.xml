@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-07T23:31:23.360">
+<pmd xmlns="http://pmd.sourceforge.net/report/2.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pmd.sourceforge.net/report/2.0.0 https://pmd.github.io/schema/report_2_0_0.xsd" version="7.25.0" timestamp="2026-06-08T01:57:38.907">
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/aircraft/application/AircraftsService.java">
 <violation beginline="73" endline="80" begincolumn="28" endcolumn="51" rule="ExcessiveParameterList" ruleset="Design" package="ch.alpenflight.aircraft.application" class="AircraftsService" method="AircraftsService" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#excessiveparameterlist" priority="3">
 Avoid long parameter lists (8 parameters - threshold is 8).
@@ -268,7 +268,7 @@ The method 'materializeFromJwt(Jwt, UUID)' has a cyclomatic complexity of 17.
 </violation>
 </file>
 <file name="/home/runner/work/fls/fls/alpenflight/server/src/main/java/ch/alpenflight/users/infra/keycloak/KeycloakAdminClient.java">
-<violation beginline="63" endline="63" begincolumn="17" endcolumn="27" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.infra.keycloak" class="KeycloakAdminClient" method="createUser" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
+<violation beginline="64" endline="64" begincolumn="17" endcolumn="27" rule="CyclomaticComplexity" ruleset="Design" package="ch.alpenflight.users.infra.keycloak" class="KeycloakAdminClient" method="createUser" externalInfoUrl="https://docs.pmd-code.org/pmd-doc-7.25.0/pmd_rules_java_design.html#cyclomaticcomplexity" priority="3">
 The method 'createUser(UserDirectorySpec)' has a cyclomatic complexity of 12.
 </violation>
 </file>
