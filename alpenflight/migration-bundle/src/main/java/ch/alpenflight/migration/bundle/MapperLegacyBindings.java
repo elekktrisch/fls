@@ -953,27 +953,78 @@ public final class MapperLegacyBindings {
                     // day that WILL exist post-dedupe. Semantically lossless: the survivor
                     // IS that (club, date, location) planning day; the dropped duplicate's
                     // crew simply attaches to the one kept day.
+                    //
+                    // POST-REMAP COMPOSITE DEDUPE (J-7 T-17, the 23505 fix): the remap
+                    // above can COLLAPSE two assignments onto the SAME planning_day_id. The
+                    // real legacy FLSTest fixture has TWO planning days ('Test'/'Test2') on
+                    // the SAME (Club, Day, LSZK), BOTH carrying assignments — and when both
+                    // days' assignments share the SAME (AssignedPersonId, AssignmentTypeId),
+                    // the remap re-points BOTH at the one surviving day → two rows with an
+                    // identical (planning_day_id, assigned_person_id, assignment_type_id) →
+                    // V4's ux_pda_composite UNIQUE 23505 at ingest (the §4 fanout blocker the
+                    // backend.log dig diagnosed). The J-6 remap fixed the 23503 FK but
+                    // introduced this composite collision. So we DEDUPE-KEEP-FIRST on the
+                    // POST-REMAP composite: ROW_NUMBER() OVER (PARTITION BY KeptPlanningDayId,
+                    // AssignedPersonId, AssignmentTypeId ORDER BY <a live/non-deleted row
+                    // first, then earliest CreatedOn, then the GUID as a deterministic
+                    // tiebreak>) keeps exactly one row per post-remap composite and drops the
+                    // rest. The DeletedOn-IS-NULL-first ordering heeds the J-6 gap-hunter
+                    // rider "producer dedupe is soft-delete-blind": when a live and a
+                    // soft-deleted assignment collide on the composite, the LIVE one must win
+                    // (a soft-deleted assignment surviving over a live one would silently drop
+                    // a real crew assignment). The dropped dups are recorded as
+                    // PLANNING_DAY_ASSIGNMENT_DUPLICATE (ProducerDropReconciliation) — visible,
+                    // not silent — mirroring PLANNING_DAY_DUPLICATE. ROW_NUMBER() OVER + the
+                    // CASE expression are T-SQL native (the live legacy MSSQL dialect) and
+                    // evaluate identically on the Postgres test container.
+                    //
+                    // ux_pda_composite is a PARTIAL unique (WHERE deleted_on IS NULL, V4:339):
+                    // only LIVE rows actually collide at ingest. The dedupe partitions on the
+                    // composite regardless of deleted_on (keeping one row per composite) — a
+                    // touch over-aggressive (two soft-deleted dups would not collide on the
+                    // partial index) but harmless for migration fidelity, and the live-first
+                    // ORDER BY guarantees a LIVE row is never dropped in favour of a deleted
+                    // one. Simpler than a deleted_on-aware partition, with no fidelity loss.
                     PortPolicy.FULL_PORT,
                     """
-                    SELECT pda.PlanningDayAssignmentId,
-                           pd.ClubId AS OperatingClubId,
-                           kept.KeptPlanningDayId AS AssignedPlanningDayId,
-                           pda.AssignedPersonId,
-                           pda.AssignmentTypeId, pda.Remarks,
-                           pda.CreatedOn, pda.CreatedByUserId,
-                           pda.ModifiedOn, pda.ModifiedByUserId,
-                           pda.DeletedOn, pda.DeletedByUserId
-                    FROM PlanningDayAssignments pda
-                    JOIN PlanningDays pd ON pd.PlanningDayId = pda.AssignedPlanningDayId
-                    JOIN (
-                        SELECT ClubId, Day, LocationId,
-                               FIRST_VALUE(PlanningDayId) OVER (
-                                   PARTITION BY ClubId, Day, LocationId
-                                   ORDER BY CreatedOn, PlanningDayId
-                               ) AS KeptPlanningDayId,
-                               PlanningDayId
-                        FROM PlanningDays
-                    ) kept ON kept.PlanningDayId = pda.AssignedPlanningDayId
+                    SELECT PlanningDayAssignmentId,
+                           OperatingClubId,
+                           AssignedPlanningDayId,
+                           AssignedPersonId,
+                           AssignmentTypeId, Remarks,
+                           CreatedOn, CreatedByUserId,
+                           ModifiedOn, ModifiedByUserId,
+                           DeletedOn, DeletedByUserId
+                    FROM (
+                        SELECT pda.PlanningDayAssignmentId,
+                               pd.ClubId AS OperatingClubId,
+                               kept.KeptPlanningDayId AS AssignedPlanningDayId,
+                               pda.AssignedPersonId,
+                               pda.AssignmentTypeId, pda.Remarks,
+                               pda.CreatedOn, pda.CreatedByUserId,
+                               pda.ModifiedOn, pda.ModifiedByUserId,
+                               pda.DeletedOn, pda.DeletedByUserId,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY kept.KeptPlanningDayId,
+                                                pda.AssignedPersonId,
+                                                pda.AssignmentTypeId
+                                   ORDER BY CASE WHEN pda.DeletedOn IS NULL THEN 0 ELSE 1 END,
+                                            pda.CreatedOn,
+                                            pda.PlanningDayAssignmentId
+                               ) AS composite_rn
+                        FROM PlanningDayAssignments pda
+                        JOIN PlanningDays pd ON pd.PlanningDayId = pda.AssignedPlanningDayId
+                        JOIN (
+                            SELECT ClubId, Day, LocationId,
+                                   FIRST_VALUE(PlanningDayId) OVER (
+                                       PARTITION BY ClubId, Day, LocationId
+                                       ORDER BY CreatedOn, PlanningDayId
+                                   ) AS KeptPlanningDayId,
+                                   PlanningDayId
+                            FROM PlanningDays
+                        ) kept ON kept.PlanningDayId = pda.AssignedPlanningDayId
+                    ) remapped
+                    WHERE composite_rn = 1
                     """,
                     "t_planning_day_assignment",
                     // Non-fan-out FULL_PORT: legacy_guid → id. 12 params match

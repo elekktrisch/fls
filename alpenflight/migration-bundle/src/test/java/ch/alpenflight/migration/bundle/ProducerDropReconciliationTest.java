@@ -1,6 +1,7 @@
 package ch.alpenflight.migration.bundle;
 
 import static ch.alpenflight.migration.bundle.ProducerDropReconciliation.AIRCRAFT_NO_MANAGING_CLUB;
+import static ch.alpenflight.migration.bundle.ProducerDropReconciliation.PLANNING_DAY_ASSIGNMENT_DUPLICATE;
 import static ch.alpenflight.migration.bundle.ProducerDropReconciliation.PLANNING_DAY_DUPLICATE;
 import static ch.alpenflight.migration.bundle.ProducerDropReconciliation.RESERVATION_NO_PILOT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +31,11 @@ class ProducerDropReconciliationTest {
                 // Per-row keep-first drop — folds into the row-count equality.
                 new ProducerDropWarning(PLANNING_DAY_DUPLICATE, EntityType.PLANNING_DAY,
                         CLUB_A, UUID.randomUUID(), "duplicate (ClubId, Day, LocationId)"),
+                // Post-remap composite keep-first drop — folds in too.
+                new ProducerDropWarning(PLANNING_DAY_ASSIGNMENT_DUPLICATE,
+                        EntityType.PLANNING_DAY_ASSIGNMENT,
+                        CLUB_A, UUID.randomUUID(),
+                        "duplicate post-remap (planning_day_id, person, type)"),
                 // A row-scoped drop with no Club context keys under the empty-string
                 // bucket, matching the diff engine's null-Club convention.
                 new ProducerDropWarning(RESERVATION_NO_PILOT, EntityType.AIRCRAFT_RESERVATION,
@@ -43,7 +49,9 @@ class ProducerDropReconciliationTest {
                 .containsEntry(
                         new ClubEntity(EntityType.AIRCRAFT_RESERVATION, CLUB_A.toString()), 1L)
                 .containsEntry(new ClubEntity(EntityType.AIRCRAFT_RESERVATION, ""), 1L)
-                .containsEntry(new ClubEntity(EntityType.PLANNING_DAY, CLUB_A.toString()), 1L);
+                .containsEntry(new ClubEntity(EntityType.PLANNING_DAY, CLUB_A.toString()), 1L)
+                .containsEntry(
+                        new ClubEntity(EntityType.PLANNING_DAY_ASSIGNMENT, CLUB_A.toString()), 1L);
         assertThat(counts.keySet()).noneMatch(key -> key.entity() == EntityType.ARTICLE);
     }
 
@@ -51,7 +59,8 @@ class ProducerDropReconciliationTest {
     void rowDropCodesFoldTheKeepFirstDropsButNotTheWholeBundleArticleReject() {
         assertThat(ProducerDropReconciliation.ROW_DROP_CODES)
                 .containsExactlyInAnyOrder(
-                        AIRCRAFT_NO_MANAGING_CLUB, RESERVATION_NO_PILOT, PLANNING_DAY_DUPLICATE)
+                        AIRCRAFT_NO_MANAGING_CLUB, RESERVATION_NO_PILOT, PLANNING_DAY_DUPLICATE,
+                        PLANNING_DAY_ASSIGNMENT_DUPLICATE)
                 .doesNotContain("ARTICLE_DUPLICATE_NUMBER");
     }
 }

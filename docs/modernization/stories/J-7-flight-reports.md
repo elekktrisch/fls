@@ -610,3 +610,42 @@ follow-ups + the J-6 retro "un-mask the ingest constraint" rider). J-7's PRIMARY
 legacy↔AlpenFlight *paired-capture* half (fanout-deferred legacy reporting shots) blocks merge given the
 shared fanout is pre-existing-red — or J-7 merges on the real-idp green with the legacy pairing riding the
 fanout fix. The reporting AF captures + the real-chain proof land per-push; only the *legacy* pairing waits.
+
+**Operator decision (2026-06-09): FIX the fanout `23505` inside J-7** — make the full migration fanout
+green as part of this journey (so the complete paired-capture done-bar lands + the pre-existing main-red
+fanout is repaired). Scope expansion accepted by the operator. Tracked as **T-17** below.
+
+- [x] **T-17 — fix the migration-fanout `23505` ingest collision (operator-directed).** The fanout's bundle
+  ingest 500s with `sqlstate=23505` (the constraint name was masked in the error body per the J-6 rider).
+  Sub-steps: (a) **un-mask the constraint name** in dev/test ingest errors; (b) root-cause + fix the collision
+  so a full real-producer bundle ingests green; (c) confirm the downstream "reservation did not migrate" parity
+  reds clear (same root cause or a second one); (d) green fanout run.
+  *(seam: MigrationBundleIngestService constraint surfacing + CLUB identity ingest dedupe/keying)*
+  <br>DONE: the diagnosed root cause was NOT the CLUB identity-pgcopy collision the line guessed — the
+  backend.log dig (operator-supplied diagnosis) showed `sqlstate=23505` on **`ux_pda_composite`** = UNIQUE
+  `(planning_day_id, assigned_person_id, assignment_type_id)` (V4:339) on `t_planning_day_assignment`. **Mechanism:**
+  the J-6 T-16 23503 fix REMAPS each assignment's `planning_day_id` onto the kept-first surviving day; the real
+  FLSTest fixture has TWO dup days ('Test'/'Test2') on the same `(Club, Day, LSZK)`, BOTH carrying an assignment —
+  and when both share the SAME `(person, type)` the remap collapses them onto the ONE survivor → two identical
+  composite rows → 23505. The J-6 remap fixed the FK but introduced this composite collision. **Fix:** (1)
+  `PLANNING_DAY_ASSIGNMENT` producer SELECT (`MapperLegacyBindings`) now wraps the remapped projection in
+  `ROW_NUMBER() OVER (PARTITION BY KeptPlanningDayId, AssignedPersonId, AssignmentTypeId ORDER BY <live-first
+  (DeletedOn IS NULL), then earliest CreatedOn, then GUID>) … WHERE composite_rn = 1` — keep-firsts one row per
+  POST-REMAP composite, live wins over soft-deleted (heeds the gap-hunter "producer dedupe is soft-delete-blind"
+  rider; `ux_pda_composite` is a partial unique `WHERE deleted_on IS NULL` so only live rows collide). (2) Dropped
+  dups recorded as `PLANNING_DAY_ASSIGNMENT_DUPLICATE` (`ProducerDropReconciliation`, in `ROW_DROP_CODES`),
+  mirroring `PLANNING_DAY_DUPLICATE`. (3) Un-masked the constraint name: `MigrationBundleIngestService` injects
+  `Environment` + under dev/test profiles reads `PSQLException.getServerErrorMessage().getConstraint()` into the
+  error detail (`[sqlstate=23505, constraint=ux_pda_composite]`); prod stays masked. (4) Extended
+  `PlanningDayProducerDedupeIT` with the synth case (two dup days, shared `(person, type)`, one live + one
+  soft-deleted) → exactly ONE survivor (the live earliest), distinct-composite untouched. **Secondary
+  "reservation did not migrate":** SAME root cause — ingest is a SINGLE Postgres transaction
+  (`MigrationBundleIngestService` Javadoc:77), so the assignment 23505 aborts the WHOLE bundle txn → the
+  reservation in the same per-club bundle never commits. Fixing the 23505 lets the bundle ingest fully →
+  reservations land. **VERIFIED LOCALLY:** migration-bundle `check` green (ProducerDropReconciliationTest +
+  MapperBindingContractTest + MapperLegacyBindingsTest); server `PlanningDayProducerDedupeIT` (3 ITs incl. the new
+  composite case) green on Testcontainers; server arch-guards (ApplicationModules/ControllerAuditCoverage/
+  NativeSqlRegister) + pmdMain/pmdTest/cpdRatchet green; migration-tool ExportCommandSmokeTest green; both
+  modules compile clean. **DEFERRED-TO-FANOUT:** the producer SELECT runs against real MSSQL — synth bundles
+  don't exercise it ([[project_synth_bundle_doesnt_validate_producer_select]]); the green fanout (sub-step d) +
+  the reservation parity clearing is the manager-triggered fanout's proof.

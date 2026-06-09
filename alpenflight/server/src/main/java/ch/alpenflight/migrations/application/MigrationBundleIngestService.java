@@ -60,6 +60,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -137,6 +138,7 @@ public class MigrationBundleIngestService {
     private final long sqlStatementTimeoutMs;
     private final BundleStreamReader bundleStreamReader;
     private final EntityStreamIngestor entityStreamIngestor;
+    private final boolean unmaskConstraintNames;
 
     public MigrationBundleIngestService(MigrationUploadRepository uploads,
                                         MigrationRunRepository runs,
@@ -155,7 +157,8 @@ public class MigrationBundleIngestService {
                                         AsyncTaskExecutor ingestExecutor,
                                         @Value("${alpenflight.migration.bundle-timeout:PT15M}")
                                         Duration bundleTimeout,
-                                        EntityStreamIngestor entityStreamIngestor) {
+                                        EntityStreamIngestor entityStreamIngestor,
+                                        Environment environment) {
         this.uploads = uploads;
         this.runs = runs;
         this.crypto = crypto;
@@ -184,6 +187,14 @@ public class MigrationBundleIngestService {
         this.sqlStatementTimeoutMs = Math.max(timeoutMs - 60_000L, timeoutMs / 2);
         this.bundleStreamReader = new BundleStreamReader();
         this.entityStreamIngestor = entityStreamIngestor;
+        // Un-mask the violated constraint name in the ingest error detail under
+        // the dev/test profiles only (J-6 retro rider). In prod the raw
+        // constraint name stays out of the response body — it can leak schema
+        // internals — but a dev/test/fanout failure needs to name the breached
+        // constraint (e.g. ux_pda_composite) so the next red is diagnosable
+        // without a backend.log dig (the dig that diagnosed the J-7 T-17 23505).
+        this.unmaskConstraintNames =
+                environment.acceptsProfiles(org.springframework.core.env.Profiles.of("dev", "test"));
     }
 
     /**
@@ -494,9 +505,21 @@ public class MigrationBundleIngestService {
             // the server-side log only — the BundleIngestException's
             // cause carries it through the exception handler's LOG.warn.
             String state = sql.getSQLState() == null ? "?" : sql.getSQLState();
+            // Un-mask the violated constraint NAME in dev/test (J-6 retro
+            // rider). The constraint name (e.g. ux_pda_composite) is a
+            // schema identifier, NOT row data — but it can leak schema
+            // internals, so prod stays masked and only dev/test/fanout adds
+            // it. Postgres reports it on PSQLException.getServerErrorMessage()
+            // .getConstraint(); a non-Postgres / non-constraint SQLException
+            // yields null and the detail stays the bare sqlstate.
+            String constraint = unmaskConstraintNames ? violatedConstraintName(sql) : null;
+            String detail = constraint == null
+                    ? "Database error during ingest [sqlstate=" + state + "]"
+                    : "Database error during ingest [sqlstate=" + state
+                            + ", constraint=" + constraint + "]";
             throw new BundleIngestException(
                     BundleIngestErrorCode.INGEST_INTERNAL_ERROR,
-                    "Database error during ingest [sqlstate=" + state + "]",
+                    detail,
                     sql);
         }
     }
@@ -657,6 +680,25 @@ public class MigrationBundleIngestService {
             stmt.execute("SET LOCAL synchronous_commit = OFF");
             stmt.execute("SET LOCAL lock_timeout = '30s'");
         }
+    }
+
+    /**
+     * The violated constraint name from a Postgres {@link SQLException} (or a
+     * cause), or {@code null} when none is available. Walks the cause chain so
+     * a wrapped {@code PSQLException} is still found, and reads the constraint
+     * off the server error message — the structured field, not the free-text
+     * message (which can echo row values).
+     */
+    private static @Nullable String violatedConstraintName(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof org.postgresql.util.PSQLException psql) {
+                org.postgresql.util.ServerErrorMessage serverError = psql.getServerErrorMessage();
+                if (serverError != null && serverError.getConstraint() != null) {
+                    return serverError.getConstraint();
+                }
+            }
+        }
+        return null;
     }
 
     private static String shortDetail(Throwable t) {

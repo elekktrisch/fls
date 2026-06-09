@@ -39,9 +39,32 @@ public final class ProducerDropReconciliation {
      */
     public static final String PLANNING_DAY_DUPLICATE = "PLANNING_DAY_DUPLICATE";
 
+    /**
+     * A legacy PlanningDayAssignments row dropped by the producer-side
+     * POST-REMAP composite dedupe-keep-first (J-7 T-17): the
+     * {@code PLANNING_DAY_ASSIGNMENT} producer REMAPS each assignment's
+     * planning_day_id onto the surviving kept-first day (the J-6 T-16 23503
+     * fix). When two assignments of two DUPLICATE planning days share the same
+     * {@code (AssignedPersonId, AssignmentTypeId)}, the remap collapses them
+     * onto the SAME surviving planning_day_id → two rows with an identical
+     * {@code (planning_day_id, assigned_person_id, assignment_type_id)}, which
+     * V4's {@code ux_pda_composite} UNIQUE forbids (the 2nd INSERT 23505s — the
+     * §4 fanout blocker T-17 repaired). The producer SELECT keeps the
+     * deterministically-first row per post-remap composite (a live row over a
+     * soft-deleted one, then earliest CreatedOn, then the GUID) and drops the
+     * rest; each dropped row is a {@code PLANNING_DAY_ASSIGNMENT_DUPLICATE} so
+     * the count reduction is visible and the parity row-count equality
+     * reconciles (legacy − drops). Like {@code PLANNING_DAY_DUPLICATE}, a
+     * per-row drop, not a whole-bundle reject — the keep-first survivor IS
+     * migrated.
+     */
+    public static final String PLANNING_DAY_ASSIGNMENT_DUPLICATE =
+            "PLANNING_DAY_ASSIGNMENT_DUPLICATE";
+
     /** Codes that reduce the expected per-(Club, entity) new-stack row count. */
     public static final Set<String> ROW_DROP_CODES =
-            Set.of(AIRCRAFT_NO_MANAGING_CLUB, RESERVATION_NO_PILOT, PLANNING_DAY_DUPLICATE);
+            Set.of(AIRCRAFT_NO_MANAGING_CLUB, RESERVATION_NO_PILOT, PLANNING_DAY_DUPLICATE,
+                    PLANNING_DAY_ASSIGNMENT_DUPLICATE);
 
     private ProducerDropReconciliation() { }
 
