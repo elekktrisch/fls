@@ -6,7 +6,7 @@
   "changed_files_count": 0,
   "base_ref": "origin/main",
   "head_sha": "87a15f0",
-  "elapsed_ms": 664,
+  "elapsed_ms": 228,
   "summary": {
     "dead_code_issues": 0,
     "dead_code_has_errors": false,
