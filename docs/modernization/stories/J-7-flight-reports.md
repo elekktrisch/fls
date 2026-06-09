@@ -371,9 +371,33 @@ form's next-touch journey (folding them here would violate the recorded operator
   `./gradlew check` green (cpdRatchet baseline/pmdMain/arch-guards incl. ControllerAuditCoverage/
   OpenApiSnapshotIT/all ITs). No escalation — the AlpenFlight read model reproduces every targeted
   legacy cell value (StartType via the documented code→int map).
-- [ ] **T-08 — Excel parity harness (S-096).** XLSX cell-by-cell diff (value+number-format,
+- [x] **T-08 — Excel parity harness (S-096).** XLSX cell-by-cell diff (value+number-format,
   tolerant of font/width); legacy FlightReports fixture (S-093 inventory + committed fixture);
   CI-wired, FlightReports-scoped (J-10 adds the other two exports). *(seam: excel-parity test harness + fixture)*
+  <br>DONE: reusable comparator `ch.alpenflight.platform.excel.ExcelParityComparator` (test scope) —
+  reads two `.xlsx`, STRICT on sheet names + cell type + value + number-format string, TOLERANT of all
+  cosmetic style (font/size/bold/fill/border/width — it only ever reads type+value+data-format, so
+  cosmetic drift is structurally invisible); `Diff.describe()` lists each mismatch as
+  `Sheet!A1: <reason> expected=… actual=…`. Self-test `ExcelParityComparatorTest` (7 cases) proves
+  strict-on-format/value/type + tolerant-of-cosmetic (guards against a false-green over-lenient
+  comparator). **Golden fixture** `src/test/resources/excel-parity/flight-reports-legacy-golden.xlsx`
+  built by `FlightReportGoldenFixture` (the contract-in-code, hand-built from the S-093 inventory +
+  oracle §5 — deliberately NOT via the production writer, else tautological) over a fixed
+  `FlightReportGoldenDataset` (plain-glider row + aerotow-glider row with nested tow block;
+  HH:MM/[H]:MM/IsSoloFlight 0-1/StartType WINCH=2 & AEROTOW=1/raw AirState-ProcessState ints; tow
+  duration 25h to exercise `[H]`). `FlightReportGoldenFixtureTest` guards the committed bytes against
+  the generator (no silent drift); **`FlightReportExcelParityIT`** runs the production
+  `FlightReportExcelWriter` over the SAME dataset and asserts cell-parity-equal to the golden fixture.
+  Regen seam: `./gradlew generateFlightReportGoldenFixture` (JavaExec, test classpath). **CI-wired** —
+  all three tests run in `check` via `test` (plain JUnit, no Postgres/Spring needed). `./gradlew check`
+  green (cpdRatchet/pmdMain only touch `main` — harness is test-scope; arch-guards/OpenApiSnapshotIT/
+  all ITs pass). **PROVENANCE (honest):** the golden fixture is derived from the documented
+  S-093/oracle contract, NOT a live legacy export — the Mono/MSSQL legacy stack is unrunnable on this
+  Alpine/musl box (mirrors T-01's deferred legacy screenshots). The harness proves OUR writer matches
+  the DOCUMENTED contract; the live-legacy byte-match is a fanout-gate concern (a live-legacy fixture
+  swaps in here when the fan-out brings up the legacy stack). **SCOPE:** FlightReports ONLY;
+  DeliveryMailExport + AircraftStatisticReport ride J-10 (comparator reused, not rebuilt) — recorded
+  in `src/test/resources/excel-parity/README.md` so it doesn't read as "all three covered".
 - [ ] **T-09 — web reporting scaffold: feature folder + picker + date-math util + store.** Routes
   (`/flightreports`, `/:category/:type`, `/custom/:category/:filter/edit|:mode`); picker tile grid
   (person + location categories); canned `:type` → derived date-range util (oracle §1); report

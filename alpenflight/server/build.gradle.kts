@@ -665,6 +665,21 @@ val seedAircraftOwnerLink by tasks.registering(JavaExec::class) {
     }
 }
 
+// J-7 T-08: one-shot generator for the FlightReports Excel golden-parity fixture
+// (story S-096). Renders the documented S-093/oracle layout contract
+// (FlightReportGoldenFixture) to a deterministic .xlsx so the committed fixture can
+// be regenerated when the contract legitimately changes (or a live-legacy fixture
+// swaps in via the fan-out gate). NOT a test; the committed bytes are guarded by
+// FlightReportGoldenFixtureTest. Test runtime classpath (the generator + fixture
+// builder live in src/test alongside the harness they feed).
+val generateFlightReportGoldenFixture by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Regenerate the FlightReports Excel golden-parity fixture (S-096)."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "ch.alpenflight.flights.web.FlightReportGoldenFixtureGenerator"
+    args = listOf("src/test/resources/excel-parity/flight-reports-legacy-golden.xlsx")
+}
+
 // J-3 T-02: one-command loader for the on-demand SHOWCASE seed — a cumulative,
 // deterministic, reusable demo dataset (see src/main/resources/showcase/README.md).
 // Runs the app with the `showcase` profile (+ `dev` for the loopback datasource
