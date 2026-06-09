@@ -2,7 +2,7 @@
   "kind": "health",
   "schema_version": 7,
   "version": "2.90.0",
-  "elapsed_ms": 354,
+  "elapsed_ms": 335,
   "findings": [
     {
       "path": "src/app/features/aircraft/edit/aircraft-edit.page.ts",
@@ -397,6 +397,42 @@
           "description": "Suppress with an inline comment above the function declaration",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "<component>",
+      "line": 303,
+      "col": 43,
+      "cyclomatic": 20,
+      "cognitive": 24,
+      "line_count": 184,
+      "param_count": 0,
+      "exceeded": "cognitive",
+      "severity": "moderate",
+      "component_rollup": {
+        "component": "report-results.page",
+        "class_worst_function": "scopeLabel",
+        "class_cyclomatic": 9,
+        "class_cognitive": 7,
+        "template_path": "src/app/features/reporting/results/report-results.page.ts",
+        "template_cyclomatic": 11,
+        "template_cognitive": 17
+      },
+      "actions": [
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `report-results.page` to reduce component complexity (rolled-up cyclomatic 20 = 9 on `scopeLabel` + 11 on the template)",
+          "note": "Consider splitting the template into smaller components OR extracting helpers from the worst class method; the rollup reflects the component as one complexity unit"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the worst class method (the rollup is anchored at that method's line, so a comment above it hides both the function finding and the rollup)",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-component-worst-method"
         }
       ]
     },
@@ -1262,6 +1298,42 @@
       ]
     },
     {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "<template>",
+      "line": 57,
+      "col": 0,
+      "cyclomatic": 11,
+      "cognitive": 17,
+      "line_count": 174,
+      "param_count": 0,
+      "exceeded": "cognitive_crap",
+      "severity": "critical",
+      "crap": 132.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `<template>` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "refactor-function",
+          "auto_fixable": false,
+          "description": "Refactor `<template>` to reduce template complexity (simplify control flow and bindings)",
+          "note": "Consider splitting complex template branches into smaller components or simpler bindings"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the Angular decorator",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
       "path": "scripts/migrate-translations/migrate.ts",
       "name": "main",
       "line": 99,
@@ -1724,6 +1796,66 @@
       ]
     },
     {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "scopeLabel",
+      "line": 303,
+      "col": 43,
+      "cyclomatic": 9,
+      "cognitive": 7,
+      "line_count": 10,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 90.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `scopeLabel` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/reporting/edit/report-custom-builder.page.ts",
+      "name": "filterToForm",
+      "line": 251,
+      "col": 0,
+      "cyclomatic": 8,
+      "cognitive": 6,
+      "line_count": 17,
+      "param_count": 1,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 72.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `filterToForm` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/flight-types/list/flight-types-list.page.ts",
       "name": "<template>",
       "line": 16,
@@ -1870,6 +2002,36 @@
           "description": "Suppress with an inline comment above the Angular decorator",
           "comment": "// fallow-ignore-next-line complexity",
           "placement": "above-angular-decorator"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "request",
+      "line": 272,
+      "col": 70,
+      "cyclomatic": 8,
+      "cognitive": 6,
+      "line_count": 14,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 72.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `request` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
         }
       ]
     },
@@ -2072,6 +2234,36 @@
           "type": "add-tests",
           "auto_fixable": false,
           "description": "Add test coverage for `confirmDelete` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "flightTypesLabel",
+      "line": 293,
+      "col": 49,
+      "cyclomatic": 7,
+      "cognitive": 5,
+      "line_count": 9,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "high",
+      "crap": 56.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `flightTypesLabel` to lower its CRAP score (coverage reduces risk even without refactoring)",
           "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
         },
         {
@@ -2864,6 +3056,36 @@
       ]
     },
     {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "rangeLabel",
+      "line": 287,
+      "col": 43,
+      "cyclomatic": 5,
+      "cognitive": 2,
+      "line_count": 5,
+      "param_count": 0,
+      "exceeded": "crap",
+      "severity": "moderate",
+      "crap": 30.0,
+      "coverage_tier": "none",
+      "coverage_source": "estimated",
+      "actions": [
+        {
+          "type": "add-tests",
+          "auto_fixable": false,
+          "description": "Add test coverage for `rangeLabel` to lower its CRAP score (coverage reduces risk even without refactoring)",
+          "note": "CRAP = CC^2 * (1 - cov/100)^3 + CC; higher coverage is the fastest way to bring CRAP under threshold"
+        },
+        {
+          "type": "suppress-line",
+          "auto_fixable": false,
+          "description": "Suppress with an inline comment above the function declaration",
+          "comment": "// fallow-ignore-next-line complexity",
+          "placement": "above-function-declaration"
+        }
+      ]
+    },
+    {
       "path": "src/app/features/locations/edit/locations-edit.page.ts",
       "name": "onSubmit",
       "line": 459,
@@ -2895,65 +3117,65 @@
     }
   ],
   "summary": {
-    "files_analyzed": 209,
-    "functions_analyzed": 1498,
-    "functions_above_threshold": 90,
+    "files_analyzed": 211,
+    "functions_analyzed": 1541,
+    "functions_above_threshold": 97,
     "max_cyclomatic_threshold": 20,
     "max_cognitive_threshold": 15,
     "max_crap_threshold": 30.0,
-    "files_scored": 159,
-    "average_maintainability": 92.1,
+    "files_scored": 162,
+    "average_maintainability": 92.0,
     "coverage_model": "static_estimated",
     "coverage_source_consistency": "uniform",
-    "severity_critical_count": 31,
-    "severity_high_count": 23,
-    "severity_moderate_count": 36
+    "severity_critical_count": 32,
+    "severity_high_count": 27,
+    "severity_moderate_count": 38
   },
   "vital_signs": {
-    "dead_file_pct": 1.0,
+    "dead_file_pct": 0.9,
     "dead_export_pct": 0.2,
-    "avg_cyclomatic": 2.1,
+    "avg_cyclomatic": 2.2,
     "critical_complexity_pct": 0.0,
     "p90_cyclomatic": 4,
-    "duplication_pct": 5.7,
+    "duplication_pct": 5.6,
     "hotspot_count": 0,
     "hotspot_top_pct_count": 0,
-    "maintainability_avg": 92.1,
+    "maintainability_avg": 92.0,
     "maintainability_low_pct": 0.6,
     "unused_dep_count": 6,
-    "unused_deps_per_k_files": 28.7,
+    "unused_deps_per_k_files": 28.4,
     "circular_dep_count": 0,
     "circular_deps_per_k_files": 0.0,
     "counts": {
-      "total_files": 209,
-      "total_exports": 455,
+      "total_files": 211,
+      "total_exports": 462,
       "dead_files": 2,
       "dead_exports": 1,
-      "duplicated_lines": 1462,
-      "total_lines": 26673,
-      "files_scored": 159,
+      "duplicated_lines": 1487,
+      "total_lines": 27475,
+      "files_scored": 162,
       "total_deps": 0
     },
     "unit_size_profile": {
       "low_risk": 86.7,
-      "medium_risk": 6.5,
-      "high_risk": 3.2,
-      "very_high_risk": 3.6
+      "medium_risk": 6.6,
+      "high_risk": 3.0,
+      "very_high_risk": 3.7
     },
-    "functions_over_60_loc_per_k": 36.0,
+    "functions_over_60_loc_per_k": 37.0,
     "unit_interfacing_profile": {
       "low_risk": 97.1,
       "medium_risk": 2.6,
       "high_risk": 0.1,
       "very_high_risk": 0.2
     },
-    "p95_fan_in": 6,
-    "coupling_high_pct": 1.3,
-    "total_loc": 26673
+    "p95_fan_in": 5,
+    "coupling_high_pct": 1.2,
+    "total_loc": 27475
   },
   "health_score": {
     "formula_version": 2,
-    "score": 73.1,
+    "score": 73.5,
     "grade": "B",
     "penalties": {
       "dead_files": 0.2,
@@ -2962,11 +3184,11 @@
       "p90_complexity": 0.0,
       "maintainability": 0.9,
       "hotspots": 0.0,
-      "unused_deps": 14.4,
+      "unused_deps": 14.2,
       "circular_deps": 0.0,
       "unit_size": 10.0,
-      "coupling": 0.7,
-      "duplication": 0.7
+      "coupling": 0.6,
+      "duplication": 0.6
     }
   },
   "file_scores": [
@@ -3153,6 +3375,20 @@
       "crap_above_threshold": 4
     },
     {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "fan_in": 1,
+      "fan_out": 10,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.17,
+      "maintainability_index": 85.3,
+      "total_cyclomatic": 61,
+      "total_cognitive": 47,
+      "function_count": 16,
+      "lines": 363,
+      "crap_max": 132.0,
+      "crap_above_threshold": 5
+    },
+    {
       "path": "src/app/features/profile/profile-personal.tab.ts",
       "fan_in": 1,
       "fan_out": 6,
@@ -3335,6 +3571,20 @@
       "crap_above_threshold": 2
     },
     {
+      "path": "src/app/features/reporting/edit/report-custom-builder.page.ts",
+      "fan_in": 1,
+      "fan_out": 9,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.11,
+      "maintainability_index": 87.5,
+      "total_cyclomatic": 29,
+      "total_cognitive": 17,
+      "function_count": 13,
+      "lines": 268,
+      "crap_max": 72.0,
+      "crap_above_threshold": 1
+    },
+    {
       "path": "src/app/features/migrate-handshake/migrate-handshake.page.ts",
       "fan_in": 1,
       "fan_out": 9,
@@ -3434,7 +3684,7 @@
     },
     {
       "path": "src/app/core/session/session.store.ts",
-      "fan_in": 38,
+      "fan_in": 39,
       "fan_out": 5,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.16,
@@ -3671,6 +3921,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reporting/report.store.ts",
+      "fan_in": 2,
+      "fan_out": 1,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.16,
+      "maintainability_index": 92.4,
+      "total_cyclomatic": 35,
+      "total_cognitive": 10,
+      "function_count": 23,
+      "lines": 213,
+      "crap_max": 20.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/start/start.store.ts",
       "fan_in": 1,
       "fan_out": 1,
@@ -3825,6 +4089,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reporting/custom-filter.ts",
+      "fan_in": 3,
+      "fan_out": 0,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.19,
+      "maintainability_index": 94.3,
+      "total_cyclomatic": 21,
+      "total_cognitive": 22,
+      "function_count": 4,
+      "lines": 111,
+      "crap_max": 13.6,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/shared/util/form/save-error.ts",
       "fan_in": 2,
       "fan_out": 0,
@@ -3891,20 +4169,6 @@
       "total_cognitive": 3,
       "function_count": 11,
       "lines": 91,
-      "crap_max": 12.0,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/reporting/report.store.ts",
-      "fan_in": 0,
-      "fan_out": 1,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.15,
-      "maintainability_index": 92.7,
-      "total_cyclomatic": 18,
-      "total_cognitive": 4,
-      "function_count": 13,
-      "lines": 120,
       "crap_max": 12.0,
       "crap_above_threshold": 0
     },
@@ -3994,7 +4258,7 @@
     },
     {
       "path": "src/app/features/reporting/canned-report.ts",
-      "fan_in": 3,
+      "fan_in": 4,
       "fan_out": 0,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.08,
@@ -4190,7 +4454,7 @@
     },
     {
       "path": "src/app/features/reporting/canned-report-request.ts",
-      "fan_in": 1,
+      "fan_in": 2,
       "fan_out": 1,
       "dead_code_ratio": 0.0,
       "complexity_density": 0.1,
@@ -4399,6 +4663,20 @@
       "crap_above_threshold": 0
     },
     {
+      "path": "src/app/features/reporting/reporting.routes.ts",
+      "fan_in": 1,
+      "fan_out": 4,
+      "dead_code_ratio": 0.0,
+      "complexity_density": 0.17,
+      "maintainability_index": 88.7,
+      "total_cyclomatic": 8,
+      "total_cognitive": 0,
+      "function_count": 8,
+      "lines": 48,
+      "crap_max": 2.0,
+      "crap_above_threshold": 0
+    },
+    {
       "path": "src/app/features/planning/planning.routes.ts",
       "fan_in": 1,
       "fan_out": 4,
@@ -4423,20 +4701,6 @@
       "total_cognitive": 0,
       "function_count": 8,
       "lines": 34,
-      "crap_max": 2.0,
-      "crap_above_threshold": 0
-    },
-    {
-      "path": "src/app/features/reporting/reporting.routes.ts",
-      "fan_in": 1,
-      "fan_out": 3,
-      "dead_code_ratio": 0.0,
-      "complexity_density": 0.18,
-      "maintainability_index": 89.6,
-      "total_cyclomatic": 8,
-      "total_cognitive": 0,
-      "function_count": 8,
-      "lines": 45,
       "crap_max": 2.0,
       "crap_above_threshold": 0
     },
@@ -5296,6 +5560,12 @@
       "line_count": 187
     },
     {
+      "path": "src/app/features/reporting/results/report-results.page.ts",
+      "name": "<template>",
+      "line": 57,
+      "line_count": 174
+    },
+    {
       "path": "src/app/features/aircraft/list/aircraft-list.page.ts",
       "name": "<template>",
       "line": 29,
@@ -5404,10 +5674,22 @@
       "line_count": 104
     },
     {
+      "path": "src/app/features/reporting/report.store.ts",
+      "name": "<arrow>",
+      "line": 94,
+      "line_count": 104
+    },
+    {
       "path": "src/app/features/persons/persons.store.ts",
       "name": "<arrow>",
       "line": 116,
       "line_count": 103
+    },
+    {
+      "path": "src/app/features/reporting/edit/report-custom-builder.page.ts",
+      "name": "<template>",
+      "line": 54,
+      "line_count": 94
     },
     {
       "path": "src/app/features/start/start.page.ts",
@@ -5533,8 +5815,8 @@
   "targets": [
     {
       "path": "src/app/features/reservations/calendar/reservations-calendar.page.ts",
-      "priority": 13.7,
-      "efficiency": 6.9,
+      "priority": 14.2,
+      "efficiency": 7.1,
       "recommendation": "Extract <template> (cognitive: 42) in 488-LOC file into smaller functions",
       "category": "extract_complex_functions",
       "effort": "medium",
@@ -5579,7 +5861,7 @@
     }
   ],
   "target_thresholds": {
-    "fan_in_p95": 6.0,
+    "fan_in_p95": 5.0,
     "fan_in_p75": 3.0,
     "fan_out_p95": 11.0,
     "fan_out_p90": 9
