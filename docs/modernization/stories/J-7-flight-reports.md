@@ -21,7 +21,8 @@ acceptance:
 screen: /flightreports   # replacing legacy flsweb/src/reporting/ (FlightReportsModule.js)
 headless_pulled_in: "Excel synchronous export infra (S-093/094/095/096) → homed here as the first sync-export consumer: POI ExcelExportSupport helper + the cell-diff parity harness. Scope at J-7 = build helper + harness, cover FlightReports export only. DeliveryMailExport + AircraftStatisticReport parity coverage RIDE J-10 (harness reused, not rebuilt)."
 migration: "N/A — read-side. Reuses J-2's migrated Flight + FlightCrew data; no new mapper."
-parity_test: alpenflight/web/e2e/tests/reporting/flight-reports.spec.ts, alpenflight/web/e2e/tests/reporting/custom-builder.spec.ts, alpenflight/web/e2e/tests/real-idp/flight-reports-parity.spec.ts
+parity_test: alpenflight/web/e2e/tests/real-idp/flight-reports-parity.spec.ts   # FIRST token = ci.yml's "Derive journey proof spec" input (real-idp clean-seed); the mock specs below run via mock_test:, not alpenflight-proof — also: alpenflight/web/e2e/tests/reporting/{flight-reports,custom-builder}.spec.ts
+mock_test: alpenflight/web/e2e/tests/reporting/   # journey-under-work's own mock-auth specs (T-02: per-push mock-e2e runs ONLY these; prior journeys' mock specs run at the §4 gate + nightly)
 adr_refs: [0005, 0008, 0012, 0024]
 ---
 
@@ -228,9 +229,22 @@ form's next-touch journey (folding them here would violate the recorded operator
   at the fanout gate; `e2e/legacy-reference/reporting/` refs deferred (legacy stack unrunnable on the
   Alpine/musl dev box — note in `…/legacy-reference/reporting/PENDING.md` + provenance row).
   CI `add_pair` wiring for the reporting refs rides T-12 (structural gallery guard).
-- [ ] **T-02 — scope gate to J-7; prior journeys → mock-IdP (standing).** Set `mock_test:`
+- [x] **T-02 — scope gate to J-7; prior journeys → mock-IdP (standing).** Set `mock_test:`
   + `parity_test:` derivation so per-push runs only J-7's own specs heavy (real-idp) and prior
   journeys mock-IdP. *(seam: ci.yml spec selection + J-7 frontmatter)*
+  <br>DONE: no ci.yml edit needed — the derive mechanism (J-5 T-14 "Derive journey proof spec"
+  + J-6 T-02b "Derive journey mock-e2e filter") is fully frontmatter-driven and already handles
+  J-7. Two frontmatter corrections only: (1) reordered `parity_test:` so the real-idp spec
+  `e2e/tests/real-idp/flight-reports-parity.spec.ts` is the FIRST token (the derive step reads
+  only the first token; previously `flight-reports.spec.ts` (mock) was first → `alpenflight-proof`
+  fell back to the J-0 baseline); (2) added `mock_test: alpenflight/web/e2e/tests/reporting/`
+  (was absent → `alpenflight-mock-e2e` ran the FULL chromium suite). Simulated both derive steps
+  against the J-7 file on `integration/J-7`: `alpenflight-proof` now selects
+  `flight-reports-parity.spec.ts` (--project=real-idp, baseline=false); `alpenflight-mock-e2e`
+  selects filter `e2e/tests/reporting/` → the two J-7 reporting specs only (--project=chromium).
+  Fail-safe intact (non-integration branch → baseline / full suite). Prior journeys already run
+  mock-IdP per-push via this mechanism (their branches aren't under work); full cross-journey
+  real-idp regression stays nightly + the §4 do-ship gate.
 - [ ] **T-03 — backend FlightReport read model: paged filtered query + DTOs.** New read-side
   query over the Flight aggregate (date-range / type-flags / person|location filter), **tenant-
   scoped (ADR 0008)**; DTOs `FlightReportResult` + `FlightReportDataRecord` + nested
