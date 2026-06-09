@@ -12,6 +12,80 @@ them in the journey file; `/do-ship` folds them into the task list (sized per it
 and **clears the bullet here as it ships**. A standalone journey is filed only for
 genuinely new vertical feature scope.
 
+## Pending (filed by form-validation parity audit 2026-06-09)
+
+Full analysis + per-form verified gaps: `docs/modernization/form-validation-parity-audit.md`
+(ultracode sweep — 12 forms, legacy-oracle → parity-review → gap-hunter verify). Operator bar:
+legacy = minimum; **all** validations as-you-type (debounced ~200ms); server-on-submit stays the
+safety step. **Each rider rides the next touch of its form.** The as-you-type batch (P2/P3) all
+reuse the J-6b `liveFieldErrors` infra (`shared/util/form/inline-validation.ts:120`) — fold them
+into one as-you-type sweep when a form-heavy journey lands. (Operator chose riders for ALL of these,
+incl. the P0 safety items — 2026-06-09.)
+
+**P0 — safety / data-loss (below the legacy bar; each needs server + store + e2e):**
+- **Person edit silently DROPS all membership edits on update (data loss).** The `/edit` form
+  hydrates + lets you toggle memberNumber / memberStateId / isGlider|Motor|TowPilot, Save toasts
+  success, but `PersonUpdateRequest` omits them and `PUT /persons/{id}/clubs/current` (which EXISTS,
+  `PersonsController.java:139-144`) is never called. Wire the membership update in `persons.store.ts`
+  update (fields hydrated at `persons-edit.page.ts:387-400`, request omits at `:375-382`) + add an
+  edit-path e2e asserting role/memberNumber round-trip (only `persons-add-modal.spec.ts` exists, create-only).
+  *(seam: persons-edit update path + persons.store)*
+- **Flight-type FlightCode duplicate → raw 500** (reproduces the legacy bug). Add an
+  `@ExceptionHandler(DataIntegrityViolationException)` to `FlightTypesExceptionHandler` discriminating
+  `ux_flight_type_club_code` → 409 `field=flightCode` (mirror `LocationsExceptionHandler.java:83`) +
+  a `findActiveByCode` pre-check (`FlightTypesService.java:70,100,154`). **Coupled:** the store/effect
+  must route the 409 on the problem-detail `field` (name vs code) — today `flight-types.store.ts:229-236`
+  + `flight-types-edit.page.ts:344-350` send EVERY 409 to `flightTypeName`. *(seam: FlightTypesExceptionHandler + service + store 409 discrimination)*
+- **Flight-type Instructor × Observer mutual-exclusion enforced at NO layer** (legacy `CHECK` forbids
+  `(1,1)`). Add a cross-field validator (`flight-types-edit.page.ts:300-301`) **and** a domain XOR guard
+  in `FlightType.updateFlags()` (`FlightType.java:158-180`) — domain is the must-have (ADR-0022 §2);
+  optional DB CHECK (`V3:255-289`). *(seam: flight-type XOR — client + domain)*
+- **Club duplicate clubKey → 409 MISLABELED as a slug error on the wrong field.** `ClubsService.persist()`
+  (`:164-169`) maps *any* `DataIntegrityViolationException` → `SlugAlreadyExistsException`; distinguish
+  `ux_club_key` vs `ux_club_slug` before throwing → clean clubKey 409 (also fixes the latent "any future
+  t_club constraint → mislabeled slug" trap). *(seam: ClubsService DIVE discrimination)*
+
+**P1 — client-parity regression / dead code:**
+- **Profile Account `languageId` lost its required validator** (legacy `profile.html:61` had it; only the
+  server `@NotNull` enforces now). Add `Validators.required` (`profile-account.tab.ts:174`). *(seam: profile-account tab)*
+- **Flight edit: dead `FlightValidator` + zero client validation.** `FlightValidator`/`FlightCompositeValidator`
+  author the full Validate-job rule set but are NEVER invoked on any path (`FlightsService.createFlight/updateFlight`
+  never call them); and the form has NO `Validators`, NO `[errors]`/`[required]` bindings, and Save is never
+  gated on validity (`flight-form.model.ts:79-118`, `flights-edit.page.ts:613-650`). Wire-or-delete the
+  validator + add client `required` on flightDate/aircraftId/pilot + gate Save on `form.invalid`.
+  *(seam: flights validator wiring + flight-form client validators)*
+
+**P2 — as-you-type sweep (mechanical, one shared infra; the systemic J-6b-bar miss):**
+- The J-6b as-you-type bar is wired ONLY on reservation-edit + planning-edit. **Replace `ctl.touched ?
+  ctl.errors : null` with debounced `liveFieldErrors` on every other form:** aircraft
+  (`aircraft-edit.page.ts:157-194,252,333-352`), article (`articles-edit.page.ts:96-113`), club
+  (`clubs-edit.page.ts:83-133`), flight-type (`flight-types-edit.page.ts:109-135`), location
+  (`locations-edit.page.ts:130-206`+IOP `:265-292`), person (`persons-edit.page.ts:104-131`), planning-setup
+  (`planning-setup.page.ts:130-157`), user (`users-edit.page.ts:141-175` + roles-≥1 live `:351-354`),
+  profile 4 tabs (`profile-account.tab.ts:88-104`, `profile-personal.tab.ts:106-215`, `profile-pilot.tab.ts:188-190`).
+  *(seam: per-form `liveFieldErrors` adoption — fold into one sweep)*
+
+**P3 — missing `[errors]` bindings (PREREQUISITE for P2 on these fields — validator present but never renders
+inline at all, even on submit; `af-form-field` defaults `errors` to null):**
+- Bind `[errors]` on the `af-form-field` for the ~30 silent fields: aircraft 7 (`:206-227,315-329,369-401`),
+  article articleInfo (`:123-130`), flight-type FlightCode (`:120-127`), location IOP rows (`:265-292`),
+  person city/mobile/memberNumber (`:142,151,160`), user phone/remarks (`:189-200`), profile 9
+  (`profile-account.tab.ts:116-123`, `profile-personal.tab.ts:116-196`). *(seam: af-form-field [errors] bindings)*
+
+**P4 — server-roundtrip as-you-type pre-checks (submit-time 409 already CONFIRMED safe — UX only):**
+- Add a non-mutating `…/validate` endpoint + debounced store rxMethod (model on reservation overlap
+  `AircraftReservationsService.java:229-244`) + merge via `asyncErrors$`/`mergeFieldErrors`
+  (`inline-validation.ts:56,67`) for: aircraft immatriculation, article articleNumber, location ICAO,
+  user username. *(seam: per-aggregate /validate endpoint + store)*
+
+**P5 — declined better-than-legacy / cosmetic (low):**
+- Planning-setup: client `start ≤ end` + `≥1 weekday` cross-field validators + error region
+  (`planning-setup.page.ts:170-191,242-254`); planning info `maxLength(4000)` client-side
+  (`planning-edit.page.ts:376`). **Transloco-translate `af-field-errors`** — it renders the i18n KEY
+  verbatim (`common.errors.required`), no `t()` pipe (`af-field-errors.component.ts:12-13`). DIVE→400
+  handlers for reservation/planning FK→500 (phantom type/location/person ids — parity-met, lowest).
+  *(seam: planning-setup validators + af-field-errors transloco + reservation/planning DIVE handlers)*
+
 ## Retro-process flags
 
 **✅ Adjudicated + encoded by /do-retro (J-6 window, 2026-06-07)** — the four flags below were resolved this
